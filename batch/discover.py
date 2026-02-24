@@ -151,9 +151,6 @@ async def main():
         "The Police": ['police', 'the police', 'sting', 'roxane'],
     }
 
-    # # do once
-    # await init_db()
-
     # todo: not to produce duplicates
 
     img = aliased(Image)

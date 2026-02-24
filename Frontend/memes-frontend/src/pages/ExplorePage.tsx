@@ -18,13 +18,6 @@ export default function ExplorePage({ baseUrl }: ExplorePageProps) {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
-  // useEffect(() => {
-  //   fetchMemes().then(r => {
-  //     console.log(r)
-  //     setMemes(r)
-  //   })
-  // }, [])
-
   // const USE_MOCK = import.meta.env.DEV
   const USE_MOCK = false
 
@@ -78,44 +71,10 @@ export default function ExplorePage({ baseUrl }: ExplorePageProps) {
     }
   }, [cursor, hasMore, loading])
 
-  // async function fetchMemes(next: string | null): Promise<Meme[]> {
-
-  //   if (loading) return
-  //   setLoading(true)
-
-  //   const memesApi: MemesApi = USE_MOCK ? new MockMemesApi() : new HttpMemesApi("http://127.0.0.1:8081/") // import.meta.env.VITE_API_BASE_URL
-
-  //   return memesApi.searchMemes({
-  //     cursor: next,
-  //     limit: 12,
-  //   }).then(r => r.items!);
-
-  //   // await new Promise((r) => setTimeout(r, 300))
-  //   // return MOCK_MEMES
-  // }
-
   // todo: api url copy-pasted
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Explore</h1>
-
-      {/* <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {memes.map((meme) => (
-          <table>
-            <tr>
-              <td>
-                <img key={meme.id}
-                     src={"http://127.0.0.1:8081" + meme.imageUrl}
-                     className="rounded-lg"
-                            />
-              </td>
-            </tr>
-            {meme.text.map(line => (
-              <tr><td>{line}</td></tr>
-            ))}
-          </table>
-        ))}
-      </div> */}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {memes.map(meme => (
@@ -126,17 +85,6 @@ export default function ExplorePage({ baseUrl }: ExplorePageProps) {
           />
         ))}
       </div>
-
-      {/* {cursor && (
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => loadMemes(cursor)}
-            className="px-4 py-2 bg-black text-white rounded-lg"
-          >
-            {loading ? "Loading..." : "Load more"}
-          </button>
-        </div>
-      )} */}
 
       
       {/* Sentinel */}

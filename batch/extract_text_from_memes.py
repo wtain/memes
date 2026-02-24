@@ -236,8 +236,6 @@ async def persist_ocr_result(
         await session.commit()
 
 
-
-
 async def gpu_consumer(queue, metrics, pipeline):
     reader = easyocr.Reader(['en'], gpu=True)
 
@@ -281,13 +279,9 @@ async def gpu_consumer(queue, metrics, pipeline):
         }, image, pipeline)
 
 
-
 async def main(path: str):
     io_queue = asyncio.Queue(maxsize=50)
     cpu_queue = asyncio.Queue(maxsize=20)
-
-    # # do once
-    # await init_db()
 
     cpu_executor = ThreadPoolExecutor(max_workers=4)
 

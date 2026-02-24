@@ -1,41 +1,21 @@
 import asyncio
 import os
 
-from sqlalchemy import select, exists
+from sqlalchemy import select
 from sqlalchemy.sql.functions import count
 
-from Storage.db import AsyncSessionLocal, init_db
+from Storage.db import AsyncSessionLocal
 from embeddings import EmbeddingsDetector
-from Storage.models import Image, OCRText, Embedding
+from Storage.models import Image, Embedding
 
 
 async def main():
-
-    # do once
-    await init_db()
 
     async with AsyncSessionLocal() as session:
 
         total_images = (await session.execute(
             select(count(Image.id))
         )).scalar_one()
-
-        # stmt = (
-        #     select(Image.filename)
-        #     .where(
-        #         ~exists().where(OCRText.image_id == Image.id)
-        #     )
-        # )
-        # result = await session.execute(stmt)
-        # no_ocr_count = len([fn for (fn,) in result])
-
-        # no_ocr_count = (await session.execute(
-        #     select(count(Image.id))
-        #     .where(
-        #         ~exists().where(OCRText.image_id == Image.id)
-        #     )
-        # )).scalar_one()
-
 
         stmt = (
             select(Image.filename, Image.id)
@@ -129,7 +109,7 @@ async def main():
 
         print('-' * 20)
         print(f"Total images: {total_images}")
-        # print(f"No OCR: {no_ocr_count}")
+
         print(f"Images covered by rules: {images_matched}")
         print(f"Images not matched (first {non_matched_count_first}): {images_not_matched[:non_matched_count_first]}")
 
