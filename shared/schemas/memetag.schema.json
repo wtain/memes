@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memetag.schema.json",
+  "title": "MemeTag",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "category": { "type": "string" },
+    "score": { "type": "number" }
+  },
+  "required": ["name"]
+}

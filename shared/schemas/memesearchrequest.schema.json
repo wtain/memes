@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memesearchrequest.schema.json",
+  "title": "MemeSearchRequest",
+  "type": "object",
+  "properties": {
+    "query": { "type": "string" },
+    "cursor": { "type": "string" },
+    "limit": { "type": "number" },
+    "tags": {
+      "type": "array",
+      "items": {
+        "$ref": "./memetag.schema.json"
+      }
+    }
+  }
+}

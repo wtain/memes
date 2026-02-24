@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "Meme": { "$ref": "meme.schema.json" },
+    "MemeTag": { "$ref": "memetag.schema.json" },
+    "Facet": { "$ref": "facet.schema.json" },
+    "FacetBucket": { "$ref": "facetbucket.schema.json" },
+    "MemeSearchRequest": { "$ref": "memesearchrequest.schema.json" },
+    "MemeSearchResponse": { "$ref": "memesearchresponse.schema.json" }
+  }
+}
