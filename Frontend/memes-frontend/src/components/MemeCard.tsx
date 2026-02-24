@@ -24,32 +24,6 @@ export default function MemeCard({ meme, baseUrl }: Props) {
         loading="lazy"
       />
 
-      {/* <div className="space-y-1 mb-3">
-        {meme.text.map((line, i) => (
-          <div key={i} className="text-sm">
-            {line}
-          </div>
-        ))}
-      </div> */}
-
-      {/* Tags overlay */}
-      {/* <div className="absolute bottom-2 left-2 right-2 flex flex-wrap gap-1">
-        {meme.tags.slice(0, 4).map((tag) => (
-          <span
-            key={tag.name}
-            className="rounded-full bg-black/70 px-2 py-0.5 text-xs text-white"
-          >
-            {tag.name}
-          </span>
-        ))}
-
-        {meme.tags.length > 4 && (
-          <span className="rounded-full bg-black/50 px-2 py-0.5 text-xs text-white">
-            +{meme.tags.length - 4}
-          </span>
-        )}
-      </div> */}
-
       <TagList tags={meme.tags} />
 
       {/* OCR text overlay */}

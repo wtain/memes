@@ -17,7 +17,7 @@ export class HttpMemesApi implements MemesApi {
     }
 
     const response = await fetch(
-      `${this.baseUrl}/api/images?${params.toString()}`,
+      `${this.baseUrl}api/images?${params.toString()}`,
       {
         headers: {
           "Accept": "application/json",
