@@ -5,3 +5,15 @@ See database credentials in Dockerfile
 ```commandline
 pg_dump --schema-only --no-owner --no-privileges --format=plain --file=migrations/baseline.sql postgresql://ocr:ocr@localhost:5432/ocrdb
 ```
+
+Create migration
+
+```commandline
+alembic revision --autogenerate -m "add something"
+```
+
+Apply migrations
+
+```commandline
+alembic upgrade head
+```

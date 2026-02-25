@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
-    DateTime, JSON, func, Numeric
+    DateTime, JSON, func, Numeric, Index
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
@@ -20,6 +20,14 @@ class Image(Base):
     height = Column(Integer)
     created_at = Column(DateTime, server_default=func.now())
 
+    __table_args__ = (
+        Index(
+            "ix_images_created_at_id_desc",
+            created_at.desc(),
+            id.desc()
+        ),
+    )
+
     texts = relationship("OCRText", back_populates="image", cascade="all, delete-orphan")
     metrics = relationship("ImageMetrics", uselist=False, back_populates="image")
     errors = relationship("ProcessingError", back_populates="image")
@@ -29,7 +37,7 @@ class Image(Base):
 class ImageMetrics(Base):
     __tablename__ = "image_metrics"
 
-    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True, index=True)
 
     read_time_ms = Column(Numeric)
     preprocess_time_ms = Column(Numeric)
@@ -44,8 +52,8 @@ class ImageMetrics(Base):
 class OCRText(Base):
     __tablename__ = "ocr_texts"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
     text = Column(Text, nullable=False)
     confidence = Column(Float)
@@ -60,8 +68,8 @@ class OCRText(Base):
 class Embedding(Base):
     __tablename__ = "embeddings"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
     text = Column(Text, nullable=False)
     confidence = Column(Float)
@@ -75,8 +83,8 @@ class Embedding(Base):
 class ProcessingError(Base):
     __tablename__ = "processing_errors"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
     stage = Column(String, nullable=False)   # read | preprocess | ocr | persist
     message = Column(Text, nullable=False)
