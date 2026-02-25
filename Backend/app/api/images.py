@@ -15,6 +15,7 @@ from app.services.image_store import (
     IMAGES_DIR,
 )
 from app.types.generated.meme import Schema as Meme
+from app.types.generated.memetag import Schema as MemeTag
 from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -29,6 +30,7 @@ async def get_images(
 
     img = aliased(Image)
     ocr = aliased(OCRText)
+    embed = aliased(Embedding)
     async with AsyncSessionLocal() as session:
         query = (
             select(
@@ -58,6 +60,18 @@ async def get_images(
 
         for t in result_texts:
             index[str(t.image_id)].text.append(t.text)
+
+        query_embeddings = (
+            select(
+                embed.image_id, embed.text, embed.confidence
+            )
+            .where(ocr.image_id.in_(ids))
+        )
+
+        result_embeddings = await session.execute(query_embeddings)
+
+        for t in result_embeddings:
+            index[str(t.image_id)].tags.append(MemeTag(name=t.text, category="Embedding", score=t.confidence))
 
         response_memes = MemeSearchResponse(items=items, nextCursor=str(items[-1].id), )
         return response_memes

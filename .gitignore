@@ -1,3 +1,8 @@
 .idea/
 .venv/
 .venv311/
+
+**/__pycache__/
+**/.idea/
+**/node_modules/
+**/.env
