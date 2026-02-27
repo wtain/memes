@@ -4,6 +4,7 @@ import MemeCard from "../components/MemeCard"
 import { MockMemesApi } from "../api/mock/MockMemesApi"
 import { HttpMemesApi } from "../api/http/HttpMemesApi"
 import { MemesApi } from "../api/MemesApi"
+import { MemeDetailsModal } from "../components/MemeDetailsModal"
 
 type ExplorePageProps = {
   baseUrl: string
@@ -14,6 +15,7 @@ export default function ExplorePage({ baseUrl }: ExplorePageProps) {
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+  const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null)
 
   const observerRef = useRef<IntersectionObserver | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
@@ -82,9 +84,18 @@ export default function ExplorePage({ baseUrl }: ExplorePageProps) {
             key={meme.id}
             meme={meme}
             baseUrl={baseUrl}
+            onClick={() => setSelectedMeme(meme)}
           />
         ))}
       </div>
+
+      {selectedMeme && (
+        <MemeDetailsModal
+          meme={selectedMeme}
+          baseUrl={baseUrl}
+          onClose={() => setSelectedMeme(null)}
+        />
+      )}
 
       
       {/* Sentinel */}

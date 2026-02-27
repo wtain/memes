@@ -73,3 +73,10 @@ export default defineConfig([
   },
 ])
 ```
+
+
+Run dev server
+
+```
+pnpm run dev
+```

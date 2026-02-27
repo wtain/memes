@@ -80,7 +80,7 @@ async def get_images(
         next_cursor_string = base64.urlsafe_b64encode(next_cursor.encode()).decode()
 
         response.headers.update(short_cache_headers(30))
-        items = [Meme(id=str(r.id), imageUrl=f"/api/images/{str(r.id)}", text=[],) for r in results]
+        items = [Meme(id=str(r.id), imageUrl=f"/api/images/{str(r.id)}", text=[], tags=[],) for r in results]
 
         ids = set(map(lambda meme: meme.id, items))
 
@@ -112,6 +112,7 @@ async def get_images(
 
         # todo: has_next
         # limit+1?
+        # frontend: what happens on failure? how can we retry later?
         response_memes = MemeSearchResponse(items=items, nextCursor=next_cursor_string, )
         return response_memes
 

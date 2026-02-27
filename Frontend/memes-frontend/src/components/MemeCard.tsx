@@ -5,14 +5,16 @@ import { TagList } from "./TagList"
 type Props = {
   meme: Meme
   baseUrl: string
+  onClick?: () => void
 }
 
-export default function MemeCard({ meme, baseUrl }: Props) {
+export default function MemeCard({ meme, baseUrl, onClick }: Props) {
   const [showText, setShowText] = useState(false)
 
   return (
     <div
       className="relative overflow-hidden rounded-xl border bg-white shadow-sm hover:shadow-md transition"
+      onClick={onClick}
       onMouseEnter={() => setShowText(true)}
       onMouseLeave={() => setShowText(false)}
     >

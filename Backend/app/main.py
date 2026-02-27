@@ -1,4 +1,5 @@
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
@@ -20,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# uvicorn app.main:app --reload
+# uvicorn app.main:app --reload --env-file app/.env --port 8081
 app.include_router(images_router, prefix="/api")
 
 if __name__ == "__main__":
