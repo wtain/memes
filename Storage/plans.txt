@@ -1,0 +1,17 @@
+
+embeddings:
+index:
+
+5️⃣ Important: Don’t Forget Index Type
+
+When using pgvector you’ll likely want:
+
+CREATE INDEX ON embeddings
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+
+Alembic autogenerate will NOT generate this correctly.
+
+You must write it manually.
+
+Later we can structure safe vector index migrations properly.

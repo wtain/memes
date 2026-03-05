@@ -1,4 +1,4 @@
-FROM postgres:16
+FROM pgvector/pgvector:pg18-trixie
 
 ENV POSTGRES_DB=ocrdb
 ENV POSTGRES_USER=ocr

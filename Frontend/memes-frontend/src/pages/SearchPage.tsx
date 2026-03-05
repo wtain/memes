@@ -7,9 +7,16 @@ import { useState } from "react"
 import { Meme } from "../types/meme"
 import { Facet } from "../types/facet"
 import MemeCard from "../components/MemeCard"
+import { MemesApi } from "../api/MemesApi"
+import { MemesList } from "../components/MemesList"
+
+type SearchPageProps = {
+  memesApi: MemesApi
+  baseUrl: string
+}
 
 
-export default function SearchPage() {
+export default function SearchPage({ memesApi, baseUrl }: SearchPageProps) {
   const [params, setParams] = useSearchParams()
 
     const { query, filters, cursor } = useMemo(
@@ -74,11 +81,11 @@ export default function SearchPage() {
           className="w-full mb-4 rounded-md border px-3 py-2"
         />
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {results.map((meme) => (
-                <MemeCard key={meme.id} meme={meme} />
-            ))}
-            </div>
+        <MemesList
+          memesApi={memesApi}
+          baseUrl={baseUrl}
+          filter={query}
+        />
 
       </section>
 

@@ -5,7 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
-from typing import Optional
+from typing import Optional, List
 from fastapi import Response
 from sqlalchemy import select, tuple_
 from sqlalchemy.orm import aliased
@@ -25,7 +25,6 @@ from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
 
-
 def b64_encode(sample_string):
     sample_string_bytes = sample_string.encode("ascii")
 
@@ -39,14 +38,15 @@ def b64_decode(base64_string):
     sample_string_bytes = base64.b64decode(base64_bytes)
     return sample_string_bytes.decode("ascii")
 
-
+# todo: structure for query
 @router.get("", response_model=MemeSearchResponse)
 async def get_images(
     response: Response,
+    q: Optional[str] = None,
     limit: int = Query(20, ge=1, le=100),
+    # tags: List[MemeTag] = Query(),
     cursor: Optional[str] = None,
 ):
-
     img = aliased(Image)
     ocr = aliased(OCRText)
     embed = aliased(Embedding)
@@ -90,13 +90,17 @@ async def get_images(
             select(
                 ocr.image_id, ocr.text, ocr.confidence
             )
-            .where(ocr.image_id.in_(ids))
+            .where(
+                (ocr.image_id.in_(ids)) &
+                (ocr.confidence > 0.8)
+            )
         )
 
         result_texts = await session.execute(query_texts)
 
+        # todo: change response structure to incroporate confidence and move this logic to frontend
         for t in result_texts:
-            index[str(t.image_id)].text.append(t.text)
+            index[str(t.image_id)].text.append(f"{t.text} ({t.confidence})")
 
         query_embeddings = (
             select(
@@ -108,7 +112,7 @@ async def get_images(
         result_embeddings = await session.execute(query_embeddings)
 
         for t in result_embeddings:
-            index[str(t.image_id)].tags.append(MemeTag(name=t.text, category="Embedding", score=t.confidence))
+            index[str(t.image_id)].tags.append(MemeTag(name=t.text, category="OCR", score=t.confidence))
 
         # todo: has_next
         # limit+1?

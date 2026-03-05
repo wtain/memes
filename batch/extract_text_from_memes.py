@@ -14,8 +14,10 @@ import time
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from Storage.db import AsyncSessionLocal
-from Storage.models import Image, OCRText, ImageMetrics, ImageProcessingStatus
+# split models in exports into models and db
+# or create a module and import it?
+from batch.models.external import AsyncSessionLocal
+from batch.models.external import Image, OCRText, ImageMetrics, ImageProcessingStatus
 
 
 PIPELINE = "easyocr:en"
@@ -208,6 +210,8 @@ async def persist_ocr_result(
     pipeline):
     async with AsyncSessionLocal() as session:
         for bbox, text, confidence in ocr_result:
+            # todo: threshold confidence
+            # todo: create session once
             session.add(
                 OCRText(
                     image_id=image.id,
@@ -219,6 +223,7 @@ async def persist_ocr_result(
 
         await mark_done(session, image, pipeline)
 
+        # todo: also delete texts
         await session.execute(
             delete(ImageMetrics).where(
                 ImageMetrics.image_id == image.id
@@ -237,6 +242,9 @@ async def persist_ocr_result(
 
 
 async def gpu_consumer(queue, metrics, pipeline):
+    # reader = easyocr.Reader(['en'], gpu=True)
+    # reader = easyocr.Reader(['en', 'ru'], gpu=True)
+    reader_ru = easyocr.Reader(['ru'], gpu=True)
     reader = easyocr.Reader(['en'], gpu=True)
 
     while True:
@@ -247,9 +255,12 @@ async def gpu_consumer(queue, metrics, pipeline):
         file, img, read_t, prep_t, image = item
 
         t0 = time.perf_counter()
-        result = reader.readtext(img)
+        result_en = reader.readtext(img)
+        result_ru = reader_ru.readtext(img)
         t_ocr = time.perf_counter() - t0
         t_total = read_t + prep_t + t_ocr
+
+        result = result_en + result_ru
 
         metrics["read_time_ms"].append(read_t)
         metrics["preprocess_time_ms"].append(prep_t)
