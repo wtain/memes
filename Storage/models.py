@@ -1,3 +1,4 @@
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
     DateTime, JSON, func, Numeric, Index
@@ -71,13 +72,19 @@ class Embedding(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
-    text = Column(Text, nullable=False)
-    confidence = Column(Float)
+    embedding = Column(Vector(512))
 
     created_at = Column(DateTime, server_default=func.now())
 
     image = relationship("Image", back_populates="embeddings")
 
+
+class Concept(Base):
+    __tablename__ = "concepts"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    embedding = Column(Vector(512))
 
 
 class ProcessingError(Base):
