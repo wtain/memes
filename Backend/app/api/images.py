@@ -3,11 +3,12 @@ import json
 import uuid
 from datetime import datetime
 
+import sqlalchemy
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from typing import Optional, List
 from fastapi import Response
-from sqlalchemy import select, tuple_
+from sqlalchemy import select, tuple_, distinct
 from sqlalchemy.orm import aliased
 
 from app.services.cache import short_cache_headers
@@ -51,16 +52,38 @@ async def get_images(
     ocr = aliased(OCRText)
     embed = aliased(Embedding)
     async with AsyncSessionLocal() as session:
+
+        query_filter = None
+        if q:
+            query_filter = (
+                select(
+                    distinct(img.id)
+                )
+                .join(ocr, ocr.image_id == img.id)
+                .where(
+                    # sqlalchemy.func.upper(q).in_(sqlalchemy.func.upper(ocr.text))
+                    sqlalchemy.func.upper(ocr.text).contains(str.upper(q))
+                )
+            )
+
         query = (
             select(
-                img.id, img.filename, img.created_at
+                img.id, img.filename, img.created_at,
+                # ocr.text, ocr.confidence
             )
+            # .join(ocr, ocr.image_id == img.id)
         )
         if cursor:
             cursor_obj = json.loads(b64_decode(cursor))
             cursor_created_at = datetime.fromisoformat(cursor_obj["created_at"])
             cursor_id = uuid.UUID(cursor_obj["id"])
             query = query.where(tuple_(img.created_at, img.id) < tuple_(cursor_created_at, cursor_id))
+
+        if query_filter is not None:
+            ids_results = await session.execute(query_filter)
+            ids = [id for (id,) in ids_results.all()]
+            query = query.where(img.id.in_(ids))
+
         query = (
             query
             .order_by(
@@ -72,12 +95,14 @@ async def get_images(
         result = await session.execute(query)
         results = result.all()
 
-        last_result = results[-1]
-        next_cursor = json.dumps({
-            "id": str(last_result.id),
-            "created_at": last_result.created_at.isoformat()
-        })
-        next_cursor_string = base64.urlsafe_b64encode(next_cursor.encode()).decode()
+        next_cursor_string = None
+        if len(results) > 0:
+            last_result = results[-1]
+            next_cursor = json.dumps({
+                "id": str(last_result.id),
+                "created_at": last_result.created_at.isoformat()
+            })
+            next_cursor_string = base64.urlsafe_b64encode(next_cursor.encode()).decode()
 
         response.headers.update(short_cache_headers(30))
         items = [Meme(id=str(r.id), imageUrl=f"/api/images/{str(r.id)}", text=[], tags=[],) for r in results]
@@ -98,7 +123,7 @@ async def get_images(
 
         result_texts = await session.execute(query_texts)
 
-        # todo: change response structure to incroporate confidence and move this logic to frontend
+        # todo: change response structure to incorporate confidence and move this logic to frontend
         for t in result_texts:
             index[str(t.image_id)].text.append(f"{t.text} ({t.confidence})")
 
