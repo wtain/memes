@@ -33,6 +33,7 @@ class Image(Base):
     metrics = relationship("ImageMetrics", uselist=False, back_populates="image")
     errors = relationship("ProcessingError", back_populates="image")
     embeddings = relationship("Embedding", back_populates="image", cascade="all, delete-orphan")
+    Tags = relationship("Tag", back_populates="image", cascade="all, delete-orphan")
 
 
 class ImageMetrics(Base):
@@ -77,6 +78,21 @@ class Embedding(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     image = relationship("Image", back_populates="embeddings")
+
+
+class ImageTag(Base):
+    __tablename__ = "tags"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
+
+    key = Column(String)
+    value = Column(String)
+    source = Column(String)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    image = relationship("Image", back_populates="tags")
 
 
 class Concept(Base):
