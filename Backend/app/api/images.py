@@ -90,7 +90,7 @@ async def get_images(
                 img.created_at.desc(),
                 img.id.desc()
             )
-            .limit(limit)
+            .limit(limit+1)
         )
         result = await session.execute(query)
         results = result.all()
@@ -127,22 +127,29 @@ async def get_images(
         for t in result_texts:
             index[str(t.image_id)].text.append(f"{t.text} ({t.confidence})")
 
-        query_embeddings = (
-            select(
-                embed.image_id, embed.text, embed.confidence
-            )
-            .where(embed.image_id.in_(ids))
-        )
+        # query_embeddings = (
+        #     select(
+        #         embed.image_id, embed.text, embed.confidence
+        #     )
+        #     .where(embed.image_id.in_(ids))
+        # )
+        #
+        # result_embeddings = await session.execute(query_embeddings)
+        #
+        # for t in result_embeddings:
+        #     index[str(t.image_id)].tags.append(MemeTag(name=t.text, category="OCR", score=t.confidence))
 
-        result_embeddings = await session.execute(query_embeddings)
+        has_next = len(items) > limit
 
-        for t in result_embeddings:
-            index[str(t.image_id)].tags.append(MemeTag(name=t.text, category="OCR", score=t.confidence))
+        if has_next:
+            items = items[:limit]
 
         # todo: has_next
         # limit+1?
         # frontend: what happens on failure? how can we retry later?
-        response_memes = MemeSearchResponse(items=items, nextCursor=next_cursor_string, )
+        response_memes = MemeSearchResponse(items=items,
+                                            nextCursor=next_cursor_string,
+                                            hasNext=has_next, )
         return response_memes
 
 

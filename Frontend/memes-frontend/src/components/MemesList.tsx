@@ -48,8 +48,10 @@ export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
 
     console.log("response: " + JSON.stringify(response))
     console.log("cursor: " + response.nextCursor)
+    console.log("Has next: " + response.hasNext)
     setCursor(response.nextCursor)
     setLoading(false)
+    setHasMore(response.hasNext!)
   },
     [loading, hasMore, filter]
   )
