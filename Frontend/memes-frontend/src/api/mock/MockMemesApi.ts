@@ -54,4 +54,8 @@ export class MockMemesApi implements MemesApi {
       nextCursor,
     })
   }
+
+  async similarMemes(id: string): Promise<MemeSearchResponse> {
+    return Promise.resolve({})
+  }
 }

@@ -31,4 +31,21 @@ export class HttpMemesApi implements MemesApi {
 
     return response.json()
   }
+
+  async similarMemes(id: string): Promise<MemeSearchResponse> {
+    const response = await fetch(
+      `${this.baseUrl}/api/images/${id}/similar`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`)
+    }
+
+    return response.json()
+  }
 }

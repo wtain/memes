@@ -102,6 +102,7 @@ export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
           meme={selectedMeme}
           baseUrl={baseUrl}
           onClose={() => setSelectedMeme(null)}
+          memesApi={memesApi}
         />
       )}
 

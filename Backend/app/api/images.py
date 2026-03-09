@@ -188,3 +188,50 @@ async def get_image(image_id: str, response: Response):
         headers=image_cache_headers(),
     )
 
+@router.get("/{image_id}/similar", response_model=MemeSearchResponse)
+async def get_similar_images(
+    image_id: str,
+    response: Response,
+    # limit: int = Query(20, ge=1, le=100),
+    # cursor: Optional[str] = None,
+):
+    img = aliased(Image)
+    ocr = aliased(OCRText)
+    embed1 = aliased(Embedding)
+    embed2 = aliased(Embedding)
+    image_tag = aliased(ImageTag)
+    async with AsyncSessionLocal() as session:
+        query = (
+            select(
+                embed1.embedding
+            )
+            .where(embed1.image_id == image_id)
+        )
+        result = await session.execute(query)
+        embedding_query = result.scalar_one().tolist()
+
+        stmt = (
+            select(
+                embed2.image_id,
+                embed2.embedding.cosine_distance(embedding_query)
+            )
+            .filter(
+                embed2.image_id != image_id
+            )
+            .order_by(
+                embed2.embedding.cosine_distance(embedding_query)
+            ).limit(10)
+        )
+
+        results = await session.execute(stmt)
+        # results = res.scalars().all()
+
+        # print([f"{image_id} ({similarity})" for (image_id, similarity,) in results])
+
+        items = [Meme(id=str(image_id), imageUrl=f"/api/images/{str(image_id)}", text=[], tags=[], ) for (image_id, similarity,) in results]
+
+        # print(items)
+
+        response_memes = MemeSearchResponse(items=items)
+
+        return response_memes

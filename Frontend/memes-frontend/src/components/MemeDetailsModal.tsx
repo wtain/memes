@@ -1,15 +1,26 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { Meme } from "../types/meme"
 import { TagList } from "./TagList"
+import { MemesApi } from "../api/MemesApi"
+import MemeCard from "./MemeCard"
 
 type Props = {
   meme: Meme
   baseUrl: string
   onClose: () => void
+  memesApi: MemesApi
 }
 
-export function MemeDetailsModal({ meme, baseUrl, onClose }: Props) {
+export function MemeDetailsModal({ meme, baseUrl, onClose, memesApi }: Props) {
+
+  const [similarMemes, setSimilarMemes] = useState<Meme[]>([])
+
+  useEffect(() => {
+    memesApi.similarMemes(meme.id)
+      .then((resp) => setSimilarMemes(resp.items!))
+  }, [meme])
+
   // Close on ESC
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -74,6 +85,16 @@ export function MemeDetailsModal({ meme, baseUrl, onClose }: Props) {
           <div>
             <strong>Tags:</strong>
             <TagList tags={meme.tags} />
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {similarMemes.map(meme => (
+              <MemeCard
+                key={meme.id}
+                meme={meme}
+                baseUrl={baseUrl}
+              />
+            ))}
           </div>
         </div>
       </div>
