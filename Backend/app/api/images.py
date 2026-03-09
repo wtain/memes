@@ -15,7 +15,7 @@ from app.services.cache import short_cache_headers
 
 from app.services.cache import image_cache_headers
 
-from app.models.external import Image, OCRText, Embedding, AsyncSessionLocal
+from app.models.external import Image, OCRText, Embedding, ImageTag, AsyncSessionLocal
 
 from app.services.image_store import (
     IMAGES_DIR,
@@ -51,6 +51,7 @@ async def get_images(
     img = aliased(Image)
     ocr = aliased(OCRText)
     embed = aliased(Embedding)
+    image_tag = aliased(ImageTag)
     async with AsyncSessionLocal() as session:
 
         query_filter = None
@@ -138,6 +139,18 @@ async def get_images(
         #
         # for t in result_embeddings:
         #     index[str(t.image_id)].tags.append(MemeTag(name=t.text, category="OCR", score=t.confidence))
+
+        query_tags = (
+            select(
+                image_tag.image_id, image_tag.key, image_tag.value, image_tag.source
+            )
+            .where(image_tag.image_id.in_(ids))
+        )
+
+        result_tags = await session.execute(query_tags)
+
+        for (image_id, key, value, source) in result_tags:
+            index[str(image_id)].tags.append(MemeTag(name=value, category=key, score=1))
 
         has_next = len(items) > limit
 

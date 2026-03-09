@@ -33,7 +33,7 @@ class Image(Base):
     metrics = relationship("ImageMetrics", uselist=False, back_populates="image")
     errors = relationship("ProcessingError", back_populates="image")
     embeddings = relationship("Embedding", back_populates="image", cascade="all, delete-orphan")
-    Tags = relationship("Tag", back_populates="image", cascade="all, delete-orphan")
+    tags = relationship("ImageTag", back_populates="image", cascade="all, delete-orphan")
 
 
 class ImageMetrics(Base):

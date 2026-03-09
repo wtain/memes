@@ -22,37 +22,39 @@ export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
 
   useEffect(() => {
     loadMemes(undefined)
+    setCursor(undefined)
+    window.scrollTo({top: 0})
   }, [filter])
 
   const loadMemes = useCallback(async (next: string | undefined) => {
-    if (loading) return
-    setLoading(true)
+      if (loading) return
+      setLoading(true)
 
-    const response = await memesApi.searchMemes({
-      cursor: next,
-      limit: 12, 
-      query: filter
-    })
+      const response = await memesApi.searchMemes({
+        cursor: next,
+        limit: 12, 
+        query: filter
+      })
 
-    setMemes(prev =>
-      next ? [...prev, ...(response.items || []).map(item => ({
-        ...item,
-        text: item.text || [],
-        tags: item.tags || []
-      }))] : (response.items || []).map(item => ({
-        ...item,
-        text: item.text || [],
-        tags: item.tags || []
-      }))
-    )
+      setMemes(prev =>
+        next ? [...prev, ...(response.items || []).map(item => ({
+          ...item,
+          text: item.text || [],
+          tags: item.tags || []
+        }))] : (response.items || []).map(item => ({
+          ...item,
+          text: item.text || [],
+          tags: item.tags || []
+        }))
+      )
 
-    console.log("response: " + JSON.stringify(response))
-    console.log("cursor: " + response.nextCursor)
-    console.log("Has next: " + response.hasNext)
-    setCursor(response.nextCursor)
-    setLoading(false)
-    setHasMore(response.hasNext!)
-  },
+      // console.log("response: " + JSON.stringify(response))
+      // console.log("cursor: " + response.nextCursor)
+      // console.log("Has next: " + response.hasNext)
+      setCursor(response.nextCursor)
+      setLoading(false)
+      setHasMore(response.hasNext!)
+    },
     [loading, hasMore, filter]
   )
 
@@ -92,6 +94,9 @@ export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
         ))}
       </div>
 
+        {
+          // todo: reset cursor when query changes
+        }
       {selectedMeme && (
         <MemeDetailsModal
           meme={selectedMeme}

@@ -207,7 +207,8 @@ async def persist_ocr_result(
     ocr_result: list,
     metrics: dict,
     image: Image,
-    pipeline):
+    pipeline,
+    language: str):
     async with AsyncSessionLocal() as session:
         for bbox, text, confidence in ocr_result:
             # todo: threshold confidence
@@ -217,7 +218,8 @@ async def persist_ocr_result(
                     image_id=image.id,
                     text=text,
                     confidence=float(confidence),
-                    bbox=[[v.item() if isinstance(v, numpy.int32) else v for v in p] for p in bbox]
+                    bbox=[[v.item() if isinstance(v, numpy.int32) else v for v in p] for p in bbox],
+                    language=language,
                 )
             )
 
@@ -244,8 +246,11 @@ async def persist_ocr_result(
 async def gpu_consumer(queue, metrics, pipeline):
     # reader = easyocr.Reader(['en'], gpu=True)
     # reader = easyocr.Reader(['en', 'ru'], gpu=True)
-    reader_ru = easyocr.Reader(['ru'], gpu=True)
-    reader = easyocr.Reader(['en'], gpu=True)
+
+    readers = {
+        "ru": easyocr.Reader(['ru'], gpu=True),
+        "en": easyocr.Reader(['en'], gpu=True)
+    }
 
     while True:
         item = await queue.get()
@@ -254,40 +259,39 @@ async def gpu_consumer(queue, metrics, pipeline):
 
         file, img, read_t, prep_t, image = item
 
-        t0 = time.perf_counter()
-        result_en = reader.readtext(img)
-        result_ru = reader_ru.readtext(img)
-        t_ocr = time.perf_counter() - t0
-        t_total = read_t + prep_t + t_ocr
+        for language, reader in readers.items():
 
-        result = result_en + result_ru
+            t0 = time.perf_counter()
+            result = reader.readtext(img)
+            t_ocr = time.perf_counter() - t0
+            t_total = read_t + prep_t + t_ocr
 
-        metrics["read_time_ms"].append(read_t)
-        metrics["preprocess_time_ms"].append(prep_t)
-        metrics["ocr_time_ms"].append(t_ocr)
-        metrics["total_time_ms"].append(t_total)
-        # todo: error metrics
-        # todo: store to database
+            metrics["read_time_ms"].append(read_t)
+            metrics["preprocess_time_ms"].append(prep_t)
+            metrics["ocr_time_ms"].append(t_ocr)
+            metrics["total_time_ms"].append(t_total)
+            # todo: error metrics
+            # todo: store to database
 
-        print(
-            f"{file}: "
-            f"read={read_t:.3f}s "
-            f"prep={prep_t:.3f}s "
-            f"ocr={t_ocr:.3f}s "
-            f"total={t_total :.3f}s"
-        )
+            print(
+                f"{file}: "
+                f"read={read_t:.3f}s "
+                f"prep={prep_t:.3f}s "
+                f"ocr={t_ocr:.3f}s "
+                f"total={t_total :.3f}s"
+            )
 
-        print(f"\n=== {file} ===")
-        for bbox, text, confidence in result:
-            print(f"{text} ({confidence})")
+            print(f"\n=== {file} ===")
+            for bbox, text, confidence in result:
+                print(f"{text} ({confidence})")
 
-        h, w = img.shape[:2]
-        await persist_ocr_result(file, (w, h), result, {
-            "read_time_ms": read_t,
-            "preprocess_time_ms": prep_t,
-            "ocr_time_ms": t_ocr,
-            "total_time_ms": t_total
-        }, image, pipeline)
+            h, w = img.shape[:2]
+            await persist_ocr_result(file, (w, h), result, {
+                "read_time_ms": read_t,
+                "preprocess_time_ms": prep_t,
+                "ocr_time_ms": t_ocr,
+                "total_time_ms": t_total
+            }, image, pipeline, language)
 
 
 async def main(path: str):
