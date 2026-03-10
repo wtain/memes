@@ -62,6 +62,7 @@ rules = {
         "genre": "hard rock",
         "person": "chad kroger"
     },
+    "chad kroeger": "nickelback",
     "slayer": {
         "band": "slayer",
         "country": "usa",
@@ -87,7 +88,7 @@ rules = {
         "country": "usa",
         "genre": "symphonic deathcore",
         "lore": ["snarling"],
-        "person": "wil ramos"
+        "person": "will ramos"
     },
     "nirvana": {
         "band": "nirvana",
@@ -154,6 +155,114 @@ rules = {
         "genre": "thrash metal",
         "lore": ["antagonism"],
         "person": ["dave mustaine"],
+    },
+    "taylor swift": {
+        "band": "taylor swift",
+        "country": "usa",
+        "genre": "pop",
+        "lore": ["relationship", "love"],
+        "person": ["taylor swift"],
+    },
+    "black sabbath": {
+        "band": "black sabbath",
+        "country": "great britain",
+        "genre": "heavy metal",
+        "lore": ["witches", "antagonism"],
+        "person": ["ozzy osbourne", "geeze butler", "tony iommi"],
+    },
+    "iron maiden": {
+        "band": "iron maiden",
+        "country": "great britain",
+        "genre": "heavy metal",
+        "lore": ["history", "war"],
+        "person": ["bruce dickinson", "dave murray"],
+    },
+    "steel panther": {
+        "band": "steel panther",
+        "country": "usa",
+        "genre": "glam metal",
+        "lore": ["parties", "booze"],
+    },
+    "alice in chains": {
+        "band": "alice in chains",
+        "country": "usa",
+        "genre": "grunge",
+    },
+    "soundgarden": {
+        "band": "soundgarden",
+        "country": "usa",
+        "genre": "grunge",
+        "person": "chris cornell",
+    },
+    "mayhem": {
+        "band": "mayhem",
+        "country": "norway",
+        "genre": "black metal",
+        "lore": ["satan", "homicide"],
+        "person": ["euronymous"]
+    },
+    "euronymous": "mayhem",
+    "arch enemy": {
+        "band": "arch enemy",
+        "country": "sweden",
+        "genre": "melodic death metal",
+        "lore": ["antagonism", "society"],
+        "person": ["michael ammott", "angela gossow", "alissa white-gluz"]
+    },
+    "korn": {
+        "band": "korn",
+        "country": "usa",
+        "genre": "nu metal",
+        "lore": ["antagonism", "society"],
+        "person": ["jonathan davis"]
+    },
+    "limp bizkit": {
+        "band": "limp bizkit",
+        "country": "usa",
+        "genre": ["nu metal", "rap metal"],
+        "lore": ["antagonism", "society"],
+        "person": ["fred durst"]
+    },
+    "linkin park": {
+        "band": "linkin park",
+        "country": "usa",
+        "genre": ["nu metal", "rap metal"],
+        "lore": ["society"],
+        "person": ["michael shinoda", "emily armstrong", "chester bennington"]
+    },
+    "sepultura": {
+        "band": "sepultura",
+        "country": "brazil",
+        "genre": ["groove metal"],
+        "lore": ["society"],
+        "person": ["max cavaliera", "igor cavaliera"]
+    },
+    "pantera": {
+        "band": "pantera",
+        "country": "usa",
+        "genre": ["glam metal", "groove metal"],
+        "lore": ["society"],
+        "person": ["dimebag darell", "phil anselmo"]
+    },
+    "gojira": {
+        "band": "gojira",
+        "country": "france",
+        "genre": ["grove metal", "progressive metal"],
+        "lore": ["society", "whales"],
+        "person": ["joe duplantier"]
+    },
+    "meshuggah": {
+        "band": "meshuggah",
+        "country": "sweden",
+        "genre": ["mat metal"],
+        "lore": ["society"],
+    },
+    "black metal": {
+        "genre": "black metal",
+        "lore": "satan",
+    },
+    "death metal": {
+        "genre": "death metal",
     },
 }
 

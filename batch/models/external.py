@@ -12,6 +12,7 @@ try:
                         ImageMetrics,
                         OCRText,
                         ImageTag,
+                        Concept,
                         ProcessingError,
                         ImageProcessingStatus,
                         Embedding)
@@ -28,6 +29,7 @@ __all__ = [
     'ImageMetrics',
     'OCRText',
     'ImageTag',
+    'Concept',
     'Embedding',
     'ProcessingError',
     'ImageProcessingStatus',
