@@ -64,6 +64,7 @@ export interface MemeSearchRequest {
  */
 export interface MemeSearchResponse {
   items?: Meme[];
+  facets?: Facet[];
   nextCursor?: string;
   hasNext?: boolean;
   [k: string]: unknown;

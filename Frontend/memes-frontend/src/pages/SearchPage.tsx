@@ -1,10 +1,8 @@
-import { useEffect, useMemo } from "react"
+import { useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
-import { searchMemes } from "../api/search"
 import FacetSidebar from "../components/FacetSidebar"
 import { parseSearchParams, buildSearchParams } from "../utils/searchParams"
 import { useState } from "react"
-import { Meme } from "../types/meme"
 import { Facet } from "../types/facet"
 import { MemesApi } from "../api/MemesApi"
 import { MemesList } from "../components/MemesList"
@@ -12,57 +10,21 @@ import { useDebounce } from "../utils/useDebounce"
 
 type SearchPageProps = {
   memesApi: MemesApi
-  baseUrl: string
 }
 
 
-export default function SearchPage({ memesApi, baseUrl }: SearchPageProps) {
+export default function SearchPage({ memesApi }: SearchPageProps) {
     const [params, setParams] = useSearchParams()
 
-    const { query, filters, cursor } = useMemo(
+    const { query, filters } = useMemo(
       () => parseSearchParams(params),
       [params]
     )
 
-    const debouncedQuery = useDebounce(query, 300);
+    const [debouncedQuery, setDebouncedQuery] = useDebounce<string>(query, 300);
 
-    const [results, setResults] = useState<Meme[]>([])
     const [facets, setFacets] = useState<Facet[]>([])
-    const [nextCursor, setNextCursor] = useState<string | undefined>()
 
-    useEffect(() => {
-      if (debouncedQuery.length < 2) {
-        setResults([]);
-        return;
-      }
-
-      const controller = new AbortController();
-
-      searchMemes({ debouncedQuery, filters, cursor })
-        .then((res) => {
-          setFacets(res.facets)
-          setNextCursor(res.nextCursor)
-
-          setResults((prev) =>
-            cursor ? [...prev, ...res.results] : res.results
-          )
-        })
-        .catch((err) => {
-          if (err.name !== "AbortError") {
-            console.error(err);
-          }
-        })
-
-        return () => controller.abort();
-    }, [debouncedQuery, filters, cursor])
-
-
-    useEffect(() => {
-      searchMemes({ query, filters }).then((res) => {
-        setResults(res.results)
-        setFacets(res.facets)
-      })
-    }, [query, filters])
 
     function updateSearch(
       nextQuery: string,
@@ -96,8 +58,7 @@ export default function SearchPage({ memesApi, baseUrl }: SearchPageProps) {
             }
             onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  // todo: implement in debounce?
-                  // setDebouncedQuery(query);
+                  setDebouncedQuery(query);
                 }
             }}
             placeholder="Search memes..."
@@ -106,24 +67,14 @@ export default function SearchPage({ memesApi, baseUrl }: SearchPageProps) {
 
           <MemesList
             memesApi={memesApi}
-            baseUrl={baseUrl}
-            filter={query}
+            filter={debouncedQuery}
+            onFacetsChanged={(facets: Facet[]) => {
+              setFacets(facets)
+            }}
+            tagFilters={filters}
           />
 
         </section>
-
-        {nextCursor && (
-          <button
-            className="mt-6 rounded-md border px-4 py-2"
-            onClick={() =>
-              setParams(
-                buildSearchParams(query, filters, nextCursor)
-              )
-            }
-          >
-            Load more
-          </button>
-        )}
 
       </div>
     )

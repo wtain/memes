@@ -7,12 +7,11 @@ import MemeCard from "./MemeCard"
 
 type Props = {
   meme: Meme
-  baseUrl: string
   onClose: () => void
   memesApi: MemesApi
 }
 
-export function MemeDetailsModal({ meme, baseUrl, onClose, memesApi }: Props) {
+export function MemeDetailsModal({ meme, onClose, memesApi }: Props) {
 
   const [similarMemes, setSimilarMemes] = useState<Meme[]>([])
 
@@ -60,11 +59,11 @@ export function MemeDetailsModal({ meme, baseUrl, onClose, memesApi }: Props) {
 
         {/* Image */}
         <div className="mb-6">
-          <img
-            src={baseUrl + meme.imageUrl}
-            alt={meme.id}
-            className="max-w-full h-auto mx-auto"
-          />
+          <MemeCard
+                key={meme.id}
+                meme={meme}
+                memesApi={memesApi}
+              />
         </div>
 
         {/* Metadata */}
@@ -92,7 +91,7 @@ export function MemeDetailsModal({ meme, baseUrl, onClose, memesApi }: Props) {
               <MemeCard
                 key={meme.id}
                 meme={meme}
-                baseUrl={baseUrl}
+                memesApi={memesApi}
               />
             ))}
           </div>

@@ -1,14 +1,17 @@
 import base64
+import itertools
 import json
 import uuid
+from collections import defaultdict
 from datetime import datetime
+from operator import itemgetter
 
 import sqlalchemy
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from typing import Optional, List
 from fastapi import Response
-from sqlalchemy import select, tuple_, distinct
+from sqlalchemy import select, tuple_, distinct, and_
 from sqlalchemy.orm import aliased
 
 from app.services.cache import short_cache_headers
@@ -20,6 +23,8 @@ from app.models.external import Image, OCRText, Embedding, ImageTag, AsyncSessio
 from app.services.image_store import (
     IMAGES_DIR,
 )
+from app.types.generated.facet import Schema as Facet
+from app.types.generated.facetbucket import Schema as FacetBucket
 from app.types.generated.meme import Schema as Meme
 from app.types.generated.memetag import Schema as MemeTag
 from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
@@ -46,12 +51,27 @@ async def get_images(
     q: Optional[str] = None,
     limit: int = Query(20, ge=1, le=100),
     # tags: List[MemeTag] = Query(),
+    # facets: List[str] = Query(),  # todo: use proper model
+    facets: Optional[str] = None,  # todo: use proper model
     cursor: Optional[str] = None,
 ):
     img = aliased(Image)
     ocr = aliased(OCRText)
     embed = aliased(Embedding)
     image_tag = aliased(ImageTag)
+
+    tags = defaultdict(set)
+    # for k, v in itertools.groupby(map(lambda facet: facet.split(':'), facets), itemgetter(0)):
+    #     tags[k].add(v)
+    if facets:
+        for facet in facets.split(','):
+            vals = facet.split(':')
+            category, value = vals[0], vals[1]
+            tags[category].add(value)
+
+    # for k in tags:
+    #     print(tags[k])
+
     async with AsyncSessionLocal() as session:
 
         query_filter = None
@@ -66,6 +86,17 @@ async def get_images(
                     sqlalchemy.func.upper(ocr.text).contains(str.upper(q))
                 )
             )
+
+        tags_filter = None
+        if tags:
+            tags_filter = (
+                select(
+                    distinct(image_tag.image_id)
+                )
+            )
+            for key in tags:
+                tags_filter = tags_filter.where(and_(image_tag.key == key,
+                                                     image_tag.value.in_(tags[key])))
 
         query = (
             select(
@@ -84,6 +115,40 @@ async def get_images(
             ids_results = await session.execute(query_filter)
             ids = [id for (id,) in ids_results.all()]
             query = query.where(img.id.in_(ids))
+
+        if tags_filter is not None:
+            ids_results = await session.execute(tags_filter)
+            ids = [id for (id,) in ids_results.all()]
+            query = query.where(img.id.in_(ids))
+
+        # subquery = select(img.id).subquery()
+        # subquery = query.subquery().c.id
+
+        subquery = query.subquery()
+
+        query_facets = (
+            select(
+                image_tag.key,
+                image_tag.value
+            )
+            .where(
+                image_tag.image_id.in_(
+                    select(subquery.c.id).subquery()
+                )
+            )
+            .group_by(
+                image_tag.key,
+                image_tag.value
+            )
+        )
+
+        result_facets = await session.execute(query_facets)
+        # print(result_facets.all())
+        facets = defaultdict(set)
+        for (k, v,) in result_facets.all():
+            facets[k].add(v)
+
+        facets = [Facet(name=name, buckets=[FacetBucket(value=value, count=0.0) for value in facets[name]]) for name in facets]
 
         query = (
             query
@@ -162,7 +227,9 @@ async def get_images(
         # frontend: what happens on failure? how can we retry later?
         response_memes = MemeSearchResponse(items=items,
                                             nextCursor=next_cursor_string,
-                                            hasNext=has_next, )
+                                            hasNext=has_next,
+                                            facets=facets,
+                                            )
         return response_memes
 
 

@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Meme } from "../types/meme"
+import { Meme, MemeTag } from "../types/meme"
 import MemeCard from "./MemeCard"
 import { MemeDetailsModal } from "./MemeDetailsModal"
 import { MemesApi } from "../api/MemesApi"
+import { Facet } from "../types/facet"
 
 type MemesListProps = {
   memesApi: MemesApi
-  baseUrl: string
   filter?: string
+  onFacetsChanged?: (facets: Facet[]) => void
+  tagFilters?: Record<string, string[]>
 }
 
-export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
+export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: MemesListProps) {
   const [memes, setMemes] = useState<Meme[]>([])
   const [cursor, setCursor] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(false)
@@ -24,17 +26,34 @@ export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
     loadMemes(undefined)
     setCursor(undefined)
     window.scrollTo({top: 0})
-  }, [filter])
+  }, [filter, tagFilters])
 
   const loadMemes = useCallback(async (next: string | undefined) => {
       if (loading) return
       setLoading(true)
 
+      if (filter!.length > 0 && filter!.length < 2) {
+        setMemes([]);
+        return;
+      }
+
       const response = await memesApi.searchMemes({
         cursor: next,
         limit: 12, 
-        query: filter
+        query: filter,
+        tags: Object.entries(tagFilters!).flatMap( ([name, values]) => {
+          return values.map(value => 
+            {
+              return {
+                category: name, 
+                name: value
+              }
+            }
+          )
+        } )
       })
+
+      onFacetsChanged!(response.facets!)
 
       setMemes(prev =>
         next ? [...prev, ...(response.items || []).map(item => ({
@@ -48,14 +67,11 @@ export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
         }))
       )
 
-      // console.log("response: " + JSON.stringify(response))
-      // console.log("cursor: " + response.nextCursor)
-      // console.log("Has next: " + response.hasNext)
       setCursor(response.nextCursor)
       setLoading(false)
       setHasMore(response.hasNext!)
     },
-    [loading, hasMore, filter]
+    [loading, hasMore, filter, tagFilters]
   )
 
   useEffect(() => {
@@ -88,19 +104,15 @@ export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
           <MemeCard
             key={meme.id}
             meme={meme}
-            baseUrl={baseUrl}
+            memesApi={memesApi}
             onClick={() => setSelectedMeme(meme)}
           />
         ))}
       </div>
 
-        {
-          // todo: reset cursor when query changes
-        }
       {selectedMeme && (
         <MemeDetailsModal
           meme={selectedMeme}
-          baseUrl={baseUrl}
           onClose={() => setSelectedMeme(null)}
           memesApi={memesApi}
         />
@@ -118,3 +130,5 @@ export function MemesList({ memesApi, baseUrl, filter }: MemesListProps) {
     </div>
   )
 }
+
+

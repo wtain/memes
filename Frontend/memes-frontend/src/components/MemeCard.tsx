@@ -1,14 +1,15 @@
 import { Meme } from "../types/meme"
 import { useState } from "react"
 import { TagList } from "./TagList"
+import { MemesApi } from "../api/MemesApi"
 
 type Props = {
   meme: Meme
-  baseUrl: string
+  memesApi: MemesApi
   onClick?: () => void
 }
 
-export default function MemeCard({ meme, baseUrl, onClick }: Props) {
+export default function MemeCard({ meme, memesApi, onClick }: Props) {
   const [showText, setShowText] = useState(false)
 
   return (
@@ -20,7 +21,7 @@ export default function MemeCard({ meme, baseUrl, onClick }: Props) {
     >
       {/* Image */}
       <img
-        src={baseUrl + meme.imageUrl}
+        src={memesApi.getImageUrl(meme)}
         alt={meme.id}
         className="aspect-square w-full object-cover"
         loading="lazy"

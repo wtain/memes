@@ -1,3 +1,4 @@
+
 export function parseSearchParams(params: URLSearchParams) {
   const filters: Record<string, string[]> = {}
 

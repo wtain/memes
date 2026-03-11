@@ -10,6 +10,12 @@
         "$ref": "./meme.schema.json"
       }
     },
+    "facets": {
+      "type": "array",
+      "items": {
+        "$ref": "./facet.schema.json"
+      }
+    },
     "nextCursor": { "type": "string" },
     "hasNext": { "type": "boolean" }
   }

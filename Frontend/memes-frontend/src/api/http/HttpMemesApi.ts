@@ -1,5 +1,5 @@
 import { MemesApi } from "../MemesApi"
-import { MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
+import { Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
   constructor(private readonly baseUrl: string) {}
@@ -13,7 +13,9 @@ export class HttpMemesApi implements MemesApi {
     if (request.cursor) params.set("cursor", request.cursor)
     if (request.limit) params.set("limit", String(request.limit))
     if (request.tags?.length) {
-      params.set("facets", request.tags.join(","))
+      params.set("facets", request.tags.map(tag => {
+        return `${tag.category}:${tag.name}`
+      }).join(","))
     }
 
     const response = await fetch(
@@ -47,5 +49,9 @@ export class HttpMemesApi implements MemesApi {
     }
 
     return response.json()
+  }
+
+  getImageUrl(meme: Meme): string {
+    return this.baseUrl + meme.imageUrl;
   }
 }
