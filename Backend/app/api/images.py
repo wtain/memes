@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from typing import Optional, List
 from fastapi import Response
-from sqlalchemy import select, tuple_, distinct, and_
+from sqlalchemy import select, tuple_, distinct, and_, or_, union_all
 from sqlalchemy.orm import aliased
 
 from app.services.cache import short_cache_headers
@@ -89,14 +89,20 @@ async def get_images(
 
         tags_filter = None
         if tags:
-            tags_filter = (
-                select(
-                    distinct(image_tag.image_id)
-                )
-            )
+            queries = []
             for key in tags:
-                tags_filter = tags_filter.where(and_(image_tag.key == key,
-                                                     image_tag.value.in_(tags[key])))
+                query = (
+                    select(
+                        distinct(image_tag.image_id)
+                    )
+                    .where(
+                        and_(image_tag.key == key,
+                             image_tag.value.in_(tags[key]))
+                    )
+                )
+                queries.append(query)
+            tags_filter = union_all(*queries)
+
 
         query = (
             select(
