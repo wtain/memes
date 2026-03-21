@@ -6,6 +6,7 @@
     "Facet": { "$ref": "facet.schema.json" },
     "FacetBucket": { "$ref": "facetbucket.schema.json" },
     "MemeSearchRequest": { "$ref": "memesearchrequest.schema.json" },
-    "MemeSearchResponse": { "$ref": "memesearchresponse.schema.json" }
+    "MemeSearchResponse": { "$ref": "memesearchresponse.schema.json" },
+    "Concept": { "$ref": "concept.schema.json" }
   }
 }

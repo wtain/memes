@@ -4,6 +4,8 @@ import { Meme } from "../types/meme"
 import { TagList } from "./TagList"
 import { MemesApi } from "../api/MemesApi"
 import MemeCard from "./MemeCard"
+import { Concept } from "../types/generated/all"
+import { ConceptRow } from "./ConceptRow"
 
 type Props = {
   meme: Meme
@@ -14,10 +16,16 @@ type Props = {
 export function MemeDetailsModal({ meme, onClose, memesApi }: Props) {
 
   const [similarMemes, setSimilarMemes] = useState<Meme[]>([])
+  const [concepts, setConcepts] = useState<Concept[]>([])
 
   useEffect(() => {
     memesApi.similarMemes(meme.id)
       .then((resp) => setSimilarMemes(resp.items!))
+  }, [meme])
+
+  useEffect(() => {
+    memesApi.getTopConceptsForImage(meme.id)
+      .then((resp) => setConcepts(resp!))
   }, [meme])
 
   // Close on ESC
@@ -84,6 +92,27 @@ export function MemeDetailsModal({ meme, onClose, memesApi }: Props) {
           <div>
             <strong>Tags:</strong>
             <TagList tags={meme.tags} />
+          </div>
+
+          <div>
+            { /** Copied from ConceptsPage */}
+            <table className="w-full border">
+                    <thead>
+                      <tr className="text-left bg-gray-100">
+                        <th className="p-3">ID</th>
+                        <th className="p-3">Name</th>
+                      </tr>
+                    </thead>
+            
+                    <tbody>
+                      {concepts.map(concept => (
+                        <ConceptRow
+                          key={concept.id}
+                          concept={concept}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

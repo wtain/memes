@@ -6,11 +6,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from . import memetag
-
 
 class Schema(BaseModel):
-    id: str
-    imageUrl: str
-    text: list[str] | None = None
-    tags: list[memetag.Schema] | None = None
+    id: float
+    name: str

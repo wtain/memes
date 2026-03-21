@@ -22,6 +22,15 @@ export default function AppLayout() {
           >
             Search
           </NavLink>
+
+          <NavLink
+            to="/concepts"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Concepts
+          </NavLink>
         </div>
       </header>
 

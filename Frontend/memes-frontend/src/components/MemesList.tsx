@@ -32,16 +32,12 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: Mem
       if (loading) return
       setLoading(true)
 
-      if (filter!.length > 0 && filter!.length < 2) {
+      if (filter && filter!.length > 0 && filter!.length < 2) {
         setMemes([]);
         return;
       }
 
-      const response = await memesApi.searchMemes({
-        cursor: next,
-        limit: 12, 
-        query: filter,
-        tags: Object.entries(tagFilters!).flatMap( ([name, values]) => {
+      const tags = tagFilters ? Object.entries(tagFilters!).flatMap( ([name, values]) => {
           return values.map(value => 
             {
               return {
@@ -50,10 +46,18 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: Mem
               }
             }
           )
-        } )
+        }) : []
+
+      const response = await memesApi.searchMemes({
+        cursor: next,
+        limit: 12, 
+        query: filter,
+        tags: tags
       })
 
-      onFacetsChanged!(response.facets!)
+      if (onFacetsChanged) {
+        onFacetsChanged(response.facets!)
+      }
 
       setMemes(prev =>
         next ? [...prev, ...(response.items || []).map(item => ({

@@ -1,5 +1,5 @@
 import { MemesApi } from "../MemesApi"
-import { Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
+import { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
   constructor(private readonly baseUrl: string) {}
@@ -53,5 +53,56 @@ export class HttpMemesApi implements MemesApi {
 
   getImageUrl(meme: Meme): string {
     return this.baseUrl + meme.imageUrl;
+  }
+
+  async listConcepts(): Promise<Concept[]> {
+    const response = await fetch(
+      `${this.baseUrl}/api/concepts`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`)
+    }
+
+    return response.json()
+  }
+  
+  async getTopImagesForConcept(conceptId: number): Promise<MemeSearchResponse> {
+    const response = await fetch(
+      `${this.baseUrl}/api/concepts/top-images?concept_id=${conceptId}`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async getTopConceptsForImage(imageId: string): Promise<Concept[]> {
+    const response = await fetch(
+      `${this.baseUrl}/api/concepts/for-image?image_id=${imageId}`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`)
+    }
+
+    return response.json()
   }
 }

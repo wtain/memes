@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api.images import router as images_router
+from app.api.concepts import router as concepts_router
 
 app = FastAPI(
     title="Memes API",
@@ -23,6 +24,7 @@ app.add_middleware(
 
 # uvicorn app.main:app --reload --env-file app/.env --port 8081
 app.include_router(images_router, prefix="/api")
+app.include_router(concepts_router, prefix="/api")
 
 if __name__ == "__main__":
     uvicorn.run(app,

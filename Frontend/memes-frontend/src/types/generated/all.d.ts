@@ -69,3 +69,12 @@ export interface MemeSearchResponse {
   hasNext?: boolean;
   [k: string]: unknown;
 }
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "Concept".
+ */
+export interface Concept {
+  id: number;
+  name: string;
+  [k: string]: unknown;
+}

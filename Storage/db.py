@@ -3,6 +3,14 @@ from sqlalchemy.orm import sessionmaker
 
 from models import Base
 
+async def get_async_db():
+    db = AsyncSessionLocal()
+    try:
+        yield db
+    except:
+        db.close()
+        raise
+
 DATABASE_URL = "postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb"
 
 engine = create_async_engine(

@@ -4,6 +4,7 @@ import ExplorePage from "../pages/ExplorePage"
 import SearchPage from "../pages/SearchPage"
 import { MemesApi } from "../api/MemesApi";
 import { HttpMemesApi } from "../api/http/HttpMemesApi";
+import ConceptsPage from "../pages/ConceptsPage";
 
 const baseUrl = "http://127.0.0.1:8081";
 
@@ -16,6 +17,7 @@ export const router = createBrowserRouter([
       { path: "/", element: <Navigate to="/explore" replace /> },
       { path: "/explore", element: <ExplorePage memesApi={memesApi} /> },
       { path: "/search", element: <SearchPage memesApi={memesApi} /> },
+      { path: "/concepts", element: <ConceptsPage memesApi={memesApi} /> },
     ],
   },
 ])
