@@ -99,3 +99,25 @@ async def get_concepts_for_image(
     results = result.all()
 
     return [ConceptDto(id=id, name=name) for (id, name, ) in results]
+
+
+@router.get("/{concept_id}")
+async def get_concept(
+    response: Response,
+    concept_id: int,
+    db: AsyncSessionLocal = Depends(get_async_db)
+):
+    query = (
+        select(
+            Concept.id,
+            Concept.name,
+        )
+        .where(
+            Concept.id == concept_id
+        )
+    )
+    result = await db.execute(query)
+    results = result.all()
+    (id, name, ) = results[0]
+
+    return ConceptDto(id=id, name=name)

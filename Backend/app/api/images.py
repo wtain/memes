@@ -261,6 +261,50 @@ async def get_image(image_id: str, response: Response):
         headers=image_cache_headers(),
     )
 
+
+@router.get("/meme/{image_id}")
+async def get_meme(image_id: str, response: Response):
+
+    async with AsyncSessionLocal() as session:
+        query = (
+            select(
+                Image.filename
+            )
+            .where(Image.id == image_id)
+        )
+        result = await session.execute(query)
+        file_name = result.scalar_one()
+
+        query = (
+            select(
+                OCRText.text
+            )
+            .where(
+                OCRText.image_id == image_id
+            )
+        )
+        result = await session.execute(query)
+        texts = [t for (t, ) in result]
+
+        query = (
+            select(
+                ImageTag.key,
+                ImageTag.value
+            )
+            .where(
+                ImageTag.image_id == image_id
+            )
+        )
+        result = await session.execute(query)
+        tags = [MemeTag(name=value, category=key) for (key, value, ) in result]
+
+        return Meme(id=image_id, imageUrl=getImageUrl(image_id), text=texts, tags=tags, originalFileName=file_name)
+
+
+def getImageUrl(image_id):
+    return f"/api/images/{str(image_id)}"
+
+
 @router.get("/{image_id}/similar", response_model=MemeSearchResponse)
 async def get_similar_images(
     image_id: str,
@@ -301,7 +345,7 @@ async def get_similar_images(
 
         # print([f"{image_id} ({similarity})" for (image_id, similarity,) in results])
 
-        items = [Meme(id=str(image_id), imageUrl=f"/api/images/{str(image_id)}", text=[], tags=[], ) for (image_id, similarity,) in results]
+        items = [Meme(id=str(image_id), imageUrl=getImageUrl(image_id), text=[], tags=[], ) for (image_id, similarity,) in results]
 
         # print(items)
 

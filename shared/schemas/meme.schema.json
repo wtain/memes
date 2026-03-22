@@ -6,6 +6,7 @@
   "properties": {
     "id": { "type": "string" },
     "imageUrl": { "type": "string", "format": "url" },
+    "originalFileName": { "type": "string" },
     "text": {
       "type": "array",
       "items": {

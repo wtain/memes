@@ -148,6 +148,13 @@ image_concepts = [
     "couple-in-the-beb-meme",
     "ronald-mcdonald-clown",
     "ned-flanders-simpsons",
+
+    "soyjak",
+    "guy-explaining-to-girl",
+    "taylor-swift",
+    "jesus-and-guy",
+    "ozzy",
+    "varg",
 ]
 
 # todo: assess concept quality by average deviation from the centroid

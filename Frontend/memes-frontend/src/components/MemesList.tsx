@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Meme, MemeTag } from "../types/meme"
 import MemeCard from "./MemeCard"
 import { MemeDetailsModal } from "./MemeDetailsModal"
 import { MemesApi } from "../api/MemesApi"
 import { Facet } from "../types/facet"
+import { Meme } from "../types/generated/all"
 
 type MemesListProps = {
   memesApi: MemesApi

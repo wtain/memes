@@ -12,4 +12,8 @@ export interface MemesApi {
   getTopImagesForConcept(conceptId: number): Promise<MemeSearchResponse>;
 
   getTopConceptsForImage(imageId: string): Promise<Concept[]>;
+
+  getMeme(id: string): Promise<Meme>;
+
+  getConcept(id: number): Promise<Concept>;
 }

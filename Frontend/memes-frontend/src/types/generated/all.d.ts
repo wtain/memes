@@ -15,6 +15,7 @@ export interface AllSchema {
 export interface Meme {
   id: string;
   imageUrl: string;
+  originalFileName?: string;
   text?: string[];
   tags?: MemeTag[];
   [k: string]: unknown;

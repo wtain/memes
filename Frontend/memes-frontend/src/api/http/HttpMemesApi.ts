@@ -105,4 +105,20 @@ export class HttpMemesApi implements MemesApi {
 
     return response.json()
   }
+
+  async getMeme(id: string): Promise<Meme> {
+    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}`)
+
+    if (!res.ok) throw new Error("Failed to fetch meme")
+
+    return res.json()
+  }
+
+  async getConcept(id: number): Promise<Concept> {
+    const res = await fetch(`${this.baseUrl}/api/concepts/${id}`)
+
+    if (!res.ok) throw new Error("Failed to fetch concept")
+
+    return res.json()
+  }
 }

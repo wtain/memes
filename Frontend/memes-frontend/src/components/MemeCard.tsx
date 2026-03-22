@@ -1,7 +1,7 @@
-import { Meme } from "../types/meme"
 import { useState } from "react"
 import { TagList } from "./TagList"
 import { MemesApi } from "../api/MemesApi"
+import { Meme } from "../types/generated/all"
 
 type Props = {
   meme: Meme

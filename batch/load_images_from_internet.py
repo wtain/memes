@@ -55,7 +55,7 @@ async def download_image(session, url, path, semaphore):
             print(f"Error loading {url}: {e}")
 
 
-async def download_images(query, images, output_dir):
+async def download_images(query, images, output_dir, prefix):
     os.makedirs(output_dir, exist_ok=True)
 
     semaphore = asyncio.Semaphore(10)  # tune this
@@ -68,7 +68,7 @@ async def download_images(query, images, output_dir):
             if not url:
                 continue
 
-            filename = f"{normalize_query(query)}_{i}"
+            filename = f"{normalize_query(query)}_{normalize_query(prefix)}_{i}"
             path = os.path.join(output_dir, filename)
 
             tasks.append(download_image(session, url, path, semaphore))
@@ -77,15 +77,53 @@ async def download_images(query, images, output_dir):
 
 
 async def main():
-    for query in [
-
+    for concept, queries in [
+        ("soyjak", [
+            "soyjak meme",
+            "wojaks pointing",
+        ]),
+        (
+            "guy explaining to girl", [
+                "guy explaining to girl meme",
+                "drunk guy talking to girl meme",
+            ]
+        ),
+        (
+            "taylor swift", [
+                "taylor swift",
+                "taylor swift singing",
+                "taylor swift interview",
+            ]
+        ),
+        (
+            "jesus and guy", [
+                "meme jesus and guy",
+                "meme jesus and man talking",
+            ]
+        ),
+        (
+            "ozzy", [
+                "ozzy osbourne",
+                "ozzy osbourne black sabbath",
+                "ozzy osbourne interview",
+            ]
+        ),
+        (
+            "varg", [
+                "varg vikernes",
+                "varg vikernes smiling",
+                "varg vikernes meme",
+            ]
+        ),
     ]:
-        print(f"Running query for '{query}'")
-        images = fetch_results(query, max_images=100)
+        for query in queries:
+            print(f"Running query for '{query}'")
+            images = fetch_results(query, max_images=100)
 
-        directory_name = normalize_query(query)
+            directory_name = normalize_query(concept)
+            prefix = normalize_query(query)
 
-        await download_images(query, images, f"images/{directory_name}")
+            await download_images(query, images, f"images/{directory_name}", prefix)
 
 
 if __name__ == "__main__":
