@@ -43,6 +43,14 @@ export function ConceptDetails({ concept, memesApi }: Props) {
           ))}
         </div>
       )}
+
+      {memes.length === 0 && !loading && (
+        <div
+          className="h-10 flex items-center justify-center"
+        >
+          <span>Nothing to show</span>
+        </div>
+      )}
     </div>
   )
 }

@@ -28,6 +28,7 @@ export interface MemeTag {
   name: string;
   category?: string;
   score?: number;
+  source?: string;
   [k: string]: unknown;
 }
 /**

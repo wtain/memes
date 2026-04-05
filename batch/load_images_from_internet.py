@@ -78,43 +78,60 @@ async def download_images(query, images, output_dir, prefix):
 
 async def main():
     for concept, queries in [
-        ("soyjak", [
-            "soyjak meme",
-            "wojaks pointing",
-        ]),
-        (
-            "guy explaining to girl", [
-                "guy explaining to girl meme",
-                "drunk guy talking to girl meme",
-            ]
-        ),
-        (
-            "taylor swift", [
-                "taylor swift",
-                "taylor swift singing",
-                "taylor swift interview",
-            ]
-        ),
-        (
-            "jesus and guy", [
-                "meme jesus and guy",
-                "meme jesus and man talking",
-            ]
-        ),
-        (
-            "ozzy", [
-                "ozzy osbourne",
-                "ozzy osbourne black sabbath",
-                "ozzy osbourne interview",
-            ]
-        ),
-        (
-            "varg", [
-                "varg vikernes",
-                "varg vikernes smiling",
-                "varg vikernes meme",
-            ]
-        ),
+        ('chad kroeger', [
+            'chad kroeger',
+            'chad kroeger nickelback',
+            'chad kroeger nickelback meme',
+        ])
+        # ('mikael akerfeldt', [
+        #     'mikael akerfeldt',
+        #     'mikael akerfeldt opeth',
+        #     'mikael akerfeldt sorrow meme',
+        # ])
+        # ('serj tankian', [
+        #     'serj tankian',
+        #     'serj tankian system of a down',
+        #     'serj tankian soad',
+        #     'serj tankian meme',
+        #     'serj tankian on stage',
+        # ])
+        # ("soyjak", [
+        #     "soyjak meme",
+        #     "wojaks pointing",
+        # ]),
+        # (
+        #     "guy explaining to girl", [
+        #         "guy explaining to girl meme",
+        #         "drunk guy talking to girl meme",
+        #     ]
+        # ),
+        # (
+        #     "taylor swift", [
+        #         "taylor swift",
+        #         "taylor swift singing",
+        #         "taylor swift interview",
+        #     ]
+        # ),
+        # (
+        #     "jesus and guy", [
+        #         "meme jesus and guy",
+        #         "meme jesus and man talking",
+        #     ]
+        # ),
+        # (
+        #     "ozzy", [
+        #         "ozzy osbourne",
+        #         "ozzy osbourne black sabbath",
+        #         "ozzy osbourne interview",
+        #     ]
+        # ),
+        # (
+        #     "varg", [
+        #         "varg vikernes",
+        #         "varg vikernes smiling",
+        #         "varg vikernes meme",
+        #     ]
+        # ),
     ]:
         for query in queries:
             print(f"Running query for '{query}'")
@@ -123,7 +140,7 @@ async def main():
             directory_name = normalize_query(concept)
             prefix = normalize_query(query)
 
-            await download_images(query, images, f"images/{directory_name}", prefix)
+            await download_images(query, images, f"images/{directory_name}/{prefix}", prefix)
 
 
 if __name__ == "__main__":

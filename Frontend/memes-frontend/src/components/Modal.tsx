@@ -39,7 +39,7 @@ export function Modal({ children, onClose, title }: Props) {
           <h2 className="text-xl font-bold">
             {title ?? "Details"}
           </h2>
-          <button onClick={onClose}>✕</button>
+          <button onClick={onClose} className="cursor-pointer">✕</button>
         </div>
 
         {children}

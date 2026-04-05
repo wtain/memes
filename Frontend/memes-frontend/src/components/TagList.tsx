@@ -9,12 +9,11 @@ export function TagList({ tags }: Props) {
     if (tags === null) {
         return(<></>)
     }
-    // console.log(tags)
   return (
     <div className="flex flex-wrap gap-2">
       {tags.filter(tag => tag.score! > 0.3)
            .map(tag => (
-        <Tag key={`${tag.category}:${tag.name}`} label={`${tag.name} (${tag.score})`} />
+        <Tag key={`${tag.category}:${tag.name}:${tag.source}`} label={`${tag.name} (${tag.source})`} />
       ))}
     </div>
   )

@@ -10,6 +10,8 @@ import uuid
 
 Base = declarative_base()
 
+EMBEDDING_DIM = 512
+
 
 class Image(Base):
     __tablename__ = "images"
@@ -30,6 +32,7 @@ class Image(Base):
     )
 
     texts = relationship("OCRText", back_populates="image", cascade="all, delete-orphan")
+    descriptions = relationship("OllamaDescription", back_populates="image", cascade="all, delete-orphan")
     metrics = relationship("ImageMetrics", uselist=False, back_populates="image")
     errors = relationship("ProcessingError", back_populates="image")
     embeddings = relationship("Embedding", back_populates="image", cascade="all, delete-orphan")
@@ -67,13 +70,26 @@ class OCRText(Base):
     image = relationship("Image", back_populates="texts")
 
 
+class OllamaDescription(Base):
+    __tablename__ = "ollama_description"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
+
+    text = Column(Text, nullable=False)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    image = relationship("Image", back_populates="descriptions")
+
+
 class Embedding(Base):
     __tablename__ = "embeddings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
-    embedding = Column(Vector(512))
+    embedding = Column(Vector(EMBEDDING_DIM))
 
     created_at = Column(DateTime, server_default=func.now())
 
@@ -100,7 +116,74 @@ class Concept(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    embedding = Column(Vector(512))
+    embedding = Column(Vector(EMBEDDING_DIM))  # Deprecate
+
+    image_sets = relationship("ConceptImageSet", back_populates="concept")
+    text_sets = relationship("ConceptTextSet", back_populates="concept")
+
+
+# -----------------------
+# IMAGE SIDE
+# -----------------------
+
+class ConceptImageSet(Base):
+    __tablename__ = "concept_image_sets"
+
+    id = Column(Integer, primary_key=True)
+    concept_id = Column(Integer, ForeignKey("concepts.id", ondelete="CASCADE"), nullable=False)
+
+    name = Column(String)
+    directory = Column(String)
+
+    centroid_embedding = Column(Vector(EMBEDDING_DIM))
+
+    concept = relationship("Concept", back_populates="image_sets")
+    images = relationship("ConceptImage", back_populates="image_set")
+
+
+class ConceptImage(Base):
+    __tablename__ = "concept_images"
+
+    id = Column(Integer, primary_key=True)
+    concept_image_set_id = Column(Integer, ForeignKey("concept_image_sets.id", ondelete="CASCADE"), nullable=False)
+
+    filename = Column(String, nullable=False)
+
+    embedding = Column(Vector(EMBEDDING_DIM))
+
+    image_set = relationship("ConceptImageSet", back_populates="images")
+
+
+# -----------------------
+# TEXT SIDE
+# -----------------------
+
+class ConceptTextSet(Base):
+    __tablename__ = "concept_text_sets"
+
+    id = Column(Integer, primary_key=True)
+    concept_id = Column(Integer, ForeignKey("concepts.id", ondelete="CASCADE"), nullable=False)
+
+    name = Column(String)
+
+    centroid_embedding = Column(Vector(EMBEDDING_DIM))
+
+    concept = relationship("Concept", back_populates="text_sets")
+    texts = relationship("ConceptText", back_populates="text_set")
+
+
+class ConceptText(Base):
+    __tablename__ = "concept_texts"
+
+    id = Column(Integer, primary_key=True)
+    concept_text_set_id = Column(Integer, ForeignKey("concept_text_sets.id", ondelete="CASCADE"), nullable=False)
+
+    name = Column(String)
+    text = Column(String, nullable=False)
+
+    embedding = Column(Vector(EMBEDDING_DIM))
+
+    text_set = relationship("ConceptTextSet", back_populates="texts")
 
 
 class ProcessingError(Base):

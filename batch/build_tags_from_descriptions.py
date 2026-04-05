@@ -1,4 +1,5 @@
 import asyncio
+import re
 from collections import defaultdict
 
 from sqlalchemy import delete, select
@@ -6,7 +7,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
 from batch.models.external import AsyncSessionLocal
-from batch.models.external import ImageTag, OCRText, Image
+from batch.models.external import ImageTag, Image, OllamaDescription
 
 
 # Band to tags
@@ -14,7 +15,7 @@ from batch.models.external import ImageTag, OCRText, Image
 
 # synonyms? multiple tokens could lead to same concepts
 
-
+# Copypasted from OCR batch. todo: externalise
 rules = {
     "opeth": {
         "band": "opeth",
@@ -264,17 +265,239 @@ rules = {
     "death metal": {
         "genre": "death metal",
     },
+
+    # added
+    "cat": {
+        "lore": "animals",
+        "animal": "cat",
+    },
+
+    "serj tankian": {
+        "lore": "music",
+        "person": "serj tankian",
+        "genre": "numetal",
+        "band": "system of a down",
+    },
+
+    "jesus": {
+        "lore": "religion",
+        "character": "jesus christ",
+    },
+
+    "skeletor": {
+        "lore": "cartoons",
+        "character": "skeletor",
+    },
+
+    "frog": {
+        "lore": "animals",
+        "animal": "frog",
+    },
+
+    "toad": {
+        "lore": "animals",
+        "animal": "toad",
+    },
+
+    "dog": {
+        "lore": "animals",
+        "animal": "dog",
+    },
+
+    "metalocalypse": {
+        "lore": "music",
+        "genre": ["metal", "death metal", "melodic death metal"],
+    },
+
+    "kerry king": {
+        "lore": "music",
+        "genre": ["metal", "thrash metal"],
+        "band": "slayer",
+    },
+
+    "the cure": {
+        "genre": ["proto-punk", "rock"],
+        "band": "the cure",
+    },
+    "beatles": {
+        "genre": "rock",
+        "band": "beatles",
+    },
+    "rolling stones": {
+        "genre": "rock",
+        "band": "rolling stones",
+    },
+    "the police": {
+        "genre": "soft rock",
+        "band": "the police",
+    },
+    "the doors": {
+        "genre": "rock",
+        "band": "the doors",
+    },
+    "def leppard": {
+        "genre": ["rock", "glam rock"],
+        "band": "def leppard",
+    },
+    "avril lavigne": {
+        "genre": ["punk rock", "pop punk"],
+        "band": "avril lavigne",
+        "person": "avril lavigne",
+    },
+    "static-x": {
+        "genre": ["alternative", "nu metal"],
+        "band": "static-x",
+    },
+    "deftones": {
+        "genre": ["alternative", "nu metal"],
+        "band": "deftones",
+    },
+    "mudvayne": {
+        "genre": ["alternative", "nu metal"],
+        "band": "mudvayne",
+    },
+    "anthrax": {
+        "genre": "thrash metal",
+        "band": "anthrax",
+    },
+    "lamb of god": {
+        "genre": "groove metal",
+        "band": "lamb of god",
+    },
+    "infant annihilator": {
+        "genre": ["death metal", "deathcore"],
+        "band": "infant annihilator",
+    },
+    "van halen": {
+        "genre": "glam metal",
+        "band": "van halen",
+    },
+    "yoda": {
+        "lore": "star wars",
+        "person": "master yoda",
+    },
+    "the office": {
+        "lore": "the office",
+    },
+    "borat": {
+        "person": "borat",
+    },
+    "kiss band": {
+        "genre": "glam metal",
+        "band": "kiss",
+    },
+    "iggy pop": {
+        "genre": "rock",
+        "band": "iggy pop",
+    },
+    "tim lambesis": {
+        "person": "tim lambesis",
+        "band": "as i lay dying",
+        "genre": "metalcore",
+    },
+    "red hot chili peppers": {
+        "band": "red hot chili peppers",
+        "genre": ["progressive rock", "funk metal"],
+    },
+    "anthony kiedis": {
+        "band": "red hot chili peppers",
+        "person": "anthony kiedis",
+    },
+    "autism": {
+        "lore": "autism",
+    },
+    "obituary": {
+        "genre": "death metal",
+        "band": "obituary",
+    },
+    "canibal corpse": "cannibal corpse",
+    "agalloch": {
+        "genre": ["fold metal", "black metal"],
+        "band": "agalloch",
+    },
+    "children of bodom": {
+        "genre": "melodic death metal",
+        "band": "children of bodom",
+        "country": "finland",
+    },
+
+    "dream theater": {
+        "genre": "progressive metal",
+        "band": "dream theater",
+        "country": "usa",
+    },
+    "progressive metal": {
+        "genre": "progressive metal",
+    },
+    "gutalax": {
+        "genre": ["grindcore", "coprogrind"],
+        "band": "gutalax",
+    },
+    "shark": {
+        "lore": "animals",
+        "animal": "shark",
+    },
+    "sesame street": {
+        "lore": "sesame street",
+    },
+    "zz top": {
+        "genre": ["southern rock", "hard rock"],
+        "band": "zz top",
+    },
+    "barbie girl": {
+        "band": "aqua",
+        "genre": "pop",
+        "song": "barbie girl",
+        "lore": "barbie",
+    },
+    "powerwolf": {
+        "genre": "power metal",
+        "lore": "religion",
+        "band": "powerwolf",
+    },
+    "sabaton": {
+        "genre": "power metal",
+        "lore": "war",
+        "band": "sabaton",
+    },
+    "twisted sister": {
+        "genre": "glam metal",
+        "band": "twisted suster",
+    },
+    "lord of the rings": {
+        "lore": "lord of the rings",
+    },
+    "beavis": {
+        "lore": "beavis and butthead",
+        "person": "beavis",
+    },
+    "pearl jam": {
+        "band": "pearl jam",
+        "country": "usa",
+        "genre": "grunge",
+    },
+    "bring me the horizon": {
+        "band": "bring me the horizon",
+        "country": "usa",
+        "genre": "metalcore",
+    },
+    "foo fighters": {
+        "band": "foo fighters",
+        "country": "usa",
+        "genre": ["hard rock", "grunge"],
+    },
 }
 
 async def main():
 
     async with AsyncSessionLocal() as session:
-        print("Deleting all OCR tags...")
+        print("Deleting all Ollama tags...")
         await session.execute(
             delete(
                 ImageTag
-            ).where(
-                ImageTag.source == "OCR"
+            )
+            .where(
+                ImageTag.source == "Ollama"
             )
         )
         await session.commit()
@@ -287,24 +510,16 @@ async def main():
 
         print("Running...")
         images_and_texts_results = await images_repo.get_images_and_texts()
-        # rules_matched_for_image = defaultdict(set)
         image_tags = defaultdict(set)
-        for filename, image_id, text, confidence in images_and_texts_results:
-            if confidence < 0.4:
-                continue
-            for band_name in rules:
-                # if band_name in rules_matched_for_image[filename]:
-                #     continue
+        for filename, image_id, text in images_and_texts_results:
+            for token in rules:
+                # if token in str.lower(text):
+                if re.search(rf"\b{re.escape(token)}\b", text, re.IGNORECASE):
 
-                if band_name in str.lower(text):
+                    while type(rules[token]) is str:
+                        token = rules[token]
 
-                    # rules_matched_for_image[filename].add(band_name)
-
-                    while type(rules[band_name]) is str:
-                        # print(f"Redirecting from {band_name} to {rules[band_name]}")
-                        band_name = rules[band_name]
-
-                    for tag_name, tag_value in rules[band_name].items():
+                    for tag_name, tag_value in rules[token].items():
                         if type(tag_value) is not list:
                             tag_value = [tag_value]
                         for value in tag_value:
@@ -313,7 +528,7 @@ async def main():
                                 image_tags[image_id].add(dedup_key)
                                 session.add(ImageTag(key=tag_name,
                                                      value=value,
-                                                     source="OCR",
+                                                     source="Ollama",
                                                      image_id=image_id))
 
 
@@ -321,11 +536,13 @@ async def main():
         await session.commit()
         print("Done")
 
+        print(f"Total images tagged: {len(image_tags.keys())}")
+
 class ImagesRepository:
 
     def __init__(self, session):
         self.img = aliased(Image)
-        self.ocr = aliased(OCRText)
+        self.description = aliased(OllamaDescription)
         self.session = session
 
     async def get_images_and_texts(self):
@@ -333,10 +550,9 @@ class ImagesRepository:
             select(
                 self.img.filename,
                 self.img.id,
-                self.ocr.text,
-                self.ocr.confidence
+                self.description.text
             ).join(
-                self.ocr, self.ocr.image_id == self.img.id
+                self.description, self.description.image_id == self.img.id
             )
         )
         images_and_texts_results = await self.session.execute(query)

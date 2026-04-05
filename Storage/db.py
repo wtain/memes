@@ -4,12 +4,16 @@ from sqlalchemy.orm import sessionmaker
 from models import Base
 
 async def get_async_db():
-    db = AsyncSessionLocal()
-    try:
-        yield db
-    except:
-        db.close()
-        raise
+    async with AsyncSessionLocal() as db:
+        try:
+            yield db
+            # If we get here without exception, commit any changes
+            await db.commit()
+        except Exception:
+            # If there's an exception, rollback
+            await db.rollback()
+            raise
+        # Session automatically closes when exiting the async with block
 
 DATABASE_URL = "postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb"
 

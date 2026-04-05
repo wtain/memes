@@ -1,48 +1,50 @@
 import { Facet } from "../types/facet"
+import { MultiSelectFacet } from "./MultiSelectFacet"
 
 type Props = {
   facets: Facet[]
   selected: Record<string, string[]>
-  onToggle: (facet: string, value: string) => void
+  onFilterChange: (facet: string, values: string[]) => void
+  onClear: () => void
 }
 
-export default function FacetSidebar({ facets, selected, onToggle }: Props) {
+export default function FacetSidebar({ facets, selected, onFilterChange, onClear }: Props) {
+  const hasSelection = Object.values(selected).some(v => v.length > 0)
+
   return (
     <aside className="w-64 shrink-0 border-r pr-4">
-      {facets.map((facet) => (
-        <div key={facet.name} className="mb-6">
-          <h3 className="font-semibold mb-2 capitalize">
-            {facet.name}
-          </h3>
+      {hasSelection && (
+        <button
+          onClick={onClear}
+          className="mb-4 text-sm text-blue-600 hover:underline"
+        >
+          Clear filters
+        </button>
+      )}
 
-          <ul className="space-y-1">
-            {facet.buckets.map((bucket) => {
-              const checked =
-                selected[facet.name]?.includes(bucket.value) ?? false
 
-              return (
-                <li key={bucket.value}>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() =>
-                        onToggle(facet.name, bucket.value)
-                      }
-                    />
-                    <span>
-                      {bucket.value}
-                      <span className="text-gray-400 ml-1">
-                        ({bucket.count})
-                      </span>
-                    </span>
-                  </label>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
+      {facets.map((facet) => {
+        const selectedValues = selected[facet.name] ?? []
+
+        return (
+          <div key={facet.name} className="mb-6">
+            <MultiSelectFacet
+              label={facet.name}
+              selected={selectedValues}
+              onChange={(nextValues) => {
+                onFilterChange(facet.name, nextValues)
+              }}
+              loadOptions={(q) =>
+                Promise.resolve(
+                  facet.buckets
+                    .filter(b => b.value.toLowerCase().includes(q.toLowerCase()))
+                    .map(b => ({ value: b.value, label: `${b.value} (${b.count})` }))
+                )
+              }
+            />
+          </div>
+        )
+      })}
     </aside>
   )
 }

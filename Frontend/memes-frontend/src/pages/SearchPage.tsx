@@ -33,13 +33,8 @@ export default function SearchPage({ memesApi }: SearchPageProps) {
       setParams(buildSearchParams(nextQuery, nextFilters))
     }
 
-    function toggleFacet(facet: string, value: string) {
-      const current = filters[facet] ?? []
-      const next = current.includes(value)
-        ? current.filter((v) => v !== value)
-        : [...current, value]
-
-      updateSearch(query, { ...filters, [facet]: next })
+    function handleFilterChange(facet: string, values: string[]) {
+      updateSearch(query, { ...filters, [facet]: values })
     }
 
     return (
@@ -47,7 +42,10 @@ export default function SearchPage({ memesApi }: SearchPageProps) {
         <FacetSidebar
           facets={facets}
           selected={filters}
-          onToggle={toggleFacet}
+          onFilterChange={handleFilterChange}
+          onClear={() => {
+            updateSearch(query, {})
+          }}
         />
 
         <section className="flex-1">

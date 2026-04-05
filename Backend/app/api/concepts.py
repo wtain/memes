@@ -1,123 +1,53 @@
-from fastapi import APIRouter
-from fastapi import Response
-from fastapi.params import Depends
-from sqlalchemy import select
-from sqlalchemy.orm import aliased
+from typing import AsyncGenerator
 
-from app.models.external import Concept, AsyncSessionLocal, get_async_db, Embedding, Image
-from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
-from app.types.generated.meme import Schema as Meme
+from fastapi import APIRouter, Depends, Response
 
+from app.models.external import AsyncSessionLocal, get_async_db
+from app.repositories.concept_repository import ConceptRepository
+from app.services.concept_service import ConceptService
 from app.types.generated.concept import Schema as ConceptDto
+from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
 router = APIRouter(prefix="/concepts", tags=["concepts"])
 
-@router.get("")
-async def get_concepts(
-    response: Response,
-    db: AsyncSessionLocal = Depends(get_async_db)
-):
-    query = (
-        select(
-            Concept.id,
-            Concept.name
-        )
-    )
-    result = await db.execute(query)
-    results = result.all()
 
-    return [ConceptDto(id=id, name=name) for (id, name, ) in results]
+async def get_concept_service(db: AsyncSessionLocal = Depends(get_async_db)) -> AsyncGenerator[ConceptService, None]:
+    service = ConceptService(ConceptRepository(db))
+    try:
+        yield service
+    finally:
+        # Optionally do cleanup if needed
+        pass
+        # The session will be closed by get_async_db's finally block
+
+
+@router.get("", response_model=list[ConceptDto])
+async def get_concepts(response: Response, service: ConceptService = Depends(get_concept_service)):
+    return await service.get_all()
 
 
 @router.get("/top-images", response_model=MemeSearchResponse)
 async def get_top_images_for_concept(
     response: Response,
     concept_id: int,
-    db: AsyncSessionLocal = Depends(get_async_db)
+    service: ConceptService = Depends(get_concept_service),
 ):
-    img = aliased(Image)
-    embed = aliased(Embedding)
-    concept = aliased(Concept)
-
-    concept_query = (
-        select(
-            concept.embedding
-        )
-        .where(concept.id == concept_id)
-    )
-    result_concept = await db.execute(concept_query)
-    concept_embedding = result_concept.scalar_one()
-
-    query = (
-        select(
-            embed.image_id,
-            embed.embedding.cosine_distance(concept_embedding)
-        )
-        .order_by(
-            embed.embedding.cosine_distance(concept_embedding)
-        ).limit(10)
-    )
-    result = await db.execute(query)
-    results = result.all()
-
-    items = [Meme(id=str(image_id), imageUrl=f"/api/images/{str(image_id)}", text=[], tags=[], ) for
-             (image_id, similarity,) in results]
-
-    response_memes = MemeSearchResponse(items=items)
-
-    return response_memes
+    return await service.get_top_images(concept_id)
 
 
-@router.get("/for-image")
+@router.get("/for-image", response_model=list[ConceptDto])
 async def get_concepts_for_image(
     response: Response,
     image_id: str,
-    db: AsyncSessionLocal = Depends(get_async_db)
+    service: ConceptService = Depends(get_concept_service),
 ):
-    query_image = (
-        select(
-            Embedding.embedding
-        )
-        .filter(
-            Embedding.image_id == image_id
-        )
-    )
-    result_image = await db.execute(query_image)
-    image_embedding = result_image.scalar_one()
-
-    query = (
-        select(
-            Concept.id,
-            Concept.name,
-            # Concept.embedding.cosine_distance(image_embedding)
-        )
-        .order_by(
-            Concept.embedding.cosine_distance(image_embedding)
-        ).limit(10)
-    )
-    result = await db.execute(query)
-    results = result.all()
-
-    return [ConceptDto(id=id, name=name) for (id, name, ) in results]
+    return await service.get_for_image(image_id)
 
 
-@router.get("/{concept_id}")
+@router.get("/{concept_id}", response_model=ConceptDto)
 async def get_concept(
     response: Response,
     concept_id: int,
-    db: AsyncSessionLocal = Depends(get_async_db)
+    service: ConceptService = Depends(get_concept_service),
 ):
-    query = (
-        select(
-            Concept.id,
-            Concept.name,
-        )
-        .where(
-            Concept.id == concept_id
-        )
-    )
-    result = await db.execute(query)
-    results = result.all()
-    (id, name, ) = results[0]
-
-    return ConceptDto(id=id, name=name)
+    return await service.get_by_id(concept_id)

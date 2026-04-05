@@ -6,7 +6,8 @@
   "properties": {
     "name": { "type": "string" },
     "category": { "type": "string" },
-    "score": { "type": "number" }
+    "score": { "type": "number" },
+    "source": { "type": "string" }
   },
   "required": ["name"]
 }

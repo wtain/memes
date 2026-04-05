@@ -7,7 +7,9 @@ sys.path.insert(0, str(project_root / "Storage"))
 
 try:
     # Import assuming models are in root/models.py or root/models/
-    from models import Base, Image, ImageMetrics, OCRText, ImageTag, ProcessingError, ImageProcessingStatus, Embedding, Concept
+    from models import (Base, Image, ImageMetrics, OCRText, ImageTag, ProcessingError, ImageProcessingStatus, Embedding,
+                        Concept, ConceptImageSet,
+                        ConceptImage,)
     from db import AsyncSessionLocal, SessionLocal, init_db, get_async_db
 except ImportError as e:
     print(e)
@@ -20,6 +22,8 @@ __all__ = [
     'ImageMetrics',
     'OCRText',
     'Concept',
+    'ConceptImageSet',
+    'ConceptImage',
     'ImageTag',
     'Embedding',
     'ProcessingError',

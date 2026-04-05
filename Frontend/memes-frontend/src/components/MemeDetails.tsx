@@ -37,7 +37,22 @@ export function MemeDetails({ meme, memesApi }: Props) {
       <div className="space-y-4 text-sm">
         <div>
           <strong>ID:</strong> <a href={`/memes/${meme.id}`}>{meme.id}</a> <br />
-          <strong>File name:</strong> {meme.originalFileName} <br />
+            
+                <div onClick={() => {
+                        if ("clipboard" in navigator) {
+                            navigator.clipboard
+                                .writeText(meme.originalFileName!)
+                                .then(() => {
+                                    
+                                })
+                        }
+                    }}
+                    className="cursor-pointer hover:bg-gray-100 transition"
+                >
+                    <strong>File name: </strong> 
+                    {meme.originalFileName} <br />
+                </div>
+        
         </div>
 
         <div>

@@ -1,7 +1,8 @@
 import asyncio
-import math
+import csv
 import os
 import pathlib
+from datetime import datetime
 from itertools import product
 
 import numpy as np
@@ -11,7 +12,7 @@ from sqlalchemy import delete
 
 from batch.embeddingutils.image import load_image, embed_image
 from batch.models.external import AsyncSessionLocal
-from batch.models.external import ImageTag, OCRText, Embedding, Concept # , Image, Embedding
+from batch.models.external import ImageTag, OCRText, Embedding, Concept, ConceptImageSet, ConceptImage
 
 
 # concept name -> list of texts
@@ -196,47 +197,133 @@ async def main():
             concept_texts = [template.format(text) for text, template in product(concept_texts, templates)]
 
             vectors = [embed_text(t) for t in concept_texts]
-            concept_embedding = np.mean(vectors, axis=0)
-            concept_embedding /= np.linalg.norm(concept_embedding)
+            concept_embedding = build_centroid(vectors)
 
             # Medoid?
-            similarities = [np.dot(vector, concept_embedding) for vector in vectors]
-            average_similarity = np.mean(similarities)
-            std_similarity = np.std(similarities)
-            print(f"Concept: {concept_name}")
-            print(f"Similarity: {average_similarity}")
-            print(f"STD Similarity: {std_similarity}")
+            report_statistics(concept_embedding, concept_name, vectors)
 
             session.add(Concept(name=concept_name, embedding=concept_embedding))
 
-        print("Processing image concepts")
-        for concept in image_concepts:
-            vectors = []
-            dir_path = os.path.join(pathlib.Path().resolve(), "images", concept)
-            for image_file in os.listdir(dir_path):
-                file_path = os.path.join(dir_path, image_file)
-                try:
-                    image = load_image(file_path)
-                    vector = embed_image(image, device, model, preprocess)
-                    vectors.append(vector)
-                except Exception as e:
-                    print(f"Can't load {file_path}: {e}")
+        working_directory = pathlib.Path().resolve()
+        images_path = os.path.join(working_directory, "images")
 
-            concept_embedding = np.mean(vectors, axis=0)
-            concept_embedding /= np.linalg.norm(concept_embedding)
+        image_concept_stats = {}
+
+        print("Processing image concepts")
+        for concept_name in os.listdir(images_path):
+        # if True:
+        #     if concept_name == "_bad":
+        #         continue
+        #     if concept_name == "mikael-akerfeldt" or concept_name == "chad-kroeger":
+        #         continue
+            print(f"Processing image concept {concept_name}")
+            vectors = []
+            dir_path = os.path.join(images_path, concept_name)
+
+            concept_entity = Concept(name=concept_name)
+            image_set_entity_main = ConceptImageSet(name="main", concept=concept_entity, directory=dir_path)
+
+            for image_file_main in os.listdir(dir_path):
+                file_path = os.path.join(dir_path, image_file_main)
+                if os.path.isdir(file_path):
+                    image_set_entity = ConceptImageSet(name=image_file_main, concept=concept_entity, directory=image_file_main)
+                    image_set_vectors = []
+                    for image_file in os.listdir(file_path):
+                        image_file_path = os.path.join(file_path, image_file)
+                        process_image_file(device, image_file_path, image_file, image_set_entity, model, preprocess,
+                                           session, image_set_vectors)
+
+                    image_set_embedding = build_centroid(image_set_vectors)
+                    image_set_entity.embedding = image_set_embedding
+                    session.add(image_set_entity)
+
+                    sub_concept_name = f"{concept_name}:{image_file_main}"
+                    average_similarity, std_similarity = report_statistics(image_set_embedding, sub_concept_name, image_set_vectors)
+                    image_concept_stats[sub_concept_name] = (average_similarity, std_similarity)
+                    vectors += image_set_vectors
+                else:
+                    process_image_file(device, file_path, image_file_main, image_set_entity_main, model, preprocess,
+                                             session, vectors)
+
+            concept_embedding = build_centroid(vectors)
+            concept_entity.embedding = concept_embedding
+            image_set_entity_main.embedding = concept_embedding
 
             # medoid?
-            similarities = [np.dot(vector, concept_embedding) for vector in vectors]
-            average_similarity = np.mean(similarities)
-            std_similarity = np.std(similarities)
-            print(f"Concept: {concept}")
-            print(f"Similarity: {average_similarity}")
-            print(f"STD Similarity: {std_similarity}")
+            average_similarity, std_similarity = report_statistics(concept_embedding, concept_name, vectors)
+            image_concept_stats[concept_name] = (average_similarity, std_similarity)
 
-            session.add(Concept(name=concept, embedding=concept_embedding))
+            session.add(concept_entity)
+            session.add(image_set_entity_main)
 
         await session.commit()
         print("Done")
+
+        for concept_name in image_concept_stats.keys():
+            mean_sim, std_sim = image_concept_stats[concept_name]
+            print(f"{concept_name}: {mean_sim} {std_sim}")
+        csv_path = save_image_concept_stats_to_csv(image_concept_stats, output_dir="./reports")
+        print(f"Report saved to: {csv_path}")
+
+
+def save_image_concept_stats_to_csv(stats: dict, output_dir: str = ".") -> str:
+    """
+    Save image_concept_stats to a CSV file.
+
+    :param stats: dict like {concept_name: (mean_similarity, std_similarity)}
+    :param output_dir: directory where CSV will be saved
+    :return: full path to the created file
+    """
+
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Timestamp with seconds
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    filename = f"image_concept_stats_{timestamp}.csv"
+    file_path = os.path.join(output_dir, filename)
+
+    # Write CSV
+    with open(file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file)
+
+        # Header
+        writer.writerow(["concept", "mean_similarity", "std_similarity"])
+
+        # Rows
+        for concept, (mean_sim, std_sim) in sorted(stats.items(), key=lambda x: x[1][0], reverse=True):
+            writer.writerow([concept, mean_sim, std_sim])
+
+    return file_path
+
+
+def process_image_file(device, file_path, image_file, image_set_entity, model, preprocess, session, vectors):
+    print(f"Processing file {image_file}")
+    try:
+        image = load_image(file_path)
+        vector = embed_image(image, device, model, preprocess)
+        vectors.append(vector)
+        image_entity = ConceptImage(image_set=image_set_entity, embedding=vector, filename=image_file)
+        session.add(image_entity)
+    except Exception as e:
+        print(f"Can't load {file_path}: {e}")
+
+
+def report_statistics(concept_embedding, concept_name, vectors):
+    similarities = [np.dot(vector, concept_embedding) for vector in vectors]
+    average_similarity = np.mean(similarities)
+    std_similarity = np.std(similarities)
+    print(f"Concept: {concept_name}")
+    print(f"Similarity: {average_similarity}")
+    print(f"STD Similarity: {std_similarity}")
+    return average_similarity, std_similarity
+
+
+def build_centroid(vectors):
+    concept_embedding = np.mean(vectors, axis=0)
+    concept_embedding /= np.linalg.norm(concept_embedding)
+    return concept_embedding
 
 
 if __name__ == "__main__":
