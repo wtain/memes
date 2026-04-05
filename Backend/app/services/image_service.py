@@ -36,8 +36,9 @@ class ImageService:
         )
 
         facets = [
-            Facet(name=name,
-                  buckets=[FacetBucket(value=v, count=0.0) for v in list(sorted(set(values)))]
+            Facet(
+                name=name,
+                buckets=[FacetBucket(value=v, count=float(count)) for v, count in sorted(values.items())],
             )
             for name, values in raw_facet_map.items()
         ]

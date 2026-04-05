@@ -15,24 +15,17 @@ class ImageRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def search(
+    async def _build_filtered_ids_query(
         self,
         q: Optional[str],
         tags: dict[str, set],
-        cursor_created_at: Optional[datetime],
-        cursor_id: Optional[uuid.UUID],
-        limit: int,
     ):
+        """Returns a scalar-subquery of image IDs matching q and tags, unpaginated."""
         img = aliased(Image)
         ocr = aliased(OCRText)
         image_tag = aliased(ImageTag)
 
-        query = select(img.id, img.filename, img.created_at)
-
-        if cursor_created_at and cursor_id:
-            query = query.where(
-                tuple_(img.created_at, img.id) < tuple_(cursor_created_at, cursor_id)
-            )
+        query = select(img.id)
 
         if q:
             text_filter = (
@@ -44,27 +37,54 @@ class ImageRepository:
             query = query.where(img.id.in_([id for (id,) in ids_result.all()]))
 
         if tags:
-            queries = [
+            tag_queries = [
                 select(distinct(image_tag.image_id)).where(
                     and_(image_tag.key == key, image_tag.value.in_(values))
                 )
                 for key, values in tags.items()
             ]
-            tags_filter = union_all(*queries)
-            ids_result = await self.session.execute(tags_filter)
-            query = query.where(img.id.in_([id for (id,) in ids_result.all()]))
+            tags_result = await self.session.execute(union_all(*tag_queries))
+            query = query.where(img.id.in_([id for (id,) in tags_result.all()]))
 
-        subquery = query.subquery()
+        return query
 
+    async def search(
+        self,
+        q: Optional[str],
+        tags: dict[str, set],
+        cursor_created_at: Optional[datetime],
+        cursor_id: Optional[uuid.UUID],
+        limit: int,
+    ):
+        img = aliased(Image)
+        image_tag = aliased(ImageTag)
+
+        filtered_ids = await self._build_filtered_ids_query(q, tags)
+        filtered_ids_subquery = filtered_ids.subquery()
+
+        # Facet counts over the full filtered set — no pagination applied here
         facets_query = (
-            select(image_tag.key, image_tag.value)
-            .where(image_tag.image_id.in_(select(subquery.c.id).subquery()))
+            select(
+                image_tag.key,
+                image_tag.value,
+                sqlalchemy.func.count(image_tag.image_id).label("count"),
+            )
+            .where(image_tag.image_id.in_(select(filtered_ids_subquery.c.id)))
             .group_by(image_tag.key, image_tag.value)
         )
         facets_result = await self.session.execute(facets_query)
-        raw_facets = defaultdict(set)
-        for k, v in facets_result.all():
-            raw_facets[k].add(v)
+        raw_facets: dict[str, dict[str, int]] = defaultdict(dict)
+        for k, v, count in facets_result.all():
+            raw_facets[k][v] = count
+
+        # Paginated page of image rows
+        query = select(img.id, img.filename, img.created_at).where(
+            img.id.in_(select(filtered_ids_subquery.c.id))
+        )
+        if cursor_created_at and cursor_id:
+            query = query.where(
+                tuple_(img.created_at, img.id) < tuple_(cursor_created_at, cursor_id)
+            )
 
         results = await self.session.execute(
             query.order_by(img.created_at.desc(), img.id.desc()).limit(limit + 1)
