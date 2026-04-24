@@ -59,6 +59,59 @@ async def get_meme(
     return await service.get_meme(image_id)
 
 
+@router.put("/meme/{image_id}/mark_excluded")
+async def mark_excluded(
+    image_id: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    await service.mark_excluded(image_id)
+
+
+@router.put("/meme/{image_id}/unmark_excluded")
+async def unmark_excluded(
+    image_id: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    await service.unmark_excluded(image_id)
+
+@router.get("/meme/{image_id}/get_excluded", response_model=int)
+async def get_excluded(
+    image_id: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    is_excluded = await service.get_is_excluded(image_id)
+    return 1 if is_excluded else 0
+
+
+# Must be before /{image_id} endpoint
+@router.get("/untagged", response_model=MemeSearchResponse)
+async def get_untagged_images(
+    response: Response,
+    limit: int = Query(20, ge=1, le=100),
+    cursor: Optional[str] = None,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(short_cache_headers(30))
+    return await service.get_untagged(cursor=cursor, limit=limit)
+
+
+# Must be before /{image_id} endpoint
+@router.get("/duplicates", response_model=MemeSearchResponse)
+async def get_duplicate_images(
+    response: Response,
+    limit: int = Query(20, ge=1, le=100),
+    threshold: float = Query(0.05, ge=0.0, le=1.0),
+    cursor: Optional[str] = None,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(short_cache_headers(30))
+    # return await service.get_duplicates(cursor=cursor, limit=limit, threshold=threshold)
+    return await service.get_duplicates_clustered(cursor=cursor, limit=limit, threshold=threshold)
+
+
 @router.get("/{image_id}")
 async def get_image(image_id: str, response: Response, db: AsyncSession = Depends(get_async_db)):
     repo = ImageRepository(db)

@@ -22,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+# set WATCHFILES_FORCE_POLLING=1
 # uvicorn app.main:app --reload --env-file app/.env --port 8081
 app.include_router(images_router, prefix="/api")
 app.include_router(concepts_router, prefix="/api")

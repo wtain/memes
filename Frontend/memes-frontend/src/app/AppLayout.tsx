@@ -15,6 +15,24 @@ export default function AppLayout() {
           </NavLink>
 
           <NavLink
+            to="/untagged"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Untagged
+          </NavLink>
+
+          <NavLink
+            to="/duplicates"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Duplicates
+          </NavLink>
+
+          <NavLink
             to="/search"
             className={({ isActive }) =>
               isActive ? "font-semibold text-blue-600" : "text-gray-600"

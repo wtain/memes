@@ -8,7 +8,8 @@ from sqlalchemy import select, tuple_, distinct, and_, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.models.external import Image, OCRText, Embedding, ImageTag
+from app.models.external import Image, OCRText, Embedding, ImageTag, ImageExtras, TmpDuplicates, TmpImageClusters
+from app.common.external import UnionFind
 
 
 class ImageRepository:
@@ -149,3 +150,210 @@ class ImageRepository:
         tags = tags_result.all()
 
         return filename, texts, tags
+
+    async def get_untagged(
+            self,
+            cursor_created_at: Optional[datetime],
+            cursor_id: Optional[uuid.UUID],
+            limit: int,
+    ):
+        img = aliased(Image)
+        image_tag = aliased(ImageTag)
+
+        exists_subquery = (
+            select(image_tag.image_id)
+            .where(image_tag.image_id == img.id)
+            .correlate(img)
+            .exists()
+        )
+
+        query = select(img.id, img.filename, img.created_at).where(~exists_subquery)
+
+        if cursor_created_at and cursor_id:
+            query = query.where(
+                tuple_(img.created_at, img.id) < tuple_(cursor_created_at, cursor_id)
+            )
+
+        results = await self.session.execute(
+            query.order_by(img.created_at.desc(), img.id.desc()).limit(limit + 1)
+        )
+        return results.all()
+
+    # slow? index?
+    async def get_duplicates(self,
+                             cursor_created_at: Optional[datetime],
+                             cursor_id: Optional[uuid.UUID],
+                             limit: int,
+                             threshold: float):
+        img1 = aliased(Image)
+        embed1 = aliased(Embedding)
+        img2 = aliased(Image)
+        embed2 = aliased(Embedding)
+        query = (
+            select(
+                img1.id,
+                img1.filename,
+                img1.created_at,
+                img2.id,
+                img2.filename,
+                img2.created_at,
+                embed1.embedding.cosine_distance(embed2.embedding).label("distance")
+            )
+            .select_from(img1, img2)
+            .join(
+                embed1, embed1.image_id == img1.id
+            )
+            .join(
+                embed2, embed2.image_id == img2.id
+            )
+            .where(
+                and_(
+                    embed1.embedding.cosine_distance(embed2.embedding) < threshold,
+                    img1.id < img2.id # avoid duplicates a <=> b and b <=> a
+                )
+            )
+            # .order_by(
+            #     img1.id,
+            #     img2.id
+            # )
+        )
+
+        if cursor_created_at and cursor_id:
+            query = query.where(
+                tuple_(img1.created_at, img1.id) < tuple_(cursor_created_at, cursor_id)
+            )
+
+        images = await self.session.execute(
+            query.order_by(img1.created_at.desc(), img1.id.desc()).limit(limit + 1)
+        )
+        uf = UnionFind()
+
+        file_names = {}
+        created_at = {}
+
+        for (id1, filename1, created1, id2, filename2, created2, distance,) in images:
+            uf.connect(id1, id2)
+            file_names[id1] = filename1
+            file_names[id2] = filename2
+            created_at[id1] = created1
+            created_at[id2] = created2
+
+        results = []
+        for id1 in uf.list_clusters():
+            for id2 in uf.get_cluster(id1):
+                results.append((id2, file_names[id2], created_at[id2]))
+
+        return results
+
+    # copy of the above
+    async def get_duplicates_precomputed(self,
+                             cursor_created_at: Optional[datetime],
+                             cursor_id: Optional[int],
+                             limit: int,
+                             threshold: float):
+        dups = aliased(TmpDuplicates)
+        img1 = aliased(Image)
+        img2 = aliased(Image)
+        query = (
+            select(
+                dups.id,
+                dups.image_id1,
+                img1.filename,
+                dups.image_id2,
+                img2.filename,
+                dups.created_at,
+                dups.distance,
+            )
+            .join(
+                img1, img1.id == dups.image_id1
+            )
+            .join(
+                img2, img2.id == dups.image_id2
+            )
+            .where(
+                and_(
+                    dups.distance < threshold,
+                    # img1.id < img2.id # avoid duplicates a <=> b and b <=> a
+                )
+            )
+        )
+
+        # if cursor_created_at and cursor_id:
+        #     query = query.where(
+        #         tuple_(dups.created_at, dups.id) < tuple_(cursor_created_at, cursor_id)
+        #     )
+
+        if cursor_id:
+            query = query.where(
+                dups.id < cursor_id
+            )
+
+        images = await self.session.execute(
+            query.order_by(dups.id.desc()).limit(limit + 1)
+        )
+
+        return [(id, image_id1, filename1, image_id2, filename2, created_at, distance,) for (id, image_id1, filename1, image_id2, filename2, created_at, distance,) in images]
+
+    async def get_duplicates_clustered(self,
+                             cursor_id: Optional[int],
+                             limit: int,):
+        img = aliased(Image)
+        cluster = aliased(TmpImageClusters)
+        query = (
+            select(
+                img.id,
+                img.filename,
+                img.created_at,
+                cluster.cluster_id,
+            )
+            .join(
+                cluster, cluster.image_id == img.id
+            )
+        )
+
+        if cursor_id:
+            query = query.where(
+                img.id < cursor_id
+            )
+
+        images = await self.session.execute(
+            query.order_by(
+                cluster.cluster_id,
+                img.id,
+                img.created_at,
+           ).limit(limit + 1)
+        )
+
+        return [(id, filename, created_at, cluster_id, ) for (id, filename, created_at, cluster_id,) in images]
+
+
+    async def set_is_excluded(self, image_id, is_excluded):
+        query = (
+            select(
+                ImageExtras
+            )
+            .where(
+                ImageExtras.image_id == image_id
+            )
+        )
+        result = await self.session.execute(query)
+        extras = result.scalar_one_or_none()
+        if extras:
+            extras.exclude = is_excluded
+        else:
+            extras = ImageExtras(image_id=image_id, exclude=is_excluded)
+            self.session.add(extras)
+        await self.session.commit()
+
+    async def get_is_excluded(self, image_id) -> bool:
+        query = (
+            select(
+                ImageExtras
+            )
+            .where(
+                ImageExtras.image_id == image_id
+            )
+        )
+        result = await self.session.execute(query)
+        extras = result.scalar_one_or_none()
+        return extras and extras.exclude

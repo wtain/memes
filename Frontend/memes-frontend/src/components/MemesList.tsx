@@ -10,9 +10,11 @@ type MemesListProps = {
   filter?: string
   onFacetsChanged?: (facets: Facet[]) => void
   tagFilters?: Record<string, string[]>
+  listUntagged?: boolean
+  listDuplicates?: boolean
 }
 
-export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: MemesListProps) {
+export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates }: MemesListProps) {
   const [memes, setMemes] = useState<Meme[]>([])
   const [cursor, setCursor] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(false)
@@ -21,9 +23,8 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: Mem
 
   const observerRef = useRef<IntersectionObserver | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-  const emptyRef = useRef<HTMLDivElement | null>(null) // fix 3: separate ref
+  const emptyRef = useRef<HTMLDivElement | null>(null)
 
-  // fix 2: use refs so loadMemes stays stable
   const loadingRef = useRef(false)
   const hasMoreRef = useRef(true)
   const cursorRef = useRef<string | undefined>(undefined)
@@ -53,12 +54,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: Mem
         )
       : []
 
-    const response = await memesApi.searchMemes({
-      cursor: next,
-      limit: 20,
-      query: filter,
-      tags,
-    })
+    const response = await getResponseFromBackend()
 
     if (onFacetsChanged) onFacetsChanged(response.facets!)
 
@@ -90,7 +86,29 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: Mem
         }, 0)
       }
     }
-  }, [filter, tagFilters, memesApi, onFacetsChanged]) // fix 2: no loading/hasMore
+
+    async function getResponseFromBackend() {
+      if (listUntagged !== undefined && listUntagged) {
+        return await memesApi.iterateUntaggedMemes(
+          21,
+          next,
+        )  
+      }
+      if (listDuplicates !== undefined && listDuplicates) {
+        return await memesApi.iterateDuplicates(
+          40,
+          next,
+          0.2
+        )  
+      }
+      return await memesApi.searchMemes({
+        cursor: next,
+        limit: 21,
+        query: filter,
+        tags,
+      })
+    }
+  }, [filter, tagFilters, memesApi, onFacetsChanged])
 
   useEffect(() => {
     if (!sentinelRef.current) return
@@ -98,7 +116,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: Mem
     observerRef.current = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting && hasMoreRef.current && !loadingRef.current) {
-          loadMemes(cursorRef.current) // fix 2: use ref for cursor too
+          loadMemes(cursorRef.current)
         }
       },
       { root: null, rootMargin: "200px", threshold: 0 }
@@ -107,11 +125,11 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters }: Mem
     observerRef.current.observe(sentinelRef.current)
 
     return () => observerRef.current?.disconnect()
-  }, [loadMemes]) // fix 1: loadMemes in deps
+  }, [loadMemes])
 
   return (
     <div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {memes.map(meme => (
           <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
         ))}

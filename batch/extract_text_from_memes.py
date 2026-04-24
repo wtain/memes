@@ -23,134 +23,158 @@ from batch.models.external import Image, OCRText, ImageMetrics, ImageProcessingS
 PIPELINE = "easyocr:en"
 
 
-async def find_image_by_filename(
-    session: AsyncSession,
-    filename: str,
-) -> Image | None:
-    result = await session.execute(
-        select(Image).where(Image.filename == filename)
-    )
-    return result.scalar_one_or_none()
+class ImageProcessingStatusRepository:
+
+    def __init__(self, session, pipeline):
+        self.session = session
+        self.pipeline = pipeline
+
+    async def mark_started(self, image):
+        status = await self.get_image_status(image.id)
+        if status is None:
+            status = ImageProcessingStatus(image=image, pipeline=self.pipeline, status="processing",
+                                           started_at=datetime.utcnow())
+        self.session.add(
+            status
+        )
+        await self.session.commit()
+
+    async def get_image_status(self, image_id):
+        existing = await self.session.get(
+            ImageProcessingStatus,
+            {"image_id": image_id, "pipeline": self.pipeline}
+        )
+        return existing
+
+    async def mark_done(self, image):
+        status = await self.session.get(
+            ImageProcessingStatus,
+            {"image_id": image.id, "pipeline": self.pipeline}
+        )
+        if status is None:
+            status = ImageProcessingStatus(image=image, pipeline=self.pipeline)
+        status.status = "done"
+        status.finished_at = datetime.utcnow()
+        await self.session.commit()
+
+    async def mark_failed(self, image, error):
+        status = await self.session.get(
+            ImageProcessingStatus,
+            {"image_id": image.id, "pipeline": self.pipeline}
+        )
+        if status is None:
+            status = ImageProcessingStatus(image=image, pipeline=self.pipeline)
+        status.status = "failed"
+        status.error_message = str(error)
+        status.finished_at = datetime.utcnow()
+        await self.session.commit()
+
+    async def try_claim_image(self, image_id: str) -> bool:
+        existing = await self.get_image_status(image_id)
+
+        if existing:
+            if existing.status == "done":
+                return False  # already processed
+            if existing.status == "processing":
+                return False  # in-progress elsewhere
+        return True
 
 
-async def try_claim_image(session, image_id: str, pipeline) -> bool:
-    existing = await get_image_status(image_id, session, pipeline)
+class ImageMetricsRepository:
 
-    if existing:
-        if existing.status == "done":
-            return False  # already processed
-        if existing.status == "processing":
-            return False  # in-progress elsewhere
-    return True
+    def __init__(self, session):
+        self.session = session
 
-
-async def mark_started(image, pipeline, session):
-    status = await get_image_status(image.id, session, pipeline)
-    if status is None:
-        status = ImageProcessingStatus(image=image, pipeline=pipeline, status="processing",
-                                       started_at=datetime.utcnow())
-    session.add(
-        status
-    )
-    await session.commit()
-
-
-async def get_image_status(image_id, session, pipeline):
-    existing = await session.get(
-        ImageProcessingStatus,
-        {"image_id": image_id, "pipeline": pipeline}
-    )
-    return existing
-
-
-async def mark_done(session, image, pipeline):
-    status = await session.get(
-        ImageProcessingStatus,
-        {"image_id": image.id, "pipeline": pipeline}
-    )
-    if status is None:
-        status = ImageProcessingStatus(image=image, pipeline=pipeline)
-    status.status = "done"
-    status.finished_at = datetime.utcnow()
-    await session.commit()
-
-
-async def mark_failed(session, image, error, pipeline):
-    status = await session.get(
-        ImageProcessingStatus,
-        {"image_id": image.id, "pipeline": pipeline}
-    )
-    if status is None:
-        status = ImageProcessingStatus(image=image, pipeline=pipeline)
-    status.status = "failed"
-    status.error_message = str(error)
-    status.finished_at = datetime.utcnow()
-    await session.commit()
-
-
-
-def load_and_decode_image(
-    path: str,
-    max_side: int = 1600
-):
-    t0 = time.perf_counter()
-
-    with open(path, "rb") as f:
-        data = f.read()
-
-    t_read = time.perf_counter()
-
-    arr = np.frombuffer(data, np.uint8)
-    # todo: decode on CPU in thread pool?
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-
-    if img is None:
-        raise ValueError("Failed to decode image")
-
-    h, w = img.shape[:2]
-    max_dim = max(h, w)
-
-    if max_dim > max_side:
-        scale = max_side / max_dim
-        new_w = int(w * scale)
-        new_h = int(h * scale)
-
-        img = cv2.resize(
-            img,
-            (new_w, new_h),
-            interpolation=cv2.INTER_AREA
+    async def overwrite_metrics(self, image, metrics):
+        await self.session.execute(
+            delete(ImageMetrics).where(
+                ImageMetrics.image_id == image.id
+            )
         )
 
-    t_done = time.perf_counter()
+        self.session.add(
+            ImageMetrics(
+                image_id=image.id,
+                **metrics
+            )
+        )
 
-    return img, t_read - t0, t_done - t_read
+
+class OCRTextRepository:
+
+    def __init__(self, session):
+        self.session = session
+
+    async def overwrite_texts(self, image, ocr_result, language):
+        await self.session.execute(
+            delete(ImageMetrics).where(
+                OCRText.image_id == image.id
+            )
+        )
+
+        for bbox, text, confidence in ocr_result:
+            # todo: threshold confidence
+            # todo: create session once
+            self.session.add(
+                OCRText(
+                    image_id=image.id,
+                    text=text,
+                    confidence=float(confidence),
+                    bbox=[[v.item() if isinstance(v, numpy.int32) else v for v in p] for p in bbox],
+                    language=language,
+                )
+            )
+
+class ImageRepository:
+
+    def __init__(self, session):
+        self.session = session
+
+    async def find_image_by_filename(
+        self,
+        filename: str,
+    ) -> Image | None:
+        result = await self.session.execute(
+            select(Image).where(Image.filename == filename)
+        )
+        return result.scalar_one_or_none()
+
+    async def register_image(self, file):
+        image = Image(
+            filename=file
+        )
+        self.session.add(image)
+        await self.session.flush()  # image.id available
+        return image
 
 
 async def io_producer(path, io_queue, pipeline):
     async with AsyncSessionLocal() as session:
+        status_repo = ImageProcessingStatusRepository(session, pipeline)
+        image_repo = ImageRepository(session)
         for file in os.listdir(path):
             if file.lower().endswith(".mp4"):
                 # todo: metric: skipped
                 continue
 
-            image = await find_image_by_filename(session, file)
-            if image and await try_claim_image(session, image.id, pipeline):
+            image = await image_repo.find_image_by_filename(file)
+            if image and await status_repo.try_claim_image(image.id):
                 continue
 
             if image is None:
-                image = Image(
-                    filename=file
-                )
-                session.add(image)
-                await session.flush()  # image.id available
+                image = await image_repo.register_image(file)
 
-            await mark_started(image, pipeline, session)
+            await status_repo.mark_started(image)
 
             full_path = os.path.join(path, file)
 
             t0 = time.perf_counter()
-            with open(full_path, "rb") as f:
-                data = f.read()
+            try:
+                with open(full_path, "rb") as f:
+                    data = f.read()
+            except Exception as e:
+                print(f"Error: {e}")
+                continue
             t_read = time.perf_counter() - t0
 
             await io_queue.put((file, data, t_read, image))
@@ -177,13 +201,13 @@ async def cpu_worker(io_queue, cpu_queue, executor):
                 img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
                 h, w = img.shape[:2]
-                if max(h, w) > 1600:
-                    scale = 1600 / max(h, w)
-                    img = cv2.resize(
-                        img,
-                        (int(w * scale), int(h * scale)),
-                        interpolation=cv2.INTER_AREA
-                    )
+                # if max(h, w) > 1600:
+                #     scale = 1600 / max(h, w)
+                #     img = cv2.resize(
+                #         img,
+                #         (int(w * scale), int(h * scale)),
+                #         interpolation=cv2.INTER_AREA
+                #     )
             except cv2.error as e:
                 print(e)
                 img = None
@@ -202,54 +226,29 @@ async def cpu_worker(io_queue, cpu_queue, executor):
 
 
 async def persist_ocr_result(
-    filename: str,
-    image_size: tuple[int, int],
-    ocr_result: list,
+        ocr_result: list,
     metrics: dict,
     image: Image,
     pipeline,
     language: str):
     async with AsyncSessionLocal() as session:
-        for bbox, text, confidence in ocr_result:
-            # todo: threshold confidence
-            # todo: create session once
-            session.add(
-                OCRText(
-                    image_id=image.id,
-                    text=text,
-                    confidence=float(confidence),
-                    bbox=[[v.item() if isinstance(v, numpy.int32) else v for v in p] for p in bbox],
-                    language=language,
-                )
-            )
+        status_repo = ImageProcessingStatusRepository(session, pipeline)
+        metrics_repo = ImageMetricsRepository(session)
+        ocr_repo = OCRTextRepository(session)
 
-        await mark_done(session, image, pipeline)
-
-        # todo: also delete texts
-        await session.execute(
-            delete(ImageMetrics).where(
-                ImageMetrics.image_id == image.id
-            )
-        )
-
-        session.add(
-            ImageMetrics(
-                image_id=image.id,
-                **metrics
-            )
-        )
+        await ocr_repo.overwrite_texts(image, ocr_result, language)
+        await status_repo.mark_done(image)
+        await metrics_repo.overwrite_metrics(image, metrics)
 
         # todo: batch database queries
         await session.commit()
 
 
 async def gpu_consumer(queue, metrics, pipeline):
-    # reader = easyocr.Reader(['en'], gpu=True)
-    # reader = easyocr.Reader(['en', 'ru'], gpu=True)
-
     readers = {
         "ru": easyocr.Reader(['ru'], gpu=True),
-        "en": easyocr.Reader(['en'], gpu=True)
+        "en": easyocr.Reader(['en'], gpu=True),
+        "es": easyocr.Reader(['es'], gpu=True)
     }
 
     while True:
@@ -286,7 +285,7 @@ async def gpu_consumer(queue, metrics, pipeline):
                 print(f"{text} ({confidence})")
 
             h, w = img.shape[:2]
-            await persist_ocr_result(file, (w, h), result, {
+            await persist_ocr_result(result, {
                 "read_time_ms": read_t,
                 "preprocess_time_ms": prep_t,
                 "ocr_time_ms": t_ocr,

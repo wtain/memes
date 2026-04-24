@@ -34,6 +34,57 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
+  async iterateUntaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse> {
+    let paramsString = ""
+    if (limit) {
+      paramsString += `limit=${limit}&`
+    }
+    if (cursor) {
+      paramsString += `cursor=${cursor}`
+    }
+    const response = await fetch(
+      `${this.baseUrl}/api/images/untagged?${paramsString}`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async iterateDuplicates(limit?: number, cursor?: string, threshold?: number): Promise<MemeSearchResponse> {
+    let paramsString = ""
+    if (limit) {
+      paramsString += `limit=${limit}&`
+    }
+    if (cursor) {
+      paramsString += `cursor=${cursor}&`
+    }
+    if (threshold) {
+      paramsString += `threshold=${threshold}`
+    }
+    const response = await fetch(
+      `${this.baseUrl}/api/images/duplicates?${paramsString}`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
   async similarMemes(id: string): Promise<MemeSearchResponse> {
     const response = await fetch(
       `${this.baseUrl}/api/images/${id}/similar`,
@@ -120,5 +171,29 @@ export class HttpMemesApi implements MemesApi {
     if (!res.ok) throw new Error("Failed to fetch concept")
 
     return res.json()
+  }
+
+  async markImageIsExcluded(id: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/mark_excluded`, {
+      method: "PUT"
+    })
+
+    if (!res.ok) throw new Error("Failed mark as excluded")
+  }
+
+  async unmarkImageIsExcluded(id: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/unmark_excluded`, {
+      method: "PUT"
+    })
+
+    if (!res.ok) throw new Error("Failed unmark as excluded")
+  }
+
+  async getImageIsExcluded(id: string): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/get_excluded`)
+
+    if (!res.ok) throw new Error("Failed to fetch image extras")
+
+    return Promise.resolve(Number.parseInt(await res.text()) === 1)
   }
 }

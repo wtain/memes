@@ -3,6 +3,10 @@ import { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../types/g
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>
 
+  iterateUntaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>
+
+  iterateDuplicates(limit?: number, cursor?: string, threshold?: number): Promise<MemeSearchResponse>;
+
   similarMemes(id: string): Promise<MemeSearchResponse>
 
   getImageUrl(meme: Meme): string;
@@ -16,4 +20,10 @@ export interface MemesApi {
   getMeme(id: string): Promise<Meme>;
 
   getConcept(id: number): Promise<Concept>;
+
+  markImageIsExcluded(id: string): Promise<void>;
+  
+  unmarkImageIsExcluded(id: string): Promise<void>;
+
+  getImageIsExcluded(id: string): Promise<boolean>;
 }

@@ -9,7 +9,7 @@ try:
     # Import assuming models are in root/models.py or root/models/
     from models import (Base, Image, ImageMetrics, OCRText, ImageTag, ProcessingError, ImageProcessingStatus, Embedding,
                         Concept, ConceptImageSet,
-                        ConceptImage,)
+                        ConceptImage, ImageExtras, TmpDuplicates, TmpImageClusters, )
     from db import AsyncSessionLocal, SessionLocal, init_db, get_async_db
 except ImportError as e:
     print(e)
@@ -31,5 +31,8 @@ __all__ = [
     'AsyncSessionLocal',
     'SessionLocal',
     'init_db',
-    'get_async_db'
+    'get_async_db',
+    'ImageExtras',
+    'TmpDuplicates',
+    'TmpImageClusters',
 ]

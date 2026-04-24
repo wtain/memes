@@ -1,10 +1,13 @@
+from datetime import datetime
+import enum
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
-    DateTime, JSON, func, Numeric, Index
+    DateTime, JSON, func, Numeric, Index, Boolean,
+    BigInteger, Enum
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 import uuid
 
 
@@ -37,6 +40,7 @@ class Image(Base):
     errors = relationship("ProcessingError", back_populates="image")
     embeddings = relationship("Embedding", back_populates="image", cascade="all, delete-orphan")
     tags = relationship("ImageTag", back_populates="image", cascade="all, delete-orphan")
+    image_extras = relationship("ImageExtras", back_populates="image", cascade="all, delete-orphan")
 
 
 class ImageMetrics(Base):
@@ -89,11 +93,58 @@ class Embedding(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
-    embedding = Column(Vector(EMBEDDING_DIM))
+    embedding = Column(Vector(EMBEDDING_DIM), index=True)
 
     created_at = Column(DateTime, server_default=func.now())
 
     image = relationship("Image", back_populates="embeddings")
+
+"""
+DROP TABLE IF EXISTS tmp_duplicates;
+
+CREATE TABLE tmp_duplicates AS
+WITH image_embeddings AS (
+    SELECT i.id, e.embedding, i.created_at
+    FROM images i
+    JOIN embeddings e ON i.id = e.image_id
+)
+SELECT ROW_NUMBER() OVER () AS id,
+       ie1.id AS image_id1,
+       ie2.id AS image_id2,
+       ie1.created_at as created_at,
+       ie1.embedding <=> ie2.embedding AS distance
+FROM image_embeddings ie1
+JOIN image_embeddings ie2 ON true;
+
+-- Add PK constraint after the fact (CTAS doesn't support inline constraints)
+ALTER TABLE tmp_duplicates ADD PRIMARY KEY (id);
+
+-- Covers the WHERE + ORDER BY (most important)
+CREATE INDEX idx_tmp_duplicates_id_distance ON tmp_duplicates (id DESC, distance);
+
+-- Or if distance filtering is very selective, separate indexes may work too:
+CREATE INDEX idx_tmp_duplicates_distance ON tmp_duplicates (distance);
+CREATE INDEX idx_tmp_duplicates_id ON tmp_duplicates (id DESC);
+"""
+class TmpDuplicates(Base):
+    __tablename__ = "tmp_duplicates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    image_id1 = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
+    image_id2 = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
+
+    distance = Column(Float, nullable=False)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class TmpImageClusters(Base):
+    __tablename__ = "tmp_clusters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cluster_id = Column(Integer, index=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
+
 
 
 class ImageTag(Base):
@@ -220,3 +271,100 @@ class ImageProcessingStatus(Base):
     error_message = Column(Text)
 
     image = relationship("Image")
+
+
+class ImageExtras(Base):
+    __tablename__ = "image_extras"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True, index=True)
+
+    exclude = Column(Boolean)
+    remarks = Column(Text)
+
+    image = relationship("Image", back_populates="image_extras")
+
+
+class FeedSource(Base):
+    __tablename__ = "feed_sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    selector: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # back-ref to results
+    results: Mapped[list["TrendsRunResult"]] = relationship(
+        "TrendsRunResult", back_populates="source"
+    )
+
+    def __repr__(self) -> str:
+        return f"<FeedSource id={self.id} name={self.name!r}>"
+
+
+class RunStatus(enum.Enum):
+    started = "started"
+    completed = "completed"
+    failed = "failed"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class TrendsRun(Base):
+    __tablename__ = "trends_runs"
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    # status: Mapped[RunStatus] = mapped_column(
+    status: Mapped[str] = mapped_column(
+        # Enum(RunStatus, values_callable=lambda e: [m.value for m in e]),
+        String(20),
+        nullable=False,
+        # default=RunStatus.started,
+        default=str(RunStatus.started),
+    )
+
+    # back-ref to results
+    results: Mapped[list["TrendsRunResult"]] = relationship(
+        "TrendsRunResult", back_populates="run"
+    )
+
+    def __repr__(self) -> str:
+        return f"<TrendsRun run_id={self.run_id} created_at={self.created_at}>"
+
+
+class TrendsRunResult(Base):
+    __tablename__ = "trends_run_results"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("trends_runs.run_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("feed_sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    value: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # relationships
+    run: Mapped["TrendsRun"] = relationship("TrendsRun", back_populates="results")
+    source: Mapped["FeedSource"] = relationship("FeedSource", back_populates="results")
+
+    def __repr__(self) -> str:
+        return (
+            f"<TrendsRunResult id={self.id} label={self.label!r}"
+            f" name={self.name!r} value={self.value}>"
+        )
