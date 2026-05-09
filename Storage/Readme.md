@@ -39,8 +39,24 @@ Dump schema-only
 pg_dump --schema-only --no-owner --no-privileges --no-comments --no-publications --no-subscriptions --file=./alembic/versions/baseline.sql postgresql://ocr:ocr@localhost/ocrdb
 ```
 
+New environment
+
+(Windows)
+
+```powershell
+Get-Content .env.general | foreach {
+    $name, $value = $_.split('=')
+    set-content env:\$name $value
+}
+    
+alembic upgrade head    
+```
+
+
 New database
 
 ```commandline
 alembic upgrade head
 ```
+
+

@@ -25,9 +25,12 @@ def upgrade() -> None:
     op.alter_column('tmp_duplicates', 'distance',
                existing_type=sa.DOUBLE_PRECISION(precision=53),
                nullable=False)
-    op.drop_index(op.f('idx_tmp_duplicates_distance'), table_name='tmp_duplicates')
-    op.drop_index(op.f('idx_tmp_duplicates_id'), table_name='tmp_duplicates')
-    op.drop_index(op.f('idx_tmp_duplicates_id_distance'), table_name='tmp_duplicates')
+    # op.drop_index(op.f('idx_tmp_duplicates_distance'), table_name='tmp_duplicates')
+    # op.drop_index(op.f('idx_tmp_duplicates_id'), table_name='tmp_duplicates')
+    # op.drop_index(op.f('idx_tmp_duplicates_id_distance'), table_name='tmp_duplicates')
+    op.drop_index(op.f('ix_tmp_duplicates_image_id1'), table_name='tmp_duplicates')
+    op.drop_index(op.f('ix_tmp_duplicates_id'), table_name='tmp_duplicates')
+    op.drop_index(op.f('ix_tmp_duplicates_image_id2'), table_name='tmp_duplicates')
     op.create_index(op.f('ix_tmp_duplicates_id'), 'tmp_duplicates', ['id'], unique=False)
     op.create_index(op.f('ix_tmp_duplicates_image_id1'), 'tmp_duplicates', ['image_id1'], unique=False)
     op.create_index(op.f('ix_tmp_duplicates_image_id2'), 'tmp_duplicates', ['image_id2'], unique=False)

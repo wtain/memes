@@ -13,5 +13,18 @@ services:
     ports:
       - "5432:5432"
 
+  common_memes_db:
+    image: pgvector/pgvector:pg18-trixie
+    container_name: common-memes-db
+    environment:
+      POSTGRES_USER: ocr
+      POSTGRES_PASSWORD: ocr
+      POSTGRES_DB: ocrdb
+    volumes:
+      - common_memes_pg:/var/lib/postgresql
+    ports:
+      - "5434:5432"
+
 volumes:
   memes_pg:
+  common_memes_pg:

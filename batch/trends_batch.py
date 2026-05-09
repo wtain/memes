@@ -1,5 +1,4 @@
 import asyncio
-import os
 import uuid
 from collections import Counter
 
@@ -8,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import RunStatus
 from batch.models.external import AsyncSessionLocal, FeedSource, TrendsRun, TrendsRunResult
-from batch.tasks.SourceTasks import UnregisterNonExisting
 from batch.trends.processing import Processor
 from batch.trends.scraping import RSSScraper
 
@@ -16,47 +14,6 @@ from batch.trends.scraping import RSSScraper
 async def main():
 
     async with AsyncSessionLocal() as session:
-        # sources = [
-        #     {
-        #         "url": "https://loudwire.com/feed/",
-        #         "name": "LoudWire",
-        #         "selector": "div.pod-content p",
-        #     },
-        #     {
-        #         "url": "https://feeds.feedburner.com/metalinjection",
-        #         "name": "Metal Injection",
-        #         "selector": "div.zox-post-body p",
-        #     },
-        #
-        #     {
-        #         "url": "https://blabbermouth.net/feed",
-        #         "name": "Blabbermouth",
-        #         "selector": "div.news-content p",
-        #     },
-        #     {
-        #         "url": "https://www.metaltalk.net/feed",
-        #         "name": "Metaltalk",
-        #         "selector": "div.tdb-block-inner p",
-        #     },
-        #     {
-        #         "url": "https://www.angrymetalguy.com/feed/",
-        #         "name": "Angry Metal Guy",
-        #         "selector": "div.entry-content p",
-        #     },
-        #     {
-        #         "url": "https://www.invisibleoranges.com/feed",
-        #         "name": "Invisible Oranges",
-        #         "selector": "section.ap-main p",
-        #         # in-place: <content:encoded>
-        #     },
-        # ]
-        #
-        # for source in sources:
-        #     session.add(FeedSource(name=source["name"],
-        #                            url=source["url"],
-        #                            selector=source["selector"]))
-        #
-        # await session.commit()
 
         sources_repo = FeedSourceRepository(session)
         sources = await sources_repo.get_all()
@@ -85,14 +42,14 @@ async def main():
 
                 for topic in trends:
                     label, name = topic.split(":")
-                    results_repo.add_result(source_id=source.id, label=label, name=name, value=trends[topic])
+                    await results_repo.add_result(source_id=source.id, label=label, name=name, value=trends[topic])
 
             await runs_repo.commit(run_id)
-            await session.commit()
         except Exception:
             await runs_repo.fail(run_id)
-            await session.commit()
             raise
+        finally:
+            await session.commit()
 
 
 class FeedSourceRepository:

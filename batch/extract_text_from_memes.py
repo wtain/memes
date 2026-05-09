@@ -1,157 +1,30 @@
 import os
 import asyncio
-from collections import defaultdict
-from datetime import datetime
 
 import cv2
-import numpy
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from easyocr import easyocr
 
 import time
 
-from sqlalchemy import select, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-
 # split models in exports into models and db
 # or create a module and import it?
 from batch.models.external import AsyncSessionLocal
-from batch.models.external import Image, OCRText, ImageMetrics, ImageProcessingStatus
-
+from batch.models.external import Image
+from batch.repository.image_metrics import ImageMetricsRepository
+from batch.repository.image_procesing_status import ImageProcessingStatusRepository
+from batch.repository.images import ImagesRepository
+from batch.repository.ocr_text import OCRTextRepository
 
 PIPELINE = "easyocr:en"
 
-
-class ImageProcessingStatusRepository:
-
-    def __init__(self, session, pipeline):
-        self.session = session
-        self.pipeline = pipeline
-
-    async def mark_started(self, image):
-        status = await self.get_image_status(image.id)
-        if status is None:
-            status = ImageProcessingStatus(image=image, pipeline=self.pipeline, status="processing",
-                                           started_at=datetime.utcnow())
-        self.session.add(
-            status
-        )
-        await self.session.commit()
-
-    async def get_image_status(self, image_id):
-        existing = await self.session.get(
-            ImageProcessingStatus,
-            {"image_id": image_id, "pipeline": self.pipeline}
-        )
-        return existing
-
-    async def mark_done(self, image):
-        status = await self.session.get(
-            ImageProcessingStatus,
-            {"image_id": image.id, "pipeline": self.pipeline}
-        )
-        if status is None:
-            status = ImageProcessingStatus(image=image, pipeline=self.pipeline)
-        status.status = "done"
-        status.finished_at = datetime.utcnow()
-        await self.session.commit()
-
-    async def mark_failed(self, image, error):
-        status = await self.session.get(
-            ImageProcessingStatus,
-            {"image_id": image.id, "pipeline": self.pipeline}
-        )
-        if status is None:
-            status = ImageProcessingStatus(image=image, pipeline=self.pipeline)
-        status.status = "failed"
-        status.error_message = str(error)
-        status.finished_at = datetime.utcnow()
-        await self.session.commit()
-
-    async def try_claim_image(self, image_id: str) -> bool:
-        existing = await self.get_image_status(image_id)
-
-        if existing:
-            if existing.status == "done":
-                return False  # already processed
-            if existing.status == "processing":
-                return False  # in-progress elsewhere
-        return True
-
-
-class ImageMetricsRepository:
-
-    def __init__(self, session):
-        self.session = session
-
-    async def overwrite_metrics(self, image, metrics):
-        await self.session.execute(
-            delete(ImageMetrics).where(
-                ImageMetrics.image_id == image.id
-            )
-        )
-
-        self.session.add(
-            ImageMetrics(
-                image_id=image.id,
-                **metrics
-            )
-        )
-
-
-class OCRTextRepository:
-
-    def __init__(self, session):
-        self.session = session
-
-    async def overwrite_texts(self, image, ocr_result, language):
-        await self.session.execute(
-            delete(ImageMetrics).where(
-                OCRText.image_id == image.id
-            )
-        )
-
-        for bbox, text, confidence in ocr_result:
-            # todo: threshold confidence
-            # todo: create session once
-            self.session.add(
-                OCRText(
-                    image_id=image.id,
-                    text=text,
-                    confidence=float(confidence),
-                    bbox=[[v.item() if isinstance(v, numpy.int32) else v for v in p] for p in bbox],
-                    language=language,
-                )
-            )
-
-class ImageRepository:
-
-    def __init__(self, session):
-        self.session = session
-
-    async def find_image_by_filename(
-        self,
-        filename: str,
-    ) -> Image | None:
-        result = await self.session.execute(
-            select(Image).where(Image.filename == filename)
-        )
-        return result.scalar_one_or_none()
-
-    async def register_image(self, file):
-        image = Image(
-            filename=file
-        )
-        self.session.add(image)
-        await self.session.flush()  # image.id available
-        return image
 
 
 async def io_producer(path, io_queue, pipeline):
     async with AsyncSessionLocal() as session:
         status_repo = ImageProcessingStatusRepository(session, pipeline)
-        image_repo = ImageRepository(session)
+        image_repo = ImagesRepository(session)
         for file in os.listdir(path):
             if file.lower().endswith(".mp4"):
                 # todo: metric: skipped
@@ -200,14 +73,6 @@ async def cpu_worker(io_queue, cpu_queue, executor):
                 arr = np.frombuffer(data, np.uint8)
                 img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
-                h, w = img.shape[:2]
-                # if max(h, w) > 1600:
-                #     scale = 1600 / max(h, w)
-                #     img = cv2.resize(
-                #         img,
-                #         (int(w * scale), int(h * scale)),
-                #         interpolation=cv2.INTER_AREA
-                #     )
             except cv2.error as e:
                 print(e)
                 img = None
@@ -227,10 +92,10 @@ async def cpu_worker(io_queue, cpu_queue, executor):
 
 async def persist_ocr_result(
         ocr_result: list,
-    metrics: dict,
-    image: Image,
-    pipeline,
-    language: str):
+        metrics: dict,
+        image: Image,
+        pipeline,
+        language: str):
     async with AsyncSessionLocal() as session:
         status_repo = ImageProcessingStatusRepository(session, pipeline)
         metrics_repo = ImageMetricsRepository(session)
@@ -244,7 +109,7 @@ async def persist_ocr_result(
         await session.commit()
 
 
-async def gpu_consumer(queue, metrics, pipeline):
+async def gpu_consumer(queue, pipeline):
     readers = {
         "ru": easyocr.Reader(['ru'], gpu=True),
         "en": easyocr.Reader(['en'], gpu=True),
@@ -264,11 +129,6 @@ async def gpu_consumer(queue, metrics, pipeline):
             result = reader.readtext(img)
             t_ocr = time.perf_counter() - t0
             t_total = read_t + prep_t + t_ocr
-
-            metrics["read_time_ms"].append(read_t)
-            metrics["preprocess_time_ms"].append(prep_t)
-            metrics["ocr_time_ms"].append(t_ocr)
-            metrics["total_time_ms"].append(t_total)
             # todo: error metrics
             # todo: store to database
 
@@ -284,7 +144,6 @@ async def gpu_consumer(queue, metrics, pipeline):
             for bbox, text, confidence in result:
                 print(f"{text} ({confidence})")
 
-            h, w = img.shape[:2]
             await persist_ocr_result(result, {
                 "read_time_ms": read_t,
                 "preprocess_time_ms": prep_t,
@@ -299,12 +158,10 @@ async def main(path: str):
 
     cpu_executor = ThreadPoolExecutor(max_workers=4)
 
-    metrics = defaultdict(list)
-
     await asyncio.gather(
         io_producer(path, io_queue, PIPELINE),
         cpu_worker(io_queue, cpu_queue, cpu_executor),
-        gpu_consumer(cpu_queue, metrics, PIPELINE)
+        gpu_consumer(cpu_queue, PIPELINE)
     )
 
 """
@@ -314,5 +171,9 @@ async def main(path: str):
 """
 
 if __name__ == "__main__":
-    source_path = "c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes"
+    # source_path = "c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes"
+    database_url = os.getenv('DATABASE_URL')
+    source_path = os.getenv('BASE_PATH')
+    print(f"Database url: {database_url}")  # todo: contains password now!
+    print(f"Base path: {source_path}")
     asyncio.run(main(source_path))

@@ -1,6 +1,8 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
+# from Storage.config import DATABASE_URL
+from config import DATABASE_URL
 from models import Base
 
 async def get_async_db():
@@ -15,7 +17,7 @@ async def get_async_db():
             raise
         # Session automatically closes when exiting the async with block
 
-DATABASE_URL = "postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb"
+# DATABASE_URL = "postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb"
 
 engine = create_async_engine(
     DATABASE_URL,

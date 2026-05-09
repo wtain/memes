@@ -99,7 +99,7 @@ async def main():
                 print(filename)
                 for token, probability in probable_tokens:
                     print(f'-> {token} ({probability})')
-                    # todo: don't store duplicates? remove duplicates
+                    # todo: don't store duplicates? remove duplicates - upsert!
                     session.add(Embedding(image_id=image_id, text=token, confidence=probability))
             except FileNotFoundError:
                 pass

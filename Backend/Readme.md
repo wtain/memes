@@ -21,4 +21,7 @@ uvicorn app.main:app --reload --reload-dir app --reload-exclude "*.pyc" --env-fi
 
 ```commandline
 python -m uvicorn app.main:app --reload --reload-dir app --env-file app/.env --port 8081
+
+python -m uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.metal --port 8081
+python -m uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.general --port 8082
 ```

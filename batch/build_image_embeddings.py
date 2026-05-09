@@ -3,6 +3,7 @@ import os
 
 import open_clip
 import torch
+from dotenv import load_dotenv
 from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count
 
@@ -12,6 +13,8 @@ from batch.models.external import ImageTag, OCRText, Embedding
 
 from batch.models.external import Image as Img
 
+
+load_dotenv()
 
 
 async def main():
@@ -43,20 +46,29 @@ async def main():
         model = model.to(device)
         model.eval()
 
-        base_path = os.path.abspath("c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes\\")
+        BASE_PATH = os.getenv('BASE_PATH')
+        print(f"BASE_PATH={BASE_PATH}")
+        base_path = os.path.abspath(BASE_PATH) # "c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes\\"
 
         print(f"Processing on {device}")
         # todo: batch encode
         for (filename, image_id,) in result:
             path = os.path.join(base_path, filename)
-            image = load_image(path)
-            vector = embed_image(image, device, model, preprocess)
-            emb = Embedding(
-                image_id=image_id,
-                embedding=vector.tolist()
-            )
+            if os.path.isdir(path):
+                continue
+            if not os.path.exists(path):
+                continue
+            try:
+                image = load_image(path)
+                vector = embed_image(image, device, model, preprocess)
+                emb = Embedding(
+                    image_id=image_id,
+                    embedding=vector.tolist()
+                )
 
-            session.add(emb)
+                session.add(emb)
+            except Exception as e:
+                print(f"Can't read {path}: {e}")
 
         # batch commit?
         print("Committing...")

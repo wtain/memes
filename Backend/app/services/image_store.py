@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-images_dir = os.getenv('IMAGES_DIR')
+images_dir = os.getenv('BASE_PATH')
 IMAGES_DIR = Path(images_dir)
 
 

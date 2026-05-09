@@ -10,7 +10,9 @@ import ConceptPage from "../pages/ConceptPage";
 import ExploreUntaggedPage from "../pages/ExploreUntaggedPage";
 import ExploreDuplicatesPage from "../pages/ExploreDuplicatesPage";
 
-const baseUrl = "http://127.0.0.1:8081";
+
+// const baseUrl = "http://127.0.0.1:8081";
+const baseUrl = import.meta.env.VITE_BACKEND_API_URL;
 
 const memesApi: MemesApi = new HttpMemesApi(baseUrl)
 

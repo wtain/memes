@@ -76,3 +76,21 @@ class ImagesRepository:
             select(count(Image.id))
         )).scalar_one()
         return total_images
+
+    async def find_image_by_filename(
+        self,
+        filename: str,
+    ) -> Image | None:
+        result = await self.session.execute(
+            select(Image).where(Image.filename == filename)
+        )
+        return result.scalar_one_or_none()
+
+    async def register_image(self, file):
+        image = Image(
+            filename=file
+        )
+        self.session.add(image)
+        await self.session.flush()  # image.id available
+        # await self.session.commit()  # not optimal
+        return image

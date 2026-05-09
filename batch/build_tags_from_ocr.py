@@ -9,6 +9,7 @@ rules_engine = RulesEngine()
 
 async def main():
 
+
     async with AsyncSessionLocal() as session:
         tags_repo = TagsRepository(session)
         await tags_repo.delete_tags("OCR")

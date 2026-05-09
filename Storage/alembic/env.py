@@ -7,6 +7,9 @@ from sqlalchemy import pool
 
 from alembic import context
 
+# from Storage.config import DATABASE_URL
+from config import DATABASE_URL
+
 parent = Path(__file__).parent
 sys.path.insert(0, str(parent))
 
@@ -20,6 +23,9 @@ except ImportError as e:
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+sync_url = DATABASE_URL.replace("postgresql+asyncpg",
+                                "postgresql")  # .replace("postgresql+asyncpg", "postgresql+psycopg")
+config.set_main_option("sqlalchemy.url", sync_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

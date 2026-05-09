@@ -5,6 +5,7 @@ import feedparser
 from bs4 import BeautifulSoup
 
 # todo: check https://www.reddit.com/r/webscraping/comments/187ji5f/cloudscraper_with_asyncio/
+# todo: retries
 
 class RSSScraper:
 

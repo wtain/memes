@@ -236,7 +236,7 @@ class ImageService:
     def _encode_cursor(last_row) -> str:
         id = last_row.id
         created_at = last_row.created_at
-        return ImageService._encode_cursor(created_at, id)
+        return ImageService._encode_cursor1(created_at, id)
 
     @staticmethod
     def _encode_cursor1(created_at, id):

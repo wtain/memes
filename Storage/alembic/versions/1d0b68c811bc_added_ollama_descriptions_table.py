@@ -31,9 +31,9 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_ollama_description_id'), 'ollama_description', ['id'], unique=False)
     op.create_index(op.f('ix_ollama_description_image_id'), 'ollama_description', ['image_id'], unique=False)
-    op.drop_table('tmp_images_and_concepts')
-    op.drop_table('tmp_concepts_to_images_matches')
-    op.drop_table('tmp_images_to_concept_matches')
+    # op.drop_table('tmp_images_and_concepts')
+    # op.drop_table('tmp_concepts_to_images_matches')
+    # op.drop_table('tmp_images_to_concept_matches')
     # ### end Alembic commands ###
 
 
