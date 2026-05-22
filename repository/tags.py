@@ -3,7 +3,7 @@ from collections import defaultdict
 from sqlalchemy import delete
 from sqlalchemy.orm import aliased
 
-from batch.models.external import ImageTag
+from Storage.models import ImageTag
 
 
 class TagsRepository:

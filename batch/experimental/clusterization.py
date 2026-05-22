@@ -1,13 +1,10 @@
 import asyncio
-import os
 import hdbscan
 import numpy as np
 from sqlalchemy import select
 
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import ImageTag, OCRText, Embedding
-
-from batch.models.external import Image as Img
+from Storage.db import AsyncSessionLocal
+from Storage.models import Embedding
 
 async def main():
 

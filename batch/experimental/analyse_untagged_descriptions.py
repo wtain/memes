@@ -1,12 +1,11 @@
 import asyncio
-import os
 from collections import Counter
 import re
 
-from sqlalchemy import select, delete, not_, exists
+from sqlalchemy import select, exists
 
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import Image, OllamaDescription, ImageTag
+from Storage.db import AsyncSessionLocal
+from Storage.models import Image, OllamaDescription, ImageTag
 
 
 def extract_words(text):

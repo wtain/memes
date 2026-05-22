@@ -1,12 +1,10 @@
 import asyncio
-import os
-import shutil
 
 from sqlalchemy import select, delete
 
-from batch.graph.uf import UnionFind
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import Image, ImageExtras, TmpDuplicates, TmpImageClusters
+from graph.uf import UnionFind
+from Storage.db import AsyncSessionLocal
+from Storage.models import Image, TmpDuplicates, TmpImageClusters
 
 
 async def main():

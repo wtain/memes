@@ -8,8 +8,8 @@ from sqlalchemy import select, tuple_, distinct, and_, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.models.external import Image, OCRText, Embedding, ImageTag, ImageExtras, TmpDuplicates, TmpImageClusters
-from app.common.external import UnionFind
+from Storage.models import Image, OCRText, Embedding, ImageTag, ImageExtras, TmpDuplicates, TmpImageClusters
+from graph.uf import UnionFind
 
 
 class ImageRepository:

@@ -8,15 +8,15 @@ from easyocr import easyocr
 
 import time
 
-from batch.metrics.listener import SimpleMetricsListener
+from metrics.listener import SimpleMetricsListener
 # split models in exports into models and db
 # or create a module and import it?
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import Image
-from batch.repository.image_metrics import ImageMetricsRepository
-from batch.repository.image_procesing_status import ImageProcessingStatusRepository
-from batch.repository.images import ImagesRepository
-from batch.repository.ocr_text import OCRTextRepository
+from Storage.db import AsyncSessionLocal
+from Storage.models import Image
+from repository.image_metrics import ImageMetricsRepository
+from repository.image_procesing_status import ImageProcessingStatusRepository
+from repository.images import ImagesRepository
+from repository.ocr_text import OCRTextRepository
 
 PIPELINE = "easyocr:en"
 

@@ -1,10 +1,10 @@
 import asyncio
 import os
 
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import Image
+from Storage.db import AsyncSessionLocal
+from Storage.models import Image
 
 
 async def main():

@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from batch.models.external import AsyncSessionLocal
+from Storage.db import AsyncSessionLocal
 from batch.tasks.SourceTasks import UnregisterNonExisting
 
 

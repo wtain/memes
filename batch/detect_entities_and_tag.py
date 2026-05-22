@@ -1,11 +1,11 @@
 import asyncio
 import os
 
-from batch.ai.yolo import YoloAnimalDetector
-from batch.models.external import AsyncSessionLocal
+from ai.yolo import YoloAnimalDetector
+from Storage.db import AsyncSessionLocal
 
-from batch.repository.images import ImagesRepository
-from batch.repository.tags import TagsRepository, TagsSaver
+from repository.images import ImagesRepository
+from repository.tags import TagsRepository, TagsSaver
 
 
 async def main():

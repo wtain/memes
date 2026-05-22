@@ -1,10 +1,10 @@
 import asyncio
 import os
 
-from batch.models.external import AsyncSessionLocal
-from batch.repository.images import ImagesRepository
-from batch.repository.tags import TagsRepository, TagsSaver
-from batch.rules.engine import RulesEngine
+from Storage.db import AsyncSessionLocal
+from repository.images import ImagesRepository
+from repository.tags import TagsRepository, TagsSaver
+from rules.engine import RulesEngine
 
 RULES_FILE = os.getenv("RULES_FILE")
 

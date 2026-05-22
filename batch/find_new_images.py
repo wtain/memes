@@ -2,8 +2,8 @@ import asyncio
 import os
 import shutil
 
-from batch.models.external import AsyncSessionLocal
-from batch.repository.images import ImagesRepository
+from Storage.db import AsyncSessionLocal
+from repository.images import ImagesRepository
 
 
 async def run():

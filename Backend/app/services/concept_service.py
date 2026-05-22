@@ -1,7 +1,7 @@
-from app.repositories.concept_repository import ConceptRepository
-from app.types.generated.concept import Schema as ConceptDto
-from app.types.generated.meme import Schema as Meme
-from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
+from Backend.app.repositories.concept_repository import ConceptRepository
+from Backend.app.types.generated.concept import Schema as ConceptDto
+from Backend.app.types.generated.meme import Schema as Meme
+from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
 
 class ConceptService:

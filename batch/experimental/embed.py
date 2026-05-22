@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.sql.functions import count
 
 from Storage.db import AsyncSessionLocal
-from embeddings import EmbeddingsDetector
+from embeddingutils.embeddings import EmbeddingsDetector
 from Storage.models import Image, Embedding
 
 

@@ -1,15 +1,14 @@
 import asyncio
 import os
 import shutil
-from collections import defaultdict
 from pathlib import Path
 
-from sqlalchemy import select, delete, and_
+from sqlalchemy import select, and_
 from sqlalchemy.orm import aliased
 
-from batch.graph.uf import UnionFind
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import Image, Embedding
+from graph.uf import UnionFind
+from Storage.db import AsyncSessionLocal
+from Storage.models import Image, Embedding
 
 
 async def main():

@@ -3,7 +3,8 @@ import asyncio
 import numpy as np
 from sqlalchemy import select
 
-from batch.models.external import Concept, AsyncSessionLocal
+from Storage.db import AsyncSessionLocal
+from Storage.models import Concept
 
 
 async def main():

@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api.images import router as images_router
-from app.api.concepts import router as concepts_router
+from Backend.app.api.images import router as images_router
+from Backend.app.api.concepts import router as concepts_router
 
 load_dotenv()
 

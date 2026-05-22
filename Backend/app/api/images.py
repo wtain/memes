@@ -1,5 +1,4 @@
 import mimetypes
-import os
 from typing import Optional, AsyncGenerator
 from urllib.parse import quote
 
@@ -8,13 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.external import get_async_db, AsyncSessionLocal
-from app.repositories.image_repository import ImageRepository
-from app.services.cache import short_cache_headers, image_cache_headers
-from app.services.image_service import ImageService
-from app.services.image_store import IMAGES_DIR
-from app.types.generated.meme import Schema as Meme
-from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
+from Storage.db import get_async_db, AsyncSessionLocal
+from Backend.app.repositories.image_repository import ImageRepository
+from Backend.app.services.cache import short_cache_headers, image_cache_headers
+from Backend.app.services.image_service import ImageService
+from Backend.app.services.image_store import IMAGES_DIR
+from Backend.app.types.generated.meme import Schema as Meme
+from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
 

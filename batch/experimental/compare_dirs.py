@@ -6,10 +6,9 @@ import open_clip
 import torch
 
 # from Backend.app.repositories.image_repository import ImageRepository
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import Embedding
-from batch.embeddingutils.image import load_image, embed_image
-from batch.repository.images import ImagesRepository
+from Storage.db import AsyncSessionLocal
+from embeddingutils.image import load_image, embed_image
+from repository.images import ImagesRepository
 
 
 async def main(path: str):

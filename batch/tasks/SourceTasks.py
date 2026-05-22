@@ -1,5 +1,5 @@
 
-from batch.repository.images import ImagesRepository
+from repository.images import ImagesRepository
 from batch.source.fs import LocalFileSystemFolder
 
 

@@ -3,8 +3,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
-from Storage.models import Embedding
-from batch.models.external import OCRText, Image, OllamaDescription
+from Storage.models import Embedding, OCRText, Image, OllamaDescription
 
 
 class ImagesRepository:

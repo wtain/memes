@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count
 
-from batch.embeddingutils.image import embed_image, load_image
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import ImageTag, OCRText, Embedding
+from embeddingutils.image import embed_image, load_image
+from Storage.db import AsyncSessionLocal
+from Storage.models import Embedding
 
-from batch.models.external import Image as Img
+from Storage.models import Image as Img
 
 
 load_dotenv()

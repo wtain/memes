@@ -1,20 +1,12 @@
 import asyncio
-import json
 import os
 
-import ollama
-import open_clip
-import torch
-from ollama import ResponseError
-from sqlalchemy import delete, select
-from sqlalchemy.sql.functions import count
+from sqlalchemy import select
 
-from batch.ai.yolo import YoloAnimalDetector
-from batch.embeddingutils.image import embed_image, load_image
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import OllamaDescription
+from ai.yolo import YoloAnimalDetector
+from Storage.db import AsyncSessionLocal
 
-from batch.models.external import Image as Img
+from Storage.models import Image as Img
 
 
 

@@ -2,11 +2,11 @@ from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, Response
 
-from app.models.external import AsyncSessionLocal, get_async_db
-from app.repositories.concept_repository import ConceptRepository
-from app.services.concept_service import ConceptService
-from app.types.generated.concept import Schema as ConceptDto
-from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
+from Storage.db import AsyncSessionLocal, get_async_db
+from Backend.app.repositories.concept_repository import ConceptRepository
+from Backend.app.services.concept_service import ConceptService
+from Backend.app.types.generated.concept import Schema as ConceptDto
+from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
 router = APIRouter(prefix="/concepts", tags=["concepts"])
 

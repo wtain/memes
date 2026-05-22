@@ -1,8 +1,7 @@
-from pgvector import Vector
-from sqlalchemy import select, func, bindparam, true
+from sqlalchemy import select, func, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.external import Concept, Embedding, Image, ConceptImageSet, ConceptImage
+from Storage.models import Concept, Embedding, Image, ConceptImageSet, ConceptImage
 
 
 class ConceptRepository:

@@ -5,13 +5,13 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
-from app.repositories.image_repository import ImageRepository
-from app.types.generated.facet import Schema as Facet
-from app.types.generated.facetbucket import Schema as FacetBucket
-from app.types.generated.meme import Schema as Meme
-from app.types.generated.memetag import Schema as MemeTag
-from app.types.generated.memesearchresponse import Schema as MemeSearchResponse
-from app.common.external import UnionFind
+from Backend.app.repositories.image_repository import ImageRepository
+from Backend.app.types.generated.facet import Schema as Facet
+from Backend.app.types.generated.facetbucket import Schema as FacetBucket
+from Backend.app.types.generated.meme import Schema as Meme
+from Backend.app.types.generated.memetag import Schema as MemeTag
+from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
+from graph.uf import UnionFind
 
 class ImageService:
     def __init__(self, repo: ImageRepository):

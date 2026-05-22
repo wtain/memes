@@ -10,9 +10,9 @@ import open_clip
 import torch
 from sqlalchemy import delete
 
-from batch.embeddingutils.image import load_image, embed_image
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import ImageTag, OCRText, Embedding, Concept, ConceptImageSet, ConceptImage
+from embeddingutils.image import load_image, embed_image
+from Storage.db import AsyncSessionLocal
+from Storage.models import Concept, ConceptImageSet, ConceptImage
 
 
 # concept name -> list of texts

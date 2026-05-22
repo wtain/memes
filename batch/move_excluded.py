@@ -4,8 +4,8 @@ import shutil
 
 from sqlalchemy import select
 
-from batch.models.external import AsyncSessionLocal
-from batch.models.external import Image, ImageExtras
+from Storage.db import AsyncSessionLocal
+from Storage.models import Image, ImageExtras
 
 
 async def main():

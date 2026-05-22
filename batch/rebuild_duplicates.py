@@ -2,7 +2,7 @@ import asyncio
 
 from sqlalchemy import text
 
-from batch.models.external import AsyncSessionLocal
+from Storage.db import AsyncSessionLocal
 
 
 async def create_tmp_duplicates(session: AsyncSessionLocal) -> None:

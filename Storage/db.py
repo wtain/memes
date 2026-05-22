@@ -1,9 +1,8 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-# from Storage.config import DATABASE_URL
-from config import DATABASE_URL
-from models import Base
+from Storage.config import DATABASE_URL
+from Storage.models import Base
 
 async def get_async_db():
     async with AsyncSessionLocal() as db:
