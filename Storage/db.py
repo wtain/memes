@@ -16,7 +16,6 @@ async def get_async_db():
             raise
         # Session automatically closes when exiting the async with block
 
-# DATABASE_URL = "postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb"
 
 engine = create_async_engine(
     DATABASE_URL,

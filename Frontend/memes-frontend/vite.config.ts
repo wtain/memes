@@ -13,5 +13,5 @@ export default defineConfig({
     }),
     tailwindcss(),
   ],
-  envDir: '../../Storage',
+  envDir: '../../environments',
 })

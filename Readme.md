@@ -53,8 +53,8 @@ python -m pip install --upgrade python-certifi-win32
 
 ```commandline
 set WATCHFILES_FORCE_POLLING=1
-uvicorn Backend.app.main:app --reload --reload-dir Backend/app --env-file Storage/.env.metal --port 8081 --host 0.0.0.0
+uvicorn Backend.app.main:app --reload --reload-dir Backend/app --env-file environments/.env.metal --port 8081 --host 0.0.0.0
 
 set WATCHFILES_FORCE_POLLING=1
-uvicorn Backend.app.main:app --reload --reload-dir Backend/app --env-file Storage/.env.general --port 8082 --host 0.0.0.0
+uvicorn Backend.app.main:app --reload --reload-dir Backend/app --env-file environments/.env.general --port 8082 --host 0.0.0.0
 ```
