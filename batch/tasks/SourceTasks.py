@@ -1,3 +1,4 @@
+
 from batch.repository.images import ImagesRepository
 from batch.source.fs import LocalFileSystemFolder
 
@@ -12,6 +13,9 @@ class UnregisterNonExisting:
         images = await self.repo.get_all_images()
         non_existent = set()
         for (filename, id,) in images:
+            if self.source.check_is_directory(filename):
+                print(f"Directory: {filename}")
+                non_existent.add(id)
             if not self.source.check_exists(filename):
                 print(f"Doesn't exist: {filename}")
                 non_existent.add(id)

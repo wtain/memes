@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 
 import ollama
@@ -8,6 +9,7 @@ from ollama import ResponseError
 from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count
 
+from batch.ai.yolo import YoloAnimalDetector
 from batch.embeddingutils.image import embed_image, load_image
 from batch.models.external import AsyncSessionLocal
 from batch.models.external import OllamaDescription
@@ -19,13 +21,6 @@ from batch.models.external import Image as Img
 async def main():
 
     async with AsyncSessionLocal() as session:
-        print("Deleting all descriptions...")
-        await session.execute(
-            delete(OllamaDescription)
-        )
-        await session.commit()
-        print("Done")
-
         stmt = (
             select(Img.filename, Img.id)
         )
@@ -33,7 +28,11 @@ async def main():
 
         BASE_PATH = os.getenv('BASE_PATH')
         print(f"BASE_PATH={BASE_PATH}")
-        base_path = os.path.abspath(BASE_PATH)  # "c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes\\"
+        base_path = os.path.abspath(BASE_PATH)
+
+        model = YoloAnimalDetector()
+
+        animals, objects = set(), set()
 
         for (filename, image_id,) in result:
             path = os.path.join(base_path, filename)
@@ -45,29 +44,18 @@ async def main():
             # todo: batching - commit in batches and enable resume mode, not deleting all in the beginning
 
             try:
-                response = ollama.chat(
-                    model='llava',
-                    messages=[{
-                        'role': 'user',
-                        'content': 'What is shown in this image?',
-                        'images': [path]
-                    }]
-                )
+                response = model.detect_animals(path)
 
-                description = OllamaDescription(
-                    image_id=image_id,
-                    text=response['message']['content']
-                )
+                print(f"{filename}: {response}")
+                for animal in response["animals"]:
+                    animals.add(animal)
+                for object in response["objects"]:
+                    objects.add(object)
 
-                session.add(description)
             except Exception as e:
                 print(f"Model failed: {e}")
-
-
-        # batch commit?
-        print("Committing...")
-        await session.commit()
-        print("Done")
+        print(f"Animals: {animals}")
+        print(f"Objects: {objects}")
 
 
 

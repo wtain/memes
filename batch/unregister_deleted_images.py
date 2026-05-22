@@ -9,7 +9,9 @@ async def main():
 
     async with AsyncSessionLocal() as session:
 
-        base_path = os.path.abspath("c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes\\")
+        BASE_PATH = os.getenv('BASE_PATH')
+        print(f"BASE_PATH={BASE_PATH}")
+        base_path = os.path.abspath(BASE_PATH)
 
         task = UnregisterNonExisting(session, base_path)
 

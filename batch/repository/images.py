@@ -3,6 +3,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
+from Storage.models import Embedding
 from batch.models.external import OCRText, Image, OllamaDescription
 
 
@@ -54,6 +55,15 @@ class ImagesRepository:
         return images
 
 
+    async def iterate_images(self):
+        stmt = (
+            select(Image.filename, Image.id)
+        )
+        result = await self.session.execute(stmt)
+        for (filename, image_id,) in result:
+            yield filename, image_id
+
+
     async def delete_images(self, ids):
         delete_query = (
             delete(
@@ -94,3 +104,16 @@ class ImagesRepository:
         await self.session.flush()  # image.id available
         # await self.session.commit()  # not optimal
         return image
+
+    # Copy from backend
+    async def get_similar(self, image_id: str, embedding, limit: int = 10):
+        img = aliased(Image)
+        embed = aliased(Embedding)
+        result = await self.session.execute(
+            select(embed.image_id, embed.embedding.cosine_distance(embedding), img.filename)
+            .join(img, img.id == embed.image_id)
+            .filter(embed.image_id != image_id)
+            .order_by(embed.embedding.cosine_distance(embedding))
+            .limit(limit)
+        )
+        return result.all()

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 ONE_YEAR = int(timedelta(days=365).total_seconds())
+ONE_HOUR = int(timedelta(hours=1).total_seconds())
 
 
 def image_cache_headers() -> dict[str, str]:

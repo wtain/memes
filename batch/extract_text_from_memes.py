@@ -8,6 +8,7 @@ from easyocr import easyocr
 
 import time
 
+from batch.metrics.listener import SimpleMetricsListener
 # split models in exports into models and db
 # or create a module and import it?
 from batch.models.external import AsyncSessionLocal
@@ -20,22 +21,26 @@ from batch.repository.ocr_text import OCRTextRepository
 PIPELINE = "easyocr:en"
 
 
-
-async def io_producer(path, io_queue, pipeline):
+async def io_producer(path, io_queue, pipeline, metrics_listener):
     async with AsyncSessionLocal() as session:
         status_repo = ImageProcessingStatusRepository(session, pipeline)
         image_repo = ImagesRepository(session)
         for file in os.listdir(path):
+            if os.path.isdir(file):
+                metrics_listener.increment("skipped.directory")
+                continue
             if file.lower().endswith(".mp4"):
-                # todo: metric: skipped
+                metrics_listener.increment("skipped.file")
                 continue
 
             image = await image_repo.find_image_by_filename(file)
-            if image and await status_repo.try_claim_image(image.id):
+            if image and not await status_repo.should_process(image.id):
+                metrics_listener.increment("skipped.existing")
                 continue
 
             if image is None:
                 image = await image_repo.register_image(file)
+                metrics_listener.increment("new.registered")
 
             await status_repo.mark_started(image)
 
@@ -47,6 +52,7 @@ async def io_producer(path, io_queue, pipeline):
                     data = f.read()
             except Exception as e:
                 print(f"Error: {e}")
+                metrics_listener.increment("error.reading")
                 continue
             t_read = time.perf_counter() - t0
 
@@ -55,7 +61,7 @@ async def io_producer(path, io_queue, pipeline):
         await io_queue.put(None)
 
 
-async def cpu_worker(io_queue, cpu_queue, executor):
+async def cpu_worker(io_queue, cpu_queue, executor, metrics_listener):
     loop = asyncio.get_running_loop()
 
     while True:
@@ -76,7 +82,7 @@ async def cpu_worker(io_queue, cpu_queue, executor):
             except cv2.error as e:
                 print(e)
                 img = None
-                # todo: mark as error
+                metrics_listener.increment("error.processing")
 
             return img, time.perf_counter() - t0
 
@@ -109,7 +115,7 @@ async def persist_ocr_result(
         await session.commit()
 
 
-async def gpu_consumer(queue, pipeline):
+async def gpu_consumer(queue, pipeline, metrics_listener):
     readers = {
         "ru": easyocr.Reader(['ru'], gpu=True),
         "en": easyocr.Reader(['en'], gpu=True),
@@ -144,6 +150,7 @@ async def gpu_consumer(queue, pipeline):
             for bbox, text, confidence in result:
                 print(f"{text} ({confidence})")
 
+            metrics_listener.increment("saved")
             await persist_ocr_result(result, {
                 "read_time_ms": read_t,
                 "preprocess_time_ms": prep_t,
@@ -153,16 +160,19 @@ async def gpu_consumer(queue, pipeline):
 
 
 async def main(path: str):
-    io_queue = asyncio.Queue(maxsize=50)
+    io_queue = asyncio.Queue(maxsize=200)
     cpu_queue = asyncio.Queue(maxsize=20)
 
-    cpu_executor = ThreadPoolExecutor(max_workers=4)
+    cpu_executor = ThreadPoolExecutor(max_workers=16)
+    metrics_listener = SimpleMetricsListener()
 
     await asyncio.gather(
-        io_producer(path, io_queue, PIPELINE),
-        cpu_worker(io_queue, cpu_queue, cpu_executor),
-        gpu_consumer(cpu_queue, PIPELINE)
+        io_producer(path, io_queue, PIPELINE, metrics_listener),
+        cpu_worker(io_queue, cpu_queue, cpu_executor, metrics_listener),
+        gpu_consumer(cpu_queue, PIPELINE, metrics_listener)
     )
+
+    metrics_listener.print()
 
 """
 1. part of text for identification of the possibility, and rest - for the confirmation
@@ -171,9 +181,6 @@ async def main(path: str):
 """
 
 if __name__ == "__main__":
-    # source_path = "c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes"
-    database_url = os.getenv('DATABASE_URL')
     source_path = os.getenv('BASE_PATH')
-    print(f"Database url: {database_url}")  # todo: contains password now!
     print(f"Base path: {source_path}")
     asyncio.run(main(source_path))

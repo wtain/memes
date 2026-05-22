@@ -53,7 +53,7 @@ class ImageProcessingStatusRepository:
         status.finished_at = datetime.utcnow()
         await self.session.commit()
 
-    async def try_claim_image(self, image_id: str) -> bool:
+    async def should_process(self, image_id: str) -> bool:
         existing = await self.get_image_status(image_id)
 
         if existing:

@@ -2,7 +2,7 @@ import asyncio
 import os
 import shutil
 
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
 from batch.models.external import AsyncSessionLocal
 from batch.models.external import Image, ImageExtras
@@ -20,7 +20,9 @@ async def main():
         )
         images = await session.execute(query)
 
-        base_path = os.path.abspath("c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes\\")
+        BASE_PATH = os.getenv('BASE_PATH')
+        print(f"BASE_PATH={BASE_PATH}")
+        base_path = os.path.abspath(BASE_PATH)
         excluded_path = os.path.join(base_path, "excluded")
         os.makedirs(excluded_path, exist_ok=True)
 

@@ -5,7 +5,7 @@ import re
 class RulesEngine:
 
     def __init__(self, filename = "data/rules.json"):
-        with open(filename, "r") as jsonfile:
+        with open(filename, "r", encoding='utf-8') as jsonfile:
             self.rules = json.load(jsonfile)
 
     def get_tags_for_text(self, text):

@@ -1,11 +1,14 @@
 import asyncio
+import os
 
 from batch.models.external import AsyncSessionLocal
 from batch.repository.images import ImagesRepository
 from batch.repository.tags import TagsRepository, TagsSaver
 from batch.rules.engine import RulesEngine
 
-rules_engine = RulesEngine()
+RULES_FILE = os.getenv("RULES_FILE")
+
+rules_engine = RulesEngine(RULES_FILE)
 
 async def main():
 

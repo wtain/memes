@@ -103,7 +103,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
       }
       return await memesApi.searchMemes({
         cursor: next,
-        limit: 21,
+        limit: 36,
         query: filter,
         tags,
       })
@@ -129,7 +129,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
 
   return (
     <div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         {memes.map(meme => (
           <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
         ))}

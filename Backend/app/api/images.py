@@ -1,4 +1,9 @@
+import mimetypes
+import os
 from typing import Optional, AsyncGenerator
+from urllib.parse import quote
+
+import unicodedata
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,15 +117,40 @@ async def get_duplicate_images(
     return await service.get_duplicates_clustered(cursor=cursor, limit=limit, threshold=threshold)
 
 
+def content_disposition(filename: str) -> str:
+    # ASCII fallback: strip non-latin chars for older clients
+    ascii_fallback = unicodedata.normalize('NFKD', filename)
+    ascii_fallback = ascii_fallback.encode('ascii', 'ignore').decode('ascii')
+
+    # RFC 5987 encoded version for full Unicode support
+    encoded = quote(filename, encoding='utf-8')
+
+    return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
+    # filename_encoded = quote(filename, encoding='utf-8')
+    # return f"inline; filename*=UTF-8''{filename_encoded}"
+
+
 @router.get("/{image_id}")
 async def get_image(image_id: str, response: Response, db: AsyncSession = Depends(get_async_db)):
     repo = ImageRepository(db)
     filename = await repo.get_filename(image_id)
+
     if not filename:
         raise HTTPException(status_code=404, detail="Image not found")
+
+    mime_type, _ = mimetypes.guess_type(filename)
+    # todo: logging
+    print(f"{filename}: {mime_type}")
+
+    # name, ext = os.path.splitext(filename)
+    # new_name = f"{image_id}{ext}"
+
+    headers = image_cache_headers()
+    cd = content_disposition(filename)
+    print(repr(cd))  # must show only ASCII chars
+    headers['Content-Disposition'] = cd
     return FileResponse(
         IMAGES_DIR / filename,
-        media_type="application/octet-stream",
-        filename=image_id,
-        headers=image_cache_headers(),
+        # media_type=mime_type,
+        headers=headers,
     )

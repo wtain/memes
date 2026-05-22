@@ -11,6 +11,7 @@ from app.api.concepts import router as concepts_router
 load_dotenv()
 
 FRONTEND_ORIGIN = os.getenv('FRONTEND_ORIGIN')
+ALTERNATIVE_FRONTEND_ORIGIN = os.getenv('ALTERNATIVE_FRONTEND_ORIGIN')
 
 app = FastAPI(
     title="Memes API",
@@ -21,7 +22,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost",
+        "http://127.0.0.1",
         FRONTEND_ORIGIN,
+        ALTERNATIVE_FRONTEND_ORIGIN,
+        # "http://192.168.*.*",
+        # "http://192.168.*.*:*",
         # "http://localhost:5173",
         # "http://localhost:5174",
     ],
@@ -33,8 +38,8 @@ app.add_middleware(
 # set WATCHFILES_FORCE_POLLING=1
 # uvicorn app.main:app --reload --env-file app/.env --port 8081
 """
-uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.metal --port 8081
-uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.general --port 8082
+uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.metal --port 8081 --host 0.0.0.0
+uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.general --port 8082 --host 0.0.0.0
 """
 app.include_router(images_router, prefix="/api")
 app.include_router(concepts_router, prefix="/api")
