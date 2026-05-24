@@ -44,7 +44,7 @@ New environment
 (Windows)
 
 ```powershell
-Get-Content .env.general | foreach {
+Get-Content ..\environments\.env.general | foreach {
     $name, $value = $_.split('=')
     set-content env:\$name $value
 }

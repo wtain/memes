@@ -57,4 +57,7 @@ uvicorn Backend.app.main:app --reload --reload-dir Backend/app --env-file enviro
 
 set WATCHFILES_FORCE_POLLING=1
 uvicorn Backend.app.main:app --reload --reload-dir Backend/app --env-file environments/.env.general --port 8082 --host 0.0.0.0
+
+set WATCHFILES_FORCE_POLLING=1
+uvicorn Backend.app.main:app --reload --reload-dir Backend/app --env-file environments/.env.it --port 8083 --host 0.0.0.0
 ```

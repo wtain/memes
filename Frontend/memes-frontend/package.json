@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --mode metal --port 5173 --host",
     "dev-gen": "vite --mode general --port 5174 --host",
+    "dev-it": "vite --mode it --port 5175 --host",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

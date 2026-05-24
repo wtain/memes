@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count
 
-from embeddingutils.image import embed_image, load_image
+from ai.clip import ClipModel
+from embeddingutils.image import load_image
 from Storage.db import AsyncSessionLocal
 from Storage.models import Embedding
 
@@ -36,21 +37,13 @@ async def main():
         )
         result = await session.execute(stmt)
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        model, preprocess, _ = open_clip.create_model_and_transforms(
-            "ViT-B-32",
-            pretrained="openai"
-        )
-
-        model = model.to(device)
-        model.eval()
+        clip_model = ClipModel()
 
         BASE_PATH = os.getenv('BASE_PATH')
         print(f"BASE_PATH={BASE_PATH}")
         base_path = os.path.abspath(BASE_PATH) # "c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes\\"
 
-        print(f"Processing on {device}")
+        print(f"Processing on {clip_model.device}")
         # todo: batch encode
         for (filename, image_id,) in result:
             path = os.path.join(base_path, filename)
@@ -60,7 +53,7 @@ async def main():
                 continue
             try:
                 image = load_image(path)
-                vector = embed_image(image, device, model, preprocess)
+                vector = clip_model.embed_image(image)
                 emb = Embedding(
                     image_id=image_id,
                     embedding=vector.tolist()
@@ -74,7 +67,6 @@ async def main():
         print("Committing...")
         await session.commit()
         print("Done")
-
 
 
 if __name__ == "__main__":

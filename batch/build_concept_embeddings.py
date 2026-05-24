@@ -6,11 +6,10 @@ from datetime import datetime
 from itertools import product
 
 import numpy as np
-import open_clip
-import torch
 from sqlalchemy import delete
 
-from embeddingutils.image import load_image, embed_image
+from ai.clip import ClipModel
+from embeddingutils.image import load_image
 from Storage.db import AsyncSessionLocal
 from Storage.models import Concept, ConceptImageSet, ConceptImage
 
@@ -161,27 +160,8 @@ image_concepts = [
 # todo: assess concept quality by average deviation from the centroid
 
 async def main():
-    model, preprocess, _ = open_clip.create_model_and_transforms(
-        "ViT-B-32",
-        pretrained="openai"
-    )
 
-    tokenizer = open_clip.get_tokenizer("ViT-B-32")
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    model = model.to(device)
-    model.eval()
-
-    def embed_text(text: str):
-        tokens = tokenizer([text]).to(device)
-
-        with torch.no_grad():
-            features = model.encode_text(tokens)
-
-        features = features / features.norm(dim=-1, keepdim=True)
-
-        return features.cpu().numpy()[0]
+    clip_model = ClipModel()
 
     async with AsyncSessionLocal() as session:
         print("Deleting all concept embeddings...")
@@ -196,7 +176,7 @@ async def main():
 
             concept_texts = [template.format(text) for text, template in product(concept_texts, templates)]
 
-            vectors = [embed_text(t) for t in concept_texts]
+            vectors = [clip_model.embed_text(t) for t in concept_texts]
             concept_embedding = build_centroid(vectors)
 
             # Medoid?
@@ -211,11 +191,6 @@ async def main():
 
         print("Processing image concepts")
         for concept_name in os.listdir(images_path):
-        # if True:
-        #     if concept_name == "_bad":
-        #         continue
-        #     if concept_name == "mikael-akerfeldt" or concept_name == "chad-kroeger":
-        #         continue
             print(f"Processing image concept {concept_name}")
             vectors = []
             dir_path = os.path.join(images_path, concept_name)
@@ -230,7 +205,7 @@ async def main():
                     image_set_vectors = []
                     for image_file in os.listdir(file_path):
                         image_file_path = os.path.join(file_path, image_file)
-                        process_image_file(device, image_file_path, image_file, image_set_entity, model, preprocess,
+                        process_image_file(clip_model, image_file_path, image_file, image_set_entity,
                                            session, image_set_vectors)
 
                     image_set_embedding = build_centroid(image_set_vectors)
@@ -242,8 +217,7 @@ async def main():
                     image_concept_stats[sub_concept_name] = (average_similarity, std_similarity)
                     vectors += image_set_vectors
                 else:
-                    process_image_file(device, file_path, image_file_main, image_set_entity_main, model, preprocess,
-                                             session, vectors)
+                    process_image_file(clip_model, file_path, image_file_main, image_set_entity_main, session, vectors)
 
             concept_embedding = build_centroid(vectors)
             concept_entity.embedding = concept_embedding
@@ -298,11 +272,11 @@ def save_image_concept_stats_to_csv(stats: dict, output_dir: str = ".") -> str:
     return file_path
 
 
-def process_image_file(device, file_path, image_file, image_set_entity, model, preprocess, session, vectors):
+def process_image_file(clip_model, file_path, image_file, image_set_entity, session, vectors):
     print(f"Processing file {image_file}")
     try:
         image = load_image(file_path)
-        vector = embed_image(image, device, model, preprocess)
+        vector = clip_model.embed_image(image)
         vectors.append(vector)
         image_entity = ConceptImage(image_set=image_set_entity, embedding=vector, filename=image_file)
         session.add(image_entity)
