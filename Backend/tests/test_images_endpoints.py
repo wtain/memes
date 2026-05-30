@@ -1,6 +1,13 @@
 """
 Tests for the images endpoints.
-Endpoints tested: get_images, mark_excluded, unmark_excluded
+Endpoints tested:
+- get_images (search with query, facets, pagination)
+- get_similar_images
+- get_meme (single meme details)
+- mark_excluded / unmark_excluded / get_excluded
+- get_untagged_images
+- get_duplicate_images
+- get_image (file download)
 """
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
@@ -370,3 +377,589 @@ class TestMarkUnmarkExcludedWorkflow:
         assert unmark_response.status_code == 200
         mock_image_service.mark_excluded.assert_called_once_with(image_id)
         mock_image_service.unmark_excluded.assert_called_once_with(image_id)
+
+
+class TestGetExcluded:
+    """Tests for GET /api/images/meme/{image_id}/get_excluded endpoint."""
+
+    def test_get_excluded_when_excluded(self, client, mock_image_service):
+        """Test getting excluded status when image is excluded."""
+        # Arrange
+        mock_image_service.get_is_excluded.return_value = True
+
+        # Act
+        response = client.get("/api/images/meme/123/get_excluded")
+
+        # Assert
+        assert response.status_code == 200
+        assert response.json() == 1
+        mock_image_service.get_is_excluded.assert_called_once_with("123")
+
+    def test_get_excluded_when_not_excluded(self, client, mock_image_service):
+        """Test getting excluded status when image is not excluded."""
+        # Arrange
+        mock_image_service.get_is_excluded.return_value = False
+
+        # Act
+        response = client.get("/api/images/meme/456/get_excluded")
+
+        # Assert
+        assert response.status_code == 200
+        assert response.json() == 0
+        mock_image_service.get_is_excluded.assert_called_once_with("456")
+
+    def test_get_excluded_with_uuid(self, client, mock_image_service):
+        """Test getting excluded status with UUID format."""
+        # Arrange
+        uuid_id = "550e8400-e29b-41d4-a716-446655440000"
+        mock_image_service.get_is_excluded.return_value = True
+
+        # Act
+        response = client.get(f"/api/images/meme/{uuid_id}/get_excluded")
+
+        # Assert
+        assert response.status_code == 200
+        assert response.json() == 1
+        mock_image_service.get_is_excluded.assert_called_once_with(uuid_id)
+
+
+class TestGetSimilarImages:
+    """Tests for GET /api/images/{image_id}/similar endpoint."""
+
+    def test_get_similar_images_success(self, client, mock_image_service):
+        """Test getting similar images for a given image."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[
+                Meme(
+                    id="similar-1",
+                    imageUrl="/api/images/similar-1",
+                    text=["Similar meme 1"],
+                    tags=[MemeTag(name="cat", category="subject")],
+                    originalFileName="similar1.jpg"
+                ),
+                Meme(
+                    id="similar-2",
+                    imageUrl="/api/images/similar-2",
+                    text=["Similar meme 2"],
+                    tags=[MemeTag(name="cat", category="subject")],
+                    originalFileName="similar2.jpg"
+                )
+            ],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_similar.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/123/similar")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 2
+        assert data["items"][0]["id"] == "similar-1"
+        assert data["items"][1]["id"] == "similar-2"
+        mock_image_service.get_similar.assert_called_once_with("123")
+
+    def test_get_similar_images_no_results(self, client, mock_image_service):
+        """Test getting similar images when no similar images found."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_similar.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/456/similar")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 0
+        mock_image_service.get_similar.assert_called_once_with("456")
+
+    def test_get_similar_images_with_uuid(self, client, mock_image_service):
+        """Test getting similar images with UUID format."""
+        # Arrange
+        uuid_id = "550e8400-e29b-41d4-a716-446655440000"
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_similar.return_value = mock_response
+
+        # Act
+        response = client.get(f"/api/images/{uuid_id}/similar")
+
+        # Assert
+        assert response.status_code == 200
+        mock_image_service.get_similar.assert_called_once_with(uuid_id)
+
+
+class TestGetMeme:
+    """Tests for GET /api/images/meme/{image_id} endpoint."""
+
+    def test_get_meme_success(self, client, mock_image_service):
+        """Test getting meme details successfully."""
+        # Arrange
+        mock_meme = Meme(
+            id="123",
+            imageUrl="/api/images/123",
+            text=["Sample text line 1", "Sample text line 2"],
+            tags=[
+                MemeTag(name="funny", category="mood", score=0.95),
+                MemeTag(name="cat", category="subject", score=0.88)
+            ],
+            originalFileName="cat_meme.jpg"
+        )
+        mock_image_service.get_meme.return_value = mock_meme
+
+        # Act
+        response = client.get("/api/images/meme/123")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == "123"
+        assert data["imageUrl"] == "/api/images/123"
+        assert len(data["text"]) == 2
+        assert len(data["tags"]) == 2
+        assert data["tags"][0]["name"] == "funny"
+        assert data["tags"][0]["category"] == "mood"
+        assert data["originalFileName"] == "cat_meme.jpg"
+        mock_image_service.get_meme.assert_called_once_with("123")
+
+    def test_get_meme_with_no_tags(self, client, mock_image_service):
+        """Test getting meme with no tags."""
+        # Arrange
+        mock_meme = Meme(
+            id="456",
+            imageUrl="/api/images/456",
+            text=[],
+            tags=[],
+            originalFileName="no_tags.jpg"
+        )
+        mock_image_service.get_meme.return_value = mock_meme
+
+        # Act
+        response = client.get("/api/images/meme/456")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == "456"
+        assert len(data["tags"]) == 0
+        assert len(data["text"]) == 0
+
+    def test_get_meme_with_uuid(self, client, mock_image_service):
+        """Test getting meme with UUID format."""
+        # Arrange
+        uuid_id = "550e8400-e29b-41d4-a716-446655440000"
+        mock_meme = Meme(
+            id=uuid_id,
+            imageUrl=f"/api/images/{uuid_id}",
+            text=["UUID test"],
+            tags=[],
+            originalFileName="uuid_test.jpg"
+        )
+        mock_image_service.get_meme.return_value = mock_meme
+
+        # Act
+        response = client.get(f"/api/images/meme/{uuid_id}")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == uuid_id
+        mock_image_service.get_meme.assert_called_once_with(uuid_id)
+
+
+class TestGetUntaggedImages:
+    """Tests for GET /api/images/untagged endpoint."""
+
+    def test_get_untagged_images_success(self, client, mock_image_service):
+        """Test getting untagged images successfully."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[
+                Meme(
+                    id="untagged-1",
+                    imageUrl="/api/images/untagged-1",
+                    text=["Text without tags"],
+                    tags=[],
+                    originalFileName="untagged1.jpg"
+                ),
+                Meme(
+                    id="untagged-2",
+                    imageUrl="/api/images/untagged-2",
+                    text=[],
+                    tags=[],
+                    originalFileName="untagged2.jpg"
+                )
+            ],
+            nextCursor="next-untagged",
+            hasNext=True,
+            facets=[]
+        )
+        mock_image_service.get_untagged.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/untagged")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 2
+        assert data["items"][0]["id"] == "untagged-1"
+        assert len(data["items"][0]["tags"]) == 0
+        assert data["hasNext"] is True
+        mock_image_service.get_untagged.assert_called_once()
+        call_kwargs = mock_image_service.get_untagged.call_args.kwargs
+        assert call_kwargs["limit"] == 20
+        assert call_kwargs["cursor"] is None
+
+    def test_get_untagged_images_with_limit(self, client, mock_image_service):
+        """Test getting untagged images with custom limit."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_untagged.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/untagged", params={"limit": 50})
+
+        # Assert
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_untagged.call_args.kwargs
+        assert call_kwargs["limit"] == 50
+
+    def test_get_untagged_images_with_cursor(self, client, mock_image_service):
+        """Test pagination of untagged images with cursor."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_untagged.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/untagged", params={"cursor": "cursor123"})
+
+        # Assert
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_untagged.call_args.kwargs
+        assert call_kwargs["cursor"] == "cursor123"
+
+    def test_get_untagged_images_empty_results(self, client, mock_image_service):
+        """Test getting untagged images when none found."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_untagged.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/untagged")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 0
+        assert data["hasNext"] is False
+
+    def test_get_untagged_images_limit_validation(self, client, mock_image_service):
+        """Test limit validation for untagged images endpoint."""
+        # Test limit too high
+        response = client.get("/api/images/untagged", params={"limit": 101})
+        assert response.status_code == 422
+
+        # Test limit too low
+        response = client.get("/api/images/untagged", params={"limit": 0})
+        assert response.status_code == 422
+
+
+class TestGetDuplicateImages:
+    """Tests for GET /api/images/duplicates endpoint."""
+
+    def test_get_duplicates_success(self, client, mock_image_service):
+        """Test getting duplicate images successfully."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[
+                Meme(
+                    id="dup-1a",
+                    imageUrl="/api/images/dup-1a",
+                    text=["Duplicate 1"],
+                    tags=[],
+                    originalFileName="dup1a.jpg"
+                ),
+                Meme(
+                    id="dup-1b",
+                    imageUrl="/api/images/dup-1b",
+                    text=["Duplicate 1"],
+                    tags=[],
+                    originalFileName="dup1b.jpg"
+                )
+            ],
+            nextCursor="dup-next",
+            hasNext=True,
+            facets=[]
+        )
+        mock_image_service.get_duplicates_clustered.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/duplicates")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 2
+        assert data["hasNext"] is True
+        mock_image_service.get_duplicates_clustered.assert_called_once()
+        call_kwargs = mock_image_service.get_duplicates_clustered.call_args.kwargs
+        assert call_kwargs["limit"] == 20
+        assert call_kwargs["threshold"] == 0.05
+        assert call_kwargs["cursor"] is None
+
+    def test_get_duplicates_with_custom_threshold(self, client, mock_image_service):
+        """Test getting duplicates with custom threshold."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_duplicates_clustered.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/duplicates", params={"threshold": 0.1})
+
+        # Assert
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_duplicates_clustered.call_args.kwargs
+        assert call_kwargs["threshold"] == 0.1
+
+    def test_get_duplicates_with_limit(self, client, mock_image_service):
+        """Test getting duplicates with custom limit."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_duplicates_clustered.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/duplicates", params={"limit": 50})
+
+        # Assert
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_duplicates_clustered.call_args.kwargs
+        assert call_kwargs["limit"] == 50
+
+    def test_get_duplicates_with_cursor(self, client, mock_image_service):
+        """Test pagination of duplicates with cursor."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_duplicates_clustered.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/duplicates", params={"cursor": "dup-cursor"})
+
+        # Assert
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_duplicates_clustered.call_args.kwargs
+        assert call_kwargs["cursor"] == "dup-cursor"
+
+    def test_get_duplicates_threshold_validation(self, client, mock_image_service):
+        """Test threshold validation (must be 0.0 to 1.0)."""
+        # Test threshold too high
+        response = client.get("/api/images/duplicates", params={"threshold": 1.1})
+        assert response.status_code == 422
+
+        # Test threshold too low
+        response = client.get("/api/images/duplicates", params={"threshold": -0.1})
+        assert response.status_code == 422
+
+    def test_get_duplicates_limit_validation(self, client, mock_image_service):
+        """Test limit validation for duplicates endpoint."""
+        # Test limit too high
+        response = client.get("/api/images/duplicates", params={"limit": 101})
+        assert response.status_code == 422
+
+        # Test limit too low
+        response = client.get("/api/images/duplicates", params={"limit": 0})
+        assert response.status_code == 422
+
+    def test_get_duplicates_empty_results(self, client, mock_image_service):
+        """Test getting duplicates when none found."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[],
+            nextCursor=None,
+            hasNext=False,
+            facets=[]
+        )
+        mock_image_service.get_duplicates_clustered.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/duplicates")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 0
+        assert data["hasNext"] is False
+
+
+class TestGetImage:
+    """Tests for GET /api/images/{image_id} endpoint (file download)."""
+
+    @pytest.fixture
+    def mock_image_repository(self):
+        """Mock ImageRepository for file download tests."""
+        return AsyncMock()
+
+    @pytest.fixture
+    def client_with_db_mock(self, mock_image_repository):
+        """Create test client with database mock for file operations."""
+
+        async def override_get_async_db():
+            yield mock_image_repository
+
+        from Backend.app.api.images import get_async_db
+        app.dependency_overrides[get_async_db] = override_get_async_db
+
+        with TestClient(app) as test_client:
+            yield test_client, mock_image_repository
+
+        app.dependency_overrides.clear()
+
+    def test_get_image_file_success(self, client_with_db_mock):
+        """Test successfully downloading an image file."""
+        client, mock_repo = client_with_db_mock
+
+        # Arrange
+        image_id = "test-image-123"
+        filename = "test_meme.jpg"
+
+        # Create a mock ImageRepository instance
+        mock_repo_instance = AsyncMock()
+        mock_repo_instance.get_filename.return_value = filename
+
+        # Mock the ImageRepository constructor to return our instance
+        with patch('Backend.app.api.images.ImageRepository', return_value=mock_repo_instance):
+            # Mock the file path check
+            with patch('Backend.app.api.images.IMAGES_DIR') as mock_images_dir:
+                # Create a mock path
+                mock_path = MagicMock()
+                mock_images_dir.__truediv__ = MagicMock(return_value=mock_path)
+
+                # Mock FileResponse to avoid actual file access
+                with patch('Backend.app.api.images.FileResponse') as mock_file_response:
+                    mock_file_response.return_value = MagicMock(
+                        status_code=200,
+                        headers={"Content-Type": "image/jpeg"}
+                    )
+
+                    # Act
+                    response = client.get(f"/api/images/{image_id}")
+
+                    # Assert
+                    assert response.status_code == 200
+                    mock_repo_instance.get_filename.assert_called_once_with(image_id)
+
+    def test_get_image_file_not_found(self, client_with_db_mock):
+        """Test downloading image when file not found in database."""
+        client, mock_repo = client_with_db_mock
+
+        # Arrange
+        image_id = "nonexistent-123"
+
+        # Create a mock ImageRepository instance that returns None
+        mock_repo_instance = AsyncMock()
+        mock_repo_instance.get_filename.return_value = None
+
+        with patch('Backend.app.api.images.ImageRepository', return_value=mock_repo_instance):
+            # Act
+            response = client.get(f"/api/images/{image_id}")
+
+            # Assert
+            assert response.status_code == 404
+            data = response.json()
+            assert data["detail"] == "Image not found"
+            mock_repo_instance.get_filename.assert_called_once_with(image_id)
+
+    def test_get_image_content_disposition_ascii(self, client_with_db_mock):
+        """Test Content-Disposition header with ASCII filename."""
+        from Backend.app.api.images import content_disposition
+
+        # Test ASCII filename
+        result = content_disposition("test_meme.jpg")
+        assert "filename=\"test_meme.jpg\"" in result
+        assert "filename*=UTF-8''test_meme.jpg" in result
+        assert "inline" in result
+
+    def test_get_image_content_disposition_unicode(self, client_with_db_mock):
+        """Test Content-Disposition header with Unicode filename."""
+        from Backend.app.api.images import content_disposition
+
+        # Test Unicode filename
+        result = content_disposition("мем_тест.jpg")
+        assert "inline" in result
+        assert "filename*=UTF-8''" in result
+        # Verify URL encoding of Cyrillic characters
+        assert "%D0%BC%D0%B5%D0%BC" in result  # encoded мем
+
+    def test_get_image_mime_type_detection(self, client_with_db_mock):
+        """Test MIME type detection for different file extensions."""
+        client, mock_repo = client_with_db_mock
+
+        test_cases = [
+            ("image.jpg", "image/jpeg"),
+            ("image.png", "image/png"),
+            ("image.gif", "image/gif"),
+            ("image.webp", "image/webp"),
+        ]
+
+        for filename, expected_mime in test_cases:
+            # Arrange
+            mock_repo_instance = AsyncMock()
+            mock_repo_instance.get_filename.return_value = filename
+
+            with patch('Backend.app.api.images.ImageRepository', return_value=mock_repo_instance):
+                with patch('Backend.app.api.images.IMAGES_DIR') as mock_images_dir:
+                    mock_path = MagicMock()
+                    mock_images_dir.__truediv__ = MagicMock(return_value=mock_path)
+
+                    with patch('Backend.app.api.images.FileResponse') as mock_file_response:
+                        mock_file_response.return_value = MagicMock(status_code=200)
+
+                        # Act
+                        response = client.get(f"/api/images/test-{filename}")
+
+                        # Assert
+                        assert response.status_code == 200
