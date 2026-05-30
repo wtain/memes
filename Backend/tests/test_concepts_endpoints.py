@@ -524,6 +524,24 @@ class TestGetConcept:
         with pytest.raises(Exception, match="Concept not found"):
             client.get("/api/concepts/999")
 
+    def test_get_concept_by_id_not_found_response_validation(self, client, mock_concept_service):
+        """Test response validation when service returns None (concept not found).
+
+        This tests that FastAPI validates the response against the ConceptDto model.
+        When the service returns None, FastAPI raises ResponseValidationError since
+        None doesn't match the expected ConceptDto schema.
+        """
+        from fastapi.exceptions import ResponseValidationError
+
+        # Arrange
+        mock_concept_service.get_by_id.return_value = None
+
+        # Act & Assert
+        # FastAPI validates response model and raises ResponseValidationError
+        # when None is returned for a required ConceptDto response
+        with pytest.raises(ResponseValidationError):
+            client.get("/api/concepts/999")
+
 
 class TestConceptsIntegration:
     """Integration tests for concepts endpoints workflow."""
