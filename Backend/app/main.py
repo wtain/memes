@@ -44,6 +44,12 @@ uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.genera
 app.include_router(images_router, prefix="/api")
 app.include_router(concepts_router, prefix="/api")
 
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for container orchestration."""
+    return {"status": "healthy"}
+
 if __name__ == "__main__":
     uvicorn.run(app,
                 host="127.0.0.1",

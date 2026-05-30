@@ -66,7 +66,8 @@ All workflows are located in `.github/workflows/` directory.
 ```
 ✓ 42 image endpoint tests
 ✓ 32 concept endpoint tests
-✓ 74 tests total (~2 seconds)
+✓ 10 main app tests (health, config)
+✓ 84 tests total (~4 seconds)
 ```
 
 **Status Badge**:
@@ -262,7 +263,7 @@ gh run download <RUN_ID> --name test-results-3.11
 ### Success Criteria
 
 **Tests Pass**:
-- All 74 tests passing
+- All 84 tests passing
 - No Python syntax errors
 - Linting warnings noted (non-blocking)
 
