@@ -9,8 +9,6 @@ from easyocr import easyocr
 import time
 
 from metrics.listener import SimpleMetricsListener
-# split models in exports into models and db
-# or create a module and import it?
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image
 from repository.image_metrics import ImageMetricsRepository

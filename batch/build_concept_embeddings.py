@@ -1,161 +1,34 @@
 import asyncio
 import csv
+import json
 import os
 import pathlib
 from datetime import datetime
 from itertools import product
 
 import numpy as np
-from sqlalchemy import delete
 
 from ai.clip import ClipModel
 from embeddingutils.image import load_image
 from Storage.db import AsyncSessionLocal
 from Storage.models import Concept, ConceptImageSet, ConceptImage
+from repository.concepts import ConceptsRepository
+
 
 
 # concept name -> list of texts
 # later we add images
-concepts = {
-    "Metallica": [
-        "Big four thrash metal band",
-        "Metal band authored songs: Master Of Puppets, Enter Sandman, Saint Anger, Creeping Death, The Unforgiven",
-        "Metal band consists of James Hetfield, Lars Ulrich, Kirk Hammett and Robert Trujilho",
-        "Lars Ulrich is allegedly a bad drummer"
-    ],
-    "Wintersun": [
-        "metal band performing live",
-        "epic stage lighting at metal concert",
-        "long haired guitarist performing",
-        "Metal Band constantly delaying album release"
-    ],
-    "Corpsepaint": [
-        "people drawing scary faces with a black paint",
-        "black metal corpsepaint makeup",
-        "norwegian black metal face paint",
-        "metal musician wearing corpsepaint",
-        "white black corpsepaint face",
-    ],
-    "Glam metal": [
-        "Male musicians dress in color clothes",
-        "Long-haired guys look like girls",
-    ],
-    "Goth girl": [
-        "girls with black hair and smoky eyes wearing fishnets",
-    ],
-    "Simpsons": [
-        "a cartoon TV show",
-        "all characters skin is yellow",
-    ],
-    "Dethklok": [
-        "a cartoon tv show about a death metal band",
-        "Nathan Explosion is a cartoon version of George Fisher aka Corpsegrinder"
-    ],
-    "Valentine card": [
-        "a love letter with some warm wishes"
-    ],
-    "Black metal": [
-        "a metal music subgenre with dark aesthetics",
-        "musicians use corpsepaint",
-        "band logos are usually extremely unreadable"
-    ],
-    "Heavy metal": [
-        "musicians usually have long hair",
-        "guitar-centric music",
-        "musicians usually look eccentric",
-        "Is countered by hard rock music"
-    ],
-    "Lord of the rings": [
-        "A fantasy saga about different nations like hobbits, elves, orcs and humans",
-        "There are multiple rings, and there are good and evil forces",
-    ],
-    "Black hole": [
-        "a huge object in the outer space having extreme mass and thus extreme gravity"
-    ],
-    "Meshuggah face": [
-        "an angry face with lower tooth inclined in forward direction"
-    ],
-    "emotion:surprised": [
-        "surprised face",
-        "a guy looks puzzled",
-        "someone is confused"
-    ],
-    "emotion:angry": [
-        "angry face",
-        "bare teeth",
-    ],
-}
 
-templates = [
-    "a photo of {}",
-    "a photo of a {}",
-    "a picture of {}",
-    "a picture of a {}",
-    "a close-up photo of {}",
-    "a concert photo of {}",
-]
+TEXT_CONCEPTS_FILE = os.getenv('TEXT_CONCEPTS_FILE')
+TEXT_CONCEPTS_TEMPLATES_FILE = os.getenv('TEXT_CONCEPTS_TEMPLATES_FILE')
+CONCEPT_IMAGES_DIR = os.getenv('CONCEPT_IMAGES_DIR')
 
-image_concepts = [
-    "corpsepaint-black-metal",
-    "extreme-metal-band-logo",
-    "family-guy-cartoon-tv-show",
-    "glam-metal-band",
-    "goth-girl",
-    "kiss-band",
-    "lemmy-kilmister",
-    "metallica",
-    "simpsons-cartoon-tv-show",
-    "doge-meme",
-    "drake-meme",
-    "distracted-boyfriend-meme",
-    "change-my-mind-meme",
-    "skeletor-until-we-meet-again-meme",
-    "two-buttons-meme",
-    "two-paths-meme",
-    "couple-in-a-car-meme",
-    "meme-pepe",
-    "meme-slipknot",
-    "meme-metalocalypse",
-    "meme-cat",
-    "meme-spoungebob",
-    "meme-spiderman",
-    "meme-no-ricky",
-    "meme-penguin",
-    "confused-face-meme",
-    "happy-face-meme",
-    "angry-face-meme",
-    "crying-face-meme",
-    "crazy-face-meme",
-    "screaming-face-meme",
-    "bart-simpson-simpsons-tv-cartoon-show",
-    "homer-simpson-simpsons-tv-cartoon-show",
-    "marge-simpson-simpsons-tv-cartoon-show",
-    "lisa-simpson-simpsons-tv-cartoon-show",
-    "maggie-simpson-simpsons-tv-cartoon-show",
-    "bender-futurama-tv-cartoon-show",
-    "fry-futurama-tv-cartoon-show",
-    "leela-futurama-tv-cartoon-show",
-    "professor-futurama-tv-cartoon-show",
-    "pikachu-pokemon",
-    "nathan-explosion-dethklok-metalocalypse",
-    "Skwisgaar-Skwigelf-dethklok-metalocalypse",
-    "toki-wartooth-dethklok-metalocalypse",
-    "family-guy-stewie-griffin",
-    "family-guy-peter-griffin",
-    "family-guy-brian",
-    "family-guy-lois-griffin",
-    "family-guy-mag-griffin",
-    "couple-in-the-beb-meme",
-    "ronald-mcdonald-clown",
-    "ned-flanders-simpsons",
+with open(TEXT_CONCEPTS_FILE, "r", encoding='utf-8') as jsonfile:
+    concepts = json.load(jsonfile)
 
-    "soyjak",
-    "guy-explaining-to-girl",
-    "taylor-swift",
-    "jesus-and-guy",
-    "ozzy",
-    "varg",
-]
+with open(TEXT_CONCEPTS_TEMPLATES_FILE, "r", encoding='utf-8') as jsonfile:
+    templates = json.load(jsonfile)
+
 
 # todo: assess concept quality by average deviation from the centroid
 
@@ -164,28 +37,15 @@ async def main():
     clip_model = ClipModel()
 
     async with AsyncSessionLocal() as session:
-        print("Deleting all concept embeddings...")
-        await session.execute(
-            delete(Concept)
-        )
-        await session.commit()
-        print("Done")
 
-        print("Processing text concepts")
-        for concept_name, concept_texts in concepts.items():
+        concepts_repo = ConceptsRepository(session)
 
-            concept_texts = [template.format(text) for text, template in product(concept_texts, templates)]
+        await concepts_repo.delete_all()
 
-            vectors = [clip_model.embed_text(t) for t in concept_texts]
-            concept_embedding = build_centroid(vectors)
-
-            # Medoid?
-            report_statistics(concept_embedding, concept_name, vectors)
-
-            session.add(Concept(name=concept_name, embedding=concept_embedding))
+        process_text_concepts(clip_model, concepts_repo)
 
         working_directory = pathlib.Path().resolve()
-        images_path = os.path.join(working_directory, "images")
+        images_path = os.path.join(working_directory, CONCEPT_IMAGES_DIR)
 
         image_concept_stats = {}
 
@@ -198,26 +58,29 @@ async def main():
             concept_entity = Concept(name=concept_name)
             image_set_entity_main = ConceptImageSet(name="main", concept=concept_entity, directory=dir_path)
 
-            for image_file_main in os.listdir(dir_path):
-                file_path = os.path.join(dir_path, image_file_main)
-                if os.path.isdir(file_path):
-                    image_set_entity = ConceptImageSet(name=image_file_main, concept=concept_entity, directory=image_file_main)
-                    image_set_vectors = []
-                    for image_file in os.listdir(file_path):
-                        image_file_path = os.path.join(file_path, image_file)
-                        process_image_file(clip_model, image_file_path, image_file, image_set_entity,
-                                           session, image_set_vectors)
+            if os.path.isdir(dir_path):
+                for image_file_main in os.listdir(dir_path):
+                    file_path = os.path.join(dir_path, image_file_main)
+                    if os.path.isdir(file_path):
+                        image_set_entity = ConceptImageSet(name=image_file_main, concept=concept_entity, directory=image_file_main)
+                        image_set_vectors = []
+                        for image_file in os.listdir(file_path):
+                            image_file_path = os.path.join(file_path, image_file)
+                            process_image_file(clip_model, image_file_path, image_file, image_set_entity,
+                                               session, image_set_vectors)
 
-                    image_set_embedding = build_centroid(image_set_vectors)
-                    image_set_entity.embedding = image_set_embedding
-                    session.add(image_set_entity)
+                        image_set_embedding = build_centroid(image_set_vectors)
+                        image_set_entity.embedding = image_set_embedding
+                        session.add(image_set_entity)
 
-                    sub_concept_name = f"{concept_name}:{image_file_main}"
-                    average_similarity, std_similarity = report_statistics(image_set_embedding, sub_concept_name, image_set_vectors)
-                    image_concept_stats[sub_concept_name] = (average_similarity, std_similarity)
-                    vectors += image_set_vectors
-                else:
-                    process_image_file(clip_model, file_path, image_file_main, image_set_entity_main, session, vectors)
+                        sub_concept_name = f"{concept_name}:{image_file_main}"
+                        average_similarity, std_similarity = report_statistics(image_set_embedding, sub_concept_name, image_set_vectors)
+                        image_concept_stats[sub_concept_name] = (average_similarity, std_similarity)
+                        vectors += image_set_vectors
+                    else:
+                        process_image_file(clip_model, file_path, image_file_main, image_set_entity_main, session, vectors)
+            else:
+                process_image_file(clip_model, dir_path, concept_name, image_set_entity_main, session, vectors)
 
             concept_embedding = build_centroid(vectors)
             concept_entity.embedding = concept_embedding
@@ -238,6 +101,20 @@ async def main():
             print(f"{concept_name}: {mean_sim} {std_sim}")
         csv_path = save_image_concept_stats_to_csv(image_concept_stats, output_dir="./reports")
         print(f"Report saved to: {csv_path}")
+
+
+def process_text_concepts(clip_model, concepts_repo):
+    print("Processing text concepts")
+    for concept_name, concept_texts in concepts.items():
+        concept_texts = [template.format(text) for text, template in product(concept_texts, templates)]
+
+        vectors = [clip_model.embed_text(t) for t in concept_texts]
+        concept_embedding = build_centroid(vectors)
+
+        # Medoid?
+        report_statistics(concept_embedding, concept_name, vectors)
+
+        concepts_repo.add(concept_name, concept_embedding)
 
 
 def save_image_concept_stats_to_csv(stats: dict, output_dir: str = ".") -> str:
