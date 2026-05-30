@@ -1,0 +1,66 @@
+name: Backend Code Coverage
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'Backend/**'
+      - 'Storage/**'
+      - 'requirements.txt'
+      - '.github/workflows/backend-coverage.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'Backend/**'
+      - 'Storage/**'
+      - 'requirements.txt'
+
+jobs:
+  coverage:
+    name: Code Coverage Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -r requirements.txt
+        pip install -r Backend/requirements-test.txt
+        pip install coverage pytest-cov
+
+    - name: Run tests with coverage
+      run: |
+        cd Backend
+        pytest tests/ --cov=app --cov=services --cov=repositories --cov-report=xml --cov-report=html --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./Backend/coverage.xml
+        flags: backend
+        name: backend-coverage
+        fail_ci_if_error: false
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: Backend/htmlcov
+        retention-days: 30
+
+    - name: Comment PR with coverage
+      if: github.event_name == 'pull_request'
+      uses: py-cov-action/python-coverage-comment-action@v3
+      with:
+        GITHUB_TOKEN: ${{ github.token }}
+        MINIMUM_GREEN: 80
+        MINIMUM_ORANGE: 50

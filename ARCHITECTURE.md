@@ -915,6 +915,60 @@ IT Environment
 
 ---
 
+## DevOps & CI/CD
+
+### Current Implementation
+
+The project includes comprehensive GitHub Actions workflows:
+
+**Testing Pipeline** (`backend-tests.yml`)
+- Automated test execution on Python 3.10 and 3.11
+- Runs on all PRs and pushes to main/develop
+- 74 tests covering images and concepts endpoints
+- Execution time: ~2 seconds
+
+**Code Coverage** (`backend-coverage.yml`)
+- Measures test coverage (target: ≥80%)
+- Integration with Codecov
+- Automatic PR comments with coverage reports
+- HTML coverage reports preserved as artifacts
+
+**Docker Build** (`backend-docker.yml`)
+- Multi-stage Docker image building
+- Automatic push to GitHub Container Registry
+- Tag management (main, develop, release versions)
+- Security scanning with Trivy
+- Build cache optimization
+
+**Release Management** (`release.yml`)
+- Semantic versioning support (v1.0.0)
+- Automatic changelog generation
+- GitHub releases with Docker image references
+- Supports pre-releases (alpha, beta)
+
+See [CICD.md](./CICD.md) for complete DevOps documentation.
+
+### Docker Image
+
+Multi-stage Dockerfile optimized for production:
+- Base: Python 3.11-slim (minimal image size)
+- Build stage: Compile wheels, install build tools
+- Final stage: Runtime only, non-root user
+- Health checks included
+- Security scanning enabled
+
+### Deployment
+
+Container-ready backend service:
+```bash
+docker pull ghcr.io/YOUR_ORG/memes/backend:main
+docker run -p 8000:8000 \
+  -e DATABASE_URL=postgresql://... \
+  ghcr.io/YOUR_ORG/memes/backend:main
+```
+
+---
+
 ## Future Improvements
 
 1. **Caching Layer**: Redis for query results and embeddings
@@ -927,3 +981,6 @@ IT Environment
 8. **Real-time Updates**: WebSocket support for live search
 9. **Monitoring**: Prometheus metrics, alerting
 10. **Explainability**: Show why a result matched the query
+11. **Frontend CI/CD**: React build, TypeScript checks
+12. **Database Migrations**: Automated migration testing
+13. **Performance Monitoring**: APM integration (DataDog, New Relic)

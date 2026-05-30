@@ -145,10 +145,15 @@ For detailed architectural overview, see **[ARCHITECTURE.md](./ARCHITECTURE.md)*
 
 ## Documentation
 
+### User & Developer Guides
 - **[SETUP.md](./SETUP.md)** - Installation and setup instructions (OS-specific)
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - System design, data flow, and components
 - **[backend_api.md](./backend_api.md)** - API endpoint documentation
 - **[documents/system.md](./documents/system.md)** - System requirements and design considerations
+
+### Operations & CI/CD
+- **[CICD.md](./CICD.md)** - GitHub Actions pipelines, testing, Docker builds, and releases
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Contribution guidelines (coming soon)
 
 ## Database
 

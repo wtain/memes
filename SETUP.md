@@ -546,6 +546,21 @@ curl http://localhost:11434/api/tags
 
 ---
 
+## Continuous Integration & Deployment
+
+The project includes automated CI/CD pipelines using GitHub Actions:
+
+- **Tests**: Automatically run on every push and pull request
+- **Code Coverage**: Track coverage and identify gaps
+- **Docker Builds**: Build and publish container images
+- **Releases**: Automated release management with semantic versioning
+
+See [CICD.md](./CICD.md) for complete CI/CD documentation including:
+- Workflow descriptions
+- Release process
+- Docker image usage
+- Troubleshooting
+
 ## Next Steps
 
 1. **Load Images**: Copy meme images to your `BASE_PATH` directory
@@ -554,6 +569,7 @@ curl http://localhost:11434/api/tags
 4. **Search**: Use the search bar to find memes by text, tags, or similarity
 5. **Manage**: Mark unwanted images as excluded
 6. **Monitor**: Check logs in Backend and Batch terminals for errors
+7. **Learn CI/CD**: Review [CICD.md](./CICD.md) for automated testing and deployment
 
 ---
 
