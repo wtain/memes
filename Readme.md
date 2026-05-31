@@ -47,6 +47,8 @@ npm run dev
 
 # Batch processing
 cd batch
+pip install -r requirements.txt
+pip install -r requirements-windows.txt
 python extract_text_from_memes.py  # Start with image registration
 ```
 
