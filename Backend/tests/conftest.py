@@ -7,8 +7,9 @@ import sys
 from pathlib import Path
 
 # Set up environment variables BEFORE any imports
-# This prevents RuntimeError from Storage.config
+# This prevents RuntimeError from Storage.config and image_store
 os.environ.setdefault('DATABASE_URL', 'postgresql+asyncpg://test:test@localhost:5432/test_db')
+os.environ.setdefault('BASE_PATH', '/tmp/test_images')
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent.parent
