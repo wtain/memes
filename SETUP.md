@@ -163,6 +163,9 @@ python -m pip install --upgrade certifi python-certifi-win32
 # Install requirements
 pip install -r requirements.txt
 pip install -r Backend/requirements-test.txt  # For testing
+
+# For CUDA support
+pip install -r requirements-cuda.txt --extra-index-url https://download.pytorch.org/whl/cu121
 ```
 
 #### 3. Configure Environment

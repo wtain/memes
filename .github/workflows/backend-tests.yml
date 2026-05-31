@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.12']  # Try different python version in CI/CD
+        python-version: ['3.11']
 
     steps:
     - name: Checkout code
@@ -33,6 +33,11 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
+
+    - name: Show environment
+      run: |
+        python --version
+        pip --version
 
     - name: Install dependencies
       run: |
