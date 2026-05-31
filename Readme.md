@@ -7,7 +7,7 @@ An intelligent system for organizing, searching, and understanding memes through
 
 ### Prerequisites
 
-- **Python**: 3.10+ (3.11 recommended)
+- **Python**: 3.11
 - **Node.js**: 18+
 - **PostgreSQL**: 14+ with pgvector extension
 - **Git**: For cloning and version control
@@ -48,7 +48,6 @@ npm run dev
 # Batch processing
 cd batch
 pip install -r requirements.txt
-pip install -r requirements-windows.txt
 python extract_text_from_memes.py  # Start with image registration
 ```
 
