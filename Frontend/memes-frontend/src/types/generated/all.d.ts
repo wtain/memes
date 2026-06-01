@@ -18,6 +18,10 @@ export interface Meme {
   originalFileName?: string;
   text?: string[];
   tags?: MemeTag[];
+  /**
+   * Whether the image has been marked as excluded
+   */
+  excluded?: boolean;
   [k: string]: unknown;
 }
 /**

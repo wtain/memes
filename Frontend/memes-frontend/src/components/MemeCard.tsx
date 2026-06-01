@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { TagList } from "./TagList"
 import { MemesApi } from "../api/MemesApi"
 import { Meme } from "../types/generated/all"
@@ -12,11 +12,7 @@ type Props = {
 
 export default function MemeCard({ meme, memesApi, onClick, variant = "square" }: Props) {
   const [showText, setShowText] = useState(false)
-  const [isExcluded, setIsExcluded] = useState(false)
-
-  useEffect(() => {
-    memesApi.getImageIsExcluded(meme.id).then((v) => setIsExcluded(v))
-  }, []);
+  const [isExcluded, setIsExcluded] = useState(meme.excluded ?? false)
 
   return (
     <div className="relative overflow-hidden rounded-xl border bg-white shadow-sm hover:shadow-md transition">
