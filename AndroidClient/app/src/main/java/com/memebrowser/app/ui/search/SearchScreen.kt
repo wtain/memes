@@ -47,6 +47,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -189,10 +190,10 @@ private fun MemeGrid(
         contentPadding = PaddingValues(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize().testTag("meme_grid")
     ) {
         items(items, key = { it.id }) { meme ->
-            MemeGridCell(meme = meme, onClick = { onMemeClick(meme.id) })
+            MemeGridCell(meme = meme, onClick = { onMemeClick(meme.id) }, modifier = Modifier.testTag("meme_cell_${meme.id}"))
         }
         if (isLoadingMore) {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -208,9 +209,9 @@ private fun MemeGrid(
 }
 
 @Composable
-private fun MemeGridCell(meme: Meme, onClick: () -> Unit) {
+private fun MemeGridCell(meme: Meme, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(4.dp))
             .clickable(onClick = onClick)

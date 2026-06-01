@@ -67,6 +67,51 @@ app/
 
 The base URL for all API calls is held in a singleton `UrlProvider`. An OkHttp interceptor rewrites the host on every request, so switching environments takes effect immediately without recreating Retrofit.
 
+## Testing
+
+### Unit tests (JVM — no device needed)
+
+Tests for all three ViewModels using [MockK](https://mockk.io/) and [Turbine](https://github.com/cashapp/turbine) for Flow assertions.
+
+```bash
+# From AndroidClient/
+gradle :app:testDebugUnitTest
+# Report: app/build/reports/tests/testDebugUnitTest/index.html
+```
+
+Coverage:
+| Test class | What's covered |
+|---|---|
+| `SearchViewModelTest` | Initial load, pagination, facet toggle, 400 ms debounce, error state, health status |
+| `MemeDetailViewModelTest` | Load meme, optimistic excluded toggle, rollback on API failure, error clear |
+| `EnvironmentViewModelTest` | CRUD delegation to repository, per-URL health check result |
+
+### Instrumented tests (Compose — requires emulator or device)
+
+Compose UI tests for all three screens. ViewModels are created directly with MockK-backed repositories — no Hilt wiring needed.
+
+```bash
+# From AndroidClient/
+gradle :app:connectedDebugAndroidTest
+# Report: app/build/reports/androidTests/connected/index.html
+```
+
+Coverage:
+| Test class | What's covered |
+|---|---|
+| `SearchScreenTest` | Search bar, settings icon, grid rendering, excluded badge, cell click, text input |
+| `MemeDetailScreenTest` | Back button, save/share/exclude action buttons, excluded state toggle |
+| `EnvironmentManagerScreenTest` | Environment list, FAB, add dialog, edit dialog, URL display |
+
+### CI
+
+GitHub Actions runs both jobs on every push/PR that touches `AndroidClient/**` or `shared/schemas/**`:
+
+- **Unit tests** — `ubuntu-latest`, no emulator, ~2 min
+- **Instrumented tests** — `ubuntu-latest` + KVM + API 29 x86_64 emulator, ~15 min; skipped on draft PRs
+
+See `.github/workflows/android-ci.yml`.
+
 ## Code generation — Kotlin DTOs
 
 Data classes in `data/model/Models.kt` are **generated** from the canonical JSON Schema files in `shared/schemas/`. Do not edit `Models.kt` by hand.

@@ -16,7 +16,7 @@ data class EnvironmentWithSelection(
 )
 
 @Singleton
-class EnvironmentRepository @Inject constructor(
+open class EnvironmentRepository @Inject constructor(
     private val store: EnvironmentStore,
     private val urlProvider: UrlProvider
 ) {

@@ -11,7 +11,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MemeRepository @Inject constructor(
+open class MemeRepository @Inject constructor(
     private val api: MemeApiService,
     private val okHttpClient: OkHttpClient
 ) {
