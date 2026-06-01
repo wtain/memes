@@ -14,3 +14,12 @@ def short_cache_headers(seconds: int = 30) -> dict[str, str]:
     return {
         "Cache-Control": f"public, max-age={seconds}",
     }
+
+
+def no_cache_headers() -> dict[str, str]:
+    """Disable caching for frequently changing data."""
+    return {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.db import get_async_db, AsyncSessionLocal
 from Backend.app.repositories.image_repository import ImageRepository
-from Backend.app.services.cache import short_cache_headers, image_cache_headers
+from Backend.app.services.cache import short_cache_headers, image_cache_headers, no_cache_headers
 from Backend.app.services.image_service import ImageService
 from Backend.app.services.image_store import IMAGES_DIR
 from Backend.app.types.generated.meme import Schema as Meme
@@ -41,7 +41,7 @@ async def get_images(
     cursor: Optional[str] = None,
     service: ImageService = Depends(get_image_service),
 ):
-    response.headers.update(short_cache_headers(30))
+    response.headers.update(no_cache_headers())
     return await service.search(q=q, raw_facets=facets, cursor=cursor, limit=limit)
 
 
@@ -51,6 +51,7 @@ async def get_similar_images(
     response: Response,
     service: ImageService = Depends(get_image_service),
 ):
+    response.headers.update(no_cache_headers())
     return await service.get_similar(image_id)
 
 
@@ -60,6 +61,7 @@ async def get_meme(
     response: Response,
     service: ImageService = Depends(get_image_service),
 ):
+    response.headers.update(no_cache_headers())
     return await service.get_meme(image_id)
 
 
@@ -98,7 +100,7 @@ async def get_untagged_images(
     cursor: Optional[str] = None,
     service: ImageService = Depends(get_image_service),
 ):
-    response.headers.update(short_cache_headers(30))
+    response.headers.update(no_cache_headers())
     return await service.get_untagged(cursor=cursor, limit=limit)
 
 
@@ -111,7 +113,7 @@ async def get_duplicate_images(
     cursor: Optional[str] = None,
     service: ImageService = Depends(get_image_service),
 ):
-    response.headers.update(short_cache_headers(30))
+    response.headers.update(no_cache_headers())
     # return await service.get_duplicates(cursor=cursor, limit=limit, threshold=threshold)
     return await service.get_duplicates_clustered(cursor=cursor, limit=limit, threshold=threshold)
 
