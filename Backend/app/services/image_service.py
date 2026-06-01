@@ -46,7 +46,14 @@ class ImageService:
         facets.sort(key=lambda facet: facet.name)
 
         items = [
-            Meme(id=str(r.id), imageUrl=f"/api/images/{r.id}", text=[], tags=[], originalFileName=r.filename)
+            Meme(
+                id=str(r.id),
+                imageUrl=f"/api/images/{r.id}",
+                text=[],
+                tags=[],
+                originalFileName=r.filename,
+                excluded=r.exclude if r.exclude is not None else False
+            )
             for r in rows
         ]
 
@@ -70,20 +77,29 @@ class ImageService:
 
     async def get_meme(self, image_id: str) -> Meme:
         filename, texts, tags = await self.repo.get_meme_data(image_id)
+        is_excluded = await self.repo.get_is_excluded(image_id)
         return Meme(
             id=image_id,
             imageUrl=f"/api/images/{image_id}",
             text=texts,
             tags=[MemeTag(name=value, category=key) for key, value in tags],
             originalFileName=filename,
+            excluded=is_excluded,
         )
 
     async def get_similar(self, image_id: str) -> MemeSearchResponse:
         embedding = await self.repo.get_embedding(image_id)
         rows = await self.repo.get_similar(image_id, embedding.tolist())
         items = [
-            Meme(id=str(iid), imageUrl=f"/api/images/{iid}", text=[], tags=[], originalFileName=fname)
-            for iid, _, fname in rows
+            Meme(
+                id=str(iid),
+                imageUrl=f"/api/images/{iid}",
+                text=[],
+                tags=[],
+                originalFileName=fname,
+                excluded=exclude if exclude is not None else False
+            )
+            for iid, _, fname, exclude in rows
         ]
         return MemeSearchResponse(items=items)
 
@@ -101,7 +117,14 @@ class ImageService:
         )
 
         items = [
-            Meme(id=str(r.id), imageUrl=f"/api/images/{r.id}", text=[], tags=[], originalFileName=r.filename)
+            Meme(
+                id=str(r.id),
+                imageUrl=f"/api/images/{r.id}",
+                text=[],
+                tags=[],
+                originalFileName=r.filename,
+                excluded=r.exclude if r.exclude is not None else False
+            )
             for r in rows
         ]
 
@@ -192,14 +215,21 @@ class ImageService:
         images = images[:limit]  # always trim,
 
         if has_next and images:
-            last_id, _, last_created_at, _ = images[limit - 1]
+            last_id, _, last_created_at, _, _ = images[limit - 1]
             next_cursor = self._encode_cursor1(last_created_at, last_id)
         else:
             next_cursor = None
 
         items = [
-            Meme(id=str(id), imageUrl=f"/api/images/{id}", text=[], tags=[], originalFileName=filename)
-            for (id, filename, created_at, cluster_id, ) in images
+            Meme(
+                id=str(id),
+                imageUrl=f"/api/images/{id}",
+                text=[],
+                tags=[],
+                originalFileName=filename,
+                excluded=exclude if exclude is not None else False
+            )
+            for (id, filename, created_at, cluster_id, exclude, ) in images
         ]
 
         # safe on any length

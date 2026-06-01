@@ -78,9 +78,12 @@ class ImageRepository:
         for k, v, count in facets_result.all():
             raw_facets[k][v] = count
 
-        # Paginated page of image rows
-        query = select(img.id, img.filename, img.created_at).where(
-            img.id.in_(select(filtered_ids_subquery.c.id))
+        # Paginated page of image rows with excluded status
+        extras = aliased(ImageExtras)
+        query = (
+            select(img.id, img.filename, img.created_at, extras.exclude)
+            .outerjoin(extras, img.id == extras.image_id)
+            .where(img.id.in_(select(filtered_ids_subquery.c.id)))
         )
         if cursor_created_at and cursor_id:
             query = query.where(
@@ -122,9 +125,11 @@ class ImageRepository:
     async def get_similar(self, image_id: str, embedding, limit: int = 10):
         img = aliased(Image)
         embed = aliased(Embedding)
+        extras = aliased(ImageExtras)
         result = await self.session.execute(
-            select(embed.image_id, embed.embedding.cosine_distance(embedding), img.filename)
+            select(embed.image_id, embed.embedding.cosine_distance(embedding), img.filename, extras.exclude)
             .join(img, img.id == embed.image_id)
+            .outerjoin(extras, img.id == extras.image_id)
             .filter(embed.image_id != image_id)
             .order_by(embed.embedding.cosine_distance(embedding))
             .limit(limit)
@@ -159,6 +164,7 @@ class ImageRepository:
     ):
         img = aliased(Image)
         image_tag = aliased(ImageTag)
+        extras = aliased(ImageExtras)
 
         exists_subquery = (
             select(image_tag.image_id)
@@ -167,7 +173,11 @@ class ImageRepository:
             .exists()
         )
 
-        query = select(img.id, img.filename, img.created_at).where(~exists_subquery)
+        query = (
+            select(img.id, img.filename, img.created_at, extras.exclude)
+            .outerjoin(extras, img.id == extras.image_id)
+            .where(~exists_subquery)
+        )
 
         if cursor_created_at and cursor_id:
             query = query.where(
@@ -299,16 +309,19 @@ class ImageRepository:
                              limit: int,):
         img = aliased(Image)
         cluster = aliased(TmpImageClusters)
+        extras = aliased(ImageExtras)
         query = (
             select(
                 img.id,
                 img.filename,
                 img.created_at,
                 cluster.cluster_id,
+                extras.exclude,
             )
             .join(
                 cluster, cluster.image_id == img.id
             )
+            .outerjoin(extras, img.id == extras.image_id)
         )
 
         if cursor_id:
@@ -324,7 +337,7 @@ class ImageRepository:
            ).limit(limit + 1)
         )
 
-        return [(id, filename, created_at, cluster_id, ) for (id, filename, created_at, cluster_id,) in images]
+        return [(id, filename, created_at, cluster_id, exclude, ) for (id, filename, created_at, cluster_id, exclude,) in images]
 
 
     async def set_is_excluded(self, image_id, is_excluded):

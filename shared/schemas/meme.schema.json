@@ -18,6 +18,10 @@
       "items": {
         "$ref": "./memetag.schema.json"
       }
+    },
+    "excluded": {
+      "type": "boolean",
+      "description": "Whether the image has been marked as excluded"
     }
   },
   "required": ["id", "imageUrl"]

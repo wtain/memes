@@ -65,7 +65,8 @@ class TestGetImages:
                     imageUrl="/api/images/123",
                     text=["Sample text (0.95)"],
                     tags=[MemeTag(name="funny", category="mood")],
-                    originalFileName="test.jpg"
+                    originalFileName="test.jpg",
+                    excluded=False
                 )
             ],
             nextCursor=None,
@@ -102,7 +103,8 @@ class TestGetImages:
                     imageUrl="/api/images/456",
                     text=["Cat meme (0.98)"],
                     tags=[MemeTag(name="cats", category="subject")],
-                    originalFileName="cat.jpg"
+                    originalFileName="cat.jpg",
+                    excluded=False
                 )
             ],
             nextCursor="next123",
@@ -143,7 +145,8 @@ class TestGetImages:
                     imageUrl=f"/api/images/{i}",
                     text=[],
                     tags=[],
-                    originalFileName=f"img{i}.jpg"
+                    originalFileName=f"img{i}.jpg",
+                    excluded=False
                 )
                 for i in range(50)
             ],
@@ -175,7 +178,8 @@ class TestGetImages:
                     imageUrl="/api/images/789",
                     text=[],
                     tags=[],
-                    originalFileName="page2.jpg"
+                    originalFileName="page2.jpg",
+                    excluded=False
                 )
             ],
             nextCursor=None,
@@ -204,7 +208,8 @@ class TestGetImages:
                     imageUrl="/api/images/111",
                     text=[],
                     tags=[MemeTag(name="happy", category="mood")],
-                    originalFileName="happy.jpg"
+                    originalFileName="happy.jpg",
+                    excluded=False
                 )
             ],
             nextCursor=None,
@@ -436,14 +441,16 @@ class TestGetSimilarImages:
                     imageUrl="/api/images/similar-1",
                     text=["Similar meme 1"],
                     tags=[MemeTag(name="cat", category="subject")],
-                    originalFileName="similar1.jpg"
+                    originalFileName="similar1.jpg",
+                    excluded=False
                 ),
                 Meme(
                     id="similar-2",
                     imageUrl="/api/images/similar-2",
                     text=["Similar meme 2"],
                     tags=[MemeTag(name="cat", category="subject")],
-                    originalFileName="similar2.jpg"
+                    originalFileName="similar2.jpg",
+                    excluded=False
                 )
             ],
             nextCursor=None,
@@ -517,7 +524,8 @@ class TestGetMeme:
                 MemeTag(name="funny", category="mood", score=0.95),
                 MemeTag(name="cat", category="subject", score=0.88)
             ],
-            originalFileName="cat_meme.jpg"
+            originalFileName="cat_meme.jpg",
+            excluded=False
         )
         mock_image_service.get_meme.return_value = mock_meme
 
@@ -544,7 +552,8 @@ class TestGetMeme:
             imageUrl="/api/images/456",
             text=[],
             tags=[],
-            originalFileName="no_tags.jpg"
+            originalFileName="no_tags.jpg",
+            excluded=False
         )
         mock_image_service.get_meme.return_value = mock_meme
 
@@ -567,7 +576,8 @@ class TestGetMeme:
             imageUrl=f"/api/images/{uuid_id}",
             text=["UUID test"],
             tags=[],
-            originalFileName="uuid_test.jpg"
+            originalFileName="uuid_test.jpg",
+            excluded=False
         )
         mock_image_service.get_meme.return_value = mock_meme
 
@@ -594,14 +604,16 @@ class TestGetUntaggedImages:
                     imageUrl="/api/images/untagged-1",
                     text=["Text without tags"],
                     tags=[],
-                    originalFileName="untagged1.jpg"
+                    originalFileName="untagged1.jpg",
+                    excluded=False
                 ),
                 Meme(
                     id="untagged-2",
                     imageUrl="/api/images/untagged-2",
                     text=[],
                     tags=[],
-                    originalFileName="untagged2.jpg"
+                    originalFileName="untagged2.jpg",
+                    excluded=False
                 )
             ],
             nextCursor="next-untagged",
@@ -707,14 +719,16 @@ class TestGetDuplicateImages:
                     imageUrl="/api/images/dup-1a",
                     text=["Duplicate 1"],
                     tags=[],
-                    originalFileName="dup1a.jpg"
+                    originalFileName="dup1a.jpg",
+                    excluded=False
                 ),
                 Meme(
                     id="dup-1b",
                     imageUrl="/api/images/dup-1b",
                     text=["Duplicate 1"],
                     tags=[],
-                    originalFileName="dup1b.jpg"
+                    originalFileName="dup1b.jpg",
+                    excluded=False
                 )
             ],
             nextCursor="dup-next",
@@ -963,3 +977,133 @@ class TestGetImage:
 
                         # Assert
                         assert response.status_code == 200
+
+
+class TestExcludedFlagHydration:
+    """Tests that excluded flag is correctly populated in list responses."""
+
+    def test_search_returns_excluded_flag(self, client, mock_image_service):
+        """Test that search results include excluded flag."""
+        mock_response = MemeSearchResponse(
+            items=[
+                Meme(
+                    id="1",
+                    imageUrl="/api/images/1",
+                    originalFileName="excluded.jpg",
+                    excluded=True
+                ),
+                Meme(
+                    id="2",
+                    imageUrl="/api/images/2",
+                    originalFileName="normal.jpg",
+                    excluded=False
+                ),
+            ],
+            facets=[],
+            nextCursor=None,
+            hasNext=False
+        )
+        mock_image_service.search.return_value = mock_response
+
+        response = client.get("/api/images")
+        data = response.json()
+
+        assert response.status_code == 200
+        assert len(data["items"]) == 2
+        assert data["items"][0]["excluded"] is True
+        assert data["items"][1]["excluded"] is False
+
+    def test_similar_returns_excluded_flag(self, client, mock_image_service):
+        """Test that similar images include excluded flag."""
+        mock_response = MemeSearchResponse(
+            items=[
+                Meme(
+                    id="similar-1",
+                    imageUrl="/api/images/similar-1",
+                    originalFileName="similar1.jpg",
+                    excluded=True
+                ),
+            ],
+            facets=[],
+            nextCursor=None,
+            hasNext=False
+        )
+        mock_image_service.get_similar.return_value = mock_response
+
+        response = client.get("/api/images/test-id/similar")
+        data = response.json()
+
+        assert response.status_code == 200
+        assert len(data["items"]) == 1
+        assert data["items"][0]["excluded"] is True
+
+    def test_untagged_returns_excluded_flag(self, client, mock_image_service):
+        """Test that untagged images include excluded flag."""
+        mock_response = MemeSearchResponse(
+            items=[
+                Meme(
+                    id="untagged-1",
+                    imageUrl="/api/images/untagged-1",
+                    originalFileName="untagged1.jpg",
+                    excluded=False
+                ),
+            ],
+            facets=[],
+            nextCursor=None,
+            hasNext=False
+        )
+        mock_image_service.get_untagged.return_value = mock_response
+
+        response = client.get("/api/images/untagged")
+        data = response.json()
+
+        assert response.status_code == 200
+        assert len(data["items"]) == 1
+        assert data["items"][0]["excluded"] is False
+
+    def test_duplicates_returns_excluded_flag(self, client, mock_image_service):
+        """Test that duplicate images include excluded flag for both images."""
+        mock_response = MemeSearchResponse(
+            items=[
+                Meme(
+                    id="dup-1a",
+                    imageUrl="/api/images/dup-1a",
+                    originalFileName="dup1a.jpg",
+                    excluded=True
+                ),
+                Meme(
+                    id="dup-1b",
+                    imageUrl="/api/images/dup-1b",
+                    originalFileName="dup1b.jpg",
+                    excluded=False
+                ),
+            ],
+            facets=[],
+            nextCursor=None,
+            hasNext=False
+        )
+        mock_image_service.get_duplicates_clustered.return_value = mock_response
+
+        response = client.get("/api/images/duplicates")
+        data = response.json()
+
+        assert response.status_code == 200
+        assert len(data["items"]) == 2
+        assert data["items"][0]["excluded"] is True
+        assert data["items"][1]["excluded"] is False
+
+    def test_get_meme_returns_excluded_flag(self, client, mock_image_service):
+        """Test that single meme details include excluded flag."""
+        mock_meme = Meme(
+            id="123",
+            imageUrl="/api/images/123",
+            originalFileName="test.jpg",
+            excluded=True
+        )
+        mock_image_service.get_meme.return_value = mock_meme
+
+        response = client.get("/api/images/meme/123")
+        data = response.json()
+
+        assert response.status_code == 200
+        assert data["excluded"] is True
