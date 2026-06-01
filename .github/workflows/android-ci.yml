@@ -15,6 +15,37 @@ on:
       - '.github/workflows/android-ci.yml'
 
 jobs:
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+          build-root-directory: AndroidClient
+
+      - name: Build debug APK
+        working-directory: AndroidClient
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-${{ github.sha }}
+          path: AndroidClient/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -50,8 +81,7 @@ jobs:
   instrumented-tests:
     name: Instrumented Tests (API 29)
     runs-on: ubuntu-latest
-    # Instrumented tests require an emulator; this job can be slow (~15 min).
-    # Skip on draft PRs to keep CI fast.
+    # Skip on draft PRs to keep CI fast (~15 min with emulator).
     if: github.event_name == 'push' || !github.event.pull_request.draft
 
     steps:
