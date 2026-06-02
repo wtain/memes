@@ -62,6 +62,14 @@ android {
         compose = true
     }
 
+    packaging {
+        resources.excludes += setOf(
+            "META-INF/LICENSE.md",
+            "META-INF/LICENSE-notice.md",
+            "META-INF/NOTICE.md",
+        )
+    }
+
     testOptions {
         unitTests {
             isReturnDefaultValues = true
