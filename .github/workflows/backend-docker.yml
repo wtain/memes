@@ -64,10 +64,21 @@ jobs:
         context: .
         file: ./Dockerfile.backend
         push: ${{ github.event_name != 'pull_request' }}
+        load: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/backend:buildcache
-        cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/backend:buildcache,mode=max
+        cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/{0}/backend:buildcache,mode=max', github.repository) || '' }}
+
+    - name: Export Docker image
+      run: docker save ghcr.io/${{ github.repository }}/backend | gzip > backend-image.tar.gz
+
+    - name: Upload Docker image artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-docker-image-${{ github.sha }}
+        path: backend-image.tar.gz
+        retention-days: 7
 
     - name: Scan image with Trivy
       uses: aquasecurity/trivy-action@master
