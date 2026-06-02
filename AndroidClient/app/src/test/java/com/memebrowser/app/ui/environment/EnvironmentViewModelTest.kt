@@ -37,6 +37,7 @@ class EnvironmentViewModelTest {
         envRepo = mockk(relaxed = true)
         memeRepo = mockk(relaxed = true)
         every { envRepo.environmentsWithSelection } returns flowOf(defaultEnvs)
+        coEvery { memeRepo.healthCheck(any()) } returns Result.success(Unit)
     }
 
     @Test

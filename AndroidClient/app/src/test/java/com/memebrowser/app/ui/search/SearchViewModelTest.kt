@@ -11,7 +11,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -130,7 +129,7 @@ class SearchViewModelTest {
 
     @Test
     fun `query change is debounced — rapid changes trigger only one search`() = runTest(
-        StandardTestDispatcher()
+        mainDispatcherRule.dispatcher
     ) {
         viewModel = SearchViewModel(repo)
         // Drain the initial search triggered by init

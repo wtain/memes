@@ -48,7 +48,6 @@ retrofit-kotlinx-serialization = { group = "com.jakewharton.retrofit", name = "r
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
-coil-okhttp = { group = "io.coil-kt", name = "coil-okhttp", version.ref = "coil" }
 coil-test = { group = "io.coil-kt", name = "coil-test", version.ref = "coil" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 telephoto-zoomable = { group = "me.saket.telephoto", name = "zoomable", version.ref = "telephoto" }
