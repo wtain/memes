@@ -77,6 +77,15 @@ android {
     }
 }
 
+// Unit tests target the debug variant only. The release build type enables
+// minification which interferes with test class discovery in Android Studio,
+// and there is no separate logic to test — all tests run against debug.
+androidComponents {
+    beforeVariants(selector().withBuildType("release")) { builder ->
+        builder.enableUnitTest = false
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
