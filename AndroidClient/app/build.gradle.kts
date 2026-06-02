@@ -104,6 +104,7 @@ dependencies {
 
     // Unit tests (JVM)
     testImplementation(libs.junit4)
+    testImplementation(libs.mockwebserver)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
