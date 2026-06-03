@@ -168,7 +168,7 @@ private fun EnvironmentCard(
                 Text(env.baseUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                Icon(Icons.Default.Edit, contentDescription = "Edit ${env.name}")
             }
             if (!env.isBuiltIn) {
                 IconButton(onClick = onDelete) {

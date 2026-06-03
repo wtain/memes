@@ -109,7 +109,7 @@ class EnvironmentManagerScreenTest {
     @Test
     fun editButton_opensEditDialog() {
         setContent()
-        composeTestRule.onNodeWithContentDescription("Edit").performClick()
+        composeTestRule.onNodeWithContentDescription("Edit General").performClick()
         composeTestRule.waitUntil(timeoutMillis = 3_000) {
             composeTestRule.onAllNodes(hasText("Edit Environment"))
                 .fetchSemanticsNodes().isNotEmpty()
