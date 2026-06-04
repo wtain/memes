@@ -1,4 +1,6 @@
 import java.util.Base64
+import java.time.format.DateTimeFormatter
+import java.time.LocalDateTime
 
 plugins {
     alias(libs.plugins.android.application)
@@ -73,6 +75,14 @@ android {
     testOptions {
         unitTests {
             isReturnDefaultValues = true
+        }
+    }
+
+    applicationVariants.all {
+        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+        outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "memebrowser-${versionName}-${buildType.name}-${timestamp}.apk"
         }
     }
 }
