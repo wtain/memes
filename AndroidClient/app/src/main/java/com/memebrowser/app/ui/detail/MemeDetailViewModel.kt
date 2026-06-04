@@ -22,7 +22,9 @@ data class DetailUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
-    val saveSuccess: Boolean = false
+    val saveSuccess: Boolean = false,
+    val similarMemes: List<Meme> = emptyList(),
+    val isLoadingSimilar: Boolean = false
 )
 
 @HiltViewModel
@@ -38,6 +40,7 @@ class MemeDetailViewModel @Inject constructor(
 
     init {
         loadMeme()
+        loadSimilar()
     }
 
     private fun loadMeme() {
@@ -46,6 +49,15 @@ class MemeDetailViewModel @Inject constructor(
             repo.getMeme(memeId)
                 .onSuccess { meme -> _state.update { it.copy(meme = meme, isLoading = false) } }
                 .onFailure { e -> _state.update { it.copy(error = e.message, isLoading = false) } }
+        }
+    }
+
+    private fun loadSimilar() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoadingSimilar = true) }
+            repo.getSimilarMemes(memeId)
+                .onSuccess { memes -> _state.update { it.copy(similarMemes = memes, isLoadingSimilar = false) } }
+                .onFailure { _state.update { it.copy(isLoadingSimilar = false) } }
         }
     }
 

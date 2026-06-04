@@ -35,6 +35,7 @@ class MemeDetailViewModelTest {
     fun setup() {
         repo = mockk(relaxed = true)
         coEvery { repo.getMeme("meme-1") } returns Result.success(fakeMeme)
+        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(emptyList())
     }
 
     @Test

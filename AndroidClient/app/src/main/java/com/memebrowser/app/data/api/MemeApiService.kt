@@ -33,6 +33,9 @@ interface MemeApiService {
     @GET("health")
     suspend fun health(): HealthResponse
 
+    @GET("api/images/{id}/similar")
+    suspend fun getSimilarMemes(@Path("id") id: String): MemeSearchResponse
+
     @Streaming
     @GET("api/images/{id}")
     suspend fun downloadImage(@Path("id") id: String): ResponseBody

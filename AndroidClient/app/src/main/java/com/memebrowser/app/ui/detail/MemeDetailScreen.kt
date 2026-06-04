@@ -1,6 +1,7 @@
 package com.memebrowser.app.ui.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,12 +9,15 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,11 +45,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.memebrowser.app.data.model.Meme
 import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
 
@@ -54,6 +62,7 @@ import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
 fun MemeDetailScreen(
     memeId: String,
     onBack: () -> Unit,
+    onNavigateToMeme: (String) -> Unit = {},
     viewModel: MemeDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -85,7 +94,10 @@ fun MemeDetailScreen(
                     isSaving = state.isSaving,
                     onSave = { viewModel.saveToGallery(context) },
                     onShare = { viewModel.share(context) },
-                    onToggleExcluded = { viewModel.toggleExcluded() }
+                    onToggleExcluded = { viewModel.toggleExcluded() },
+                    similarMemes = state.similarMemes,
+                    isLoadingSimilar = state.isLoadingSimilar,
+                    onSimilarMemeClick = onNavigateToMeme
                 )
             }
         }
@@ -125,7 +137,10 @@ private fun MemeActionsAndMetadata(
     isSaving: Boolean,
     onSave: () -> Unit,
     onShare: () -> Unit,
-    onToggleExcluded: () -> Unit
+    onToggleExcluded: () -> Unit,
+    similarMemes: List<Meme> = emptyList(),
+    isLoadingSimilar: Boolean = false,
+    onSimilarMemeClick: (String) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -189,6 +204,29 @@ private fun MemeActionsAndMetadata(
                         AssistChip(
                             onClick = {},
                             label = { Text(tag.name, style = MaterialTheme.typography.bodySmall) }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (isLoadingSimilar || similarMemes.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text("Similar", style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(4.dp))
+            if (isLoadingSimilar) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(similarMemes) { similar ->
+                        AsyncImage(
+                            model = "http://localhost${similar.imageUrl}",
+                            contentDescription = similar.originalFileName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onSimilarMemeClick(similar.id) }
                         )
                     }
                 }

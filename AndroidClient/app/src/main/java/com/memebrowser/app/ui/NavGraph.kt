@@ -27,7 +27,8 @@ fun NavGraph() {
             val memeId = backStack.arguments!!.getString("memeId")!!
             MemeDetailScreen(
                 memeId = memeId,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToMeme = { navController.navigate("detail/$it") }
             )
         }
         composable("environments") {

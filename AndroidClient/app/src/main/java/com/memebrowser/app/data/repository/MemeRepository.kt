@@ -55,6 +55,10 @@ open class MemeRepository @Inject constructor(
         }
     }
 
+    suspend fun getSimilarMemes(id: String): Result<List<Meme>> = runCatching {
+        api.getSimilarMemes(id).items ?: emptyList()
+    }
+
     suspend fun downloadImage(id: String): Result<ResponseBody> = runCatching {
         api.downloadImage(id)
     }
