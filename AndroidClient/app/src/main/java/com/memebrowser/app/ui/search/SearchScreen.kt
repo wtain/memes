@@ -217,7 +217,7 @@ private fun MemeGridCell(meme: Meme, onClick: () -> Unit, modifier: Modifier = M
             .clickable(onClick = onClick)
     ) {
         AsyncImage(
-            model = meme.imageUrl,
+            model = "http://localhost${meme.imageUrl}",
             contentDescription = meme.originalFileName,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

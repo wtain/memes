@@ -99,7 +99,7 @@ fun MemeDetailScreen(
             when {
                 state.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 state.meme != null -> ZoomableAsyncImage(
-                    model = state.meme!!.imageUrl,
+                    model = "http://localhost${state.meme!!.imageUrl}",
                     contentDescription = state.meme!!.originalFileName,
                     modifier = Modifier.fillMaxSize()
                 )
