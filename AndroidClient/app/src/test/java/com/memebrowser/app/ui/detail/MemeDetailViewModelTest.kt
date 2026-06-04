@@ -98,9 +98,36 @@ class MemeDetailViewModelTest {
     fun `dismissError clears the error field`() = runTest {
         coEvery { repo.getMeme("meme-1") } returns Result.failure(Exception("err"))
         viewModel = MemeDetailViewModel(savedStateHandle, repo)
-        viewModel.dismissError()
         viewModel.state.test {
+            assertEquals("err", awaitItem().error)
+            viewModel.dismissError()
             assertNull(awaitItem().error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `similar memes are populated in state`() = runTest {
+        val similar = listOf(fakeMeme.copy(id = "similar-1"))
+        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(similar)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel.state.test {
+            val state = awaitItem()
+            assertEquals(1, state.similarMemes.size)
+            assertEquals("similar-1", state.similarMemes[0].id)
+            assertFalse(state.isLoadingSimilar)
+        }
+    }
+
+    @Test
+    fun `getSimilarMemes failure is silent and does not set error`() = runTest {
+        coEvery { repo.getSimilarMemes("meme-1") } returns Result.failure(Exception("network error"))
+        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel.state.test {
+            val state = awaitItem()
+            assertTrue(state.similarMemes.isEmpty())
+            assertFalse(state.isLoadingSimilar)
+            assertNull(state.error)
         }
     }
 }

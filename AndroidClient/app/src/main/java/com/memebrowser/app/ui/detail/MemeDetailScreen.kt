@@ -62,7 +62,7 @@ import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
 fun MemeDetailScreen(
     memeId: String,
     onBack: () -> Unit,
-    onNavigateToMeme: (String) -> Unit = {},
+    onNavigateToMeme: (String) -> Unit,
     viewModel: MemeDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -86,7 +86,7 @@ fun MemeDetailScreen(
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        sheetPeekHeight = 80.dp,
+        sheetPeekHeight = if (state.meme != null) 80.dp else 0.dp,
         sheetContent = {
             state.meme?.let { meme ->
                 MemeActionsAndMetadata(
@@ -218,7 +218,7 @@ private fun MemeActionsAndMetadata(
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
             } else {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(similarMemes) { similar ->
+                    items(similarMemes, key = { it.id }) { similar ->
                         AsyncImage(
                             model = "http://localhost${similar.imageUrl}",
                             contentDescription = similar.originalFileName,

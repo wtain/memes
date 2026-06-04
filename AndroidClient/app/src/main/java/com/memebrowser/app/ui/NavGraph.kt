@@ -28,7 +28,11 @@ fun NavGraph() {
             MemeDetailScreen(
                 memeId = memeId,
                 onBack = { navController.popBackStack() },
-                onNavigateToMeme = { navController.navigate("detail/$it") }
+                onNavigateToMeme = { id ->
+                    navController.navigate("detail/$id") {
+                        popUpTo("detail/{memeId}") { inclusive = true }
+                    }
+                }
             )
         }
         composable("environments") {

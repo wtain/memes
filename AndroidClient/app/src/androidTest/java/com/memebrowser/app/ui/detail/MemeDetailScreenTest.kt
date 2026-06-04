@@ -37,12 +37,16 @@ class MemeDetailScreenTest {
         )
     }
 
-    private fun setContent(onBack: () -> Unit = {}) {
+    private fun setContent(
+        onBack: () -> Unit = {},
+        onNavigateToMeme: (String) -> Unit = {}
+    ) {
         composeTestRule.setContent {
             MemeBrowserTheme {
                 MemeDetailScreen(
                     memeId = "meme-1",
                     onBack = onBack,
+                    onNavigateToMeme = onNavigateToMeme,
                     viewModel = viewModel
                 )
             }
@@ -88,5 +92,16 @@ class MemeDetailScreenTest {
         viewModel = MemeDetailViewModel(SavedStateHandle(mapOf("memeId" to "meme-1")), repo)
         setContent()
         composeTestRule.onNodeWithContentDescription("Unmark excluded").assertIsDisplayed()
+    }
+
+    @Test
+    fun similarThumbnail_click_invokesNavigateCallback() {
+        val similarMeme = androidFakeMeme.copy(id = "similar-1", originalFileName = "similar.jpg")
+        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(listOf(similarMeme))
+        viewModel = MemeDetailViewModel(SavedStateHandle(mapOf("memeId" to "meme-1")), repo)
+        var navigatedTo: String? = null
+        setContent(onNavigateToMeme = { navigatedTo = it })
+        composeTestRule.onNodeWithContentDescription("similar.jpg").performClick()
+        assertTrue(navigatedTo == "similar-1")
     }
 }
