@@ -29,3 +29,21 @@ AsyncImage(model = "http://localhost${meme.imageUrl}", ...)
 The OkHttp application interceptor in `NetworkModule` rewrites `localhost` to
 the configured server host/port at request time, so environment switching still
 works correctly.
+
+## Architecture notes
+
+### Detail screen
+`MemeDetailViewModel` fires two parallel coroutines on init — `loadMeme()` and
+`loadSimilar()` — so the main image and similar-images strip load independently.
+A failure in `loadSimilar` is intentionally silent (no error shown to the user).
+
+### Similar images
+Endpoint: `GET /api/images/{id}/similar` → `MemeSearchResponse`.
+Rendered as a horizontal `LazyRow` of 80 dp thumbnails at the bottom of the
+detail bottom sheet. Tapping a thumbnail pushes a new `detail/{id}` destination
+onto the back stack.
+
+### Navigation
+All screen-to-screen navigation goes through `NavGraph.kt`. Screens receive
+callbacks (`onBack`, `onNavigateToMeme`, …) and know nothing about
+`NavController` directly.
