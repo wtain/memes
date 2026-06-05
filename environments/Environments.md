@@ -11,6 +11,9 @@ VITE_BACKEND_API_URL=http://...
 FRONTEND_ORIGIN=...
 ALTERNATIVE_FRONTEND_ORIGIN=...
 RULES_FILE=data/rules.[environment-name].json
+TEXT_CONCEPTS_FILE=data/text-concepts.[environment-name].json
+TEXT_CONCEPTS_TEMPLATES_FILE=data/text-concepts.templates.[environment-name].json
+CONCEPT_IMAGES_DIR=images-[environment-name]
 ```
 
 ### Build and run database

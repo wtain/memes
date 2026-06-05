@@ -124,7 +124,7 @@ class ImageConceptProcessor(ConceptProcessor):
                         all_vectors.append(result)
         else:
             result = self._process_single_image(dir_path, concept_name, main_image_set)
-            if result:
+            if result is not None:
                 all_vectors.append(result)
 
         concept_embedding = build_centroid(all_vectors)

@@ -16,7 +16,7 @@
         "black metal corpsepaint makeup",
         "norwegian black metal face paint",
         "metal musician wearing corpsepaint",
-        "white black corpsepaint face",
+        "white black corpsepaint face"
     ],
     "Glam metal": [
         "Male musicians dress in color clothes",
@@ -64,6 +64,6 @@
     ],
     "emotion:angry": [
         "angry face",
-        "bare teeth",
-    ],
+        "bare teeth"
+    ]
 }
