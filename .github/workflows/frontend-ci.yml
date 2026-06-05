@@ -1,0 +1,49 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'Frontend/memes-frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'Frontend/memes-frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: Frontend/memes-frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: Frontend/memes-frontend
+
+      - name: Lint
+        run: pnpm lint:ci
+        working-directory: Frontend/memes-frontend
+
+      - name: Test
+        run: pnpm test
+        working-directory: Frontend/memes-frontend
+
+      - name: Build (smoke check)
+        run: pnpm build
+        working-directory: Frontend/memes-frontend
+        env:
+          VITE_BACKEND_API_URL: http://localhost:8000
