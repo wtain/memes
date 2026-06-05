@@ -739,7 +739,33 @@ asyncio.run(main())
 
 ### Testing Strategy
 
-Currently under development. Planned approaches:
+#### Test suites
+
+| Suite | Location | Runner | Scope |
+|-------|----------|--------|-------|
+| **Backend** | `Backend/tests/` | `cd Backend && pytest` | FastAPI endpoints (mocked DB) |
+| **Rules Engine** | `tests/rules/` | `pytest tests/rules/` | `RulesEngine` unit tests (no DB, no I/O) |
+
+#### Rules Engine Tests
+
+`tests/rules/test_engine.py` covers both public methods with parametrized cases:
+
+- `TestGetTagsForText` — word-boundary regex matching (`\b…\b`, case-insensitive)
+- `TestGetTagsForOCRText` — case-insensitive substring matching
+
+Test data is fully externalised to `tests/rules/fixtures/`:
+
+```
+tests/rules/fixtures/
+├── rules.json       # rule definitions used as test input
+└── test_cases.json  # per-method cases: input + expected tags + unexpected tags
+```
+
+Each test case declares **positive signals** (tags that must appear) and **negative signals** (tags that must not appear). To add a scenario, append an entry to `test_cases.json` — no Python changes needed.
+
+Behaviours covered: direct match, case-insensitive input, list-valued rules, single-hop and two-hop string reference chains, word-boundary blocking of partial matches (get_tags_for_text only), substring matching inside compound words (get_tags_for_ocr_text only), multi-rule input.
+
+#### Planned additions
 
 1. **Integration Tests**: Test batch jobs end-to-end
 2. **Quality Metrics**:
@@ -747,7 +773,6 @@ Currently under development. Planned approaches:
    - **Precision**: Manual validation of tag accuracy
    - **Concept Coherence**: Embeddings similarity within concepts
    - **Duplicate Detection Accuracy**: False positive/negative rates
-
 3. **Validation Examples**:
    - Selected images with ground-truth labels
    - Manual concept validation
@@ -927,6 +952,11 @@ The project includes comprehensive GitHub Actions workflows:
 - Runs on all PRs and pushes to main/develop
 - 74 tests covering images and concepts endpoints
 - Execution time: ~2 seconds
+
+**Rules Engine Tests** (`pytest tests/rules/`)
+- 15 parametrized unit tests, no external dependencies
+- Covers `get_tags_for_text` and `get_tags_for_ocr_text`
+- Test data driven from `tests/rules/fixtures/` JSON files
 
 **Code Coverage** (`backend-coverage.yml`)
 - Measures test coverage (target: ≥80%)
