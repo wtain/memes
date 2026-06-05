@@ -1,4 +1,4 @@
-import { Concept } from "../types/generated/all"
+import type { Concept } from "../types/generated/all"
 
 type Props = {
   concept: Concept

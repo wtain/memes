@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { TagList } from "./TagList"
-import { MemesApi } from "../api/MemesApi"
-import { Meme } from "../types/generated/all"
+import type { MemesApi } from "../api/MemesApi"
+import type { Meme } from "../types/generated/all"
 
 type Props = {
   meme: Meme
@@ -29,11 +29,11 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
           loading="lazy"
         />
 
-        {showText && meme.text.length > 0 && (
+        {showText && (meme.text ?? []).length > 0 && (
           <div className="absolute inset-0 bg-black/70 p-3 text-sm text-white overflow-y-auto">
             <div className="font-semibold mb-2">OCR</div>
             <ul className="space-y-1">
-              {meme.text.map((line, i) => (
+              {(meme.text ?? []).map((line, i) => (
                 <li key={i} className="opacity-90">{line}</li>
               ))}
             </ul>
@@ -53,7 +53,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
         }} />
         Excluded
       </div>
-      <TagList tags={meme.tags} />
+      <TagList tags={meme.tags ?? []} />
     </div>
   )
 }

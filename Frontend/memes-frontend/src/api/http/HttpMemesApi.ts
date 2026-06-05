@@ -1,8 +1,9 @@
-import { MemesApi } from "../MemesApi"
-import { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
+import type { MemesApi } from "../MemesApi"
+import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
-  constructor(private readonly baseUrl: string) {}
+  private readonly baseUrl: string
+  constructor(baseUrl: string) { this.baseUrl = baseUrl }
 
   async searchMemes(
     request: MemeSearchRequest

@@ -1,4 +1,4 @@
-import { useState, useEffect, Dispatch, SetStateAction } from "react";
+import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 
 // Installing use-debounce yields a conflict with typescript-eslint
 // There is also use-debouncy library, but it's less trustworthy

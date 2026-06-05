@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react"
 import { ConceptRow } from "../components/ConceptRow"
 import { ConceptDetailsModal } from "../components/ConceptDetailsModal"
-import { MemesApi } from "../api/MemesApi"
-import { Concept } from "../types/generated/all"
+import type { MemesApi } from "../api/MemesApi"
+import type { Concept } from "../types/generated/all"
 
 type Props = {
   memesApi: MemesApi

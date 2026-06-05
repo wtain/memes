@@ -1,4 +1,4 @@
-import { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../types/generated/all";
+import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../types/generated/all";
 
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>

@@ -1,5 +1,5 @@
 import { MemesList } from "../components/MemesList"
-import { MemesApi } from "../api/MemesApi"
+import type { MemesApi } from "../api/MemesApi"
 
 type ExplorePageProps = {
   memesApi: MemesApi

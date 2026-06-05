@@ -1,4 +1,4 @@
-import { MemeTag } from "../types/generated/all"
+import type { MemeTag } from "../types/generated/all"
 import { Tag } from "./Tag"
 
 type Props = {

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useParams } from "react-router-dom"
-import { Concept } from "../types/generated/all"
-import { MemesApi } from "../api/MemesApi"
+import type { Concept } from "../types/generated/all"
+import type { MemesApi } from "../api/MemesApi"
 import { ConceptDetails } from "../components/ConceptDetails"
 import { useFetchById } from "../utils/useFetchById"
 

@@ -1,7 +1,7 @@
-import { MemesApi } from "../api/MemesApi"
+import type { MemesApi } from "../api/MemesApi"
 import { Modal } from "./Modal"
 import { MemeDetails } from "./MemeDetails"
-import { Meme } from "../types/generated/all"
+import type { Meme } from "../types/generated/all"
 
 type Props = {
   meme: Meme

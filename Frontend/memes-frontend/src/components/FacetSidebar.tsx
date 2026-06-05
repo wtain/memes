@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Facet } from "../types/facet"
+import type { Facet } from "../types/facet"
 import { MultiSelectFacet } from "./MultiSelectFacet"
 
 type Props = {

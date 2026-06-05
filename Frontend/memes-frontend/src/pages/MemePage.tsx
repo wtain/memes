@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { useParams } from "react-router-dom"
-import { MemesApi } from "../api/MemesApi"
+import type { MemesApi } from "../api/MemesApi"
 import { MemeDetails } from "../components/MemeDetails"
-import { Meme } from "../types/generated/all"
+import type { Meme } from "../types/generated/all"
 import { useFetchById } from "../utils/useFetchById"
 
 type Props = {

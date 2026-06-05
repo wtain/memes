@@ -2,7 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom"
 import AppLayout from "./AppLayout"
 import ExplorePage from "../pages/ExplorePage"
 import SearchPage from "../pages/SearchPage"
-import { MemesApi } from "../api/MemesApi";
+import type { MemesApi } from "../api/MemesApi";
 import { HttpMemesApi } from "../api/http/HttpMemesApi";
 import ConceptsPage from "../pages/ConceptsPage";
 import MemePage from "../pages/MemePage";

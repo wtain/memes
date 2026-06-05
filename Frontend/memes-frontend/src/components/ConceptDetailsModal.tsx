@@ -1,5 +1,5 @@
-import { Concept } from "../types/generated/all"
-import { MemesApi } from "../api/MemesApi"
+import type { Concept } from "../types/generated/all"
+import type { MemesApi } from "../api/MemesApi"
 import { Modal } from "./Modal"
 import { ConceptDetails } from "./ConceptDetails"
 

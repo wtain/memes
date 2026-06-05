@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { Concept, Meme } from "../types/generated/all"
-import { MemesApi } from "../api/MemesApi"
+import type { Concept, Meme } from "../types/generated/all"
+import type { MemesApi } from "../api/MemesApi"
 import MemeCard from "./MemeCard"
 import { useNavigate } from "react-router-dom"
 
