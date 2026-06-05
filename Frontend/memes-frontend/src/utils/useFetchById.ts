@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react'
  * Uses a cleanup flag so stale responses from a previous ID (or from
  * React StrictMode's intentional double-mount) never update state.
  *
- * `fetcher` and `onResult` are read via refs, so callers don't need
+ * `fetcher` and `onResult` are read via refs so callers don't need
  * useCallback — passing inline arrow functions is fine.
  */
 export function useFetchById<ID, Result>(
@@ -17,9 +17,13 @@ export function useFetchById<ID, Result>(
   const fetcherRef = useRef(fetcher)
   const onResultRef = useRef(onResult)
   const onErrorRef = useRef(onError)
-  fetcherRef.current = fetcher
-  onResultRef.current = onResult
-  onErrorRef.current = onError
+
+  // Sync refs after every render without mutating during render
+  useEffect(() => {
+    fetcherRef.current = fetcher
+    onResultRef.current = onResult
+    onErrorRef.current = onError
+  })
 
   useEffect(() => {
     if (id === undefined) return

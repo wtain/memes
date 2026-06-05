@@ -35,6 +35,12 @@ export function MemeDetails({ meme, memesApi }: Props) {
   useFetchById(meme.id, id => memesApi.similarMemes(id), resp => setSimilarMemes(resp.items ?? []))
   useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
 
+  function bumpControls() {
+    setControlsActive(true)
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
+    fadeTimerRef.current = setTimeout(() => setControlsActive(false), FADE_DELAY_MS)
+  }
+
   // Native wheel listener with passive:false so preventDefault() actually works
   useEffect(() => {
     const el = containerRef.current
@@ -47,6 +53,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
             const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((scaleRef.current + delta) * 100) / 100))
             scaleRef.current = next
             setScale(next)
+            if (next === 1) setOffset({ x: 0, y: 0 })
             bumpControls()
         }
     }
@@ -58,21 +65,11 @@ export function MemeDetails({ meme, memesApi }: Props) {
   // Keep scaleRef in sync
   useEffect(() => { scaleRef.current = scale }, [scale])
 
-  // Reset pan when zoom returns to 1
-  useEffect(() => {
-    if (scale === 1) setOffset({ x: 0, y: 0 })
-  }, [scale])
-
-  function bumpControls() {
-    setControlsActive(true)
-    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
-    fadeTimerRef.current = setTimeout(() => setControlsActive(false), FADE_DELAY_MS)
-  }
-
   function zoom(delta: number) {
     const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round((scaleRef.current + delta) * 100) / 100))
     scaleRef.current = next
     setScale(next)
+    if (next === 1) setOffset({ x: 0, y: 0 })
     bumpControls()
   }
 

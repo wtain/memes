@@ -16,7 +16,6 @@ type MemesListProps = {
 
 export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates }: MemesListProps) {
   const [memes, setMemes] = useState<Meme[]>([])
-  const [cursor, setCursor] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null)
@@ -28,18 +27,13 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
   const loadingRef = useRef(false)
   const hasMoreRef = useRef(true)
   const cursorRef = useRef<string | undefined>(undefined)
-
-  useEffect(() => {
-    loadMemes(undefined)
-    setCursor(undefined)
-    cursorRef.current = undefined
-    window.scrollTo({ top: 0 })
-  }, [filter, tagFilters])
+  const loadMemesRef = useRef<(next: string | undefined) => void>(() => {})
 
   const loadMemes = useCallback(async (next: string | undefined) => {
     if (loadingRef.current) return
     loadingRef.current = true
-    setLoading(true)
+    // Yield before any setState so callers inside useEffect don't trigger synchronous cascading renders
+    await Promise.resolve()
 
     if (filter && filter.length > 0 && filter.length < 2) {
       setMemes([])
@@ -47,6 +41,8 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
       setLoading(false)
       return
     }
+
+    setLoading(true)
 
     const tags = tagFilters
       ? Object.entries(tagFilters).flatMap(([name, values]) =>
@@ -66,7 +62,6 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
 
     const nextCursor = response.nextCursor
     cursorRef.current = nextCursor
-    setCursor(nextCursor)
 
     loadingRef.current = false
     setLoading(false)
@@ -81,7 +76,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
         // Use setTimeout to yield to React's state updates first
         setTimeout(() => {
           if (hasMoreRef.current && !loadingRef.current) {
-            loadMemes(nextCursor)
+            loadMemesRef.current(nextCursor)
           }
         }, 0)
       }
@@ -108,7 +103,16 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
         tags,
       })
     }
-  }, [filter, tagFilters, memesApi, onFacetsChanged])
+  }, [filter, tagFilters, memesApi, onFacetsChanged, listUntagged, listDuplicates])
+
+  useEffect(() => { loadMemesRef.current = loadMemes })
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data-fetching trigger; setState is deferred via Promise.resolve() in loadMemes
+    loadMemes(undefined)
+    cursorRef.current = undefined
+    window.scrollTo({ top: 0 })
+  }, [filter, tagFilters])
 
   useEffect(() => {
     if (!sentinelRef.current) return
