@@ -254,6 +254,7 @@ class ImageRepository:
 7. **build_tags_from_descriptions** - Description-based tagging
 8. **build_concept_embeddings** - Semantic concepts
 9. **Utilities** - Move excluded, unregister deleted, trends analysis
+10. **deduplicate_ocr_texts** - Remove duplicate OCR entries per image/language
 
 **Design**: Each job is independently runnable, idempotent where possible
 

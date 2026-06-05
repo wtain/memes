@@ -230,6 +230,11 @@ uvicorn Backend.app.main:app --reload --reload-dir Backend/app --env-file enviro
 extract_text_from_memes → build_image_embeddings → rebuild_duplicates → clusterize
                        → build_tags_from_ocr
                        → build_image_descriptions → build_tags_from_descriptions
+
+Optional data maintenance (run as needed):
+  deduplicate_ocr_texts
+  move_excluded
+  unregister_deleted_images
 ```
 
 **Detailed job list**:
@@ -287,6 +292,12 @@ extract_text_from_memes → build_image_embeddings → rebuild_duplicates → cl
 12. **unregister_deleted_images** - Clean up deleted images
     - Checks database against filesystem
     - Removes database records for missing/moved images
+
+13. **deduplicate_ocr_texts** - Remove duplicate OCR text entries
+    - Traverses all registered images in the database
+    - Removes duplicate OCR rows per (image, language) where the same text was detected more than once
+    - Keeps the highest-confidence occurrence; ties broken by oldest entry
+    - Idempotent (safe to re-run)
 
 **Batch job notes**:
 - Most jobs clear and rebuild all results (idempotent)
