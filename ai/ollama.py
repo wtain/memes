@@ -1,6 +1,20 @@
 import ollama
 
 
+class OllamaImageDescriber:
+
+    def describe(self, path: str) -> str:
+        response = ollama.chat(
+            model='llava',
+            messages=[{
+                'role': 'user',
+                'content': 'What is shown in this image?',
+                'images': [path]
+            }]
+        )
+        return response['message']['content']
+
+
 class OllamaAnimalDetector:
 
     def __init__(self):

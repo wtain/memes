@@ -1,71 +1,59 @@
 import asyncio
 import os
 
-import ollama
-from sqlalchemy import delete, select
-
+from ai.ollama import OllamaImageDescriber
+from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
-from Storage.models import OllamaDescription
-
-from Storage.models import Image as Img
-
+from repository.images import ImagesRepository
+from repository.ollama_descriptions import OllamaDescriptionsRepository
 
 
 async def main():
+    BASE_PATH = os.getenv('BASE_PATH')
+    print(f"BASE_PATH={BASE_PATH}")
+    base_path = os.path.abspath(BASE_PATH)
+
+    metrics = SimpleMetricsListener()
+    describer = OllamaImageDescriber()
 
     async with AsyncSessionLocal() as session:
+        descriptions_repo = OllamaDescriptionsRepository(session)
+        images_repo = ImagesRepository(session)
+
         print("Deleting all descriptions...")
-        await session.execute(
-            delete(OllamaDescription)
-        )
+        await descriptions_repo.delete_all()
         await session.commit()
         print("Done")
 
-        stmt = (
-            select(Img.filename, Img.id)
-        )
-        result = await session.execute(stmt)
+        images = await images_repo.get_all_images()
 
-        BASE_PATH = os.getenv('BASE_PATH')
-        print(f"BASE_PATH={BASE_PATH}")
-        base_path = os.path.abspath(BASE_PATH)  # "c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes\\"
-
-        for (filename, image_id,) in result:
+        for (filename, image_id,) in images:
             path = os.path.join(base_path, filename)
+
             if path.lower().endswith("webp"):
                 print(f"Skipping {path}")
+                metrics.increment("skipped.webp")
                 continue
+
             print(f"Running for {path}")
 
             # todo: batching - commit in batches and enable resume mode, not deleting all in the beginning
 
             try:
-                response = ollama.chat(
-                    model='llava',
-                    messages=[{
-                        'role': 'user',
-                        'content': 'What is shown in this image?',
-                        'images': [path]
-                    }]
-                )
-
-                description = OllamaDescription(
-                    image_id=image_id,
-                    text=response['message']['content']
-                )
-
-                session.add(description)
+                description = describer.describe(path)
+                descriptions_repo.save(image_id, description)
+                metrics.increment("saved")
             except Exception as e:
                 print(f"Model failed: {e}")
-
+                metrics.increment("error.model")
 
         # batch commit?
         print("Committing...")
         await session.commit()
         print("Done")
 
+    metrics.print()
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-
