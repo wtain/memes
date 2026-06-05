@@ -1,0 +1,111 @@
+{
+  "get_tags_for_text": [
+    {
+      "id": "text_direct_match",
+      "description": "Band name present as a whole word — all its tags are produced",
+      "input": "Opeth is my favorite band",
+      "expected": [["band", "opeth"], ["country", "sweden"]],
+      "unexpected": [["band", "metallica"]]
+    },
+    {
+      "id": "text_case_insensitive",
+      "description": "Uppercase input still matches the lowercase rule key via re.IGNORECASE",
+      "input": "OPETH LIVE 2024",
+      "expected": [["band", "opeth"]],
+      "unexpected": []
+    },
+    {
+      "id": "text_list_value_emits_multiple_tags",
+      "description": "Rule whose value is a JSON list yields one tag per list element",
+      "input": "listening to opeth",
+      "expected": [["genre", "progressive metal"], ["genre", "death metal"]],
+      "unexpected": []
+    },
+    {
+      "id": "text_rule_reference_single_hop",
+      "description": "Phrase key is a string alias — resolves one hop to its target dict",
+      "input": "Blackwater Park is their best album",
+      "expected": [["band", "opeth"]],
+      "unexpected": [["band", "metallica"]]
+    },
+    {
+      "id": "text_rule_reference_two_hops",
+      "description": "Phrase resolves through two string references before reaching a dict",
+      "input": "The Lotus Eater has an amazing acoustic intro",
+      "expected": [["band", "opeth"]],
+      "unexpected": [["band", "metallica"]]
+    },
+    {
+      "id": "text_word_boundary_blocks_partial_match",
+      "description": "Token embedded inside a word is blocked by \\b — no match expected",
+      "input": "category listing",
+      "expected": [],
+      "unexpected": [["subject", "cat"], ["animal", "cat"]]
+    },
+    {
+      "id": "text_no_matching_rules",
+      "description": "Input contains none of the rule tokens — output is empty",
+      "input": "a random image with no known entities",
+      "expected": [],
+      "unexpected": [["band", "opeth"], ["band", "metallica"]]
+    },
+    {
+      "id": "text_multiple_rules_match",
+      "description": "Two independent rule tokens both present — tags from each are produced",
+      "input": "Metallica and Opeth are both great bands",
+      "expected": [["band", "metallica"], ["band", "opeth"]],
+      "unexpected": []
+    }
+  ],
+  "get_tags_for_ocr_text": [
+    {
+      "id": "ocr_direct_match",
+      "description": "Rule token present in OCR text — its tags are produced",
+      "input": "OPETH 2024",
+      "expected": [["band", "opeth"]],
+      "unexpected": [["band", "metallica"]]
+    },
+    {
+      "id": "ocr_case_insensitive",
+      "description": "Uppercase OCR text is lowercased before comparison — still matches",
+      "input": "METALLICA WORLD TOUR",
+      "expected": [["band", "metallica"]],
+      "unexpected": []
+    },
+    {
+      "id": "ocr_substring_matches_inside_word",
+      "description": "OCR uses substring (not word-boundary) — token inside a compound word still matches",
+      "input": "CATFISH MEME",
+      "expected": [["subject", "cat"], ["animal", "cat"]],
+      "unexpected": []
+    },
+    {
+      "id": "ocr_rule_reference",
+      "description": "Multi-word phrase key resolves via string reference chain to its tags",
+      "input": "Enter Sandman guitar solo",
+      "expected": [["band", "metallica"]],
+      "unexpected": [["band", "opeth"]]
+    },
+    {
+      "id": "ocr_two_hop_chain",
+      "description": "Two-level reference chain resolves correctly in OCR method",
+      "input": "the lotus eater live",
+      "expected": [["band", "opeth"]],
+      "unexpected": [["band", "metallica"]]
+    },
+    {
+      "id": "ocr_list_value_emits_multiple_tags",
+      "description": "Rule with a list value yields one tag per element in OCR method",
+      "input": "opeth discography",
+      "expected": [["genre", "progressive metal"], ["genre", "death metal"]],
+      "unexpected": []
+    },
+    {
+      "id": "ocr_no_matching_rules",
+      "description": "No rule token appears anywhere in the OCR text — output is empty",
+      "input": "weather forecast for tomorrow",
+      "expected": [],
+      "unexpected": [["band", "opeth"], ["band", "metallica"]]
+    }
+  ]
+}

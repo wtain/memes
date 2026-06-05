@@ -346,7 +346,25 @@ Vector representation of an image/text in semantic space for similarity search.
 
 The core of this system is understanding semantics of memes—this requires careful validation.
 
-**Testing Strategy**: Currently under development. Planned approaches:
+### Running Tests
+
+**Backend tests** (FastAPI endpoints):
+```bash
+cd Backend
+pytest
+```
+
+**Rules engine tests** (unit tests, no DB required):
+```bash
+# from project root
+pytest tests/rules/
+```
+
+Test data is externalised under `tests/rules/fixtures/`:
+- `rules.json` — rule definitions used as test input
+- `test_cases.json` — input texts with expected and unexpected tag assertions
+
+**Testing Strategy**: Under active development. Planned approaches:
 - Integration tests for batch jobs
 - Quality metrics (coverage, precision, concept coherence)
 - Validation with manually-labeled test images

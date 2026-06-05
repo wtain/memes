@@ -1,0 +1,19 @@
+{
+  "opeth": {
+    "band": "opeth",
+    "country": "sweden",
+    "genre": ["progressive metal", "death metal"]
+  },
+  "blackwater park": "opeth",
+  "the lotus eater": "blackwater park",
+  "metallica": {
+    "band": "metallica",
+    "country": "usa",
+    "genre": "heavy metal"
+  },
+  "enter sandman": "metallica",
+  "cat": {
+    "subject": "cat",
+    "animal": "cat"
+  }
+}
