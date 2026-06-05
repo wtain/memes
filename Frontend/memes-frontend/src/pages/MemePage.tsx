@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { useParams } from "react-router-dom"
 import { MemesApi } from "../api/MemesApi"
 import { MemeDetails } from "../components/MemeDetails"
 import { Meme } from "../types/generated/all"
+import { useFetchById } from "../utils/useFetchById"
 
 type Props = {
   memesApi: MemesApi
@@ -12,17 +13,7 @@ export default function MemePage({ memesApi }: Props) {
   const { id } = useParams<{ id: string }>()
   const [meme, setMeme] = useState<Meme | null>(null)
 
-  const fetchingForIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!id || fetchingForIdRef.current === id) return
-    fetchingForIdRef.current = id
-    memesApi.getMeme(id).then(meme => {
-      if (fetchingForIdRef.current === id) {
-        setMeme(meme)
-        fetchingForIdRef.current = null
-      }
-    })
-  }, [id])
+  useFetchById(id, i => memesApi.getMeme(i), setMeme)
 
   if (!meme) {
     return <div>Loading...</div>

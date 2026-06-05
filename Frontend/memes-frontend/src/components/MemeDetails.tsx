@@ -5,6 +5,7 @@ import MemeCard from "./MemeCard"
 import { Concept, Meme } from "../types/generated/all"
 import { ConceptRow } from "./ConceptRow"
 import { useNavigate } from "react-router-dom"
+import { useFetchById } from "../utils/useFetchById"
 
 type Props = {
   meme: Meme
@@ -31,29 +32,8 @@ export function MemeDetails({ meme, memesApi }: Props) {
 
   const navigate = useNavigate()
 
-  const similarFetchingForRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (similarFetchingForRef.current === meme.id) return
-    similarFetchingForRef.current = meme.id
-    memesApi.similarMemes(meme.id).then(resp => {
-      if (similarFetchingForRef.current === meme.id) {
-        setSimilarMemes(resp.items ?? [])
-        similarFetchingForRef.current = null
-      }
-    })
-  }, [meme.id])
-
-  const conceptsFetchingForRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (conceptsFetchingForRef.current === meme.id) return
-    conceptsFetchingForRef.current = meme.id
-    memesApi.getTopConceptsForImage(meme.id).then(resp => {
-      if (conceptsFetchingForRef.current === meme.id) {
-        setConcepts(resp ?? [])
-        conceptsFetchingForRef.current = null
-      }
-    })
-  }, [meme.id])
+  useFetchById(meme.id, id => memesApi.similarMemes(id), resp => setSimilarMemes(resp.items ?? []))
+  useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
 
   // Native wheel listener with passive:false so preventDefault() actually works
   useEffect(() => {

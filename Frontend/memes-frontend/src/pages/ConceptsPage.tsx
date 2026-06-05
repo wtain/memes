@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { ConceptRow } from "../components/ConceptRow"
 import { ConceptDetailsModal } from "../components/ConceptDetailsModal"
 import { MemesApi } from "../api/MemesApi"
@@ -8,19 +8,17 @@ type Props = {
   memesApi: MemesApi
 }
 
-export default function ConceptsPage({
-  memesApi,
-}: Props) {
+export default function ConceptsPage({ memesApi }: Props) {
   const [concepts, setConcepts] = useState<Concept[]>([])
-  const [selectedConcept, setSelectedConcept] =
-    useState<Concept | null>(null)
+  const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null)
 
-  const fetchedRef = useRef(false)
   useEffect(() => {
-    if (fetchedRef.current) return
-    fetchedRef.current = true
-    memesApi.listConcepts().then(setConcepts)
-  }, [])
+    let active = true
+    memesApi.listConcepts().then(result => {
+      if (active) setConcepts(result)
+    })
+    return () => { active = false }
+  }, [memesApi])
 
   return (
     <div>

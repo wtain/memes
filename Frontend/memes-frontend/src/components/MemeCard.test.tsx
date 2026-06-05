@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import MemeCard from './MemeCard'
-import type { MemesApi } from '../api/MemesApi'
+import { makeMockApi } from '../test/mockApi'
 import type { Meme } from '../types/generated/all'
 
 const mockMeme: Meme = {
@@ -11,28 +11,11 @@ const mockMeme: Meme = {
   excluded: false,
 }
 
-function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
-  return {
-    searchMemes: vi.fn(),
-    iterateUntaggedMemes: vi.fn(),
-    iterateDuplicates: vi.fn(),
-    similarMemes: vi.fn(),
-    getImageUrl: vi.fn().mockReturnValue('http://example.com/meme-1.jpg'),
-    listConcepts: vi.fn(),
-    getTopImagesForConcept: vi.fn(),
-    getTopConceptsForImage: vi.fn(),
-    getMeme: vi.fn(),
-    getConcept: vi.fn(),
-    markImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    unmarkImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    getImageIsExcluded: vi.fn(),
-    ...overrides,
-  } as MemesApi
-}
+const cardApi = () => makeMockApi({ getImageUrl: vi.fn().mockReturnValue('http://example.com/meme-1.jpg') })
 
 describe('MemeCard', () => {
   it('renders the meme image with URL from api.getImageUrl', () => {
-    const api = makeMockApi()
+    const api = cardApi()
     render(<MemeCard meme={mockMeme} memesApi={api} />)
     const img = screen.getByRole('img', { name: 'meme-1' })
     expect(img).toHaveAttribute('src', 'http://example.com/meme-1.jpg')
@@ -40,7 +23,7 @@ describe('MemeCard', () => {
   })
 
   it('shows OCR text overlay on mouse enter', () => {
-    render(<MemeCard meme={mockMeme} memesApi={makeMockApi()} />)
+    render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
     expect(screen.queryByText('Hello World')).not.toBeInTheDocument()
     fireEvent.mouseEnter(screen.getByRole('img').parentElement!)
     expect(screen.getByText('Hello World')).toBeInTheDocument()
@@ -48,7 +31,7 @@ describe('MemeCard', () => {
   })
 
   it('hides OCR text overlay on mouse leave', () => {
-    render(<MemeCard meme={mockMeme} memesApi={makeMockApi()} />)
+    render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
     const imageWrap = screen.getByRole('img').parentElement!
     fireEvent.mouseEnter(imageWrap)
     fireEvent.mouseLeave(imageWrap)
@@ -56,24 +39,23 @@ describe('MemeCard', () => {
   })
 
   it('does not show OCR overlay when meme has no text', () => {
-    const meme = { ...mockMeme, text: [] }
-    render(<MemeCard meme={meme} memesApi={makeMockApi()} />)
+    render(<MemeCard meme={{ ...mockMeme, text: [] }} memesApi={cardApi()} />)
     fireEvent.mouseEnter(screen.getByRole('img').parentElement!)
     expect(screen.queryByText('OCR')).not.toBeInTheDocument()
   })
 
   it('checkbox is unchecked when meme is not excluded', () => {
-    render(<MemeCard meme={{ ...mockMeme, excluded: false }} memesApi={makeMockApi()} />)
+    render(<MemeCard meme={{ ...mockMeme, excluded: false }} memesApi={cardApi()} />)
     expect(screen.getByRole('checkbox')).not.toBeChecked()
   })
 
   it('checkbox is checked when meme is already excluded', () => {
-    render(<MemeCard meme={{ ...mockMeme, excluded: true }} memesApi={makeMockApi()} />)
+    render(<MemeCard meme={{ ...mockMeme, excluded: true }} memesApi={cardApi()} />)
     expect(screen.getByRole('checkbox')).toBeChecked()
   })
 
   it('calls markImageIsExcluded when unchecked checkbox is clicked', async () => {
-    const api = makeMockApi()
+    const api = cardApi()
     render(<MemeCard meme={{ ...mockMeme, excluded: false }} memesApi={api} />)
     fireEvent.click(screen.getByRole('checkbox'))
     await waitFor(() => {
@@ -82,7 +64,7 @@ describe('MemeCard', () => {
   })
 
   it('calls unmarkImageIsExcluded when checked checkbox is clicked', async () => {
-    const api = makeMockApi()
+    const api = cardApi()
     render(<MemeCard meme={{ ...mockMeme, excluded: true }} memesApi={api} />)
     fireEvent.click(screen.getByRole('checkbox'))
     await waitFor(() => {
@@ -92,7 +74,7 @@ describe('MemeCard', () => {
 
   it('calls onClick when the image area is clicked', () => {
     const onClick = vi.fn()
-    render(<MemeCard meme={mockMeme} memesApi={makeMockApi()} onClick={onClick} />)
+    render(<MemeCard meme={mockMeme} memesApi={cardApi()} onClick={onClick} />)
     fireEvent.click(screen.getByRole('img').parentElement!)
     expect(onClick).toHaveBeenCalledOnce()
   })

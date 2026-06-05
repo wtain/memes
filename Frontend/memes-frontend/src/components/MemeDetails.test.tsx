@@ -1,63 +1,96 @@
-import { render, act } from '@testing-library/react'
+import { render, screen, act, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { MemeDetails } from './MemeDetails'
-import type { MemesApi } from '../api/MemesApi'
-import type { Meme } from '../types/generated/all'
+import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
 
-const mockMeme: Meme = {
-  id: 'meme-1',
-  imageUrl: '/images/test.jpg',
-  text: [],
-  tags: [],
-  excluded: false,
-}
-
-function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
-  return {
-    searchMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateUntaggedMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateDuplicates: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getImageUrl: vi.fn().mockReturnValue('http://example.com/test.jpg'),
-    listConcepts: vi.fn().mockResolvedValue([]),
-    getTopImagesForConcept: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getTopConceptsForImage: vi.fn().mockResolvedValue([]),
-    getMeme: vi.fn().mockResolvedValue(mockMeme),
-    getConcept: vi.fn().mockResolvedValue({ id: 1, name: 'test' }),
-    markImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    unmarkImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    getImageIsExcluded: vi.fn().mockResolvedValue(false),
-    ...overrides,
-  } as MemesApi
-}
-
-function renderInStrictMode(ui: React.ReactElement) {
-  return render(<StrictMode>{ui}</StrictMode>)
+function renderMemeDetails(meme = DEFAULT_MOCK_MEME, overrides: Parameters<typeof makeMockApi>[0] = {}) {
+  const api = makeMockApi(overrides)
+  const result = render(
+    <MemoryRouter>
+      <MemeDetails meme={meme} memesApi={api} />
+    </MemoryRouter>
+  )
+  return { api, ...result }
 }
 
 describe('MemeDetails', () => {
-  it('calls getTopConceptsForImage exactly once on mount', async () => {
-    const api = makeMockApi()
-    renderInStrictMode(
-      <MemoryRouter>
-        <MemeDetails meme={mockMeme} memesApi={api} />
-      </MemoryRouter>
-    )
-    await act(async () => {})
-    expect(api.getTopConceptsForImage).toHaveBeenCalledTimes(1)
-    expect(api.getTopConceptsForImage).toHaveBeenCalledWith('meme-1')
+  describe('getTopConceptsForImage', () => {
+    it('calls the backend once per mount (production behaviour)', async () => {
+      const { api } = renderMemeDetails()
+      await act(async () => {})
+      expect(api.getTopConceptsForImage).toHaveBeenCalledTimes(1)
+      expect(api.getTopConceptsForImage).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
+    })
+
+    it('renders concept rows returned by the API', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getTopConceptsForImage: vi.fn().mockResolvedValue([
+          { id: 1, name: 'cats' },
+          { id: 2, name: 'dogs' },
+        ]),
+      })
+      await waitFor(() => {
+        expect(screen.getByText('cats')).toBeInTheDocument()
+        expect(screen.getByText('dogs')).toBeInTheDocument()
+      })
+    })
+
+    it('re-fetches when meme ID changes', async () => {
+      const api = makeMockApi({
+        getTopConceptsForImage: vi.fn()
+          .mockResolvedValueOnce([{ id: 1, name: 'cats' }])
+          .mockResolvedValueOnce([{ id: 2, name: 'dogs' }]),
+      })
+      const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+      const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+      const { rerender } = render(
+        <MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>
+      )
+      await waitFor(() => expect(screen.getByText('cats')).toBeInTheDocument())
+
+      rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+      await waitFor(() => expect(screen.getByText('dogs')).toBeInTheDocument())
+      expect(api.getTopConceptsForImage).toHaveBeenCalledWith('meme-B')
+    })
+
+    it('in StrictMode the fetcher fires twice but concepts render once correctly', async () => {
+      const api = makeMockApi({
+        getTopConceptsForImage: vi.fn().mockResolvedValue([{ id: 1, name: 'cats' }]),
+      })
+      render(
+        <StrictMode>
+          <MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>
+        </StrictMode>
+      )
+      await waitFor(() => expect(screen.getByText('cats')).toBeInTheDocument())
+      // StrictMode double-fires the effect; cleanup flag discards the stale first result
+      expect(api.getTopConceptsForImage).toHaveBeenCalledTimes(2)
+      expect(screen.getAllByText('cats')).toHaveLength(1)
+    })
   })
 
-  it('calls similarMemes exactly once on mount', async () => {
-    const api = makeMockApi()
-    renderInStrictMode(
-      <MemoryRouter>
-        <MemeDetails meme={mockMeme} memesApi={api} />
-      </MemoryRouter>
-    )
-    await act(async () => {})
-    expect(api.similarMemes).toHaveBeenCalledTimes(1)
-    expect(api.similarMemes).toHaveBeenCalledWith('meme-1')
+  describe('similarMemes', () => {
+    it('calls the backend once per mount (production behaviour)', async () => {
+      const { api } = renderMemeDetails()
+      await act(async () => {})
+      expect(api.similarMemes).toHaveBeenCalledTimes(1)
+      expect(api.similarMemes).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
+    })
+
+    it('re-fetches when meme ID changes', async () => {
+      const api = makeMockApi()
+      const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+      const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+      const { rerender } = render(
+        <MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>
+      )
+      await act(async () => {})
+
+      rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+      expect(api.similarMemes).toHaveBeenCalledWith('meme-B')
+      expect(api.similarMemes).toHaveBeenCalledTimes(2)
+    })
   })
 })

@@ -1,34 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemesList } from './MemesList'
-import type { MemesApi } from '../api/MemesApi'
-import type { Meme } from '../types/generated/all'
-
-const mockMeme: Meme = {
-  id: 'meme-1',
-  imageUrl: '/images/test.jpg',
-  text: [],
-  tags: [],
-  excluded: false,
-}
-
-function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
-  return {
-    searchMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateUntaggedMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateDuplicates: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getImageUrl: vi.fn().mockReturnValue('http://example.com/test.jpg'),
-    listConcepts: vi.fn().mockResolvedValue([]),
-    getTopImagesForConcept: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getTopConceptsForImage: vi.fn().mockResolvedValue([]),
-    getMeme: vi.fn().mockResolvedValue(mockMeme),
-    getConcept: vi.fn().mockResolvedValue({ id: 1, name: 'test' }),
-    markImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    unmarkImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    getImageIsExcluded: vi.fn().mockResolvedValue(false),
-    ...overrides,
-  } as MemesApi
-}
+import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
 
 beforeEach(() => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
@@ -64,14 +36,14 @@ describe('MemesList', () => {
   it('renders a card for each returned meme', async () => {
     const api = makeMockApi({
       searchMemes: vi.fn().mockResolvedValue({
-        items: [mockMeme],
+        items: [DEFAULT_MOCK_MEME],
         facets: [],
         hasNext: false,
       }),
     })
     render(<MemesList memesApi={api} />)
     await waitFor(() => {
-      expect(screen.getByRole('img', { name: 'meme-1' })).toBeInTheDocument()
+      expect(screen.getByRole('img', { name: DEFAULT_MOCK_MEME.id })).toBeInTheDocument()
     })
   })
 

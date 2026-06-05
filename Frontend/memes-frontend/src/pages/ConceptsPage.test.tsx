@@ -1,39 +1,41 @@
-import { render, act } from '@testing-library/react'
+import { render, screen, act, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import ConceptsPage from './ConceptsPage'
-import type { MemesApi } from '../api/MemesApi'
-
-function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
-  return {
-    searchMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateUntaggedMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateDuplicates: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getImageUrl: vi.fn().mockReturnValue('http://example.com/test.jpg'),
-    listConcepts: vi.fn().mockResolvedValue([]),
-    getTopImagesForConcept: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getTopConceptsForImage: vi.fn().mockResolvedValue([]),
-    getMeme: vi.fn().mockResolvedValue({}),
-    getConcept: vi.fn().mockResolvedValue({ id: 1, name: 'test' }),
-    markImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    unmarkImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    getImageIsExcluded: vi.fn().mockResolvedValue(false),
-    ...overrides,
-  } as MemesApi
-}
+import { makeMockApi } from '../test/mockApi'
 
 describe('ConceptsPage', () => {
-  it('calls listConcepts exactly once on mount', async () => {
+  it('calls listConcepts once per mount (production behaviour)', async () => {
     const api = makeMockApi()
-    render(
-      <StrictMode>
-        <MemoryRouter>
-          <ConceptsPage memesApi={api} />
-        </MemoryRouter>
-      </StrictMode>
-    )
+    render(<MemoryRouter><ConceptsPage memesApi={api} /></MemoryRouter>)
     await act(async () => {})
     expect(api.listConcepts).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a row for each concept returned', async () => {
+    const api = makeMockApi({
+      listConcepts: vi.fn().mockResolvedValue([
+        { id: 1, name: 'cats' },
+        { id: 2, name: 'dogs' },
+      ]),
+    })
+    render(<MemoryRouter><ConceptsPage memesApi={api} /></MemoryRouter>)
+    await waitFor(() => {
+      expect(screen.getByText('cats')).toBeInTheDocument()
+      expect(screen.getByText('dogs')).toBeInTheDocument()
+    })
+  })
+
+  it('in StrictMode renders concepts without duplication', async () => {
+    const api = makeMockApi({
+      listConcepts: vi.fn().mockResolvedValue([{ id: 1, name: 'cats' }]),
+    })
+    render(
+      <StrictMode>
+        <MemoryRouter><ConceptsPage memesApi={api} /></MemoryRouter>
+      </StrictMode>
+    )
+    await waitFor(() => expect(screen.getByText('cats')).toBeInTheDocument())
+    expect(screen.getAllByText('cats')).toHaveLength(1)
   })
 })

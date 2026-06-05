@@ -1,34 +1,44 @@
-import { render, act } from '@testing-library/react'
+import { render, screen, act, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import ConceptPage from './ConceptPage'
-import type { MemesApi } from '../api/MemesApi'
+import { makeMockApi } from '../test/mockApi'
 import type { Concept } from '../types/generated/all'
 
 const mockConcept: Concept = { id: 42, name: 'test-concept' }
 
-function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
-  return {
-    searchMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateUntaggedMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateDuplicates: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getImageUrl: vi.fn().mockReturnValue('http://example.com/test.jpg'),
-    listConcepts: vi.fn().mockResolvedValue([]),
-    getTopImagesForConcept: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getTopConceptsForImage: vi.fn().mockResolvedValue([]),
-    getMeme: vi.fn().mockResolvedValue({}),
-    getConcept: vi.fn().mockResolvedValue(mockConcept),
-    markImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    unmarkImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    getImageIsExcluded: vi.fn().mockResolvedValue(false),
-    ...overrides,
-  } as MemesApi
+function renderConceptPage(overrides: Parameters<typeof makeMockApi>[0] = {}) {
+  const api = makeMockApi({ getConcept: vi.fn().mockResolvedValue(mockConcept), ...overrides })
+  const result = render(
+    <MemoryRouter initialEntries={['/concepts/42']}>
+      <Routes>
+        <Route path="/concepts/:id" element={<ConceptPage memesApi={api} />} />
+      </Routes>
+    </MemoryRouter>
+  )
+  return { api, ...result }
 }
 
 describe('ConceptPage', () => {
-  it('calls getConcept exactly once on mount', async () => {
-    const api = makeMockApi()
+  it('calls getConcept once per mount (production behaviour)', async () => {
+    const { api } = renderConceptPage()
+    await act(async () => {})
+    expect(api.getConcept).toHaveBeenCalledTimes(1)
+    expect(api.getConcept).toHaveBeenCalledWith(42)
+  })
+
+  it('renders the concept name after fetching', async () => {
+    renderConceptPage()
+    await waitFor(() => expect(screen.getByText('Concept: test-concept')).toBeInTheDocument())
+  })
+
+  it('shows loading placeholder before fetch resolves', () => {
+    renderConceptPage()
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
+  })
+
+  it('in StrictMode concept name renders exactly once', async () => {
+    const api = makeMockApi({ getConcept: vi.fn().mockResolvedValue(mockConcept) })
     render(
       <StrictMode>
         <MemoryRouter initialEntries={['/concepts/42']}>
@@ -38,8 +48,7 @@ describe('ConceptPage', () => {
         </MemoryRouter>
       </StrictMode>
     )
-    await act(async () => {})
-    expect(api.getConcept).toHaveBeenCalledTimes(1)
-    expect(api.getConcept).toHaveBeenCalledWith(42)
+    await waitFor(() => expect(screen.getByText('Concept: test-concept')).toBeInTheDocument())
+    expect(screen.getAllByText('Concept: test-concept')).toHaveLength(1)
   })
 })

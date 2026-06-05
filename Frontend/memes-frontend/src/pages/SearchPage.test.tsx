@@ -1,29 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import SearchPage from './SearchPage'
+import { makeMockApi } from '../test/mockApi'
 import type { MemesApi } from '../api/MemesApi'
-import type { Meme } from '../types/generated/all'
-
-const mockMeme: Meme = { id: '1', imageUrl: '/img.jpg', text: [], tags: [], excluded: false }
-
-function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
-  return {
-    searchMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateUntaggedMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    iterateDuplicates: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getImageUrl: vi.fn().mockReturnValue('http://example.com/img.jpg'),
-    listConcepts: vi.fn().mockResolvedValue([]),
-    getTopImagesForConcept: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
-    getTopConceptsForImage: vi.fn().mockResolvedValue([]),
-    getMeme: vi.fn().mockResolvedValue(mockMeme),
-    getConcept: vi.fn().mockResolvedValue({ id: 1, name: 'test' }),
-    markImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    unmarkImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    getImageIsExcluded: vi.fn().mockResolvedValue(false),
-    ...overrides,
-  } as MemesApi
-}
 
 function renderPage(api: MemesApi, search = '') {
   return render(
