@@ -31,12 +31,28 @@ export function MemeDetails({ meme, memesApi }: Props) {
 
   const navigate = useNavigate()
 
+  const similarFetchingForRef = useRef<string | null>(null)
   useEffect(() => {
-    memesApi.similarMemes(meme.id).then(resp => setSimilarMemes(resp.items ?? []))
+    if (similarFetchingForRef.current === meme.id) return
+    similarFetchingForRef.current = meme.id
+    memesApi.similarMemes(meme.id).then(resp => {
+      if (similarFetchingForRef.current === meme.id) {
+        setSimilarMemes(resp.items ?? [])
+        similarFetchingForRef.current = null
+      }
+    })
   }, [meme.id])
 
+  const conceptsFetchingForRef = useRef<string | null>(null)
   useEffect(() => {
-    memesApi.getTopConceptsForImage(meme.id).then(resp => setConcepts(resp ?? []))
+    if (conceptsFetchingForRef.current === meme.id) return
+    conceptsFetchingForRef.current = meme.id
+    memesApi.getTopConceptsForImage(meme.id).then(resp => {
+      if (conceptsFetchingForRef.current === meme.id) {
+        setConcepts(resp ?? [])
+        conceptsFetchingForRef.current = null
+      }
+    })
   }, [meme.id])
 
   // Native wheel listener with passive:false so preventDefault() actually works

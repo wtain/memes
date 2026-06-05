@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 import { Concept } from "../types/generated/all"
 import { MemesApi } from "../api/MemesApi"
@@ -13,11 +13,16 @@ export default function ConceptPage({ memesApi }: Props) {
 
   const [concept, setConcept] = useState<Concept | null>(null)
 
+  const fetchingForIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!id) return
-
-    // you may already have this endpoint or need to add it
-    memesApi.getConcept(Number(id)).then(setConcept)
+    if (!id || fetchingForIdRef.current === id) return
+    fetchingForIdRef.current = id
+    memesApi.getConcept(Number(id)).then(concept => {
+      if (fetchingForIdRef.current === id) {
+        setConcept(concept)
+        fetchingForIdRef.current = null
+      }
+    })
   }, [id])
 
   if (!concept) {

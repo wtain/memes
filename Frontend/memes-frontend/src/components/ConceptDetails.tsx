@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Concept, Meme } from "../types/generated/all"
 import { MemesApi } from "../api/MemesApi"
 import MemeCard from "./MemeCard"
@@ -14,17 +14,23 @@ export function ConceptDetails({ concept, memesApi }: Props) {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
+  const fetchingForIdRef = useRef<number | null>(null)
   useEffect(() => {
-    load()
+    if (fetchingForIdRef.current === concept.id) return
+    fetchingForIdRef.current = concept.id
+    load(concept.id)
   }, [concept.id])
 
-  async function load() {
+  async function load(id: number) {
     setLoading(true)
 
-    const response = await memesApi.getTopImagesForConcept(concept.id)
-    setMemes(response.items ?? [])
+    const response = await memesApi.getTopImagesForConcept(id)
 
-    setLoading(false)
+    if (fetchingForIdRef.current === id) {
+      setMemes(response.items ?? [])
+      setLoading(false)
+      fetchingForIdRef.current = null
+    }
   }
 
   return (
