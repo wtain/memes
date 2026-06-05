@@ -23,10 +23,12 @@ export function MultiSelectFacet({
   const [options, setOptions] = useState<Option[]>([])
 
   const ref = useRef<HTMLDivElement>(null)
+  const loadOptionsRef = useRef(loadOptions)
+  useEffect(() => { loadOptionsRef.current = loadOptions })
 
   // Load options
   useEffect(() => {
-    loadOptions(query).then(setOptions)
+    loadOptionsRef.current(query).then(setOptions)
   }, [query])
 
   // Close on outside click

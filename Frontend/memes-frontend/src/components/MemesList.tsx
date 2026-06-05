@@ -108,8 +108,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
   useEffect(() => { loadMemesRef.current = loadMemes })
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data-fetching trigger; setState is deferred via Promise.resolve() in loadMemes
-    loadMemes(undefined)
+    loadMemesRef.current(undefined)
     cursorRef.current = undefined
     window.scrollTo({ top: 0 })
   }, [filter, tagFilters])
