@@ -54,7 +54,7 @@ describe('MemeDetails', () => {
       expect(api.getTopConceptsForImage).toHaveBeenCalledWith('meme-B')
     })
 
-    it('in StrictMode the fetcher fires twice but concepts render once correctly', async () => {
+    it('in StrictMode the fetcher fires once and concepts render correctly', async () => {
       const api = makeMockApi({
         getTopConceptsForImage: vi.fn().mockResolvedValue([{ id: 1, name: 'cats' }]),
       })
@@ -64,8 +64,8 @@ describe('MemeDetails', () => {
         </StrictMode>
       )
       await waitFor(() => expect(screen.getByText('cats')).toBeInTheDocument())
-      // StrictMode double-fires the effect; cleanup flag discards the stale first result
-      expect(api.getTopConceptsForImage).toHaveBeenCalledTimes(2)
+      // Ref-guard prevents the duplicate StrictMode request; exactly one network call
+      expect(api.getTopConceptsForImage).toHaveBeenCalledTimes(1)
       expect(screen.getAllByText('cats')).toHaveLength(1)
     })
   })

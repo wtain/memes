@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react'
 
 /**
  * Fetches a resource by ID on mount and whenever the ID changes.
- * Uses a cleanup flag so stale responses from a previous ID (or from
- * React StrictMode's intentional double-mount) never update state.
+ * Ref-guard skips re-fetching the same ID (prevents StrictMode double-request).
+ * Cleanup flag ensures stale results are never applied.
  *
  * `fetcher` and `onResult` are read via refs so callers don't need
  * useCallback — passing inline arrow functions is fine.
@@ -17,6 +17,10 @@ export function useFetchById<ID, Result>(
   const fetcherRef = useRef(fetcher)
   const onResultRef = useRef(onResult)
   const onErrorRef = useRef(onError)
+  // lastFetchedId: skip re-fetching the same ID (prevents StrictMode double-request)
+  // currentId: invalidate results from a previous ID when id changes
+  const lastFetchedIdRef = useRef<ID | undefined>(undefined)
+  const currentIdRef = useRef<ID | undefined>(undefined)
 
   // Sync refs after every render without mutating during render
   useEffect(() => {
@@ -27,10 +31,11 @@ export function useFetchById<ID, Result>(
 
   useEffect(() => {
     if (id === undefined) return
-    let active = true
+    if (Object.is(lastFetchedIdRef.current, id)) return
+    lastFetchedIdRef.current = id
+    currentIdRef.current = id
     fetcherRef.current(id)
-      .then(result => { if (active) onResultRef.current(result) })
-      .catch(err => { if (active) onErrorRef.current?.(err) })
-    return () => { active = false }
+      .then(result => { if (Object.is(currentIdRef.current, id)) onResultRef.current(result) })
+      .catch(err => { if (Object.is(currentIdRef.current, id)) onErrorRef.current?.(err) })
   }, [id])
 }

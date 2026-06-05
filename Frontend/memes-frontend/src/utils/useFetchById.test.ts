@@ -26,14 +26,14 @@ describe('useFetchById', () => {
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
-  it('in StrictMode, fetcher fires twice but onResult is only called once', async () => {
-    // StrictMode intentionally double-invokes effects (mount → cleanup → remount).
-    // The cleanup flag discards the stale first result; only the second resolves.
+  it('in StrictMode, fetcher fires once and onResult is called once', async () => {
+    // StrictMode double-invokes effects (mount → cleanup → remount).
+    // The ref-guard skips the second fetch for the same ID, so only one request goes out.
     const fetcher = vi.fn().mockResolvedValue('data')
     const onResult = vi.fn()
     renderHook(() => useFetchById('id-1', fetcher, onResult), { wrapper: StrictMode })
     await act(async () => {})
-    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(fetcher).toHaveBeenCalledTimes(1)
     expect(onResult).toHaveBeenCalledTimes(1)
     expect(onResult).toHaveBeenCalledWith('data')
   })

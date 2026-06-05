@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Concept, Meme } from "../types/generated/all"
 import { MemesApi } from "../api/MemesApi"
 import MemeCard from "./MemeCard"
@@ -16,16 +16,19 @@ export function ConceptDetails({ concept, memesApi }: Props) {
   const [loadedForId, setLoadedForId] = useState<number | null>(null)
   const loading = loadedForId !== concept.id
   const navigate = useNavigate()
+  const lastFetchedIdRef = useRef<number | undefined>(undefined)
+  const currentIdRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
-    let active = true
+    if (lastFetchedIdRef.current === concept.id) return
+    lastFetchedIdRef.current = concept.id
+    currentIdRef.current = concept.id
     memesApi.getTopImagesForConcept(concept.id).then(response => {
-      if (active) {
+      if (currentIdRef.current === concept.id) {
         setMemes(response.items ?? [])
         setLoadedForId(concept.id)
       }
     })
-    return () => { active = false }
   }, [concept.id, memesApi])
 
   return (
