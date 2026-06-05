@@ -5,6 +5,7 @@ import uuid
 
 import sqlalchemy
 from sqlalchemy import select, tuple_, distinct, and_, union_all
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -341,22 +342,15 @@ class ImageRepository:
 
 
     async def set_is_excluded(self, image_id, is_excluded):
-        query = (
-            select(
-                ImageExtras
-            )
-            .where(
-                ImageExtras.image_id == image_id
+        stmt = (
+            insert(ImageExtras)
+            .values(image_id=image_id, exclude=is_excluded)
+            .on_conflict_do_update(
+                index_elements=["image_id"],
+                set_={"exclude": is_excluded},
             )
         )
-        result = await self.session.execute(query)
-        extras = result.scalar_one_or_none()
-        if extras:
-            extras.exclude = is_excluded
-        else:
-            extras = ImageExtras(image_id=image_id, exclude=is_excluded)
-            self.session.add(extras)
-        await self.session.commit()
+        await self.session.execute(stmt)
 
     async def get_is_excluded(self, image_id) -> bool:
         query = (
