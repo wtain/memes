@@ -1,5 +1,5 @@
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
@@ -42,6 +42,16 @@ class ImagesRepository:
         images_and_texts_results = await self.session.execute(query)
         return images_and_texts_results
 
+
+    async def get_all_images_with_hash(self):
+        query = select(Image.id, Image.filename, Image.content_hash, Image.created_at)
+        result = await self.session.execute(query)
+        return result.fetchall()
+
+    async def update_content_hash(self, image_id, content_hash: str) -> None:
+        await self.session.execute(
+            update(Image).where(Image.id == image_id).values(content_hash=content_hash)
+        )
 
     async def get_all_images(self):
         query = (

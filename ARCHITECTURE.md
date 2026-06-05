@@ -255,6 +255,7 @@ class ImageRepository:
 8. **build_concept_embeddings** - Semantic concepts
 9. **Utilities** - Move excluded, unregister deleted, trends analysis
 10. **deduplicate_ocr_texts** - Remove duplicate OCR entries per image/language
+11. **detect_file_duplicates** - Hash-based exact duplicate detection; marks duplicates as excluded
 
 **Design**: Each job is independently runnable, idempotent where possible
 

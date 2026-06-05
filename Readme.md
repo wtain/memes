@@ -232,6 +232,7 @@ extract_text_from_memes → build_image_embeddings → rebuild_duplicates → cl
                        → build_image_descriptions → build_tags_from_descriptions
 
 Optional data maintenance (run as needed):
+  detect_file_duplicates
   deduplicate_ocr_texts
   move_excluded
   unregister_deleted_images
@@ -293,7 +294,14 @@ Optional data maintenance (run as needed):
     - Checks database against filesystem
     - Removes database records for missing/moved images
 
-13. **deduplicate_ocr_texts** - Remove duplicate OCR text entries
+13. **detect_file_duplicates** - Detect and exclude byte-identical image files
+    - Computes SHA-256 hash for every registered image (cached in `images.content_hash`)
+    - Groups identical files into clusters using Union-Find
+    - Confirms byte identity within each cluster before acting
+    - Keeps the oldest image in each cluster; marks the rest as excluded
+    - Idempotent: skips images with a cached hash; re-run safe
+
+14. **deduplicate_ocr_texts** - Remove duplicate OCR text entries
     - Traverses all registered images in the database
     - Removes duplicate OCR rows per (image, language) where the same text was detected more than once
     - Keeps the highest-confidence occurrence; ties broken by oldest entry
