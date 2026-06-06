@@ -35,6 +35,12 @@ class OCRTextRepository:
         result = await self.session.execute(stmt)
         return result.rowcount
 
+    async def get_all_texts_with_language(self):
+        result = await self.session.execute(
+            select(OCRText.text, OCRText.confidence, OCRText.language)
+        )
+        return result.all()
+
     async def overwrite_texts(self, image, ocr_result, language):
         await self.session.execute(
             delete(ImageMetrics).where(

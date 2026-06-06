@@ -322,6 +322,14 @@ Optional data maintenance (run as needed):
     - Configurable via env vars: `CONCEPT_MAPPING_FILE` (required), `CONCEPT_THRESHOLD` (default `0.2`), `CONCEPT_LIMIT` (default `50`)
     - Mapping format: `{"Concept Name": {"key": "genre", "value": "glam_metal", "threshold": 0.15, "limit": 30}, ...}` (`threshold` and `limit` are optional per-concept overrides)
 
+17. **build_bow** - Build a bag-of-words frequency report from text data
+    - Lemmatizes all words via pymorphy3 (same tokenization as the rules engine)
+    - Source controlled by `TEXT_SOURCE` env var: `ocr` (default) or `descriptions`
+    - OCR mode: output is split per detected language `{"ru": {"кот": 145, ...}, "en": {...}}`
+    - Descriptions mode: flat `{"cat": 30, ...}` (no language field on descriptions)
+    - Configurable via env vars: `BOW_OUTPUT_FILE` (required), `TEXT_SOURCE` (default `ocr`), `BOW_MIN_WORD_LENGTH` (default `3`), `BOW_MIN_FREQUENCY` (default `2`), `OCR_CONFIDENCE_MIN` (default `0.4`, OCR only)
+    - Use the output to identify the most frequent lemmas not yet covered by rules
+
 **Batch job notes**:
 - Most jobs clear and rebuild all results (idempotent)
 - Exception: `extract_text_from_memes` is pseudo-incremental
