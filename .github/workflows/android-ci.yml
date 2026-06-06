@@ -13,6 +13,7 @@ on:
       - 'AndroidClient/**'
       - 'shared/schemas/**'
       - '.github/workflows/android-ci.yml'
+  workflow_dispatch:
 
 jobs:
   build-apk:
@@ -43,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-${{ github.sha }}
-          path: AndroidClient/app/build/outputs/apk/debug/app-debug.apk
+          path: AndroidClient/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
   unit-tests:
