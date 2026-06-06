@@ -46,6 +46,7 @@ class SearchScreenTest {
                 SearchScreen(
                     onMemeClick = onMemeClick,
                     onEnvironmentsClick = onEnvironmentsClick,
+                    onExcludedClick = {},
                     viewModel = viewModel
                 )
             }
