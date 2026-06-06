@@ -307,6 +307,20 @@ Optional data maintenance (run as needed):
     - Keeps the highest-confidence occurrence; ties broken by oldest entry
     - Idempotent (safe to re-run)
 
+15. **detect_entities_and_tag** - Detect animals and objects in images using YOLOv8
+    - Runs YOLOv8 object detection on every registered image (skips `.webp`)
+    - Tags detected animals under `key=animal` and objects under `key=object` (source: `YOLO`)
+    - Wipes all `YOLO` tags before each run (full rebuild)
+    - Requires `BASE_PATH` env var pointing to the image directory
+
+16. **tag_images_from_concepts** - Assign concept-derived tags to top-matching images
+    - Reads a JSON mapping file (`CONCEPT_MAPPING_FILE`) that maps concept names to `{key, value}` tag definitions
+    - Iterates all concepts in the DB; concepts with no mapping entry are skipped (counted in metrics)
+    - For each mapped concept, fetches top-matching images via cosine similarity on concept embeddings
+    - Tags those images with the mapped `{key, value}` (source: `CONCEPT`); wipes all `CONCEPT` tags before each run
+    - Configurable via env vars: `CONCEPT_MAPPING_FILE` (required), `CONCEPT_THRESHOLD` (default `0.2`), `CONCEPT_LIMIT` (default `50`)
+    - Mapping format: `{"Concept Name": {"key": "genre", "value": "glam_metal", "threshold": 0.15, "limit": 30}, ...}` (`threshold` and `limit` are optional per-concept overrides)
+
 **Batch job notes**:
 - Most jobs clear and rebuild all results (idempotent)
 - Exception: `extract_text_from_memes` is pseudo-incremental
