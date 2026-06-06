@@ -93,6 +93,18 @@ async def get_excluded(
 
 
 # Must be before /{image_id} endpoint
+@router.get("/excluded", response_model=MemeSearchResponse)
+async def get_excluded_images(
+    response: Response,
+    limit: int = Query(20, ge=1, le=100),
+    cursor: Optional[str] = None,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    return await service.get_excluded(cursor=cursor, limit=limit)
+
+
+# Must be before /{image_id} endpoint
 @router.get("/untagged", response_model=MemeSearchResponse)
 async def get_untagged_images(
     response: Response,

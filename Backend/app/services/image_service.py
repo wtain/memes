@@ -59,13 +59,7 @@ class ImageService:
 
         await self._fill_texts_and_tags(items)
 
-        has_next = len(items) > limit
-        if has_next:
-            items = items[:limit]
-
-        next_cursor = self._encode_cursor(rows[-1]) if rows else None
-
-        return MemeSearchResponse(items=items, nextCursor=next_cursor, hasNext=has_next, facets=facets)
+        return self._paginate_response(rows, items, limit, facets)
 
     async def _fill_texts_and_tags(self, items):
         ids = {meme.id for meme in items}
@@ -130,13 +124,7 @@ class ImageService:
 
         await self._fill_texts_and_tags(items)
 
-        has_next = len(items) > limit
-        if has_next:
-            items = items[:limit]
-
-        next_cursor = self._encode_cursor(rows[-1]) if rows else None
-
-        return MemeSearchResponse(items=items, nextCursor=next_cursor, hasNext=has_next, facets=[])
+        return self._paginate_response(rows, items, limit)
 
     async def get_duplicates(
             self,
@@ -237,6 +225,35 @@ class ImageService:
 
         return MemeSearchResponse(items=items, nextCursor=next_cursor, hasNext=has_next, facets=[])
 
+    async def get_excluded(
+            self,
+            cursor: Optional[str],
+            limit: int,
+    ) -> MemeSearchResponse:
+        cursor_created_at, cursor_id = self._decode_cursor(cursor)
+
+        rows = await self.repo.get_excluded(
+            cursor_created_at=cursor_created_at,
+            cursor_id=cursor_id,
+            limit=limit,
+        )
+
+        items = [
+            Meme(
+                id=str(r.id),
+                imageUrl=f"/api/images/{r.id}",
+                text=[],
+                tags=[],
+                originalFileName=r.filename,
+                excluded=True,
+            )
+            for r in rows
+        ]
+
+        await self._fill_texts_and_tags(items)
+
+        return self._paginate_response(rows, items, limit)
+
     async def mark_excluded(self, image_id):
         await self.repo.set_is_excluded(image_id, True)
 
@@ -245,6 +262,14 @@ class ImageService:
 
     async def get_is_excluded(self, image_id) -> bool:
         return await self.repo.get_is_excluded(image_id)
+
+    @staticmethod
+    def _paginate_response(rows, items: list, limit: int, facets: list | None = None) -> MemeSearchResponse:
+        has_next = len(items) > limit
+        if has_next:
+            items = items[:limit]
+        next_cursor = ImageService._encode_cursor(rows[-1]) if rows else None
+        return MemeSearchResponse(items=items, nextCursor=next_cursor, hasNext=has_next, facets=facets or [])
 
     @staticmethod
     def _parse_facets(raw: Optional[str]) -> dict[str, set]:

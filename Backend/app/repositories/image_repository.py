@@ -341,6 +341,31 @@ class ImageRepository:
         return [(id, filename, created_at, cluster_id, exclude, ) for (id, filename, created_at, cluster_id, exclude,) in images]
 
 
+    async def get_excluded(
+            self,
+            cursor_created_at: Optional[datetime],
+            cursor_id: Optional[uuid.UUID],
+            limit: int,
+    ):
+        img = aliased(Image)
+        extras = aliased(ImageExtras)
+
+        query = (
+            select(img.id, img.filename, img.created_at, extras.exclude)
+            .join(extras, img.id == extras.image_id)
+            .where(extras.exclude == True)
+        )
+
+        if cursor_created_at and cursor_id:
+            query = query.where(
+                tuple_(img.created_at, img.id) < tuple_(cursor_created_at, cursor_id)
+            )
+
+        results = await self.session.execute(
+            query.order_by(img.created_at.desc(), img.id.desc()).limit(limit + 1)
+        )
+        return results.all()
+
     async def set_is_excluded(self, image_id, is_excluded):
         stmt = (
             insert(ImageExtras)
