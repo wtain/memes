@@ -20,6 +20,7 @@ const FADE_DELAY_MS = 1500
 export function MemeDetails({ meme, memesApi }: Props) {
   const [similarMemes, setSimilarMemes] = useState<Meme[]>([])
   const [concepts, setConcepts] = useState<Concept[]>([])
+  const [isExcluded, setIsExcluded] = useState<boolean | null>(null)
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [controlsActive, setControlsActive] = useState(false)
@@ -34,6 +35,13 @@ export function MemeDetails({ meme, memesApi }: Props) {
 
   useFetchById(meme.id, id => memesApi.similarMemes(id), resp => setSimilarMemes(resp.items ?? []))
   useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
+  useFetchById(meme.id, id => memesApi.getImageIsExcluded(id), setIsExcluded)
+
+  function toggleExcluded() {
+    const next = !isExcluded
+    const call = next ? memesApi.markImageIsExcluded(meme.id) : memesApi.unmarkImageIsExcluded(meme.id)
+    call.then(() => setIsExcluded(next))
+  }
 
   function bumpControls() {
     setControlsActive(true)
@@ -168,6 +176,20 @@ export function MemeDetails({ meme, memesApi }: Props) {
         <div>
           <strong>Tags:</strong>
           <TagList tags={meme.tags!} />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            id="excluded-toggle"
+            type="checkbox"
+            checked={isExcluded ?? false}
+            disabled={isExcluded === null}
+            onChange={toggleExcluded}
+            className="w-4 h-4 cursor-pointer"
+          />
+          <label htmlFor="excluded-toggle" className="cursor-pointer select-none">
+            Excluded
+          </label>
         </div>
 
         <div>
