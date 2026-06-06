@@ -1,5 +1,18 @@
 # AndroidClient — dev notes for Claude
 
+## Before committing
+
+Always run unit tests before committing to catch compilation errors and
+regressions that would otherwise fail in CI:
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+.\gradlew :app:testDebugUnitTest --no-daemon
+```
+
+If a ViewModel constructor changes, search for all usages in both
+`src/test` and `src/androidTest` and update them before committing.
+
 ## Building locally
 
 The system default Java is JRE 8, but AGP 8.5.2 requires Java 11+.
