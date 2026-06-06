@@ -7,11 +7,13 @@ from repository.tags import TagsRepository, TagsSaver
 from rules.engine import RulesEngine
 
 RULES_FILE = os.getenv("RULES_FILE")
+lemmatize = os.getenv("RULES_LEMMATIZE", "false").lower() == "true"
+fuzzy_threshold = int(os.getenv("RULES_FUZZY_THRESHOLD", "80"))
 
-rules_engine = RulesEngine(RULES_FILE)
+rules_engine = RulesEngine(RULES_FILE, lemmatize=lemmatize, fuzzy_threshold=fuzzy_threshold)
+
 
 async def main():
-
 
     async with AsyncSessionLocal() as session:
         tags_repo = TagsRepository(session)
@@ -31,7 +33,6 @@ async def main():
                     continue
                 for tag_name, value in rules_engine.get_tags_for_ocr_text(text):
                     tags_saver.add_tag(image_id, tag_name, value, "OCR")
-
 
 
 if __name__ == "__main__":

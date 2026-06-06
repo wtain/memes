@@ -107,5 +107,49 @@
       "expected": [],
       "unexpected": [["band", "opeth"], ["band", "metallica"]]
     }
+  ],
+  "get_tags_for_ocr_text_lemmatized": [
+    {
+      "id": "lemma_ru_inflected_match",
+      "description": "Russian noun in accusative (книгу) lemmatizes to nominative (книга) — matches rule key",
+      "input": "читаю интересную книгу",
+      "expected": [["subject", "book"]],
+      "unexpected": []
+    },
+    {
+      "id": "lemma_ru_inflected_no_substring",
+      "description": "книга is NOT a substring of книгу, so non-lemmatized would miss it; lemmatized catches it",
+      "input": "книгу потерял",
+      "expected": [["subject", "book"]],
+      "unexpected": []
+    },
+    {
+      "id": "lemma_fuzzy_ocr_substitution",
+      "description": "One-character OCR substitution (opetb for opeth) is caught by rapidfuzz at default threshold 80",
+      "input": "opetb live show",
+      "expected": [["band", "opeth"]],
+      "unexpected": [["band", "metallica"]]
+    },
+    {
+      "id": "lemma_per_rule_high_threshold_blocks_match",
+      "description": "metallica has _threshold:95; one-char error metallika scores ~89 — does not reach threshold",
+      "input": "metallika fans",
+      "expected": [],
+      "unexpected": [["band", "metallica"]]
+    },
+    {
+      "id": "lemma_alias_resolves_correctly",
+      "description": "Alias rule (string reference) resolves to the same tags in lemmatized mode",
+      "input": "enter sandman cover",
+      "expected": [["band", "metallica"]],
+      "unexpected": [["band", "opeth"]]
+    },
+    {
+      "id": "lemma_no_match",
+      "description": "Text with no relevant lemmas produces no tags",
+      "input": "погода на завтра хорошая",
+      "expected": [],
+      "unexpected": [["band", "opeth"], ["band", "metallica"], ["subject", "book"]]
+    }
   ]
 }

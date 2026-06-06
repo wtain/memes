@@ -262,6 +262,7 @@ Optional data maintenance (run as needed):
 5. **build_tags_from_ocr** - Rule-based tag generation from OCR text
    - Applies pattern rules to extracted text
    - Generates categorical tags for navigation
+   - Env vars: `RULES_FILE` (required), `RULES_LEMMATIZE` (default `false`), `RULES_FUZZY_THRESHOLD` (default `80`)
 
 6. **build_image_descriptions** - Generate AI descriptions (requires Ollama)
    - Calls local Ollama LLM to generate image descriptions
@@ -383,8 +384,10 @@ pytest tests/rules/
 ```
 
 Test data is externalised under `tests/rules/fixtures/`:
-- `rules.json` — rule definitions used as test input
-- `test_cases.json` — input texts with expected and unexpected tag assertions
+- `rules.json` — rule definitions used as test input; optional `_thresholds` dict sets per-rule fuzzy match thresholds
+- `test_cases.json` — input texts with expected and unexpected tag assertions for `get_tags_for_text`, `get_tags_for_ocr_text`, and `get_tags_for_ocr_text_lemmatized`
+
+**Lemmatized OCR matching** (`RULES_LEMMATIZE=true`): OCR text is word-tokenized and each token is reduced to its pymorphy3 normal form; rule keys are pre-lemmatized at engine init. Matching uses `rapidfuzz.fuzz.ratio` to tolerate OCR character errors. Requires `pymorphy3` and `rapidFuzz`; lemmatized tests are skipped automatically if either package is absent.
 
 **Testing Strategy**: Under active development. Planned approaches:
 - Integration tests for batch jobs

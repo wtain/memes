@@ -1,4 +1,7 @@
 {
+  "_thresholds": {
+    "metallica": 95
+  },
   "opeth": {
     "band": "opeth",
     "country": "sweden",
@@ -15,5 +18,8 @@
   "cat": {
     "subject": "cat",
     "animal": "cat"
+  },
+  "книга": {
+    "subject": "book"
   }
 }

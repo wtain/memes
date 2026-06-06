@@ -12,6 +12,13 @@ def engine():
     return RulesEngine(str(FIXTURES_DIR / "rules.json"))
 
 
+@pytest.fixture(scope="module")
+def engine_lemmatized():
+    pytest.importorskip("pymorphy3")
+    pytest.importorskip("rapidfuzz")
+    return RulesEngine(str(FIXTURES_DIR / "rules.json"), lemmatize=True)
+
+
 def _load_cases(method: str):
     with open(FIXTURES_DIR / "test_cases.json", encoding="utf-8") as f:
         data = json.load(f)
@@ -65,4 +72,25 @@ class TestGetTagsForOCRText:
     )
     def test_tags(self, engine, input_text, expected, unexpected):
         actual = list(engine.get_tags_for_ocr_text(input_text))
+        _assert_tags(actual, expected, unexpected)
+
+
+class TestGetTagsForOCRTextLemmatized:
+    """
+    Tests for RulesEngine.get_tags_for_ocr_text with lemmatize=True.
+
+    OCR text is tokenized, each word is reduced to its pymorphy3 normal form,
+    and rule keys are pre-lemmatized at init time. Matching uses rapidfuzz
+    (fuzz.ratio) to tolerate OCR character errors. Per-rule thresholds can be
+    set via the _thresholds key in rules.json; the global default is 80.
+
+    Skipped automatically when pymorphy3 or rapidfuzz are not installed.
+    """
+
+    @pytest.mark.parametrize(
+        "input_text,expected,unexpected",
+        _load_cases("get_tags_for_ocr_text_lemmatized"),
+    )
+    def test_tags(self, engine_lemmatized, input_text, expected, unexpected):
+        actual = list(engine_lemmatized.get_tags_for_ocr_text(input_text))
         _assert_tags(actual, expected, unexpected)
