@@ -1,6 +1,7 @@
 package com.memebrowser.app.ui.environment
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -145,7 +146,7 @@ private fun EnvironmentCard(
 ) {
     val env = item.environment
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onSelect),
         colors = CardDefaults.cardColors(
             containerColor = if (item.isSelected)
                 MaterialTheme.colorScheme.primaryContainer
@@ -157,7 +158,7 @@ private fun EnvironmentCard(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RadioButton(selected = item.isSelected, onClick = onSelect)
+            RadioButton(selected = item.isSelected, onClick = null)
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

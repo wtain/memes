@@ -7,7 +7,6 @@ import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,13 +45,23 @@ class SearchViewModel @Inject constructor(
     val state: StateFlow<SearchUiState> = _state.asStateFlow()
 
     private var searchJob: Job? = null
+    private val queryPerEnv = mutableMapOf<String, String>()
+    private var currentEnvId: String? = null
 
     init {
-        triggerSearch()
         checkHealth()
+        viewModelScope.launch {
+            envRepo.selectedEnvironmentId.collect { envId ->
+                currentEnvId = envId
+                val restoredQuery = queryPerEnv[envId] ?: ""
+                _state.update { it.copy(query = restoredQuery) }
+                triggerSearch()
+            }
+        }
     }
 
     fun onQueryChange(query: String) {
+        currentEnvId?.let { queryPerEnv[it] = query }
         _state.update { it.copy(query = query) }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
