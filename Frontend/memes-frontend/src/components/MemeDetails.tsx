@@ -164,6 +164,13 @@ export function MemeDetails({ meme, memesApi }: Props) {
           >
             <strong>File name: </strong>{meme.originalFileName} <br />
           </div>
+          <a
+            href={memesApi.getImageUrl(meme)}
+            download={meme.originalFileName ?? meme.id}
+            className="inline-block mt-2 px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 transition"
+          >
+            ⬇ Download
+          </a>
         </div>
 
         <div>
