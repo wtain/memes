@@ -9,6 +9,7 @@ import MemePage from "../pages/MemePage";
 import ConceptPage from "../pages/ConceptPage";
 import ExploreUntaggedPage from "../pages/ExploreUntaggedPage";
 import ExploreDuplicatesPage from "../pages/ExploreDuplicatesPage";
+import ExploreExcludedPage from "../pages/ExploreExcludedPage";
 
 
 // const baseUrl = "http://127.0.0.1:8081";
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: "/explore", element: <ExplorePage memesApi={memesApi} /> },
       { path: "/untagged", element: <ExploreUntaggedPage memesApi={memesApi} /> },
       { path: "/duplicates", element: <ExploreDuplicatesPage memesApi={memesApi} /> },
+      { path: "/excluded", element: <ExploreExcludedPage memesApi={memesApi} /> },
       { path: "/search", element: <SearchPage memesApi={memesApi} /> },
       { path: "/concepts", element: <ConceptsPage memesApi={memesApi} /> },
       {

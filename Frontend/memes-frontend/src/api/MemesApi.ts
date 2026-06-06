@@ -7,6 +7,8 @@ export interface MemesApi {
 
   iterateDuplicates(limit?: number, cursor?: string, threshold?: number): Promise<MemeSearchResponse>;
 
+  iterateExcludedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>;
+
   similarMemes(id: string): Promise<MemeSearchResponse>
 
   getImageUrl(meme: Meme): string;

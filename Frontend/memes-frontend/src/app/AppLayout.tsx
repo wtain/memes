@@ -33,6 +33,15 @@ export default function AppLayout() {
           </NavLink>
 
           <NavLink
+            to="/excluded"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Excluded
+          </NavLink>
+
+          <NavLink
             to="/search"
             className={({ isActive }) =>
               isActive ? "font-semibold text-blue-600" : "text-gray-600"

@@ -86,6 +86,18 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
+  async iterateExcludedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse> {
+    const params = new URLSearchParams()
+    if (limit) params.set("limit", String(limit))
+    if (cursor) params.set("cursor", cursor)
+    const response = await fetch(
+      `${this.baseUrl}/api/images/excluded?${params.toString()}`,
+      { headers: { "Accept": "application/json" } }
+    )
+    if (!response.ok) throw new Error(`Search failed: ${response.status}`)
+    return response.json()
+  }
+
   async similarMemes(id: string): Promise<MemeSearchResponse> {
     const response = await fetch(
       `${this.baseUrl}/api/images/${id}/similar`,
