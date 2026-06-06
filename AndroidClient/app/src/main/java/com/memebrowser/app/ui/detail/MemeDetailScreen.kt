@@ -1,33 +1,30 @@
 package com.memebrowser.app.ui.detail
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,14 +32,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,14 +47,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.memebrowser.app.data.model.Meme
 import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemeDetailScreen(
     memeId: String,
@@ -68,7 +64,7 @@ fun MemeDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val scaffoldState = rememberBottomSheetScaffoldState()
+    var toolbarVisible by remember { mutableStateOf(true) }
 
     LaunchedEffect(state.error) {
         if (state.error != null) {
@@ -83,13 +79,46 @@ fun MemeDetailScreen(
         }
     }
 
-    BottomSheetScaffold(
-        scaffoldState = scaffoldState,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        sheetPeekHeight = if (state.meme != null) 80.dp else 0.dp,
-        sheetContent = {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        when {
+            state.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            state.meme != null -> ZoomableAsyncImage(
+                model = "http://localhost${state.meme!!.imageUrl}",
+                contentDescription = state.meme!!.originalFileName,
+                modifier = Modifier.fillMaxSize(),
+                onClick = { toolbarVisible = !toolbarVisible }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = toolbarVisible,
+            modifier = Modifier.align(Alignment.TopStart),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            TopAppBar(
+                title = {},
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.5f)),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = toolbarVisible && state.meme != null,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut()
+        ) {
             state.meme?.let { meme ->
-                MemeActionsAndMetadata(
+                BottomActionBar(
                     meme = meme,
                     isSaving = state.isSaving,
                     onSave = { viewModel.saveToGallery(context) },
@@ -101,123 +130,42 @@ fun MemeDetailScreen(
                 )
             }
         }
-    ) { paddingValues ->
-        Box(
+
+        SnackbarHost(
+            hostState = snackbarHostState,
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-                .padding(paddingValues)
-        ) {
-            when {
-                state.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                state.meme != null -> ZoomableAsyncImage(
-                    model = "http://localhost${state.meme!!.imageUrl}",
-                    contentDescription = state.meme!!.originalFileName,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                modifier = Modifier.align(Alignment.TopStart)
-            )
-        }
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+        )
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MemeActionsAndMetadata(
+private fun BottomActionBar(
     meme: Meme,
     isSaving: Boolean,
     onSave: () -> Unit,
     onShare: () -> Unit,
     onToggleExcluded: () -> Unit,
-    similarMemes: List<Meme> = emptyList(),
-    isLoadingSimilar: Boolean = false,
-    onSimilarMemeClick: (String) -> Unit = {}
+    similarMemes: List<Meme>,
+    isLoadingSimilar: Boolean,
+    onSimilarMemeClick: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.6f))
             .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(vertical = 4.dp)
     ) {
-        // Action row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            IconButton(onClick = onSave, enabled = !isSaving) {
-                if (isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                } else {
-                    Icon(Icons.Default.Download, contentDescription = "Save to gallery")
-                }
-            }
-            IconButton(onClick = onShare) {
-                Icon(Icons.Default.Share, contentDescription = "Share")
-            }
-            IconButton(onClick = onToggleExcluded) {
-                if (meme.excluded == true) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Unmark excluded",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                } else {
-                    Icon(Icons.Default.Block, contentDescription = "Mark excluded")
-                }
-            }
-        }
-
-        // Metadata
-        meme.originalFileName?.let {
-            Spacer(Modifier.height(8.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        if (!meme.text.isNullOrEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text("Text", style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.height(4.dp))
-            meme.text.forEach { line ->
-                Text(line, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-
-        if (!meme.tags.isNullOrEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text("Tags", style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.height(4.dp))
-            val grouped = meme.tags.groupBy { it.category ?: "other" }
-            grouped.forEach { (category, tags) ->
-                Text(category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    tags.forEach { tag ->
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(tag.name, style = MaterialTheme.typography.bodySmall) }
-                        )
-                    }
-                }
-            }
-        }
-
         if (isLoadingSimilar || similarMemes.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text("Similar", style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.height(4.dp))
-            if (isLoadingSimilar) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            } else {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            LazyRow(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (isLoadingSimilar) {
+                    item { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
+                } else {
                     items(similarMemes, key = { it.id }) { similar ->
                         AsyncImage(
                             model = "http://localhost${similar.imageUrl}",
@@ -233,6 +181,31 @@ private fun MemeActionsAndMetadata(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            IconButton(onClick = onSave, enabled = !isSaving) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                } else {
+                    Icon(Icons.Default.Download, contentDescription = "Save to gallery", tint = Color.White)
+                }
+            }
+            IconButton(onClick = onShare) {
+                Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
+            }
+            IconButton(onClick = onToggleExcluded) {
+                if (meme.excluded == true) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Unmark excluded",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                } else {
+                    Icon(Icons.Default.Block, contentDescription = "Mark excluded", tint = Color.White)
+                }
+            }
+        }
     }
 }
