@@ -8,6 +8,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.memebrowser.app.ui.detail.MemeDetailScreen
 import com.memebrowser.app.ui.environment.EnvironmentManagerScreen
+import com.memebrowser.app.ui.excluded.ExcludedScreen
 import com.memebrowser.app.ui.search.SearchScreen
 
 @Composable
@@ -17,7 +18,8 @@ fun NavGraph() {
         composable("search") {
             SearchScreen(
                 onMemeClick = { memeId -> navController.navigate("detail/$memeId") },
-                onEnvironmentsClick = { navController.navigate("environments") }
+                onEnvironmentsClick = { navController.navigate("environments") },
+                onExcludedClick = { navController.navigate("excluded") }
             )
         }
         composable(
@@ -33,6 +35,12 @@ fun NavGraph() {
                         popUpTo("detail/{memeId}") { inclusive = true }
                     }
                 }
+            )
+        }
+        composable("excluded") {
+            ExcludedScreen(
+                onBack = { navController.popBackStack() },
+                onMemeClick = { memeId -> navController.navigate("detail/$memeId") }
             )
         }
         composable("environments") {

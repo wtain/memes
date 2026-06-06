@@ -55,6 +55,10 @@ open class MemeRepository @Inject constructor(
         }
     }
 
+    suspend fun getExcluded(cursor: String?, limit: Int = 20): Result<MemeSearchResponse> = runCatching {
+        api.getExcluded(limit = limit, cursor = cursor)
+    }
+
     suspend fun getSimilarMemes(id: String): Result<List<Meme>> = runCatching {
         api.getSimilarMemes(id).items ?: emptyList()
     }

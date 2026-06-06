@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -61,6 +62,7 @@ import com.memebrowser.app.data.model.Meme
 fun SearchScreen(
     onMemeClick: (String) -> Unit,
     onEnvironmentsClick: () -> Unit,
+    onExcludedClick: () -> Unit,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -103,6 +105,9 @@ fun SearchScreen(
                     },
                     actions = {
                         HealthIndicator(status = state.healthStatus)
+                        IconButton(onClick = onExcludedClick) {
+                            Icon(Icons.Default.Block, contentDescription = "Excluded")
+                        }
                         IconButton(onClick = {
                             onEnvironmentsClick()
                             viewModel.checkHealth()

@@ -33,6 +33,12 @@ interface MemeApiService {
     @GET("health")
     suspend fun health(): HealthResponse
 
+    @GET("api/images/excluded")
+    suspend fun getExcluded(
+        @Query("limit") limit: Int = 20,
+        @Query("cursor") cursor: String? = null
+    ): MemeSearchResponse
+
     @GET("api/images/{id}/similar")
     suspend fun getSimilarMemes(@Path("id") id: String): MemeSearchResponse
 
