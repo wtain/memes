@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.data.model.Facet
 import com.memebrowser.app.data.model.Meme
+import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
@@ -37,7 +38,8 @@ data class SearchUiState(
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val repo: MemeRepository
+    private val repo: MemeRepository,
+    private val envRepo: EnvironmentRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SearchUiState())

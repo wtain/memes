@@ -12,6 +12,7 @@ import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.EnvironmentWithSelection
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.ui.theme.MemeBrowserTheme
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -104,6 +105,16 @@ class EnvironmentManagerScreenTest {
         // the dialog is still open after attempting to submit (button is not clickable)
         composeTestRule.onNodeWithText("Cancel").performClick()
         composeTestRule.onNodeWithText("Add Environment").assertDoesNotExist()
+    }
+
+    @Test
+    fun environmentCard_clickOnRow_selectsEnvironment() {
+        setContent()
+        // "IT" (index 1) is not selected by default — clicking anywhere on the card row
+        // (not just the radio button) should trigger selection
+        composeTestRule.onNodeWithText("IT").performClick()
+        composeTestRule.waitForIdle()
+        coVerify { envRepo.selectEnvironment(DEFAULT_ENVIRONMENTS[1]) }
     }
 
     @Test
