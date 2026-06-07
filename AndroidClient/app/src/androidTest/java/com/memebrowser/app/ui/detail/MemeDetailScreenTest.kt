@@ -6,11 +6,14 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.ui.theme.MemeBrowserTheme
 import com.memebrowser.app.util.androidFakeMeme
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -24,16 +27,20 @@ class MemeDetailScreenTest {
     val composeTestRule = createComposeRule()
 
     private lateinit var repo: MemeRepository
+    private lateinit var envRepo: EnvironmentRepository
     private lateinit var viewModel: MemeDetailViewModel
 
     @Before
     fun setup() {
         repo = mockk(relaxed = true)
+        envRepo = mockk(relaxed = true)
+        every { envRepo.selectedEnvironmentName } returns flowOf("TestCollection")
         coEvery { repo.getMeme("meme-1") } returns Result.success(androidFakeMeme)
         coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(emptyList())
         viewModel = MemeDetailViewModel(
             savedStateHandle = SavedStateHandle(mapOf("memeId" to "meme-1")),
-            repo = repo
+            repo = repo,
+            envRepo = envRepo
         )
     }
 
@@ -89,7 +96,7 @@ class MemeDetailScreenTest {
     @Test
     fun excludeButton_showsUnmarkExcluded_whenExcluded() {
         coEvery { repo.getMeme("meme-1") } returns Result.success(androidFakeMeme.copy(excluded = true))
-        viewModel = MemeDetailViewModel(SavedStateHandle(mapOf("memeId" to "meme-1")), repo)
+        viewModel = MemeDetailViewModel(SavedStateHandle(mapOf("memeId" to "meme-1")), repo, envRepo)
         setContent()
         composeTestRule.onNodeWithContentDescription("Unmark excluded").assertIsDisplayed()
     }
@@ -98,7 +105,7 @@ class MemeDetailScreenTest {
     fun similarThumbnail_click_invokesNavigateCallback() {
         val similarMeme = androidFakeMeme.copy(id = "similar-1", originalFileName = "similar.jpg")
         coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(listOf(similarMeme))
-        viewModel = MemeDetailViewModel(SavedStateHandle(mapOf("memeId" to "meme-1")), repo)
+        viewModel = MemeDetailViewModel(SavedStateHandle(mapOf("memeId" to "meme-1")), repo, envRepo)
         var navigatedTo: String? = null
         setContent(onNavigateToMeme = { navigatedTo = it })
         composeTestRule.onNodeWithContentDescription("similar.jpg").performClick()
