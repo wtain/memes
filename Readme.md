@@ -327,8 +327,11 @@ Optional data maintenance (run as needed):
     - Source controlled by `TEXT_SOURCE` env var: `ocr` (default) or `descriptions`
     - OCR mode: output is split per detected language `{"ru": {"кот": 145, ...}, "en": {...}}`
     - Descriptions mode: flat `{"cat": 30, ...}` (no language field on descriptions)
-    - Configurable via env vars: `BOW_OUTPUT_FILE` (required), `TEXT_SOURCE` (default `ocr`), `BOW_MIN_WORD_LENGTH` (default `3`), `BOW_MIN_FREQUENCY` (default `2`), `OCR_CONFIDENCE_MIN` (default `0.4`, OCR only)
-    - Use the output to identify the most frequent lemmas not yet covered by rules
+    - Optional ignore list (`BOW_IGNORE_FILE`): JSON array of words to exclude from all outputs; words are lemmatized on load so any inflected form works
+    - Optional rules coverage check (`RULES_FILE`): lemmatizes all rule keys and writes a second output (`BOW_UNMATCHED_FILE`) containing only lemmas not yet covered by any rule — use this to find gaps in rule coverage
+    - Prints rules coverage summary: `X/N lemmas matched, M unmatched`
+    - Required env vars: `BOW_OUTPUT_FILE`; `BOW_UNMATCHED_FILE` is required when `RULES_FILE` is set
+    - Optional env vars: `TEXT_SOURCE` (default `ocr`), `BOW_MIN_WORD_LENGTH` (default `3`), `BOW_MIN_FREQUENCY` (default `2`), `OCR_CONFIDENCE_MIN` (default `0.4`, OCR only), `BOW_IGNORE_FILE`, `RULES_FILE`
 
 **Batch job notes**:
 - Most jobs clear and rebuild all results (idempotent)

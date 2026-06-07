@@ -3,6 +3,7 @@ import json
 import os
 import re
 from collections import Counter, defaultdict
+from pathlib import Path
 
 import pymorphy3
 
@@ -34,12 +35,53 @@ def _apply_min_frequency(counter_or_dict, min_frequency, metrics):
     return result
 
 
+def _filter_lemmas(output, text_source, exclude_set):
+    if text_source == TEXT_SOURCE_OCR:
+        return {
+            lang: {lemma: count for lemma, count in lang_output.items() if lemma not in exclude_set}
+            for lang, lang_output in output.items()
+        }
+    return {lemma: count for lemma, count in output.items() if lemma not in exclude_set}
+
+
+def _count_lemmas(output, text_source):
+    if text_source == TEXT_SOURCE_OCR:
+        return sum(len(v) for v in output.values())
+    return len(output)
+
+
+def _load_ignore_lemmas(morph, path):
+    with open(path, encoding="utf-8") as f:
+        words = json.load(f)
+    return {_lemmatize_word(morph, w) for w in words}
+
+
+def _build_rules_lemma_set(morph, path):
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    data.pop("_thresholds", None)
+    covered = set()
+    for rule_key in data:
+        for word in _tokenize(rule_key):
+            covered.add(_lemmatize_word(morph, word))
+    return covered
+
+
+def _write_output(path, data):
+    os.makedirs(Path(path).parent, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 async def main():
     text_source = os.getenv("TEXT_SOURCE", TEXT_SOURCE_OCR)
     ocr_confidence_min = float(os.getenv("OCR_CONFIDENCE_MIN", "0.4"))
     min_word_length = int(os.getenv("BOW_MIN_WORD_LENGTH", "3"))
     min_frequency = int(os.getenv("BOW_MIN_FREQUENCY", "2"))
     output_file = os.getenv("BOW_OUTPUT_FILE")
+    ignore_file = os.getenv("BOW_IGNORE_FILE")
+    rules_file = os.getenv("RULES_FILE")
+    unmatched_file = os.getenv("BOW_UNMATCHED_FILE")
 
     print(f"TEXT_SOURCE={text_source}")
     print(f"BOW_MIN_WORD_LENGTH={min_word_length}, BOW_MIN_FREQUENCY={min_frequency}")
@@ -50,6 +92,19 @@ async def main():
     morph = pymorphy3.MorphAnalyzer()
     metrics = SimpleMetricsListener()
 
+    ignore_lemmas = set()
+    if ignore_file:
+        ignore_lemmas = _load_ignore_lemmas(morph, ignore_file)
+        print(f"BOW_IGNORE_FILE={ignore_file} ({len(ignore_lemmas)} ignore lemmas loaded)")
+
+    rules_lemmas = set()
+    if rules_file:
+        rules_lemmas = _build_rules_lemma_set(morph, rules_file)
+        print(f"RULES_FILE={rules_file} ({len(rules_lemmas)} lemmas covered by rules)")
+        if not unmatched_file:
+            raise ValueError("BOW_UNMATCHED_FILE must be set when RULES_FILE is provided")
+        print(f"BOW_UNMATCHED_FILE={unmatched_file}")
+
     async with AsyncSessionLocal() as session:
         if text_source == TEXT_SOURCE_OCR:
             output = await _build_ocr_bow(session, morph, ocr_confidence_min, min_word_length, min_frequency, metrics)
@@ -58,10 +113,22 @@ async def main():
         else:
             raise ValueError(f"Unknown TEXT_SOURCE: {text_source!r}. Expected 'ocr' or 'descriptions'.")
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
+    if ignore_lemmas:
+        before = _count_lemmas(output, text_source)
+        output = _filter_lemmas(output, text_source, ignore_lemmas)
+        print(f"Ignore filter: removed {before - _count_lemmas(output, text_source)} lemmas")
 
+    _write_output(output_file, output)
     print(f"Written to {output_file}")
+
+    if rules_lemmas:
+        unmatched = _filter_lemmas(output, text_source, rules_lemmas)
+        total = _count_lemmas(output, text_source)
+        remaining = _count_lemmas(unmatched, text_source)
+        print(f"Rules coverage: {total - remaining}/{total} lemmas matched, {remaining} unmatched")
+        _write_output(unmatched_file, unmatched)
+        print(f"Unmatched written to {unmatched_file}")
+
     metrics.print()
 
 
