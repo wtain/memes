@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "trendhistoryentry.schema.json",
+  "title": "TrendHistoryEntry",
+  "type": "object",
+  "properties": {
+    "runId": { "type": "string" },
+    "date": { "type": "string", "format": "date" },
+    "label": { "type": "string" },
+    "name": { "type": "string" },
+    "value": { "type": "integer" }
+  },
+  "required": ["runId", "date", "label", "name", "value"]
+}

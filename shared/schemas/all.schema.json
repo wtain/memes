@@ -7,6 +7,9 @@
     "FacetBucket": { "$ref": "facetbucket.schema.json" },
     "MemeSearchRequest": { "$ref": "memesearchrequest.schema.json" },
     "MemeSearchResponse": { "$ref": "memesearchresponse.schema.json" },
-    "Concept": { "$ref": "concept.schema.json" }
+    "Concept": { "$ref": "concept.schema.json" },
+    "TrendsRun": { "$ref": "trendsrun.schema.json" },
+    "TrendEntry": { "$ref": "trendentry.schema.json" },
+    "TrendHistoryEntry": { "$ref": "trendhistoryentry.schema.json" }
   }
 }

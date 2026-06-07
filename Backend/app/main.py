@@ -7,6 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from Backend.app.api.images import router as images_router
 from Backend.app.api.concepts import router as concepts_router
+from Backend.app.api.trends import router as trends_router
 
 load_dotenv()
 
@@ -43,6 +44,7 @@ uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.genera
 """
 app.include_router(images_router, prefix="/api")
 app.include_router(concepts_router, prefix="/api")
+app.include_router(trends_router, prefix="/api")
 
 
 @app.get("/health")

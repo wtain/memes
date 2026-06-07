@@ -74,6 +74,76 @@ Returns `MemeSearchResponse` grouped by duplicate cluster.
 
 ---
 
+## Trends
+
+Trend = number of entity (person, band, etc.) occurrences in news feeds, aggregated per batch run.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/trends/dates` | Available dates with trend data |
+| `GET` | `/api/trends/dates/{date}/runs` | All runs for a date |
+| `GET` | `/api/trends/dates/{date}/runs/latest` | Latest run for a date |
+| `GET` | `/api/trends/runs/{run_id}` | Trend entries for a specific run |
+| `GET` | `/api/trends/history` | Per-run trend history across all dates |
+
+### Response types
+
+**`TrendsRun`**
+```json
+{ "runId": "uuid", "createdAt": "2026-06-07T10:00:00+00:00", "status": "completed" }
+```
+
+**`TrendEntry`**
+```json
+{ "label": "person", "name": "Ozzy Osbourne", "value": 42 }
+```
+
+**`TrendHistoryEntry`**
+```json
+{ "runId": "uuid", "date": "2026-06-07", "label": "person", "name": "Ozzy Osbourne", "value": 42 }
+```
+
+### `GET /api/trends/dates`
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `label` | string | — | Filter to dates where this label has data |
+| `name` | string | — | Filter to dates where this entity name has data |
+
+Returns `list[string]` of ISO dates (`YYYY-MM-DD`), newest first.
+
+### `GET /api/trends/dates/{date}/runs`
+
+Returns `list[TrendsRun]` for the given date (`YYYY-MM-DD`), newest first.
+
+### `GET /api/trends/dates/{date}/runs/latest`
+
+Returns the single most recent `TrendsRun` for the given date, or **404** if no run exists.
+
+### `GET /api/trends/runs/{run_id}`
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `label` | string | — | Filter by label (e.g. `person`) |
+| `name` | string | — | Filter by entity name |
+| `min_value` | int | 10 | Minimum citation count (HAVING sum ≥ N) |
+
+Returns `list[TrendEntry]` ordered by value descending.
+
+### `GET /api/trends/history`
+
+At least one of `label` or `name` is required (returns 422 otherwise).
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `label` | string | — | Filter by label |
+| `name` | string | — | Filter by entity name |
+| `min_value` | int | 10 | Minimum citation count per run |
+
+Returns `list[TrendHistoryEntry]` — one row per (run, entity), ordered by date desc then value desc.
+
+---
+
 ## Concepts
 
 | Method | Path | Description |
