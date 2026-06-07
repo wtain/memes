@@ -51,6 +51,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.memebrowser.app.data.model.BackendEnvironment
 import com.memebrowser.app.data.repository.EnvironmentWithSelection
+import com.memebrowser.app.data.repository.isValidCollectionName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -205,6 +206,7 @@ private fun EnvironmentDialog(
 ) {
     var name by remember { mutableStateOf(initialName) }
     var url by remember { mutableStateOf(initialUrl) }
+    val nameError = name.isNotBlank() && !isValidCollectionName(name)
     val urlError = url.isNotBlank() && !url.startsWith("http")
 
     AlertDialog(
@@ -217,6 +219,8 @@ private fun EnvironmentDialog(
                     onValueChange = { name = it },
                     label = { Text("Name") },
                     singleLine = true,
+                    isError = nameError,
+                    supportingText = if (nameError) ({ Text("Letters, digits, spaces, hyphens, underscores only; must start with a letter or digit") }) else null,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -233,7 +237,7 @@ private fun EnvironmentDialog(
         confirmButton = {
             TextButton(
                 onClick = { onConfirm(name, url) },
-                enabled = name.isNotBlank() && url.isNotBlank() && !urlError
+                enabled = isValidCollectionName(name) && url.isNotBlank() && !urlError
             ) {
                 Text("Save")
             }

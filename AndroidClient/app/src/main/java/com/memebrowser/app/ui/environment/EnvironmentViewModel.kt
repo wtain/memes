@@ -6,6 +6,7 @@ import com.memebrowser.app.data.model.BackendEnvironment
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.EnvironmentWithSelection
 import com.memebrowser.app.data.repository.MemeRepository
+import com.memebrowser.app.data.repository.isValidCollectionName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -47,15 +48,25 @@ class EnvironmentViewModel @Inject constructor(
     }
 
     fun addEnvironment(name: String, baseUrl: String) {
+        val trimmed = name.trim()
+        if (!isValidCollectionName(trimmed)) {
+            _uiState.update { it.copy(error = "Invalid collection name: only letters, digits, spaces, hyphens, and underscores are allowed, starting with a letter or digit") }
+            return
+        }
         viewModelScope.launch {
-            runCatching { envRepo.addEnvironment(name.trim(), baseUrl.trim()) }
+            runCatching { envRepo.addEnvironment(trimmed, baseUrl.trim()) }
                 .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
         }
     }
 
     fun updateEnvironment(id: String, name: String, baseUrl: String) {
+        val trimmed = name.trim()
+        if (!isValidCollectionName(trimmed)) {
+            _uiState.update { it.copy(error = "Invalid collection name: only letters, digits, spaces, hyphens, and underscores are allowed, starting with a letter or digit") }
+            return
+        }
         viewModelScope.launch {
-            runCatching { envRepo.updateEnvironment(id, name.trim(), baseUrl.trim()) }
+            runCatching { envRepo.updateEnvironment(id, trimmed, baseUrl.trim()) }
                 .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
         }
     }

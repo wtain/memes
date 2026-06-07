@@ -11,12 +11,13 @@ suspend fun saveImageToGallery(
     context: Context,
     imageBytes: ByteArray,
     fileName: String,
-    mimeType: String = "image/jpeg"
+    mimeType: String = "image/jpeg",
+    collection: String
 ): Uri = withContext(Dispatchers.IO) {
     val values = ContentValues().apply {
         put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
         put(MediaStore.Images.Media.MIME_TYPE, mimeType)
-        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MemesBrowser")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MemesBrowser-$collection")
         put(MediaStore.Images.Media.IS_PENDING, 1)
     }
     val resolver = context.contentResolver

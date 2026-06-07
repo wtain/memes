@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.data.model.Meme
+import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.util.detectMimeType
 import com.memebrowser.app.util.saveImageToGallery
@@ -13,6 +14,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -30,7 +32,8 @@ data class DetailUiState(
 @HiltViewModel
 class MemeDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val repo: MemeRepository
+    private val repo: MemeRepository,
+    private val envRepo: EnvironmentRepository
 ) : ViewModel() {
 
     private val memeId: String = checkNotNull(savedStateHandle["memeId"])
@@ -79,6 +82,7 @@ class MemeDetailViewModel @Inject constructor(
         val meme = _state.value.meme ?: return
         viewModelScope.launch {
             _state.update { it.copy(isSaving = true, error = null, saveSuccess = false) }
+            val collection = envRepo.selectedEnvironmentName.first()
             repo.downloadImage(meme.id)
                 .onSuccess { body ->
                     try {
@@ -86,7 +90,7 @@ class MemeDetailViewModel @Inject constructor(
                         val contentType = body.contentType()?.toString()
                         val (mimeType, ext) = detectMimeType(contentType)
                         val fileName = meme.originalFileName ?: "${meme.id}.$ext"
-                        saveImageToGallery(context, bytes, fileName, mimeType)
+                        saveImageToGallery(context, bytes, fileName, mimeType, collection)
                         _state.update { it.copy(isSaving = false, saveSuccess = true) }
                     } catch (e: Exception) {
                         _state.update { it.copy(isSaving = false, error = "Save failed: ${e.message}") }

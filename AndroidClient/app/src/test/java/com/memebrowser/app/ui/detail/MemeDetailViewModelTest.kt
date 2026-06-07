@@ -3,12 +3,15 @@ package com.memebrowser.app.ui.detail
 import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
 import com.memebrowser.app.data.model.HealthResponse
+import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.util.MainDispatcherRule
 import com.memebrowser.app.util.fakeMeme
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -27,6 +30,7 @@ class MemeDetailViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var repo: MemeRepository
+    private lateinit var envRepo: EnvironmentRepository
     private lateinit var viewModel: MemeDetailViewModel
 
     private val savedStateHandle = SavedStateHandle(mapOf("memeId" to "meme-1"))
@@ -34,13 +38,15 @@ class MemeDetailViewModelTest {
     @Before
     fun setup() {
         repo = mockk(relaxed = true)
+        envRepo = mockk(relaxed = true)
+        every { envRepo.selectedEnvironmentName } returns flowOf("TestCollection")
         coEvery { repo.getMeme("meme-1") } returns Result.success(fakeMeme)
         coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(emptyList())
     }
 
     @Test
     fun `meme is loaded on init`() = runTest {
-        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
             assertNotNull(state.meme)
@@ -52,7 +58,7 @@ class MemeDetailViewModelTest {
     @Test
     fun `getMeme error is surfaced in state`() = runTest {
         coEvery { repo.getMeme("meme-1") } returns Result.failure(Exception("not found"))
-        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
             assertEquals("not found", state.error)
@@ -62,7 +68,7 @@ class MemeDetailViewModelTest {
 
     @Test
     fun `toggleExcluded marks an unexcluded meme optimistically`() = runTest {
-        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.toggleExcluded()
         viewModel.state.test {
             assertTrue(awaitItem().meme!!.excluded!!)
@@ -73,7 +79,7 @@ class MemeDetailViewModelTest {
     @Test
     fun `toggleExcluded unmarks an excluded meme optimistically`() = runTest {
         coEvery { repo.getMeme("meme-1") } returns Result.success(fakeMeme.copy(excluded = true))
-        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.toggleExcluded()
         viewModel.state.test {
             assertFalse(awaitItem().meme!!.excluded!!)
@@ -84,7 +90,7 @@ class MemeDetailViewModelTest {
     @Test
     fun `toggleExcluded rolls back on API error`() = runTest {
         coEvery { repo.markExcluded(any()) } returns Result.failure(Exception("server error"))
-        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.toggleExcluded()
         viewModel.state.test {
             val state = awaitItem()
@@ -97,7 +103,7 @@ class MemeDetailViewModelTest {
     @Test
     fun `dismissError clears the error field`() = runTest {
         coEvery { repo.getMeme("meme-1") } returns Result.failure(Exception("err"))
-        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             assertEquals("err", awaitItem().error)
             viewModel.dismissError()
@@ -110,7 +116,7 @@ class MemeDetailViewModelTest {
     fun `similar memes are populated in state`() = runTest {
         val similar = listOf(fakeMeme.copy(id = "similar-1"))
         coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(similar)
-        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
             assertEquals(1, state.similarMemes.size)
@@ -122,7 +128,7 @@ class MemeDetailViewModelTest {
     @Test
     fun `getSimilarMemes failure is silent and does not set error`() = runTest {
         coEvery { repo.getSimilarMemes("meme-1") } returns Result.failure(Exception("network error"))
-        viewModel = MemeDetailViewModel(savedStateHandle, repo)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
             assertTrue(state.similarMemes.isEmpty())

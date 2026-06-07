@@ -12,6 +12,7 @@ import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.EnvironmentWithSelection
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.ui.theme.MemeBrowserTheme
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -40,6 +41,7 @@ class EnvironmentManagerScreenTest {
         envRepo = mockk(relaxed = true)
         memeRepo = mockk(relaxed = true)
         every { envRepo.environmentsWithSelection } returns flowOf(envsWithSelection)
+        coEvery { memeRepo.healthCheck(any()) } returns Result.success(Unit)
         viewModel = EnvironmentViewModel(envRepo, memeRepo)
     }
 

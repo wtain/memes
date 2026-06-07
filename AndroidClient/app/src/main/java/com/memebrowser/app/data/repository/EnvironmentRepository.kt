@@ -2,6 +2,7 @@ package com.memebrowser.app.data.repository
 
 import com.memebrowser.app.data.api.UrlProvider
 import com.memebrowser.app.data.model.BackendEnvironment
+import com.memebrowser.app.data.model.DEFAULT_ENVIRONMENTS
 import com.memebrowser.app.data.store.EnvironmentStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -26,6 +27,10 @@ open class EnvironmentRepository @Inject constructor(
         }
 
     val selectedEnvironmentId: Flow<String> = store.selectedEnvironmentId
+
+    val selectedEnvironmentName: Flow<String> = combine(store.environments, store.selectedEnvironmentId) { envs, selectedId ->
+        envs.find { it.id == selectedId }?.name ?: DEFAULT_ENVIRONMENTS.first().name
+    }
 
     suspend fun selectEnvironment(env: BackendEnvironment) {
         store.setSelectedEnvironmentId(env.id)
