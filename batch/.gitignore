@@ -1,5 +1,7 @@
 images/
 images-*/
 reports/
+output/
+batch/output/
 
 *.pt
