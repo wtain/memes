@@ -1,5 +1,6 @@
 import type { MemesApi } from "../MemesApi"
 import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
+import type { TrendEntry, TrendHistoryEntry, TrendsRunDto } from "../../types/trends"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -208,5 +209,35 @@ export class HttpMemesApi implements MemesApi {
     if (!res.ok) throw new Error("Failed to fetch image extras")
 
     return Promise.resolve(Number.parseInt(await res.text()) === 1)
+  }
+
+  async getTrendsDates(label?: string, name?: string): Promise<string[]> {
+    const params = new URLSearchParams()
+    if (label) params.set("label", label)
+    if (name) params.set("name", name)
+    const res = await fetch(`${this.baseUrl}/api/trends/dates?${params}`, { headers: { Accept: "application/json" } })
+    if (!res.ok) throw new Error(`Failed to fetch trend dates: ${res.status}`)
+    return res.json()
+  }
+
+  async getLatestTrendsRun(date: string): Promise<TrendsRunDto> {
+    const res = await fetch(`${this.baseUrl}/api/trends/dates/${date}/runs/latest`, { headers: { Accept: "application/json" } })
+    if (!res.ok) throw new Error(`Failed to fetch latest trends run: ${res.status}`)
+    return res.json()
+  }
+
+  async getTrendsRun(runId: string, minValue?: number): Promise<TrendEntry[]> {
+    const params = new URLSearchParams()
+    if (minValue !== undefined) params.set("min_value", String(minValue))
+    const res = await fetch(`${this.baseUrl}/api/trends/runs/${runId}?${params}`, { headers: { Accept: "application/json" } })
+    if (!res.ok) throw new Error(`Failed to fetch trends run: ${res.status}`)
+    return res.json()
+  }
+
+  async getTrendsHistory(label: string, name: string): Promise<TrendHistoryEntry[]> {
+    const params = new URLSearchParams({ label, name })
+    const res = await fetch(`${this.baseUrl}/api/trends/history?${params}`, { headers: { Accept: "application/json" } })
+    if (!res.ok) throw new Error(`Failed to fetch trends history: ${res.status}`)
+    return res.json()
   }
 }

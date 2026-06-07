@@ -10,6 +10,9 @@ import ConceptPage from "../pages/ConceptPage";
 import ExploreUntaggedPage from "../pages/ExploreUntaggedPage";
 import ExploreDuplicatesPage from "../pages/ExploreDuplicatesPage";
 import ExploreExcludedPage from "../pages/ExploreExcludedPage";
+import TrendsPage from "../pages/TrendsPage";
+import TrendsDatePage from "../pages/TrendsDatePage";
+import TrendHistoryPage from "../pages/TrendHistoryPage";
 
 
 // const baseUrl = "http://127.0.0.1:8081";
@@ -26,6 +29,9 @@ export const router = createBrowserRouter([
       { path: "/untagged", element: <ExploreUntaggedPage memesApi={memesApi} /> },
       { path: "/duplicates", element: <ExploreDuplicatesPage memesApi={memesApi} /> },
       { path: "/excluded", element: <ExploreExcludedPage memesApi={memesApi} /> },
+      { path: "/trends", element: <TrendsPage memesApi={memesApi} /> },
+      { path: "/trends/date/:date", element: <TrendsDatePage memesApi={memesApi} /> },
+      { path: "/trends/history/:label/:name", element: <TrendHistoryPage memesApi={memesApi} /> },
       { path: "/search", element: <SearchPage memesApi={memesApi} /> },
       { path: "/concepts", element: <ConceptsPage memesApi={memesApi} /> },
       {

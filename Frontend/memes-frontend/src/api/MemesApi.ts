@@ -1,4 +1,5 @@
 import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../types/generated/all";
+import type { TrendEntry, TrendHistoryEntry, TrendsRunDto } from "../types/trends";
 
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>
@@ -28,4 +29,9 @@ export interface MemesApi {
   unmarkImageIsExcluded(id: string): Promise<void>;
 
   getImageIsExcluded(id: string): Promise<boolean>;
+
+  getTrendsDates(label?: string, name?: string): Promise<string[]>;
+  getLatestTrendsRun(date: string): Promise<TrendsRunDto>;
+  getTrendsRun(runId: string, minValue?: number): Promise<TrendEntry[]>;
+  getTrendsHistory(label: string, name: string): Promise<TrendHistoryEntry[]>;
 }
