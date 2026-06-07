@@ -12,6 +12,11 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 
 If a ViewModel constructor changes, search for all usages in both
 `src/test` and `src/androidTest` and update them before committing.
+A quick grep to find every affected test file:
+
+```powershell
+grep -r "ViewModel(" app/src/test, app/src/androidTest
+```
 
 ## Building locally
 
