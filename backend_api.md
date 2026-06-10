@@ -100,6 +100,77 @@ Represents a concept/category that can be associated with memes.
 }
 ```
 
+### TrendsRun
+
+```json
+{
+  "runId": "string (UUID)",
+  "createdAt": "string (ISO 8601)",
+  "status": "started | completed | failed"
+}
+```
+
+### TrendEntry
+
+Aggregated count for a label/name pair within a run.
+
+```json
+{
+  "label": "string",
+  "name": "string",
+  "value": "number"
+}
+```
+
+### TrendHistoryEntry
+
+A single data point in a time series.
+
+```json
+{
+  "runId": "string (UUID)",
+  "date": "string (YYYY-MM-DD)",
+  "label": "string",
+  "name": "string",
+  "value": "number"
+}
+```
+
+### HealthResponse
+
+```json
+{
+  "backend": "boolean",
+  "database": "boolean"
+}
+```
+
+### StatisticsResponse
+
+```json
+{
+  "memes": {
+    "total": "number",
+    "with_embeddings": "number",
+    "with_ocr": "number",
+    "with_tags": "number",
+    "with_descriptions": "number",
+    "excluded": "number"
+  },
+  "content": {
+    "ocr_texts": "number",
+    "tags": "number",
+    "concepts": "number",
+    "concept_image_sets": "number",
+    "concept_images": "number"
+  },
+  "trends": {
+    "runs": "number",
+    "feed_sources": "number"
+  }
+}
+```
+
 ## API Endpoints
 
 ### Images
@@ -261,6 +332,124 @@ Retrieve details of a specific concept.
   - `concept_id`: Unique identifier of the concept
 - **Response**: `Concept`
 - **Example**: `GET /api/concepts/5`
+
+### Trends
+
+#### Get Available Dates
+
+List distinct dates for which trend runs exist.
+
+- **URL**: `/api/trends/dates`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `label` (optional): Filter by label
+  - `name` (optional): Filter by name
+- **Response**: `Array<string>` (YYYY-MM-DD, descending)
+- **Example**: `GET /api/trends/dates?label=reddit`
+
+#### Get Runs for Date
+
+List all runs that occurred on a given date.
+
+- **URL**: `/api/trends/dates/{run_date}/runs`
+- **Method**: `GET`
+- **Path Parameters**:
+  - `run_date`: Date in `YYYY-MM-DD` format
+- **Response**: `Array<TrendsRun>`
+- **Example**: `GET /api/trends/dates/2026-06-10/runs`
+
+#### Get Latest Run for Date
+
+Return only the most recent run for a given date.
+
+- **URL**: `/api/trends/dates/{run_date}/runs/latest`
+- **Method**: `GET`
+- **Path Parameters**:
+  - `run_date`: Date in `YYYY-MM-DD` format
+- **Response**: `TrendsRun`
+- **Example**: `GET /api/trends/dates/2026-06-10/runs/latest`
+
+#### Get Entries for Run
+
+Return aggregated label/name counts for a specific run.
+
+- **URL**: `/api/trends/runs/{run_id}`
+- **Method**: `GET`
+- **Path Parameters**:
+  - `run_id`: UUID of the run
+- **Query Parameters**:
+  - `label` (optional): Filter by label
+  - `name` (optional): Filter by name
+  - `min_value` (optional): Minimum count threshold (default: 10)
+- **Response**: `Array<TrendEntry>`
+- **Example**: `GET /api/trends/runs/abc-123?min_value=5`
+
+#### Get Trend History
+
+Time series of label/name counts across all runs.
+
+- **URL**: `/api/trends/history`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `label` (optional): Filter by label
+  - `name` (optional): Filter by name
+  - `min_value` (optional): Minimum count threshold (default: 10)
+- **Response**: `Array<TrendHistoryEntry>`
+- **Example**: `GET /api/trends/history?label=reddit&min_value=20`
+
+---
+
+### Diagnostics
+
+#### Health Check
+
+Returns backend liveness and a live database connectivity probe.
+
+- **URL**: `/api/diagnostics/health`
+- **Method**: `GET`
+- **Response**: `HealthResponse`
+  - `backend` is always `true` (the server is running)
+  - `database` is `true` only if a `SELECT 1` query succeeds
+- **Example**: `GET /api/diagnostics/health`
+
+```json
+{ "backend": true, "database": true }
+```
+
+#### Statistics
+
+Returns row counts across all major tables in a single SQL round-trip.
+
+- **URL**: `/api/diagnostics/statistics`
+- **Method**: `GET`
+- **Response**: `StatisticsResponse`
+- **Example**: `GET /api/diagnostics/statistics`
+
+```json
+{
+  "memes": {
+    "total": 12400,
+    "with_embeddings": 11800,
+    "with_ocr": 9200,
+    "with_tags": 10100,
+    "with_descriptions": 3400,
+    "excluded": 82
+  },
+  "content": {
+    "ocr_texts": 31000,
+    "tags": 48500,
+    "concepts": 47,
+    "concept_image_sets": 63,
+    "concept_images": 14200
+  },
+  "trends": {
+    "runs": 14,
+    "feed_sources": 6
+  }
+}
+```
+
+---
 
 ## Running the API
 
