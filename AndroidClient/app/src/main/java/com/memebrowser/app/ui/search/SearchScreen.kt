@@ -1,12 +1,13 @@
 package com.memebrowser.app.ui.search
 
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -21,18 +22,24 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -40,21 +47,25 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.memebrowser.app.data.model.Facet
 import com.memebrowser.app.data.model.Meme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +78,7 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showFacetSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.error) {
         if (state.error != null) {
@@ -104,6 +116,17 @@ fun SearchScreen(
                         )
                     },
                     actions = {
+                        BadgedBox(
+                            badge = {
+                                if (state.activeFacets.isNotEmpty()) {
+                                    Badge { Text("${state.activeFacets.size}") }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = { showFacetSheet = true }) {
+                                Icon(Icons.Default.Tune, contentDescription = "Filters")
+                            }
+                        }
                         HealthIndicator(status = state.healthStatus)
                         IconButton(onClick = onExcludedClick) {
                             Icon(Icons.Default.Block, contentDescription = "Excluded")
@@ -136,6 +159,77 @@ fun SearchScreen(
                     onMemeClick = onMemeClick,
                     onLoadMore = viewModel::loadMore
                 )
+            }
+        }
+    }
+
+    if (showFacetSheet) {
+        FacetBottomSheet(
+            facets = state.facets,
+            activeFacets = state.activeFacets,
+            onToggle = viewModel::onFacetToggle,
+            onDismiss = { showFacetSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun FacetBottomSheet(
+    facets: List<Facet>,
+    activeFacets: List<ActiveFacet>,
+    onToggle: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "Filters",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            if (facets.isEmpty()) {
+                Text(
+                    text = "No filters available yet — run a search first",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                facets.forEach { facet ->
+                    Text(
+                        text = facet.name,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp)
+                    ) {
+                        facet.buckets.forEach { bucket ->
+                            val isActive = activeFacets.any {
+                                it.category == facet.name && it.value == bucket.value
+                            }
+                            FilterChip(
+                                selected = isActive,
+                                onClick = { onToggle(facet.name, bucket.value) },
+                                label = { Text("${bucket.value} (${bucket.count.toInt()})") }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
