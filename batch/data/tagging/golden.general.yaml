@@ -1,0 +1,26 @@
+# Golden set for the "general" profile.
+# Each entry provides an OCR text and the expected / forbidden tags.
+# Run batch/eval_rules.py to get per-tag precision/recall/F1.
+#
+# Format:
+#   - image: optional filename for reference
+#     text: "the OCR text of the meme"
+#     expected:        # tags the engine MUST emit
+#       - тема:работа
+#     forbidden:       # tags the engine MUST NOT emit
+#       - тема:секс
+#
+# Add entries here as you label memes. Aim for ~100-300 representative samples.
+
+- text: "зарплата задержали уволить хочу"
+  expected:
+    - тема:работа
+
+- text: "бляд ты куда полез"
+  expected:
+    - тема:мат
+
+- text: "гей пидор педик"
+  expected:
+    - тема:гей
+    - тема:секс

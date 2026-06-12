@@ -1,28 +1,19 @@
 import asyncio
 import json
 import os
-import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-import pymorphy3
+import yaml
 
 from metrics.listener import SimpleMetricsListener
+from rules.normalize import lemmatize_word, make_morph, tokenize
 from Storage.db import AsyncSessionLocal
 from repository.ocr_text import OCRTextRepository
 from repository.ollama_descriptions import OllamaDescriptionsRepository
 
 TEXT_SOURCE_OCR = "ocr"
 TEXT_SOURCE_DESCRIPTIONS = "descriptions"
-
-
-def _lemmatize_word(morph, word):
-    parsed = morph.parse(word)
-    return parsed[0].normal_form if parsed else word.lower()
-
-
-def _tokenize(text):
-    return re.findall(r'\w+', text)
 
 
 def _apply_min_frequency(counter_or_dict, min_frequency, metrics):
@@ -53,17 +44,37 @@ def _count_lemmas(output, text_source):
 def _load_ignore_lemmas(morph, path):
     with open(path, encoding="utf-8") as f:
         words = json.load(f)
-    return {_lemmatize_word(morph, w) for w in words}
+    return {lemmatize_word(w, morph) for w in words}
 
 
-def _build_rules_lemma_set(morph, path):
+def _build_vocab_lemma_set(morph, path):
+    """Load covered lemmas from a rules JSON or concepts YAML file."""
+    if Path(path).suffix in (".yaml", ".yml"):
+        return _build_concepts_lemma_set(morph, path)
+    return _build_json_rules_lemma_set(morph, path)
+
+
+def _build_json_rules_lemma_set(morph, path):
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     data.pop("_thresholds", None)
     covered = set()
     for rule_key in data:
-        for word in _tokenize(rule_key):
-            covered.add(_lemmatize_word(morph, word))
+        for word in tokenize(rule_key):
+            covered.add(lemmatize_word(word, morph))
+    return covered
+
+
+def _build_concepts_lemma_set(morph, path):
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    covered = set()
+    for _concept_name, cfg in (data or {}).items():
+        for word in (cfg.get("words") or []):
+            for token in tokenize(word):
+                covered.add(lemmatize_word(token, morph))
+        for fe in (cfg.get("fuzzy") or []):
+            covered.add(lemmatize_word(fe["word"], morph))
     return covered
 
 
@@ -89,7 +100,7 @@ async def main():
         print(f"OCR_CONFIDENCE_MIN={ocr_confidence_min}")
     print(f"BOW_OUTPUT_FILE={output_file}")
 
-    morph = pymorphy3.MorphAnalyzer()
+    morph = make_morph()
     metrics = SimpleMetricsListener()
 
     ignore_lemmas = set()
@@ -99,7 +110,7 @@ async def main():
 
     rules_lemmas = set()
     if rules_file:
-        rules_lemmas = _build_rules_lemma_set(morph, rules_file)
+        rules_lemmas = _build_vocab_lemma_set(morph, rules_file)
         print(f"RULES_FILE={rules_file} ({len(rules_lemmas)} lemmas covered by rules)")
         if not unmatched_file:
             raise ValueError("BOW_UNMATCHED_FILE must be set when RULES_FILE is provided")
@@ -144,10 +155,10 @@ async def _build_ocr_bow(session, morph, confidence_min, min_word_length, min_fr
             metrics.increment("ocr.rows.skipped.low_confidence")
             continue
         lang = language or "unknown"
-        for word in _tokenize(text):
-            if len(word) < min_word_length:
+        for word in tokenize(text):
+            if len(word) < min_word_length or word.isdigit():
                 continue
-            lang_counters[lang][_lemmatize_word(morph, word)] += 1
+            lang_counters[lang][lemmatize_word(word, morph)] += 1
         metrics.increment("ocr.rows.processed")
 
     output = {}
@@ -167,10 +178,10 @@ async def _build_descriptions_bow(session, morph, min_word_length, min_frequency
 
     for text in texts:
         metrics.increment("descriptions.rows.total")
-        for word in _tokenize(text):
-            if len(word) < min_word_length:
+        for word in tokenize(text):
+            if len(word) < min_word_length or word.isdigit():
                 continue
-            counter[_lemmatize_word(morph, word)] += 1
+            counter[lemmatize_word(word, morph)] += 1
         metrics.increment("descriptions.rows.processed")
 
     filtered = _apply_min_frequency(counter, min_frequency, metrics)
