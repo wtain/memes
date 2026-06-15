@@ -75,7 +75,7 @@ def convert(rules_path: Path, out_dir: Path, profile: str) -> None:
 
     tags_data = {
         "defaults": {"threshold": 1.0},
-        "tags": {tag: None for tag in sorted(all_vote_tags)},
+        "tags": {tag: {} for tag in sorted(all_vote_tags)},
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)
