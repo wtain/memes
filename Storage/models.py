@@ -284,6 +284,38 @@ class ImageExtras(Base):
     image = relationship("Image", back_populates="image_extras")
 
 
+class SearchHistory(Base):
+    __tablename__ = "search_history"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    searched_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    query = Column(Text, nullable=True)
+    client = Column(String(20), nullable=False, default="unknown")
+    result_count = Column(Integer, nullable=False, default=0)
+
+    tags = relationship("SearchHistoryTag", back_populates="search", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_search_history_searched_at", searched_at.desc()),
+    )
+
+
+class SearchHistoryTag(Base):
+    __tablename__ = "search_history_tags"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    search_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("search_history.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    category = Column(String, nullable=False)
+    value = Column(String, nullable=False)
+
+    search = relationship("SearchHistory", back_populates="tags")
+
+
 class FeedSource(Base):
     __tablename__ = "feed_sources"
 

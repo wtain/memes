@@ -10,6 +10,9 @@
     "Concept": { "$ref": "concept.schema.json" },
     "TrendsRun": { "$ref": "trendsrun.schema.json" },
     "TrendEntry": { "$ref": "trendentry.schema.json" },
-    "TrendHistoryEntry": { "$ref": "trendhistoryentry.schema.json" }
+    "TrendHistoryEntry":     { "$ref": "trendhistoryentry.schema.json" },
+    "SearchHistoryTag":      { "$ref": "searchhistorytag.schema.json" },
+    "SearchHistoryItem":     { "$ref": "searchhistoryitem.schema.json" },
+    "SearchHistoryResponse": { "$ref": "searchhistoryresponse.schema.json" }
   }
 }

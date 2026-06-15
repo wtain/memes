@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "searchhistorytag.schema.json",
+  "title": "SearchHistoryTag",
+  "type": "object",
+  "properties": {
+    "category": { "type": "string" },
+    "value":    { "type": "string" }
+  },
+  "required": ["category", "value"]
+}

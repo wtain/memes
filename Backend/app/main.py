@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from Backend.app.api.diagnostics import router as diagnostics_router
+from Backend.app.api.history import router as history_router
 from Backend.app.api.images import router as images_router
 from Backend.app.api.concepts import router as concepts_router
 from Backend.app.api.trends import router as trends_router
@@ -44,6 +45,7 @@ uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.metal 
 uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.general --port 8082 --host 0.0.0.0
 """
 app.include_router(diagnostics_router, prefix="/api")
+app.include_router(history_router, prefix="/api")
 app.include_router(images_router, prefix="/api")
 app.include_router(concepts_router, prefix="/api")
 app.include_router(trends_router, prefix="/api")

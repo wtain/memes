@@ -29,6 +29,35 @@ data class MemeTag(
 )
 
 @Serializable
+data class SearchHistoryTag(
+    @SerialName("category") val category: String,
+    @SerialName("value") val value: String
+)
+
+@Serializable
+data class TrendEntry(
+    @SerialName("label") val label: String,
+    @SerialName("name") val name: String,
+    @SerialName("value") val value: Any
+)
+
+@Serializable
+data class TrendHistoryEntry(
+    @SerialName("runId") val runId: String,
+    @SerialName("date") val date: String,
+    @SerialName("label") val label: String,
+    @SerialName("name") val name: String,
+    @SerialName("value") val value: Any
+)
+
+@Serializable
+data class TrendsRun(
+    @SerialName("runId") val runId: String,
+    @SerialName("createdAt") val createdAt: String,
+    @SerialName("status") val status: String
+)
+
+@Serializable
 data class Facet(
     @SerialName("name") val name: String,
     @SerialName("buckets") val buckets: List<FacetBucket>
@@ -50,6 +79,23 @@ data class MemeSearchRequest(
     @SerialName("cursor") val cursor: String? = null,
     @SerialName("limit") val limit: Int? = null,
     @SerialName("tags") val tags: List<MemeTag>? = null
+)
+
+@Serializable
+data class SearchHistoryItem(
+    @SerialName("id") val id: String,
+    @SerialName("searchedAt") val searchedAt: String,
+    @SerialName("query") val query: String? = null,
+    @SerialName("client") val client: String,
+    @SerialName("resultCount") val resultCount: Int,
+    @SerialName("tags") val tags: List<SearchHistoryTag>
+)
+
+@Serializable
+data class SearchHistoryResponse(
+    @SerialName("items") val items: List<SearchHistoryItem>,
+    @SerialName("nextCursor") val nextCursor: String? = null,
+    @SerialName("hasNext") val hasNext: Boolean
 )
 
 @Serializable

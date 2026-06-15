@@ -136,6 +136,46 @@ A single data point in a time series.
 }
 ```
 
+### SearchHistoryTag
+
+A tag filter that was active during a search.
+
+```json
+{
+  "category": "string",
+  "value": "string"
+}
+```
+
+### SearchHistoryItem
+
+A single recorded search event.
+
+```json
+{
+  "id": "string (UUID)",
+  "searchedAt": "string (ISO 8601)",
+  "query": "string | null",
+  "client": "string",
+  "resultCount": "number",
+  "tags": [SearchHistoryTag]
+}
+```
+
+- `query`: the text query, or `null` for tag-only searches
+- `client`: `"web"` or `"android"`, inferred from `User-Agent`
+- `resultCount`: number of items on the first page (≤ `limit`); `0` indicates no results
+
+### SearchHistoryResponse
+
+```json
+{
+  "items": [SearchHistoryItem],
+  "nextCursor": "string | null",
+  "hasNext": "boolean"
+}
+```
+
 ### HealthResponse
 
 ```json
@@ -396,6 +436,49 @@ Time series of label/name counts across all runs.
   - `min_value` (optional): Minimum count threshold (default: 10)
 - **Response**: `Array<TrendHistoryEntry>`
 - **Example**: `GET /api/trends/history?label=reddit&min_value=20`
+
+---
+
+### Search History
+
+Search history is recorded automatically as a side-effect of `GET /api/images` — there is no separate write endpoint. The client identity (`web` or `android`) is inferred from the `User-Agent` header (`okhttp/*` → `android`, anything else → `web`).
+
+#### Get Search History
+
+```
+GET /api/history
+```
+
+Returns a cursor-paginated list of recorded search events, newest first.
+
+**Query Parameters**:
+
+| Parameter | Type   | Default | Description |
+|-----------|--------|---------|-------------|
+| `limit`   | int    | 50      | Items per page (1–200) |
+| `cursor`  | string | —       | Pagination cursor from previous response |
+| `client`  | string | —       | Filter by client: `web` or `android` |
+
+**Response** `200 OK` — `SearchHistoryResponse`:
+
+```json
+{
+  "items": [
+    {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "searchedAt": "2026-06-15T10:30:00+00:00",
+      "query": "draven",
+      "client": "web",
+      "resultCount": 12,
+      "tags": [
+        { "category": "genre", "value": "metal" }
+      ]
+    }
+  ],
+  "nextCursor": "eyJpZCI6ICI...",
+  "hasNext": true
+}
+```
 
 ---
 

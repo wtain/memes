@@ -6,8 +6,13 @@ from __future__ import annotations
 
 from pydantic import AwareDatetime, BaseModel
 
+from . import searchhistorytag
+
 
 class Schema(BaseModel):
-    runId: str
-    createdAt: AwareDatetime
-    status: str
+    id: str
+    searchedAt: AwareDatetime
+    query: str | None = None
+    client: str
+    resultCount: float
+    tags: list[searchhistorytag.Schema]

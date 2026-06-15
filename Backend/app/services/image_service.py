@@ -5,7 +5,9 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
+from Backend.app.repositories.history_repository import HistoryRepository
 from Backend.app.repositories.image_repository import ImageRepository
+from Storage.db import AsyncSessionLocal
 from Backend.app.types.generated.facet import Schema as Facet
 from Backend.app.types.generated.facetbucket import Schema as FacetBucket
 from Backend.app.types.generated.meme import Schema as Meme
@@ -23,6 +25,7 @@ class ImageService:
         raw_facets: Optional[str],
         cursor: Optional[str],
         limit: int,
+        user_agent: str = "",
     ) -> MemeSearchResponse:
         tags = self._parse_facets(raw_facets)
         cursor_created_at, cursor_id = self._decode_cursor(cursor)
@@ -59,7 +62,28 @@ class ImageService:
 
         await self._fill_texts_and_tags(items)
 
-        return self._paginate_response(rows, items, limit, facets)
+        result = self._paginate_response(rows, items, limit, facets)
+
+        client = "android" if "okhttp" in user_agent.lower() else "web"
+        tag_pairs = [(cat, val) for cat, vals in tags.items() for val in vals]
+        await self._record_history(q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
+
+        return result
+
+    @staticmethod
+    async def _record_history(
+        q: Optional[str],
+        client: str,
+        result_count: int,
+        tags: list[tuple[str, str]],
+    ) -> None:
+        try:
+            async with AsyncSessionLocal() as session:
+                async with session.begin():
+                    repo = HistoryRepository(session)
+                    await repo.add(query=q, client=client, result_count=result_count, tags=tags)
+        except Exception:
+            pass
 
     async def _fill_texts_and_tags(self, items):
         ids = {meme.id for meme in items}

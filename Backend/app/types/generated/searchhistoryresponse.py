@@ -6,7 +6,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from . import searchhistoryitem
+
 
 class Schema(BaseModel):
-    value: str
-    count: float
+    items: list[searchhistoryitem.Schema]
+    nextCursor: str | None = None
+    hasNext: bool

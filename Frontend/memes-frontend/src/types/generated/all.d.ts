@@ -84,3 +84,67 @@ export interface Concept {
   name: string;
   [k: string]: unknown;
 }
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "TrendsRun".
+ */
+export interface TrendsRun {
+  runId: string;
+  createdAt: string;
+  status: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "TrendEntry".
+ */
+export interface TrendEntry {
+  label: string;
+  name: string;
+  value: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "TrendHistoryEntry".
+ */
+export interface TrendHistoryEntry {
+  runId: string;
+  date: string;
+  label: string;
+  name: string;
+  value: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "SearchHistoryTag".
+ */
+export interface SearchHistoryTag {
+  category: string;
+  value: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "SearchHistoryItem".
+ */
+export interface SearchHistoryItem {
+  id: string;
+  searchedAt: string;
+  query?: string;
+  client: string;
+  resultCount: number;
+  tags: SearchHistoryTag[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "SearchHistoryResponse".
+ */
+export interface SearchHistoryResponse {
+  items: SearchHistoryItem[];
+  nextCursor?: string;
+  hasNext: boolean;
+  [k: string]: unknown;
+}

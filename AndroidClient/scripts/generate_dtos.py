@@ -32,7 +32,7 @@ PACKAGE = "com.memebrowser.app.data.model"
 SKIP = {"all.schema.json"}
 
 # Fields typed as Int rather than Float despite JSON Schema "number"
-INTEGER_FIELDS = {"id", "limit", "offset", "page"}
+INTEGER_FIELDS = {"id", "limit", "offset", "page", "resultCount"}
 
 
 def ref_to_class_name(ref: str, schemas_by_id: dict[str, dict]) -> str:

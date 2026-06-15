@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "searchhistoryitem.schema.json",
+  "title": "SearchHistoryItem",
+  "type": "object",
+  "properties": {
+    "id":          { "type": "string" },
+    "searchedAt":  { "type": "string", "format": "date-time" },
+    "query":       { "type": "string" },
+    "client":      { "type": "string" },
+    "resultCount": { "type": "number" },
+    "tags": {
+      "type": "array",
+      "items": { "$ref": "./searchhistorytag.schema.json" }
+    }
+  },
+  "required": ["id", "searchedAt", "client", "resultCount", "tags"]
+}

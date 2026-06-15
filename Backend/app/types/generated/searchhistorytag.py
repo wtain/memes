@@ -8,5 +8,5 @@ from pydantic import BaseModel
 
 
 class Schema(BaseModel):
+    category: str
     value: str
-    count: float

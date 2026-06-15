@@ -3,7 +3,7 @@ from typing import Optional, AsyncGenerator
 from urllib.parse import quote
 
 import unicodedata
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +34,7 @@ async def get_image_service(
 
 @router.get("", response_model=MemeSearchResponse)
 async def get_images(
+    request: Request,
     response: Response,
     q: Optional[str] = None,
     limit: int = Query(20, ge=1, le=100),
@@ -42,7 +43,8 @@ async def get_images(
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    return await service.search(q=q, raw_facets=facets, cursor=cursor, limit=limit)
+    ua = request.headers.get("user-agent", "")
+    return await service.search(q=q, raw_facets=facets, cursor=cursor, limit=limit, user_agent=ua)
 
 
 @router.get("/{image_id}/similar", response_model=MemeSearchResponse)
