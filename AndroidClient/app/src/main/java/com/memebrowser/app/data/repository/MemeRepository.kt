@@ -1,5 +1,6 @@
 package com.memebrowser.app.data.repository
 
+import android.util.Log
 import com.memebrowser.app.data.api.MemeApiService
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.Meme
@@ -15,6 +16,10 @@ open class MemeRepository @Inject constructor(
     private val api: MemeApiService,
     private val okHttpClient: OkHttpClient
 ) {
+    companion object {
+        private const val TAG = "MemeRepository"
+    }
+
     suspend fun search(
         query: String?,
         facets: String?,
@@ -63,7 +68,14 @@ open class MemeRepository @Inject constructor(
         api.getSimilarMemes(id).items ?: emptyList()
     }
 
-    suspend fun downloadImage(id: String): Result<ResponseBody> = runCatching {
-        api.downloadImage(id)
+    suspend fun downloadImage(id: String): Result<ResponseBody> {
+        Log.d(TAG, "downloadImage: requesting id=$id")
+        return runCatching { api.downloadImage(id) }
+            .onSuccess { body ->
+                Log.d(TAG, "downloadImage: ok id=$id contentType=${body.contentType()} contentLength=${body.contentLength()}")
+            }
+            .onFailure { e ->
+                Log.e(TAG, "downloadImage: failed id=$id", e)
+            }
     }
 }

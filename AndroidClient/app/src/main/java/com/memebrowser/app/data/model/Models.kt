@@ -6,6 +6,7 @@ package com.memebrowser.app.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 
 @Serializable
@@ -38,7 +39,7 @@ data class SearchHistoryTag(
 data class TrendEntry(
     @SerialName("label") val label: String,
     @SerialName("name") val name: String,
-    @SerialName("value") val value: Any
+    @SerialName("value") val value: JsonElement
 )
 
 @Serializable
@@ -47,7 +48,7 @@ data class TrendHistoryEntry(
     @SerialName("date") val date: String,
     @SerialName("label") val label: String,
     @SerialName("name") val name: String,
-    @SerialName("value") val value: Any
+    @SerialName("value") val value: JsonElement
 )
 
 @Serializable

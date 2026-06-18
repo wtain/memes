@@ -1,6 +1,7 @@
 package com.memebrowser.app.ui.detail
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,6 +36,10 @@ class MemeDetailViewModel @Inject constructor(
     private val repo: MemeRepository,
     private val envRepo: EnvironmentRepository
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "MemeDetailViewModel"
+    }
+
 
     private val memeId: String = checkNotNull(savedStateHandle["memeId"])
 
@@ -86,17 +91,24 @@ class MemeDetailViewModel @Inject constructor(
             repo.downloadImage(meme.id)
                 .onSuccess { body ->
                     try {
-                        val bytes = body.bytes()
                         val contentType = body.contentType()?.toString()
+                        val contentLength = body.contentLength()
+                        Log.d(TAG, "saveToGallery: reading body id=${meme.id} contentType=$contentType contentLength=$contentLength")
+                        val bytes = body.bytes()
+                        Log.d(TAG, "saveToGallery: read ${bytes.size} bytes for id=${meme.id}")
                         val (mimeType, ext) = detectMimeType(contentType)
                         val fileName = meme.originalFileName ?: "${meme.id}.$ext"
                         saveImageToGallery(context, bytes, fileName, mimeType, collection)
                         _state.update { it.copy(isSaving = false, saveSuccess = true) }
                     } catch (e: Exception) {
+                        Log.e(TAG, "saveToGallery: body read/write failed id=${meme.id}", e)
                         _state.update { it.copy(isSaving = false, error = "Save failed: ${e.message}") }
                     }
                 }
-                .onFailure { e -> _state.update { it.copy(isSaving = false, error = e.message) } }
+                .onFailure { e ->
+                    Log.e(TAG, "saveToGallery: download failed id=${meme.id}", e)
+                    _state.update { it.copy(isSaving = false, error = "Download failed: ${e.message}") }
+                }
         }
     }
 
@@ -106,15 +118,20 @@ class MemeDetailViewModel @Inject constructor(
             repo.downloadImage(meme.id)
                 .onSuccess { body ->
                     try {
-                        val bytes = body.bytes()
                         val contentType = body.contentType()?.toString()
+                        Log.d(TAG, "share: reading body id=${meme.id} contentType=$contentType contentLength=${body.contentLength()}")
+                        val bytes = body.bytes()
                         val (mimeType, ext) = detectMimeType(contentType)
                         shareImage(context, bytes, meme.id, ext, mimeType)
                     } catch (e: Exception) {
+                        Log.e(TAG, "share: body read/send failed id=${meme.id}", e)
                         _state.update { it.copy(error = "Share failed: ${e.message}") }
                     }
                 }
-                .onFailure { e -> _state.update { it.copy(error = e.message) } }
+                .onFailure { e ->
+                    Log.e(TAG, "share: download failed id=${meme.id}", e)
+                    _state.update { it.copy(error = "Download failed: ${e.message}") }
+                }
         }
     }
 

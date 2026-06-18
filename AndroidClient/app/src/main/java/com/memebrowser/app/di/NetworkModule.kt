@@ -52,7 +52,7 @@ object NetworkModule {
                 chain.proceed(original.newBuilder().url(newUrl).build())
             }
             .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BASIC
+                level = HttpLoggingInterceptor.Level.HEADERS
             })
             .build()
     }
