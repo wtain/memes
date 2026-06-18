@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -51,6 +54,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.memebrowser.app.data.model.Meme
+import com.memebrowser.app.data.model.MemeTag
 import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,6 +63,7 @@ fun MemeDetailScreen(
     memeId: String,
     onBack: () -> Unit,
     onNavigateToMeme: (String) -> Unit,
+    onTagClick: (category: String, value: String) -> Unit = { _, _ -> },
     viewModel: MemeDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -126,7 +131,8 @@ fun MemeDetailScreen(
                     onToggleExcluded = { viewModel.toggleExcluded() },
                     similarMemes = state.similarMemes,
                     isLoadingSimilar = state.isLoadingSimilar,
-                    onSimilarMemeClick = onNavigateToMeme
+                    onSimilarMemeClick = onNavigateToMeme,
+                    onTagClick = onTagClick
                 )
             }
         }
@@ -149,8 +155,13 @@ private fun BottomActionBar(
     onToggleExcluded: () -> Unit,
     similarMemes: List<Meme>,
     isLoadingSimilar: Boolean,
-    onSimilarMemeClick: (String) -> Unit
+    onSimilarMemeClick: (String) -> Unit,
+    onTagClick: (category: String, value: String) -> Unit
 ) {
+    val visibleTags = remember(meme.tags) {
+        meme.tags.orEmpty().filter { it.score == null || it.score > 0.3f }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -181,6 +192,10 @@ private fun BottomActionBar(
             }
         }
 
+        if (visibleTags.isNotEmpty()) {
+            TagsRow(tags = visibleTags, onTagClick = onTagClick)
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -206,6 +221,37 @@ private fun BottomActionBar(
                     Icon(Icons.Default.Block, contentDescription = "Mark excluded", tint = Color.White)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TagsRow(
+    tags: List<MemeTag>,
+    onTagClick: (category: String, value: String) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items(tags, key = { "${it.category}:${it.name}:${it.source}" }) { tag ->
+            SuggestionChip(
+                onClick = { onTagClick(tag.category ?: "tag", tag.name) },
+                label = {
+                    Text(
+                        text = if (tag.source != null) "${tag.name} (${tag.source})" else tag.name,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                },
+                colors = SuggestionChipDefaults.suggestionChipColors(
+                    containerColor = Color.White.copy(alpha = 0.15f),
+                    labelColor = Color.White
+                ),
+                border = SuggestionChipDefaults.suggestionChipBorder(
+                    enabled = true,
+                    borderColor = Color.White.copy(alpha = 0.3f)
+                )
+            )
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.memebrowser.app.ui.search
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.data.model.Facet
@@ -37,6 +38,7 @@ data class SearchUiState(
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle,
     private val repo: MemeRepository,
     private val envRepo: EnvironmentRepository
 ) : ViewModel() {
@@ -50,6 +52,16 @@ class SearchViewModel @Inject constructor(
 
     init {
         checkHealth()
+        // Consume a pending tag filter written by the detail screen before navigating back.
+        viewModelScope.launch {
+            savedStateHandle.getStateFlow<String?>("pending_tag", null).collect { raw ->
+                if (raw != null) {
+                    val parts = raw.split(":", limit = 2)
+                    if (parts.size == 2) addFacetFilter(parts[0], parts[1])
+                    savedStateHandle["pending_tag"] = null
+                }
+            }
+        }
         viewModelScope.launch {
             envRepo.selectedEnvironmentId.collect { envId ->
                 currentEnvId = envId
@@ -57,6 +69,14 @@ class SearchViewModel @Inject constructor(
                 _state.update { it.copy(query = restoredQuery) }
                 triggerSearch()
             }
+        }
+    }
+
+    private fun addFacetFilter(category: String, value: String) {
+        val facet = ActiveFacet(category, value)
+        if (!_state.value.activeFacets.contains(facet)) {
+            _state.update { it.copy(activeFacets = _state.value.activeFacets + facet) }
+            triggerSearch()
         }
     }
 

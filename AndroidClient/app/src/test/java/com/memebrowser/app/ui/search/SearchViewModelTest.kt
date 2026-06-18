@@ -1,5 +1,6 @@
 package com.memebrowser.app.ui.search
 
+import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.repository.EnvironmentRepository
@@ -46,7 +47,7 @@ class SearchViewModelTest {
 
     @Test
     fun `initial load populates items from search`() = runTest {
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
             assertEquals(2, state.items.size)
@@ -57,7 +58,7 @@ class SearchViewModelTest {
 
     @Test
     fun `health check on init sets Online status`() = runTest {
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         viewModel.state.test {
             assertEquals(HealthStatus.Online, awaitItem().healthStatus)
         }
@@ -66,7 +67,7 @@ class SearchViewModelTest {
     @Test
     fun `health check failure sets Offline status`() = runTest {
         coEvery { repo.health() } returns Result.failure(Exception("unreachable"))
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         viewModel.state.test {
             assertEquals(HealthStatus.Offline, awaitItem().healthStatus)
         }
@@ -75,7 +76,7 @@ class SearchViewModelTest {
     @Test
     fun `search error propagates to state`() = runTest {
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.failure(Exception("timeout"))
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
             assertEquals("timeout", state.error)
@@ -87,7 +88,7 @@ class SearchViewModelTest {
     fun `loadMore appends next page and clears cursor when done`() = runTest {
         coEvery { repo.search(null, null, null, any()) } returns Result.success(fakeSearchPage1)
         coEvery { repo.search(null, null, "cursor-abc", any()) } returns Result.success(fakeSearchPage2)
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
 
         viewModel.loadMore()
 
@@ -102,7 +103,7 @@ class SearchViewModelTest {
     @Test
     fun `loadMore is no-op when hasNext is false`() = runTest {
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.success(fakeSearchEmpty)
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
 
         viewModel.loadMore()
 
@@ -111,7 +112,7 @@ class SearchViewModelTest {
 
     @Test
     fun `facet toggle adds facet and re-searches`() = runTest {
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         viewModel.onFacetToggle("tag", "dev")
 
         viewModel.state.test {
@@ -125,7 +126,7 @@ class SearchViewModelTest {
 
     @Test
     fun `facet toggle removes already-active facet`() = runTest {
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         viewModel.onFacetToggle("tag", "dev")
         viewModel.onFacetToggle("tag", "dev")
 
@@ -138,7 +139,7 @@ class SearchViewModelTest {
     fun `query change is debounced — rapid changes trigger only one search`() = runTest(
         mainDispatcherRule.dispatcher
     ) {
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         // Drain the initial search triggered by init
         advanceTimeBy(500)
 
@@ -154,7 +155,7 @@ class SearchViewModelTest {
     @Test
     fun `dismissError clears error field`() = runTest {
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.failure(Exception("err"))
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         viewModel.dismissError()
 
         viewModel.state.test {
@@ -166,7 +167,7 @@ class SearchViewModelTest {
 
     @Test
     fun `switching environment triggers immediate search`() = runTest {
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         advanceTimeBy(500)
 
         selectedEnvId.value = "env-2"
@@ -177,7 +178,7 @@ class SearchViewModelTest {
 
     @Test
     fun `switching to new environment resets query to empty`() = runTest {
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         advanceTimeBy(500)
 
         viewModel.onQueryChange("cats")
@@ -193,7 +194,7 @@ class SearchViewModelTest {
 
     @Test
     fun `switching back to previous environment restores saved query`() = runTest {
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
         advanceTimeBy(500)
 
         // Type "cats" while on env-1
@@ -213,5 +214,27 @@ class SearchViewModelTest {
         viewModel.state.test {
             assertEquals("cats", awaitItem().query)
         }
+    }
+
+    @Test
+    fun `pending_tag in SavedStateHandle is applied as active facet on init`() = runTest {
+        val handle = SavedStateHandle(mapOf("pending_tag" to "emotion:funny"))
+        viewModel = SearchViewModel(handle, repo, envRepo)
+
+        viewModel.state.test {
+            val state = awaitItem()
+            assertTrue(state.activeFacets.any { it.category == "emotion" && it.value == "funny" })
+        }
+    }
+
+    @Test
+    fun `pending_tag is cleared from SavedStateHandle after being applied`() = runTest {
+        val handle = SavedStateHandle(mapOf("pending_tag" to "emotion:funny"))
+        viewModel = SearchViewModel(handle, repo, envRepo)
+
+        // Wait for init to process
+        viewModel.state.test { awaitItem() }
+
+        assertNull(handle.get<String>("pending_tag"))
     }
 }

@@ -34,6 +34,11 @@ fun NavGraph() {
                     navController.navigate("detail/$id") {
                         popUpTo("detail/{memeId}") { inclusive = true }
                     }
+                },
+                onTagClick = { category, value ->
+                    navController.getBackStackEntry("search")
+                        .savedStateHandle["pending_tag"] = "$category:$value"
+                    navController.popBackStack()
                 }
             )
         }
