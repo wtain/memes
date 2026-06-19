@@ -2,20 +2,96 @@ name: Android Release
 
 on:
   push:
-    tags:
-      - 'android-v*'
+    branches: [main]
+    paths:
+      - 'AndroidClient/**'
+      - 'shared/schemas/**'
+      - '.github/workflows/android-release.yml'
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Force bump type (patch / minor / major). Leave empty to auto-detect from commits.'
+        required: false
+        default: ''
+
+# Prevent parallel version bumps if pushes arrive in quick succession.
+concurrency:
+  group: android-release
+  cancel-in-progress: false
 
 jobs:
+  bump-version:
+    name: Bump Version & Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      new_tag: ${{ steps.bump.outputs.new_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history needed to inspect commits since last tag
+
+      - name: Compute next version and push tag
+        id: bump
+        run: |
+          # Find the most recent android-v* tag (version-aware sort so 1.10 > 1.9)
+          LATEST=$(git tag -l 'android-v*' --sort=-version:refname | head -1)
+
+          if [ -z "$LATEST" ]; then
+            MAJOR=0; MINOR=0; PATCH=0
+            COMMITS=$(git log --pretty=format:"%s%n%b")
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#android-v}"
+            COMMITS=$(git log "${LATEST}..HEAD" --pretty=format:"%s%n%b")
+          fi
+
+          # Conventional-commit bump rules (manual override wins)
+          OVERRIDE="${{ inputs.bump }}"
+          if [ "$OVERRIDE" = "major" ]; then
+            BUMP=major
+          elif [ "$OVERRIDE" = "minor" ]; then
+            BUMP=minor
+          elif [ "$OVERRIDE" = "patch" ]; then
+            BUMP=patch
+          elif echo "$COMMITS" | grep -qE '^[a-z]+(\([^)]*\))?!:' || echo "$COMMITS" | grep -q 'BREAKING CHANGE'; then
+            BUMP=major
+          elif echo "$COMMITS" | grep -qE '^feat(\([^)]*\))?:'; then
+            BUMP=minor
+          else
+            # Default: increment revision (patch)
+            BUMP=patch
+          fi
+
+          case $BUMP in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW_TAG="android-v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_tag=${NEW_TAG}" >> $GITHUB_OUTPUT
+          echo "Bumping ${LATEST:-<none>} → ${NEW_TAG} (${BUMP})"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${NEW_TAG}"
+          git push origin "${NEW_TAG}"
+
   release:
     name: Build & Release APK
+    needs: bump-version
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout
+      - name: Checkout tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.new_tag }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -41,6 +117,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.bump-version.outputs.new_tag }}
           files: AndroidClient/app/build/outputs/apk/release/*.apk
           generate_release_notes: true
           fail_on_unmatched_files: true
