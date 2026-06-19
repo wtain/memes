@@ -26,59 +26,22 @@ jobs:
     permissions:
       contents: write
     outputs:
-      new_tag: ${{ steps.bump.outputs.new_tag }}
+      new_tag: ${{ steps.tag.outputs.new_tag }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history needed to inspect commits since last tag
+          fetch-depth: 0
 
-      - name: Compute next version and push tag
-        id: bump
-        run: |
-          # Find the most recent android-v* tag (version-aware sort so 1.10 > 1.9)
-          LATEST=$(git tag -l 'android-v*' --sort=-version:refname | head -1)
-
-          if [ -z "$LATEST" ]; then
-            MAJOR=0; MINOR=0; PATCH=0
-            COMMITS=$(git log --pretty=format:"%s%n%b")
-          else
-            IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#android-v}"
-            COMMITS=$(git log "${LATEST}..HEAD" --pretty=format:"%s%n%b")
-          fi
-
-          # Conventional-commit bump rules (manual override wins)
-          OVERRIDE="${{ inputs.bump }}"
-          if [ "$OVERRIDE" = "major" ]; then
-            BUMP=major
-          elif [ "$OVERRIDE" = "minor" ]; then
-            BUMP=minor
-          elif [ "$OVERRIDE" = "patch" ]; then
-            BUMP=patch
-          elif echo "$COMMITS" | grep -qE '^[a-z]+(\([^)]*\))?!:' || echo "$COMMITS" | grep -q 'BREAKING CHANGE'; then
-            BUMP=major
-          elif echo "$COMMITS" | grep -qE '^feat(\([^)]*\))?:'; then
-            BUMP=minor
-          else
-            # Default: increment revision (patch)
-            BUMP=patch
-          fi
-
-          case $BUMP in
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH + 1)) ;;
-          esac
-
-          NEW_TAG="android-v${MAJOR}.${MINOR}.${PATCH}"
-          echo "new_tag=${NEW_TAG}" >> $GITHUB_OUTPUT
-          echo "Bumping ${LATEST:-<none>} → ${NEW_TAG} (${BUMP})"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${NEW_TAG}"
-          git push origin "${NEW_TAG}"
+      - name: Bump version and push tag
+        id: tag
+        uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b  # v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: android-v
+          default_bump: ${{ inputs.bump || 'patch' }}
+          release_branches: main
 
   release:
     name: Build & Release APK
