@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +75,7 @@ fun SearchScreen(
     onMemeClick: (String) -> Unit,
     onEnvironmentsClick: () -> Unit,
     onExcludedClick: () -> Unit,
+    onUploadClick: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -128,6 +130,9 @@ fun SearchScreen(
                             }
                         }
                         HealthIndicator(status = state.healthStatus)
+                        IconButton(onClick = onUploadClick) {
+                            Icon(Icons.Default.Upload, contentDescription = "Upload")
+                        }
                         IconButton(onClick = onExcludedClick) {
                             Icon(Icons.Default.Block, contentDescription = "Excluded")
                         }

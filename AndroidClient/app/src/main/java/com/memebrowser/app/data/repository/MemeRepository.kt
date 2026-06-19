@@ -5,6 +5,8 @@ import com.memebrowser.app.data.api.MemeApiService
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeSearchResponse
+import com.memebrowser.app.data.model.UploadResponse
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.ResponseBody
@@ -66,6 +68,10 @@ open class MemeRepository @Inject constructor(
 
     suspend fun getSimilarMemes(id: String): Result<List<Meme>> = runCatching {
         api.getSimilarMemes(id).items ?: emptyList()
+    }
+
+    suspend fun uploadImages(parts: List<MultipartBody.Part>): Result<UploadResponse> = runCatching {
+        api.uploadImages(parts)
     }
 
     suspend fun downloadImage(id: String): Result<ResponseBody> {

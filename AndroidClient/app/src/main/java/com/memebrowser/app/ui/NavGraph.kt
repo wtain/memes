@@ -10,6 +10,7 @@ import com.memebrowser.app.ui.detail.MemeDetailScreen
 import com.memebrowser.app.ui.environment.EnvironmentManagerScreen
 import com.memebrowser.app.ui.excluded.ExcludedScreen
 import com.memebrowser.app.ui.search.SearchScreen
+import com.memebrowser.app.ui.upload.UploadScreen
 
 @Composable
 fun NavGraph() {
@@ -19,7 +20,8 @@ fun NavGraph() {
             SearchScreen(
                 onMemeClick = { memeId -> navController.navigate("detail/$memeId") },
                 onEnvironmentsClick = { navController.navigate("environments") },
-                onExcludedClick = { navController.navigate("excluded") }
+                onExcludedClick = { navController.navigate("excluded") },
+                onUploadClick = { navController.navigate("upload") }
             )
         }
         composable(
@@ -52,6 +54,9 @@ fun NavGraph() {
             EnvironmentManagerScreen(
                 onBack = { navController.popBackStack() }
             )
+        }
+        composable("upload") {
+            UploadScreen(onBack = { navController.popBackStack() })
         }
     }
 }

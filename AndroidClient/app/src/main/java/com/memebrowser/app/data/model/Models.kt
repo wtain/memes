@@ -112,3 +112,26 @@ data class MemeSearchResponse(
 data class HealthResponse(
     @SerialName("status") val status: String
 )
+
+@Serializable
+data class UploadedFile(
+    @SerialName("original_filename") val originalFilename: String,
+    @SerialName("saved_as") val savedAs: String,
+    @SerialName("size_bytes") val sizeBytes: Long,
+    @SerialName("content_type") val contentType: String,
+    @SerialName("status") val status: String = "ok"
+)
+
+@Serializable
+data class FailedFile(
+    @SerialName("original_filename") val originalFilename: String,
+    @SerialName("reason") val reason: String
+)
+
+@Serializable
+data class UploadResponse(
+    @SerialName("uploaded") val uploaded: List<UploadedFile>,
+    @SerialName("failed") val failed: List<FailedFile>,
+    @SerialName("total_accepted") val totalAccepted: Int,
+    @SerialName("total_failed") val totalFailed: Int
+)

@@ -3,10 +3,15 @@ package com.memebrowser.app.data.api
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeSearchResponse
+import com.memebrowser.app.data.model.UploadResponse
+import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.GET
+import retrofit2.http.Multipart
+import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Streaming
@@ -45,4 +50,8 @@ interface MemeApiService {
     @Streaming
     @GET("api/images/{id}")
     suspend fun downloadImage(@Path("id") id: String): ResponseBody
+
+    @Multipart
+    @POST("api/uploads")
+    suspend fun uploadImages(@Part files: List<MultipartBody.Part>): UploadResponse
 }
