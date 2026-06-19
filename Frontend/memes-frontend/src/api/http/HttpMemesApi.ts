@@ -1,5 +1,5 @@
 import type { MemesApi } from "../MemesApi"
-import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
+import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse } from "../../types/generated/all"
 import type { TrendEntry, TrendHistoryEntry, TrendsRunDto } from "../../types/trends"
 
 export class HttpMemesApi implements MemesApi {
@@ -238,6 +238,14 @@ export class HttpMemesApi implements MemesApi {
     const params = new URLSearchParams({ label, name })
     const res = await fetch(`${this.baseUrl}/api/trends/history?${params}`, { headers: { Accept: "application/json" } })
     if (!res.ok) throw new Error(`Failed to fetch trends history: ${res.status}`)
+    return res.json()
+  }
+
+  async uploadMemes(files: File[]): Promise<UploadResponse> {
+    const form = new FormData()
+    for (const file of files) form.append("files", file)
+    const res = await fetch(`${this.baseUrl}/api/uploads`, { method: "POST", body: form })
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
     return res.json()
   }
 }

@@ -67,6 +67,15 @@ export default function AppLayout() {
           >
             Concepts
           </NavLink>
+
+          <NavLink
+            to="/upload"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Upload
+          </NavLink>
         </div>
       </header>
 

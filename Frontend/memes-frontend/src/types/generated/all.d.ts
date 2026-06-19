@@ -148,3 +148,23 @@ export interface SearchHistoryResponse {
   hasNext: boolean;
   [k: string]: unknown;
 }
+export interface UploadedFile {
+  original_filename: string;
+  saved_as: string;
+  size_bytes: number;
+  content_type: string;
+  status: "ok";
+  [k: string]: unknown;
+}
+export interface FailedFile {
+  original_filename: string;
+  reason: string;
+  [k: string]: unknown;
+}
+export interface UploadResponse {
+  uploaded: UploadedFile[];
+  failed: FailedFile[];
+  total_accepted: number;
+  total_failed: number;
+  [k: string]: unknown;
+}
