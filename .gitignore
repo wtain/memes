@@ -98,3 +98,5 @@ debug.log
 
 # Java
 **/*.hprof
+
+**/*.pyc
