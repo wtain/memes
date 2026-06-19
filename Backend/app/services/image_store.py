@@ -27,3 +27,10 @@ def image_exists(image_id: str) -> bool:
 
 def get_image_path(image_id: str) -> Path:
     return IMAGES_DIR / image_id
+
+
+incoming_path = os.getenv('INCOMING_PATH')
+if incoming_path:
+    INCOMING_DIR = Path(incoming_path)
+else:
+    INCOMING_DIR = IMAGES_DIR / "incoming"

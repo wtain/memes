@@ -176,6 +176,40 @@ A single recorded search event.
 }
 ```
 
+### UploadResponse
+
+Response from `POST /api/uploads`.
+
+```json
+{
+  "uploaded": [UploadedFile],
+  "failed": [FailedFile],
+  "total_accepted": "number",
+  "total_failed": "number"
+}
+```
+
+### UploadedFile
+
+```json
+{
+  "original_filename": "string",
+  "saved_as": "string",
+  "size_bytes": "number",
+  "content_type": "string",
+  "status": "ok"
+}
+```
+
+### FailedFile
+
+```json
+{
+  "original_filename": "string",
+  "reason": "string"
+}
+```
+
 ### HealthResponse
 
 ```json
@@ -212,6 +246,58 @@ A single recorded search event.
 ```
 
 ## API Endpoints
+
+### Uploads
+
+#### Upload Images
+
+Accept one or more image files and save them to the `incoming/` staging directory for downstream batch processing (OCR, embeddings, tagging, DB insert). Files are saved as `{uuid}.{ext}` to avoid collisions; the original filename is preserved in the response.
+
+- **URL**: `POST /api/uploads`
+- **Content-Type**: `multipart/form-data`
+- **Form field**: `files` — one or more image files (required)
+
+**Constraints**:
+
+| Rule | Value |
+|------|-------|
+| Accepted MIME types | `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/bmp`, `image/tiff` |
+| Accepted extensions | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.bmp`, `.tif`, `.tiff` |
+| Max file size | 20 MB per file |
+| Max files per request | 50 |
+
+**Response** `200 OK` — `UploadResponse`:
+
+```json
+{
+  "uploaded": [
+    {
+      "original_filename": "funny_cat.jpg",
+      "saved_as": "a1b2c3d4-1234-5678-abcd-ef0123456789.jpg",
+      "size_bytes": 204800,
+      "content_type": "image/jpeg",
+      "status": "ok"
+    }
+  ],
+  "failed": [
+    {
+      "original_filename": "document.pdf",
+      "reason": "Unsupported file type: application/pdf"
+    }
+  ],
+  "total_accepted": 1,
+  "total_failed": 1
+}
+```
+
+Per-file type or size errors are reported in `failed[]` — the rest of the batch is still saved and the response is always `200`. If every file fails, `uploaded` is an empty array.
+
+**Error Responses**:
+- `422`: More than 50 files submitted, or malformed multipart body
+
+**Storage**: `{BASE_PATH}/incoming/` (created automatically on first request). Not served by the API — the batch pipeline picks up files from this directory.
+
+---
 
 ### Images
 
