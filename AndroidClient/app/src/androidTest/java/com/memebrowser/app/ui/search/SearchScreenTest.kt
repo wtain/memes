@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.lifecycle.SavedStateHandle
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.ui.theme.MemeBrowserTheme
@@ -40,7 +41,7 @@ class SearchScreenTest {
         every { envRepo.selectedEnvironmentId } returns MutableStateFlow("env-1")
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.success(androidFakeSearchResponse)
         coEvery { repo.health() } returns Result.success(androidFakeHealthy)
-        viewModel = SearchViewModel(repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
     }
 
     private fun setContent(
