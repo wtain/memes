@@ -68,16 +68,18 @@ class SearchScreenTest {
     }
 
     @Test
-    fun settingsIcon_isDisplayed() {
+    fun menuButton_isDisplayed() {
         setContent()
-        composeTestRule.onNodeWithContentDescription("Environments").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Open menu").assertIsDisplayed()
     }
 
     @Test
-    fun settingsIcon_click_invokesCallback() {
+    fun environmentsItem_click_invokesCallback() {
         var clicked = false
         setContent(onEnvironmentsClick = { clicked = true })
-        composeTestRule.onNodeWithContentDescription("Environments").performClick()
+        composeTestRule.onNodeWithContentDescription("Open menu").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Environments").performClick()
         assertTrue(clicked)
     }
 
