@@ -52,6 +52,24 @@ Get-Content ..\environments\.env.general | foreach {
 alembic upgrade head    
 ```
 
+```powershell
+Get-Content ..\environments\.env.metal | foreach {
+    $name, $value = $_.split('=')
+    set-content env:\$name $value
+}
+    
+alembic upgrade head
+```
+
+```powershell
+Get-Content ..\environments\.env.it | foreach {
+    $name, $value = $_.split('=')
+    set-content env:\$name $value
+}
+    
+alembic upgrade head
+```
+
 
 New database
 
