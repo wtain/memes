@@ -20,8 +20,9 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = System.getenv("ANDROID_VERSION") ?: "dev"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "ANDROID_VERSION", "\"${System.getenv("ANDROID_VERSION") ?: "dev"}\"")
     }
 
     signingConfigs {
@@ -62,6 +63,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
@@ -93,6 +94,7 @@ fun SearchScreen(
     onEnvironmentsClick: () -> Unit,
     onExcludedClick: () -> Unit,
     onUploadClick: () -> Unit = {},
+    onAboutClick: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -130,6 +132,10 @@ fun SearchScreen(
                         scope.launch { drawerState.close() }
                         onEnvironmentsClick()
                         viewModel.checkHealth()
+                    },
+                    onAboutClick = {
+                        scope.launch { drawerState.close() }
+                        onAboutClick()
                     }
                 )
             }
@@ -221,7 +227,8 @@ private fun DrawerContent(
     healthStatus: HealthStatus,
     onUploadClick: () -> Unit,
     onExcludedClick: () -> Unit,
-    onEnvironmentsClick: () -> Unit
+    onEnvironmentsClick: () -> Unit,
+    onAboutClick: () -> Unit
 ) {
     Spacer(Modifier.height(16.dp))
     Text(
@@ -275,6 +282,13 @@ private fun DrawerContent(
         label = { Text("Environments") },
         selected = false,
         onClick = onEnvironmentsClick,
+        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+    )
+    NavigationDrawerItem(
+        icon = { Icon(Icons.Default.Info, contentDescription = null) },
+        label = { Text("About") },
+        selected = false,
+        onClick = onAboutClick,
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
     )
 }

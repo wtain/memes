@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.memebrowser.app.ui.about.AboutScreen
 import com.memebrowser.app.ui.detail.MemeDetailScreen
 import com.memebrowser.app.ui.environment.EnvironmentManagerScreen
 import com.memebrowser.app.ui.excluded.ExcludedScreen
@@ -21,7 +22,8 @@ fun NavGraph() {
                 onMemeClick = { memeId -> navController.navigate("detail/$memeId") },
                 onEnvironmentsClick = { navController.navigate("environments") },
                 onExcludedClick = { navController.navigate("excluded") },
-                onUploadClick = { navController.navigate("upload") }
+                onUploadClick = { navController.navigate("upload") },
+                onAboutClick = { navController.navigate("about") }
             )
         }
         composable(
@@ -57,6 +59,9 @@ fun NavGraph() {
         }
         composable("upload") {
             UploadScreen(onBack = { navController.popBackStack() })
+        }
+        composable("about") {
+            AboutScreen(onBack = { navController.popBackStack() })
         }
     }
 }
