@@ -211,6 +211,16 @@ export class HttpMemesApi implements MemesApi {
     return Promise.resolve(Number.parseInt(await res.text()) === 1)
   }
 
+  async getRecommendations(q?: string, limit?: number, cursor?: string): Promise<MemeSearchResponse> {
+    const params = new URLSearchParams()
+    if (q) params.set("q", q)
+    if (limit) params.set("limit", String(limit))
+    if (cursor) params.set("cursor", cursor)
+    const res = await fetch(`${this.baseUrl}/api/recommendations?${params}`, { headers: { Accept: "application/json" } })
+    if (!res.ok) throw new Error(`Failed to fetch recommendations: ${res.status}`)
+    return res.json()
+  }
+
   async getTrendsDates(label?: string, name?: string): Promise<string[]> {
     const params = new URLSearchParams()
     if (label) params.set("label", label)

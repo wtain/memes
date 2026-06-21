@@ -13,9 +13,10 @@ type MemesListProps = {
   listUntagged?: boolean
   listDuplicates?: boolean
   listExcluded?: boolean
+  listRecommendations?: boolean
 }
 
-export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listExcluded }: MemesListProps) {
+export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listExcluded, listRecommendations }: MemesListProps) {
   const [memes, setMemes] = useState<Meme[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -95,6 +96,9 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
       }
       if (listExcluded) {
         return await memesApi.iterateExcludedMemes(40, next)
+      }
+      if (listRecommendations) {
+        return await memesApi.getRecommendations(filter, 36, next)
       }
       return await memesApi.searchMemes({
         cursor: next,

@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import type { TrendEntry } from "../types/trends"
 
 type Props = {
@@ -19,6 +19,7 @@ export function TrendRunEntries({ entries }: Props) {
           <th className="p-2 border">Label</th>
           <th className="p-2 border">Name</th>
           <th className="p-2 border text-right">Count</th>
+          <th className="p-2 border"></th>
         </tr>
       </thead>
       <tbody>
@@ -31,6 +32,15 @@ export function TrendRunEntries({ entries }: Props) {
             <td className="p-2 border text-gray-500">{e.label}</td>
             <td className="p-2 border font-medium">{e.name}</td>
             <td className="p-2 border text-right tabular-nums">{e.value}</td>
+            <td className="p-2 border text-center">
+              <Link
+                to={`/recommendations?q=${encodeURIComponent(e.name)}`}
+                className="text-blue-500 hover:underline text-xs"
+                onClick={ev => ev.stopPropagation()}
+              >
+                Recs
+              </Link>
+            </td>
           </tr>
         ))}
       </tbody>

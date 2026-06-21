@@ -51,6 +51,15 @@ export default function AppLayout() {
           </NavLink>
 
           <NavLink
+            to="/recommendations"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Recommendations
+          </NavLink>
+
+          <NavLink
             to="/trends"
             className={({ isActive }) =>
               isActive ? "font-semibold text-blue-600" : "text-gray-600"

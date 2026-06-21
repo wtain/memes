@@ -30,6 +30,8 @@ export interface MemesApi {
 
   getImageIsExcluded(id: string): Promise<boolean>;
 
+  getRecommendations(q?: string, limit?: number, cursor?: string): Promise<MemeSearchResponse>;
+
   getTrendsDates(label?: string, name?: string): Promise<string[]>;
   getLatestTrendsRun(date: string): Promise<TrendsRunDto>;
   getTrendsRun(runId: string, minValue?: number): Promise<TrendEntry[]>;
