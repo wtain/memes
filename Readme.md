@@ -34,9 +34,13 @@ For detailed setup instructions, see **[SETUP.md](./SETUP.md)**.
 
 Quick steps:
 ```bash
-# Backend
+# Backend — CPU (Docker, CI, no GPU)
 cd Backend
 pip install -r requirements.txt
+
+# Backend — GPU/CUDA (local dev with NVIDIA GPU)
+pip install -r requirements.txt -r requirements-cuda.txt
+
 set WATCHFILES_FORCE_POLLING=1
 uvicorn app.main:app --reload --env-file ../environments/.env.metal
 
@@ -413,6 +417,31 @@ pytest  # Run unit and integration tests
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md#quality-assurance) for detailed quality assurance strategy.
+
+## Python Dependencies
+
+### CPU vs CUDA (PyTorch)
+
+PyTorch CUDA builds (`+cu121`) are not published on PyPI — they live on PyTorch's own package index. The project splits this across two files:
+
+| File | Purpose |
+|------|---------|
+| `requirements.txt` | CPU builds — works on PyPI, used by Docker and CI |
+| `requirements-cuda.txt` | CUDA overrides — requires PyTorch's extra index URL, for local GPU dev |
+
+**Docker / CI / no GPU:**
+```bash
+pip install -r requirements.txt
+```
+
+**Local dev with an NVIDIA GPU:**
+```bash
+pip install -r requirements.txt -r requirements-cuda.txt
+```
+
+`requirements-cuda.txt` includes the `--extra-index-url` line pointing to `https://download.pytorch.org/whl/cu121`, so no extra flags are needed when installing it directly. The CUDA packages override their CPU counterparts from `requirements.txt`.
+
+---
 
 ## Special Settings
 
