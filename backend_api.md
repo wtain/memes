@@ -415,6 +415,57 @@ Retrieve the actual image file.
 - **Error Responses**:
   - `404`: Image not found
 
+---
+
+### Recommendations
+
+#### Get Random Recommendations
+
+Returns a stable-randomized feed of memes, optionally filtered by a text query. Results are stable across pages for the same seed — the order is determined by `md5(image_id || seed)` so each (image, seed) pair always has the same position in the feed. Excluded images are never returned.
+
+```
+GET /api/recommendations
+```
+
+**Query Parameters**:
+
+| Parameter | Type   | Default              | Description |
+|-----------|--------|----------------------|-------------|
+| `q`       | string | —                    | Optional search query. Split on whitespace; all words must match (AND). Each word is matched case-insensitively against the combined OCR text (confidence > 0.8, all blocks joined with a space) **or** any tag value. Empty string is treated as no query. |
+| `seed`    | int    | server-random        | Randomization seed. On the first call (no `cursor`) a seed controls the shuffle. If omitted, the server picks one. On subsequent pages the seed is read from the `cursor` and the URL param is ignored (a mismatch is logged as a warning). |
+| `limit`   | int    | 20                   | Items per page (1–100). |
+| `cursor`  | string | —                    | Opaque pagination token from the previous response. Encodes `{seed, last_hash}` where `last_hash = md5(last_item_id || seed)`. |
+
+**Response** `200 OK` — `MemeSearchResponse`:
+
+```json
+{
+  "items": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "imageUrl": "/api/images/550e8400-e29b-41d4-a716-446655440000",
+      "originalFileName": "funny_cat.jpg",
+      "text": ["When you debug for 6 hours"],
+      "tags": [{ "name": "cats", "category": "subject", "score": 1, "source": "tagger" }],
+      "excluded": false
+    }
+  ],
+  "facets": [],
+  "nextCursor": "eyJzZWVkIjogMTIzNDUsICJsYXN0X2hhc2giOiAiYWJjZGVmIn0=",
+  "hasNext": true
+}
+```
+
+- `facets` is always an empty array.
+- `text` contains clean OCR strings (no confidence annotation).
+- To fetch subsequent pages, pass `nextCursor` as `cursor` in the next request.
+- Starting a new session (no `cursor`) with the same `seed` reproduces the same order.
+
+**Pagination behaviour**:
+The cursor is a keyset based on `md5(image_id || seed)`. This means pagination is independent of `limit` — you can change `limit` between pages without skipping or duplicating items. However, images added after the first request may appear or be skipped depending on their hash position relative to the current page boundary.
+
+---
+
 ### Concepts
 
 #### Get All Concepts

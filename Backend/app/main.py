@@ -9,6 +9,7 @@ from Backend.app.api.diagnostics import router as diagnostics_router
 from Backend.app.api.history import router as history_router
 from Backend.app.api.images import router as images_router
 from Backend.app.api.concepts import router as concepts_router
+from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.trends import router as trends_router
 from Backend.app.api.uploads import router as uploads_router
 
@@ -49,6 +50,7 @@ app.include_router(diagnostics_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(images_router, prefix="/api")
 app.include_router(concepts_router, prefix="/api")
+app.include_router(recommendations_router, prefix="/api")
 app.include_router(trends_router, prefix="/api")
 app.include_router(uploads_router, prefix="/api")
 
