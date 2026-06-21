@@ -1,0 +1,272 @@
+defaults:
+  threshold: 1.0
+tags:
+  album:spiritual healing: {}
+  animal:bear: {}
+  animal:cat: {}
+  animal:dog: {}
+  animal:frog: {}
+  animal:shark: {}
+  animal:snake: {}
+  animal:toad: {}
+  animal:whale: {}
+  band:Guns'n'Roses: {}
+  band:ac/dc: {}
+  band:agalloch: {}
+  band:alice cooper: {}
+  band:alice in chains: {}
+  band:anthrax: {}
+  band:aqua: {}
+  band:arch enemy: {}
+  band:as i lay dying: {}
+  band:avril lavigne: {}
+  band:babymetal: {}
+  band:beatles: {}
+  band:black sabbath: {}
+  band:bon jovi: {}
+  band:bring me the horizon: {}
+  band:burzum: {}
+  band:cannibal corpse: {}
+  band:children of bodom: {}
+  band:death: {}
+  band:def leppard: {}
+  band:deftones: {}
+  band:deicide: {}
+  band:dio: {}
+  band:dream theater: {}
+  band:dying fetus: {}
+  band:emperor: {}
+  band:foo fighters: {}
+  band:gojira: {}
+  band:gutalax: {}
+  band:gwar: {}
+  band:iggy pop: {}
+  band:infant annihilator: {}
+  band:iron maiden: {}
+  band:judas priest: {}
+  band:kiss: {}
+  band:korn: {}
+  band:kreator: {}
+  band:lamb of god: {}
+  band:limp bizkit: {}
+  band:linkin park: {}
+  band:lorna shore: {}
+  band:mayhem: {}
+  band:megadeth: {}
+  band:meshuggah: {}
+  band:metallica: {}
+  band:morbid angel: {}
+  band:motorhead: {}
+  band:mudvayne: {}
+  band:nickelback: {}
+  band:nirvana: {}
+  band:oasis: {}
+  band:obituary: {}
+  band:opeth: {}
+  band:pantera: {}
+  band:pearl jam: {}
+  band:powerwolf: {}
+  band:red hot chili peppers: {}
+  band:rolling stones: {}
+  band:sabaton: {}
+  band:sepultura: {}
+  band:six feet under: {}
+  band:slayer: {}
+  band:slipknot: {}
+  band:soundgarden: {}
+  band:static-x: {}
+  band:steel panther: {}
+  band:system of a down: {}
+  band:taylor swift: {}
+  band:the cure: {}
+  band:the doors: {}
+  band:the police: {}
+  band:twisted sister: {}
+  band:van halen: {}
+  band:whitechapel: {}
+  band:wintersun: {}
+  band:zz top: {}
+  character:barbie: {}
+  character:bart simpson: {}
+  character:darth vader: {}
+  character:homer simpson: {}
+  character:hulk: {}
+  character:jesus christ: {}
+  character:lisa simpson: {}
+  character:marge simpson: {}
+  character:ronald mcdonald: {}
+  character:skeletor: {}
+  character:spongebob: {}
+  country:australia: {}
+  country:brazil: {}
+  country:canada: {}
+  country:finland: {}
+  country:france: {}
+  country:great britain: {}
+  country:japan: {}
+  country:norway: {}
+  country:sweden: {}
+  country:usa: {}
+  genre:alternative: {}
+  genre:black metal: {}
+  genre:classic music: {}
+  genre:coprogrind: {}
+  genre:death metal: {}
+  genre:deathcore: {}
+  genre:epic symphonic melodic death metal: {}
+  genre:fold metal: {}
+  genre:funk metal: {}
+  genre:glam metal: {}
+  genre:glam rock: {}
+  genre:grindcore: {}
+  genre:groove metal: {}
+  genre:grove metal: {}
+  genre:grunge: {}
+  genre:hard rock: {}
+  genre:heavy metal: {}
+  genre:kawai metal: {}
+  genre:mat metal: {}
+  genre:melodic death metal: {}
+  genre:metal: {}
+  genre:metalcore: {}
+  genre:nu metal: {}
+  genre:numetal: {}
+  genre:pop: {}
+  genre:pop punk: {}
+  genre:power metal: {}
+  genre:progressive melodic death metal: {}
+  genre:progressive metal: {}
+  genre:progressive rock: {}
+  genre:proto-punk: {}
+  genre:punk rock: {}
+  genre:rap metal: {}
+  genre:rock: {}
+  genre:shock rock: {}
+  genre:soft rock: {}
+  genre:southern rock: {}
+  genre:speed metal: {}
+  genre:symphonic deathcore: {}
+  genre:thrash metal: {}
+  lore:album delay: {}
+  lore:alcohol: {}
+  lore:animals: {}
+  lore:anime: {}
+  lore:antagonism: {}
+  lore:anti religion: {}
+  lore:arson: {}
+  lore:autism: {}
+  lore:barbie: {}
+  lore:beavis and butthead: {}
+  lore:blasphemy: {}
+  lore:booze: {}
+  lore:california: {}
+  lore:cartoons: {}
+  lore:clowns: {}
+  lore:corpsegrinder: {}
+  lore:deicide: {}
+  lore:depression: {}
+  lore:dolphin: {}
+  lore:eee: {}
+  lore:fantasy: {}
+  lore:gays: {}
+  lore:hell: {}
+  lore:history: {}
+  lore:homicide: {}
+  lore:lord of the rings: {}
+  lore:love: {}
+  lore:metal: {}
+  lore:music: {}
+  lore:mutiliation: {}
+  lore:nature: {}
+  lore:oil: {}
+  lore:parties: {}
+  lore:pirates: {}
+  lore:punk: {}
+  lore:relationship: {}
+  lore:religion: {}
+  lore:satan: {}
+  lore:satanism: {}
+  lore:seattle: {}
+  lore:sesame street: {}
+  lore:simpsons: {}
+  lore:snarling: {}
+  lore:snow: {}
+  lore:society: {}
+  lore:sorrow: {}
+  lore:spongebob: {}
+  lore:stabbed: {}
+  lore:star wars: {}
+  lore:suicide: {}
+  lore:the office: {}
+  lore:toilet: {}
+  lore:war: {}
+  lore:weed: {}
+  lore:whales: {}
+  lore:witches: {}
+  lore:zombies: {}
+  person:alice cooper: {}
+  person:alissa white-gluz: {}
+  person:angela gossow: {}
+  person:angus young: {}
+  person:anthony kiedis: {}
+  person:avril lavigne: {}
+  person:axl rose: {}
+  person:beavis: {}
+  person:borat: {}
+  person:bruce dickinson: {}
+  person:chad kroger: {}
+  person:chester bennington: {}
+  person:chris barnes: {}
+  person:chris cornell: {}
+  person:corey taylor: {}
+  person:daron malakian: {}
+  person:dave grohl: {}
+  person:dave lombardo: {}
+  person:dave murray: {}
+  person:dave mustaine: {}
+  person:dead: {}
+  person:dimebag darell: {}
+  person:dio: {}
+  person:emily armstrong: {}
+  person:euronymous: {}
+  person:fred durst: {}
+  person:geeze butler: {}
+  person:george fisher: {}
+  person:glen benton: {}
+  person:igor cavaliera: {}
+  person:james hetfield: {}
+  person:jari maenpaa: {}
+  person:jeff hanneman: {}
+  person:joe duplantier: {}
+  person:joey jordison: {}
+  person:john dolmayan: {}
+  person:jonathan davis: {}
+  person:kerry king: {}
+  person:kirk hammett: {}
+  person:kris novoselic: {}
+  person:kurt kobain: {}
+  person:lars ulrich: {}
+  person:lemmy kilmister: {}
+  person:master yoda: {}
+  person:max cavaliera: {}
+  person:michael ammott: {}
+  person:michael shinoda: {}
+  person:mikael akerfeldt: {}
+  person:mozart: {}
+  person:ozzy osbourne: {}
+  person:phil anselmo: {}
+  person:rob halford: {}
+  person:robert trujilho: {}
+  person:serj tankian: {}
+  person:shavo odadjian: {}
+  person:taylor swift: {}
+  person:tim lambesis: {}
+  person:tom araya: {}
+  person:tony iommi: {}
+  person:varg vikernes: {}
+  person:will ramos: {}
+  song:barbie girl: {}
+  song:breaking the law: {}
+  song:glory hole: {}
+  song:holy diver: {}
+  song:smells like a teen spirit: {}

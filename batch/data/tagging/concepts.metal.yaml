@@ -1,0 +1,964 @@
+opeth:
+  words:
+  - opeth
+  - ghost of perdition
+  - mikael akerfeldt
+  votes:
+    band:opeth: 1.0
+    country:sweden: 1.0
+    genre:progressive melodic death metal: 1.0
+    lore:sorrow: 1.0
+    person:mikael akerfeldt: 1.0
+metallica:
+  words:
+  - metallica
+  - hetfield
+  votes:
+    band:metallica: 1.0
+    country:usa: 1.0
+    genre:thrash metal: 1.0
+    lore:booze: 1.0
+    person:james hetfield: 1.0
+    person:lars ulrich: 1.0
+    person:kirk hammett: 1.0
+    person:robert trujilho: 1.0
+burzum:
+  words:
+  - burzum
+  - varg
+  votes:
+    band:burzum: 1.0
+    country:norway: 1.0
+    genre:black metal: 1.0
+    lore:satan: 1.0
+    lore:homicide: 1.0
+    lore:stabbed: 1.0
+    lore:arson: 1.0
+    person:varg vikernes: 1.0
+    person:euronymous: 1.0
+    person:dead: 1.0
+motorhead:
+  words:
+  - motorhead
+  - lemmy
+  votes:
+    band:motorhead: 1.0
+    country:great britain: 1.0
+    genre:speed metal: 1.0
+    lore:booze: 1.0
+    person:lemmy kilmister: 1.0
+babymetal:
+  words:
+  - babymetal
+  - baby metal
+  votes:
+    band:babymetal: 1.0
+    country:japan: 1.0
+    genre:kawai metal: 1.0
+    lore:anime: 1.0
+nickelback:
+  words:
+  - nickelback
+  - chad kroeger
+  votes:
+    band:nickelback: 1.0
+    country:canada: 1.0
+    genre:hard rock: 1.0
+    person:chad kroger: 1.0
+slayer:
+  words:
+  - slayer
+  votes:
+    band:slayer: 1.0
+    country:usa: 1.0
+    genre:thrash metal: 1.0
+    lore:booze: 1.0
+    lore:anti religion: 1.0
+    lore:satan: 1.0
+    person:kerry king: 1.0
+    person:jeff hanneman: 1.0
+    person:dave lombardo: 1.0
+    person:tom araya: 1.0
+slipknot:
+  words:
+  - slipknot
+  votes:
+    band:slipknot: 1.0
+    country:usa: 1.0
+    genre:nu metal: 1.0
+    person:corey taylor: 1.0
+    person:joey jordison: 1.0
+deicide:
+  words:
+  - deicide
+  votes:
+    band:deicide: 1.0
+    country:usa: 1.0
+    genre:death metal: 1.0
+    lore:deicide: 1.0
+    lore:blasphemy: 1.0
+    person:glen benton: 1.0
+lorna shore:
+  words:
+  - lorna shore
+  votes:
+    band:lorna shore: 1.0
+    country:usa: 1.0
+    genre:symphonic deathcore: 1.0
+    lore:snarling: 1.0
+    person:will ramos: 1.0
+nirvana:
+  words:
+  - nirvana
+  votes:
+    band:nirvana: 1.0
+    country:usa: 1.0
+    genre:grunge: 1.0
+    lore:suicide: 1.0
+    lore:depression: 1.0
+    lore:seattle: 1.0
+    person:kurt kobain: 1.0
+    person:dave grohl: 1.0
+    person:kris novoselic: 1.0
+oasis:
+  words:
+  - oasis
+  votes:
+    band:oasis: 1.0
+    country:usa: 1.0
+    genre:pop punk: 1.0
+six feet under:
+  words:
+  - six feet under
+  votes:
+    band:six feet under: 1.0
+    country:usa: 1.0
+    genre:death metal: 1.0
+    lore:eee: 1.0
+    person:chris barnes: 1.0
+cannibal corpse:
+  words:
+  - cannibal corpse
+  - canibal corpse
+  votes:
+    band:cannibal corpse: 1.0
+    country:usa: 1.0
+    genre:death metal: 1.0
+    lore:mutiliation: 1.0
+    lore:corpsegrinder: 1.0
+    person:george fisher: 1.0
+dying fetus:
+  words:
+  - dying fetus
+  votes:
+    band:dying fetus: 1.0
+    country:usa: 1.0
+    genre:death metal: 1.0
+    lore:antagonism: 1.0
+judas priest:
+  words:
+  - judas priest
+  votes:
+    band:judas priest: 1.0
+    country:great britain: 1.0
+    genre:speed metal: 1.0
+    lore:gays: 1.0
+    person:rob halford: 1.0
+system of a down:
+  words:
+  - system of a down
+  votes:
+    band:system of a down: 1.0
+    country:usa: 1.0
+    genre:nu metal: 1.0
+    lore:oil: 1.0
+    lore:antagonism: 1.0
+    lore:war: 1.0
+    lore:weed: 1.0
+    lore:california: 1.0
+    person:serj tankian: 1.0
+    person:daron malakian: 1.0
+    person:shavo odadjian: 1.0
+    person:john dolmayan: 1.0
+ac/dc:
+  words:
+  - ac/dc
+  votes:
+    band:ac/dc: 1.0
+    country:australia: 1.0
+    genre:hard rock: 1.0
+    person:angus young: 1.0
+wintersun:
+  words:
+  - wintersun
+  votes:
+    band:wintersun: 1.0
+    country:finland: 1.0
+    genre:epic symphonic melodic death metal: 1.0
+    lore:album delay: 1.0
+    lore:nature: 1.0
+    lore:snow: 1.0
+    person:jari maenpaa: 1.0
+megadeth:
+  words:
+  - megadeth
+  votes:
+    band:megadeth: 1.0
+    country:usa: 1.0
+    genre:thrash metal: 1.0
+    lore:antagonism: 1.0
+    person:dave mustaine: 1.0
+taylor swift:
+  words:
+  - taylor swift
+  votes:
+    band:taylor swift: 1.0
+    country:usa: 1.0
+    genre:pop: 1.0
+    lore:relationship: 1.0
+    lore:love: 1.0
+    person:taylor swift: 1.0
+black sabbath:
+  words:
+  - black sabbath
+  votes:
+    band:black sabbath: 1.0
+    country:great britain: 1.0
+    genre:heavy metal: 1.0
+    lore:witches: 1.0
+    lore:antagonism: 1.0
+    person:ozzy osbourne: 1.0
+    person:geeze butler: 1.0
+    person:tony iommi: 1.0
+iron maiden:
+  words:
+  - iron maiden
+  votes:
+    band:iron maiden: 1.0
+    country:great britain: 1.0
+    genre:heavy metal: 1.0
+    lore:history: 1.0
+    lore:war: 1.0
+    person:bruce dickinson: 1.0
+    person:dave murray: 1.0
+steel panther:
+  words:
+  - steel panther
+  votes:
+    band:steel panther: 1.0
+    country:usa: 1.0
+    genre:glam metal: 1.0
+    lore:parties: 1.0
+    lore:booze: 1.0
+alice in chains:
+  words:
+  - alice in chains
+  votes:
+    band:alice in chains: 1.0
+    country:usa: 1.0
+    genre:grunge: 1.0
+soundgarden:
+  words:
+  - soundgarden
+  votes:
+    band:soundgarden: 1.0
+    country:usa: 1.0
+    genre:grunge: 1.0
+    person:chris cornell: 1.0
+mayhem:
+  words:
+  - mayhem
+  - euronymous
+  votes:
+    band:mayhem: 1.0
+    country:norway: 1.0
+    genre:black metal: 1.0
+    lore:satan: 1.0
+    lore:homicide: 1.0
+    person:euronymous: 1.0
+arch enemy:
+  words:
+  - arch enemy
+  votes:
+    band:arch enemy: 1.0
+    country:sweden: 1.0
+    genre:melodic death metal: 1.0
+    lore:antagonism: 1.0
+    lore:society: 1.0
+    person:michael ammott: 1.0
+    person:angela gossow: 1.0
+    person:alissa white-gluz: 1.0
+korn:
+  words:
+  - korn
+  votes:
+    band:korn: 1.0
+    country:usa: 1.0
+    genre:nu metal: 1.0
+    lore:antagonism: 1.0
+    lore:society: 1.0
+    person:jonathan davis: 1.0
+limp bizkit:
+  words:
+  - limp bizkit
+  votes:
+    band:limp bizkit: 1.0
+    country:usa: 1.0
+    genre:nu metal: 1.0
+    genre:rap metal: 1.0
+    lore:antagonism: 1.0
+    lore:society: 1.0
+    person:fred durst: 1.0
+linkin park:
+  words:
+  - linkin park
+  votes:
+    band:linkin park: 1.0
+    country:usa: 1.0
+    genre:nu metal: 1.0
+    genre:rap metal: 1.0
+    lore:society: 1.0
+    person:michael shinoda: 1.0
+    person:emily armstrong: 1.0
+    person:chester bennington: 1.0
+sepultura:
+  words:
+  - sepultura
+  votes:
+    band:sepultura: 1.0
+    country:brazil: 1.0
+    genre:groove metal: 1.0
+    lore:society: 1.0
+    person:max cavaliera: 1.0
+    person:igor cavaliera: 1.0
+pantera:
+  words:
+  - pantera
+  votes:
+    band:pantera: 1.0
+    country:usa: 1.0
+    genre:glam metal: 1.0
+    genre:groove metal: 1.0
+    lore:society: 1.0
+    person:dimebag darell: 1.0
+    person:phil anselmo: 1.0
+gojira:
+  words:
+  - gojira
+  votes:
+    band:gojira: 1.0
+    country:france: 1.0
+    genre:grove metal: 1.0
+    genre:progressive metal: 1.0
+    lore:society: 1.0
+    lore:whales: 1.0
+    person:joe duplantier: 1.0
+meshuggah:
+  words:
+  - meshuggah
+  votes:
+    band:meshuggah: 1.0
+    country:sweden: 1.0
+    genre:mat metal: 1.0
+    lore:society: 1.0
+black metal:
+  words:
+  - black metal
+  votes:
+    genre:black metal: 1.0
+    lore:satan: 1.0
+death metal:
+  words:
+  - death metal
+  votes:
+    genre:death metal: 1.0
+cat:
+  words:
+  - cat
+  - cats
+  - kitten
+  - kittens
+  - kitty
+  votes:
+    lore:animals: 1.0
+    animal:cat: 1.0
+serj tankian:
+  words:
+  - serj tankian
+  votes:
+    lore:music: 1.0
+    person:serj tankian: 1.0
+    genre:numetal: 1.0
+    band:system of a down: 1.0
+jesus:
+  words:
+  - jesus
+  votes:
+    lore:religion: 1.0
+    character:jesus christ: 1.0
+skeletor:
+  words:
+  - skeletor
+  votes:
+    lore:cartoons: 1.0
+    character:skeletor: 1.0
+frog:
+  words:
+  - frog
+  votes:
+    lore:animals: 1.0
+    animal:frog: 1.0
+toad:
+  words:
+  - toad
+  votes:
+    lore:animals: 1.0
+    animal:toad: 1.0
+dog:
+  words:
+  - dog
+  votes:
+    lore:animals: 1.0
+    animal:dog: 1.0
+metalocalypse:
+  words:
+  - metalocalypse
+  votes:
+    lore:music: 1.0
+    genre:metal: 1.0
+    genre:death metal: 1.0
+    genre:melodic death metal: 1.0
+kerry king:
+  words:
+  - kerry king
+  votes:
+    lore:music: 1.0
+    genre:metal: 1.0
+    genre:thrash metal: 1.0
+    band:slayer: 1.0
+the cure:
+  words:
+  - the cure
+  votes:
+    genre:proto-punk: 1.0
+    genre:rock: 1.0
+    band:the cure: 1.0
+beatles:
+  words:
+  - beatles
+  votes:
+    genre:rock: 1.0
+    band:beatles: 1.0
+rolling stones:
+  words:
+  - rolling stones
+  votes:
+    genre:rock: 1.0
+    band:rolling stones: 1.0
+the police:
+  words:
+  - the police
+  votes:
+    genre:soft rock: 1.0
+    band:the police: 1.0
+the doors:
+  words:
+  - the doors
+  votes:
+    genre:rock: 1.0
+    band:the doors: 1.0
+def leppard:
+  words:
+  - def leppard
+  votes:
+    genre:rock: 1.0
+    genre:glam rock: 1.0
+    band:def leppard: 1.0
+avril lavigne:
+  words:
+  - avril lavigne
+  votes:
+    genre:punk rock: 1.0
+    genre:pop punk: 1.0
+    band:avril lavigne: 1.0
+    person:avril lavigne: 1.0
+static-x:
+  words:
+  - static-x
+  votes:
+    genre:alternative: 1.0
+    genre:nu metal: 1.0
+    band:static-x: 1.0
+deftones:
+  words:
+  - deftones
+  votes:
+    genre:alternative: 1.0
+    genre:nu metal: 1.0
+    band:deftones: 1.0
+mudvayne:
+  words:
+  - mudvayne
+  votes:
+    genre:alternative: 1.0
+    genre:nu metal: 1.0
+    band:mudvayne: 1.0
+anthrax:
+  words:
+  - anthrax
+  votes:
+    genre:thrash metal: 1.0
+    band:anthrax: 1.0
+lamb of god:
+  words:
+  - lamb of god
+  votes:
+    genre:groove metal: 1.0
+    band:lamb of god: 1.0
+infant annihilator:
+  words:
+  - infant annihilator
+  votes:
+    genre:death metal: 1.0
+    genre:deathcore: 1.0
+    band:infant annihilator: 1.0
+van halen:
+  words:
+  - van halen
+  votes:
+    genre:glam metal: 1.0
+    band:van halen: 1.0
+yoda:
+  words:
+  - yoda
+  votes:
+    lore:star wars: 1.0
+    person:master yoda: 1.0
+the office:
+  words:
+  - the office
+  votes:
+    lore:the office: 1.0
+borat:
+  words:
+  - borat
+  votes:
+    person:borat: 1.0
+kiss band:
+  words:
+  - kiss band
+  votes:
+    genre:glam metal: 1.0
+    band:kiss: 1.0
+iggy pop:
+  words:
+  - iggy pop
+  votes:
+    genre:rock: 1.0
+    band:iggy pop: 1.0
+tim lambesis:
+  words:
+  - tim lambesis
+  votes:
+    person:tim lambesis: 1.0
+    band:as i lay dying: 1.0
+    genre:metalcore: 1.0
+red hot chili peppers:
+  words:
+  - red hot chili peppers
+  votes:
+    band:red hot chili peppers: 1.0
+    genre:progressive rock: 1.0
+    genre:funk metal: 1.0
+anthony kiedis:
+  words:
+  - anthony kiedis
+  votes:
+    band:red hot chili peppers: 1.0
+    person:anthony kiedis: 1.0
+autism:
+  words:
+  - autism
+  votes:
+    lore:autism: 1.0
+obituary:
+  words:
+  - obituary
+  votes:
+    genre:death metal: 1.0
+    band:obituary: 1.0
+agalloch:
+  words:
+  - agalloch
+  votes:
+    genre:fold metal: 1.0
+    genre:black metal: 1.0
+    band:agalloch: 1.0
+children of bodom:
+  words:
+  - children of bodom
+  votes:
+    genre:melodic death metal: 1.0
+    band:children of bodom: 1.0
+    country:finland: 1.0
+dream theater:
+  words:
+  - dream theater
+  votes:
+    genre:progressive metal: 1.0
+    band:dream theater: 1.0
+    country:usa: 1.0
+progressive metal:
+  words:
+  - progressive metal
+  votes:
+    genre:progressive metal: 1.0
+gutalax:
+  words:
+  - gutalax
+  votes:
+    genre:grindcore: 1.0
+    genre:coprogrind: 1.0
+    band:gutalax: 1.0
+shark:
+  words:
+  - shark
+  votes:
+    lore:animals: 1.0
+    animal:shark: 1.0
+sesame street:
+  words:
+  - sesame street
+  votes:
+    lore:sesame street: 1.0
+zz top:
+  words:
+  - zz top
+  votes:
+    genre:southern rock: 1.0
+    genre:hard rock: 1.0
+    band:zz top: 1.0
+barbie girl:
+  words:
+  - barbie girl
+  votes:
+    band:aqua: 1.0
+    genre:pop: 1.0
+    song:barbie girl: 1.0
+    lore:barbie: 1.0
+powerwolf:
+  words:
+  - powerwolf
+  votes:
+    genre:power metal: 1.0
+    lore:religion: 1.0
+    band:powerwolf: 1.0
+sabaton:
+  words:
+  - sabaton
+  votes:
+    genre:power metal: 1.0
+    lore:war: 1.0
+    band:sabaton: 1.0
+twisted sister:
+  words:
+  - twisted sister
+  votes:
+    genre:glam metal: 1.0
+    band:twisted sister: 1.0
+lord of the rings:
+  words:
+  - lord of the rings
+  votes:
+    lore:lord of the rings: 1.0
+beavis:
+  words:
+  - beavis
+  votes:
+    lore:beavis and butthead: 1.0
+    person:beavis: 1.0
+pearl jam:
+  words:
+  - pearl jam
+  votes:
+    band:pearl jam: 1.0
+    country:usa: 1.0
+    genre:grunge: 1.0
+bring me the horizon:
+  words:
+  - bring me the horizon
+  votes:
+    band:bring me the horizon: 1.0
+    country:usa: 1.0
+    genre:metalcore: 1.0
+foo fighters:
+  words:
+  - foo fighters
+  votes:
+    band:foo fighters: 1.0
+    country:usa: 1.0
+    genre:hard rock: 1.0
+    genre:grunge: 1.0
+hulk:
+  words:
+  - hulk
+  votes:
+    character:hulk: 1.0
+axl rose:
+  words:
+  - axl rose
+  votes:
+    person:axl rose: 1.0
+    band:Guns'n'Roses: 1.0
+the simpsons:
+  words:
+  - the simpsons
+  votes:
+    lore:simpsons: 1.0
+homer simpson:
+  words:
+  - homer simpson
+  votes:
+    lore:simpsons: 1.0
+    character:homer simpson: 1.0
+marge simpson:
+  words:
+  - marge simpson
+  votes:
+    lore:simpsons: 1.0
+    character:marge simpson: 1.0
+lisa simpson:
+  words:
+  - lisa simpson
+  votes:
+    lore:simpsons: 1.0
+    character:lisa simpson: 1.0
+bart simpson:
+  words:
+  - bart simpson
+  votes:
+    lore:simpsons: 1.0
+    character:bart simpson: 1.0
+gwar:
+  words:
+  - gwar
+  votes:
+    band:gwar: 1.0
+    genre:shock rock: 1.0
+barbie:
+  words:
+  - barbie
+  votes:
+    lore:barbie: 1.0
+    character:barbie: 1.0
+whitechapel:
+  words:
+  - whitechapel
+  votes:
+    band:whitechapel: 1.0
+    genre:deathcore: 1.0
+    country:usa: 1.0
+spongebob:
+  words:
+  - spongebob
+  votes:
+    lore:spongebob: 1.0
+    character:spongebob: 1.0
+kreator:
+  words:
+  - kreator
+  votes:
+    band:kreator: 1.0
+    genre:thrash metal: 1.0
+goblin:
+  words:
+  - goblin
+  votes:
+    lore:fantasy: 1.0
+dwarf:
+  words:
+  - dwarf
+  votes:
+    lore:fantasy: 1.0
+ronald mcdonald:
+  words:
+  - ronald mcdonald
+  votes:
+    character:ronald mcdonald: 1.0
+spiritual healing:
+  words:
+  - spiritual healing
+  votes:
+    band:death: 1.0
+    genre:death metal: 1.0
+    album:spiritual healing: 1.0
+skateboard:
+  words:
+  - skateboard
+  votes:
+    lore:punk: 1.0
+flying whale:
+  words:
+  - flying whale
+  votes:
+    animal:whale: 1.0
+    genre:progressive metal: 1.0
+    genre:groove metal: 1.0
+    band:gojira: 1.0
+bon jovi:
+  words:
+  - bon jovi
+  votes:
+    band:bon jovi: 1.0
+    genre:glam metal: 1.0
+drunk:
+  words:
+  - drunk
+  votes:
+    lore:alcohol: 1.0
+satanic:
+  words:
+  - satanic
+  votes:
+    lore:satanism: 1.0
+deathcore:
+  words:
+  - deathcore
+  votes:
+    genre:deathcore: 1.0
+metalhead:
+  words:
+  - metalhead
+  votes:
+    genre:metal: 1.0
+    lore:metal: 1.0
+clown:
+  words:
+  - clown
+  votes:
+    lore:clowns: 1.0
+metalcore:
+  words:
+  - metalcore
+  votes:
+    genre:metalcore: 1.0
+hell:
+  words:
+  - hell
+  votes:
+    lore:hell: 1.0
+toilet:
+  words:
+  - toilet
+  votes:
+    lore:toilet: 1.0
+alcohol:
+  words:
+  - alcohol
+  votes:
+    lore:alcohol: 1.0
+mosh pit:
+  words:
+  - mosh pit
+  votes:
+    lore:metal: 1.0
+snake:
+  words:
+  - snake
+  votes:
+    lore:animals: 1.0
+    animal:snake: 1.0
+war:
+  words:
+  - war
+  votes:
+    lore:war: 1.0
+dolphin:
+  words:
+  - dolphin
+  votes:
+    lore:dolphin: 1.0
+    animal:snake: 1.0
+zombie:
+  words:
+  - zombie
+  votes:
+    lore:zombies: 1.0
+bear:
+  words:
+  - bear
+  - bears
+  votes:
+    lore:animals: 1.0
+    animal:bear: 1.0
+glory hole:
+  words:
+  - glory hole
+  votes:
+    song:glory hole: 1.0
+    band:steel panther: 1.0
+    genre:glam metal: 1.0
+darth vader:
+  words:
+  - darth vader
+  votes:
+    lore:star wars: 1.0
+    character:darth vader: 1.0
+thrash metal:
+  words:
+  - thrash metal
+  votes:
+    genre:thrash metal: 1.0
+breaking the law:
+  words:
+  - breaking the law
+  votes:
+    song:breaking the law: 1.0
+    band:judas priest: 1.0
+    genre:speed metal: 1.0
+mozart:
+  words:
+  - mozart
+  votes:
+    genre:classic music: 1.0
+    person:mozart: 1.0
+teen spirit:
+  words:
+  - teen spirit
+  votes:
+    song:smells like a teen spirit: 1.0
+    band:nirvana: 1.0
+    genre:grunge: 1.0
+holy diver:
+  words:
+  - holy diver
+  votes:
+    song:holy diver: 1.0
+    band:dio: 1.0
+    person:dio: 1.0
+    genre:glam metal: 1.0
+morbid angel:
+  words:
+  - morbid angel
+  votes:
+    genre:death metal: 1.0
+    band:morbid angel: 1.0
+pirate:
+  words:
+  - pirate
+  - pirates
+  votes:
+    lore:pirates: 1.0
+emperor:
+  words:
+  - emperor
+  votes:
+    genre:black metal: 1.0
+    band:emperor: 1.0
+alice cooper:
+  words:
+  - alice cooper
+  votes:
+    genre:shock rock: 1.0
+    band:alice cooper: 1.0
+    person:alice cooper: 1.0
