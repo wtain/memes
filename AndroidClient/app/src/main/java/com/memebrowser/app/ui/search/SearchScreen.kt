@@ -30,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
@@ -61,8 +63,10 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -275,7 +279,7 @@ private fun DrawerContent(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FacetBottomSheet(
     facets: List<Facet>,
@@ -284,6 +288,8 @@ private fun FacetBottomSheet(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val expandedFacets = remember { mutableStateMapOf<String, Boolean>() }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState
@@ -298,7 +304,7 @@ private fun FacetBottomSheet(
             Text(
                 text = "Filters",
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
             if (facets.isEmpty()) {
                 Text(
@@ -308,32 +314,75 @@ private fun FacetBottomSheet(
                 )
             } else {
                 facets.forEach { facet ->
-                    Text(
-                        text = facet.name,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                    val isExpanded = expandedFacets[facet.name] ?: false
+                    val activeCount = activeFacets.count { it.category == facet.name }
+                    FacetSection(
+                        facet = facet,
+                        isExpanded = isExpanded,
+                        activeCount = activeCount,
+                        activeFacets = activeFacets,
+                        onToggle = onToggle,
+                        onExpandToggle = { expandedFacets[facet.name] = !isExpanded }
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp)
-                    ) {
-                        facet.buckets.forEach { bucket ->
-                            val isActive = activeFacets.any {
-                                it.category == facet.name && it.value == bucket.value
-                            }
-                            FilterChip(
-                                selected = isActive,
-                                onClick = { onToggle(facet.name, bucket.value) },
-                                label = { Text("${bucket.value} (${bucket.count.toInt()})") }
-                            )
-                        }
-                    }
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FacetSection(
+    facet: Facet,
+    isExpanded: Boolean,
+    activeCount: Int,
+    activeFacets: List<ActiveFacet>,
+    onToggle: (String, String) -> Unit,
+    onExpandToggle: () -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onExpandToggle)
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = facet.name, style = MaterialTheme.typography.labelLarge)
+                if (activeCount > 0) {
+                    Badge { Text("$activeCount") }
+                }
+            }
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (isExpanded) "Collapse ${facet.name}" else "Expand ${facet.name}"
+            )
+        }
+        AnimatedVisibility(visible = isExpanded) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            ) {
+                facet.buckets.forEach { bucket ->
+                    val isActive = activeFacets.any {
+                        it.category == facet.name && it.value == bucket.value
+                    }
+                    FilterChip(
+                        selected = isActive,
+                        onClick = { onToggle(facet.name, bucket.value) },
+                        label = { Text("${bucket.value} (${bucket.count.toInt()})") }
+                    )
+                }
+            }
+        }
+        HorizontalDivider()
     }
 }
 
