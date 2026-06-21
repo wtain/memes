@@ -107,7 +107,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
         tags,
       })
     }
-  }, [filter, tagFilters, memesApi, onFacetsChanged, listUntagged, listDuplicates, listExcluded])
+  }, [filter, tagFilters, memesApi, onFacetsChanged, listUntagged, listDuplicates, listExcluded, listRecommendations])
 
   useEffect(() => { loadMemesRef.current = loadMemes })
 
