@@ -3,6 +3,8 @@ package com.memebrowser.app.data.api
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeSearchResponse
+import com.memebrowser.app.data.model.TrendEntry
+import com.memebrowser.app.data.model.TrendsRun
 import com.memebrowser.app.data.model.UploadResponse
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
@@ -54,4 +56,20 @@ interface MemeApiService {
     @Multipart
     @POST("api/uploads")
     suspend fun uploadImages(@Part files: List<MultipartBody.Part>): UploadResponse
+
+    @GET("api/trends/dates")
+    suspend fun getTrendsDates(): List<String>
+
+    @GET("api/trends/dates/{date}/runs/latest")
+    suspend fun getLatestTrendsRun(@Path("date") date: String): TrendsRun
+
+    @GET("api/trends/runs/{runId}")
+    suspend fun getTrendsEntries(@Path("runId") runId: String): List<TrendEntry>
+
+    @GET("api/recommendations")
+    suspend fun getRecommendations(
+        @Query("q") query: String? = null,
+        @Query("limit") limit: Int = 20,
+        @Query("cursor") cursor: String? = null
+    ): MemeSearchResponse
 }

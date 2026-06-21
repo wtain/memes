@@ -5,6 +5,8 @@ import com.memebrowser.app.data.api.MemeApiService
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeSearchResponse
+import com.memebrowser.app.data.model.TrendEntry
+import com.memebrowser.app.data.model.TrendsRun
 import com.memebrowser.app.data.model.UploadResponse
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -72,6 +74,22 @@ open class MemeRepository @Inject constructor(
 
     suspend fun uploadImages(parts: List<MultipartBody.Part>): Result<UploadResponse> = runCatching {
         api.uploadImages(parts)
+    }
+
+    suspend fun getTrendsDates(): Result<List<String>> = runCatching {
+        api.getTrendsDates()
+    }
+
+    suspend fun getLatestTrendsRun(date: String): Result<TrendsRun> = runCatching {
+        api.getLatestTrendsRun(date)
+    }
+
+    suspend fun getTrendsEntries(runId: String): Result<List<TrendEntry>> = runCatching {
+        api.getTrendsEntries(runId)
+    }
+
+    suspend fun getRecommendations(query: String?, cursor: String?, limit: Int = 20): Result<MemeSearchResponse> = runCatching {
+        api.getRecommendations(query = query, limit = limit, cursor = cursor)
     }
 
     suspend fun downloadImage(id: String): Result<ResponseBody> {

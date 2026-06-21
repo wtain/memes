@@ -10,8 +10,11 @@ import com.memebrowser.app.ui.about.AboutScreen
 import com.memebrowser.app.ui.detail.MemeDetailScreen
 import com.memebrowser.app.ui.environment.EnvironmentManagerScreen
 import com.memebrowser.app.ui.excluded.ExcludedScreen
+import com.memebrowser.app.ui.recommendations.RecommendationsScreen
 import com.memebrowser.app.ui.search.SearchScreen
+import com.memebrowser.app.ui.trends.TrendsScreen
 import com.memebrowser.app.ui.upload.UploadScreen
+import java.net.URLEncoder
 
 @Composable
 fun NavGraph() {
@@ -23,7 +26,9 @@ fun NavGraph() {
                 onEnvironmentsClick = { navController.navigate("environments") },
                 onExcludedClick = { navController.navigate("excluded") },
                 onUploadClick = { navController.navigate("upload") },
-                onAboutClick = { navController.navigate("about") }
+                onAboutClick = { navController.navigate("about") },
+                onTrendsClick = { navController.navigate("trends") },
+                onRecommendationsClick = { navController.navigate("recommendations") }
             )
         }
         composable(
@@ -62,6 +67,28 @@ fun NavGraph() {
         }
         composable("about") {
             AboutScreen(onBack = { navController.popBackStack() })
+        }
+        composable("trends") {
+            TrendsScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToRecommendations = { query ->
+                    val encoded = URLEncoder.encode(query, "UTF-8")
+                    navController.navigate("recommendations?q=$encoded")
+                }
+            )
+        }
+        composable(
+            route = "recommendations?q={query}",
+            arguments = listOf(navArgument("query") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) {
+            RecommendationsScreen(
+                onBack = { navController.popBackStack() },
+                onMemeClick = { memeId -> navController.navigate("detail/$memeId") }
+            )
         }
     }
 }

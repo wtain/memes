@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.Recommend
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Upload
@@ -95,6 +97,8 @@ fun SearchScreen(
     onExcludedClick: () -> Unit,
     onUploadClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
+    onTrendsClick: () -> Unit = {},
+    onRecommendationsClick: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -136,6 +140,14 @@ fun SearchScreen(
                     onAboutClick = {
                         scope.launch { drawerState.close() }
                         onAboutClick()
+                    },
+                    onTrendsClick = {
+                        scope.launch { drawerState.close() }
+                        onTrendsClick()
+                    },
+                    onRecommendationsClick = {
+                        scope.launch { drawerState.close() }
+                        onRecommendationsClick()
                     }
                 )
             }
@@ -228,7 +240,9 @@ private fun DrawerContent(
     onUploadClick: () -> Unit,
     onExcludedClick: () -> Unit,
     onEnvironmentsClick: () -> Unit,
-    onAboutClick: () -> Unit
+    onAboutClick: () -> Unit,
+    onTrendsClick: () -> Unit,
+    onRecommendationsClick: () -> Unit
 ) {
     Spacer(Modifier.height(16.dp))
     Text(
@@ -289,6 +303,23 @@ private fun DrawerContent(
         label = { Text("About") },
         selected = false,
         onClick = onAboutClick,
+        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+    )
+
+    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+    NavigationDrawerItem(
+        icon = { Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = null) },
+        label = { Text("Trends") },
+        selected = false,
+        onClick = onTrendsClick,
+        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+    )
+    NavigationDrawerItem(
+        icon = { Icon(Icons.Default.Recommend, contentDescription = null) },
+        label = { Text("Recommendations") },
+        selected = false,
+        onClick = onRecommendationsClick,
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
     )
 }
