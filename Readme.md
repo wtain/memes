@@ -34,11 +34,14 @@ For detailed setup instructions, see **[SETUP.md](./SETUP.md)**.
 
 Quick steps:
 ```bash
-# Backend — CPU (Docker, CI, no GPU)
+# Backend server only (no ML stack)
 cd Backend
+pip install -r requirements-backend.txt
+
+# Full stack — CPU (batch jobs + backend, no GPU)
 pip install -r requirements.txt
 
-# Backend — GPU/CUDA (local dev with NVIDIA GPU)
+# Full stack — GPU/CUDA (local dev with NVIDIA GPU)
 pip install -r requirements.txt -r requirements-cuda.txt
 
 set WATCHFILES_FORCE_POLLING=1
@@ -426,15 +429,21 @@ PyTorch CUDA builds (`+cu121`) are not published on PyPI — they live on PyTorc
 
 | File | Purpose |
 |------|---------|
-| `requirements.txt` | CPU builds — works on PyPI, used by Docker and CI |
+| `requirements-backend.txt` | FastAPI server only — no ML stack. Used by `Dockerfile.backend` and CI |
+| `requirements.txt` | Full stack (CPU torch) — batch jobs + backend, works on PyPI |
 | `requirements-cuda.txt` | CUDA overrides — requires PyTorch's extra index URL, for local GPU dev |
 
-**Docker / CI / no GPU:**
+**Docker / CI (backend server only):**
+```bash
+pip install -r requirements-backend.txt
+```
+
+**Batch processing — no GPU:**
 ```bash
 pip install -r requirements.txt
 ```
 
-**Local dev with an NVIDIA GPU:**
+**Batch processing — NVIDIA GPU:**
 ```bash
 pip install -r requirements.txt -r requirements-cuda.txt
 ```
