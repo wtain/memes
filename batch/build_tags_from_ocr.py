@@ -1,12 +1,14 @@
 import asyncio
 import os
+from pathlib import Path
 
 from rules.concept_tagger import ConceptTagger
 from Storage.db import AsyncSessionLocal
 from repository.images import ImagesRepository
 from repository.tags import TagsRepository, TagsSaver
 
-DATA_DIR = os.getenv("TAGGING_DATA_DIR", "batch/data/tagging")
+_SCRIPT_DIR = Path(__file__).parent
+DATA_DIR = os.getenv("TAGGING_DATA_DIR") or str(_SCRIPT_DIR / "data" / "tagging")
 PROFILE = os.getenv("TAGGING_PROFILE", "general")
 OCR_CONFIDENCE_MIN = float(os.getenv("OCR_CONFIDENCE_MIN", "0.4"))
 
