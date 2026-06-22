@@ -104,6 +104,23 @@ Strict two-layer: **Router → Repository**. No service layer unless business lo
 
 **`backend_api.md` at the repo root is the authoritative API reference** for frontend and Android clients. Update it whenever you add, remove, or change an endpoint (signature, parameters, response shape, or behavior).
 
+### Adding a new endpoint
+
+1. Add the router file under `Backend/app/api/` (or extend an existing one).
+2. Add the repository under `Backend/app/repositories/`.
+3. Register the router in `Backend/app/main.py` with `app.include_router(..., prefix="/api")`.
+4. Update `backend_api.md`.
+
+Response models (Pydantic `BaseModel`) live in `Backend/app/types/generated/` if shared across routers, or inline in the router file if endpoint-specific.
+
+### Before committing backend changes
+
+There is no automated test gate for the backend. At minimum:
+
+- Confirm the server starts without import errors.
+- Hit the new endpoint manually and verify the response shape matches what you documented.
+- Smoke-test existing endpoints: `/api/diagnostics/health` and `/api/images?limit=1`.
+
 ### Batch pipeline (execution order)
 
 ```
@@ -153,7 +170,7 @@ Two venvs exist: `.venv` (Python 3.13) and `.venv311` (Python 3.11). The project
 
 ## Key invariants
 
-- Env files live in `environments/` (not `Storage/` — the Backend/CLAUDE.md path is outdated).
+- Env files live in `environments/` (not `Storage/`).
 - `backend_api.md` must stay in sync with the actual routers.
 - Windows dev: `WATCHFILES_FORCE_POLLING=1` is required for uvicorn `--reload` to work.
 - AGP 8.5.2 requires Java 11+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
