@@ -183,6 +183,7 @@ system of a down:
 ac/dc:
   words:
   - ac/dc
+  - acdc
   votes:
     band:ac/dc: 1.0
     country:australia: 1.0
@@ -484,7 +485,8 @@ avril lavigne:
     person:avril lavigne: 1.0
 static-x:
   words:
-  - static-x
+  - static x
+  - staticx
   votes:
     genre:alternative: 1.0
     genre:nu metal: 1.0

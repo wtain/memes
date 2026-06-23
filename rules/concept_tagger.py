@@ -47,11 +47,15 @@ class ConceptTagger:
 
     def tag(self, text: str) -> TagResult:
         lemma_bag = normalize(text, self._morph)
+        # Phrases may contain short words ("zz" in "zz top", "in" in "alice in chains").
+        # normalize() drops them, making phrase checks impossible. Build a separate full
+        # bag with no length filter just for phrase matching.
+        lemma_bag_full = normalize(text, self._morph, min_length=1)
         scores: dict[tuple[str, str], float] = {}
         trace: list[dict] = []
 
         for concept in self._concepts:
-            reason = _match_concept(concept, lemma_bag)
+            reason = _match_concept(concept, lemma_bag, lemma_bag_full)
             if reason is None:
                 continue
             for tag, weight in concept.votes.items():
@@ -156,14 +160,16 @@ def _load_concepts(
     return concepts
 
 
-def _match_concept(concept: _Concept, lemma_bag: set[str]) -> str | None:
+def _match_concept(concept: _Concept, lemma_bag: set[str], lemma_bag_full: set[str]) -> str | None:
     for w in concept.words:
         parts = w.split()
         if len(parts) == 1:
             if w in lemma_bag:
                 return f"word:{w}"
         else:
-            if all(p in lemma_bag for p in parts):
+            # Use the full (unfiltered) lemma bag for phrases so that short but discriminating
+            # parts like "zz" (in "zz top") or "in" (in "alice in chains") are checked.
+            if all(p in lemma_bag_full for p in parts):
                 return f"phrase:{w}"
 
     if concept.fuzzy:
