@@ -1,6 +1,7 @@
 opeth:
   words:
   - opeth
+  - opeths
   - ghost of perdition
   - mikael akerfeldt
   votes:
@@ -26,6 +27,8 @@ burzum:
   words:
   - burzum
   - varg
+  - vargy
+  - vargs
   votes:
     band:burzum: 1.0
     country:norway: 1.0
@@ -182,7 +185,7 @@ system of a down:
     person:john dolmayan: 1.0
 ac/dc:
   words:
-  - ac/dc
+  - ac dc
   - acdc
   votes:
     band:ac/dc: 1.0
@@ -418,6 +421,7 @@ toad:
 dog:
   words:
   - dog
+  - dogs
   votes:
     lore:animals: 1.0
     animal:dog: 1.0
