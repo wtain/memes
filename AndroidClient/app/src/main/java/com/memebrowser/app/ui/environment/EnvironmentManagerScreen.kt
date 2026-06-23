@@ -113,7 +113,7 @@ fun EnvironmentManagerScreen(
                 EnvironmentCard(
                     item = item,
                     healthStatus = uiState.healthMap[item.environment.id] ?: EnvHealthStatus.Unknown,
-                    onSelect = { viewModel.selectEnvironment(item.environment) },
+                    onSelect = { viewModel.selectEnvironment(item.environment); onBack() },
                     onEdit = { editingEnv = item.environment },
                     onDelete = { viewModel.deleteEnvironment(item.environment.id) }
                 )
