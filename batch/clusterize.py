@@ -6,6 +6,8 @@ from graph.uf import UnionFind
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image, TmpDuplicates, TmpImageClusters
 
+PROXIMITY_THRESHOLD = 0.05
+
 
 async def main():
 
@@ -24,7 +26,7 @@ async def main():
 
         print("Reading duplicates...")
         # Select all duplicates with distance < THRESHOLD and convert img1 to int id
-        uf = await get_duplicates(session, img_id_to_int_id, 0.1)
+        uf = await get_duplicates(session, img_id_to_int_id, PROXIMITY_THRESHOLD)
 
         print("Building graph...")
         # Traverse UnionFind and mark clusters
