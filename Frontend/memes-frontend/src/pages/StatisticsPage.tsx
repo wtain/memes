@@ -4,9 +4,13 @@ import type { StatisticsResponse } from "../types/statistics"
 
 type Props = { memesApi: MemesApi }
 
-function pct(count: number, total: number): string {
-  if (total === 0) return "0.0%"
-  return `${((count / total) * 100).toFixed(1)}%`
+function n(v: number | undefined | null): string {
+  return (v ?? 0).toLocaleString()
+}
+
+function pct(count: number | undefined, total: number | undefined): string {
+  if (!total) return "0.0%"
+  return `${(((count ?? 0) / total) * 100).toFixed(1)}%`
 }
 
 type StatCell = { label: string; value: string }
@@ -52,9 +56,9 @@ export default function StatisticsPage({ memesApi }: Props) {
   )
 
   const { memes, content } = stats
-  const untagged = memes.total - memes.with_tags
-  const avgTags = memes.with_tags > 0
-    ? (content.tags / memes.with_tags).toFixed(1)
+  const untagged = (memes.total ?? 0) - (memes.with_tags ?? 0)
+  const avgTags = (memes.with_tags ?? 0) > 0
+    ? ((content.tags ?? 0) / (memes.with_tags ?? 1)).toFixed(1)
     : "—"
 
   return (
@@ -64,39 +68,39 @@ export default function StatisticsPage({ memesApi }: Props) {
       <section>
         <h2 className="text-lg font-semibold mb-3">Library</h2>
         <StatGrid cells={[
-          { label: "Total memes", value: memes.total.toLocaleString() },
-          { label: "Excluded", value: memes.excluded.toLocaleString() },
+          { label: "Total memes", value: n(memes.total) },
+          { label: "Excluded", value: n(memes.excluded) },
         ]} />
       </section>
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Pipeline coverage</h2>
         <StatGrid cells={[
-          { label: "With OCR", value: `${memes.with_ocr.toLocaleString()} (${pct(memes.with_ocr, memes.total)})` },
-          { label: "With embeddings", value: `${memes.with_embeddings.toLocaleString()} (${pct(memes.with_embeddings, memes.total)})` },
-          { label: "With tags", value: `${memes.with_tags.toLocaleString()} (${pct(memes.with_tags, memes.total)})` },
-          { label: "Untagged", value: `${untagged.toLocaleString()} (${pct(untagged, memes.total)})` },
-          { label: "With descriptions", value: `${memes.with_descriptions.toLocaleString()} (${pct(memes.with_descriptions, memes.total)})` },
-          { label: "With concept assignments", value: `${memes.with_concept_tags.toLocaleString()} (${pct(memes.with_concept_tags, memes.total)})` },
+          { label: "With OCR", value: `${n(memes.with_ocr)} (${pct(memes.with_ocr, memes.total)})` },
+          { label: "With embeddings", value: `${n(memes.with_embeddings)} (${pct(memes.with_embeddings, memes.total)})` },
+          { label: "With tags", value: `${n(memes.with_tags)} (${pct(memes.with_tags, memes.total)})` },
+          { label: "Untagged", value: `${n(untagged)} (${pct(untagged, memes.total)})` },
+          { label: "With descriptions", value: `${n(memes.with_descriptions)} (${pct(memes.with_descriptions, memes.total)})` },
+          { label: "With concept assignments", value: `${n(memes.with_concept_tags)} (${pct(memes.with_concept_tags, memes.total)})` },
         ]} />
       </section>
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Tags</h2>
         <StatGrid cells={[
-          { label: "Total tags", value: content.tags.toLocaleString() },
+          { label: "Total tags", value: n(content.tags) },
           { label: "Avg tags / tagged meme", value: avgTags },
-          { label: "Tag categories", value: content.tag_keys.toLocaleString() },
-          { label: "Distinct tag values", value: content.tag_values.toLocaleString() },
-          { label: "OCR text blocks", value: content.ocr_texts.toLocaleString() },
+          { label: "Tag categories", value: n(content.tag_keys) },
+          { label: "Distinct tag values", value: n(content.tag_values) },
+          { label: "OCR text blocks", value: n(content.ocr_texts) },
         ]} />
       </section>
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Knowledge base</h2>
         <StatGrid cells={[
-          { label: "Concepts", value: content.concepts.toLocaleString() },
-          { label: "Concept image sets", value: content.concept_image_sets.toLocaleString() },
+          { label: "Concepts", value: n(content.concepts) },
+          { label: "Concept image sets", value: n(content.concept_image_sets) },
         ]} />
       </section>
     </div>
