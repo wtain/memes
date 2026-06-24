@@ -2,6 +2,17 @@ import { useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import type { StatisticsResponse } from "../types/statistics"
 
+const ICON_URL = "https://imgflip.com/s/meme/Philosoraptor.jpg"
+
+function PageHeading() {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <img src={ICON_URL} alt="Philosoraptor" className="w-10 h-10 rounded-full object-cover" />
+      <h1 className="text-2xl font-bold">Statistics</h1>
+    </div>
+  )
+}
+
 type Props = { memesApi: MemesApi }
 
 function n(v: number | undefined | null): string {
@@ -43,14 +54,14 @@ export default function StatisticsPage({ memesApi }: Props) {
 
   if (error) return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold mb-4">Statistics</h1>
+      <PageHeading />
       <p className="text-sm text-red-500">{error}</p>
     </div>
   )
 
   if (!stats) return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold mb-4">Statistics</h1>
+      <PageHeading />
       <p className="text-sm text-gray-400">Loading…</p>
     </div>
   )
@@ -63,7 +74,7 @@ export default function StatisticsPage({ memesApi }: Props) {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold mb-4">Statistics</h1>
+      <PageHeading />
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Library</h2>

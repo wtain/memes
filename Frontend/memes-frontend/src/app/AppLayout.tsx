@@ -89,9 +89,14 @@ export default function AppLayout() {
           <NavLink
             to="/statistics"
             className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+              `inline-flex items-center gap-1 ${isActive ? "font-semibold text-blue-600" : "text-gray-600"}`
             }
           >
+            <img
+              src="https://imgflip.com/s/meme/Philosoraptor.jpg"
+              alt=""
+              className="w-5 h-5 rounded-full object-cover"
+            />
             Statistics
           </NavLink>
         </div>

@@ -38,7 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Recommend
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -330,7 +330,14 @@ private fun DrawerContent(
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
     )
     NavigationDrawerItem(
-        icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
+        icon = {
+            AsyncImage(
+                model = "https://imgflip.com/s/meme/Philosoraptor.jpg",
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(24.dp).clip(CircleShape)
+            )
+        },
         label = { Text("Statistics") },
         selected = false,
         onClick = onStatisticsClick,
