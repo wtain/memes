@@ -3,6 +3,7 @@ package com.memebrowser.app.data.api
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeSearchResponse
+import com.memebrowser.app.data.model.StatisticsResponse
 import com.memebrowser.app.data.model.TrendEntry
 import com.memebrowser.app.data.model.TrendsRun
 import com.memebrowser.app.data.model.UploadResponse
@@ -72,4 +73,7 @@ interface MemeApiService {
         @Query("limit") limit: Int = 20,
         @Query("cursor") cursor: String? = null
     ): MemeSearchResponse
+
+    @GET("api/diagnostics/statistics")
+    suspend fun getStatistics(): StatisticsResponse
 }

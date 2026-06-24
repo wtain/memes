@@ -15,6 +15,7 @@ import TrendsDatePage from "../pages/TrendsDatePage";
 import TrendHistoryPage from "../pages/TrendHistoryPage";
 import UploadPage from "../pages/UploadPage";
 import RecommendationsPage from "../pages/RecommendationsPage";
+import StatisticsPage from "../pages/StatisticsPage";
 
 
 // const baseUrl = "http://127.0.0.1:8081";
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
       { path: "/recommendations", element: <RecommendationsPage memesApi={memesApi} /> },
       { path: "/concepts", element: <ConceptsPage memesApi={memesApi} /> },
       { path: "/upload", element: <UploadPage memesApi={memesApi} /> },
+      { path: "/statistics", element: <StatisticsPage memesApi={memesApi} /> },
       {
         path: "/memes/:id",
         element: <MemePage memesApi={memesApi} />

@@ -12,6 +12,7 @@ import com.memebrowser.app.ui.environment.EnvironmentManagerScreen
 import com.memebrowser.app.ui.excluded.ExcludedScreen
 import com.memebrowser.app.ui.recommendations.RecommendationsScreen
 import com.memebrowser.app.ui.search.SearchScreen
+import com.memebrowser.app.ui.statistics.StatisticsScreen
 import com.memebrowser.app.ui.trends.TrendsScreen
 import com.memebrowser.app.ui.upload.UploadScreen
 import java.net.URLEncoder
@@ -28,7 +29,8 @@ fun NavGraph() {
                 onUploadClick = { navController.navigate("upload") },
                 onAboutClick = { navController.navigate("about") },
                 onTrendsClick = { navController.navigate("trends") },
-                onRecommendationsClick = { navController.navigate("recommendations") }
+                onRecommendationsClick = { navController.navigate("recommendations") },
+                onStatisticsClick = { navController.navigate("statistics") }
             )
         }
         composable(
@@ -76,6 +78,9 @@ fun NavGraph() {
                     navController.navigate("recommendations?q=$encoded")
                 }
             )
+        }
+        composable("statistics") {
+            StatisticsScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = "recommendations?q={query}",

@@ -5,6 +5,7 @@ import com.memebrowser.app.data.api.MemeApiService
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeSearchResponse
+import com.memebrowser.app.data.model.StatisticsResponse
 import com.memebrowser.app.data.model.TrendEntry
 import com.memebrowser.app.data.model.TrendsRun
 import com.memebrowser.app.data.model.UploadResponse
@@ -90,6 +91,10 @@ open class MemeRepository @Inject constructor(
 
     suspend fun getRecommendations(query: String?, cursor: String?, limit: Int = 20): Result<MemeSearchResponse> = runCatching {
         api.getRecommendations(query = query, limit = limit, cursor = cursor)
+    }
+
+    suspend fun getStatistics(): Result<StatisticsResponse> = runCatching {
+        api.getStatistics()
     }
 
     suspend fun downloadImage(id: String): Result<ResponseBody> {

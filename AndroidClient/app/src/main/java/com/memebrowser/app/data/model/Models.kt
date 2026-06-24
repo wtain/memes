@@ -107,6 +107,41 @@ data class MemeSearchResponse(
     @SerialName("hasNext") val hasNext: Boolean? = null
 )
 
+@Serializable
+data class StatisticsMemeStats(
+    @SerialName("total") val total: Int,
+    @SerialName("with_embeddings") val withEmbeddings: Int,
+    @SerialName("with_ocr") val withOcr: Int,
+    @SerialName("with_tags") val withTags: Int,
+    @SerialName("with_descriptions") val withDescriptions: Int,
+    @SerialName("with_concept_tags") val withConceptTags: Int,
+    @SerialName("excluded") val excluded: Int
+)
+
+@Serializable
+data class StatisticsContentStats(
+    @SerialName("ocr_texts") val ocrTexts: Int,
+    @SerialName("tags") val tags: Int,
+    @SerialName("tag_keys") val tagKeys: Int,
+    @SerialName("tag_values") val tagValues: Int,
+    @SerialName("concepts") val concepts: Int,
+    @SerialName("concept_image_sets") val conceptImageSets: Int,
+    @SerialName("concept_images") val conceptImages: Int
+)
+
+@Serializable
+data class StatisticsTrendsStats(
+    @SerialName("runs") val runs: Int,
+    @SerialName("feed_sources") val feedSources: Int
+)
+
+@Serializable
+data class StatisticsResponse(
+    @SerialName("memes") val memes: StatisticsMemeStats,
+    @SerialName("content") val content: StatisticsContentStats,
+    @SerialName("trends") val trends: StatisticsTrendsStats
+)
+
 // Not in shared schemas — internal API utility type
 @Serializable
 data class HealthResponse(

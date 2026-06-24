@@ -38,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Recommend
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -99,6 +100,7 @@ fun SearchScreen(
     onAboutClick: () -> Unit = {},
     onTrendsClick: () -> Unit = {},
     onRecommendationsClick: () -> Unit = {},
+    onStatisticsClick: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -148,6 +150,10 @@ fun SearchScreen(
                     onRecommendationsClick = {
                         scope.launch { drawerState.close() }
                         onRecommendationsClick()
+                    },
+                    onStatisticsClick = {
+                        scope.launch { drawerState.close() }
+                        onStatisticsClick()
                     }
                 )
             }
@@ -242,7 +248,8 @@ private fun DrawerContent(
     onEnvironmentsClick: () -> Unit,
     onAboutClick: () -> Unit,
     onTrendsClick: () -> Unit,
-    onRecommendationsClick: () -> Unit
+    onRecommendationsClick: () -> Unit,
+    onStatisticsClick: () -> Unit
 ) {
     Spacer(Modifier.height(16.dp))
     Text(
@@ -320,6 +327,13 @@ private fun DrawerContent(
         label = { Text("Recommendations") },
         selected = false,
         onClick = onRecommendationsClick,
+        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+    )
+    NavigationDrawerItem(
+        icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
+        label = { Text("Statistics") },
+        selected = false,
+        onClick = onStatisticsClick,
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
     )
 }

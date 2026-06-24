@@ -1,5 +1,6 @@
 import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse } from "../types/generated/all";
 import type { TrendEntry, TrendHistoryEntry, TrendsRunDto } from "../types/trends";
+import type { StatisticsResponse } from "../types/statistics";
 
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>
@@ -38,4 +39,6 @@ export interface MemesApi {
   getTrendsHistory(label: string, name: string): Promise<TrendHistoryEntry[]>;
 
   uploadMemes(files: File[]): Promise<UploadResponse>;
+
+  getStatistics(): Promise<StatisticsResponse>;
 }

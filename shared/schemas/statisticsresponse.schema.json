@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "statisticsresponse.schema.json",
+  "title": "StatisticsResponse",
+  "type": "object",
+  "properties": {
+    "memes":   { "$ref": "./statisticsmemestats.schema.json" },
+    "content": { "$ref": "./statisticscontentstats.schema.json" },
+    "trends":  { "$ref": "./statisticstrendsstats.schema.json" }
+  },
+  "required": ["memes", "content", "trends"]
+}

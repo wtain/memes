@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "statisticstrendsstats.schema.json",
+  "title": "StatisticsTrendsStats",
+  "type": "object",
+  "properties": {
+    "runs":         { "type": "integer", "description": "Total trends runs recorded" },
+    "feed_sources": { "type": "integer", "description": "Configured feed sources" }
+  },
+  "required": ["runs", "feed_sources"]
+}

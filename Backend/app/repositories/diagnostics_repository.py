@@ -45,6 +45,14 @@ class DiagnosticsRepository:
                     .scalar_subquery().label("concept_image_sets"),
                 select(func.count()).select_from(ConceptImage)
                     .scalar_subquery().label("concept_images"),
+                select(func.count(ImageTag.image_id.distinct()))
+                    .where(ImageTag.source == "CONCEPT")
+                    .scalar_subquery().label("with_concept_tags"),
+                select(func.count(ImageTag.key.distinct()))
+                    .scalar_subquery().label("tag_keys"),
+                select(func.count()).select_from(
+                    select(ImageTag.key, ImageTag.value).distinct().subquery()
+                ).scalar_subquery().label("tag_values"),
                 select(func.count()).select_from(TrendsRun)
                     .scalar_subquery().label("trends_runs"),
                 select(func.count()).select_from(FeedSource)

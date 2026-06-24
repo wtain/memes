@@ -229,11 +229,14 @@ Response from `POST /api/uploads`.
     "with_ocr": "number",
     "with_tags": "number",
     "with_descriptions": "number",
+    "with_concept_tags": "number",
     "excluded": "number"
   },
   "content": {
     "ocr_texts": "number",
     "tags": "number",
+    "tag_keys": "number",
+    "tag_values": "number",
     "concepts": "number",
     "concept_image_sets": "number",
     "concept_images": "number"
@@ -653,11 +656,14 @@ Returns row counts across all major tables in a single SQL round-trip.
     "with_ocr": 9200,
     "with_tags": 10100,
     "with_descriptions": 3400,
+    "with_concept_tags": 8700,
     "excluded": 82
   },
   "content": {
     "ocr_texts": 31000,
     "tags": 48500,
+    "tag_keys": 12,
+    "tag_values": 340,
     "concepts": 47,
     "concept_image_sets": 63,
     "concept_images": 14200

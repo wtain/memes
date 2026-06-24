@@ -1,6 +1,7 @@
 import type { MemesApi } from "../MemesApi"
 import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse } from "../../types/generated/all"
 import type { TrendEntry, TrendHistoryEntry, TrendsRunDto } from "../../types/trends"
+import type { StatisticsResponse } from "../../types/statistics"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -256,6 +257,12 @@ export class HttpMemesApi implements MemesApi {
     for (const file of files) form.append("files", file)
     const res = await fetch(`${this.baseUrl}/api/uploads`, { method: "POST", body: form })
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+    return res.json()
+  }
+
+  async getStatistics(): Promise<StatisticsResponse> {
+    const res = await fetch(`${this.baseUrl}/api/diagnostics/statistics`, { headers: { Accept: "application/json" } })
+    if (!res.ok) throw new Error(`Failed to fetch statistics: ${res.status}`)
     return res.json()
   }
 }

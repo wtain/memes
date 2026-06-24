@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "statisticscontentstats.schema.json",
+  "title": "StatisticsContentStats",
+  "type": "object",
+  "properties": {
+    "ocr_texts":          { "type": "integer", "description": "Total OCR text rows across all images" },
+    "tags":               { "type": "integer", "description": "Total tag rows across all images" },
+    "tag_keys":           { "type": "integer", "description": "Distinct tag categories (keys)" },
+    "tag_values":         { "type": "integer", "description": "Distinct tag key+value pairs" },
+    "concepts":           { "type": "integer", "description": "Concepts defined in the knowledge base" },
+    "concept_image_sets": { "type": "integer", "description": "Concept image sets (reference image groups)" },
+    "concept_images":     { "type": "integer", "description": "Individual reference images across all concept sets" }
+  },
+  "required": ["ocr_texts", "tags", "tag_keys", "tag_values", "concepts", "concept_image_sets", "concept_images"]
+}

@@ -20,12 +20,15 @@ class MemeStats(BaseModel):
     with_ocr: int
     with_tags: int
     with_descriptions: int
+    with_concept_tags: int
     excluded: int
 
 
 class ContentStats(BaseModel):
     ocr_texts: int
     tags: int
+    tag_keys: int
+    tag_values: int
     concepts: int
     concept_image_sets: int
     concept_images: int
@@ -67,11 +70,14 @@ async def statistics(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)
             with_ocr=row.with_ocr,
             with_tags=row.with_tags,
             with_descriptions=row.with_descriptions,
+            with_concept_tags=row.with_concept_tags,
             excluded=row.excluded,
         ),
         content=ContentStats(
             ocr_texts=row.ocr_texts,
             tags=row.tags,
+            tag_keys=row.tag_keys,
+            tag_values=row.tag_values,
             concepts=row.concepts,
             concept_image_sets=row.concept_image_sets,
             concept_images=row.concept_images,
