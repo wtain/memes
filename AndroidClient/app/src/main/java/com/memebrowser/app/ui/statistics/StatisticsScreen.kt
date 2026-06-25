@@ -93,26 +93,26 @@ private fun StatisticsContent(data: StatisticsResponse) {
             StatRow("Excluded", "${data.memes.excluded}")
         }
         StatSection("Pipeline coverage") {
-            StatRow("With OCR", pct(data.memes.withOcr))
-            StatRow("With embeddings", pct(data.memes.withEmbeddings))
-            StatRow("With tags", pct(data.memes.withTags))
-            StatRow("Untagged", pct(data.memes.total - data.memes.withTags))
-            StatRow("With descriptions", pct(data.memes.withDescriptions))
-            StatRow("With concept assignments", pct(data.memes.withConceptTags))
+            StatRow("With OCR", pct(data.memes.with_ocr))
+            StatRow("With embeddings", pct(data.memes.with_embeddings))
+            StatRow("With tags", pct(data.memes.with_tags))
+            StatRow("Untagged", pct(data.memes.total - data.memes.with_tags))
+            StatRow("With descriptions", pct(data.memes.with_descriptions))
+            StatRow("With concept assignments", pct(data.memes.with_concept_tags))
         }
         StatSection("Tags") {
             StatRow("Total tags", "${data.content.tags}")
-            val avg = if (data.memes.withTags > 0)
-                "%.1f".format(data.content.tags.toFloat() / data.memes.withTags)
+            val avg = if (data.memes.with_tags > 0)
+                "%.1f".format(data.content.tags.toFloat() / data.memes.with_tags)
             else "—"
             StatRow("Avg tags / tagged meme", avg)
-            StatRow("Tag categories", "${data.content.tagKeys}")
-            StatRow("Distinct tag values", "${data.content.tagValues}")
-            StatRow("OCR text blocks", "${data.content.ocrTexts}")
+            StatRow("Tag categories", "${data.content.tag_keys}")
+            StatRow("Distinct tag values", "${data.content.tag_values}")
+            StatRow("OCR text blocks", "${data.content.ocr_texts}")
         }
         StatSection("Knowledge base") {
             StatRow("Concepts", "${data.content.concepts}")
-            StatRow("Concept image sets", "${data.content.conceptImageSets}")
+            StatRow("Concept image sets", "${data.content.concept_image_sets}")
         }
     }
 }
