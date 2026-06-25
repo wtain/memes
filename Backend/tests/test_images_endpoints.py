@@ -468,7 +468,7 @@ class TestGetSimilarImages:
         assert len(data["items"]) == 2
         assert data["items"][0]["id"] == "similar-1"
         assert data["items"][1]["id"] == "similar-2"
-        mock_image_service.get_similar.assert_called_once_with("123")
+        mock_image_service.get_similar.assert_called_once_with("123", limit=10)
 
     def test_get_similar_images_no_results(self, client, mock_image_service):
         """Test getting similar images when no similar images found."""
@@ -488,7 +488,7 @@ class TestGetSimilarImages:
         assert response.status_code == 200
         data = response.json()
         assert len(data["items"]) == 0
-        mock_image_service.get_similar.assert_called_once_with("456")
+        mock_image_service.get_similar.assert_called_once_with("456", limit=10)
 
     def test_get_similar_images_with_uuid(self, client, mock_image_service):
         """Test getting similar images with UUID format."""
@@ -507,7 +507,7 @@ class TestGetSimilarImages:
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.get_similar.assert_called_once_with(uuid_id)
+        mock_image_service.get_similar.assert_called_once_with(uuid_id, limit=10)
 
 
 class TestGetMeme:
