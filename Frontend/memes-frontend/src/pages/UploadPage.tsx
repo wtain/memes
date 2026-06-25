@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
-import type { UploadResponse } from "../types/generated/all"
+import type { UploadResponse } from "../types/upload"
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"]
 const MAX_FILE_SIZE = 20 * 1024 * 1024

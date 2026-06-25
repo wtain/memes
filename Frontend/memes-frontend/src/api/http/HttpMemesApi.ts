@@ -1,5 +1,6 @@
 import type { MemesApi } from "../MemesApi"
-import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse } from "../../types/generated/all"
+import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
+import type { UploadResponse } from "../../types/upload"
 import type { TrendEntry, TrendHistoryEntry, TrendsRunDto } from "../../types/trends"
 import type { StatisticsResponse } from "../../types/statistics"
 
