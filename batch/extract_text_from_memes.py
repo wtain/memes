@@ -8,6 +8,8 @@ from easyocr import easyocr
 
 import time
 
+from batch.ocr_preprocess import generate_variants, merge_results
+from batch.trocr_fallback import TrOCRFallback
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image
@@ -89,7 +91,6 @@ async def cpu_worker(io_queue, cpu_queue, executor, metrics_listener):
         if img is not None:
             await cpu_queue.put((file, img, read_t, prep_t, image))
         else:
-            # await mark_failed(session)
             pass
 
 
@@ -120,36 +121,58 @@ async def gpu_consumer(queue, pipeline, metrics_listener):
         "es": easyocr.Reader(['es'], gpu=True)
     }
 
+    trocr: TrOCRFallback | None = None
+    try:
+        trocr = TrOCRFallback(device="cuda")
+        print("TrOCR fallback loaded.")
+    except Exception as e:
+        print(f"TrOCR unavailable ({e}), skipping fallback for stylized fonts.")
+
     while True:
         item = await queue.get()
         if item is None:
             break
 
         file, img, read_t, prep_t, image = item
+        variants = generate_variants(img)
 
         for language, reader in readers.items():
 
             t0 = time.perf_counter()
-            result = reader.readtext(img)
+
+            variant_results = []
+            for variant_name, variant_img in variants:
+                result = reader.readtext(variant_img)
+                variant_results.append(result)
+
+            merged = merge_results(variant_results)
+
+            # TrOCR re-recognition: English only (model is English scene-text).
+            # Re-reads crops where EasyOCR confidence was low — helps with
+            # decorative fonts like Lobster that EasyOCR detects but mis-reads.
+            if language == "en" and trocr is not None:
+                try:
+                    merged = trocr.rerecognize(img, merged)
+                except Exception as e:
+                    print(f"TrOCR rerecognize failed for {file}: {e}")
+
             t_ocr = time.perf_counter() - t0
             t_total = read_t + prep_t + t_ocr
-            # todo: error metrics
-            # todo: store to database
 
             print(
-                f"{file}: "
+                f"{file} [{language}]: "
                 f"read={read_t:.3f}s "
                 f"prep={prep_t:.3f}s "
                 f"ocr={t_ocr:.3f}s "
-                f"total={t_total :.3f}s"
+                f"total={t_total:.3f}s"
             )
 
-            print(f"\n=== {file} ===")
-            for bbox, text, confidence in result:
-                print(f"{text} ({confidence})")
+            print(f"\n=== {file} [{language}] ===")
+            for _, text, confidence in merged:
+                print(f"  {text!r} ({confidence:.2f})")
 
             metrics_listener.increment("saved")
-            await persist_ocr_result(result, {
+            await persist_ocr_result(merged, {
                 "read_time_ms": read_t,
                 "preprocess_time_ms": prep_t,
                 "ocr_time_ms": t_ocr,
