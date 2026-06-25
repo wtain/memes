@@ -1,9 +1,19 @@
+import logging
 import os
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
+
+from Storage.db import get_async_db
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 from Backend.app.api.diagnostics import router as diagnostics_router
 from Backend.app.api.history import router as history_router
@@ -53,8 +63,11 @@ app.include_router(uploads_router, prefix="/api")
 
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint for container orchestration."""
+async def health_check(db: AsyncSession = Depends(get_async_db)):
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {exc}")
     return {"status": "healthy"}
 
 if __name__ == "__main__":

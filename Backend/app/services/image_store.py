@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 images_dir = os.getenv('BASE_PATH')
+if not images_dir:
+    raise RuntimeError("BASE_PATH environment variable is required but not set")
 IMAGES_DIR = Path(images_dir)
 
 

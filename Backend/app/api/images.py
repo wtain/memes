@@ -1,9 +1,12 @@
+import logging
 import mimetypes
 from typing import Optional, AsyncGenerator
 from urllib.parse import quote
 
 import unicodedata
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -155,15 +158,11 @@ async def get_image(image_id: str, response: Response, db: AsyncSession = Depend
         raise HTTPException(status_code=404, detail="Image not found")
 
     mime_type, _ = mimetypes.guess_type(filename)
-    # todo: logging
-    print(f"{filename}: {mime_type}")
-
-    # name, ext = os.path.splitext(filename)
-    # new_name = f"{image_id}{ext}"
+    logger.debug("serving %s as %s", filename, mime_type)
 
     headers = image_cache_headers()
     cd = content_disposition(filename)
-    print(repr(cd))  # must show only ASCII chars
+    logger.debug("Content-Disposition: %r", cd)
     headers['Content-Disposition'] = cd
     return FileResponse(
         IMAGES_DIR / filename,

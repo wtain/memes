@@ -1,10 +1,11 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from Backend.app.services.image_store import INCOMING_DIR
+from Backend.app.services.rate_limit import upload_limiter
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
@@ -67,7 +68,11 @@ class UploadResponse(BaseModel):
 
 
 @router.post("", response_model=UploadResponse)
-async def upload_images(files: list[UploadFile] = File(...)):
+async def upload_images(request: Request, files: list[UploadFile] = File(...)):
+    client_ip = request.client.host if request.client else "unknown"
+    if not await upload_limiter.is_allowed(client_ip):
+        raise HTTPException(status_code=429, detail="Too many upload requests — try again in a minute")
+
     if len(files) > MAX_FILES:
         raise HTTPException(status_code=422, detail=f"Too many files: max {MAX_FILES} per request")
 
