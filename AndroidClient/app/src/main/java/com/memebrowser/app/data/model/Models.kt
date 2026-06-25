@@ -6,7 +6,6 @@ package com.memebrowser.app.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 
 
 @Serializable
@@ -36,10 +35,38 @@ data class SearchHistoryTag(
 )
 
 @Serializable
+data class StatisticsContentStats(
+    @SerialName("ocr_texts") val ocr_texts: Int,
+    @SerialName("tags") val tags: Int,
+    @SerialName("tag_keys") val tag_keys: Int,
+    @SerialName("tag_values") val tag_values: Int,
+    @SerialName("concepts") val concepts: Int,
+    @SerialName("concept_image_sets") val concept_image_sets: Int,
+    @SerialName("concept_images") val concept_images: Int
+)
+
+@Serializable
+data class StatisticsMemeStats(
+    @SerialName("total") val total: Int,
+    @SerialName("with_embeddings") val with_embeddings: Int,
+    @SerialName("with_ocr") val with_ocr: Int,
+    @SerialName("with_tags") val with_tags: Int,
+    @SerialName("with_descriptions") val with_descriptions: Int,
+    @SerialName("with_concept_tags") val with_concept_tags: Int,
+    @SerialName("excluded") val excluded: Int
+)
+
+@Serializable
+data class StatisticsTrendsStats(
+    @SerialName("runs") val runs: Int,
+    @SerialName("feed_sources") val feed_sources: Int
+)
+
+@Serializable
 data class TrendEntry(
     @SerialName("label") val label: String,
     @SerialName("name") val name: String,
-    @SerialName("value") val value: JsonElement
+    @SerialName("value") val value: Int
 )
 
 @Serializable
@@ -48,7 +75,7 @@ data class TrendHistoryEntry(
     @SerialName("date") val date: String,
     @SerialName("label") val label: String,
     @SerialName("name") val name: String,
-    @SerialName("value") val value: JsonElement
+    @SerialName("value") val value: Int
 )
 
 @Serializable
@@ -71,7 +98,8 @@ data class Meme(
     @SerialName("originalFileName") val originalFileName: String? = null,
     @SerialName("text") val text: List<String>? = null,
     @SerialName("tags") val tags: List<MemeTag>? = null,
-    @SerialName("excluded") val excluded: Boolean? = null
+    @SerialName("excluded") val excluded: Boolean? = null,
+    @SerialName("clusterId") val clusterId: Int? = null
 )
 
 @Serializable
@@ -108,34 +136,6 @@ data class MemeSearchResponse(
 )
 
 @Serializable
-data class StatisticsMemeStats(
-    @SerialName("total") val total: Int,
-    @SerialName("with_embeddings") val withEmbeddings: Int,
-    @SerialName("with_ocr") val withOcr: Int,
-    @SerialName("with_tags") val withTags: Int,
-    @SerialName("with_descriptions") val withDescriptions: Int,
-    @SerialName("with_concept_tags") val withConceptTags: Int,
-    @SerialName("excluded") val excluded: Int
-)
-
-@Serializable
-data class StatisticsContentStats(
-    @SerialName("ocr_texts") val ocrTexts: Int,
-    @SerialName("tags") val tags: Int,
-    @SerialName("tag_keys") val tagKeys: Int,
-    @SerialName("tag_values") val tagValues: Int,
-    @SerialName("concepts") val concepts: Int,
-    @SerialName("concept_image_sets") val conceptImageSets: Int,
-    @SerialName("concept_images") val conceptImages: Int
-)
-
-@Serializable
-data class StatisticsTrendsStats(
-    @SerialName("runs") val runs: Int,
-    @SerialName("feed_sources") val feedSources: Int
-)
-
-@Serializable
 data class StatisticsResponse(
     @SerialName("memes") val memes: StatisticsMemeStats,
     @SerialName("content") val content: StatisticsContentStats,
@@ -146,27 +146,4 @@ data class StatisticsResponse(
 @Serializable
 data class HealthResponse(
     @SerialName("status") val status: String
-)
-
-@Serializable
-data class UploadedFile(
-    @SerialName("original_filename") val originalFilename: String,
-    @SerialName("saved_as") val savedAs: String,
-    @SerialName("size_bytes") val sizeBytes: Long,
-    @SerialName("content_type") val contentType: String,
-    @SerialName("status") val status: String = "ok"
-)
-
-@Serializable
-data class FailedFile(
-    @SerialName("original_filename") val originalFilename: String,
-    @SerialName("reason") val reason: String
-)
-
-@Serializable
-data class UploadResponse(
-    @SerialName("uploaded") val uploaded: List<UploadedFile>,
-    @SerialName("failed") val failed: List<FailedFile>,
-    @SerialName("total_accepted") val totalAccepted: Int,
-    @SerialName("total_failed") val totalFailed: Int
 )

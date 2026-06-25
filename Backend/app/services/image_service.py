@@ -105,9 +105,9 @@ class ImageService:
             excluded=is_excluded,
         )
 
-    async def get_similar(self, image_id: str) -> MemeSearchResponse:
+    async def get_similar(self, image_id: str, limit: int = 10) -> MemeSearchResponse:
         embedding = await self.repo.get_embedding(image_id)
-        rows = await self.repo.get_similar(image_id, embedding.tolist())
+        rows = await self.repo.get_similar(image_id, embedding.tolist(), limit=limit)
         items = [
             Meme(
                 id=str(iid),
@@ -239,7 +239,8 @@ class ImageService:
                 text=[],
                 tags=[],
                 originalFileName=filename,
-                excluded=exclude if exclude is not None else False
+                excluded=exclude if exclude is not None else False,
+                clusterId=cluster_id,
             )
             for (id, filename, created_at, cluster_id, exclude, ) in images
         ]

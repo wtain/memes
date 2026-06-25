@@ -22,6 +22,10 @@
     "excluded": {
       "type": "boolean",
       "description": "Whether the image has been marked as excluded"
+    },
+    "clusterId": {
+      "type": "integer",
+      "description": "Duplicate cluster ID, populated only in the duplicates endpoint"
     }
   },
   "required": ["id", "imageUrl"]

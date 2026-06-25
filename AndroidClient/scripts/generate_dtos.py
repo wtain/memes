@@ -58,6 +58,8 @@ def resolve_kotlin_type(
 
     if json_type == "string":
         kt = "String"
+    elif json_type == "integer":
+        kt = "Int"
     elif json_type == "number":
         kt = "Int" if field_name in INTEGER_FIELDS else "Float"
     elif json_type == "boolean":

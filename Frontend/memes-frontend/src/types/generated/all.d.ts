@@ -22,6 +22,10 @@ export interface Meme {
    * Whether the image has been marked as excluded
    */
   excluded?: boolean;
+  /**
+   * Duplicate cluster ID, populated only in the duplicates endpoint
+   */
+  clusterId?: number;
   [k: string]: unknown;
 }
 /**
@@ -148,23 +152,98 @@ export interface SearchHistoryResponse {
   hasNext: boolean;
   [k: string]: unknown;
 }
-export interface UploadedFile {
-  original_filename: string;
-  saved_as: string;
-  size_bytes: number;
-  content_type: string;
-  status: "ok";
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "StatisticsMemeStats".
+ */
+export interface StatisticsMemeStats {
+  /**
+   * Total registered images
+   */
+  total: number;
+  /**
+   * Images with a CLIP embedding
+   */
+  with_embeddings: number;
+  /**
+   * Images with at least one OCR text block
+   */
+  with_ocr: number;
+  /**
+   * Images with at least one tag (any source)
+   */
+  with_tags: number;
+  /**
+   * Images with an Ollama description
+   */
+  with_descriptions: number;
+  /**
+   * Images with at least one CONCEPT-source tag
+   */
+  with_concept_tags: number;
+  /**
+   * Images marked as excluded
+   */
+  excluded: number;
   [k: string]: unknown;
 }
-export interface FailedFile {
-  original_filename: string;
-  reason: string;
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "StatisticsContentStats".
+ */
+export interface StatisticsContentStats {
+  /**
+   * Total OCR text rows across all images
+   */
+  ocr_texts: number;
+  /**
+   * Total tag rows across all images
+   */
+  tags: number;
+  /**
+   * Distinct tag categories (keys)
+   */
+  tag_keys: number;
+  /**
+   * Distinct tag key+value pairs
+   */
+  tag_values: number;
+  /**
+   * Concepts defined in the knowledge base
+   */
+  concepts: number;
+  /**
+   * Concept image sets (reference image groups)
+   */
+  concept_image_sets: number;
+  /**
+   * Individual reference images across all concept sets
+   */
+  concept_images: number;
   [k: string]: unknown;
 }
-export interface UploadResponse {
-  uploaded: UploadedFile[];
-  failed: FailedFile[];
-  total_accepted: number;
-  total_failed: number;
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "StatisticsTrendsStats".
+ */
+export interface StatisticsTrendsStats {
+  /**
+   * Total trends runs recorded
+   */
+  runs: number;
+  /**
+   * Configured feed sources
+   */
+  feed_sources: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "StatisticsResponse".
+ */
+export interface StatisticsResponse {
+  memes: StatisticsMemeStats;
+  content: StatisticsContentStats;
+  trends: StatisticsTrendsStats;
   [k: string]: unknown;
 }

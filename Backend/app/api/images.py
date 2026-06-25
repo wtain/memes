@@ -51,10 +51,11 @@ async def get_images(
 async def get_similar_images(
     image_id: str,
     response: Response,
+    limit: int = Query(10, ge=1, le=100),
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    return await service.get_similar(image_id)
+    return await service.get_similar(image_id, limit=limit)
 
 
 @router.get("/meme/{image_id}", response_model=Meme)

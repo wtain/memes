@@ -19,3 +19,7 @@ class Schema(BaseModel):
     """
     Whether the image has been marked as excluded
     """
+    clusterId: int | None = None
+    """
+    Duplicate cluster ID, populated only in the duplicates endpoint
+    """
