@@ -15,8 +15,10 @@ from Backend.app.api.uploads import router as uploads_router
 
 load_dotenv()
 
-FRONTEND_ORIGIN = os.getenv('FRONTEND_ORIGIN')
-ALTERNATIVE_FRONTEND_ORIGIN = os.getenv('ALTERNATIVE_FRONTEND_ORIGIN')
+_extra_origins = [
+    os.getenv('FRONTEND_ORIGIN'),
+    os.getenv('ALTERNATIVE_FRONTEND_ORIGIN'),
+]
 
 app = FastAPI(
     title="Memes API",
@@ -28,12 +30,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost",
         "http://127.0.0.1",
-        FRONTEND_ORIGIN,
-        ALTERNATIVE_FRONTEND_ORIGIN,
-        # "http://192.168.*.*",
-        # "http://192.168.*.*:*",
-        # "http://localhost:5173",
-        # "http://localhost:5174",
+        *[o for o in _extra_origins if o],
     ],
     allow_credentials=True,
     allow_methods=["*"],

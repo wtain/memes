@@ -24,6 +24,27 @@ ALLOWED_EXTENSIONS = {
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 MAX_FILES = 50
 
+# (magic_bytes, byte_offset) pairs covering all types in ALLOWED_MIME_TYPES
+_MAGIC_SIGNATURES: list[tuple[bytes, int]] = [
+    (b"\xff\xd8\xff", 0),        # JPEG
+    (b"\x89PNG\r\n\x1a\n", 0),  # PNG
+    (b"GIF87a", 0),               # GIF87
+    (b"GIF89a", 0),               # GIF89
+    (b"RIFF", 0),                 # WebP (verified below with offset-8 check)
+    (b"BM", 0),                   # BMP
+    (b"II\x2a\x00", 0),          # TIFF little-endian
+    (b"MM\x00\x2a", 0),          # TIFF big-endian
+]
+
+
+def _has_valid_image_magic(data: bytes) -> bool:
+    for magic, offset in _MAGIC_SIGNATURES:
+        if data[offset: offset + len(magic)] == magic:
+            if magic == b"RIFF":
+                return data[8:12] == b"WEBP"
+            return True
+    return False
+
 
 class UploadedFile(BaseModel):
     original_filename: str
@@ -80,6 +101,13 @@ async def upload_images(files: list[UploadFile] = File(...)):
             failed.append(FailedFile(
                 original_filename=original_filename,
                 reason=f"File too large: {len(data)} bytes (max {MAX_FILE_SIZE})",
+            ))
+            continue
+
+        if not _has_valid_image_magic(data):
+            failed.append(FailedFile(
+                original_filename=original_filename,
+                reason="File content does not match a supported image format",
             ))
             continue
 
