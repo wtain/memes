@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
-import type { StatisticsResponse } from "../types/statistics"
+import type { StatisticsResponse } from "../types/generated/all"
 
 type Props = { memesApi: MemesApi }
 

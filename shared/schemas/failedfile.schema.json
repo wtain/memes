@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "failedfile.schema.json",
+  "title": "FailedFile",
+  "type": "object",
+  "properties": {
+    "original_filename": { "type": "string" },
+    "reason":            { "type": "string" }
+  },
+  "required": ["original_filename", "reason"]
+}

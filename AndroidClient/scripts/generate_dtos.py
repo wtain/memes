@@ -133,23 +133,12 @@ def main() -> None:
 
     classes = [generate_data_class(s, schemas_by_id) for s in ordered]
 
-    # HealthResponse is an API utility type not represented in shared schemas
-    extra = (
-        "\n\n"
-        "// Not in shared schemas — internal API utility type\n"
-        "@Serializable\n"
-        "data class HealthResponse(\n"
-        '    @SerialName("status") val status: String\n'
-        ")\n"
-    )
-
-    output = header + "\n\n".join([""] + classes) + extra
+    output = header + "\n\n".join([""] + classes) + "\n"
     OUTPUT_FILE.write_text(output, encoding="utf-8")
 
     print(f"Generated {OUTPUT_FILE.relative_to(REPO_ROOT)}")
     for s in ordered:
         print(f"  {s['title']}")
-    print("  HealthResponse  (extra)")
 
 
 if __name__ == "__main__":

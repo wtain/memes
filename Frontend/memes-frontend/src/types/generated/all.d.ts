@@ -247,3 +247,43 @@ export interface StatisticsResponse {
   trends: StatisticsTrendsStats;
   [k: string]: unknown;
 }
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "HealthResponse".
+ */
+export interface HealthResponse {
+  status: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "UploadedFile".
+ */
+export interface UploadedFile {
+  original_filename: string;
+  saved_as: string;
+  size_bytes: number;
+  content_type: string;
+  status: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "FailedFile".
+ */
+export interface FailedFile {
+  original_filename: string;
+  reason: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "UploadResponse".
+ */
+export interface UploadResponse {
+  uploaded: UploadedFile[];
+  failed: FailedFile[];
+  total_accepted: number;
+  total_failed: number;
+  [k: string]: unknown;
+}

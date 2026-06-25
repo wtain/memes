@@ -21,6 +21,17 @@ data class FacetBucket(
 )
 
 @Serializable
+data class FailedFile(
+    @SerialName("original_filename") val original_filename: String,
+    @SerialName("reason") val reason: String
+)
+
+@Serializable
+data class HealthResponse(
+    @SerialName("status") val status: String
+)
+
+@Serializable
 data class MemeTag(
     @SerialName("name") val name: String,
     @SerialName("category") val category: String? = null,
@@ -86,6 +97,15 @@ data class TrendsRun(
 )
 
 @Serializable
+data class UploadedFile(
+    @SerialName("original_filename") val original_filename: String,
+    @SerialName("saved_as") val saved_as: String,
+    @SerialName("size_bytes") val size_bytes: Int,
+    @SerialName("content_type") val content_type: String,
+    @SerialName("status") val status: String
+)
+
+@Serializable
 data class Facet(
     @SerialName("name") val name: String,
     @SerialName("buckets") val buckets: List<FacetBucket>
@@ -136,37 +156,16 @@ data class MemeSearchResponse(
 )
 
 @Serializable
+data class UploadResponse(
+    @SerialName("uploaded") val uploaded: List<UploadedFile>,
+    @SerialName("failed") val failed: List<FailedFile>,
+    @SerialName("total_accepted") val total_accepted: Int,
+    @SerialName("total_failed") val total_failed: Int
+)
+
+@Serializable
 data class StatisticsResponse(
     @SerialName("memes") val memes: StatisticsMemeStats,
     @SerialName("content") val content: StatisticsContentStats,
     @SerialName("trends") val trends: StatisticsTrendsStats
-)
-
-// Not in shared schemas — internal API utility types
-@Serializable
-data class HealthResponse(
-    @SerialName("status") val status: String
-)
-
-@Serializable
-data class UploadedFile(
-    @SerialName("original_filename") val originalFilename: String,
-    @SerialName("saved_as") val savedAs: String,
-    @SerialName("size_bytes") val sizeBytes: Long,
-    @SerialName("content_type") val contentType: String,
-    @SerialName("status") val status: String = "ok"
-)
-
-@Serializable
-data class FailedFile(
-    @SerialName("original_filename") val originalFilename: String,
-    @SerialName("reason") val reason: String
-)
-
-@Serializable
-data class UploadResponse(
-    @SerialName("uploaded") val uploaded: List<UploadedFile>,
-    @SerialName("failed") val failed: List<FailedFile>,
-    @SerialName("total_accepted") val totalAccepted: Int,
-    @SerialName("total_failed") val totalFailed: Int
 )

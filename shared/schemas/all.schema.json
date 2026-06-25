@@ -17,6 +17,10 @@
     "StatisticsMemeStats":    { "$ref": "statisticsmemestats.schema.json" },
     "StatisticsContentStats": { "$ref": "statisticscontentstats.schema.json" },
     "StatisticsTrendsStats":  { "$ref": "statisticstrendsstats.schema.json" },
-    "StatisticsResponse":     { "$ref": "statisticsresponse.schema.json" }
+    "StatisticsResponse":     { "$ref": "statisticsresponse.schema.json" },
+    "HealthResponse":         { "$ref": "healthresponse.schema.json" },
+    "UploadedFile":           { "$ref": "uploadedfile.schema.json" },
+    "FailedFile":             { "$ref": "failedfile.schema.json" },
+    "UploadResponse":         { "$ref": "uploadresponse.schema.json" }
   }
 }

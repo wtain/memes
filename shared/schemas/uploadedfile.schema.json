@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "uploadedfile.schema.json",
+  "title": "UploadedFile",
+  "type": "object",
+  "properties": {
+    "original_filename": { "type": "string" },
+    "saved_as":          { "type": "string" },
+    "size_bytes":        { "type": "integer" },
+    "content_type":      { "type": "string" },
+    "status":            { "type": "string" }
+  },
+  "required": ["original_filename", "saved_as", "size_bytes", "content_type", "status"]
+}

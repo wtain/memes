@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "uploadresponse.schema.json",
+  "title": "UploadResponse",
+  "type": "object",
+  "properties": {
+    "uploaded":       { "type": "array", "items": { "$ref": "./uploadedfile.schema.json" } },
+    "failed":         { "type": "array", "items": { "$ref": "./failedfile.schema.json" } },
+    "total_accepted": { "type": "integer" },
+    "total_failed":   { "type": "integer" }
+  },
+  "required": ["uploaded", "failed", "total_accepted", "total_failed"]
+}

@@ -1,8 +1,5 @@
 import type { MemesApi } from "../MemesApi"
-import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../../types/generated/all"
-import type { UploadResponse } from "../../types/upload"
-import type { TrendEntry, TrendHistoryEntry, TrendsRunDto } from "../../types/trends"
-import type { StatisticsResponse } from "../../types/statistics"
+import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse, TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -232,7 +229,7 @@ export class HttpMemesApi implements MemesApi {
     return res.json()
   }
 
-  async getLatestTrendsRun(date: string): Promise<TrendsRunDto> {
+  async getLatestTrendsRun(date: string): Promise<TrendsRun> {
     const res = await fetch(`${this.baseUrl}/api/trends/dates/${date}/runs/latest`, { headers: { Accept: "application/json" } })
     if (!res.ok) throw new Error(`Failed to fetch latest trends run: ${res.status}`)
     return res.json()

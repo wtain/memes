@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
-import type { TrendEntry } from "../types/trends"
+import type { TrendEntry } from "../types/generated/all"
 
 type State =
   | { status: "loading" }

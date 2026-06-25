@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom"
-import type { TrendEntry } from "../types/trends"
+import type { TrendEntry } from "../types/generated/all"
 
 type Props = {
   entries: TrendEntry[]

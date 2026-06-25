@@ -1,5 +1,4 @@
-import type { Facet } from "../types/facet"
-import type { Meme } from "../types/generated/all"
+import type { Facet, Meme } from "../types/generated/all"
 
 export type SearchResponse = {
   results: Meme[]

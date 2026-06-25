@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import type { MemesApi } from "../api/MemesApi"
-import type { TrendHistoryEntry } from "../types/trends"
+import type { TrendHistoryEntry } from "../types/generated/all"
 
 type Props = { memesApi: MemesApi }
 

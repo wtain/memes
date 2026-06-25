@@ -1,7 +1,4 @@
-import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse } from "../types/generated/all";
-import type { UploadResponse } from "../types/upload";
-import type { TrendEntry, TrendHistoryEntry, TrendsRunDto } from "../types/trends";
-import type { StatisticsResponse } from "../types/statistics";
+import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse, TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse } from "../types/generated/all";
 
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>
@@ -35,7 +32,7 @@ export interface MemesApi {
   getRecommendations(q?: string, limit?: number, cursor?: string): Promise<MemeSearchResponse>;
 
   getTrendsDates(label?: string, name?: string): Promise<string[]>;
-  getLatestTrendsRun(date: string): Promise<TrendsRunDto>;
+  getLatestTrendsRun(date: string): Promise<TrendsRun>;
   getTrendsRun(runId: string, minValue?: number): Promise<TrendEntry[]>;
   getTrendsHistory(label: string, name: string): Promise<TrendHistoryEntry[]>;
 

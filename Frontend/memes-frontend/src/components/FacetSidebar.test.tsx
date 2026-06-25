@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import FacetSidebar from './FacetSidebar'
-import type { Facet } from '../types/facet'
+import type { Facet } from '../types/generated/all'
 
 const facets: Facet[] = [
   {
