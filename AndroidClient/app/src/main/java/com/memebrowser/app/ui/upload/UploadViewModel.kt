@@ -107,7 +107,7 @@ class UploadViewModel @Inject constructor(
             }
             repo.uploadImages(parts)
                 .onSuccess { response ->
-                    Log.d(TAG, "Upload ok: accepted=${response.totalAccepted} failed=${response.totalFailed}")
+                    Log.d(TAG, "Upload ok: accepted=${response.total_accepted} failed=${response.total_failed}")
                     _state.update { it.copy(isUploading = false, result = response, items = emptyList()) }
                 }
                 .onFailure { e ->

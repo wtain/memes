@@ -184,14 +184,14 @@ private fun UploadResultSection(result: UploadResponse) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(
-                text = "${result.totalAccepted} uploaded",
+                text = "${result.total_accepted} uploaded",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary
             )
-            if (result.totalFailed > 0) {
+            if (result.total_failed > 0) {
                 Text(
-                    text = "${result.totalFailed} failed",
+                    text = "${result.total_failed} failed",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.error
@@ -210,13 +210,13 @@ private fun UploadedRow(file: UploadedFile) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = file.originalFilename,
+            text = file.original_filename,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = formatBytes(file.sizeBytes),
+            text = formatBytes(file.size_bytes.toLong()),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary
         )
@@ -228,7 +228,7 @@ private fun FailedRow(file: FailedFile) {
     Box(modifier = Modifier.fillMaxWidth()) {
         Column {
             Text(
-                text = file.originalFilename,
+                text = file.original_filename,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.error
