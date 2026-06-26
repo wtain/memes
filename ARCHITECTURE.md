@@ -207,7 +207,7 @@ Backend/app/
 **Key Tables**:
 - `images` - Base image records with metadata
 - `ocr_texts` - Extracted text from images
-- `image_embeddings` - CLIP vector embeddings (1536-dim)
+- `embeddings` - CLIP vector embeddings (512-dim)
 - `concept_embeddings` - Semantic concepts and their embeddings
 - `tags` - Text tags applied to images
 - `image_tags` - Junction table linking images to tags
@@ -269,7 +269,7 @@ class ImageRepository:
 - `ai/yolo.py` - YOLOv8 object detection (experimental)
 
 **Models**:
-- **CLIP ViT-B-32**: 1536-dimensional embeddings
+- **CLIP ViT-B-32**: 512-dimensional embeddings
   - Trained on 400M image-text pairs
   - Excellent image-text alignment
   - Good generalization across domains
@@ -391,8 +391,8 @@ extract_text_from_memes.py (batch job 1)
                 ▼
 build_image_embeddings.py (batch job 2)
   1. Load each registered image
-  2. Generate CLIP embedding (1536 dims)
-  3. Store in `image_embeddings` table
+  2. Generate CLIP embedding (512 dims)
+  3. Store in `embeddings` table
                 │
                 ▼
 rebuild_duplicates.py (batch job 3)
@@ -513,7 +513,7 @@ Backend API can now serve fully enriched images
 {
   id: UUID
   image_id: UUID           # Foreign key to Image
-  embedding: Vector(1536)  # CLIP embedding vector
+  embedding: Vector(512)  # CLIP embedding vector
   model: str              # Model name (e.g., "clip:vit-b-32")
   generated_at: DateTime
 }
@@ -537,7 +537,7 @@ Backend API can now serve fully enriched images
   id: UUID
   name: str                # Concept name
   description: str         # Human description
-  embedding: Vector(1536)  # Semantic embedding
+  embedding: Vector(512)  # Semantic embedding
   type: str               # "text" or "image_set"
 }
 ```
@@ -566,7 +566,7 @@ Backend API can now serve fully enriched images
 
 2. build_image_embeddings
    Input:  Registered images
-   Output: CLIP embeddings (1536-dim vectors)
+   Output: CLIP embeddings (512-dim vectors)
    Time:   ~0.5-2 seconds per image (CPU), faster with GPU
 
 3. rebuild_duplicates
@@ -635,11 +635,11 @@ ocr_texts
   ├─ text
   └─ confidence
 
-image_embeddings
+embeddings
   ├─ id (UUID)
   ├─ image_id (FK)
-  ├─ embedding (Vector 1536)
-  └─ model
+  ├─ embedding (Vector 512)
+  └─ (no model field — single CLIP model per environment)
 
 duplicate_clusters
   ├─ cluster_id (UUID)
@@ -664,7 +664,7 @@ concepts
   ├─ id (UUID)
   ├─ name
   ├─ description
-  ├─ embedding (Vector 1536)
+  ├─ embedding (Vector 512)
   └─ type
 
 concept_images
@@ -677,7 +677,7 @@ concept_images
 
 ```sql
 -- Vector similarity search
-CREATE INDEX ON image_embeddings USING ivfflat (embedding vector_cosine_ops)
+CREATE INDEX ON embeddings USING ivfflat (embedding vector_cosine_ops)
   WITH (lists = 100);  -- Adjust based on dataset size
 
 -- Full-text search on OCR

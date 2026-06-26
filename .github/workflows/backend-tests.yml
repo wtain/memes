@@ -6,6 +6,12 @@ on:
     paths:
       - 'Backend/**'
       - 'Storage/**'
+      - 'repository/**'
+      - 'rules/**'
+      - 'ai/**'
+      - 'embeddingutils/**'
+      - 'graph/**'
+      - 'metrics/**'
       - 'requirements.txt'
       - '.github/workflows/backend-tests.yml'
   pull_request:
@@ -13,6 +19,12 @@ on:
     paths:
       - 'Backend/**'
       - 'Storage/**'
+      - 'repository/**'
+      - 'rules/**'
+      - 'ai/**'
+      - 'embeddingutils/**'
+      - 'graph/**'
+      - 'metrics/**'
       - 'requirements.txt'
       - '.github/workflows/backend-tests.yml'
 
