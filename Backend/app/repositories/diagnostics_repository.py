@@ -1,4 +1,4 @@
-from sqlalchemy import func, select, text, true
+from sqlalchemy import exists, func, select, text, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import (
@@ -31,7 +31,7 @@ class DiagnosticsRepository:
                 select(func.count(ImageTag.image_id.distinct()))
                     .scalar_subquery().label("with_tags"),
                 select(func.count()).select_from(Image)
-                    .where(~Image.id.in_(select(ImageTag.image_id.distinct())))
+                    .where(~exists(select(ImageTag.image_id).where(ImageTag.image_id == Image.id)))
                     .scalar_subquery().label("without_tags"),
                 select(func.count(OllamaDescription.image_id.distinct()))
                     .scalar_subquery().label("with_descriptions"),
