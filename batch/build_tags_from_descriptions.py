@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 
@@ -10,26 +11,34 @@ RULES_FILE = os.getenv("RULES_FILE")
 
 rules_engine = RulesEngine(RULES_FILE)
 
-async def main():
 
+async def main(incremental: bool):
     async with AsyncSessionLocal() as session:
-
         tags_repo = TagsRepository(session)
-        await tags_repo.delete_tags("Ollama")
-
         images_repo = ImagesRepository(session)
+
+        if not incremental:
+            await tags_repo.delete_tags("Ollama")
 
         total_images = await images_repo.get_total_images()
         print(f"Total images: {total_images}")
-
+        print(f"Mode: {'incremental' if incremental else 'full'}")
         print("Running...")
-        images_and_texts_results = await images_repo.get_images_and_ollama_descriptions()
+
+        if incremental:
+            images_and_texts_results = await images_repo.get_images_and_ollama_descriptions_without_tags("Ollama")
+        else:
+            images_and_texts_results = await images_repo.get_images_and_ollama_descriptions()
+
         async with TagsSaver(session) as tags_saver:
             for filename, image_id, text in images_and_texts_results:
                 for tag_name, value in rules_engine.get_tags_for_text(text):
                     tags_saver.add_tag(image_id, tag_name, value, "Ollama")
 
 
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--incremental", action="store_true",
+                        help="Only process images that have no Ollama tags yet (default: clear all and reprocess)")
+    args = parser.parse_args()
+    asyncio.run(main(args.incremental))

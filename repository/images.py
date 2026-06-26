@@ -3,7 +3,7 @@ from sqlalchemy import select, delete, update
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
-from Storage.models import Embedding, OCRText, Image, OllamaDescription
+from Storage.models import Embedding, OCRText, Image, OllamaDescription, ImageTag
 
 
 class ImagesRepository:
@@ -28,6 +28,24 @@ class ImagesRepository:
         images_and_texts_results = await self.session.execute(query)
         return images_and_texts_results
 
+    async def get_images_and_ocr_texts_without_tags(self, source: str):
+        already_tagged = (
+            select(ImageTag.image_id)
+            .where(ImageTag.source == source)
+            .distinct()
+            .scalar_subquery()
+        )
+        query = (
+            select(
+                self.img.filename,
+                self.img.id,
+                self.ocr.text,
+                self.ocr.confidence
+            )
+            .join(self.ocr, self.ocr.image_id == self.img.id)
+            .where(self.img.id.not_in(already_tagged))
+        )
+        return await self.session.execute(query)
 
     async def get_images_and_ollama_descriptions(self):
         query = (
@@ -41,6 +59,33 @@ class ImagesRepository:
         )
         images_and_texts_results = await self.session.execute(query)
         return images_and_texts_results
+
+    async def get_images_and_ollama_descriptions_without_tags(self, source: str):
+        already_tagged = (
+            select(ImageTag.image_id)
+            .where(ImageTag.source == source)
+            .distinct()
+            .scalar_subquery()
+        )
+        query = (
+            select(
+                self.img.filename,
+                self.img.id,
+                self.description.text
+            )
+            .join(self.description, self.description.image_id == self.img.id)
+            .where(self.img.id.not_in(already_tagged))
+        )
+        return await self.session.execute(query)
+
+    async def get_all_images_without_description(self):
+        has_description = (
+            select(OllamaDescription.image_id)
+            .distinct()
+            .scalar_subquery()
+        )
+        query = select(Image.filename, Image.id).where(Image.id.not_in(has_description))
+        return await self.session.execute(query)
 
 
     async def get_all_images_with_hash(self):

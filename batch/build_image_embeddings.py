@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 
@@ -18,33 +19,36 @@ from Storage.models import Image as Img
 load_dotenv()
 
 
-async def main():
+async def main(incremental: bool):
 
     async with AsyncSessionLocal() as session:
-        print("Deleting all embeddings...")
-        await session.execute(
-            delete(Embedding)
-        )
-        await session.commit()
-        print("Done")
+        if not incremental:
+            print("Deleting all embeddings...")
+            await session.execute(
+                delete(Embedding)
+            )
+            await session.commit()
+            print("Done")
 
         total_images = (await session.execute(
             select(count(Img.id))
         )).scalar_one()
 
-        stmt = (
-            select(Img.filename, Img.id)
-        )
+        if incremental:
+            has_embedding = select(Embedding.image_id).distinct().scalar_subquery()
+            stmt = select(Img.filename, Img.id).where(Img.id.not_in(has_embedding))
+        else:
+            stmt = select(Img.filename, Img.id)
+
         result = await session.execute(stmt)
 
         clip_model = ClipModel()
 
         BASE_PATH = os.getenv('BASE_PATH')
         print(f"BASE_PATH={BASE_PATH}")
-        base_path = os.path.abspath(BASE_PATH) # "c:\\Users\\ramiz\\OneDrive\\Pictures\\Samsung Gallery\\DCIM\\MetalMemes\\"
+        base_path = os.path.abspath(BASE_PATH)
 
         print(f"Processing on {clip_model.device}")
-        # todo: batch encode
         for (filename, image_id,) in result:
             path = os.path.join(base_path, filename)
             if os.path.isdir(path):
@@ -63,12 +67,14 @@ async def main():
             except Exception as e:
                 print(f"Can't read {path}: {e}")
 
-        # batch commit?
         print("Committing...")
         await session.commit()
         print("Done")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--incremental", action="store_true",
+                        help="Only embed images that have no embedding yet (default: clear all and reprocess)")
+    args = parser.parse_args()
+    asyncio.run(main(args.incremental))

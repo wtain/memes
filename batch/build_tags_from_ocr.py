@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 from pathlib import Path
@@ -16,17 +17,24 @@ OCR_CONFIDENCE_MIN = float(os.getenv("OCR_CONFIDENCE_MIN", "0.4"))
 engine = ConceptTagger.load(DATA_DIR, PROFILE)
 
 
-async def main():
+async def main(incremental: bool):
     async with AsyncSessionLocal() as session:
         tags_repo = TagsRepository(session)
-        await tags_repo.delete_tags("OCR")
-
         images_repo = ImagesRepository(session)
+
+        if not incremental:
+            await tags_repo.delete_tags("OCR")
+
         total_images = await images_repo.get_total_images()
         print(f"Total images: {total_images}")
         print(f"Tagging with profile '{PROFILE}' from {DATA_DIR} ...")
+        print(f"Mode: {'incremental' if incremental else 'full'}")
 
-        images_and_texts_results = await images_repo.get_images_and_ocr_texts()
+        if incremental:
+            images_and_texts_results = await images_repo.get_images_and_ocr_texts_without_tags("OCR")
+        else:
+            images_and_texts_results = await images_repo.get_images_and_ocr_texts()
+
         metrics = SimpleMetricsListener()
 
         async with TagsSaver(session) as tags_saver:
@@ -47,4 +55,8 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--incremental", action="store_true",
+                        help="Only process images that have no OCR tags yet (default: clear all and reprocess)")
+    args = parser.parse_args()
+    asyncio.run(main(args.incremental))

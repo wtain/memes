@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 
@@ -8,7 +9,7 @@ from repository.images import ImagesRepository
 from repository.ollama_descriptions import OllamaDescriptionsRepository
 
 
-async def main():
+async def main(incremental: bool):
     BASE_PATH = os.getenv('BASE_PATH')
     print(f"BASE_PATH={BASE_PATH}")
     base_path = os.path.abspath(BASE_PATH)
@@ -20,12 +21,18 @@ async def main():
         descriptions_repo = OllamaDescriptionsRepository(session)
         images_repo = ImagesRepository(session)
 
-        print("Deleting all descriptions...")
-        await descriptions_repo.delete_all()
-        await session.commit()
-        print("Done")
+        if not incremental:
+            print("Deleting all descriptions...")
+            await descriptions_repo.delete_all()
+            await session.commit()
+            print("Done")
 
-        images = await images_repo.get_all_images()
+        print(f"Mode: {'incremental' if incremental else 'full'}")
+
+        if incremental:
+            images = await images_repo.get_all_images_without_description()
+        else:
+            images = await images_repo.get_all_images()
 
         for (filename, image_id,) in images:
             path = os.path.join(base_path, filename)
@@ -37,8 +44,6 @@ async def main():
 
             print(f"Running for {path}")
 
-            # todo: batching - commit in batches and enable resume mode, not deleting all in the beginning
-
             try:
                 description = describer.describe(path)
                 descriptions_repo.save(image_id, description)
@@ -47,7 +52,6 @@ async def main():
                 print(f"Model failed: {e}")
                 metrics.increment("error.model")
 
-        # batch commit?
         print("Committing...")
         await session.commit()
         print("Done")
@@ -56,4 +60,8 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--incremental", action="store_true",
+                        help="Only describe images that have no description yet (default: clear all and reprocess)")
+    args = parser.parse_args()
+    asyncio.run(main(args.incremental))
