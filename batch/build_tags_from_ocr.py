@@ -2,6 +2,7 @@ import asyncio
 import os
 from pathlib import Path
 
+from metrics.listener import SimpleMetricsListener
 from rules.concept_tagger import ConceptTagger
 from Storage.db import AsyncSessionLocal
 from repository.images import ImagesRepository
@@ -23,22 +24,26 @@ async def main():
         images_repo = ImagesRepository(session)
         total_images = await images_repo.get_total_images()
         print(f"Total images: {total_images}")
-
         print(f"Tagging with profile '{PROFILE}' from {DATA_DIR} ...")
-        images_and_texts_results = await images_repo.get_images_and_ocr_texts()
 
-        tagged = skipped = 0
+        images_and_texts_results = await images_repo.get_images_and_ocr_texts()
+        metrics = SimpleMetricsListener()
+
         async with TagsSaver(session) as tags_saver:
             for filename, image_id, text, confidence in images_and_texts_results:
                 if confidence < OCR_CONFIDENCE_MIN:
-                    skipped += 1
+                    metrics.increment("images.skipped")
                     continue
                 result = engine.tag(text)
+                tag_count = len(result.tags)
                 for tag_name, tag_value in result.tags:
                     tags_saver.add_tag(image_id, tag_name, tag_value, "OCR")
-                tagged += 1
+                metrics.increment("images.processed")
+                metrics.add("tags.total", tag_count)
+                metrics.bucket("tags_per_image", tag_count)
 
-        print(f"Done: {tagged} images tagged, {skipped} skipped (low confidence)")
+    print("Done:")
+    metrics.print()
 
 
 if __name__ == "__main__":
