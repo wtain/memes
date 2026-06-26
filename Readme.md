@@ -1,6 +1,19 @@
 
 # Memes - AI-Powered Semantic Meme Search Engine
 
+## CI Status
+
+| Workflow | Status |
+|----------|--------|
+| Backend Tests | [![Backend Tests](https://github.com/wtain/memes/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/wtain/memes/actions/workflows/backend-tests.yml) |
+| Backend Coverage | [![Backend Coverage](https://github.com/wtain/memes/actions/workflows/backend-coverage.yml/badge.svg)](https://github.com/wtain/memes/actions/workflows/backend-coverage.yml) |
+| Backend Docker Build | [![Backend Docker Build](https://github.com/wtain/memes/actions/workflows/backend-docker.yml/badge.svg)](https://github.com/wtain/memes/actions/workflows/backend-docker.yml) |
+| Frontend CI | [![Frontend CI](https://github.com/wtain/memes/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/wtain/memes/actions/workflows/frontend-ci.yml) |
+| Frontend Release | [![Frontend Release](https://github.com/wtain/memes/actions/workflows/frontend-release.yml/badge.svg)](https://github.com/wtain/memes/actions/workflows/frontend-release.yml) |
+| Android CI | [![Android CI](https://github.com/wtain/memes/actions/workflows/android-ci.yml/badge.svg)](https://github.com/wtain/memes/actions/workflows/android-ci.yml) |
+| Android Release | [![Android Release](https://github.com/wtain/memes/actions/workflows/android-release.yml/badge.svg)](https://github.com/wtain/memes/actions/workflows/android-release.yml) |
+| Release | [![Release](https://github.com/wtain/memes/actions/workflows/release.yml/badge.svg)](https://github.com/wtain/memes/actions/workflows/release.yml) |
+
 An intelligent system for organizing, searching, and understanding memes through AI-powered semantic analysis. Uses embeddings, OCR, LLM descriptions, and clustering to build a searchable knowledge base.
 
 ## Quick Start
