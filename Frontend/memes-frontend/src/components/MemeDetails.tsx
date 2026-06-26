@@ -217,7 +217,12 @@ export function MemeDetails({ meme, memesApi }: Props) {
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {similarMemes.map(m => (
-            <MemeCard key={m.id} meme={m} memesApi={memesApi} onClick={() => navigate(`/memes/${m.id}`)} />
+            <div key={m.id}>
+              <MemeCard meme={m} memesApi={memesApi} onClick={() => navigate(`/memes/${m.id}`)} />
+              {typeof m.cosineDistance === "number" && (
+                <p className="text-center text-xs text-gray-400 mt-1">{m.cosineDistance.toFixed(2)}</p>
+              )}
+            </div>
           ))}
         </div>
       </div>
