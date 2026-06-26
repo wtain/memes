@@ -92,7 +92,7 @@ shared/schemas/           ← JSON schemas shared across frontend, backend, Andr
 
 ### Backend pattern
 
-Strict two-layer: **Router → Repository**. No service layer unless business logic warrants it.
+Three layers: **Router → Service → Repository**. Service layer (`Backend/app/services/`) handles business logic; not every endpoint needs one — simple pass-throughs go Router → Repository directly.
 
 - **Router** (`Backend/app/api/`): request validation, dependency injection, response model construction. No raw SQL.
 - **Repository** (`Backend/app/repositories/` or root `repository/`): all DB queries via SQLAlchemy async ORM. Returns ORM rows or plain Python values — never Pydantic models.

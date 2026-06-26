@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
-from Backend.app.services.image_store import INCOMING_DIR
+from Backend.app.services.image_store import save_incoming
 from Backend.app.services.rate_limit import upload_limiter
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
@@ -117,7 +117,7 @@ async def upload_images(request: Request, files: list[UploadFile] = File(...)):
             continue
 
         saved_as = f"{uuid.uuid4()}{ext}"
-        (INCOMING_DIR / saved_as).write_bytes(data)
+        save_incoming(saved_as, data)
 
         uploaded.append(UploadedFile(
             original_filename=original_filename,

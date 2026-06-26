@@ -32,14 +32,9 @@ An intelligent system for organizing, searching, and understanding memes through
 git clone <repository-url>
 cd memes
 
-# Start all services (requires Docker & Docker Compose)
-docker-compose up -d
+# Start the database only (no root-level docker-compose.yml yet — see SETUP.md for full stack)
+cd Storage && docker-compose up -d
 ```
-
-Services available at:
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8081/api
-- **PostgreSQL**: localhost:5432
 
 ### Manual Setup (Windows/macOS/Linux)
 
@@ -114,7 +109,7 @@ User Interface
 
 1. Caching (e.g. Redis for frequent queries)
 2. Batch orchestration (Airflow or similar for scheduled processing)
-3. Mobile clients (Android/iOS)
+3. iOS client (Android client already ships — see `AndroidClient/`)
 4. User upload flow
 5. Agent/skill system for advanced querying
 6. User authentication and multi-user support
@@ -267,7 +262,7 @@ Optional data maintenance (run as needed):
 
 2. **build_image_embeddings** - Generate CLIP embeddings
    - Runs on all registered images
-   - Generates 1536-dimensional CLIP ViT-B-32 vectors
+   - Generates 512-dimensional CLIP ViT-B-32 vectors
    - Recalculates on each run (overwrites previous)
 
 3. **rebuild_duplicates** - Build similarity-based clusters

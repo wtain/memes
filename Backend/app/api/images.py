@@ -14,7 +14,7 @@ from Storage.db import get_async_db, AsyncSessionLocal
 from Backend.app.repositories.image_repository import ImageRepository
 from Backend.app.services.cache import short_cache_headers, image_cache_headers, no_cache_headers
 from Backend.app.services.image_service import ImageService
-from Backend.app.services.image_store import IMAGES_DIR
+from Backend.app.services.image_store import get_image_path
 from Backend.app.types.generated.meme import Schema as Meme
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
@@ -165,7 +165,7 @@ async def get_image(image_id: str, response: Response, db: AsyncSession = Depend
     logger.debug("Content-Disposition: %r", cd)
     headers['Content-Disposition'] = cd
     return FileResponse(
-        IMAGES_DIR / filename,
+        get_image_path(filename),
         # media_type=mime_type,
         headers=headers,
     )

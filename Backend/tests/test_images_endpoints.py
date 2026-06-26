@@ -886,23 +886,16 @@ class TestGetImage:
 
         # Mock the ImageRepository constructor to return our instance
         with patch('Backend.app.api.images.ImageRepository', return_value=mock_repo_instance):
-            # Mock the file path check
-            with patch('Backend.app.api.images.IMAGES_DIR') as mock_images_dir:
-                # Create a mock path
-                mock_path = MagicMock()
-                mock_images_dir.__truediv__ = MagicMock(return_value=mock_path)
-
-                # Mock FileResponse to avoid actual file access
+            mock_path = MagicMock()
+            with patch('Backend.app.api.images.get_image_path', return_value=mock_path):
                 with patch('Backend.app.api.images.FileResponse') as mock_file_response:
                     mock_file_response.return_value = MagicMock(
                         status_code=200,
                         headers={"Content-Type": "image/jpeg"}
                     )
 
-                    # Act
                     response = client.get(f"/api/images/{image_id}")
 
-                    # Assert
                     assert response.status_code == 200
                     mock_repo_instance.get_filename.assert_called_once_with(image_id)
 
@@ -965,17 +958,13 @@ class TestGetImage:
             mock_repo_instance.get_filename.return_value = filename
 
             with patch('Backend.app.api.images.ImageRepository', return_value=mock_repo_instance):
-                with patch('Backend.app.api.images.IMAGES_DIR') as mock_images_dir:
-                    mock_path = MagicMock()
-                    mock_images_dir.__truediv__ = MagicMock(return_value=mock_path)
-
+                mock_path = MagicMock()
+                with patch('Backend.app.api.images.get_image_path', return_value=mock_path):
                     with patch('Backend.app.api.images.FileResponse') as mock_file_response:
                         mock_file_response.return_value = MagicMock(status_code=200)
 
-                        # Act
                         response = client.get(f"/api/images/test-{filename}")
 
-                        # Assert
                         assert response.status_code == 200
 
 
