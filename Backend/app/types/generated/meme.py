@@ -23,3 +23,7 @@ class Schema(BaseModel):
     """
     Duplicate cluster ID, populated only in the duplicates endpoint
     """
+    cosineDistance: float | None = None
+    """
+    Cosine distance to the query image, populated only in the similar images endpoint
+    """

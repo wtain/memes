@@ -119,9 +119,10 @@ class ImageService:
                 text=[],
                 tags=[],
                 originalFileName=fname,
-                excluded=exclude if exclude is not None else False
+                excluded=exclude if exclude is not None else False,
+                cosineDistance=float(dist),
             )
-            for iid, _, fname, exclude in rows
+            for iid, dist, fname, exclude in rows
         ]
         return MemeSearchResponse(items=items)
 

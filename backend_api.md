@@ -39,7 +39,8 @@ Represents a meme image with metadata and tags.
   "text": ["string"] | null,
   "tags": [MemeTag] | null,
   "excluded": "boolean | null",
-  "clusterId": "integer | null"
+  "clusterId": "integer | null",
+  "cosineDistance": "number | null"
 }
 ```
 
@@ -331,7 +332,7 @@ Find images similar to a given image.
   - `image_id`: Unique identifier of the image
 - **Query Parameters**:
   - `limit` (optional): Number of results (1-100, default: 10)
-- **Response**: `MemeSearchResponse`
+- **Response**: `MemeSearchResponse` — each `Meme` item includes `cosineDistance` (float, lower = more similar)
 - **Example**: `GET /api/images/abc123/similar?limit=10`
 
 #### Get Meme Details

@@ -26,6 +26,10 @@
     "clusterId": {
       "type": "integer",
       "description": "Duplicate cluster ID, populated only in the duplicates endpoint"
+    },
+    "cosineDistance": {
+      "type": "number",
+      "description": "Cosine distance to the query image, populated only in the similar images endpoint"
     }
   },
   "required": ["id", "imageUrl"]
