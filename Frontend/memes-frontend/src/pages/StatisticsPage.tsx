@@ -56,6 +56,8 @@ export default function StatisticsPage({ memesApi }: Props) {
   )
 
   const { memes, content } = stats
+  const withoutTags = (memes.total ?? 0) - (memes.with_tags ?? 0)
+  const withoutDescriptions = (memes.total ?? 0) - (memes.with_descriptions ?? 0)
   const avgTags = (memes.with_tags ?? 0) > 0
     ? ((content.tags ?? 0) / (memes.with_tags ?? 1)).toFixed(1)
     : "—"
@@ -69,7 +71,7 @@ export default function StatisticsPage({ memesApi }: Props) {
         <StatGrid cells={[
           { label: "Total memes", value: n(memes.total) },
           { label: "Tagged", value: `${n(memes.with_tags)} (${pct(memes.with_tags, memes.total)})` },
-          { label: "Not tagged", value: `${n(memes.without_tags)} (${pct(memes.without_tags, memes.total)})` },
+          { label: "Not tagged", value: `${n(withoutTags)} (${pct(withoutTags, memes.total)})` },
           { label: "Excluded", value: n(memes.excluded) },
         ]} />
       </section>
@@ -81,6 +83,7 @@ export default function StatisticsPage({ memesApi }: Props) {
           { label: "With embeddings", value: `${n(memes.with_embeddings)} (${pct(memes.with_embeddings, memes.total)})` },
           { label: "With tags", value: `${n(memes.with_tags)} (${pct(memes.with_tags, memes.total)})` },
           { label: "With descriptions", value: `${n(memes.with_descriptions)} (${pct(memes.with_descriptions, memes.total)})` },
+          { label: "Without descriptions", value: `${n(withoutDescriptions)} (${pct(withoutDescriptions, memes.total)})` },
           { label: "With concept assignments", value: `${n(memes.with_concept_tags)} (${pct(memes.with_concept_tags, memes.total)})` },
         ]} />
       </section>
