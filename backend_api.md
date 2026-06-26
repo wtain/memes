@@ -659,6 +659,7 @@ Returns row counts across all major tables in a single SQL round-trip.
     "with_embeddings": 11800,
     "with_ocr": 9200,
     "with_tags": 10100,
+    "without_tags": 2300,
     "with_descriptions": 3400,
     "with_concept_tags": 8700,
     "excluded": 82

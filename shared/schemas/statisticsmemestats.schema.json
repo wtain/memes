@@ -8,9 +8,10 @@
     "with_embeddings":    { "type": "integer", "description": "Images with a CLIP embedding" },
     "with_ocr":           { "type": "integer", "description": "Images with at least one OCR text block" },
     "with_tags":          { "type": "integer", "description": "Images with at least one tag (any source)" },
+    "without_tags":       { "type": "integer", "description": "Images with no tags" },
     "with_descriptions":  { "type": "integer", "description": "Images with an Ollama description" },
     "with_concept_tags":  { "type": "integer", "description": "Images with at least one CONCEPT-source tag" },
     "excluded":           { "type": "integer", "description": "Images marked as excluded" }
   },
-  "required": ["total", "with_embeddings", "with_ocr", "with_tags", "with_descriptions", "with_concept_tags", "excluded"]
+  "required": ["total", "with_embeddings", "with_ocr", "with_tags", "without_tags", "with_descriptions", "with_concept_tags", "excluded"]
 }

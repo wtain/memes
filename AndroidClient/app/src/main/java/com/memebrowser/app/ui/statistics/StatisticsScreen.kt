@@ -90,13 +90,14 @@ private fun StatisticsContent(data: StatisticsResponse) {
     ) {
         StatSection("Library") {
             StatRow("Total memes", "${data.memes.total}")
+            StatRow("Tagged", pct(data.memes.with_tags))
+            StatRow("Not tagged", pct(data.memes.without_tags))
             StatRow("Excluded", "${data.memes.excluded}")
         }
         StatSection("Pipeline coverage") {
             StatRow("With OCR", pct(data.memes.with_ocr))
             StatRow("With embeddings", pct(data.memes.with_embeddings))
             StatRow("With tags", pct(data.memes.with_tags))
-            StatRow("Untagged", pct(data.memes.total - data.memes.with_tags))
             StatRow("With descriptions", pct(data.memes.with_descriptions))
             StatRow("With concept assignments", pct(data.memes.with_concept_tags))
         }

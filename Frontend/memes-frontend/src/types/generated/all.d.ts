@@ -174,6 +174,10 @@ export interface StatisticsMemeStats {
    */
   with_tags: number;
   /**
+   * Images with no tags
+   */
+  without_tags: number;
+  /**
    * Images with an Ollama description
    */
   with_descriptions: number;

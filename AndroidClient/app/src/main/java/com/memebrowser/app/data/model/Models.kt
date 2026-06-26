@@ -62,6 +62,7 @@ data class StatisticsMemeStats(
     @SerialName("with_embeddings") val with_embeddings: Int,
     @SerialName("with_ocr") val with_ocr: Int,
     @SerialName("with_tags") val with_tags: Int,
+    @SerialName("without_tags") val without_tags: Int,
     @SerialName("with_descriptions") val with_descriptions: Int,
     @SerialName("with_concept_tags") val with_concept_tags: Int,
     @SerialName("excluded") val excluded: Int
