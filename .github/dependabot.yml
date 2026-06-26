@@ -1,0 +1,46 @@
+version: 2
+updates:
+  # Root-level Python requirements (batch jobs, shared packages)
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - python
+
+  # Backend-specific Python requirements
+  - package-ecosystem: pip
+    directory: /Backend
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - python
+
+  # Frontend (pnpm — Dependabot reads pnpm-lock.yaml via npm ecosystem)
+  - package-ecosystem: npm
+    directory: /Frontend/memes-frontend
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - javascript
+
+  # Android
+  - package-ecosystem: gradle
+    directory: /AndroidClient
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - android
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - ci
