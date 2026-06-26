@@ -100,3 +100,7 @@ debug.log
 **/*.hprof
 
 **/*.pyc
+
+# Agent runtime state
+.agent_state/
+logs/
