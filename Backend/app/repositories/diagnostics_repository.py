@@ -30,6 +30,9 @@ class DiagnosticsRepository:
                     .scalar_subquery().label("with_ocr"),
                 select(func.count(ImageTag.image_id.distinct()))
                     .scalar_subquery().label("with_tags"),
+                select(func.count()).select_from(Image)
+                    .where(~Image.id.in_(select(ImageTag.image_id.distinct())))
+                    .scalar_subquery().label("without_tags"),
                 select(func.count(OllamaDescription.image_id.distinct()))
                     .scalar_subquery().label("with_descriptions"),
                 select(func.count()).select_from(ImageExtras)
