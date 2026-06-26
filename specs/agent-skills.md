@@ -154,12 +154,22 @@ that don't map to any existing concept and warrant a new entry.
 ### Tag inheritance from similar images
 
 For each untagged image, call `GET /api/images/{id}/similar?limit=N` (nearest neighbors).
-Default N = 10 (current endpoint default). Collect tags of neighbors. If a tag appears in
-≥ 60% of returned neighbors, treat it as a strong candidate signal. The agent uses this to
-validate or strengthen a rule suggestion, not as a standalone write — the goal is always a
-rule, not a one-off tag.
+Default N = 10. Each neighbor includes `cosineDistance` (0 = identical, 1 = unrelated).
 
-The 60% threshold is a starting point; agent may note confidence level in output.
+Use distance-weighted voting across neighbors:
+
+| Distance range | Weight |
+|---------------|--------|
+| < 0.05        | 1.0    |
+| 0.05 – 0.15   | 0.5    |
+| > 0.15        | 0.2    |
+
+Sum weights per tag. If total weight ≥ 1.5, treat as a candidate signal (roughly equivalent
+to 2 near-identical neighbors or 3 visually similar ones). The agent records the weighted
+score and closest neighbor distance in its output so confidence is auditable.
+
+The agent uses this to validate or strengthen a rule suggestion, not as a standalone write —
+the goal is always a rule, not a one-off tag.
 
 **Required API change**: add `limit` query parameter to `GET /api/images/{image_id}/similar`
 (default 10, matching current hardcoded behavior).

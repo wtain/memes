@@ -120,7 +120,8 @@ data class Meme(
     @SerialName("text") val text: List<String>? = null,
     @SerialName("tags") val tags: List<MemeTag>? = null,
     @SerialName("excluded") val excluded: Boolean? = null,
-    @SerialName("clusterId") val clusterId: Int? = null
+    @SerialName("clusterId") val clusterId: Int? = null,
+    @SerialName("cosineDistance") val cosineDistance: Float? = null
 )
 
 @Serializable

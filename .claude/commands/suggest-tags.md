@@ -32,7 +32,17 @@ GET http://127.0.0.1:{port}/api/images/{id}/similar?limit=10
 ```
 Ports: metal=8081, general=8082, it=8083.
 
-If a tag appears in ≥ 60% of the neighbors, treat it as a strong candidate signal.
+Each neighbor in the response includes a `cosineDistance` field (0 = identical, 1 = unrelated).
+Use distance-weighted voting rather than a flat frequency threshold:
+
+- Distance < 0.05 → weight 1.0 (near-identical image, strong signal)
+- Distance 0.05–0.15 → weight 0.5 (visually similar)
+- Distance > 0.15 → weight 0.2 (loosely related, weak signal)
+
+Sum the weights for each tag across all neighbors. If the weighted sum ≥ 1.5 (equivalent to
+~2 strong neighbors or ~3 moderate ones), treat it as a candidate signal. Note the total weight
+and the closest neighbor distance in your output so confidence is visible.
+
 Use this to validate or strengthen a rule suggestion — the goal is always a rule, not a one-off tag.
 
 ## Reasoning

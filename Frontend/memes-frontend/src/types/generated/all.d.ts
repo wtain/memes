@@ -26,6 +26,10 @@ export interface Meme {
    * Duplicate cluster ID, populated only in the duplicates endpoint
    */
   clusterId?: number;
+  /**
+   * Cosine distance to the query image, populated only in the similar images endpoint
+   */
+  cosineDistance?: number;
   [k: string]: unknown;
 }
 /**
