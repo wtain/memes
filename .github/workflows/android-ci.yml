@@ -33,7 +33,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '9.4.1'
           build-root-directory: AndroidClient
 
       - name: Build debug APK
@@ -64,7 +64,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '9.4.1'
           build-root-directory: AndroidClient
 
       - name: Run unit tests
@@ -98,7 +98,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '9.4.1'
           build-root-directory: AndroidClient
 
       - name: Enable KVM for hardware acceleration

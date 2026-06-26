@@ -4,7 +4,6 @@ import java.time.LocalDateTime
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
@@ -57,10 +56,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -80,21 +75,17 @@ android {
         }
     }
 
-    applicationVariants.all {
-        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
-        outputs.all {
-            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "memebrowser-${versionName}-${buildType.name}-${timestamp}.apk"
-        }
-    }
 }
 
-// Unit tests target the debug variant only. The release build type enables
-// minification which interferes with test class discovery in Android Studio,
-// and there is no separate logic to test — all tests run against debug.
 androidComponents {
-    beforeVariants(selector().withBuildType("release")) { builder ->
-        builder.enableUnitTest = false
+    onVariants { variant ->
+        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+        val buildTypeName = variant.buildType ?: "debug"
+        variant.outputs.forEach { output ->
+            output.outputFileName.set(
+                output.versionName.map { vn -> "memebrowser-${vn ?: "dev"}-$buildTypeName-$timestamp.apk" }
+            )
+        }
     }
 }
 
@@ -114,6 +105,7 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    compileOnly(libs.error.prone.annotations)
     implementation(libs.hilt.navigation.compose)
 
     implementation(libs.retrofit)
