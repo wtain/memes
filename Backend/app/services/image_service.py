@@ -5,6 +5,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
+from fastapi import HTTPException
+
 from Backend.app.repositories.history_repository import HistoryRepository
 from Backend.app.repositories.image_repository import ImageRepository
 from Storage.db import AsyncSessionLocal
@@ -107,6 +109,8 @@ class ImageService:
 
     async def get_similar(self, image_id: str, limit: int = 10) -> MemeSearchResponse:
         embedding = await self.repo.get_embedding(image_id)
+        if embedding is None:
+            raise HTTPException(status_code=404, detail="No embedding found for this image")
         rows = await self.repo.get_similar(image_id, embedding.tolist(), limit=limit)
         items = [
             Meme(
