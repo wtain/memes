@@ -1,2 +1,2 @@
 # npx json2ts --cwd ../shared/schemas/ ../shared/schemas/*.schema.json -o ./memes-frontend/src/types/generated/
-npx json2ts --cwd ../shared/schemas/ --unreachableDefinitions ../shared/schemas/all.schema.json -o ./memes-frontend/src/types/generated/all.d.ts
+npx --package=json-schema-to-typescript json2ts --cwd ../shared/schemas/ --unreachableDefinitions ../shared/schemas/all.schema.json -o ./memes-frontend/src/types/generated/all.d.ts
