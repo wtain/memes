@@ -24,6 +24,17 @@ load_dotenv()
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
 _LOG_DATEFMT = "%Y-%m-%dT%H:%M:%S"
 
+# uvicorn.error is uvicorn's general-purpose logger (historical name — it predates
+# their use of stderr). Map it to "uvicorn" so INFO lines don't look like errors.
+_LOGGER_NAME_ALIASES = {"uvicorn.error": "uvicorn"}
+
+
+class _Formatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        record = logging.makeLogRecord(record.__dict__)
+        record.name = _LOGGER_NAME_ALIASES.get(record.name, record.name)
+        return super().format(record)
+
 
 def _configure_logging() -> None:
     """Apply our log format to all loggers.
@@ -31,7 +42,7 @@ def _configure_logging() -> None:
     Called inside the lifespan so it runs after uvicorn's dictConfig,
     which otherwise overwrites any basicConfig set at import time.
     """
-    formatter = logging.Formatter(_LOG_FORMAT, datefmt=_LOG_DATEFMT)
+    formatter = _Formatter(_LOG_FORMAT, datefmt=_LOG_DATEFMT)
     for name in ("", "uvicorn", "uvicorn.error", "uvicorn.access"):
         lgr = logging.getLogger(name)
         for handler in lgr.handlers:
