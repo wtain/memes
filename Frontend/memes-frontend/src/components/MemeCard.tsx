@@ -15,7 +15,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
   const [isExcluded, setIsExcluded] = useState(meme.excluded ?? false)
 
   return (
-    <div className="relative overflow-hidden rounded-xl border bg-white shadow-sm hover:shadow-md transition">
+    <div className={`relative overflow-hidden rounded-xl bg-white shadow-sm hover:shadow-md transition border-2 ${isExcluded ? "border-red-500" : "border-black"}`}>
       <div
         className="relative"
         onClick={onClick}
