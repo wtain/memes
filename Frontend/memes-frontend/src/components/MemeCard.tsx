@@ -40,7 +40,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
           </div>
         )}
       </div>
-      {meme.clusterId !== undefined && (
+      {meme.clusterId != null && (
         <div className="px-4 py-1 text-xs text-gray-500 border-b">Cluster {meme.clusterId}</div>
       )}
       <div>
