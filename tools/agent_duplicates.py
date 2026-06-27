@@ -48,7 +48,7 @@ def _save_state(env: str, state: dict):
     p.write_text(json.dumps(state, indent=2))
 
 
-async def main(env: str, threshold: float, cluster_id_arg: int | None, reset: bool):
+async def main(env: str, cluster_id_arg: int | None, reset: bool):
     _load_env(env)
 
     from sqlalchemy import select
@@ -146,8 +146,7 @@ async def main(env: str, threshold: float, cluster_id_arg: int | None, reset: bo
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", default="metal", choices=["metal", "general", "it"])
-    parser.add_argument("--threshold", type=float, default=0.1)
     parser.add_argument("--cluster_id", type=int, default=None)
     parser.add_argument("--reset", action="store_true", help="Ignore saved state")
     args = parser.parse_args()
-    asyncio.run(main(args.env, args.threshold, args.cluster_id, args.reset))
+    asyncio.run(main(args.env, args.cluster_id, args.reset))

@@ -4,7 +4,6 @@ Review one duplicate cluster and mark the lower-quality images as excluded.
 
 $ARGUMENTS may contain:
 - `--env metal|general|it` (default: metal)
-- `--threshold 0.1` (default: 0.1)
 - `--cluster_id N` (default: next unprocessed cluster from state)
 - `--reset` to ignore saved state and restart from the first cluster
 - `--limit N` to process N clusters in sequence (default: 1)
@@ -15,7 +14,7 @@ Parse `$ARGUMENTS` for the flags above, then:
 
 ```bash
 cd H:/workspace_sandbox/memes
-.venv311/Scripts/python tools/agent_duplicates.py --env metal [flags...]
+.venv311/Scripts/python tools/agent_duplicates.py --env metal [--cluster_id N] [--reset]
 ```
 
 The script outputs JSON for one cluster to stdout and advances the state file.

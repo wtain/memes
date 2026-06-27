@@ -29,11 +29,10 @@ vs. meme variants (same template, different caption → keep both).
 ### Invocation
 
 ```
-/review-duplicates [--env metal|general|it] [--threshold 0.1] [--limit N_clusters]
+/review-duplicates [--env metal|general|it] [--cluster_id N] [--limit N_clusters]
 ```
 
-Default: `--env metal`, `--threshold 0.1` (matches current backend default), `--limit` unbounded
-(iterate all clusters).
+Default: `--env metal`, `--limit` unbounded (iterate all clusters).
 
 ### Data sources (read from DB)
 
@@ -86,7 +85,7 @@ Stateless re-run (ignore saved state): `--reset` flag.
 
 ### Analysis script
 
-`tools/agent_duplicates.py --env metal [--threshold 0.1] [--cluster_id N]`
+`tools/agent_duplicates.py --env metal [--cluster_id N] [--reset]`
 
 Outputs JSON:
 ```json
