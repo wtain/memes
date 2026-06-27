@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 import uvicorn
 from dotenv import load_dotenv
@@ -9,12 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
 
 from Storage.db import get_async_db
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%S",
-)
 
 from Backend.app.api.diagnostics import router as diagnostics_router
 from Backend.app.api.history import router as history_router
@@ -26,6 +21,35 @@ from Backend.app.api.uploads import router as uploads_router
 
 load_dotenv()
 
+_LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
+_LOG_DATEFMT = "%Y-%m-%dT%H:%M:%S"
+
+
+def _configure_logging() -> None:
+    """Apply our log format to all loggers.
+
+    Called inside the lifespan so it runs after uvicorn's dictConfig,
+    which otherwise overwrites any basicConfig set at import time.
+    """
+    formatter = logging.Formatter(_LOG_FORMAT, datefmt=_LOG_DATEFMT)
+    for name in ("", "uvicorn", "uvicorn.error", "uvicorn.access"):
+        lgr = logging.getLogger(name)
+        for handler in lgr.handlers:
+            handler.setFormatter(formatter)
+    root = logging.getLogger()
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+    root.setLevel(logging.INFO)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    _configure_logging()
+    yield
+
+
 _extra_origins = [
     os.getenv('FRONTEND_ORIGIN'),
     os.getenv('ALTERNATIVE_FRONTEND_ORIGIN'),
@@ -34,6 +58,7 @@ _extra_origins = [
 app = FastAPI(
     title="Memes API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
