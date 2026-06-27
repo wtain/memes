@@ -14,7 +14,7 @@ from Storage.db import get_async_db, AsyncSessionLocal
 from Backend.app.repositories.image_repository import ImageRepository
 from Backend.app.services.cache import short_cache_headers, image_cache_headers, no_cache_headers
 from Backend.app.services.image_service import ImageService
-from Backend.app.services.image_store import get_image_path
+from Backend.app.services.image_store import get_image_path, image_exists
 from Backend.app.types.generated.meme import Schema as Meme
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
@@ -155,7 +155,12 @@ async def get_image(image_id: str, response: Response, db: AsyncSession = Depend
     filename = await repo.get_filename(image_id)
 
     if not filename:
+        logger.warning("get_image 404: id=%s not in DB", image_id)
         raise HTTPException(status_code=404, detail="Image not found")
+
+    if not image_exists(filename):
+        logger.warning("get_image 404: id=%s filename=%r not on disk", image_id, filename)
+        raise HTTPException(status_code=404, detail="Image file missing")
 
     mime_type, _ = mimetypes.guess_type(filename)
     logger.debug("serving %s as %s", filename, mime_type)

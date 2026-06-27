@@ -442,7 +442,8 @@ class TestGetSimilarImages:
                     text=["Similar meme 1"],
                     tags=[MemeTag(name="cat", category="subject")],
                     originalFileName="similar1.jpg",
-                    excluded=False
+                    excluded=False,
+                    cosineDistance=0.031,
                 ),
                 Meme(
                     id="similar-2",
@@ -450,7 +451,8 @@ class TestGetSimilarImages:
                     text=["Similar meme 2"],
                     tags=[MemeTag(name="cat", category="subject")],
                     originalFileName="similar2.jpg",
-                    excluded=False
+                    excluded=False,
+                    cosineDistance=0.089,
                 )
             ],
             nextCursor=None,
@@ -467,7 +469,9 @@ class TestGetSimilarImages:
         data = response.json()
         assert len(data["items"]) == 2
         assert data["items"][0]["id"] == "similar-1"
+        assert data["items"][0]["cosineDistance"] == 0.031
         assert data["items"][1]["id"] == "similar-2"
+        assert data["items"][1]["cosineDistance"] == 0.089
         mock_image_service.get_similar.assert_called_once_with("123", limit=10)
 
     def test_get_similar_images_no_results(self, client, mock_image_service):

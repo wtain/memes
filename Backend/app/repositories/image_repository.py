@@ -121,7 +121,7 @@ class ImageRepository:
         result = await self.session.execute(
             select(Embedding.embedding).where(Embedding.image_id == image_id)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def get_similar(self, image_id: str, embedding, limit: int = 10):
         img = aliased(Image)
