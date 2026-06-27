@@ -40,6 +40,9 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
           </div>
         )}
       </div>
+      {meme.clusterId !== undefined && (
+        <div className="px-4 py-1 text-xs text-gray-500 border-b">Cluster {meme.clusterId}</div>
+      )}
       <div>
         <input type="checkbox" className="ml-4 mr-2" checked={isExcluded} onChange={(e) => {
           e.preventDefault();
