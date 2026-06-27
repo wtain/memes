@@ -41,13 +41,18 @@ def _configure_logging() -> None:
 
     Called inside the lifespan so it runs after uvicorn's dictConfig,
     which otherwise overwrites any basicConfig set at import time.
+    Iterates every registered logger so we don't rely on uvicorn's
+    internal logger names being stable across versions.
     """
     formatter = _Formatter(_LOG_FORMAT, datefmt=_LOG_DATEFMT)
-    for name in ("", "uvicorn", "uvicorn.error", "uvicorn.access"):
-        lgr = logging.getLogger(name)
+    root = logging.getLogger()
+    all_loggers = [root] + [
+        lgr for lgr in logging.Logger.manager.loggerDict.values()
+        if isinstance(lgr, logging.Logger)
+    ]
+    for lgr in all_loggers:
         for handler in lgr.handlers:
             handler.setFormatter(formatter)
-    root = logging.getLogger()
     if not root.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
