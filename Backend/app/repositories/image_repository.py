@@ -306,7 +306,7 @@ class ImageRepository:
         return [(id, image_id1, filename1, image_id2, filename2, created_at, distance,) for (id, image_id1, filename1, image_id2, filename2, created_at, distance,) in images]
 
     async def get_duplicates_clustered(self,
-                             cursor_id: Optional[int],
+                             after_cluster_id: Optional[int],
                              limit: int,):
         img = aliased(Image)
         cluster = aliased(TmpImageClusters)
@@ -332,16 +332,13 @@ class ImageRepository:
             .where(cluster.cluster_id.in_(multi_member_clusters))
         )
 
-        if cursor_id:
-            query = query.where(
-                img.id < cursor_id
-            )
+        if after_cluster_id is not None:
+            query = query.where(cluster.cluster_id > after_cluster_id)
 
         images = await self.session.execute(
             query.order_by(
                 cluster.cluster_id,
                 img.id,
-                img.created_at,
            ).limit(limit + 1)
         )
 

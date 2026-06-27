@@ -221,19 +221,19 @@ class ImageService:
             limit: int,
             threshold: float
     ) -> MemeSearchResponse:
-        cursor_created_at, cursor_id = self._decode_cursor(cursor)
+        after_cluster_id = int(cursor) if cursor else None
 
         images = await self.repo.get_duplicates_clustered(
-            cursor_id=cursor_id,
+            after_cluster_id=after_cluster_id,
             limit=limit,
         )
 
         has_next = len(images) > limit
-        images = images[:limit]  # always trim,
+        images = images[:limit]
 
         if has_next and images:
-            last_id, _, last_created_at, _, _ = images[limit - 1]
-            next_cursor = self._encode_cursor1(last_created_at, last_id)
+            last_cluster_id = images[-1][3]
+            next_cursor = str(last_cluster_id)
         else:
             next_cursor = None
 
