@@ -2,8 +2,16 @@ name: Release
 
 on:
   push:
+    branches: [main]
+    paths:
+      - 'Backend/**'
+      - 'Storage/**'
+      - 'requirements.txt'
+      - 'Dockerfile.backend'
+      - '.github/workflows/release.yml'
     tags:
       - 'backend-v*'
+  workflow_dispatch:
 
 jobs:
   test:
