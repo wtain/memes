@@ -163,11 +163,9 @@ async def get_image(image_id: str, response: Response, db: AsyncSession = Depend
         raise HTTPException(status_code=404, detail="Image file missing")
 
     mime_type, _ = mimetypes.guess_type(filename)
-    logger.debug("serving %s as %s", filename, mime_type)
 
     headers = image_cache_headers()
     cd = content_disposition(filename)
-    logger.debug("Content-Disposition: %r", cd)
     headers['Content-Disposition'] = cd
     return FileResponse(
         get_image_path(filename),
