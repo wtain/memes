@@ -12,7 +12,8 @@ from Storage.db import get_async_db
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    format="%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
 )
 
 from Backend.app.api.diagnostics import router as diagnostics_router
