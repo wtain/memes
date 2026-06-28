@@ -8,12 +8,10 @@ Set DATABASE_URL to a test database before running:
 The CI workflow (.github/workflows/integration-tests.yml) spins up
 pgvector/pgvector:pg16 as a service and sets DATABASE_URL automatically.
 """
-import asyncio
 import os
 import sys
 from pathlib import Path
 
-import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -31,14 +29,7 @@ from Storage.db import AsyncSessionLocal  # noqa: E402 — env must be set first
 from Storage.models import Base  # noqa: E402
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def db_engine():
     url = os.environ["DATABASE_URL"]
     engine = create_async_engine(url, echo=False)
@@ -50,7 +41,7 @@ async def db_engine():
     await engine.dispose()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def db_session(db_engine):
     """Yields a session that is rolled back after each test."""
     async_session = sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)

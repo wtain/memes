@@ -26,7 +26,7 @@ async def _insert_image_with_embedding(session, embedding_values: list[float]) -
     return image.id
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_create_tmp_duplicates_drops_and_recreates(db_session):
     """rebuild_duplicates drops tmp_duplicates and recreates it with pairwise distances."""
     dim = 512
@@ -48,7 +48,7 @@ async def test_create_tmp_duplicates_drops_and_recreates(db_session):
     assert count == 4
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_create_tmp_duplicates_is_idempotent(db_session):
     """Running rebuild_duplicates twice does not raise — the DROP IF EXISTS handles it."""
     dim = 512
@@ -63,7 +63,7 @@ async def test_create_tmp_duplicates_is_idempotent(db_session):
     assert result.scalar_one() == 1  # 1 image → 1 self-pair
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_create_tmp_duplicates_indexes_exist(db_session):
     """Expected indexes are created after rebuild."""
     dim = 512
