@@ -2,6 +2,11 @@ name: Frontend Release
 
 on:
   push:
+    branches: [main]
+    paths:
+      - 'Frontend/memes-frontend/**'
+      - 'shared/schemas/**'
+      - '.github/workflows/frontend-release.yml'
     tags:
       - 'v*.*.*'
       - 'frontend-v*.*.*'
