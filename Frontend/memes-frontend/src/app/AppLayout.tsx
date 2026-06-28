@@ -3,7 +3,7 @@ import { Outlet, NavLink } from "react-router-dom"
 export default function AppLayout() {
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
-      <header className="border-b bg-white">
+      <header className="border-b bg-white sticky top-0 z-50">
         <div className="mx-auto max-w-6xl px-4 py-3 flex gap-6">
           <NavLink
             to="/explore"
