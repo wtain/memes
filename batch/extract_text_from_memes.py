@@ -26,7 +26,8 @@ async def io_producer(path, io_queue, pipeline, metrics_listener):
         status_repo = ImageProcessingStatusRepository(session, pipeline)
         image_repo = ImagesRepository(session)
         for file in os.listdir(path):
-            if os.path.isdir(file):
+            fullFilePath = os.path.join(path, file)
+            if os.path.isdir(fullFilePath):
                 metrics_listener.increment("skipped.directory")
                 continue
             if file.lower().endswith(".mp4"):
