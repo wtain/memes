@@ -256,7 +256,61 @@ npm run preview
 
 ### Batch Jobs Setup
 
-#### 1. Install Ollama (Optional, for descriptions)
+#### 1. Install Tesseract OCR (Russian text recognition)
+
+Required for high-quality Russian meme OCR. The pipeline uses EasyOCR for text
+detection and Tesseract's LSTM model for recognition on each crop, which handles
+bold/Impact Cyrillic fonts that EasyOCR misreads.
+
+**Windows** (PowerShell, run as Administrator):
+```powershell
+# Install Tesseract with Russian language support
+winget install --id UB-Mannheim.TesseractOCR --override "/S /LANG=Russian"
+```
+
+If the `--override` flag doesn't automatically install Russian language data, download it manually:
+```powershell
+# Download Russian tessdata from tessdata_best
+Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_best/raw/main/rus.traineddata" `
+    -OutFile "$env:TEMP\rus.traineddata"
+
+# Move to Tesseract's tessdata folder (requires Administrator)
+Move-Item "$env:TEMP\rus.traineddata" "C:\Program Files\Tesseract-OCR\tessdata\rus.traineddata"
+```
+
+**macOS** (Homebrew):
+```bash
+brew install tesseract
+brew install tesseract-lang    # installs all language packs including Russian
+```
+
+If you prefer to install only Russian:
+```bash
+brew install tesseract
+
+# Download Russian tessdata (Apple Silicon path)
+curl -L https://github.com/tesseract-ocr/tessdata_best/raw/main/rus.traineddata \
+    -o /opt/homebrew/share/tessdata/rus.traineddata
+# Intel Mac: /usr/local/share/tessdata/rus.traineddata
+```
+
+**Linux** (Ubuntu/Debian):
+```bash
+sudo apt update
+sudo apt install tesseract-ocr tesseract-ocr-rus
+```
+
+Fedora/RHEL:
+```bash
+sudo dnf install tesseract tesseract-langpack-rus
+```
+
+Verify installation:
+```bash
+tesseract --list-langs    # should include "rus"
+```
+
+#### 2. Install Ollama (Optional, for descriptions)
 
 Download from https://ollama.ai
 
@@ -268,7 +322,7 @@ ollama pull llava  # For image descriptions
 ollama serve
 ```
 
-#### 2. Configure Batch Environment
+#### 3. Configure Batch Environment
 
 ```bash
 # Copy batch environment
@@ -277,7 +331,7 @@ cp environments/.env.metal batch/.env
 
 Edit `batch/.env` with same DATABASE_URL and BASE_PATH as backend.
 
-#### 3. Set Image Directory
+#### 4. Set Image Directory
 
 Create your meme images directory:
 ```bash
