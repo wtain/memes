@@ -6,12 +6,15 @@ def generate_variants(img: np.ndarray) -> list[tuple[str, np.ndarray]]:
     """
     Return (name, preprocessed_image) pairs to run through OCR.
 
-    Three variants:
+    Variants:
     - original: raw color image (baseline)
     - inverted: inverted grayscale — turns white-text-with-black-outline on
       white background into a form OCR detectors handle well
     - clahe: CLAHE-enhanced color image — boosts local contrast for faded
       or low-contrast text without blowing out highlights
+    - outline_fill: dilates the black outline pixels to fill the white
+      interior of outlined letters, producing clean black text on white —
+      best for the classic meme Impact font (white fill, black stroke)
     """
     variants = [("original", img)]
 
@@ -23,7 +26,21 @@ def generate_variants(img: np.ndarray) -> list[tuple[str, np.ndarray]]:
     lab[:, :, 0] = clahe_op.apply(lab[:, :, 0])
     variants.append(("clahe", cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)))
 
+    variants.append(("outline_fill", _outline_fill(gray)))
+
     return variants
+
+
+def _outline_fill(gray: np.ndarray) -> np.ndarray:
+    """
+    Specialised for white-fill / black-outline text (Impact meme font).
+    Finds the dark outline pixels and dilates them to flood the white interior,
+    producing solid black glyphs on a white background.
+    """
+    _, dark = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    filled = cv2.dilate(dark, kernel, iterations=3)
+    return cv2.bitwise_not(filled)
 
 
 def _bbox_aabb(bbox) -> tuple[float, float, float, float]:

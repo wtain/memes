@@ -10,6 +10,7 @@ import time
 
 from batch.ocr_preprocess import generate_variants, merge_results
 from batch.trocr_fallback import TrOCRFallback
+from batch.tesseract_reader import TesseractReader, is_available as tesseract_available
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image
@@ -116,10 +117,18 @@ async def persist_ocr_result(
 
 
 async def gpu_consumer(queue, pipeline, metrics_listener):
+    if tesseract_available():
+        print("Tesseract available — using it for Russian (handles Impact Cyrillic).")
+        ru_reader = TesseractReader(lang="rus")
+    else:
+        print("Tesseract not found — falling back to EasyOCR ru (poor on Impact Cyrillic).")
+        print("Install: winget install --id UB-Mannheim.TesseractOCR --override \"/S /LANG=Russian\"")
+        ru_reader = easyocr.Reader(['ru'], gpu=True)
+
     readers = {
-        "ru": easyocr.Reader(['ru'], gpu=True),
+        "ru": ru_reader,
         "en": easyocr.Reader(['en'], gpu=True),
-        "es": easyocr.Reader(['es'], gpu=True)
+        "es": easyocr.Reader(['es'], gpu=True),
     }
 
     trocr: TrOCRFallback | None = None
