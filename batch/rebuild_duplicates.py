@@ -35,13 +35,12 @@ async def create_tmp_duplicates(session: AsyncSessionLocal) -> None:
         print(stmt)
         await session.execute(text(stmt))
 
-    await session.commit()
-
 
 async def main():
 
     async with AsyncSessionLocal() as session:
         await create_tmp_duplicates(session)
+        await session.commit()
 
 
 
