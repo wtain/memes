@@ -891,17 +891,18 @@ class TestGetImage:
         # Mock the ImageRepository constructor to return our instance
         with patch('Backend.app.api.images.ImageRepository', return_value=mock_repo_instance):
             mock_path = MagicMock()
-            with patch('Backend.app.api.images.get_image_path', return_value=mock_path):
-                with patch('Backend.app.api.images.FileResponse') as mock_file_response:
-                    mock_file_response.return_value = MagicMock(
-                        status_code=200,
-                        headers={"Content-Type": "image/jpeg"}
-                    )
+            with patch('Backend.app.api.images.image_exists', return_value=True):
+                with patch('Backend.app.api.images.get_image_path', return_value=mock_path):
+                    with patch('Backend.app.api.images.FileResponse') as mock_file_response:
+                        mock_file_response.return_value = MagicMock(
+                            status_code=200,
+                            headers={"Content-Type": "image/jpeg"}
+                        )
 
-                    response = client.get(f"/api/images/{image_id}")
+                        response = client.get(f"/api/images/{image_id}")
 
-                    assert response.status_code == 200
-                    mock_repo_instance.get_filename.assert_called_once_with(image_id)
+                        assert response.status_code == 200
+                        mock_repo_instance.get_filename.assert_called_once_with(image_id)
 
     def test_get_image_file_not_found(self, client_with_db_mock):
         """Test downloading image when file not found in database."""
@@ -963,13 +964,14 @@ class TestGetImage:
 
             with patch('Backend.app.api.images.ImageRepository', return_value=mock_repo_instance):
                 mock_path = MagicMock()
-                with patch('Backend.app.api.images.get_image_path', return_value=mock_path):
-                    with patch('Backend.app.api.images.FileResponse') as mock_file_response:
-                        mock_file_response.return_value = MagicMock(status_code=200)
+                with patch('Backend.app.api.images.image_exists', return_value=True):
+                    with patch('Backend.app.api.images.get_image_path', return_value=mock_path):
+                        with patch('Backend.app.api.images.FileResponse') as mock_file_response:
+                            mock_file_response.return_value = MagicMock(status_code=200)
 
-                        response = client.get(f"/api/images/test-{filename}")
+                            response = client.get(f"/api/images/test-{filename}")
 
-                        assert response.status_code == 200
+                            assert response.status_code == 200
 
 
 class TestExcludedFlagHydration:
