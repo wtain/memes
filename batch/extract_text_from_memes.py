@@ -117,9 +117,13 @@ async def persist_ocr_result(
 
 
 async def gpu_consumer(queue, pipeline, metrics_listener):
+    en_reader = easyocr.Reader(['en'], gpu=True)
+    es_reader = easyocr.Reader(['es'], gpu=True)
+
     if tesseract_available():
-        print("Tesseract available — using it for Russian (handles Impact Cyrillic).")
-        ru_reader = TesseractReader(lang="rus")
+        print("Tesseract available — using detect(EasyOCR ru+en) + recognize(Tesseract) for Russian.")
+        ru_easyocr = easyocr.Reader(['ru'], gpu=True)
+        ru_reader = TesseractReader(lang="rus", ru_detector=ru_easyocr, en_detector=en_reader)
     else:
         print("Tesseract not found — falling back to EasyOCR ru (poor on Impact Cyrillic).")
         print("Install: winget install --id UB-Mannheim.TesseractOCR --override \"/S /LANG=Russian\"")
@@ -127,8 +131,8 @@ async def gpu_consumer(queue, pipeline, metrics_listener):
 
     readers = {
         "ru": ru_reader,
-        "en": easyocr.Reader(['en'], gpu=True),
-        "es": easyocr.Reader(['es'], gpu=True),
+        "en": en_reader,
+        "es": es_reader,
     }
 
     trocr: TrOCRFallback | None = None
@@ -150,12 +154,16 @@ async def gpu_consumer(queue, pipeline, metrics_listener):
 
             t0 = time.perf_counter()
 
-            variant_results = []
-            for variant_name, variant_img in variants:
-                result = reader.readtext(variant_img)
-                variant_results.append(result)
-
-            merged = merge_results(variant_results)
+            if isinstance(reader, TesseractReader):
+                # TesseractReader does its own detection + per-crop preprocessing
+                # internally. Run it once on the original image only.
+                merged = reader.readtext(img)
+            else:
+                variant_results = []
+                for _, variant_img in variants:
+                    result = reader.readtext(variant_img)
+                    variant_results.append(result)
+                merged = merge_results(variant_results)
 
             # TrOCR re-recognition: English only (model is English scene-text).
             # Re-reads crops where EasyOCR confidence was low — helps with
