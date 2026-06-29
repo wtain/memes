@@ -453,8 +453,9 @@ PyTorch CUDA builds (`+cu121`) are not published on PyPI — they live on PyTorc
 | File | Purpose |
 |------|---------|
 | `requirements-backend.txt` | FastAPI server only — no ML stack. Used by `Dockerfile.backend` and CI |
-| `requirements.txt` | Full stack (CPU torch) — batch jobs + backend, works on PyPI |
+| `requirements.txt` | Full ML/batch stack (CPU torch) — no dev tools |
 | `requirements-cuda.txt` | CUDA overrides — requires PyTorch's extra index URL, for local GPU dev |
+| `requirements-dev.txt` | Dev tools only: `autoflake`, `black`, `isort`, `pytest*`, `coverage` |
 
 **Docker / CI (backend server only):**
 ```bash
@@ -469,6 +470,13 @@ pip install -r requirements.txt
 **Batch processing — NVIDIA GPU:**
 ```bash
 pip install -r requirements.txt -r requirements-cuda.txt
+```
+
+**Local development (batch + dev tools):**
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+# or with GPU:
+pip install -r requirements.txt -r requirements-cuda.txt -r requirements-dev.txt
 ```
 
 `requirements-cuda.txt` includes the `--extra-index-url` line pointing to `https://download.pytorch.org/whl/cu121`, so no extra flags are needed when installing it directly. The CUDA packages override their CPU counterparts from `requirements.txt`.

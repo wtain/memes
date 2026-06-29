@@ -160,13 +160,14 @@ Vite reads env files from `../../environments/` (relative to `Frontend/memes-fro
 
 ### Python environments
 
-Two venvs exist: `.venv` (Python 3.13) and `.venv311` (Python 3.11). The project targets **Python 3.11** — use `.venv311` for batch jobs and backend. Three requirements files:
+Two venvs exist: `.venv` (Python 3.13) and `.venv311` (Python 3.11). The project targets **Python 3.11** — use `.venv311` for batch jobs and backend. Four requirements files:
 
 | File | Use |
 |------|-----|
 | `requirements-backend.txt` | FastAPI server only (Docker, CI) |
-| `requirements.txt` | Full stack, CPU PyTorch |
+| `requirements.txt` | Full ML/batch stack, CPU PyTorch — no dev tools |
 | `requirements-cuda.txt` | Overrides for NVIDIA GPU — includes `--extra-index-url` for PyTorch |
+| `requirements-dev.txt` | Dev tools: `autoflake`, `black`, `isort`, `pytest*`, `coverage` |
 
 ## Key invariants
 
