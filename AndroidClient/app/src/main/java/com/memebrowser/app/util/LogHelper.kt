@@ -7,15 +7,39 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 suspend fun shareAppLogs(context: Context) = withContext(Dispatchers.IO) {
     val pid = Process.myPid()
+    val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+
     val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "--pid=$pid", "-v", "time"))
-    val logText = process.inputStream.bufferedReader().readText()
+    val logcatText = process.inputStream.bufferedReader().readText()
+
+    val savedCrashes = File(context.filesDir, "crashes")
+        .takeIf { it.isDirectory }
+        ?.listFiles()
+        ?.sortedByDescending { it.lastModified() }
+        ?.joinToString("\n\n") { it.readText() }
+        .orEmpty()
+
+    val combined = buildString {
+        appendLine("=== Current session (pid $pid, $now) ===")
+        appendLine()
+        append(logcatText)
+        if (savedCrashes.isNotEmpty()) {
+            appendLine()
+            appendLine("=== Saved crash reports ===")
+            appendLine()
+            append(savedCrashes)
+        }
+    }
 
     val shareDir = File(context.cacheDir, "share").also { it.mkdirs() }
     val logFile = File(shareDir, "app-logs.txt")
-    logFile.writeText(logText)
+    logFile.writeText(combined)
 
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", logFile)
     val intent = Intent(Intent.ACTION_SEND).apply {
