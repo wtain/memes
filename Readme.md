@@ -249,8 +249,7 @@ extract_text_from_memes → build_image_embeddings → rebuild_duplicates → cl
 Optional data maintenance (run as needed):
   detect_file_duplicates
   deduplicate_ocr_texts
-  move_excluded
-  unregister_deleted_images
+  move_excluded + unregister_deleted_images  (or cleanup_excluded to run both)
 ```
 
 **Detailed job list**:
@@ -428,6 +427,22 @@ pytest  # Run unit and integration tests
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md#quality-assurance) for detailed quality assurance strategy.
+
+## Code Quality
+
+### Unused import check
+
+```bash
+# Check for unused imports across source directories
+python -m autoflake --remove-all-unused-imports --check --recursive \
+    Backend/ batch/ rules/ repository/ Storage/ ai/
+
+# Fix in-place
+python -m autoflake --remove-all-unused-imports --in-place --recursive \
+    Backend/ batch/ rules/ repository/ Storage/ ai/
+```
+
+`autoflake` is included in `requirements.txt`. Alembic migration files under `Storage/alembic/versions/` are intentionally excluded — they contain auto-generated boilerplate imports.
 
 ## Python Dependencies
 
