@@ -36,10 +36,18 @@ Current pain points:
 
 | Question | Decision |
 |----------|----------|
-| What is Y (total)? | `len(os.listdir(path))` — directory file count, upper bound, labeled `~Y`. Zero extra cost. |
+| What is Y (total)? | Start with `len(os.listdir(path))` (directory file count), then **decrement dynamically** via `tracker.skip()` as `io_producer` skips files. Y converges to the real pending count as the scan progresses — no DB pre-query needed. |
 | Batching unit | **Images** (not OCR passes). M images = up to 3M OCR rows per flush. |
 | `should_process` for "processing" | **Retry** — treat as interrupted, not as in-progress. Fix in scope. |
 | Reusability surface | `run(path, options)` function + shared `ProgressTracker` / `BatchCommitter` classes. |
+
+### Incremental mode and ETA accuracy
+
+In incremental mode most files are already `status=done` and are skipped by `io_producer`. If Y were fixed at the directory count, the ETA would be wildly wrong (e.g., 450 done + 50 pending → shows "50/~500", implying 450 more images still to come).
+
+Fix: `io_producer` calls `tracker.skip()` for every file it decides not to enqueue (directories, `.mp4` files, already-done images). This decrements Y by 1 each time. By the time scanning is halfway through, Y has already converged close to the true pending count, and the ETA becomes meaningful.
+
+Since `io_producer` and `gpu_consumer` run concurrently in the same asyncio event loop (single-threaded), updates to `tracker` state from both coroutines are naturally serialized — no locking needed.
 
 ---
 
@@ -67,8 +75,16 @@ Tracks per-image completion and prints progress every N images.
 class ProgressTracker:
     def __init__(self, total: int, report_every: int = 10):
         """
-        total:        upper-bound item count (e.g. directory file count).
+        total:        initial upper-bound (directory file count).
         report_every: print a line after every N completions, and always at the end.
+        """
+
+    def skip(self) -> None:
+        """
+        Decrement the effective total by 1.
+        Call in io_producer for every file not enqueued for processing
+        (directories, unsupported extensions, already-done images).
+        Corrects Y so ETA converges toward the true pending count.
         """
 
     def mark_done(self) -> None:
@@ -80,15 +96,20 @@ class ProgressTracker:
 
 **Progress line format:**
 ```
-[42/~500] elapsed=1m23s  avg=2.0s/img  eta≈15m16s
+[42/~58] elapsed=1m23s  avg=2.0s/img  eta≈32s
 ```
+Y is labeled `~` throughout because it may still be decremented by concurrent skips in `io_producer`.
 
 **ETA algorithm:**  
 Rolling average over the last 50 completions (avoids GPU warm-up skewing early estimates).  
-`eta = avg_seconds_per_image × (total - done)`
+`eta = avg_seconds_per_image × (effective_total - done)`  
+where `effective_total = initial_total - skip_count`.
 
 **When to call `mark_done`:**  
 In `gpu_consumer`, after the inner `for language, reader in readers.items()` loop completes for one image — i.e., once all 3 OCR passes for that image are done.
+
+**When to call `skip`:**  
+In `io_producer`, for every `continue` branch — directories, `.mp4` files, already-done images, read errors.
 
 **Usage by other scripts:**
 ```python
@@ -251,7 +272,7 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10) -> Non
     async with AsyncSessionLocal() as session:
         committer = BatchCommitter(session, batch_size=batch_size, pipeline=PIPELINE)
         await asyncio.gather(
-            io_producer(path, io_queue, PIPELINE, metrics_listener),
+            io_producer(path, io_queue, PIPELINE, metrics_listener, tracker),  # tracker for skip()
             cpu_worker(io_queue, cpu_queue, cpu_executor, metrics_listener),
             gpu_consumer(cpu_queue, PIPELINE, metrics_listener, committer, tracker),
         )
@@ -265,6 +286,34 @@ async def main(path: str) -> None:
     batch_size = int(os.getenv("BATCH_SIZE", "100"))
     progress_every = int(os.getenv("PROGRESS_EVERY", "10"))
     await run(path, batch_size=batch_size, progress_every=progress_every)
+```
+
+#### Modify `io_producer` signature
+
+```python
+async def io_producer(path, io_queue, pipeline, metrics_listener, tracker: ProgressTracker):
+```
+
+Call `tracker.skip()` on every `continue` branch:
+
+```python
+if os.path.isdir(fullFilePath):
+    metrics_listener.increment("skipped.directory")
+    tracker.skip()
+    continue
+if file.lower().endswith(".mp4"):
+    metrics_listener.increment("skipped.file")
+    tracker.skip()
+    continue
+if image and not await status_repo.should_process(image.id):
+    metrics_listener.increment("skipped.existing")
+    tracker.skip()
+    continue
+# read errors:
+except Exception as e:
+    metrics_listener.increment("error.reading")
+    tracker.skip()
+    continue
 ```
 
 #### Modify `gpu_consumer` signature
