@@ -4,7 +4,6 @@ Usage: python batch/tools/spot_check_losses.py
 """
 import asyncio
 import os
-import re
 import sys
 from collections import Counter
 from pathlib import Path

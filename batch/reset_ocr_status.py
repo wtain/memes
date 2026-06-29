@@ -11,7 +11,7 @@ Usage:
 import asyncio
 import sys
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 
 from Storage.db import AsyncSessionLocal
 from Storage.models import ImageProcessingStatus

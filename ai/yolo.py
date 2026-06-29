@@ -1,5 +1,4 @@
 from ultralytics import YOLO
-from PIL import Image
 
 ANIMALS = {
     "cat", "dog", "wolf", "frog", "toad", "parrot", "giraffe", "horse",

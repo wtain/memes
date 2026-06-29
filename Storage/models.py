@@ -4,7 +4,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
     DateTime, JSON, func, Numeric, Index, Boolean,
-    BigInteger, Enum
+    BigInteger
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship

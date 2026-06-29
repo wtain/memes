@@ -2,8 +2,6 @@ import argparse
 import asyncio
 import os
 
-import open_clip
-import torch
 from dotenv import load_dotenv
 from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count

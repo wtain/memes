@@ -2,8 +2,6 @@
 Spot-check token shapes causing band losses in the metal profile.
 """
 import asyncio
-import os
-import re
 import sys
 from collections import Counter
 from pathlib import Path

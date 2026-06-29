@@ -1,6 +1,5 @@
 """Spot-check тема:мем losses in general profile."""
 import asyncio
-import os
 import re
 import sys
 from collections import Counter

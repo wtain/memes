@@ -1,7 +1,6 @@
 from collections import Counter
 
 import cloudscraper
-import requests
 import feedparser
 from bs4 import BeautifulSoup
 import time

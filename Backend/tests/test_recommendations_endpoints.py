@@ -4,7 +4,7 @@ Tests for GET /api/recommendations endpoint.
 import base64
 import hashlib
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 from Backend.app.api.recommendations import router as recommendations_router, get_recommendations_service
 from Backend.app.services.recommendations_service import RecommendationsService
 from Backend.app.types.generated.meme import Schema as Meme
-from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
 app = FastAPI()

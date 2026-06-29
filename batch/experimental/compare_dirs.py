@@ -2,9 +2,6 @@ import asyncio
 import os
 import uuid
 
-import open_clip
-import torch
-
 from Backend.app.repositories.image_repository import ImageRepository
 from Storage.db import AsyncSessionLocal
 from ai.clip import ClipModel
