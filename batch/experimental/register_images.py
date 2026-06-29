@@ -22,8 +22,6 @@ async def main():
         existing_filenames = set(filename for (filename, ) in images)
         print(f"Total existing: {len(existing_filenames)}")
 
-        # for file in os.listdir(base_path):
-
         print("Committing...")
         await session.commit()
         print("DONE")

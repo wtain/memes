@@ -156,5 +156,4 @@ class ImagesRepository:
         )
         self.session.add(image)
         await self.session.flush()  # image.id available
-        # await self.session.commit()  # not optimal
         return image

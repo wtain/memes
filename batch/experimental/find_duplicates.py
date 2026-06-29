@@ -63,31 +63,6 @@ async def main():
                 print(f"Moving {filename2} from {path_from} to {path_to}")
                 shutil.move(path_from, path_to)
 
-        # mentioned = set()
-        # clusters = {}
-        # for (id1, filename1, id2, filename2, distance, ) in images:
-        #     if filename1 in mentioned:
-        #         continue
-        #     # if id1 == id2:
-        #     #     continue
-        #     if filename1 not in clusters:
-        #         clusters[filename1] = [(filename1, 0.0)]
-        #         # mentioned.add(filename1)
-        #     clusters[filename1].append((filename2, distance))
-        #     mentioned.add(filename2)
-        #     # print(f"{filename1} - {filename2}")
-
-        # for (filename1, image_list) in clusters.items():
-        #     print(f"Cluster {filename1}")
-        #     cluster_name = Path(filename1).stem
-        #     for (filename2, distance) in image_list:
-        #         print(f">> {filename2} ({distance})")
-        #         path_from = os.path.join(base_path, filename2)
-        #         path_to = os.path.join(base_path, f"Cluster_{cluster_name}_{filename2}")
-        #         print(f"Moving {filename2} from {path_from} to {path_to}")
-        #         shutil.move(path_from, path_to)
-
-
 
 
 if __name__ == "__main__":

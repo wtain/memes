@@ -21,7 +21,6 @@ async def main():
         image_embeddings = np.vstack(image_embeddings)
 
         clusterer = hdbscan.HDBSCAN(min_cluster_size=5, metric='euclidean')
-        # clusterer = hdbscan.HDBSCAN(min_cluster_size=5, metric='cosine') # ⚠️ Slower, but sometimes more stable. // doesn't work
         labels = clusterer.fit_predict(image_embeddings)
         print("Unique labels:", np.unique(labels))
         print("Noise ratio:", np.mean(labels == -1))

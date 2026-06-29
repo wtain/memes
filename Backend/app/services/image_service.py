@@ -161,10 +161,8 @@ class ImageService:
             limit: int,
             threshold: float
     ) -> MemeSearchResponse:
-        # cursor_created_at, cursor_id = self._decode_cursor(cursor)
         cursor_created_at, cursor_id = self._decode_cursor(cursor)
 
-        # ids_and_file_names = await self.repo.get_duplicates(
         ids_and_file_names = await self.repo.get_duplicates_precomputed(
             cursor_created_at=cursor_created_at,
             cursor_id=cursor_id,
@@ -179,13 +177,6 @@ class ImageService:
 
         file_names = {}
         created_at_dict = {}
-
-        # for (id, image_id1, filename1, image_id2, filename2, created_at, distance,) in images:
-        #     uf.connect(image_id1, image_id2)
-        #     file_names[image_id1] = filename1
-        #     file_names[image_id2] = filename2
-        #     created_at_dict[image_id1] = created_at
-        #     created_at_dict[image_id2] = created_at
 
         for (id, image_id1, filename1, image_id2, filename2, created_at, distance,) in ids_and_file_names:
             uf.connect(image_id1, image_id2)

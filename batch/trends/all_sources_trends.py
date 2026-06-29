@@ -39,10 +39,6 @@ if __name__ == "__main__":
         },
     ]
 
-    # FeedSource (id, name, url, selector)
-    # TrendsRun (run_id, created_at)
-    # TrendsRunResults (id, run_id, source_id, label, name, value)
-
     processor = Processor()
 
     trends = Counter()

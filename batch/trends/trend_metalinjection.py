@@ -24,13 +24,6 @@ def fetch_rss():
 def extract_article_content(url):
     try:
         time.sleep(1)  # be polite
-        # headers = {
-        #     # 'User-Agent': 'Python App',
-        #     # 'From': 'python@app.com'  # This is another valid field
-        #     # "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        #     "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/117.0",
-        # }
-        # r = requests.get(url, timeout=10, headers=headers)
         scraper = cloudscraper.create_scraper()
         r = scraper.get(url)
 
@@ -57,7 +50,6 @@ def parse_metalinjection():
         title = entry.get("title", "")
         link = entry.get("link", "")
         pubDate = entry.get("pubDate", "")
-        # published = entry.get("published", "")
 
         print(f"Processing: {title}")
 
@@ -117,9 +109,7 @@ if __name__ == "__main__":
         print("\n---")
         title = item["title"]
         print(title)
-        # empty, check 'url'
         text = item["text"]
-        # print(text[:300])
         for text, label in processor.process(text):
             trends[f"{label}:{text}"] += 1
 

@@ -355,12 +355,9 @@ class TrendsRun(Base):
         nullable=False,
         server_default=func.now(),
     )
-    # status: Mapped[RunStatus] = mapped_column(
     status: Mapped[str] = mapped_column(
-        # Enum(RunStatus, values_callable=lambda e: [m.value for m in e]),
         String(20),
         nullable=False,
-        # default=RunStatus.started,
         default=str(RunStatus.started),
     )
 

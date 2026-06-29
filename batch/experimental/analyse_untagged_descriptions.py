@@ -81,11 +81,9 @@ async def main():
         print(f"Total untagged: {count}")
 
         bag_of_words = list(sorted([(word, frequency) for word, frequency in counter.items() if frequency > 10], key=lambda tuple: -tuple[1]))
-        # top_20_words = bag_of_words[:50]
 
         for word, frequency in bag_of_words:
             print(f"{word} ({frequency})")
-        # print(bag_of_words)
 
 if __name__ == "__main__":
     asyncio.run(main())

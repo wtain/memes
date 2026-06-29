@@ -132,7 +132,6 @@ async def get_duplicate_images(
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    # return await service.get_duplicates(cursor=cursor, limit=limit, threshold=threshold)
     return await service.get_duplicates_clustered(cursor=cursor, limit=limit, threshold=threshold)
 
 
@@ -145,8 +144,6 @@ def content_disposition(filename: str) -> str:
     encoded = quote(filename, encoding='utf-8')
 
     return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
-    # filename_encoded = quote(filename, encoding='utf-8')
-    # return f"inline; filename*=UTF-8''{filename_encoded}"
 
 
 @router.get("/{image_id}")
@@ -169,6 +166,5 @@ async def get_image(image_id: str, response: Response, db: AsyncSession = Depend
     headers['Content-Disposition'] = cd
     return FileResponse(
         get_image_path(filename),
-        # media_type=mime_type,
         headers=headers,
     )

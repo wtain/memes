@@ -223,10 +223,6 @@ class ImageRepository:
                     img1.id < img2.id # avoid duplicates a <=> b and b <=> a
                 )
             )
-            # .order_by(
-            #     img1.id,
-            #     img2.id
-            # )
         )
 
         if cursor_created_at and cursor_id:
@@ -284,15 +280,9 @@ class ImageRepository:
             .where(
                 and_(
                     dups.distance < threshold,
-                    # img1.id < img2.id # avoid duplicates a <=> b and b <=> a
                 )
             )
         )
-
-        # if cursor_created_at and cursor_id:
-        #     query = query.where(
-        #         tuple_(dups.created_at, dups.id) < tuple_(cursor_created_at, cursor_id)
-        #     )
 
         if cursor_id:
             query = query.where(

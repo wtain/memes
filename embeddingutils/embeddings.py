@@ -28,8 +28,6 @@ class EmbeddingsDetector:
         with torch.no_grad():
             outputs = self.model(**inputs)
             logits = outputs.logits_per_image
-            # probs = logits.softmax(dim=1)
             scores = logits.squeeze(0)  # raw similarities
 
-        # return {t: (p, s) for t, p, s in zip(self.tokens, probs, scores)}
         return {t: s.item() for t, s in zip(self.tokens, scores)}

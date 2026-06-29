@@ -105,9 +105,7 @@ if __name__ == "__main__":
         print("\n---")
         title = item["title"]
         print(title)
-        # empty, check 'url'
         text = item["text"]
-        # print(text[:300])
         for text, label in processor.process(text):
             trends[f"{label}:{text}"] += 1
 
