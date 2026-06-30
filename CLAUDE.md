@@ -121,6 +121,22 @@ There is no automated test gate for the backend. At minimum:
 - Hit the new endpoint manually and verify the response shape matches what you documented.
 - Smoke-test existing endpoints: `/api/diagnostics/health` and `/api/images?limit=1`.
 
+### Before committing frontend changes
+
+```bash
+# From Frontend/memes-frontend/
+tsc -b          # type-check
+eslint src/     # lint (must pass with 0 warnings)
+vitest run      # tests
+
+# If shared/schemas/ changed, regenerate types first (from Frontend/):
+bash generate-types.sh
+# then verify no diff:
+git diff Frontend/memes-frontend/src/types/generated/
+```
+
+The CI gate runs all three checks plus a `git diff` on the generated types — a stale `all.d.ts` fails the build.
+
 ### Batch pipeline (execution order)
 
 ```

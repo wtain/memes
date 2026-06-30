@@ -19,7 +19,7 @@ export interface Meme {
   text?: string[];
   tags?: MemeTag[];
   /**
-   * Whether the image has been marked as flagged
+   * Whether the image has been flagged
    */
   flagged?: boolean;
   /**
