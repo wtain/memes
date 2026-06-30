@@ -9,13 +9,13 @@ val fakeMeme = Meme(
     originalFileName = "funny.jpg",
     text = listOf("hello world"),
     tags = null,
-    excluded = false
+    flagged = false
 )
 
-val fakeMemeExcluded = fakeMeme.copy(id = "meme-2", excluded = true)
+val fakeMeme2 = fakeMeme.copy(id = "meme-2", flagged = true)
 
 val fakeSearchPage1 = MemeSearchResponse(
-    items = listOf(fakeMeme, fakeMemeExcluded),
+    items = listOf(fakeMeme, fakeMeme2),
     facets = emptyList(),
     nextCursor = "cursor-abc",
     hasNext = true

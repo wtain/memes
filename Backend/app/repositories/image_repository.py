@@ -79,7 +79,7 @@ class ImageRepository:
         for k, v, count in facets_result.all():
             raw_facets[k][v] = count
 
-        # Paginated page of image rows with excluded status
+        # Paginated page of image rows with flagged status
         extras = aliased(ImageExtras)
         query = (
             select(img.id, img.filename, img.created_at, extras.flagged)

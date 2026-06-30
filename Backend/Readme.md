@@ -9,7 +9,7 @@ Paginated endpoints use **cursor-based pagination**. The response includes `next
 **`MemeSearchResponse`**
 ```json
 {
-  "items": [{ "id": "...", "imageUrl": "/api/images/<id>", "originalFileName": "...", "text": [...], "tags": [...], "excluded": false }],
+  "items": [{ "id": "...", "imageUrl": "/api/images/<id>", "originalFileName": "...", "text": [...], "tags": [...], "flagged": false }],
   "facets": [{ "name": "...", "buckets": [{ "value": "...", "count": 0 }] }],
   "nextCursor": "...",
   "hasNext": true
@@ -23,13 +23,13 @@ Paginated endpoints use **cursor-based pagination**. The response includes `next
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/images` | Search images |
-| `GET` | `/api/images/excluded` | Excluded images |
+| `GET` | `/api/images/flagged` | Flagged images |
 | `GET` | `/api/images/untagged` | Images with no tags |
 | `GET` | `/api/images/duplicates` | Duplicate image clusters |
 | `GET` | `/api/images/meme/{image_id}` | Single image details |
-| `PUT` | `/api/images/meme/{image_id}/mark_excluded` | Mark as excluded |
-| `PUT` | `/api/images/meme/{image_id}/unmark_excluded` | Remove excluded flag |
-| `GET` | `/api/images/meme/{image_id}/get_excluded` | Returns `1` if excluded, `0` otherwise |
+| `PUT` | `/api/images/meme/{image_id}/mark_flagged` | Mark as flagged |
+| `PUT` | `/api/images/meme/{image_id}/unmark_flagged` | Remove flagged flag |
+| `GET` | `/api/images/meme/{image_id}/get_flagged` | Returns `1` if flagged, `0` otherwise |
 | `GET` | `/api/images/{image_id}/similar` | Visually similar images |
 | `GET` | `/api/images/{image_id}` | Download image file |
 
@@ -44,14 +44,14 @@ Paginated endpoints use **cursor-based pagination**. The response includes `next
 
 Returns `MemeSearchResponse` including tag facet counts over the full filtered set.
 
-### `GET /api/images/excluded`
+### `GET /api/images/flagged`
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `limit` | int 1–100 | 20 | Page size |
 | `cursor` | string | — | Pagination cursor from previous response |
 
-Returns `MemeSearchResponse` for images where the excluded flag is set.
+Returns `MemeSearchResponse` for images where the flagged flag is set.
 
 ### `GET /api/images/untagged`
 

@@ -88,17 +88,17 @@ class MemeDetailScreenTest {
     }
 
     @Test
-    fun excludeButton_showsMarkExcluded_whenNotExcluded() {
+    fun flagButton_showsMarkFlagged_whenNotFlagged() {
         setContent()
-        composeTestRule.onNodeWithContentDescription("Mark excluded").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Mark flagged").assertIsDisplayed()
     }
 
     @Test
-    fun excludeButton_showsUnmarkExcluded_whenExcluded() {
-        coEvery { repo.getMeme("meme-1") } returns Result.success(androidFakeMeme.copy(excluded = true))
+    fun flagButton_showsUnmarkFlagged_whenFlagged() {
+        coEvery { repo.getMeme("meme-1") } returns Result.success(androidFakeMeme.copy(flagged = true))
         viewModel = MemeDetailViewModel(SavedStateHandle(mapOf("memeId" to "meme-1")), repo, envRepo)
         setContent()
-        composeTestRule.onNodeWithContentDescription("Unmark excluded").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Unmark flagged").assertIsDisplayed()
     }
 
     @Test

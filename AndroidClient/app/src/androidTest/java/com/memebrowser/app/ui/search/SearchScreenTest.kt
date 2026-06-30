@@ -53,7 +53,7 @@ class SearchScreenTest {
                 SearchScreen(
                     onMemeClick = onMemeClick,
                     onEnvironmentsClick = onEnvironmentsClick,
-                    onExcludedClick = {},
+                    onFlaggedClick = {},
                     viewModel = viewModel
                 )
             }
@@ -94,13 +94,13 @@ class SearchScreenTest {
     }
 
     @Test
-    fun excludedMeme_showsExcludedBadge() {
+    fun flaggedMeme_showsFlaggedBadge() {
         setContent()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodes(androidx.compose.ui.test.hasText("excluded"))
+            composeTestRule.onAllNodes(androidx.compose.ui.test.hasText("flagged"))
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithText("excluded").assertIsDisplayed()
+        composeTestRule.onNodeWithText("flagged").assertIsDisplayed()
     }
 
     @Test

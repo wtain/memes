@@ -263,7 +263,7 @@ class TestMarkFlagged:
     """Tests for PUT /api/images/meme/{image_id}/mark_flagged endpoint."""
 
     def test_mark_flagged_success(self, client, mock_image_service):
-        """Test successfully marking an image as excluded."""
+        """Test successfully marking an image as flagged."""
         # Arrange
         mock_image_service.mark_flagged.return_value = None
 
@@ -275,7 +275,7 @@ class TestMarkFlagged:
         mock_image_service.mark_flagged.assert_called_once_with("123")
 
     def test_mark_flagged_multiple_times(self, client, mock_image_service):
-        """Test marking the same image as excluded multiple times (should be idempotent)."""
+        """Test marking the same image as flagged multiple times (should be idempotent)."""
         # Arrange
         mock_image_service.mark_flagged.return_value = None
 
@@ -289,7 +289,7 @@ class TestMarkFlagged:
         assert mock_image_service.mark_flagged.call_count == 2
 
     def test_mark_flagged_with_uuid_format(self, client, mock_image_service):
-        """Test marking excluded with UUID-format image ID."""
+        """Test marking flagged with UUID-format image ID."""
         # Arrange
         uuid_id = "550e8400-e29b-41d4-a716-446655440000"
         mock_image_service.mark_flagged.return_value = None
@@ -302,7 +302,7 @@ class TestMarkFlagged:
         mock_image_service.mark_flagged.assert_called_once_with(uuid_id)
 
     def test_mark_flagged_service_error(self, client, mock_image_service):
-        """Test handling of service errors when marking excluded."""
+        """Test handling of service errors when marking flagged."""
         # Arrange
         mock_image_service.mark_flagged.side_effect = Exception("Database error")
 
@@ -315,7 +315,7 @@ class TestUnmarkFlagged:
     """Tests for PUT /api/images/meme/{image_id}/unmark_flagged endpoint."""
 
     def test_unmark_flagged_success(self, client, mock_image_service):
-        """Test successfully unmarking an image as excluded."""
+        """Test successfully unmarking an image as flagged."""
         # Arrange
         mock_image_service.unmark_flagged.return_value = None
 
@@ -327,7 +327,7 @@ class TestUnmarkFlagged:
         mock_image_service.unmark_flagged.assert_called_once_with("123")
 
     def test_unmark_flagged_multiple_times(self, client, mock_image_service):
-        """Test unmarking the same image as excluded multiple times (should be idempotent)."""
+        """Test unmarking the same image as flagged multiple times (should be idempotent)."""
         # Arrange
         mock_image_service.unmark_flagged.return_value = None
 
@@ -341,7 +341,7 @@ class TestUnmarkFlagged:
         assert mock_image_service.unmark_flagged.call_count == 2
 
     def test_unmark_flagged_with_uuid_format(self, client, mock_image_service):
-        """Test unmarking excluded with UUID-format image ID."""
+        """Test unmarking flagged with UUID-format image ID."""
         # Arrange
         uuid_id = "550e8400-e29b-41d4-a716-446655440000"
         mock_image_service.unmark_flagged.return_value = None
@@ -354,7 +354,7 @@ class TestUnmarkFlagged:
         mock_image_service.unmark_flagged.assert_called_once_with(uuid_id)
 
     def test_unmark_flagged_service_error(self, client, mock_image_service):
-        """Test handling of service errors when unmarking excluded."""
+        """Test handling of service errors when unmarking flagged."""
         # Arrange
         mock_image_service.unmark_flagged.side_effect = Exception("Database error")
 
@@ -364,10 +364,10 @@ class TestUnmarkFlagged:
 
 
 class TestMarkUnmarkFlaggedWorkflow:
-    """Integration tests for mark/unmark excluded workflow."""
+    """Integration tests for mark/unmark flagged workflow."""
 
     def test_mark_then_unmark_workflow(self, client, mock_image_service):
-        """Test marking an image as excluded and then unmarking it."""
+        """Test marking an image as flagged and then unmarking it."""
         # Arrange
         mock_image_service.mark_flagged.return_value = None
         mock_image_service.unmark_flagged.return_value = None
@@ -388,7 +388,7 @@ class TestGetFlagged:
     """Tests for GET /api/images/meme/{image_id}/get_flagged endpoint."""
 
     def test_get_flagged_when_excluded(self, client, mock_image_service):
-        """Test getting excluded status when image is excluded."""
+        """Test getting flagged status when image is flagged."""
         # Arrange
         mock_image_service.get_is_flagged.return_value = True
 
@@ -401,7 +401,7 @@ class TestGetFlagged:
         mock_image_service.get_is_flagged.assert_called_once_with("123")
 
     def test_get_flagged_when_not_excluded(self, client, mock_image_service):
-        """Test getting excluded status when image is not excluded."""
+        """Test getting flagged status when image is not flagged."""
         # Arrange
         mock_image_service.get_is_flagged.return_value = False
 
@@ -414,7 +414,7 @@ class TestGetFlagged:
         mock_image_service.get_is_flagged.assert_called_once_with("456")
 
     def test_get_flagged_with_uuid(self, client, mock_image_service):
-        """Test getting excluded status with UUID format."""
+        """Test getting flagged status with UUID format."""
         # Arrange
         uuid_id = "550e8400-e29b-41d4-a716-446655440000"
         mock_image_service.get_is_flagged.return_value = True
@@ -975,10 +975,10 @@ class TestGetImage:
 
 
 class TestFlaggedHydration:
-    """Tests that excluded flag is correctly populated in list responses."""
+    """Tests that flagged flag is correctly populated in list responses."""
 
     def test_search_returns_excluded_flag(self, client, mock_image_service):
-        """Test that search results include excluded flag."""
+        """Test that search results include flagged flag."""
         mock_response = MemeSearchResponse(
             items=[
                 Meme(
@@ -1009,7 +1009,7 @@ class TestFlaggedHydration:
         assert data["items"][1]["flagged"] is False
 
     def test_similar_returns_excluded_flag(self, client, mock_image_service):
-        """Test that similar images include excluded flag."""
+        """Test that similar images include flagged flag."""
         mock_response = MemeSearchResponse(
             items=[
                 Meme(
@@ -1033,7 +1033,7 @@ class TestFlaggedHydration:
         assert data["items"][0]["flagged"] is True
 
     def test_untagged_returns_excluded_flag(self, client, mock_image_service):
-        """Test that untagged images include excluded flag."""
+        """Test that untagged images include flagged flag."""
         mock_response = MemeSearchResponse(
             items=[
                 Meme(
@@ -1057,7 +1057,7 @@ class TestFlaggedHydration:
         assert data["items"][0]["flagged"] is False
 
     def test_duplicates_returns_excluded_flag(self, client, mock_image_service):
-        """Test that duplicate images include excluded flag for both images."""
+        """Test that duplicate images include flagged flag for both images."""
         mock_response = MemeSearchResponse(
             items=[
                 Meme(
@@ -1088,7 +1088,7 @@ class TestFlaggedHydration:
         assert data["items"][1]["flagged"] is False
 
     def test_get_meme_returns_excluded_flag(self, client, mock_image_service):
-        """Test that single meme details include excluded flag."""
+        """Test that single meme details include flagged flag."""
         mock_meme = Meme(
             id="123",
             imageUrl="/api/images/123",

@@ -67,35 +67,35 @@ class MemeDetailViewModelTest {
     }
 
     @Test
-    fun `toggleExcluded marks an unexcluded meme optimistically`() = runTest {
+    fun `toggleFlagged marks an unflagged meme optimistically`() = runTest {
         viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
-        viewModel.toggleExcluded()
+        viewModel.toggleFlagged()
         viewModel.state.test {
-            assertTrue(awaitItem().meme!!.excluded!!)
+            assertTrue(awaitItem().meme!!.flagged!!)
         }
-        coVerify(exactly = 1) { repo.markExcluded("meme-1") }
+        coVerify(exactly = 1) { repo.markFlagged("meme-1") }
     }
 
     @Test
-    fun `toggleExcluded unmarks an excluded meme optimistically`() = runTest {
-        coEvery { repo.getMeme("meme-1") } returns Result.success(fakeMeme.copy(excluded = true))
+    fun `toggleFlagged unmarks a flagged meme optimistically`() = runTest {
+        coEvery { repo.getMeme("meme-1") } returns Result.success(fakeMeme.copy(flagged = true))
         viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
-        viewModel.toggleExcluded()
+        viewModel.toggleFlagged()
         viewModel.state.test {
-            assertFalse(awaitItem().meme!!.excluded!!)
+            assertFalse(awaitItem().meme!!.flagged!!)
         }
-        coVerify(exactly = 1) { repo.unmarkExcluded("meme-1") }
+        coVerify(exactly = 1) { repo.unmarkFlagged("meme-1") }
     }
 
     @Test
-    fun `toggleExcluded rolls back on API error`() = runTest {
-        coEvery { repo.markExcluded(any()) } returns Result.failure(Exception("server error"))
+    fun `toggleFlagged rolls back on API error`() = runTest {
+        coEvery { repo.markFlagged(any()) } returns Result.failure(Exception("server error"))
         viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
-        viewModel.toggleExcluded()
+        viewModel.toggleFlagged()
         viewModel.state.test {
             val state = awaitItem()
-            // Rolled back: meme.excluded stays false (original value)
-            assertFalse(state.meme!!.excluded!!)
+            // Rolled back: meme.flagged stays false (original value)
+            assertFalse(state.meme!!.flagged!!)
             assertEquals("server error", state.error)
         }
     }

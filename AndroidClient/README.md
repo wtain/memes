@@ -7,7 +7,7 @@ Native Android client for the Meme Browser backend API. Supports searching, brow
 - Search memes with the same query syntax as the web app
 - Infinite-scroll paginated results grid
 - Full-screen pinch-to-zoom / pan image view
-- Mark / unmark memes as excluded (persisted via API)
+- Mark / unmark memes as flagged (persisted via API)
 - Save memes to `Pictures/MemesBrowser` gallery folder (no permissions required on Android 10+)
 - Share memes via the system share sheet
 - Switch between backend environments (General / IT / Metal) with per-environment health indicators
@@ -83,7 +83,7 @@ Coverage:
 | Test class | What's covered |
 |---|---|
 | `SearchViewModelTest` | Initial load, pagination, facet toggle, 400 ms debounce, error state, health status |
-| `MemeDetailViewModelTest` | Load meme, optimistic excluded toggle, rollback on API failure, error clear |
+| `MemeDetailViewModelTest` | Load meme, optimistic flagged toggle, rollback on API failure, error clear |
 | `EnvironmentViewModelTest` | CRUD delegation to repository, per-URL health check result |
 
 ### Instrumented tests (Compose — requires emulator or device)
@@ -99,8 +99,8 @@ gradle :app:connectedDebugAndroidTest
 Coverage:
 | Test class | What's covered |
 |---|---|
-| `SearchScreenTest` | Search bar, settings icon, grid rendering, excluded badge, cell click, text input |
-| `MemeDetailScreenTest` | Back button, save/share/exclude action buttons, excluded state toggle |
+| `SearchScreenTest` | Search bar, settings icon, grid rendering, flagged badge, cell click, text input |
+| `MemeDetailScreenTest` | Back button, save/share/flag action buttons, flagged state toggle |
 | `EnvironmentManagerScreenTest` | Environment list, FAB, add dialog, edit dialog, URL display |
 
 ### CI

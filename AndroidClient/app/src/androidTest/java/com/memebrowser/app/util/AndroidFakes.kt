@@ -10,13 +10,13 @@ val androidFakeMeme = Meme(
     originalFileName = "funny.jpg",
     text = listOf("hello world"),
     tags = null,
-    excluded = false
+    flagged = false
 )
 
-val androidFakeMemeExcluded = androidFakeMeme.copy(id = "meme-2", excluded = true)
+val androidFakeMeme2 = androidFakeMeme.copy(id = "meme-2", flagged = true)
 
 val androidFakeSearchResponse = MemeSearchResponse(
-    items = listOf(androidFakeMeme, androidFakeMemeExcluded),
+    items = listOf(androidFakeMeme, androidFakeMeme2),
     facets = emptyList(),
     nextCursor = null,
     hasNext = false
