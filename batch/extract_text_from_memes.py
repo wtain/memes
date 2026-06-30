@@ -137,6 +137,7 @@ async def gpu_consumer(
         file, img, read_t, prep_t, image = item
         variants = generate_variants(img)
 
+        total_ocr_t = 0.0
         for language, reader in readers.items():
 
             t0 = time.perf_counter()
@@ -157,14 +158,14 @@ async def gpu_consumer(
                     print(f"TrOCR rerecognize failed for {file}: {e}")
 
             t_ocr = time.perf_counter() - t0
-            t_total = read_t + prep_t + t_ocr
+            total_ocr_t += t_ocr
 
             print(
                 f"{file} [{language}]: "
                 f"read={read_t:.3f}s "
                 f"prep={prep_t:.3f}s "
                 f"ocr={t_ocr:.3f}s "
-                f"total={t_total:.3f}s"
+                f"total={read_t + prep_t + t_ocr:.3f}s"
             )
 
             print(f"\n=== {file} [{language}] ===")
@@ -172,14 +173,14 @@ async def gpu_consumer(
                 print(f"  {text!r} ({confidence:.2f})")
 
             metrics_listener.increment("saved")
-            await committer.add_language_result(image, language, merged, {
-                "read_time_ms": read_t,
-                "preprocess_time_ms": prep_t,
-                "ocr_time_ms": t_ocr,
-                "total_time_ms": t_total,
-            })
+            await committer.add_language_result(image, language, merged)
 
-        await committer.on_image_done(image)
+        await committer.on_image_done(image, {
+            "read_time_ms": read_t,
+            "preprocess_time_ms": prep_t,
+            "ocr_time_ms": total_ocr_t,
+            "total_time_ms": read_t + prep_t + total_ocr_t,
+        })
         tracker.mark_done()
 
 

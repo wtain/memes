@@ -37,6 +37,7 @@ class ImageProcessingStatusRepository:
         )
         if status is None:
             status = ImageProcessingStatus(image=image, pipeline=self.pipeline)
+            self.session.add(status)
         status.status = "done"
         status.finished_at = datetime.utcnow()
 

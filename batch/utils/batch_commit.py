@@ -16,12 +16,11 @@ class BatchCommitter:
         image: Image,
         language: str,
         ocr_result: list,
-        metrics: dict,
     ) -> None:
         await OCRTextRepository(self._session).overwrite_texts(image, ocr_result, language)
-        await ImageMetricsRepository(self._session).overwrite_metrics(image, metrics)
 
-    async def on_image_done(self, image: Image) -> None:
+    async def on_image_done(self, image: Image, metrics: dict) -> None:
+        await ImageMetricsRepository(self._session).overwrite_metrics(image, metrics)
         await ImageProcessingStatusRepository(self._session, self._pipeline).mark_done(image)
         self._pending += 1
         if self._pending >= self._batch_size:
