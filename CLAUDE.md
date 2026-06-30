@@ -191,6 +191,32 @@ Two venvs exist: `.venv` (Python 3.13) and `.venv311` (Python 3.11). The project
 | `requirements-cuda.txt` | Overrides for NVIDIA GPU — includes `--extra-index-url` for PyTorch |
 | `requirements-dev.txt` | Dev tools: `autoflake`, `black`, `isort`, `pytest*`, `coverage` |
 
+## Specs and implementation workflow
+
+### Where specs live
+
+All design specs are stored in `docs/superpowers/specs/`.
+
+**Naming convention:** `YYYY-MM-DD-<short-kebab-summary>.md`  
+Examples: `2026-06-29-ocr-safe-full-mode.md`, `2026-07-01-upload-endpoint.md`
+
+### Implementing a spec
+
+1. Read `docs/superpowers/specs/<spec-file>.md` in full before touching any code.
+2. Start implementation; spin subagents when tasks are independent and can run in parallel.
+3. When implementation is complete, review the changes:
+   - Logic correctness against the spec
+   - Code quality: duplication, readability, reusability, structure, test coverage
+   - Run tests (`pytest` for backend, `vitest run` for frontend)
+   - Confirm every requirement in the spec is addressed
+4. Save the review report in `docs/superpowers/reviews/` named after the spec:  
+   `YYYY-MM-DD-<spec-summary>-review.md`
+5. If the review surfaces action points, spin another agent to fix them.
+6. Do only **one** review iteration. Post a final summary here:
+   - What was fixed
+   - What was not fixed but explained (acceptable deviation)
+   - What was intentionally ignored and why
+
 ## Key invariants
 
 - Env files live in `environments/` (not `Storage/`).
