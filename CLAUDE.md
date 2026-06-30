@@ -141,6 +141,12 @@ detect_entities_and_tag    tag_images_from_concepts  build_bow
 
 Most jobs are idempotent (clear and rebuild). Exception: `rebuild_duplicates` drops its table each run.
 
+**Full re-run (re-process all images):**
+Do NOT clear the `ocr_texts` table. Instead:
+1. `python -m batch.reset_ocr_status --all` — resets processing status without touching OCR data.
+2. `python -m batch.extract_text_from_memes` — re-processes all images, overwriting OCR per image.
+This ensures OCR data is preserved if the run is interrupted.
+
 ### Rules engine
 
 Two implementations coexist:

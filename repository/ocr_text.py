@@ -2,7 +2,7 @@ import numpy
 from sqlalchemy import delete, select, text
 from sqlalchemy.sql.functions import count
 
-from Storage.models import ImageMetrics, OCRText
+from Storage.models import OCRText
 
 
 class OCRTextRepository:
@@ -43,8 +43,9 @@ class OCRTextRepository:
 
     async def overwrite_texts(self, image, ocr_result, language):
         await self.session.execute(
-            delete(ImageMetrics).where(
-                OCRText.image_id == image.id
+            delete(OCRText).where(
+                OCRText.image_id == image.id,
+                OCRText.language == language,
             )
         )
 
