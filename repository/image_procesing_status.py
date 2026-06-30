@@ -39,7 +39,6 @@ class ImageProcessingStatusRepository:
             status = ImageProcessingStatus(image=image, pipeline=self.pipeline)
         status.status = "done"
         status.finished_at = datetime.utcnow()
-        await self.session.commit()
 
     async def mark_failed(self, image, error):
         status = await self.session.get(
@@ -60,5 +59,5 @@ class ImageProcessingStatusRepository:
             if existing.status == "done":
                 return False  # already processed
             if existing.status == "processing":
-                return False  # in-progress elsewhere
+                return True  # treat as interrupted, retry
         return True

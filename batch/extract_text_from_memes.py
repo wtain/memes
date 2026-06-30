@@ -11,18 +11,17 @@ import time
 from batch.ocr_preprocess import generate_variants, merge_results
 from batch.trocr_fallback import TrOCRFallback
 from batch.tesseract_reader import TesseractReader, is_available as tesseract_available
+from batch.utils.batch_commit import BatchCommitter
+from batch.utils.progress import ProgressTracker
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
-from Storage.models import Image
-from repository.image_metrics import ImageMetricsRepository
 from repository.image_procesing_status import ImageProcessingStatusRepository
 from repository.images import ImagesRepository
-from repository.ocr_text import OCRTextRepository
 
 PIPELINE = "easyocr:en"
 
 
-async def io_producer(path, io_queue, pipeline, metrics_listener):
+async def io_producer(path, io_queue, pipeline, metrics_listener, tracker: ProgressTracker):
     async with AsyncSessionLocal() as session:
         status_repo = ImageProcessingStatusRepository(session, pipeline)
         image_repo = ImagesRepository(session)
@@ -30,14 +29,17 @@ async def io_producer(path, io_queue, pipeline, metrics_listener):
             fullFilePath = os.path.join(path, file)
             if os.path.isdir(fullFilePath):
                 metrics_listener.increment("skipped.directory")
+                tracker.skip()
                 continue
             if file.lower().endswith(".mp4"):
                 metrics_listener.increment("skipped.file")
+                tracker.skip()
                 continue
 
             image = await image_repo.find_image_by_filename(file)
             if image and not await status_repo.should_process(image.id):
                 metrics_listener.increment("skipped.existing")
+                tracker.skip()
                 continue
 
             if image is None:
@@ -55,6 +57,7 @@ async def io_producer(path, io_queue, pipeline, metrics_listener):
             except Exception as e:
                 print(f"Error: {e}")
                 metrics_listener.increment("error.reading")
+                tracker.skip()
                 continue
             t_read = time.perf_counter() - t0
 
@@ -92,31 +95,15 @@ async def cpu_worker(io_queue, cpu_queue, executor, metrics_listener):
 
         if img is not None:
             await cpu_queue.put((file, img, read_t, prep_t, image))
-        else:
-            pass
 
 
-
-async def persist_ocr_result(
-        ocr_result: list,
-        metrics: dict,
-        image: Image,
-        pipeline,
-        language: str):
-    async with AsyncSessionLocal() as session:
-        status_repo = ImageProcessingStatusRepository(session, pipeline)
-        metrics_repo = ImageMetricsRepository(session)
-        ocr_repo = OCRTextRepository(session)
-
-        await ocr_repo.overwrite_texts(image, ocr_result, language)
-        await status_repo.mark_done(image)
-        await metrics_repo.overwrite_metrics(image, metrics)
-
-        # todo: batch database queries
-        await session.commit()
-
-
-async def gpu_consumer(queue, pipeline, metrics_listener):
+async def gpu_consumer(
+    queue,
+    pipeline,
+    metrics_listener,
+    committer: BatchCommitter,
+    tracker: ProgressTracker,
+):
     en_reader = easyocr.Reader(['en'], gpu=True)
     es_reader = easyocr.Reader(['es'], gpu=True)
 
@@ -155,8 +142,6 @@ async def gpu_consumer(queue, pipeline, metrics_listener):
             t0 = time.perf_counter()
 
             if isinstance(reader, TesseractReader):
-                # TesseractReader does its own detection + per-crop preprocessing
-                # internally. Run it once on the original image only.
                 merged = reader.readtext(img)
             else:
                 variant_results = []
@@ -165,9 +150,6 @@ async def gpu_consumer(queue, pipeline, metrics_listener):
                     variant_results.append(result)
                 merged = merge_results(variant_results)
 
-            # TrOCR re-recognition: English only (model is English scene-text).
-            # Re-reads crops where EasyOCR confidence was low — helps with
-            # decorative fonts like Lobster that EasyOCR detects but mis-reads.
             if language == "en" and trocr is not None:
                 try:
                     merged = trocr.rerecognize(img, merged)
@@ -190,28 +172,48 @@ async def gpu_consumer(queue, pipeline, metrics_listener):
                 print(f"  {text!r} ({confidence:.2f})")
 
             metrics_listener.increment("saved")
-            await persist_ocr_result(merged, {
+            await committer.add_language_result(image, language, merged, {
                 "read_time_ms": read_t,
                 "preprocess_time_ms": prep_t,
                 "ocr_time_ms": t_ocr,
-                "total_time_ms": t_total
-            }, image, pipeline, language)
+                "total_time_ms": t_total,
+            })
+
+        await committer.on_image_done(image)
+        tracker.mark_done()
 
 
-async def main(path: str):
+async def run(path: str, batch_size: int = 100, progress_every: int = 10) -> None:
+    total = len([f for f in os.listdir(path) if not os.path.isdir(os.path.join(path, f))])
+    tracker = ProgressTracker(total=total, report_every=progress_every)
+
     io_queue = asyncio.Queue(maxsize=200)
     cpu_queue = asyncio.Queue(maxsize=20)
-
     cpu_executor = ThreadPoolExecutor(max_workers=16)
     metrics_listener = SimpleMetricsListener()
 
-    await asyncio.gather(
-        io_producer(path, io_queue, PIPELINE, metrics_listener),
-        cpu_worker(io_queue, cpu_queue, cpu_executor, metrics_listener),
-        gpu_consumer(cpu_queue, PIPELINE, metrics_listener)
-    )
+    async with AsyncSessionLocal() as session:
+        committer = BatchCommitter(session, batch_size=batch_size, pipeline=PIPELINE)
+        try:
+            await asyncio.gather(
+                io_producer(path, io_queue, PIPELINE, metrics_listener, tracker),
+                cpu_worker(io_queue, cpu_queue, cpu_executor, metrics_listener),
+                gpu_consumer(cpu_queue, PIPELINE, metrics_listener, committer, tracker),
+            )
+            await committer.close()
+        except Exception:
+            await session.rollback()
+            raise
 
+    tracker.summary()
     metrics_listener.print()
+
+
+async def main(path: str) -> None:
+    batch_size = int(os.getenv("BATCH_SIZE", "100"))
+    progress_every = int(os.getenv("PROGRESS_EVERY", "10"))
+    await run(path, batch_size=batch_size, progress_every=progress_every)
+
 
 """
 1. part of text for identification of the possibility, and rest - for the confirmation
