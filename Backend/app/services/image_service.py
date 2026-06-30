@@ -57,7 +57,7 @@ class ImageService:
                 text=[],
                 tags=[],
                 originalFileName=r.filename,
-                excluded=r.exclude if r.exclude is not None else False
+                flagged=r.flagged if r.flagged is not None else False
             )
             for r in rows
         ]
@@ -97,14 +97,14 @@ class ImageService:
 
     async def get_meme(self, image_id: str) -> Meme:
         filename, texts, tags = await self.repo.get_meme_data(image_id)
-        is_excluded = await self.repo.get_is_excluded(image_id)
+        is_flagged = await self.repo.get_is_flagged(image_id)
         return Meme(
             id=image_id,
             imageUrl=f"/api/images/{image_id}",
             text=texts,
             tags=[MemeTag(name=value, category=key) for key, value in tags],
             originalFileName=filename,
-            excluded=is_excluded,
+            flagged=is_flagged,
         )
 
     async def get_similar(self, image_id: str, limit: int = 10) -> MemeSearchResponse:
@@ -119,10 +119,10 @@ class ImageService:
                 text=[],
                 tags=[],
                 originalFileName=fname,
-                excluded=exclude if exclude is not None else False,
+                flagged=flagged if flagged is not None else False,
                 cosineDistance=float(dist),
             )
-            for iid, dist, fname, exclude in rows
+            for iid, dist, fname, flagged in rows
         ]
         return MemeSearchResponse(items=items)
 
@@ -146,7 +146,7 @@ class ImageService:
                 text=[],
                 tags=[],
                 originalFileName=r.filename,
-                excluded=r.exclude if r.exclude is not None else False
+                flagged=r.flagged if r.flagged is not None else False
             )
             for r in rows
         ]
@@ -235,10 +235,10 @@ class ImageService:
                 text=[],
                 tags=[],
                 originalFileName=filename,
-                excluded=exclude if exclude is not None else False,
+                flagged=flagged if flagged is not None else False,
                 clusterId=cluster_id,
             )
-            for (id, filename, created_at, cluster_id, exclude, ) in images
+            for (id, filename, created_at, cluster_id, flagged, ) in images
         ]
 
         # safe on any length
@@ -246,14 +246,14 @@ class ImageService:
 
         return MemeSearchResponse(items=items, nextCursor=next_cursor, hasNext=has_next, facets=[])
 
-    async def get_excluded(
+    async def get_flagged(
             self,
             cursor: Optional[str],
             limit: int,
     ) -> MemeSearchResponse:
         cursor_created_at, cursor_id = self._decode_cursor(cursor)
 
-        rows = await self.repo.get_excluded(
+        rows = await self.repo.get_flagged(
             cursor_created_at=cursor_created_at,
             cursor_id=cursor_id,
             limit=limit,
@@ -266,7 +266,7 @@ class ImageService:
                 text=[],
                 tags=[],
                 originalFileName=r.filename,
-                excluded=True,
+                flagged=True,
             )
             for r in rows
         ]
@@ -275,14 +275,14 @@ class ImageService:
 
         return self._paginate_response(rows, items, limit)
 
-    async def mark_excluded(self, image_id):
-        await self.repo.set_is_excluded(image_id, True)
+    async def mark_flagged(self, image_id):
+        await self.repo.set_flagged(image_id, True)
 
-    async def unmark_excluded(self, image_id):
-        await self.repo.set_is_excluded(image_id, False)
+    async def unmark_flagged(self, image_id):
+        await self.repo.set_flagged(image_id, False)
 
-    async def get_is_excluded(self, image_id) -> bool:
-        return await self.repo.get_is_excluded(image_id)
+    async def get_is_flagged(self, image_id) -> bool:
+        return await self.repo.get_is_flagged(image_id)
 
     @staticmethod
     def _paginate_response(rows, items: list, limit: int, facets: list | None = None) -> MemeSearchResponse:

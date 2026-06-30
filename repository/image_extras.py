@@ -8,13 +8,13 @@ class ImageExtrasRepository:
     def __init__(self, session):
         self.session = session
 
-    async def set_excluded(self, image_id, excluded: bool) -> None:
+    async def set_flagged(self, image_id, flagged: bool) -> None:
         stmt = (
             insert(ImageExtras)
-            .values(image_id=image_id, exclude=excluded)
+            .values(image_id=image_id, flagged=flagged)
             .on_conflict_do_update(
                 index_elements=["image_id"],
-                set_={"exclude": excluded},
+                set_={"flagged": flagged},
             )
         )
         await self.session.execute(stmt)

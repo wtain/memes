@@ -96,7 +96,7 @@ async def main():
             for other in ids[1:]:
                 uf.connect(first, other)
 
-    # ── Phase 4: verify content and mark duplicates as excluded ──────────────
+    # ── Phase 4: verify content and flag duplicates ──────────────────────────
     async with AsyncSessionLocal() as session:
         extras_repo = ImageExtrasRepository(session)
 
@@ -114,17 +114,17 @@ async def main():
                 metrics.increment("warning.content_mismatch")
                 continue
 
-            # Keep the oldest (earliest created_at); exclude the rest
+            # Keep the oldest (earliest created_at); flag the rest
             by_age = sorted(cluster, key=lambda mid: hashed[mid][2])
             keeper, *duplicates = by_age
 
             keeper_name = hashed[keeper][0]
             dup_names = [hashed[d][0] for d in duplicates]
-            print(f"  cluster {len(cluster)}: keep={keeper_name}  exclude={dup_names}")
+            print(f"  cluster {len(cluster)}: keep={keeper_name}  flag={dup_names}")
 
             for dup_id in duplicates:
-                await extras_repo.set_excluded(dup_id, True)
-                metrics.increment("excluded")
+                await extras_repo.set_flagged(dup_id, True)
+                metrics.increment("flagged")
 
             metrics.increment("clusters.found")
 

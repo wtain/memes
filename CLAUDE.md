@@ -135,7 +135,7 @@ build_tags_from_descriptions → rule-based tags from descriptions
 build_concept_embeddings   → concept CLIP embeddings + mappings
 
 # Maintenance (run as needed)
-detect_file_duplicates     deduplicate_ocr_texts     move_excluded     unregister_deleted_images
+detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
 detect_entities_and_tag    tag_images_from_concepts  build_bow
 ```
 

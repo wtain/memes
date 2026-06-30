@@ -1,4 +1,4 @@
-package com.memebrowser.app.ui.excluded
+package com.memebrowser.app.ui.flagged
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class ExcludedUiState(
+data class FlaggedUiState(
     val items: List<Meme> = emptyList(),
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
@@ -22,19 +22,19 @@ data class ExcludedUiState(
 )
 
 @HiltViewModel
-class ExcludedViewModel @Inject constructor(
+class FlaggedViewModel @Inject constructor(
     private val repo: MemeRepository
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(ExcludedUiState())
-    val state: StateFlow<ExcludedUiState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(FlaggedUiState())
+    val state: StateFlow<FlaggedUiState> = _state.asStateFlow()
 
     init { load() }
 
     fun load() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null, items = emptyList(), nextCursor = null, hasNext = false) }
-            repo.getExcluded(cursor = null)
+            repo.getFlagged(cursor = null)
                 .onSuccess { response ->
                     _state.update { it.copy(
                         items = response.items ?: emptyList(),
@@ -54,7 +54,7 @@ class ExcludedViewModel @Inject constructor(
         if (!s.hasNext || s.isLoadingMore || s.nextCursor == null) return
         viewModelScope.launch {
             _state.update { it.copy(isLoadingMore = true, error = null) }
-            repo.getExcluded(cursor = s.nextCursor)
+            repo.getFlagged(cursor = s.nextCursor)
                 .onSuccess { response ->
                     _state.update { it.copy(
                         items = it.items + (response.items ?: emptyList()),

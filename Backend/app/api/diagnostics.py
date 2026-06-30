@@ -22,7 +22,7 @@ class MemeStats(BaseModel):
     without_tags: int
     with_descriptions: int
     with_concept_tags: int
-    excluded: int
+    flagged: int
 
 
 class ContentStats(BaseModel):
@@ -73,7 +73,7 @@ async def statistics(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)
             without_tags=row.without_tags,
             with_descriptions=row.with_descriptions,
             with_concept_tags=row.with_concept_tags,
-            excluded=row.excluded,
+            flagged=row.flagged,
         ),
         content=ContentStats(
             ocr_texts=row.ocr_texts,

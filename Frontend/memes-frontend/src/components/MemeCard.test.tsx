@@ -8,7 +8,7 @@ const mockMeme: Meme = {
   imageUrl: '/images/meme-1.jpg',
   text: ['Hello World', 'Second line'],
   tags: [{ name: 'funny', source: 'clip', score: 0.9 }],
-  excluded: false,
+  flagged: false,
 }
 
 const cardApi = () => makeMockApi({ getImageUrl: vi.fn().mockReturnValue('http://example.com/meme-1.jpg') })
@@ -44,31 +44,31 @@ describe('MemeCard', () => {
     expect(screen.queryByText('OCR')).not.toBeInTheDocument()
   })
 
-  it('checkbox is unchecked when meme is not excluded', () => {
-    render(<MemeCard meme={{ ...mockMeme, excluded: false }} memesApi={cardApi()} />)
+  it('checkbox is unchecked when meme is not flagged', () => {
+    render(<MemeCard meme={{ ...mockMeme, flagged: false }} memesApi={cardApi()} />)
     expect(screen.getByRole('checkbox')).not.toBeChecked()
   })
 
-  it('checkbox is checked when meme is already excluded', () => {
-    render(<MemeCard meme={{ ...mockMeme, excluded: true }} memesApi={cardApi()} />)
+  it('checkbox is checked when meme is already flagged', () => {
+    render(<MemeCard meme={{ ...mockMeme, flagged: true }} memesApi={cardApi()} />)
     expect(screen.getByRole('checkbox')).toBeChecked()
   })
 
-  it('calls markImageIsExcluded when unchecked checkbox is clicked', async () => {
+  it('calls markImageIsFlagged when unchecked checkbox is clicked', async () => {
     const api = cardApi()
-    render(<MemeCard meme={{ ...mockMeme, excluded: false }} memesApi={api} />)
+    render(<MemeCard meme={{ ...mockMeme, flagged: false }} memesApi={api} />)
     fireEvent.click(screen.getByRole('checkbox'))
     await waitFor(() => {
-      expect(api.markImageIsExcluded).toHaveBeenCalledWith('meme-1')
+      expect(api.markImageIsFlagged).toHaveBeenCalledWith('meme-1')
     })
   })
 
-  it('calls unmarkImageIsExcluded when checked checkbox is clicked', async () => {
+  it('calls unmarkImageIsFlagged when checked checkbox is clicked', async () => {
     const api = cardApi()
-    render(<MemeCard meme={{ ...mockMeme, excluded: true }} memesApi={api} />)
+    render(<MemeCard meme={{ ...mockMeme, flagged: true }} memesApi={api} />)
     fireEvent.click(screen.getByRole('checkbox'))
     await waitFor(() => {
-      expect(api.unmarkImageIsExcluded).toHaveBeenCalledWith('meme-1')
+      expect(api.unmarkImageIsFlagged).toHaveBeenCalledWith('meme-1')
     })
   })
 

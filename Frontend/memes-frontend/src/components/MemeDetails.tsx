@@ -20,7 +20,7 @@ const FADE_DELAY_MS = 1500
 export function MemeDetails({ meme, memesApi }: Props) {
   const [similarMemes, setSimilarMemes] = useState<Meme[]>([])
   const [concepts, setConcepts] = useState<Concept[]>([])
-  const [isExcluded, setIsExcluded] = useState<boolean | null>(null)
+  const [isFlagged, setIsFlagged] = useState<boolean | null>(null)
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [controlsActive, setControlsActive] = useState(false)
@@ -35,12 +35,12 @@ export function MemeDetails({ meme, memesApi }: Props) {
 
   useFetchById(meme.id, id => memesApi.similarMemes(id), resp => setSimilarMemes(resp.items ?? []))
   useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
-  useFetchById(meme.id, id => memesApi.getImageIsExcluded(id), setIsExcluded)
+  useFetchById(meme.id, id => memesApi.getImageIsFlagged(id), setIsFlagged)
 
-  function toggleExcluded() {
-    const next = !isExcluded
-    const call = next ? memesApi.markImageIsExcluded(meme.id) : memesApi.unmarkImageIsExcluded(meme.id)
-    call.then(() => setIsExcluded(next))
+  function toggleFlagged() {
+    const next = !isFlagged
+    const call = next ? memesApi.markImageIsFlagged(meme.id) : memesApi.unmarkImageIsFlagged(meme.id)
+    call.then(() => setIsFlagged(next))
   }
 
   function bumpControls() {
@@ -187,15 +187,15 @@ export function MemeDetails({ meme, memesApi }: Props) {
 
         <div className="flex items-center gap-2">
           <input
-            id="excluded-toggle"
+            id="flagged-toggle"
             type="checkbox"
-            checked={isExcluded ?? false}
-            disabled={isExcluded === null}
-            onChange={toggleExcluded}
+            checked={isFlagged ?? false}
+            disabled={isFlagged === null}
+            onChange={toggleFlagged}
             className="w-4 h-4 cursor-pointer"
           />
-          <label htmlFor="excluded-toggle" className="cursor-pointer select-none">
-            Excluded
+          <label htmlFor="flagged-toggle" className="cursor-pointer select-none">
+            Flagged
           </label>
         </div>
 

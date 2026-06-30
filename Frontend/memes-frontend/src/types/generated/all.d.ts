@@ -19,9 +19,9 @@ export interface Meme {
   text?: string[];
   tags?: MemeTag[];
   /**
-   * Whether the image has been marked as excluded
+   * Whether the image has been marked as flagged
    */
-  excluded?: boolean;
+  flagged?: boolean;
   /**
    * Duplicate cluster ID, populated only in the duplicates endpoint
    */
@@ -190,9 +190,9 @@ export interface StatisticsMemeStats {
    */
   with_concept_tags: number;
   /**
-   * Images marked as excluded
+   * Images marked as flagged
    */
-  excluded: number;
+  flagged: number;
   [k: string]: unknown;
 }
 /**

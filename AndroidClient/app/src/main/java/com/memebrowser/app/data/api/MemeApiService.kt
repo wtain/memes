@@ -32,17 +32,17 @@ interface MemeApiService {
     @GET("api/images/meme/{id}")
     suspend fun getMeme(@Path("id") id: String): Meme
 
-    @PUT("api/images/meme/{id}/mark_excluded")
-    suspend fun markExcluded(@Path("id") id: String): Response<Unit>
+    @PUT("api/images/meme/{id}/mark_flagged")
+    suspend fun markFlagged(@Path("id") id: String): Response<Unit>
 
-    @PUT("api/images/meme/{id}/unmark_excluded")
-    suspend fun unmarkExcluded(@Path("id") id: String): Response<Unit>
+    @PUT("api/images/meme/{id}/unmark_flagged")
+    suspend fun unmarkFlagged(@Path("id") id: String): Response<Unit>
 
     @GET("health")
     suspend fun health(): HealthResponse
 
-    @GET("api/images/excluded")
-    suspend fun getExcluded(
+    @GET("api/images/flagged")
+    suspend fun getFlagged(
         @Query("limit") limit: Int = 20,
         @Query("cursor") cursor: String? = null
     ): MemeSearchResponse

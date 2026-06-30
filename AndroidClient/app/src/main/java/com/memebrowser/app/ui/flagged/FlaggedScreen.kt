@@ -1,4 +1,4 @@
-package com.memebrowser.app.ui.excluded
+package com.memebrowser.app.ui.flagged
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,10 +43,10 @@ import com.memebrowser.app.data.model.Meme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExcludedScreen(
+fun FlaggedScreen(
     onBack: () -> Unit,
     onMemeClick: (String) -> Unit,
-    viewModel: ExcludedViewModel = hiltViewModel()
+    viewModel: FlaggedViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -62,7 +62,7 @@ fun ExcludedScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Excluded") },
+                title = { Text("Flagged") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -75,11 +75,11 @@ fun ExcludedScreen(
             when {
                 state.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 state.items.isEmpty() -> Text(
-                    "No excluded memes",
+                    "No flagged memes",
                     modifier = Modifier.align(Alignment.Center),
                     style = MaterialTheme.typography.bodyLarge
                 )
-                else -> ExcludedMemeGrid(
+                else -> FlaggedMemeGrid(
                     items = state.items,
                     hasNext = state.hasNext,
                     isLoadingMore = state.isLoadingMore,
@@ -92,7 +92,7 @@ fun ExcludedScreen(
 }
 
 @Composable
-private fun ExcludedMemeGrid(
+private fun FlaggedMemeGrid(
     items: List<Meme>,
     hasNext: Boolean,
     isLoadingMore: Boolean,

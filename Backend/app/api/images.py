@@ -71,43 +71,43 @@ async def get_meme(
     return await service.get_meme(image_id)
 
 
-@router.put("/meme/{image_id}/mark_excluded")
-async def mark_excluded(
+@router.put("/meme/{image_id}/mark_flagged")
+async def mark_flagged(
     image_id: str,
     response: Response,
     service: ImageService = Depends(get_image_service),
 ):
-    await service.mark_excluded(image_id)
+    await service.mark_flagged(image_id)
 
 
-@router.put("/meme/{image_id}/unmark_excluded")
-async def unmark_excluded(
+@router.put("/meme/{image_id}/unmark_flagged")
+async def unmark_flagged(
     image_id: str,
     response: Response,
     service: ImageService = Depends(get_image_service),
 ):
-    await service.unmark_excluded(image_id)
+    await service.unmark_flagged(image_id)
 
-@router.get("/meme/{image_id}/get_excluded", response_model=int)
-async def get_excluded(
+@router.get("/meme/{image_id}/get_flagged", response_model=int)
+async def get_flagged(
     image_id: str,
     response: Response,
     service: ImageService = Depends(get_image_service),
 ):
-    is_excluded = await service.get_is_excluded(image_id)
-    return 1 if is_excluded else 0
+    is_flagged = await service.get_is_flagged(image_id)
+    return 1 if is_flagged else 0
 
 
 # Must be before /{image_id} endpoint
-@router.get("/excluded", response_model=MemeSearchResponse)
-async def get_excluded_images(
+@router.get("/flagged", response_model=MemeSearchResponse)
+async def get_flagged_images(
     response: Response,
     limit: int = Query(20, ge=1, le=100),
     cursor: Optional[str] = None,
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    return await service.get_excluded(cursor=cursor, limit=limit)
+    return await service.get_flagged(cursor=cursor, limit=limit)
 
 
 # Must be before /{image_id} endpoint

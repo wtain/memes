@@ -35,7 +35,7 @@ class RecommendationsService:
                 text=[],
                 tags=[],
                 originalFileName=r.filename,
-                excluded=r.exclude if r.exclude is not None else False,
+                flagged=r.flagged if r.flagged is not None else False,
             )
             for r in rows
         ]

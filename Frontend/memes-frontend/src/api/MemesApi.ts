@@ -7,7 +7,7 @@ export interface MemesApi {
 
   iterateDuplicates(limit?: number, cursor?: string, threshold?: number): Promise<MemeSearchResponse>;
 
-  iterateExcludedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>;
+  iterateFlaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>;
 
   similarMemes(id: string): Promise<MemeSearchResponse>
 
@@ -23,11 +23,11 @@ export interface MemesApi {
 
   getConcept(id: number): Promise<Concept>;
 
-  markImageIsExcluded(id: string): Promise<void>;
-  
-  unmarkImageIsExcluded(id: string): Promise<void>;
+  markImageIsFlagged(id: string): Promise<void>;
 
-  getImageIsExcluded(id: string): Promise<boolean>;
+  unmarkImageIsFlagged(id: string): Promise<void>;
+
+  getImageIsFlagged(id: string): Promise<boolean>;
 
   getRecommendations(q?: string, limit?: number, cursor?: string): Promise<MemeSearchResponse>;
 

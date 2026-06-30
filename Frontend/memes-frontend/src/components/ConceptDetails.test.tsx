@@ -32,11 +32,11 @@ describe('ConceptDetails', () => {
   })
 
   it('renders meme cards returned by the API', async () => {
-    const meme = { id: 'meme-1', imageUrl: '/img.jpg', text: [], tags: [], excluded: false }
+    const meme = { id: 'meme-1', imageUrl: '/img.jpg', text: [], tags: [], flagged: false }
     const api = makeMockApi({
       getTopImagesForConcept: vi.fn().mockResolvedValue({ items: [meme], hasNext: false }),
       getImageUrl: vi.fn().mockReturnValue('http://example.com/img.jpg'),
-      getImageIsExcluded: vi.fn().mockResolvedValue(false),
+      getImageIsFlagged: vi.fn().mockResolvedValue(false),
     })
     render(
       <MemoryRouter>

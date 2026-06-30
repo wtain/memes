@@ -196,14 +196,14 @@ class TestQueryHandling:
         assert data["items"][0]["id"] == "a"
         assert data["items"][1]["id"] == "b"
 
-    def test_excluded_flag_in_items(self, client, mock_service):
+    def test_flagged_flag_in_items(self, client, mock_service):
         mock_service.get_recommendations.return_value = _make_response(
             items=[
-                Meme(id="x", imageUrl="/api/images/x", text=[], tags=[], originalFileName="x.jpg", excluded=False),
+                Meme(id="x", imageUrl="/api/images/x", text=[], tags=[], originalFileName="x.jpg", flagged=False),
             ]
         )
         data = client.get("/api/recommendations").json()
-        assert data["items"][0]["excluded"] is False
+        assert data["items"][0]["flagged"] is False
 
 
 # ── Service unit tests ────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ import androidx.navigation.navArgument
 import com.memebrowser.app.ui.about.AboutScreen
 import com.memebrowser.app.ui.detail.MemeDetailScreen
 import com.memebrowser.app.ui.environment.EnvironmentManagerScreen
-import com.memebrowser.app.ui.excluded.ExcludedScreen
+import com.memebrowser.app.ui.flagged.FlaggedScreen
 import com.memebrowser.app.ui.recommendations.RecommendationsScreen
 import com.memebrowser.app.ui.search.SearchScreen
 import com.memebrowser.app.ui.statistics.StatisticsScreen
@@ -25,7 +25,7 @@ fun NavGraph() {
             SearchScreen(
                 onMemeClick = { memeId -> navController.navigate("detail/$memeId") },
                 onEnvironmentsClick = { navController.navigate("environments") },
-                onExcludedClick = { navController.navigate("excluded") },
+                onFlaggedClick = { navController.navigate("flagged") },
                 onUploadClick = { navController.navigate("upload") },
                 onAboutClick = { navController.navigate("about") },
                 onTrendsClick = { navController.navigate("trends") },
@@ -53,8 +53,8 @@ fun NavGraph() {
                 }
             )
         }
-        composable("excluded") {
-            ExcludedScreen(
+        composable("flagged") {
+            FlaggedScreen(
                 onBack = { navController.popBackStack() },
                 onMemeClick = { memeId -> navController.navigate("detail/$memeId") }
             )

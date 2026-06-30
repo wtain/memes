@@ -72,7 +72,7 @@ export default function StatisticsPage({ memesApi }: Props) {
           { label: "Total memes", value: n(memes.total) },
           { label: "Tagged", value: `${n(memes.with_tags)} (${pct(memes.with_tags, memes.total)})` },
           { label: "Not tagged", value: `${n(withoutTags)} (${pct(withoutTags, memes.total)})` },
-          { label: "Excluded", value: n(memes.excluded) },
+          { label: "Flagged", value: n(memes.flagged) },
         ]} />
       </section>
 

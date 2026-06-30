@@ -19,9 +19,9 @@
         "$ref": "./memetag.schema.json"
       }
     },
-    "excluded": {
+    "flagged": {
       "type": "boolean",
-      "description": "Whether the image has been marked as excluded"
+      "description": "Whether the image has been flagged"
     },
     "clusterId": {
       "type": "integer",

@@ -15,9 +15,9 @@ class Schema(BaseModel):
     originalFileName: str | None = None
     text: list[str] | None = None
     tags: list[memetag.Schema] | None = None
-    excluded: bool | None = None
+    flagged: bool | None = None
     """
-    Whether the image has been marked as excluded
+    Whether the image has been flagged by an admin for a bulk operation
     """
     clusterId: int | None = None
     """

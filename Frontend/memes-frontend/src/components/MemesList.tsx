@@ -11,11 +11,11 @@ type MemesListProps = {
   tagFilters?: Record<string, string[]>
   listUntagged?: boolean
   listDuplicates?: boolean
-  listExcluded?: boolean
+  listFlagged?: boolean
   listRecommendations?: boolean
 }
 
-export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listExcluded, listRecommendations }: MemesListProps) {
+export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listFlagged, listRecommendations }: MemesListProps) {
   const [memes, setMemes] = useState<Meme[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -93,8 +93,8 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
       if (listDuplicates !== undefined && listDuplicates) {
         return await memesApi.iterateDuplicates(40, next, 0.2)
       }
-      if (listExcluded) {
-        return await memesApi.iterateExcludedMemes(40, next)
+      if (listFlagged) {
+        return await memesApi.iterateFlaggedMemes(40, next)
       }
       if (listRecommendations) {
         return await memesApi.getRecommendations(filter, 36, next)
@@ -106,7 +106,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
         tags,
       })
     }
-  }, [filter, tagFilters, memesApi, onFacetsChanged, listUntagged, listDuplicates, listExcluded, listRecommendations])
+  }, [filter, tagFilters, memesApi, onFacetsChanged, listUntagged, listDuplicates, listFlagged, listRecommendations])
 
   useEffect(() => { loadMemesRef.current = loadMemes })
 

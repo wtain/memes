@@ -126,7 +126,7 @@ async def main(env: str, cluster_id_arg: int | None, reset: bool):
         {
             "id": str(r[0]),
             "filename": r[1],
-            "already_excluded": bool(r[4]),
+            "already_flagged": bool(r[4]),
             "ocr_text": ocr_map.get(str(r[0]), ""),
             "has_description": str(r[0]) in desc_map,
             "description": desc_map.get(str(r[0]), ""),

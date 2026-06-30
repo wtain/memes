@@ -6,7 +6,7 @@ export const DEFAULT_MOCK_MEME: Meme = {
   imageUrl: '/images/test.jpg',
   text: [],
   tags: [],
-  excluded: false,
+  flagged: false,
 }
 
 export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
@@ -21,9 +21,10 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     getTopConceptsForImage: vi.fn().mockResolvedValue([]),
     getMeme: vi.fn().mockResolvedValue(DEFAULT_MOCK_MEME),
     getConcept: vi.fn().mockResolvedValue({ id: 1, name: 'test-concept' }),
-    markImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    unmarkImageIsExcluded: vi.fn().mockResolvedValue(undefined),
-    getImageIsExcluded: vi.fn().mockResolvedValue(false),
+    iterateFlaggedMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
+    markImageIsFlagged: vi.fn().mockResolvedValue(undefined),
+    unmarkImageIsFlagged: vi.fn().mockResolvedValue(undefined),
+    getImageIsFlagged: vi.fn().mockResolvedValue(false),
     ...overrides,
   } as MemesApi
 }

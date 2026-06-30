@@ -82,7 +82,7 @@ class ImageRepository:
         # Paginated page of image rows with excluded status
         extras = aliased(ImageExtras)
         query = (
-            select(img.id, img.filename, img.created_at, extras.exclude)
+            select(img.id, img.filename, img.created_at, extras.flagged)
             .outerjoin(extras, img.id == extras.image_id)
             .where(img.id.in_(select(filtered_ids_subquery.c.id)))
         )
@@ -128,7 +128,7 @@ class ImageRepository:
         embed = aliased(Embedding)
         extras = aliased(ImageExtras)
         result = await self.session.execute(
-            select(embed.image_id, embed.embedding.cosine_distance(embedding), img.filename, extras.exclude)
+            select(embed.image_id, embed.embedding.cosine_distance(embedding), img.filename, extras.flagged)
             .join(img, img.id == embed.image_id)
             .outerjoin(extras, img.id == extras.image_id)
             .filter(embed.image_id != image_id)
@@ -175,7 +175,7 @@ class ImageRepository:
         )
 
         query = (
-            select(img.id, img.filename, img.created_at, extras.exclude)
+            select(img.id, img.filename, img.created_at, extras.flagged)
             .outerjoin(extras, img.id == extras.image_id)
             .where(~exists_subquery)
         )
@@ -315,7 +315,7 @@ class ImageRepository:
                 img.filename,
                 img.created_at,
                 cluster.cluster_id,
-                extras.exclude,
+                extras.flagged,
             )
             .join(cluster, cluster.image_id == img.id)
             .outerjoin(extras, img.id == extras.image_id)
@@ -332,10 +332,10 @@ class ImageRepository:
            ).limit(limit + 1)
         )
 
-        return [(id, filename, created_at, cluster_id, exclude, ) for (id, filename, created_at, cluster_id, exclude,) in images]
+        return [(id, filename, created_at, cluster_id, flagged, ) for (id, filename, created_at, cluster_id, flagged,) in images]
 
 
-    async def get_excluded(
+    async def get_flagged(
             self,
             cursor_created_at: Optional[datetime],
             cursor_id: Optional[uuid.UUID],
@@ -345,9 +345,9 @@ class ImageRepository:
         extras = aliased(ImageExtras)
 
         query = (
-            select(img.id, img.filename, img.created_at, extras.exclude)
+            select(img.id, img.filename, img.created_at, extras.flagged)
             .join(extras, img.id == extras.image_id)
-            .where(extras.exclude == True)
+            .where(extras.flagged == True)
         )
 
         if cursor_created_at and cursor_id:
@@ -360,18 +360,18 @@ class ImageRepository:
         )
         return results.all()
 
-    async def set_is_excluded(self, image_id, is_excluded):
+    async def set_flagged(self, image_id, is_flagged):
         stmt = (
             insert(ImageExtras)
-            .values(image_id=image_id, exclude=is_excluded)
+            .values(image_id=image_id, flagged=is_flagged)
             .on_conflict_do_update(
                 index_elements=["image_id"],
-                set_={"exclude": is_excluded},
+                set_={"flagged": is_flagged},
             )
         )
         await self.session.execute(stmt)
 
-    async def get_is_excluded(self, image_id) -> bool:
+    async def get_is_flagged(self, image_id) -> bool:
         query = (
             select(
                 ImageExtras
@@ -382,4 +382,4 @@ class ImageRepository:
         )
         result = await self.session.execute(query)
         extras = result.scalar_one_or_none()
-        return extras and extras.exclude
+        return extras and extras.flagged

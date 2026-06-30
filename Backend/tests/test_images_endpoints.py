@@ -4,7 +4,7 @@ Endpoints tested:
 - get_images (search with query, facets, pagination)
 - get_similar_images
 - get_meme (single meme details)
-- mark_excluded / unmark_excluded / get_excluded
+- mark_flagged / unmark_flagged / get_flagged
 - get_untagged_images
 - get_duplicate_images
 - get_image (file download)
@@ -66,7 +66,7 @@ class TestGetImages:
                     text=["Sample text (0.95)"],
                     tags=[MemeTag(name="funny", category="mood")],
                     originalFileName="test.jpg",
-                    excluded=False
+                    flagged=False
                 )
             ],
             nextCursor=None,
@@ -104,7 +104,7 @@ class TestGetImages:
                     text=["Cat meme (0.98)"],
                     tags=[MemeTag(name="cats", category="subject")],
                     originalFileName="cat.jpg",
-                    excluded=False
+                    flagged=False
                 )
             ],
             nextCursor="next123",
@@ -146,7 +146,7 @@ class TestGetImages:
                     text=[],
                     tags=[],
                     originalFileName=f"img{i}.jpg",
-                    excluded=False
+                    flagged=False
                 )
                 for i in range(50)
             ],
@@ -179,7 +179,7 @@ class TestGetImages:
                     text=[],
                     tags=[],
                     originalFileName="page2.jpg",
-                    excluded=False
+                    flagged=False
                 )
             ],
             nextCursor=None,
@@ -209,7 +209,7 @@ class TestGetImages:
                     text=[],
                     tags=[MemeTag(name="happy", category="mood")],
                     originalFileName="happy.jpg",
-                    excluded=False
+                    flagged=False
                 )
             ],
             nextCursor=None,
@@ -259,173 +259,173 @@ class TestGetImages:
         assert data["hasNext"] is False
 
 
-class TestMarkExcluded:
-    """Tests for PUT /api/images/meme/{image_id}/mark_excluded endpoint."""
+class TestMarkFlagged:
+    """Tests for PUT /api/images/meme/{image_id}/mark_flagged endpoint."""
 
-    def test_mark_excluded_success(self, client, mock_image_service):
+    def test_mark_flagged_success(self, client, mock_image_service):
         """Test successfully marking an image as excluded."""
         # Arrange
-        mock_image_service.mark_excluded.return_value = None
+        mock_image_service.mark_flagged.return_value = None
 
         # Act
-        response = client.put("/api/images/meme/123/mark_excluded")
+        response = client.put("/api/images/meme/123/mark_flagged")
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.mark_excluded.assert_called_once_with("123")
+        mock_image_service.mark_flagged.assert_called_once_with("123")
 
-    def test_mark_excluded_multiple_times(self, client, mock_image_service):
+    def test_mark_flagged_multiple_times(self, client, mock_image_service):
         """Test marking the same image as excluded multiple times (should be idempotent)."""
         # Arrange
-        mock_image_service.mark_excluded.return_value = None
+        mock_image_service.mark_flagged.return_value = None
 
         # Act
-        response1 = client.put("/api/images/meme/456/mark_excluded")
-        response2 = client.put("/api/images/meme/456/mark_excluded")
+        response1 = client.put("/api/images/meme/456/mark_flagged")
+        response2 = client.put("/api/images/meme/456/mark_flagged")
 
         # Assert
         assert response1.status_code == 200
         assert response2.status_code == 200
-        assert mock_image_service.mark_excluded.call_count == 2
+        assert mock_image_service.mark_flagged.call_count == 2
 
-    def test_mark_excluded_with_uuid_format(self, client, mock_image_service):
+    def test_mark_flagged_with_uuid_format(self, client, mock_image_service):
         """Test marking excluded with UUID-format image ID."""
         # Arrange
         uuid_id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_image_service.mark_excluded.return_value = None
+        mock_image_service.mark_flagged.return_value = None
 
         # Act
-        response = client.put(f"/api/images/meme/{uuid_id}/mark_excluded")
+        response = client.put(f"/api/images/meme/{uuid_id}/mark_flagged")
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.mark_excluded.assert_called_once_with(uuid_id)
+        mock_image_service.mark_flagged.assert_called_once_with(uuid_id)
 
-    def test_mark_excluded_service_error(self, client, mock_image_service):
+    def test_mark_flagged_service_error(self, client, mock_image_service):
         """Test handling of service errors when marking excluded."""
         # Arrange
-        mock_image_service.mark_excluded.side_effect = Exception("Database error")
+        mock_image_service.mark_flagged.side_effect = Exception("Database error")
 
         # Act & Assert
         with pytest.raises(Exception, match="Database error"):
-            client.put("/api/images/meme/789/mark_excluded")
+            client.put("/api/images/meme/789/mark_flagged")
 
 
-class TestUnmarkExcluded:
-    """Tests for PUT /api/images/meme/{image_id}/unmark_excluded endpoint."""
+class TestUnmarkFlagged:
+    """Tests for PUT /api/images/meme/{image_id}/unmark_flagged endpoint."""
 
-    def test_unmark_excluded_success(self, client, mock_image_service):
+    def test_unmark_flagged_success(self, client, mock_image_service):
         """Test successfully unmarking an image as excluded."""
         # Arrange
-        mock_image_service.unmark_excluded.return_value = None
+        mock_image_service.unmark_flagged.return_value = None
 
         # Act
-        response = client.put("/api/images/meme/123/unmark_excluded")
+        response = client.put("/api/images/meme/123/unmark_flagged")
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.unmark_excluded.assert_called_once_with("123")
+        mock_image_service.unmark_flagged.assert_called_once_with("123")
 
-    def test_unmark_excluded_multiple_times(self, client, mock_image_service):
+    def test_unmark_flagged_multiple_times(self, client, mock_image_service):
         """Test unmarking the same image as excluded multiple times (should be idempotent)."""
         # Arrange
-        mock_image_service.unmark_excluded.return_value = None
+        mock_image_service.unmark_flagged.return_value = None
 
         # Act
-        response1 = client.put("/api/images/meme/456/unmark_excluded")
-        response2 = client.put("/api/images/meme/456/unmark_excluded")
+        response1 = client.put("/api/images/meme/456/unmark_flagged")
+        response2 = client.put("/api/images/meme/456/unmark_flagged")
 
         # Assert
         assert response1.status_code == 200
         assert response2.status_code == 200
-        assert mock_image_service.unmark_excluded.call_count == 2
+        assert mock_image_service.unmark_flagged.call_count == 2
 
-    def test_unmark_excluded_with_uuid_format(self, client, mock_image_service):
+    def test_unmark_flagged_with_uuid_format(self, client, mock_image_service):
         """Test unmarking excluded with UUID-format image ID."""
         # Arrange
         uuid_id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_image_service.unmark_excluded.return_value = None
+        mock_image_service.unmark_flagged.return_value = None
 
         # Act
-        response = client.put(f"/api/images/meme/{uuid_id}/unmark_excluded")
+        response = client.put(f"/api/images/meme/{uuid_id}/unmark_flagged")
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.unmark_excluded.assert_called_once_with(uuid_id)
+        mock_image_service.unmark_flagged.assert_called_once_with(uuid_id)
 
-    def test_unmark_excluded_service_error(self, client, mock_image_service):
+    def test_unmark_flagged_service_error(self, client, mock_image_service):
         """Test handling of service errors when unmarking excluded."""
         # Arrange
-        mock_image_service.unmark_excluded.side_effect = Exception("Database error")
+        mock_image_service.unmark_flagged.side_effect = Exception("Database error")
 
         # Act & Assert
         with pytest.raises(Exception, match="Database error"):
-            client.put("/api/images/meme/789/unmark_excluded")
+            client.put("/api/images/meme/789/unmark_flagged")
 
 
-class TestMarkUnmarkExcludedWorkflow:
+class TestMarkUnmarkFlaggedWorkflow:
     """Integration tests for mark/unmark excluded workflow."""
 
     def test_mark_then_unmark_workflow(self, client, mock_image_service):
         """Test marking an image as excluded and then unmarking it."""
         # Arrange
-        mock_image_service.mark_excluded.return_value = None
-        mock_image_service.unmark_excluded.return_value = None
+        mock_image_service.mark_flagged.return_value = None
+        mock_image_service.unmark_flagged.return_value = None
         image_id = "workflow-test-123"
 
         # Act
-        mark_response = client.put(f"/api/images/meme/{image_id}/mark_excluded")
-        unmark_response = client.put(f"/api/images/meme/{image_id}/unmark_excluded")
+        mark_response = client.put(f"/api/images/meme/{image_id}/mark_flagged")
+        unmark_response = client.put(f"/api/images/meme/{image_id}/unmark_flagged")
 
         # Assert
         assert mark_response.status_code == 200
         assert unmark_response.status_code == 200
-        mock_image_service.mark_excluded.assert_called_once_with(image_id)
-        mock_image_service.unmark_excluded.assert_called_once_with(image_id)
+        mock_image_service.mark_flagged.assert_called_once_with(image_id)
+        mock_image_service.unmark_flagged.assert_called_once_with(image_id)
 
 
-class TestGetExcluded:
-    """Tests for GET /api/images/meme/{image_id}/get_excluded endpoint."""
+class TestGetFlagged:
+    """Tests for GET /api/images/meme/{image_id}/get_flagged endpoint."""
 
-    def test_get_excluded_when_excluded(self, client, mock_image_service):
+    def test_get_flagged_when_excluded(self, client, mock_image_service):
         """Test getting excluded status when image is excluded."""
         # Arrange
-        mock_image_service.get_is_excluded.return_value = True
+        mock_image_service.get_is_flagged.return_value = True
 
         # Act
-        response = client.get("/api/images/meme/123/get_excluded")
+        response = client.get("/api/images/meme/123/get_flagged")
 
         # Assert
         assert response.status_code == 200
         assert response.json() == 1
-        mock_image_service.get_is_excluded.assert_called_once_with("123")
+        mock_image_service.get_is_flagged.assert_called_once_with("123")
 
-    def test_get_excluded_when_not_excluded(self, client, mock_image_service):
+    def test_get_flagged_when_not_excluded(self, client, mock_image_service):
         """Test getting excluded status when image is not excluded."""
         # Arrange
-        mock_image_service.get_is_excluded.return_value = False
+        mock_image_service.get_is_flagged.return_value = False
 
         # Act
-        response = client.get("/api/images/meme/456/get_excluded")
+        response = client.get("/api/images/meme/456/get_flagged")
 
         # Assert
         assert response.status_code == 200
         assert response.json() == 0
-        mock_image_service.get_is_excluded.assert_called_once_with("456")
+        mock_image_service.get_is_flagged.assert_called_once_with("456")
 
-    def test_get_excluded_with_uuid(self, client, mock_image_service):
+    def test_get_flagged_with_uuid(self, client, mock_image_service):
         """Test getting excluded status with UUID format."""
         # Arrange
         uuid_id = "550e8400-e29b-41d4-a716-446655440000"
-        mock_image_service.get_is_excluded.return_value = True
+        mock_image_service.get_is_flagged.return_value = True
 
         # Act
-        response = client.get(f"/api/images/meme/{uuid_id}/get_excluded")
+        response = client.get(f"/api/images/meme/{uuid_id}/get_flagged")
 
         # Assert
         assert response.status_code == 200
         assert response.json() == 1
-        mock_image_service.get_is_excluded.assert_called_once_with(uuid_id)
+        mock_image_service.get_is_flagged.assert_called_once_with(uuid_id)
 
 
 class TestGetSimilarImages:
@@ -442,7 +442,7 @@ class TestGetSimilarImages:
                     text=["Similar meme 1"],
                     tags=[MemeTag(name="cat", category="subject")],
                     originalFileName="similar1.jpg",
-                    excluded=False,
+                    flagged=False,
                     cosineDistance=0.031,
                 ),
                 Meme(
@@ -451,7 +451,7 @@ class TestGetSimilarImages:
                     text=["Similar meme 2"],
                     tags=[MemeTag(name="cat", category="subject")],
                     originalFileName="similar2.jpg",
-                    excluded=False,
+                    flagged=False,
                     cosineDistance=0.089,
                 )
             ],
@@ -529,7 +529,7 @@ class TestGetMeme:
                 MemeTag(name="cat", category="subject", score=0.88)
             ],
             originalFileName="cat_meme.jpg",
-            excluded=False
+            flagged=False
         )
         mock_image_service.get_meme.return_value = mock_meme
 
@@ -557,7 +557,7 @@ class TestGetMeme:
             text=[],
             tags=[],
             originalFileName="no_tags.jpg",
-            excluded=False
+            flagged=False
         )
         mock_image_service.get_meme.return_value = mock_meme
 
@@ -581,7 +581,7 @@ class TestGetMeme:
             text=["UUID test"],
             tags=[],
             originalFileName="uuid_test.jpg",
-            excluded=False
+            flagged=False
         )
         mock_image_service.get_meme.return_value = mock_meme
 
@@ -609,7 +609,7 @@ class TestGetUntaggedImages:
                     text=["Text without tags"],
                     tags=[],
                     originalFileName="untagged1.jpg",
-                    excluded=False
+                    flagged=False
                 ),
                 Meme(
                     id="untagged-2",
@@ -617,7 +617,7 @@ class TestGetUntaggedImages:
                     text=[],
                     tags=[],
                     originalFileName="untagged2.jpg",
-                    excluded=False
+                    flagged=False
                 )
             ],
             nextCursor="next-untagged",
@@ -724,7 +724,7 @@ class TestGetDuplicateImages:
                     text=["Duplicate 1"],
                     tags=[],
                     originalFileName="dup1a.jpg",
-                    excluded=False
+                    flagged=False
                 ),
                 Meme(
                     id="dup-1b",
@@ -732,7 +732,7 @@ class TestGetDuplicateImages:
                     text=["Duplicate 1"],
                     tags=[],
                     originalFileName="dup1b.jpg",
-                    excluded=False
+                    flagged=False
                 )
             ],
             nextCursor="dup-next",
@@ -974,7 +974,7 @@ class TestGetImage:
                             assert response.status_code == 200
 
 
-class TestExcludedFlagHydration:
+class TestFlaggedHydration:
     """Tests that excluded flag is correctly populated in list responses."""
 
     def test_search_returns_excluded_flag(self, client, mock_image_service):
@@ -985,13 +985,13 @@ class TestExcludedFlagHydration:
                     id="1",
                     imageUrl="/api/images/1",
                     originalFileName="excluded.jpg",
-                    excluded=True
+                    flagged=True
                 ),
                 Meme(
                     id="2",
                     imageUrl="/api/images/2",
                     originalFileName="normal.jpg",
-                    excluded=False
+                    flagged=False
                 ),
             ],
             facets=[],
@@ -1005,8 +1005,8 @@ class TestExcludedFlagHydration:
 
         assert response.status_code == 200
         assert len(data["items"]) == 2
-        assert data["items"][0]["excluded"] is True
-        assert data["items"][1]["excluded"] is False
+        assert data["items"][0]["flagged"] is True
+        assert data["items"][1]["flagged"] is False
 
     def test_similar_returns_excluded_flag(self, client, mock_image_service):
         """Test that similar images include excluded flag."""
@@ -1016,7 +1016,7 @@ class TestExcludedFlagHydration:
                     id="similar-1",
                     imageUrl="/api/images/similar-1",
                     originalFileName="similar1.jpg",
-                    excluded=True
+                    flagged=True
                 ),
             ],
             facets=[],
@@ -1030,7 +1030,7 @@ class TestExcludedFlagHydration:
 
         assert response.status_code == 200
         assert len(data["items"]) == 1
-        assert data["items"][0]["excluded"] is True
+        assert data["items"][0]["flagged"] is True
 
     def test_untagged_returns_excluded_flag(self, client, mock_image_service):
         """Test that untagged images include excluded flag."""
@@ -1040,7 +1040,7 @@ class TestExcludedFlagHydration:
                     id="untagged-1",
                     imageUrl="/api/images/untagged-1",
                     originalFileName="untagged1.jpg",
-                    excluded=False
+                    flagged=False
                 ),
             ],
             facets=[],
@@ -1054,7 +1054,7 @@ class TestExcludedFlagHydration:
 
         assert response.status_code == 200
         assert len(data["items"]) == 1
-        assert data["items"][0]["excluded"] is False
+        assert data["items"][0]["flagged"] is False
 
     def test_duplicates_returns_excluded_flag(self, client, mock_image_service):
         """Test that duplicate images include excluded flag for both images."""
@@ -1064,13 +1064,13 @@ class TestExcludedFlagHydration:
                     id="dup-1a",
                     imageUrl="/api/images/dup-1a",
                     originalFileName="dup1a.jpg",
-                    excluded=True
+                    flagged=True
                 ),
                 Meme(
                     id="dup-1b",
                     imageUrl="/api/images/dup-1b",
                     originalFileName="dup1b.jpg",
-                    excluded=False
+                    flagged=False
                 ),
             ],
             facets=[],
@@ -1084,8 +1084,8 @@ class TestExcludedFlagHydration:
 
         assert response.status_code == 200
         assert len(data["items"]) == 2
-        assert data["items"][0]["excluded"] is True
-        assert data["items"][1]["excluded"] is False
+        assert data["items"][0]["flagged"] is True
+        assert data["items"][1]["flagged"] is False
 
     def test_get_meme_returns_excluded_flag(self, client, mock_image_service):
         """Test that single meme details include excluded flag."""
@@ -1093,7 +1093,7 @@ class TestExcludedFlagHydration:
             id="123",
             imageUrl="/api/images/123",
             originalFileName="test.jpg",
-            excluded=True
+            flagged=True
         )
         mock_image_service.get_meme.return_value = mock_meme
 
@@ -1101,4 +1101,4 @@ class TestExcludedFlagHydration:
         data = response.json()
 
         assert response.status_code == 200
-        assert data["excluded"] is True
+        assert data["flagged"] is True

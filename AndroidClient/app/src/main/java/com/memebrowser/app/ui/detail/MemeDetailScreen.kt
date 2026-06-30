@@ -128,7 +128,7 @@ fun MemeDetailScreen(
                     isSaving = state.isSaving,
                     onSave = { viewModel.saveToGallery(context) },
                     onShare = { viewModel.share(context) },
-                    onToggleExcluded = { viewModel.toggleExcluded() },
+                    onToggleFlagged = { viewModel.toggleFlagged() },
                     similarMemes = state.similarMemes,
                     isLoadingSimilar = state.isLoadingSimilar,
                     onSimilarMemeClick = onNavigateToMeme,
@@ -152,7 +152,7 @@ private fun BottomActionBar(
     isSaving: Boolean,
     onSave: () -> Unit,
     onShare: () -> Unit,
-    onToggleExcluded: () -> Unit,
+    onToggleFlagged: () -> Unit,
     similarMemes: List<Meme>,
     isLoadingSimilar: Boolean,
     onSimilarMemeClick: (String) -> Unit,
@@ -210,15 +210,15 @@ private fun BottomActionBar(
             IconButton(onClick = onShare) {
                 Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
             }
-            IconButton(onClick = onToggleExcluded) {
-                if (meme.excluded == true) {
+            IconButton(onClick = onToggleFlagged) {
+                if (meme.flagged == true) {
                     Icon(
                         Icons.Default.CheckCircle,
-                        contentDescription = "Unmark excluded",
+                        contentDescription = "Unmark flagged",
                         tint = MaterialTheme.colorScheme.error
                     )
                 } else {
-                    Icon(Icons.Default.Block, contentDescription = "Mark excluded", tint = Color.White)
+                    Icon(Icons.Default.Block, contentDescription = "Mark flagged", tint = Color.White)
                 }
             }
         }

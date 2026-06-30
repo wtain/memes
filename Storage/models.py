@@ -278,7 +278,7 @@ class ImageExtras(Base):
 
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True, index=True)
 
-    exclude = Column(Boolean)
+    flagged = Column(Boolean)
     remarks = Column(Text)
 
     image = relationship("Image", back_populates="image_extras")

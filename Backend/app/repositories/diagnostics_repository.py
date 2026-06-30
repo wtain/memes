@@ -36,8 +36,8 @@ class DiagnosticsRepository:
                 select(func.count(OllamaDescription.image_id.distinct()))
                     .scalar_subquery().label("with_descriptions"),
                 select(func.count()).select_from(ImageExtras)
-                    .where(ImageExtras.exclude == true())
-                    .scalar_subquery().label("excluded"),
+                    .where(ImageExtras.flagged == true())
+                    .scalar_subquery().label("flagged"),
                 select(func.count()).select_from(OCRText)
                     .scalar_subquery().label("ocr_texts"),
                 select(func.count()).select_from(ImageTag)

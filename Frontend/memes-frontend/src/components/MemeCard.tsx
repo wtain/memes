@@ -12,10 +12,10 @@ type Props = {
 
 export default function MemeCard({ meme, memesApi, onClick, variant = "square" }: Props) {
   const [showText, setShowText] = useState(false)
-  const [isExcluded, setIsExcluded] = useState(meme.excluded ?? false)
+  const [isFlagged, setIsFlagged] = useState(meme.flagged ?? false)
 
   return (
-    <div className={`relative overflow-hidden rounded-xl bg-white shadow-sm hover:shadow-md transition border-2 ${isExcluded ? "border-red-500" : "border-black"}`}>
+    <div className={`relative overflow-hidden rounded-xl bg-white shadow-sm hover:shadow-md transition border-2 ${isFlagged ? "border-red-500" : "border-black"}`}>
       <div
         className="relative"
         onClick={onClick}
@@ -44,17 +44,17 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
         <div className="px-4 py-1 text-xs text-gray-500 border-b">Cluster {meme.clusterId}</div>
       )}
       <div>
-        <input type="checkbox" className="ml-4 mr-2" checked={isExcluded} onChange={(e) => {
+        <input type="checkbox" className="ml-4 mr-2" checked={isFlagged} onChange={(e) => {
           e.preventDefault();
-          if (isExcluded) {
-            memesApi.unmarkImageIsExcluded(meme.id).then(() => setIsExcluded(false));
+          if (isFlagged) {
+            memesApi.unmarkImageIsFlagged(meme.id).then(() => setIsFlagged(false));
           }
           else {
-            memesApi.markImageIsExcluded(meme.id).then(() => setIsExcluded(true));
+            memesApi.markImageIsFlagged(meme.id).then(() => setIsFlagged(true));
           }
           
         }} />
-        Excluded
+        Flagged
       </div>
       <TagList tags={meme.tags ?? []} />
     </div>

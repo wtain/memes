@@ -86,12 +86,12 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
-  async iterateExcludedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse> {
+  async iterateFlaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse> {
     const params = new URLSearchParams()
     if (limit) params.set("limit", String(limit))
     if (cursor) params.set("cursor", cursor)
     const response = await fetch(
-      `${this.baseUrl}/api/images/excluded?${params.toString()}`,
+      `${this.baseUrl}/api/images/flagged?${params.toString()}`,
       { headers: { "Accept": "application/json" } }
     )
     if (!response.ok) throw new Error(`Search failed: ${response.status}`)
@@ -186,24 +186,24 @@ export class HttpMemesApi implements MemesApi {
     return res.json()
   }
 
-  async markImageIsExcluded(id: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/mark_excluded`, {
+  async markImageIsFlagged(id: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/mark_flagged`, {
       method: "PUT"
     })
 
-    if (!res.ok) throw new Error("Failed mark as excluded")
+    if (!res.ok) throw new Error("Failed mark as flagged")
   }
 
-  async unmarkImageIsExcluded(id: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/unmark_excluded`, {
+  async unmarkImageIsFlagged(id: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/unmark_flagged`, {
       method: "PUT"
     })
 
-    if (!res.ok) throw new Error("Failed unmark as excluded")
+    if (!res.ok) throw new Error("Failed unmark as flagged")
   }
 
-  async getImageIsExcluded(id: string): Promise<boolean> {
-    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/get_excluded`)
+  async getImageIsFlagged(id: string): Promise<boolean> {
+    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/get_flagged`)
 
     if (!res.ok) throw new Error("Failed to fetch image extras")
 

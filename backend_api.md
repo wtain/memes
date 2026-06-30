@@ -38,7 +38,7 @@ Represents a meme image with metadata and tags.
   "originalFileName": "string | null",
   "text": ["string"] | null,
   "tags": [MemeTag] | null,
-  "excluded": "boolean | null",
+  "flagged": "boolean | null",
   "clusterId": "integer | null",
   "cosineDistance": "number | null"
 }
@@ -233,7 +233,7 @@ Response from `POST /api/uploads`.
     "with_tags": "number",
     "with_descriptions": "number",
     "with_concept_tags": "number",
-    "excluded": "number"
+    "flagged": "number"
   },
   "content": {
     "ocr_texts": "number",
@@ -346,38 +346,38 @@ Retrieve detailed information about a specific meme.
 - **Response**: `Meme`
 - **Example**: `GET /api/images/meme/abc123`
 
-#### Mark Meme as Excluded
+#### Mark Meme as Flagged
 
-Mark a meme as excluded from search results.
+Mark a meme as flagged.
 
-- **URL**: `/api/images/meme/{image_id}/mark_excluded`
+- **URL**: `/api/images/meme/{image_id}/mark_flagged`
 - **Method**: `PUT`
 - **Path Parameters**:
   - `image_id`: Unique identifier of the image
 - **Response**: Success (no content)
-- **Example**: `PUT /api/images/meme/abc123/mark_excluded`
+- **Example**: `PUT /api/images/meme/abc123/mark_flagged`
 
-#### Unmark Meme as Excluded
+#### Unmark Meme as Flagged
 
-Remove exclusion status from a meme.
+Remove flagged status from a meme.
 
-- **URL**: `/api/images/meme/{image_id}/unmark_excluded`
+- **URL**: `/api/images/meme/{image_id}/unmark_flagged`
 - **Method**: `PUT`
 - **Path Parameters**:
   - `image_id`: Unique identifier of the image
 - **Response**: Success (no content)
-- **Example**: `PUT /api/images/meme/abc123/unmark_excluded`
+- **Example**: `PUT /api/images/meme/abc123/unmark_flagged`
 
-#### Get Exclusion Status
+#### Get Flagged Status
 
-Check if a meme is excluded.
+Check if a meme is flagged.
 
-- **URL**: `/api/images/meme/{image_id}/get_excluded`
+- **URL**: `/api/images/meme/{image_id}/get_flagged`
 - **Method**: `GET`
 - **Path Parameters**:
   - `image_id`: Unique identifier of the image
-- **Response**: `integer` (1 if excluded, 0 if not)
-- **Example**: `GET /api/images/meme/abc123/get_excluded`
+- **Response**: `integer` (1 if flagged, 0 if not)
+- **Example**: `GET /api/images/meme/abc123/get_flagged`
 
 #### Get Untagged Images
 
@@ -429,7 +429,7 @@ Retrieve the actual image file.
 
 #### Get Random Recommendations
 
-Returns a stable-randomized feed of memes, optionally filtered by a text query. Results are stable across pages for the same seed — the order is determined by `md5(image_id || seed)` so each (image, seed) pair always has the same position in the feed. Excluded images are never returned.
+Returns a stable-randomized feed of memes, optionally filtered by a text query. Results are stable across pages for the same seed — the order is determined by `md5(image_id || seed)` so each (image, seed) pair always has the same position in the feed. Flagged images are never returned.
 
 ```
 GET /api/recommendations
@@ -455,7 +455,7 @@ GET /api/recommendations
       "originalFileName": "funny_cat.jpg",
       "text": ["When you debug for 6 hours"],
       "tags": [{ "name": "cats", "category": "subject", "score": 1, "source": "tagger" }],
-      "excluded": false
+      "flagged": false
     }
   ],
   "facets": [],
@@ -663,7 +663,7 @@ Returns row counts across all major tables in a single SQL round-trip.
     "without_tags": 2300,
     "with_descriptions": 3400,
     "with_concept_tags": 8700,
-    "excluded": 82
+    "flagged": 82
   },
   "content": {
     "ocr_texts": 31000,

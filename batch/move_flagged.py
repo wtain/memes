@@ -14,16 +14,16 @@ async def run(session, base_path):
             Image.filename,
         )
         .join(ImageExtras, ImageExtras.image_id == Image.id)
-        .where(ImageExtras.exclude == True)
+        .where(ImageExtras.flagged == True)
     )
     images = await session.execute(query)
 
-    excluded_path = os.path.join(base_path, "excluded")
-    os.makedirs(excluded_path, exist_ok=True)
+    flagged_path = os.path.join(base_path, "excluded")
+    os.makedirs(flagged_path, exist_ok=True)
 
     for (filename, ) in images:
         path_from = os.path.join(base_path, filename)
-        path_to = os.path.join(excluded_path, filename)
+        path_to = os.path.join(flagged_path, filename)
         print(f"Moving {filename} from {path_from} to {path_to}")
         shutil.move(path_from, path_to)
 

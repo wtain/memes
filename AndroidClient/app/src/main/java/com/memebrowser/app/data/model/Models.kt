@@ -65,7 +65,7 @@ data class StatisticsMemeStats(
     @SerialName("without_tags") val without_tags: Int,
     @SerialName("with_descriptions") val with_descriptions: Int,
     @SerialName("with_concept_tags") val with_concept_tags: Int,
-    @SerialName("excluded") val excluded: Int
+    @SerialName("flagged") val flagged: Int
 )
 
 @Serializable
@@ -119,7 +119,7 @@ data class Meme(
     @SerialName("originalFileName") val originalFileName: String? = null,
     @SerialName("text") val text: List<String>? = null,
     @SerialName("tags") val tags: List<MemeTag>? = null,
-    @SerialName("excluded") val excluded: Boolean? = null,
+    @SerialName("flagged") val flagged: Boolean? = null,
     @SerialName("clusterId") val clusterId: Int? = null,
     @SerialName("cosineDistance") val cosineDistance: Float? = null
 )

@@ -43,13 +43,13 @@ open class MemeRepository @Inject constructor(
         api.getMeme(id)
     }
 
-    suspend fun markExcluded(id: String): Result<Unit> = runCatching {
-        val response = api.markExcluded(id)
+    suspend fun markFlagged(id: String): Result<Unit> = runCatching {
+        val response = api.markFlagged(id)
         if (!response.isSuccessful) error("HTTP ${response.code()}")
     }
 
-    suspend fun unmarkExcluded(id: String): Result<Unit> = runCatching {
-        val response = api.unmarkExcluded(id)
+    suspend fun unmarkFlagged(id: String): Result<Unit> = runCatching {
+        val response = api.unmarkFlagged(id)
         if (!response.isSuccessful) error("HTTP ${response.code()}")
     }
 
@@ -65,8 +65,8 @@ open class MemeRepository @Inject constructor(
         }
     }
 
-    suspend fun getExcluded(cursor: String?, limit: Int = 20): Result<MemeSearchResponse> = runCatching {
-        api.getExcluded(limit = limit, cursor = cursor)
+    suspend fun getFlagged(cursor: String?, limit: Int = 20): Result<MemeSearchResponse> = runCatching {
+        api.getFlagged(limit = limit, cursor = cursor)
     }
 
     suspend fun getSimilarMemes(id: String): Result<List<Meme>> = runCatching {

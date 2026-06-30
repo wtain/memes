@@ -95,7 +95,7 @@ import kotlinx.coroutines.launch
 fun SearchScreen(
     onMemeClick: (String) -> Unit,
     onEnvironmentsClick: () -> Unit,
-    onExcludedClick: () -> Unit,
+    onFlaggedClick: () -> Unit,
     onUploadClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
     onTrendsClick: () -> Unit = {},
@@ -130,9 +130,9 @@ fun SearchScreen(
                         scope.launch { drawerState.close() }
                         onUploadClick()
                     },
-                    onExcludedClick = {
+                    onFlaggedClick = {
                         scope.launch { drawerState.close() }
-                        onExcludedClick()
+                        onFlaggedClick()
                     },
                     onEnvironmentsClick = {
                         scope.launch { drawerState.close() }
@@ -244,7 +244,7 @@ fun SearchScreen(
 private fun DrawerContent(
     healthStatus: HealthStatus,
     onUploadClick: () -> Unit,
-    onExcludedClick: () -> Unit,
+    onFlaggedClick: () -> Unit,
     onEnvironmentsClick: () -> Unit,
     onAboutClick: () -> Unit,
     onTrendsClick: () -> Unit,
@@ -293,9 +293,9 @@ private fun DrawerContent(
     )
     NavigationDrawerItem(
         icon = { Icon(Icons.Default.Block, contentDescription = null) },
-        label = { Text("Excluded") },
+        label = { Text("Flagged") },
         selected = false,
-        onClick = onExcludedClick,
+        onClick = onFlaggedClick,
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
     )
     NavigationDrawerItem(
@@ -531,7 +531,7 @@ private fun MemeGridCell(meme: Meme, onClick: () -> Unit, modifier: Modifier = M
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
-        if (meme.excluded == true) {
+        if (meme.flagged == true) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -543,7 +543,7 @@ private fun MemeGridCell(meme: Meme, onClick: () -> Unit, modifier: Modifier = M
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
                 Text(
-                    text = "excluded",
+                    text = "flagged",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onError
                 )

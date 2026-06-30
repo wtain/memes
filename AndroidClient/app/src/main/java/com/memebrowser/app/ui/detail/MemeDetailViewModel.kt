@@ -69,16 +69,16 @@ class MemeDetailViewModel @Inject constructor(
         }
     }
 
-    fun toggleExcluded() {
+    fun toggleFlagged() {
         val meme = _state.value.meme ?: return
-        val currentlyExcluded = meme.excluded == true
+        val currentlyFlagged = meme.flagged == true
         // Optimistic update
-        _state.update { it.copy(meme = meme.copy(excluded = !currentlyExcluded)) }
+        _state.update { it.copy(meme = meme.copy(flagged = !currentlyFlagged)) }
         viewModelScope.launch {
-            val result = if (currentlyExcluded) repo.unmarkExcluded(meme.id) else repo.markExcluded(meme.id)
+            val result = if (currentlyFlagged) repo.unmarkFlagged(meme.id) else repo.markFlagged(meme.id)
             result.onFailure { e ->
                 // Roll back
-                _state.update { it.copy(meme = meme.copy(excluded = currentlyExcluded), error = e.message) }
+                _state.update { it.copy(meme = meme.copy(flagged = currentlyFlagged), error = e.message) }
             }
         }
     }
