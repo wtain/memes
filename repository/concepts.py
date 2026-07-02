@@ -86,3 +86,10 @@ class ConceptsRepository(ConceptRepositoryBase):
 
     def add(self, name, embedding):
         self.session.add(Concept(name=name, embedding=embedding))
+
+    async def get_all_with_embeddings(self):
+        result = await self.session.execute(
+            select(Concept.id, Concept.name, Concept.embedding)
+            .where(Concept.embedding.isnot(None))
+        )
+        return result.all()
