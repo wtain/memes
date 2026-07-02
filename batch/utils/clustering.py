@@ -15,10 +15,11 @@ def build_clusters_from_embeddings(
     since ||a-b||^2 = 2 - 2*cos_sim(a,b)). Returns {label: [keys]}, where
     label -1 is HDBSCAN's noise bucket (maps directly to "singletons").
 
+    min_samples is forwarded to HDBSCAN unmodified: when None, HDBSCAN
+    applies its own library default, which equals min_cluster_size.
+
     Caller must ensure len(keys) >= 2 and embeddings are already L2-normalised.
     """
-    if min_samples is None:
-        min_samples = 1
     clusterer = HDBSCAN(
         metric="euclidean",
         min_cluster_size=min_cluster_size,
