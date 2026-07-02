@@ -8,8 +8,10 @@ import yaml
 from batch.build_lemma_clusters import (
     build_cluster_records,
     load_lemma_source,
+    main,
     nearest_concept,
     resolve_language_blocks,
+    run,
     write_yaml_output,
 )
 
@@ -146,11 +148,6 @@ def test_nearest_concept_picks_closest_by_cosine_distance():
 
 def test_nearest_concept_no_rows_returns_none():
     assert nearest_concept(np.array([1.0, 0.0]), []) is None
-
-
-import pytest
-
-from batch.build_lemma_clusters import main, run
 
 
 class _FakeEmbedder:
@@ -382,3 +379,23 @@ async def test_main_default_text_scope_uses_unmatched_file(monkeypatch):
     await main()
 
     assert captured["input_file"] == "unmatched.json"
+
+
+@pytest.mark.asyncio
+async def test_main_missing_input_env_var_raises_clear_error(monkeypatch):
+    monkeypatch.delenv("TEXT_SCOPE", raising=False)
+    monkeypatch.delenv("BOW_UNMATCHED_FILE", raising=False)
+    monkeypatch.setenv("CLUSTER_OUTPUT_FILE", "out.yaml")
+
+    with pytest.raises(SystemExit, match="BOW_UNMATCHED_FILE"):
+        await main()
+
+
+@pytest.mark.asyncio
+async def test_main_missing_output_env_var_raises_clear_error(monkeypatch):
+    monkeypatch.setenv("TEXT_SCOPE", "unmatched")
+    monkeypatch.setenv("BOW_UNMATCHED_FILE", "unmatched.json")
+    monkeypatch.delenv("CLUSTER_OUTPUT_FILE", raising=False)
+
+    with pytest.raises(SystemExit, match="CLUSTER_OUTPUT_FILE"):
+        await main()

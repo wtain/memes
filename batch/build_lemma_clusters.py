@@ -217,10 +217,18 @@ async def run(
 async def main() -> None:
     text_scope = os.getenv("TEXT_SCOPE", "unmatched")
     input_file = os.getenv("BOW_OUTPUT_FILE") if text_scope == "all" else os.getenv("BOW_UNMATCHED_FILE")
+    output_file = os.getenv("CLUSTER_OUTPUT_FILE")
+
+    if not input_file:
+        raise SystemExit(
+            "BOW_OUTPUT_FILE must be set when TEXT_SCOPE=all, otherwise BOW_UNMATCHED_FILE must be set"
+        )
+    if not output_file:
+        raise SystemExit("CLUSTER_OUTPUT_FILE must be set")
 
     await run(
         input_file=input_file,
-        output_file=os.getenv("CLUSTER_OUTPUT_FILE"),
+        output_file=output_file,
         language=os.getenv("LANGUAGE", "all"),
         min_cluster_size=int(os.getenv("MIN_CLUSTER_SIZE", "2")),
         min_samples=int(os.getenv("MIN_SAMPLES")) if os.getenv("MIN_SAMPLES") else None,
