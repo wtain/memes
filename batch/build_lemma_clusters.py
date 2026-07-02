@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from datetime import datetime
@@ -5,6 +6,10 @@ from pathlib import Path
 
 import numpy as np
 import yaml
+
+from batch.utils.clustering import build_clusters_from_embeddings
+from repository.concepts import ConceptsRepository
+from Storage.db import AsyncSessionLocal
 
 
 def load_lemma_source(path: str) -> dict:
@@ -89,3 +94,143 @@ def nearest_concept(centroid: np.ndarray, concept_rows: list[tuple[int, str, np.
     best = min(concept_rows, key=distance)
     concept_id, name, _ = best
     return {"name": name, "concept_id": concept_id, "cosine_distance": round(distance(best), 4)}
+
+
+def _get_embedder(name: str):
+    if name == "sbert":
+        from ai.sbert import SbertModel
+        return SbertModel()
+    if name == "clip":
+        from ai.clip import ClipModel
+        return ClipModel()
+    raise ValueError(f"Unknown TEXT_EMBED_MODEL: {name!r}")
+
+
+def _get_namer(model: str):
+    from ai.ollama import OllamaConceptNamer
+    return OllamaConceptNamer(model=model)
+
+
+async def _load_concept_rows() -> list[tuple[int, str, np.ndarray]]:
+    async with AsyncSessionLocal() as session:
+        repo = ConceptsRepository(session)
+        rows = await repo.get_all_with_embeddings()
+        return [(r.id, r.name, np.asarray(r.embedding)) for r in rows]
+
+
+def _cluster_centroid(members: dict, embeddings_by_lemma: dict) -> np.ndarray:
+    vectors = np.stack([embeddings_by_lemma[lemma] for lemma in members])
+    centroid = vectors.mean(axis=0)
+    return centroid / np.linalg.norm(centroid)
+
+
+def _process_language(
+    lang: str,
+    lemma_freqs: dict[str, int],
+    embedder,
+    namer,
+    min_cluster_size: int,
+    min_samples: int | None,
+    cluster_selection_epsilon: float,
+    lookup_concepts: bool,
+    concept_rows: list[tuple[int, str, np.ndarray]],
+) -> dict:
+    if len(lemma_freqs) < 2:
+        print(f"WARNING: language {lang!r} has fewer than 2 lemmas, skipping clustering")
+        singletons = [{"lemma": lemma, "frequency": freq} for lemma, freq in lemma_freqs.items()]
+        return {"clusters": [], "singletons": singletons}
+
+    if len(lemma_freqs) > 5000:
+        print(f"WARNING: language {lang!r} has {len(lemma_freqs)} lemmas (>5000) - O(N^2) clustering cost is high")
+
+    keys = list(lemma_freqs)
+    embeddings_by_lemma = {lemma: embedder.embed_text(lemma) for lemma in keys}
+    embeddings = np.stack([embeddings_by_lemma[lemma] for lemma in keys])
+    embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+
+    groups = build_clusters_from_embeddings(keys, embeddings, min_cluster_size, min_samples, cluster_selection_epsilon)
+    clusters, singletons = build_cluster_records(groups, lemma_freqs)
+
+    if namer is not None:
+        for cluster in clusters:
+            cluster["ollama_concept"] = namer.name_cluster(lang, list(cluster["members"].items()))
+
+    if lookup_concepts:
+        for cluster in clusters:
+            if concept_rows:
+                centroid = _cluster_centroid(cluster["members"], embeddings_by_lemma)
+                cluster["nearest_concept"] = nearest_concept(centroid, concept_rows)
+            else:
+                cluster["nearest_concept"] = None
+
+    return {"clusters": clusters, "singletons": singletons}
+
+
+async def run(
+    input_file: str,
+    output_file: str,
+    language: str = "all",
+    min_cluster_size: int = 2,
+    min_samples: int | None = None,
+    cluster_selection_epsilon: float = 0.0,
+    embed_model: str = "sbert",
+    ollama_model: str = "qwen2",
+    ollama_enabled: bool = True,
+    lookup_concepts: bool = False,
+) -> None:
+    if lookup_concepts and embed_model != "clip":
+        raise ValueError(
+            "LOOKUP_CONCEPTS=true requires TEXT_EMBED_MODEL=clip "
+            "(DB concept embeddings are CLIP-based, not comparable to sbert centroids)"
+        )
+
+    data = load_lemma_source(input_file)
+    blocks = resolve_language_blocks(data, language)
+
+    embedder = _get_embedder(embed_model)
+    namer = _get_namer(ollama_model) if ollama_enabled else None
+
+    concept_rows: list[tuple[int, str, np.ndarray]] = []
+    if lookup_concepts:
+        concept_rows = await _load_concept_rows()
+        if not concept_rows:
+            print("WARNING: LOOKUP_CONCEPTS=true but no concept embeddings found in DB")
+
+    languages_output = {}
+    for lang, lemma_freqs in blocks.items():
+        languages_output[lang] = _process_language(
+            lang, lemma_freqs, embedder, namer, min_cluster_size, min_samples,
+            cluster_selection_epsilon, lookup_concepts, concept_rows,
+        )
+
+    parameters = {
+        "min_cluster_size": min_cluster_size,
+        "min_samples": min_samples,
+        "cluster_selection_epsilon": cluster_selection_epsilon,
+        "embed_model": embed_model,
+        "ollama_model": ollama_model,
+    }
+    write_yaml_output(output_file, parameters, languages_output)
+    print(f"Written to {output_file}")
+
+
+async def main() -> None:
+    text_scope = os.getenv("TEXT_SCOPE", "unmatched")
+    input_file = os.getenv("BOW_OUTPUT_FILE") if text_scope == "all" else os.getenv("BOW_UNMATCHED_FILE")
+
+    await run(
+        input_file=input_file,
+        output_file=os.getenv("CLUSTER_OUTPUT_FILE"),
+        language=os.getenv("LANGUAGE", "all"),
+        min_cluster_size=int(os.getenv("MIN_CLUSTER_SIZE", "2")),
+        min_samples=int(os.getenv("MIN_SAMPLES")) if os.getenv("MIN_SAMPLES") else None,
+        cluster_selection_epsilon=float(os.getenv("CLUSTER_SELECTION_EPSILON", "0.0")),
+        embed_model=os.getenv("TEXT_EMBED_MODEL", "sbert"),
+        ollama_model=os.getenv("OLLAMA_MODEL", "qwen2"),
+        ollama_enabled=os.getenv("OLLAMA_ENABLED", "true").lower() == "true",
+        lookup_concepts=os.getenv("LOOKUP_CONCEPTS", "false").lower() == "true",
+    )
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
