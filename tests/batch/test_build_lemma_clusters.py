@@ -345,6 +345,7 @@ async def test_main_reads_env_vars_and_calls_run(monkeypatch):
     monkeypatch.setenv("MIN_CLUSTER_SIZE", "3")
     monkeypatch.setenv("MIN_SAMPLES", "2")
     monkeypatch.setenv("CLUSTER_SELECTION_EPSILON", "0.15")
+    monkeypatch.setenv("CLUSTER_SELECTION_METHOD", "leaf")
     monkeypatch.setenv("TEXT_EMBED_MODEL", "clip")
     monkeypatch.setenv("OLLAMA_MODEL", "llama3")
     monkeypatch.setenv("OLLAMA_ENABLED", "false")
@@ -358,6 +359,7 @@ async def test_main_reads_env_vars_and_calls_run(monkeypatch):
     assert captured["min_cluster_size"] == 3
     assert captured["min_samples"] == 2
     assert captured["cluster_selection_epsilon"] == 0.15
+    assert captured["cluster_selection_method"] == "leaf"
     assert captured["embed_model"] == "clip"
     assert captured["ollama_model"] == "llama3"
     assert captured["ollama_enabled"] is False
@@ -379,6 +381,23 @@ async def test_main_default_text_scope_uses_unmatched_file(monkeypatch):
     await main()
 
     assert captured["input_file"] == "unmatched.json"
+
+
+@pytest.mark.asyncio
+async def test_main_default_cluster_selection_method_is_eom(monkeypatch):
+    captured = {}
+
+    async def fake_run(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("batch.build_lemma_clusters.run", fake_run)
+    monkeypatch.delenv("CLUSTER_SELECTION_METHOD", raising=False)
+    monkeypatch.setenv("BOW_UNMATCHED_FILE", "unmatched.json")
+    monkeypatch.setenv("CLUSTER_OUTPUT_FILE", "out.yaml")
+
+    await main()
+
+    assert captured["cluster_selection_method"] == "eom"
 
 
 @pytest.mark.asyncio

@@ -132,6 +132,7 @@ def _process_language(
     min_cluster_size: int,
     min_samples: int | None,
     cluster_selection_epsilon: float,
+    cluster_selection_method: str,
     lookup_concepts: bool,
     concept_rows: list[tuple[int, str, np.ndarray]],
 ) -> dict:
@@ -148,7 +149,9 @@ def _process_language(
     embeddings = np.stack([embeddings_by_lemma[lemma] for lemma in keys])
     embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
 
-    groups = build_clusters_from_embeddings(keys, embeddings, min_cluster_size, min_samples, cluster_selection_epsilon)
+    groups = build_clusters_from_embeddings(
+        keys, embeddings, min_cluster_size, min_samples, cluster_selection_epsilon, cluster_selection_method,
+    )
     clusters, singletons = build_cluster_records(groups, lemma_freqs)
 
     if namer is not None:
@@ -173,6 +176,7 @@ async def run(
     min_cluster_size: int = 2,
     min_samples: int | None = None,
     cluster_selection_epsilon: float = 0.0,
+    cluster_selection_method: str = "eom",
     embed_model: str = "sbert",
     ollama_model: str = "qwen2",
     ollama_enabled: bool = True,
@@ -200,13 +204,14 @@ async def run(
     for lang, lemma_freqs in blocks.items():
         languages_output[lang] = _process_language(
             lang, lemma_freqs, embedder, namer, min_cluster_size, min_samples,
-            cluster_selection_epsilon, lookup_concepts, concept_rows,
+            cluster_selection_epsilon, cluster_selection_method, lookup_concepts, concept_rows,
         )
 
     parameters = {
         "min_cluster_size": min_cluster_size,
         "min_samples": min_samples,
         "cluster_selection_epsilon": cluster_selection_epsilon,
+        "cluster_selection_method": cluster_selection_method,
         "embed_model": embed_model,
         "ollama_model": ollama_model,
     }
@@ -233,6 +238,7 @@ async def main() -> None:
         min_cluster_size=int(os.getenv("MIN_CLUSTER_SIZE", "2")),
         min_samples=int(os.getenv("MIN_SAMPLES")) if os.getenv("MIN_SAMPLES") else None,
         cluster_selection_epsilon=float(os.getenv("CLUSTER_SELECTION_EPSILON", "0.0")),
+        cluster_selection_method=os.getenv("CLUSTER_SELECTION_METHOD", "eom"),
         embed_model=os.getenv("TEXT_EMBED_MODEL", "sbert"),
         ollama_model=os.getenv("OLLAMA_MODEL", "qwen2"),
         ollama_enabled=os.getenv("OLLAMA_ENABLED", "true").lower() == "true",

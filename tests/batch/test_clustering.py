@@ -36,6 +36,43 @@ def test_build_clusters_from_embeddings_groups_close_points_separately():
     assert groups[-1] == ["outlier"]
 
 
+def test_build_clusters_from_embeddings_forwards_cluster_selection_method(monkeypatch):
+    captured = {}
+
+    class _FakeHDBSCAN:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def fit_predict(self, embeddings):
+            return np.zeros(len(embeddings), dtype=int)
+
+    monkeypatch.setattr("batch.utils.clustering.HDBSCAN", _FakeHDBSCAN)
+
+    build_clusters_from_embeddings(
+        ["a", "b"], np.array([[1.0, 0.0], [0.9, 0.1]]),
+        min_cluster_size=2, cluster_selection_method="leaf",
+    )
+
+    assert captured["cluster_selection_method"] == "leaf"
+
+
+def test_build_clusters_from_embeddings_defaults_cluster_selection_method_to_eom(monkeypatch):
+    captured = {}
+
+    class _FakeHDBSCAN:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def fit_predict(self, embeddings):
+            return np.zeros(len(embeddings), dtype=int)
+
+    monkeypatch.setattr("batch.utils.clustering.HDBSCAN", _FakeHDBSCAN)
+
+    build_clusters_from_embeddings(["a", "b"], np.array([[1.0, 0.0], [0.9, 0.1]]), min_cluster_size=2)
+
+    assert captured["cluster_selection_method"] == "eom"
+
+
 def test_build_clusters_from_embeddings_respects_min_cluster_size():
     # Same points as above, but require a min_cluster_size (4) larger than
     # either trio (3 points each) -> no group can meet the threshold, so
