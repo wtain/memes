@@ -3,12 +3,14 @@ from collections import deque
 
 
 class ProgressTracker:
-    def __init__(self, total: int, report_every: int = 10):
+    def __init__(self, total: int, report_every: int = 10, report_interval_secs: float = 0.0):
         self._total = total
         self._skip_count = 0
         self._done = 0
         self._report_every = report_every
+        self._report_interval_secs = report_interval_secs
         self._start_time = time.perf_counter()
+        self._last_report_time = self._start_time
         self._window: deque[float] = deque(maxlen=50)
 
     def skip(self) -> None:
@@ -16,9 +18,16 @@ class ProgressTracker:
 
     def mark_done(self) -> None:
         self._done += 1
-        self._window.append(time.perf_counter())
-        if self._done % self._report_every == 0:
+        now = time.perf_counter()
+        self._window.append(now)
+        count_trigger = self._done % self._report_every == 0
+        time_trigger = (
+            self._report_interval_secs > 0
+            and (now - self._last_report_time) >= self._report_interval_secs
+        )
+        if count_trigger or time_trigger:
             self._print_progress()
+            self._last_report_time = now
 
     def _effective_total(self) -> int:
         return self._total - self._skip_count

@@ -3,6 +3,7 @@ import asyncio
 import os
 from pathlib import Path
 
+from batch.utils.progress import ProgressTracker
 from metrics.listener import SimpleMetricsListener
 from rules.concept_tagger import ConceptTagger
 from Storage.db import AsyncSessionLocal
@@ -36,11 +37,17 @@ async def main(incremental: bool):
             images_and_texts_results = await images_repo.get_images_and_ocr_texts()
 
         metrics = SimpleMetricsListener()
+        tracker = ProgressTracker(
+            len(images_and_texts_results),
+            report_every=100,
+            report_interval_secs=20,
+        )
 
         async with TagsSaver(session) as tags_saver:
             for filename, image_id, text, confidence in images_and_texts_results:
                 if confidence < OCR_CONFIDENCE_MIN:
                     metrics.increment("images.skipped")
+                    tracker.skip()
                     continue
                 result = engine.tag(text)
                 tag_count = len(result.tags)
@@ -49,8 +56,10 @@ async def main(incremental: bool):
                 metrics.increment("images.processed")
                 metrics.add("tags.total", tag_count)
                 metrics.bucket("tags_per_image", tag_count)
+                tracker.mark_done()
 
-    print("Done:")
+        tracker.summary()
+    print("Tags:")
     metrics.print()
 
 
