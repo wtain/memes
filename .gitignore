@@ -103,3 +103,6 @@ debug.log
 # Agent runtime state
 .agent_state/
 logs/
+
+# Superpowers subagent-driven-development scratch state
+.superpowers/
