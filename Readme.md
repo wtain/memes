@@ -40,6 +40,13 @@ cd Storage && docker-compose up -d
 
 For detailed setup instructions, see **[SETUP.md](./SETUP.md)**.
 
+**After cloning, activate the git hooks (one command, all platforms):**
+```sh
+git config core.hooksPath .githooks
+```
+The `post-merge` hook warns you when Python or frontend dependency files changed
+after `git pull` so you know to re-run `pip install` or `pnpm install`.
+
 Quick steps:
 ```bash
 # Backend server only (no ML stack)

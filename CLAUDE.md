@@ -6,6 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Semantic search engine for memes. Images are enriched offline (OCR, CLIP embeddings, LLM descriptions, tags) via batch jobs; the FastAPI backend serves pre-computed results; the React frontend provides search and browse UI. Three independent environments run in parallel: **metal** (port 8081), **general** (8082), **IT** (8083), each with its own database and config.
 
+## First-time repo setup
+
+After cloning, activate the git hooks (one command, all platforms):
+
+```sh
+git config core.hooksPath .githooks
+```
+
+The `post-merge` hook warns you when Python or frontend dependency files
+change after a `git pull`, so you know to re-run `pip install` or `pnpm install`.
+
 ## Commands
 
 ### Backend (run from repo root)

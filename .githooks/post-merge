@@ -1,0 +1,44 @@
+#!/bin/sh
+# Warn when dependency files changed so you remember to reinstall.
+# Runs after every `git pull` / `git merge`.
+# Works on Windows (Git Bash), macOS, and Linux — no extra tooling required.
+
+changed=$(git diff --name-only ORIG_HEAD HEAD 2>/dev/null)
+[ -z "$changed" ] && exit 0
+
+warn_pip=0
+warn_pnpm=0
+
+for f in $changed; do
+  case "$f" in
+    requirements*.txt|Backend/requirements*.txt)
+      warn_pip=1 ;;
+    Frontend/memes-frontend/pnpm-lock.yaml)
+      warn_pnpm=1 ;;
+  esac
+done
+
+[ "$warn_pip" = "0" ] && [ "$warn_pnpm" = "0" ] && exit 0
+
+echo ""
+echo "------------------------------------------------------------"
+echo " Dependency files changed -- reinstall before continuing"
+echo "------------------------------------------------------------"
+
+if [ "$warn_pip" = "1" ]; then
+  echo ""
+  echo " Python (from repo root):"
+  echo "   pip install -r Backend/requirements-backend.txt -r Backend/requirements-test.txt"
+  echo "   # full ML stack:  pip install -r requirements.txt"
+  echo "   # with CUDA:      pip install -r requirements.txt -r requirements-cuda.txt"
+fi
+
+if [ "$warn_pnpm" = "1" ]; then
+  echo ""
+  echo " Frontend:"
+  echo "   cd Frontend/memes-frontend && pnpm install"
+fi
+
+echo ""
+echo "------------------------------------------------------------"
+echo ""
