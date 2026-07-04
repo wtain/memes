@@ -59,6 +59,13 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install -r Backend/requirements-backend.txt
           pip install -r Backend/requirements-test.txt
+          # rules/lang_plausibility.py, rules/normalize.py, and batch/build_bow.py (exercised
+          # transitively by repository/ocr_text.py and the new tests/integration tests) need
+          # these. Installed explicitly here rather than via the top-level requirements.txt,
+          # which pulls in the full ML/batch stack (opencv/paddleocr) that
+          # Backend/requirements-backend.txt exists specifically to avoid — see that file's
+          # header comment.
+          pip install wordfreq==3.1.1 pymorphy3==2.0.6 pymorphy3-dicts-ru==2.4.417150.4580142 PyYAML==6.0.2
 
       - name: Enable pgvector extension
         run: |
