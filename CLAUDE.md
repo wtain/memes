@@ -164,6 +164,9 @@ build_concept_embeddings   → concept CLIP embeddings + mappings
 # Maintenance (run as needed)
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
 detect_entities_and_tag    tag_images_from_concepts  build_bow
+
+# Concept discovery for the new rules engine (see Rules engine below)
+build_lemma_clusters       → draft_concepts_from_clusters
 ```
 
 Most jobs are idempotent (clear and rebuild). Exception: `rebuild_duplicates` drops its table each run.
@@ -182,6 +185,10 @@ Two implementations coexist:
 - **New design** (`rules/concept_tagger.py`, `batch/data/tagging/`): concept voting with YAML rule files. See `batch/rules_engine.md` for the full design. Not yet wired into the main pipeline.
 
 `rules/normalize.py` is shared by both engines and `build_bow.py` — use it for all text normalization to keep behavior consistent.
+
+**Concept discovery** (drafting new entries for the new design): `build_lemma_clusters` embeds `build_bow`'s unmatched lemmas (sbert) and clusters them per-language (HDBSCAN; `CLUSTER_SELECTION_METHOD=leaf` avoids one oversized "catch-all" cluster that the default `eom` tends to produce), optionally naming each cluster via Ollama. `draft_concepts_from_clusters` then takes the top N clusters and appends draft entries to `concepts.<env>.yaml` + `tags.<env>.yaml` for human review. Both are chained together by the `/draft-lemma-concepts` Claude Code command (`.claude/commands/draft-lemma-concepts.md`), which also commits the raw draft before review and again after.
+
+`BOW_IGNORE_FILE` (`batch/data/ignore-words.<env>.json`) edits only take effect after the next `build_bow` run — `build_lemma_clusters` reads `build_bow`'s output (`bow.unmatched.<env>.json`), never the ignore file itself, so a stale unmatched file will keep surfacing already-ignored words until `build_bow` is rerun.
 
 ### Frontend
 
