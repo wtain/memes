@@ -72,6 +72,22 @@ def select_top_clusters(
     return accepted, skipped
 
 
+def _yaml_scalar(value: str) -> str:
+    """Render `value` as a YAML scalar, quoting it only when needed.
+
+    yaml.safe_dump() on a bare scalar appends a document-end marker
+    ("...") for plain (unquoted) scalars but not for quoted ones, so we
+    strip that marker if present. This keeps normal lemmas unquoted
+    (matching how a human would write them) while safely quoting values
+    that collide with YAML reserved tokens (no, yes, on, off, null,
+    true, false, numeric-looking strings, etc.).
+    """
+    dumped = yaml.safe_dump(value, allow_unicode=True).strip()
+    if dumped.endswith("..."):
+        dumped = dumped[: -len("...")].strip()
+    return dumped
+
+
 def format_concept_block(key: str, cluster: dict, lemma: str) -> str:
     ollama_concept = cluster.get("ollama_concept")
     if ollama_concept:
@@ -84,7 +100,7 @@ def format_concept_block(key: str, cluster: dict, lemma: str) -> str:
 
     lines = [comment, f"{key}:", "  words:"]
     for member in cluster["members"]:
-        lines.append(f"  - {member}")
+        lines.append(f"  - {_yaml_scalar(member)}")
     lines.append("  votes:")
     lines.append(f"    тема:{lemma}: 1.0")
     return "\n".join(lines) + "\n"

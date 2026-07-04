@@ -193,6 +193,31 @@ def test_format_concept_block_without_ollama_name():
     )
 
 
+def test_format_concept_block_quotes_yaml_reserved_word_member():
+    cluster = {
+        "ollama_concept": None,
+        "total_frequency": 10,
+        "size": 2,
+        "members": {"да": 5, "no": 5},
+    }
+
+    text = format_concept_block("da", cluster, "да")
+
+    assert text == (
+        "# from build_lemma_clusters (no Ollama name)\n"
+        "da:\n"
+        "  words:\n"
+        "  - да\n"
+        "  - 'no'\n"
+        "  votes:\n"
+        "    тема:да: 1.0\n"
+    )
+    # Verify the quoted member round-trips as a string, not a bool/null.
+    loaded = yaml.safe_load(text)
+    assert loaded["da"]["words"] == ["да", "no"]
+    assert isinstance(loaded["da"]["words"][1], str)
+
+
 def test_format_tag_declaration():
     assert format_tag_declaration("спать") == "  тема:спать: {}\n"
 
@@ -299,7 +324,7 @@ def test_run_missing_language_raises(tmp_path):
     cluster_file = tmp_path / "clusters.yaml"
     _write(cluster_file, "languages:\n  ru:\n    clusters: []\n    singletons: []\n")
 
-    with pytest.raises(ValueError, match="es"):
+    with pytest.raises(ValueError, match=r"Language 'es' not found"):
         run(str(cluster_file), env="general", language="es", top=1, data_dir=str(data_dir))
 
 
