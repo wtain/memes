@@ -2149,14 +2149,6 @@ russian_sons:
   - сыночек
   votes:
     тема:сын: 1.0
-# Ollama suggested: ""Apaga"" (freq=288, size=3, from build_lemma_clusters)
-apaga:
-  words:
-  - апа
-  - апаго
-  - апагеу
-  votes:
-    тема:апа: 1.0
 # Ollama suggested: "Leaving" (freq=270, size=8, from build_lemma_clusters)
 leaving:
   words:
@@ -2182,7 +2174,6 @@ big_size:
   - огроменный
   - колоссальный
   - большний
-  - голямо
   - крупно
   votes:
     тема:больший: 1.0
@@ -2193,10 +2184,8 @@ opening:
   - открывать
   - открыться
   - открываться
-  - откроить
   - отваривать
   - отворить
-  - приплюснуть
   votes:
     тема:открыть: 1.0
 # Ollama suggested: ""Получение"" (freq=257, size=7, from build_lemma_clusters)
@@ -2232,8 +2221,6 @@ russian_eyes:
   - глазок
   - окос
   - глазной
-  - лещ
-  - лецо
   votes:
     тема:глаз: 1.0
 # Ollama suggested: ""Oral"" (freq=233, size=4, from build_lemma_clusters)
