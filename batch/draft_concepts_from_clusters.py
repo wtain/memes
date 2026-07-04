@@ -1,4 +1,8 @@
+import argparse
+import os
 import re
+
+import yaml
 
 
 def slugify(name: str | None) -> str:
@@ -96,3 +100,82 @@ def append_to_file(path: str, text: str) -> None:
     prefix = "" if existing.endswith("\n") else "\n"
     with open(path, "a", encoding="utf-8") as f:
         f.write(prefix + text)
+
+
+def load_yaml(path: str) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def run(
+    cluster_file: str,
+    env: str,
+    language: str,
+    top: int,
+    data_dir: str = "batch/data/tagging",
+) -> None:
+    cluster_data = load_yaml(cluster_file)
+    languages = cluster_data.get("languages") or {}
+    if language not in languages:
+        raise ValueError(f"Language {language!r} not found in {cluster_file}")
+    clusters = languages[language].get("clusters") or []
+
+    concepts_path = os.path.join(data_dir, f"concepts.{env}.yaml")
+    tags_path = os.path.join(data_dir, f"tags.{env}.yaml")
+
+    if not os.path.exists(concepts_path):
+        raise FileNotFoundError(f"{concepts_path} does not exist")
+    if not os.path.exists(tags_path):
+        raise FileNotFoundError(f"{tags_path} does not exist")
+
+    concepts_data = load_yaml(concepts_path) or {}
+    tags_data = load_yaml(tags_path) or {}
+
+    existing_words = collect_existing_words(concepts_data)
+    existing_keys = collect_existing_keys(concepts_data)
+    declared_tags = collect_declared_tags(tags_data)
+
+    accepted, skipped = select_top_clusters(clusters, existing_words, top)
+
+    added = []
+    for cluster in accepted:
+        lemma = top_lemma(cluster)
+        key = resolve_key(cluster.get("ollama_concept"), lemma, existing_keys)
+        existing_keys.add(key)
+
+        append_to_file(concepts_path, format_concept_block(key, cluster, lemma))
+
+        tag = f"тема:{lemma}"
+        if tag not in declared_tags:
+            append_to_file(tags_path, format_tag_declaration(lemma))
+            declared_tags.add(tag)
+
+        added.append((key, lemma, cluster))
+
+    _print_summary(added, skipped, top, concepts_path, tags_path)
+
+
+def _print_summary(added, skipped, top, concepts_path, tags_path):
+    for key, lemma, cluster in added:
+        print(f"  + {key} (тема:{lemma}, {cluster['size']} members, ollama: {cluster.get('ollama_concept')!r})")
+    for cluster in skipped:
+        print(f"  - skipped cluster with top lemma {top_lemma(cluster)!r} (already covered)")
+    print(f"Added {len(added)} concept(s) (requested {top}) to {concepts_path} and {tags_path}")
+    if len(added) < top:
+        print(f"WARNING: only {len(added)} non-colliding cluster(s) were available (requested {top})")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cluster-file", required=True)
+    parser.add_argument("--env", required=True)
+    parser.add_argument("--language", required=True)
+    parser.add_argument("--top", type=int, default=10)
+    parser.add_argument("--data-dir", default="batch/data/tagging")
+    args = parser.parse_args()
+
+    run(args.cluster_file, args.env, args.language, args.top, args.data_dir)
+
+
+if __name__ == "__main__":
+    main()

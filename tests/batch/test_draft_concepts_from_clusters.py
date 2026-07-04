@@ -1,3 +1,8 @@
+import textwrap
+
+import pytest
+import yaml
+
 from batch.draft_concepts_from_clusters import (
     append_to_file,
     collect_declared_tags,
@@ -5,7 +10,9 @@ from batch.draft_concepts_from_clusters import (
     collect_existing_words,
     format_concept_block,
     format_tag_declaration,
+    main,
     resolve_key,
+    run,
     select_top_clusters,
     slugify,
     top_lemma,
@@ -206,3 +213,164 @@ def test_append_to_file_no_extra_newline_when_already_present(tmp_path):
     append_to_file(str(path), "new: 1\n")
 
     assert path.read_text(encoding="utf-8") == "existing: true\nnew: 1\n"
+
+
+def _write(path, content):
+    path.write_text(content, encoding="utf-8")
+
+
+def test_run_end_to_end_appends_new_concept_and_tag(tmp_path):
+    data_dir = tmp_path / "tagging"
+    data_dir.mkdir()
+    concepts_path = data_dir / "concepts.general.yaml"
+    tags_path = data_dir / "tags.general.yaml"
+    _write(concepts_path, "existing_concept:\n  words:\n  - existing_word\n  votes:\n    тема:existing: 1.0")
+    _write(tags_path, "defaults:\n  threshold: 1.0\ntags:\n  тема:existing: {}")
+
+    cluster_file = tmp_path / "clusters.yaml"
+    _write(cluster_file, textwrap.dedent("""\
+        languages:
+          ru:
+            clusters:
+              - id: 1
+                ollama_concept: "Sleeping"
+                total_frequency: 640
+                size: 2
+                members:
+                  спать: 500
+                  сон: 140
+            singletons: []
+        """))
+
+    run(str(cluster_file), env="general", language="ru", top=1, data_dir=str(data_dir))
+
+    concepts_data = yaml.safe_load(concepts_path.read_text(encoding="utf-8"))
+    assert concepts_data["sleeping"]["words"] == ["спать", "сон"]
+    assert concepts_data["sleeping"]["votes"] == {"тема:спать": 1.0}
+    assert concepts_data["existing_concept"]["words"] == ["existing_word"]
+
+    tags_data = yaml.safe_load(tags_path.read_text(encoding="utf-8"))
+    assert "тема:спать" in tags_data["tags"]
+    assert "тема:existing" in tags_data["tags"]
+
+
+def test_run_skips_cluster_already_covered_and_backfills(tmp_path):
+    data_dir = tmp_path / "tagging"
+    data_dir.mkdir()
+    concepts_path = data_dir / "concepts.general.yaml"
+    tags_path = data_dir / "tags.general.yaml"
+    _write(concepts_path, "sleep:\n  words:\n  - спать\n  votes:\n    тема:спать: 1.0")
+    _write(tags_path, "defaults:\n  threshold: 1.0\ntags:\n  тема:спать: {}")
+
+    cluster_file = tmp_path / "clusters.yaml"
+    _write(cluster_file, textwrap.dedent("""\
+        languages:
+          ru:
+            clusters:
+              - id: 1
+                ollama_concept: "Sleeping"
+                total_frequency: 640
+                size: 2
+                members:
+                  спать: 500
+                  сон: 140
+              - id: 2
+                ollama_concept: "Purchases"
+                total_frequency: 300
+                size: 2
+                members:
+                  купить: 200
+                  покупать: 100
+            singletons: []
+        """))
+
+    run(str(cluster_file), env="general", language="ru", top=1, data_dir=str(data_dir))
+
+    concepts_data = yaml.safe_load(concepts_path.read_text(encoding="utf-8"))
+    assert "purchases" in concepts_data
+    assert "sleeping" not in concepts_data
+
+
+def test_run_missing_language_raises(tmp_path):
+    data_dir = tmp_path / "tagging"
+    data_dir.mkdir()
+    _write(data_dir / "concepts.general.yaml", "{}")
+    _write(data_dir / "tags.general.yaml", "tags: {}")
+    cluster_file = tmp_path / "clusters.yaml"
+    _write(cluster_file, "languages:\n  ru:\n    clusters: []\n    singletons: []\n")
+
+    with pytest.raises(ValueError, match="es"):
+        run(str(cluster_file), env="general", language="es", top=1, data_dir=str(data_dir))
+
+
+def test_run_missing_concepts_file_raises(tmp_path):
+    data_dir = tmp_path / "tagging"
+    data_dir.mkdir()
+    _write(data_dir / "tags.general.yaml", "tags: {}")
+    cluster_file = tmp_path / "clusters.yaml"
+    _write(cluster_file, "languages:\n  ru:\n    clusters: []\n    singletons: []\n")
+
+    with pytest.raises(FileNotFoundError):
+        run(str(cluster_file), env="general", language="ru", top=1, data_dir=str(data_dir))
+
+
+def test_run_missing_tags_file_raises(tmp_path):
+    data_dir = tmp_path / "tagging"
+    data_dir.mkdir()
+    _write(data_dir / "concepts.general.yaml", "{}")
+    cluster_file = tmp_path / "clusters.yaml"
+    _write(cluster_file, "languages:\n  ru:\n    clusters: []\n    singletons: []\n")
+
+    with pytest.raises(FileNotFoundError):
+        run(str(cluster_file), env="general", language="ru", top=1, data_dir=str(data_dir))
+
+
+def test_run_prints_shortfall_warning_when_not_enough_clusters(tmp_path, capsys):
+    data_dir = tmp_path / "tagging"
+    data_dir.mkdir()
+    _write(data_dir / "concepts.general.yaml", "{}")
+    _write(data_dir / "tags.general.yaml", "tags: {}")
+
+    cluster_file = tmp_path / "clusters.yaml"
+    _write(cluster_file, textwrap.dedent("""\
+        languages:
+          ru:
+            clusters:
+              - id: 1
+                ollama_concept: "Sleeping"
+                total_frequency: 640
+                size: 2
+                members:
+                  спать: 500
+                  сон: 140
+            singletons: []
+        """))
+
+    run(str(cluster_file), env="general", language="ru", top=5, data_dir=str(data_dir))
+
+    out = capsys.readouterr().out
+    assert "Added 1 concept" in out
+    assert "only 1" in out.lower()
+
+
+def test_main_parses_args_and_calls_run(monkeypatch):
+    captured = {}
+
+    def fake_run(cluster_file, env, language, top, data_dir):
+        captured.update(cluster_file=cluster_file, env=env, language=language, top=top, data_dir=data_dir)
+
+    monkeypatch.setattr("batch.draft_concepts_from_clusters.run", fake_run)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["draft_concepts_from_clusters", "--cluster-file", "c.yaml", "--env", "general", "--language", "ru", "--top", "5"],
+    )
+
+    main()
+
+    assert captured == {
+        "cluster_file": "c.yaml",
+        "env": "general",
+        "language": "ru",
+        "top": 5,
+        "data_dir": "batch/data/tagging",
+    }
