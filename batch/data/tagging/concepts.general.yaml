@@ -2070,7 +2070,6 @@ house:
   - приходиться
   - дойти
   - заехать
-  - завестись
   - доехать
   votes:
     тема:приходить: 1.0
@@ -2089,19 +2088,10 @@ nighttime:
   - вечером
   - ноч
   - ночка
-  - снольный
   - вечир
   - ночева
   votes:
     тема:ночь: 1.0
-# Ollama suggested: ""Apago"" (freq=288, size=3, from build_lemma_clusters)
-apago:
-  words:
-  - апа
-  - апаго
-  - апагеу
-  votes:
-    тема:апа: 1.0
 # Ollama suggested: ""Morning"" (freq=284, size=7, from build_lemma_clusters)
 morning:
   words:
@@ -2109,7 +2099,6 @@ morning:
   - утром
   - наутро
   - утренник
-  - завтро
   - утренний
   - утра
   votes:
@@ -2157,7 +2146,6 @@ russian_sons:
   - сын
   - сынок
   - син
-  - сённий
   - сыночек
   votes:
     тема:сын: 1.0
