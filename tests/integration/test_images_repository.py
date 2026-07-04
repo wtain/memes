@@ -27,10 +27,10 @@ async def test_get_images_and_ocr_texts_includes_lang_score(db_session):
     await db_session.flush()
 
     images_repo = ImagesRepository(db_session)
-    result = await images_repo.get_images_and_ocr_texts()
+    rows = await images_repo.get_images_and_ocr_texts()
     matches = [
         (filename, img_id, txt, confidence, lang_score)
-        for filename, img_id, txt, confidence, lang_score in result.all()
+        for filename, img_id, txt, confidence, lang_score in rows
         if img_id == image.id
     ]
 
@@ -49,10 +49,10 @@ async def test_get_images_and_ocr_texts_without_tags_includes_lang_score(db_sess
     await db_session.flush()
 
     images_repo = ImagesRepository(db_session)
-    result = await images_repo.get_images_and_ocr_texts_without_tags("OCR")
+    rows = await images_repo.get_images_and_ocr_texts_without_tags("OCR")
     matches = [
         (filename, img_id, txt, confidence, lang_score)
-        for filename, img_id, txt, confidence, lang_score in result.all()
+        for filename, img_id, txt, confidence, lang_score in rows
         if img_id == image.id
     ]
 
