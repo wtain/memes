@@ -7,7 +7,7 @@ uvicorn==0.40.0
 SQLAlchemy==2.0.45
 asyncpg==0.31.0
 pgvector==0.4.2
-pydantic==2.12.5
+pydantic==2.13.4
 python-dotenv==1.2.2
 python-multipart==0.0.32
 greenlet==3.5.3
