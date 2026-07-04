@@ -66,3 +66,33 @@ def select_top_clusters(
             continue
         accepted.append(cluster)
     return accepted, skipped
+
+
+def format_concept_block(key: str, cluster: dict, lemma: str) -> str:
+    ollama_concept = cluster.get("ollama_concept")
+    if ollama_concept:
+        comment = (
+            f'# Ollama suggested: "{ollama_concept}" '
+            f'(freq={cluster["total_frequency"]}, size={cluster["size"]}, from build_lemma_clusters)'
+        )
+    else:
+        comment = "# from build_lemma_clusters (no Ollama name)"
+
+    lines = [comment, f"{key}:", "  words:"]
+    for member in cluster["members"]:
+        lines.append(f"  - {member}")
+    lines.append("  votes:")
+    lines.append(f"    тема:{lemma}: 1.0")
+    return "\n".join(lines) + "\n"
+
+
+def format_tag_declaration(lemma: str) -> str:
+    return f"  тема:{lemma}: {{}}\n"
+
+
+def append_to_file(path: str, text: str) -> None:
+    with open(path, encoding="utf-8") as f:
+        existing = f.read()
+    prefix = "" if existing.endswith("\n") else "\n"
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(prefix + text)
