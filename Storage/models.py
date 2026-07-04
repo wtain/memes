@@ -68,6 +68,7 @@ class OCRText(Base):
     confidence = Column(Float)
     bbox = Column(JSON)            # polygon or x,y,w,h
     language = Column(String(8), default="en")
+    lang_score = Column(Float, nullable=True)  # None = not scored (too short); else 0.0-1.0
 
     created_at = Column(DateTime, server_default=func.now())
 

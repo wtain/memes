@@ -63,7 +63,7 @@ async def _load_corpus(confidence_min: float = 0.4) -> list[tuple[str, int, str]
     async with AsyncSessionLocal() as session:
         repo = ImagesRepository(session)
         rows = await repo.get_images_and_ocr_texts()
-    return [(fn, iid, text) for fn, iid, text, conf in rows if conf >= confidence_min]
+    return [(fn, iid, text) for fn, iid, text, conf, _ in rows if conf >= confidence_min]
 
 
 def _run_diff(

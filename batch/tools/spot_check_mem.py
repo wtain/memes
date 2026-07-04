@@ -26,7 +26,7 @@ async def main():
         repo = ImagesRepository(session)
         rows = await repo.get_images_and_ocr_texts()
 
-    corpus = [(fn, iid, text) for fn, iid, text, conf in rows if conf >= 0.4]
+    corpus = [(fn, iid, text) for fn, iid, text, conf, _ in rows if conf >= 0.4]
     print(f"Corpus: {len(corpus)}", flush=True)
 
     lost = []

@@ -1,0 +1,105 @@
+# batch/data/tagging/golden_ocr_language.yaml
+#
+# Hand-labeled OCR rows for evaluating rules/lang_plausibility.py's
+# garbage-filtering quality (batch/eval_ocr_language_filter.py).
+#
+# is_garbage: true  -> this row should be filtered out (wrong-language misread)
+# is_garbage: false -> this row is genuine text (or too short to judge) and
+#                       must NOT be filtered out
+#
+# This is a starter set (24 rows). Grow it by sampling real ocr_texts rows:
+# stratify on images where a high-confidence `ru` row exists alongside `en`/`es`
+# rows for the same image_id — the `en`/`es` rows are strong garbage candidates
+# for manual review. Example query:
+#
+#   SELECT o.id, o.text, o.language, o.confidence, o.image_id
+#   FROM ocr_texts o
+#   WHERE o.image_id IN (
+#       SELECT image_id FROM ocr_texts WHERE language = 'ru' AND confidence > 0.7
+#   )
+#   AND o.language IN ('en', 'es')
+#   ORDER BY o.image_id;
+
+# --- genuine Russian ---
+- text: "СТАРТ ЗДЕСЬ"
+  language: ru
+  is_garbage: false
+- text: "когда друзья наконец поняли шутку"
+  language: ru
+  is_garbage: false
+- text: "это невозможно объяснить словами"
+  language: ru
+  is_garbage: false
+- text: "лучший день моей жизни сегодня"
+  language: ru
+  is_garbage: false
+- text: "никто не ожидал такого поворота"
+  language: ru
+  is_garbage: false
+
+# --- genuine English ---
+- text: "when your friends finally get the joke"
+  language: en
+  is_garbage: false
+- text: "this cannot be explained in words"
+  language: en
+  is_garbage: false
+- text: "best day of my life today"
+  language: en
+  is_garbage: false
+- text: "nobody expected this plot twist"
+  language: en
+  is_garbage: false
+- text: "me trying to act normal in public"
+  language: en
+  is_garbage: false
+
+# --- genuine Spanish ---
+- text: "cuando tus amigos por fin entienden el chiste"
+  language: es
+  is_garbage: false
+- text: "esto no se puede explicar con palabras"
+  language: es
+  is_garbage: false
+- text: "el mejor dia de mi vida hoy"
+  language: es
+  is_garbage: false
+- text: "nadie esperaba este giro de la trama"
+  language: es
+  is_garbage: false
+- text: "yo tratando de actuar normal en publico"
+  language: es
+  is_garbage: false
+
+# --- garbage: `en` reader's Latin-glyph misread of a Cyrillic-only image ---
+- text: "ctapt 3gect xdbl qwzk"
+  language: en
+  is_garbage: true
+- text: "koraa apysba noham etotk"
+  language: en
+  is_garbage: true
+- text: "nouemy annapat gsotkuu"
+  language: en
+  is_garbage: true
+
+# --- garbage: `es` reader's Latin-glyph misread of a Cyrillic-only image ---
+- text: "xtapq zbelo ktumna"
+  language: es
+  is_garbage: true
+- text: "vprst konay tuzhda"
+  language: es
+  is_garbage: true
+- text: "ficko qwenb starzt"
+  language: es
+  is_garbage: true
+
+# --- short/edge rows: too short to score (lang_score = None), must pass through ---
+- text: "42"
+  language: en
+  is_garbage: false
+- text: "lol"
+  language: en
+  is_garbage: false
+- text: "xd"
+  language: es
+  is_garbage: false

@@ -1,8 +1,9 @@
 import numpy
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.sql.functions import count
 
 from Storage.models import OCRText
+from rules.lang_plausibility import score as compute_lang_score
 
 
 class OCRTextRepository:
@@ -37,7 +38,7 @@ class OCRTextRepository:
 
     async def get_all_texts_with_language(self):
         result = await self.session.execute(
-            select(OCRText.text, OCRText.confidence, OCRText.language)
+            select(OCRText.text, OCRText.confidence, OCRText.language, OCRText.lang_score)
         )
         return result.all()
 
@@ -59,5 +60,19 @@ class OCRTextRepository:
                     confidence=float(confidence),
                     bbox=[[v.item() if isinstance(v, numpy.int32) else v for v in p] for p in bbox],
                     language=language,
+                    lang_score=compute_lang_score(text, language),
                 )
             )
+
+    async def get_rows_for_scoring(self, rescore_all: bool = False):
+        """Rows to (re)score. By default, only rows with lang_score IS NULL."""
+        query = select(OCRText.id, OCRText.text, OCRText.language)
+        if not rescore_all:
+            query = query.where(OCRText.lang_score.is_(None))
+        result = await self.session.execute(query)
+        return result.all()
+
+    async def update_lang_score(self, text_id, lang_score: float | None) -> None:
+        await self.session.execute(
+            update(OCRText).where(OCRText.id == text_id).values(lang_score=lang_score)
+        )
