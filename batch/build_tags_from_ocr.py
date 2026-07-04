@@ -6,6 +6,7 @@ from pathlib import Path
 from batch.utils.progress import ProgressTracker
 from metrics.listener import SimpleMetricsListener
 from rules.concept_tagger import ConceptTagger
+from rules.lang_plausibility import passes_language_filter
 from Storage.db import AsyncSessionLocal
 from repository.images import ImagesRepository
 from repository.tags import TagsRepository, TagsSaver
@@ -14,6 +15,7 @@ _SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = os.getenv("TAGGING_DATA_DIR") or str(_SCRIPT_DIR / "data" / "tagging")
 PROFILE = os.getenv("TAGGING_PROFILE", "general")
 OCR_CONFIDENCE_MIN = float(os.getenv("OCR_CONFIDENCE_MIN", "0.4"))
+OCR_LANG_SCORE_MIN = float(os.getenv("OCR_LANG_SCORE_MIN", "0.3"))
 
 engine = ConceptTagger.load(DATA_DIR, PROFILE)
 
@@ -30,6 +32,7 @@ async def main(incremental: bool):
         print(f"Total images: {total_images}")
         print(f"Tagging with profile '{PROFILE}' from {DATA_DIR} ...")
         print(f"Mode: {'incremental' if incremental else 'full'}")
+        print(f"OCR_CONFIDENCE_MIN={OCR_CONFIDENCE_MIN}, OCR_LANG_SCORE_MIN={OCR_LANG_SCORE_MIN}")
 
         if incremental:
             images_and_texts_results = await images_repo.get_images_and_ocr_texts_without_tags("OCR")
@@ -44,8 +47,8 @@ async def main(incremental: bool):
         )
 
         async with TagsSaver(session) as tags_saver:
-            for filename, image_id, text, confidence in images_and_texts_results:
-                if confidence < OCR_CONFIDENCE_MIN:
+            for filename, image_id, text, confidence, lang_score in images_and_texts_results:
+                if not passes_language_filter(confidence, lang_score, OCR_CONFIDENCE_MIN, OCR_LANG_SCORE_MIN):
                     metrics.increment("images.skipped")
                     tracker.skip()
                     continue
