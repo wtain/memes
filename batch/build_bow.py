@@ -8,6 +8,7 @@ import yaml
 
 from metrics.listener import SimpleMetricsListener
 from rules.normalize import lemmatize_word, make_morph, tokenize
+from rules.lang_plausibility import passes_language_filter
 from Storage.db import AsyncSessionLocal
 from repository.ocr_text import OCRTextRepository
 from repository.ollama_descriptions import OllamaDescriptionsRepository
@@ -87,6 +88,7 @@ def _write_output(path, data):
 async def main():
     text_source = os.getenv("TEXT_SOURCE", TEXT_SOURCE_OCR)
     ocr_confidence_min = float(os.getenv("OCR_CONFIDENCE_MIN", "0.4"))
+    ocr_lang_score_min = float(os.getenv("OCR_LANG_SCORE_MIN", "0.3"))
     min_word_length = int(os.getenv("BOW_MIN_WORD_LENGTH", "3"))
     min_frequency = int(os.getenv("BOW_MIN_FREQUENCY", "2"))
     output_file = os.getenv("BOW_OUTPUT_FILE")
@@ -98,6 +100,7 @@ async def main():
     print(f"BOW_MIN_WORD_LENGTH={min_word_length}, BOW_MIN_FREQUENCY={min_frequency}")
     if text_source == TEXT_SOURCE_OCR:
         print(f"OCR_CONFIDENCE_MIN={ocr_confidence_min}")
+        print(f"OCR_LANG_SCORE_MIN={ocr_lang_score_min}")
     print(f"BOW_OUTPUT_FILE={output_file}")
 
     morph = make_morph()
@@ -118,7 +121,9 @@ async def main():
 
     async with AsyncSessionLocal() as session:
         if text_source == TEXT_SOURCE_OCR:
-            output = await _build_ocr_bow(session, morph, ocr_confidence_min, min_word_length, min_frequency, metrics)
+            output = await _build_ocr_bow(
+                session, morph, ocr_confidence_min, ocr_lang_score_min, min_word_length, min_frequency, metrics
+            )
         elif text_source == TEXT_SOURCE_DESCRIPTIONS:
             output = await _build_descriptions_bow(session, morph, min_word_length, min_frequency, metrics)
         else:
@@ -143,16 +148,19 @@ async def main():
     metrics.print()
 
 
-async def _build_ocr_bow(session, morph, confidence_min, min_word_length, min_frequency, metrics):
+async def _build_ocr_bow(session, morph, confidence_min, lang_score_min, min_word_length, min_frequency, metrics):
     repo = OCRTextRepository(session)
     rows = await repo.get_all_texts_with_language()
 
     lang_counters = defaultdict(Counter)
 
-    for text, confidence, language in rows:
+    for text, confidence, language, lang_score in rows:
         metrics.increment("ocr.rows.total")
-        if confidence is not None and confidence < confidence_min:
-            metrics.increment("ocr.rows.skipped.low_confidence")
+        if not passes_language_filter(confidence, lang_score, confidence_min, lang_score_min):
+            if confidence is not None and confidence < confidence_min:
+                metrics.increment("ocr.rows.skipped.low_confidence")
+            else:
+                metrics.increment("ocr.rows.skipped.low_lang_score")
             continue
         lang = language or "unknown"
         for word in tokenize(text):
