@@ -128,3 +128,13 @@ def test_select_top_clusters_zero_top_adds_nothing():
 
     assert accepted == []
     assert skipped == []
+
+
+def test_select_top_clusters_never_visits_clusters_beyond_top():
+    poison = {"members": {}, "total_frequency": 0, "size": 0, "ollama_concept": None}
+    clusters = [_cluster("a"), _cluster("b"), poison]
+
+    accepted, skipped = select_top_clusters(clusters, existing_words=set(), top=2)
+
+    assert [top_lemma(c) for c in accepted] == ["a", "b"]
+    assert skipped == []
