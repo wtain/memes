@@ -19,7 +19,7 @@ async def main():
     async with AsyncSessionLocal() as session:
         repo = ImagesRepository(session)
         rows = await repo.get_images_and_ocr_texts()
-    matches = [(fn, iid, text, conf) for fn, iid, text, conf in rows if fn == TARGET]
+    matches = [(fn, iid, text, conf) for fn, iid, text, conf, _ in rows if fn == TARGET]
     for fn, iid, text, conf in matches:
         tokens = re.findall(r"\w+", text)
         lower_tokens = [t.lower() for t in tokens]

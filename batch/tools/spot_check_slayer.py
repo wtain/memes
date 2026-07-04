@@ -26,7 +26,7 @@ async def main():
         repo = ImagesRepository(session)
         rows = await repo.get_images_and_ocr_texts()
     for target in TARGETS:
-        matches = [(fn, iid, text, conf) for fn, iid, text, conf in rows if fn == target]
+        matches = [(fn, iid, text, conf) for fn, iid, text, conf, _ in rows if fn == target]
         print(f"=== {target} ({len(matches)} rows) ===")
         for fn, iid, text, conf in matches[:5]:
             tokens = re.findall(r"\w+", text)
