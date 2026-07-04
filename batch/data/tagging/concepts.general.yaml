@@ -2149,3 +2149,120 @@ russian_sons:
   - сыночек
   votes:
     тема:сын: 1.0
+# Ollama suggested: ""Apaga"" (freq=288, size=3, from build_lemma_clusters)
+apaga:
+  words:
+  - апа
+  - апаго
+  - апагеу
+  votes:
+    тема:апа: 1.0
+# Ollama suggested: "Leaving" (freq=270, size=8, from build_lemma_clusters)
+leaving:
+  words:
+  - уйти
+  - уходить
+  - уехать
+  - уезжать
+  - покинуть
+  - покидать
+  - выезжать
+  - отходить
+  votes:
+    тема:уйти: 1.0
+# Ollama suggested: ""Big Size"" (freq=268, size=11, from build_lemma_clusters)
+big_size:
+  words:
+  - больший
+  - огромный
+  - великий
+  - широкий
+  - крупный
+  - масштабный
+  - огроменный
+  - колоссальный
+  - большний
+  - голямо
+  - крупно
+  votes:
+    тема:больший: 1.0
+# Ollama suggested: ""Opening"" (freq=266, size=8, from build_lemma_clusters)
+opening:
+  words:
+  - открыть
+  - открывать
+  - открыться
+  - открываться
+  - откроить
+  - отваривать
+  - отворить
+  - приплюснуть
+  votes:
+    тема:открыть: 1.0
+# Ollama suggested: ""Получение"" (freq=257, size=7, from build_lemma_clusters)
+получение:
+  words:
+  - получить
+  - получиться
+  - успеть
+  - получаться
+  - добыть
+  - получаеться
+  - прибавить
+  votes:
+    тема:получить: 1.0
+# Ollama suggested: ""Groups of Three"" (freq=245, size=7, from build_lemma_clusters)
+groups_of_three:
+  words:
+  - три
+  - трое
+  - тро
+  - тройка
+  - тройня
+  - трой
+  - трио
+  votes:
+    тема:три: 1.0
+# Ollama suggested: ""Russian Eyes"" (freq=234, size=8, from build_lemma_clusters)
+russian_eyes:
+  words:
+  - глаз
+  - око
+  - ока
+  - глазок
+  - окос
+  - глазной
+  - лещ
+  - лецо
+  votes:
+    тема:глаз: 1.0
+# Ollama suggested: ""Oral"" (freq=233, size=4, from build_lemma_clusters)
+oral:
+  words:
+  - рот
+  - уста
+  - устный
+  - ротный
+  votes:
+    тема:рот: 1.0
+# Ollama suggested: ""Sending"" (freq=227, size=6, from build_lemma_clusters)
+sending:
+  words:
+  - отправить
+  - послать
+  - отправлять
+  - посылать
+  - присылать
+  - высылать
+  votes:
+    тема:отправить: 1.0
+# Ollama suggested: ""Photography"" (freq=226, size=5, from build_lemma_clusters)
+photography:
+  words:
+  - фото
+  - фотография
+  - снимок
+  - снимка
+  - картиночка
+  votes:
+    тема:фото: 1.0
