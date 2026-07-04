@@ -1,6 +1,7 @@
 import argparse
 import os
 import re
+import sys
 
 import yaml
 
@@ -182,6 +183,9 @@ def _print_summary(added, skipped, top, concepts_path, tags_path):
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster-file", required=True)
     parser.add_argument("--env", required=True)
