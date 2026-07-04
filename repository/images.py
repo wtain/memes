@@ -26,8 +26,8 @@ class ImagesRepository:
                 self.ocr, self.ocr.image_id == self.img.id
             )
         )
-        images_and_texts_results = await self.session.execute(query)
-        return images_and_texts_results
+        result = await self.session.execute(query)
+        return result.fetchall()
 
     async def get_images_and_ocr_texts_without_tags(self, source: str):
         already_tagged = (
@@ -47,7 +47,8 @@ class ImagesRepository:
             .join(self.ocr, self.ocr.image_id == self.img.id)
             .where(self.img.id.not_in(already_tagged))
         )
-        return await self.session.execute(query)
+        result = await self.session.execute(query)
+        return result.fetchall()
 
     async def get_images_and_ollama_descriptions(self):
         query = (
@@ -59,8 +60,8 @@ class ImagesRepository:
                 self.description, self.description.image_id == self.img.id
             )
         )
-        images_and_texts_results = await self.session.execute(query)
-        return images_and_texts_results
+        result = await self.session.execute(query)
+        return result.fetchall()
 
     async def get_images_and_ollama_descriptions_without_tags(self, source: str):
         already_tagged = (
@@ -78,7 +79,8 @@ class ImagesRepository:
             .join(self.description, self.description.image_id == self.img.id)
             .where(self.img.id.not_in(already_tagged))
         )
-        return await self.session.execute(query)
+        result = await self.session.execute(query)
+        return result.fetchall()
 
     async def get_all_images_without_description(self):
         has_description = (
