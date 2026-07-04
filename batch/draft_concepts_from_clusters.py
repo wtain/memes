@@ -40,3 +40,29 @@ def resolve_key(ollama_concept: str | None, lemma: str, existing_keys: set[str])
         key = f"{base}_{suffix}"
         suffix += 1
     return key
+
+
+def select_top_clusters(
+    clusters: list[dict],
+    existing_words: set[str],
+    top: int,
+) -> tuple[list[dict], list[dict]]:
+    """
+    Walk clusters in order (already frequency-descending, per
+    build_lemma_clusters). Returns (accepted, skipped): accepted has at
+    most `top` clusters whose top lemma is not in existing_words; skipped
+    holds every cluster visited and passed over because it was already
+    covered. Clusters beyond what's needed to fill `top` slots are never
+    visited.
+    """
+    accepted: list[dict] = []
+    skipped: list[dict] = []
+    for cluster in clusters:
+        if len(accepted) >= top:
+            break
+        lemma = top_lemma(cluster)
+        if lemma in existing_words:
+            skipped.append(cluster)
+            continue
+        accepted.append(cluster)
+    return accepted, skipped

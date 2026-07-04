@@ -3,6 +3,7 @@ from batch.draft_concepts_from_clusters import (
     collect_existing_keys,
     collect_existing_words,
     resolve_key,
+    select_top_clusters,
     slugify,
     top_lemma,
 )
@@ -82,3 +83,48 @@ def test_resolve_key_disambiguates_collision():
 def test_resolve_key_disambiguates_multiple_collisions():
     key = resolve_key("Sleeping", "спать", existing_keys={"sleeping", "sleeping_2"})
     assert key == "sleeping_3"
+
+
+def _cluster(word: str, freq: int = 10) -> dict:
+    return {
+        "members": {word: freq},
+        "total_frequency": freq,
+        "size": 1,
+        "ollama_concept": word.title(),
+    }
+
+
+def test_select_top_clusters_accepts_up_to_top_n():
+    clusters = [_cluster("a"), _cluster("b"), _cluster("c")]
+
+    accepted, skipped = select_top_clusters(clusters, existing_words=set(), top=2)
+
+    assert [top_lemma(c) for c in accepted] == ["a", "b"]
+    assert skipped == []
+
+
+def test_select_top_clusters_skips_already_covered_and_backfills():
+    clusters = [_cluster("a"), _cluster("b"), _cluster("c")]
+
+    accepted, skipped = select_top_clusters(clusters, existing_words={"a"}, top=2)
+
+    assert [top_lemma(c) for c in accepted] == ["b", "c"]
+    assert [top_lemma(c) for c in skipped] == ["a"]
+
+
+def test_select_top_clusters_reports_shortfall_when_not_enough_available():
+    clusters = [_cluster("a"), _cluster("b")]
+
+    accepted, skipped = select_top_clusters(clusters, existing_words={"a"}, top=5)
+
+    assert [top_lemma(c) for c in accepted] == ["b"]
+    assert [top_lemma(c) for c in skipped] == ["a"]
+
+
+def test_select_top_clusters_zero_top_adds_nothing():
+    clusters = [_cluster("a")]
+
+    accepted, skipped = select_top_clusters(clusters, existing_words=set(), top=0)
+
+    assert accepted == []
+    assert skipped == []
