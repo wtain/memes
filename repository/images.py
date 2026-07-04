@@ -20,7 +20,8 @@ class ImagesRepository:
                 self.img.filename,
                 self.img.id,
                 self.ocr.text,
-                self.ocr.confidence
+                self.ocr.confidence,
+                self.ocr.lang_score
             ).join(
                 self.ocr, self.ocr.image_id == self.img.id
             )
@@ -40,7 +41,8 @@ class ImagesRepository:
                 self.img.filename,
                 self.img.id,
                 self.ocr.text,
-                self.ocr.confidence
+                self.ocr.confidence,
+                self.ocr.lang_score
             )
             .join(self.ocr, self.ocr.image_id == self.img.id)
             .where(self.img.id.not_in(already_tagged))
