@@ -12,7 +12,7 @@ plugins {
 
 android {
     namespace = "com.memebrowser.app"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.memebrowser.app"
