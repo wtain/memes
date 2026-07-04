@@ -4,7 +4,7 @@
 # backend tests and avoids the opencv/paddleocr conflict in requirements.txt.
 fastapi==0.128.0
 uvicorn==0.40.0
-SQLAlchemy==2.0.45
+SQLAlchemy==2.0.51
 asyncpg==0.31.0
 pgvector==0.4.2
 pydantic==2.13.4
