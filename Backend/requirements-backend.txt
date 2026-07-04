@@ -3,7 +3,7 @@
 # DO NOT add ML/OCR/batch/GPU libs here — this file is used by CI for
 # backend tests and avoids the opencv/paddleocr conflict in requirements.txt.
 fastapi==0.139.0
-uvicorn==0.40.0
+uvicorn==0.50.0
 SQLAlchemy==2.0.51
 asyncpg==0.31.0
 pgvector==0.4.2
