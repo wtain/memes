@@ -2054,3 +2054,110 @@ ending:
     - финиш
   votes:
     тема:окончание: 1.0
+# Ollama suggested: ""House"" (freq=430, size=2, from build_lemma_clusters)
+house:
+  words:
+  - дом
+  - домашн
+  votes:
+    тема:дом: 1.0
+# Ollama suggested: ""Прибыть"" (freq=305, size=8, from build_lemma_clusters)
+прибыть:
+  words:
+  - приходить
+  - приехать
+  - прийтись
+  - приходиться
+  - дойти
+  - заехать
+  - завестись
+  - доехать
+  votes:
+    тема:приходить: 1.0
+# Ollama suggested: ""Masculine figures"" (freq=289, size=2, from build_lemma_clusters)
+masculine_figures:
+  words:
+  - мужик
+  - чувак
+  votes:
+    тема:мужик: 1.0
+# Ollama suggested: "Nighttime" (freq=289, size=8, from build_lemma_clusters)
+nighttime:
+  words:
+  - ночь
+  - вечер
+  - вечером
+  - ноч
+  - ночка
+  - снольный
+  - вечир
+  - ночева
+  votes:
+    тема:ночь: 1.0
+# Ollama suggested: ""Apago"" (freq=288, size=3, from build_lemma_clusters)
+apago:
+  words:
+  - апа
+  - апаго
+  - апагеу
+  votes:
+    тема:апа: 1.0
+# Ollama suggested: ""Morning"" (freq=284, size=7, from build_lemma_clusters)
+morning:
+  words:
+  - утро
+  - утром
+  - наутро
+  - утренник
+  - завтро
+  - утренний
+  - утра
+  votes:
+    тема:утро: 1.0
+# Ollama suggested: "Names" (freq=282, size=7, from build_lemma_clusters)
+names:
+  words:
+  - имя
+  - мена
+  - название
+  - фамилия
+  - име
+  - назва
+  - омена
+  votes:
+    тема:имя: 1.0
+# Ollama suggested: ""Travel"" (freq=279, size=9, from build_lemma_clusters)
+travel:
+  words:
+  - ехать
+  - поехать
+  - отправиться
+  - отправляться
+  - очесть
+  - идеть
+  - едуть
+  - походить
+  - йде
+  votes:
+    тема:ехать: 1.0
+# Ollama suggested: ""Assistance"" (freq=276, size=6, from build_lemma_clusters)
+assistance:
+  words:
+  - помочь
+  - помощь
+  - помогать
+  - поможа
+  - помагать
+  - спомагат
+  votes:
+    тема:помочь: 1.0
+# Ollama suggested: ""Russian Sons"" (freq=271, size=5, from build_lemma_clusters)
+russian_sons:
+  words:
+  - сын
+  - сынок
+  - син
+  - сённий
+  - сыночек
+  votes:
+    тема:сын: 1.0
