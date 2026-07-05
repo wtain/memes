@@ -12,12 +12,14 @@ import com.memebrowser.app.util.detectMimeType
 import com.memebrowser.app.util.saveImageToGallery
 import com.memebrowser.app.util.shareImage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class DetailUiState(
@@ -94,7 +96,7 @@ class MemeDetailViewModel @Inject constructor(
                         val contentType = body.contentType()?.toString()
                         val contentLength = body.contentLength()
                         Log.d(TAG, "saveToGallery: reading body id=${meme.id} contentType=$contentType contentLength=$contentLength")
-                        val bytes = body.bytes()
+                        val bytes = withContext(Dispatchers.IO) { body.bytes() }
                         Log.d(TAG, "saveToGallery: read ${bytes.size} bytes for id=${meme.id}")
                         val (mimeType, ext) = detectMimeType(contentType)
                         val fileName = meme.originalFileName ?: "${meme.id}.$ext"
@@ -120,7 +122,7 @@ class MemeDetailViewModel @Inject constructor(
                     try {
                         val contentType = body.contentType()?.toString()
                         Log.d(TAG, "share: reading body id=${meme.id} contentType=$contentType contentLength=${body.contentLength()}")
-                        val bytes = body.bytes()
+                        val bytes = withContext(Dispatchers.IO) { body.bytes() }
                         val (mimeType, ext) = detectMimeType(contentType)
                         shareImage(context, bytes, meme.id, ext, mimeType)
                     } catch (e: Exception) {
