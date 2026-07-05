@@ -38,7 +38,8 @@ suspend fun shareAppLogs(context: Context) = withContext(Dispatchers.IO) {
     }
 
     val shareDir = File(context.cacheDir, "share").also { it.mkdirs() }
-    val logFile = File(shareDir, "app-logs.txt")
+    val fileTimestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+    val logFile = File(shareDir, "app-logs-$fileTimestamp.txt")
     logFile.writeText(combined)
 
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", logFile)
