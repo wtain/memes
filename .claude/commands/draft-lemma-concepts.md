@@ -30,20 +30,20 @@ BASE_PATH=$(grep '^BASE_PATH=' environments/.env.<env> | cut -d= -f2-)
 
 `DATABASE_URL` is only needed to satisfy an import-time check in `Storage/db.py` — no live DB connection is actually made unless `LOOKUP_CONCEPTS=true`, which this command never sets. It just needs to be a syntactically valid Postgres URL, so reading it from the env file (even if that DB isn't currently reachable) is always safe.
 
-Run the clustering batch:
+Run the clustering batch (`DATABASE_URL`/`BASE_PATH` stay as env vars — `Storage/db.py` only reads them from the environment; every other setting is passed as a CLI flag, which overrides the same-named env var if one happens to be set):
 
 ```bash
 DATABASE_URL="$DATABASE_URL" \
 BASE_PATH="$BASE_PATH" \
-BOW_UNMATCHED_FILE=batch/output/bow.unmatched.<env>.json \
-CLUSTER_OUTPUT_FILE=batch/output/lemma_clusters.<env>.<language>.yaml \
-LANGUAGE=<language> \
-TEXT_EMBED_MODEL=sbert \
-OLLAMA_ENABLED=true \
-OLLAMA_MODEL=<ollama-model> \
-MIN_CLUSTER_SIZE=<min-cluster-size> \
-CLUSTER_SELECTION_METHOD=<cluster-selection-method> \
-.venv311/Scripts/python -m batch.build_lemma_clusters
+.venv311/Scripts/python -m batch.build_lemma_clusters \
+  --bow-unmatched-file batch/output/bow.unmatched.<env>.json \
+  --cluster-output-file batch/output/lemma_clusters.<env>.<language>.yaml \
+  --language <language> \
+  --text-embed-model sbert \
+  --ollama-enabled \
+  --ollama-model <ollama-model> \
+  --min-cluster-size <min-cluster-size> \
+  --cluster-selection-method <cluster-selection-method>
 ```
 
 A full unmatched set is often tens of thousands of lemmas — each one is embedded individually, so this can take several minutes. Run it in the background and wait for completion rather than assuming a short timeout; don't reduce the input size to make it faster, the whole point is to cluster the real backlog.

@@ -146,6 +146,8 @@ def build_clusters_from_embeddings(
 | `OLLAMA_ENABLED` | `true` | Set to `false` to skip Ollama (fast iteration / debugging) |
 | `LOOKUP_CONCEPTS` | `false` | Compare cluster centroid to DB concept embeddings; attach nearest match. Requires `TEXT_EMBED_MODEL=clip` (see Error Handling) |
 
+Every variable above also has a same-purpose CLI flag on `batch/build_lemma_clusters.py` that overrides it when passed (e.g. `--cluster-selection-method leaf` overrides `CLUSTER_SELECTION_METHOD`; `--ollama-enabled`/`--no-ollama-enabled` overrides `OLLAMA_ENABLED`). Running with no CLI flags reproduces the pure-env-var behavior described above exactly — the CLI is a convenience for ad hoc runs, not a replacement for the env-var-driven pipeline usage.
+
 ---
 
 ## Output Format

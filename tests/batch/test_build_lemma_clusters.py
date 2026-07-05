@@ -337,6 +337,7 @@ async def test_main_reads_env_vars_and_calls_run(monkeypatch):
         captured.update(kwargs)
 
     monkeypatch.setattr("batch.build_lemma_clusters.run", fake_run)
+    monkeypatch.setattr("sys.argv", ["build_lemma_clusters"])
     monkeypatch.setenv("TEXT_SCOPE", "all")
     monkeypatch.setenv("BOW_OUTPUT_FILE", "bow.json")
     monkeypatch.setenv("BOW_UNMATCHED_FILE", "unmatched.json")
@@ -374,6 +375,7 @@ async def test_main_default_text_scope_uses_unmatched_file(monkeypatch):
         captured.update(kwargs)
 
     monkeypatch.setattr("batch.build_lemma_clusters.run", fake_run)
+    monkeypatch.setattr("sys.argv", ["build_lemma_clusters"])
     monkeypatch.delenv("TEXT_SCOPE", raising=False)
     monkeypatch.setenv("BOW_UNMATCHED_FILE", "unmatched.json")
     monkeypatch.setenv("CLUSTER_OUTPUT_FILE", "out.yaml")
@@ -391,6 +393,7 @@ async def test_main_default_cluster_selection_method_is_eom(monkeypatch):
         captured.update(kwargs)
 
     monkeypatch.setattr("batch.build_lemma_clusters.run", fake_run)
+    monkeypatch.setattr("sys.argv", ["build_lemma_clusters"])
     monkeypatch.delenv("CLUSTER_SELECTION_METHOD", raising=False)
     monkeypatch.setenv("BOW_UNMATCHED_FILE", "unmatched.json")
     monkeypatch.setenv("CLUSTER_OUTPUT_FILE", "out.yaml")
@@ -402,6 +405,7 @@ async def test_main_default_cluster_selection_method_is_eom(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_main_missing_input_env_var_raises_clear_error(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["build_lemma_clusters"])
     monkeypatch.delenv("TEXT_SCOPE", raising=False)
     monkeypatch.delenv("BOW_UNMATCHED_FILE", raising=False)
     monkeypatch.setenv("CLUSTER_OUTPUT_FILE", "out.yaml")
@@ -412,9 +416,84 @@ async def test_main_missing_input_env_var_raises_clear_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_main_missing_output_env_var_raises_clear_error(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["build_lemma_clusters"])
     monkeypatch.setenv("TEXT_SCOPE", "unmatched")
     monkeypatch.setenv("BOW_UNMATCHED_FILE", "unmatched.json")
     monkeypatch.delenv("CLUSTER_OUTPUT_FILE", raising=False)
 
     with pytest.raises(SystemExit, match="CLUSTER_OUTPUT_FILE"):
         await main()
+
+
+@pytest.mark.asyncio
+async def test_main_cli_flags_override_env_vars(monkeypatch):
+    captured = {}
+
+    async def fake_run(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("batch.build_lemma_clusters.run", fake_run)
+    monkeypatch.setenv("TEXT_SCOPE", "unmatched")
+    monkeypatch.setenv("BOW_OUTPUT_FILE", "env_bow.json")
+    monkeypatch.setenv("BOW_UNMATCHED_FILE", "env_unmatched.json")
+    monkeypatch.setenv("CLUSTER_OUTPUT_FILE", "env_out.yaml")
+    monkeypatch.setenv("LANGUAGE", "en")
+    monkeypatch.setenv("MIN_CLUSTER_SIZE", "2")
+    monkeypatch.setenv("MIN_SAMPLES", "1")
+    monkeypatch.setenv("CLUSTER_SELECTION_EPSILON", "0.0")
+    monkeypatch.setenv("CLUSTER_SELECTION_METHOD", "eom")
+    monkeypatch.setenv("TEXT_EMBED_MODEL", "sbert")
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen2")
+    monkeypatch.setenv("OLLAMA_ENABLED", "true")
+    monkeypatch.setenv("LOOKUP_CONCEPTS", "false")
+
+    monkeypatch.setattr("sys.argv", [
+        "build_lemma_clusters",
+        "--text-scope", "all",
+        "--bow-output-file", "cli_bow.json",
+        "--bow-unmatched-file", "cli_unmatched.json",
+        "--cluster-output-file", "cli_out.yaml",
+        "--language", "ru",
+        "--min-cluster-size", "5",
+        "--min-samples", "4",
+        "--cluster-selection-epsilon", "0.2",
+        "--cluster-selection-method", "leaf",
+        "--text-embed-model", "clip",
+        "--ollama-model", "llama3",
+        "--no-ollama-enabled",
+        "--lookup-concepts",
+    ])
+
+    await main()
+
+    assert captured["input_file"] == "cli_bow.json"
+    assert captured["output_file"] == "cli_out.yaml"
+    assert captured["language"] == "ru"
+    assert captured["min_cluster_size"] == 5
+    assert captured["min_samples"] == 4
+    assert captured["cluster_selection_epsilon"] == 0.2
+    assert captured["cluster_selection_method"] == "leaf"
+    assert captured["embed_model"] == "clip"
+    assert captured["ollama_model"] == "llama3"
+    assert captured["ollama_enabled"] is False
+    assert captured["lookup_concepts"] is True
+
+
+@pytest.mark.asyncio
+async def test_main_boolean_flags_fall_back_to_env_when_omitted(monkeypatch):
+    captured = {}
+
+    async def fake_run(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("batch.build_lemma_clusters.run", fake_run)
+    monkeypatch.setattr("sys.argv", ["build_lemma_clusters"])
+    monkeypatch.setenv("BOW_UNMATCHED_FILE", "unmatched.json")
+    monkeypatch.setenv("CLUSTER_OUTPUT_FILE", "out.yaml")
+    monkeypatch.setenv("OLLAMA_ENABLED", "false")
+    monkeypatch.setenv("LOOKUP_CONCEPTS", "true")
+
+    await main()
+
+    assert captured["ollama_enabled"] is False
+    assert captured["lookup_concepts"] is True
