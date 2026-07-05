@@ -3,15 +3,16 @@ from collections import deque
 
 
 class ProgressTracker:
-    def __init__(self, total: int, report_every: int = 10, report_interval_secs: float = 0.0):
+    def __init__(self, total: int, report_every: int = 10, report_interval_secs: float = 0.0, window_secs: float = 120.0):
         self._total = total
         self._skip_count = 0
         self._done = 0
         self._report_every = report_every
         self._report_interval_secs = report_interval_secs
+        self._window_secs = window_secs
         self._start_time = time.perf_counter()
         self._last_report_time = self._start_time
-        self._window: deque[float] = deque(maxlen=50)
+        self._window: deque[float] = deque()
 
     def skip(self) -> None:
         self._skip_count += 1
@@ -21,20 +22,24 @@ class ProgressTracker:
         now = time.perf_counter()
         self._window.append(now)
         count_trigger = self._done % self._report_every == 0
-        time_trigger = (
-            self._report_interval_secs > 0
-            and (now - self._last_report_time) >= self._report_interval_secs
+        time_gate_ok = (
+            self._report_interval_secs == 0
+            or (now - self._last_report_time) >= self._report_interval_secs
         )
-        if count_trigger or time_trigger:
-            self._print_progress()
+        if count_trigger and time_gate_ok:
+            self._print_progress(now)
             self._last_report_time = now
 
     def _effective_total(self) -> int:
         return self._total - self._skip_count
 
-    def _print_progress(self) -> None:
+    def _print_progress(self, now: float) -> None:
         effective = self._effective_total()
-        elapsed = time.perf_counter() - self._start_time
+        elapsed = now - self._start_time
+
+        cutoff = now - self._window_secs
+        while self._window and self._window[0] < cutoff:
+            self._window.popleft()
 
         if len(self._window) >= 2:
             window_elapsed = self._window[-1] - self._window[0]

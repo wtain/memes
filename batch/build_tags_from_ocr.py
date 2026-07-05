@@ -43,7 +43,7 @@ async def main(incremental: bool):
         tracker = ProgressTracker(
             len(images_and_texts_results),
             report_every=100,
-            report_interval_secs=20,
+            report_interval_secs=10,
         )
 
         async with TagsSaver(session) as tags_saver:
