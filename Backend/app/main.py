@@ -18,6 +18,7 @@ from Backend.app.api.concepts import router as concepts_router
 from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.trends import router as trends_router
 from Backend.app.api.uploads import router as uploads_router
+from Backend.app.api.bug_reports import router as bug_reports_router
 
 load_dotenv()
 
@@ -102,6 +103,7 @@ app.include_router(concepts_router, prefix="/api")
 app.include_router(recommendations_router, prefix="/api")
 app.include_router(trends_router, prefix="/api")
 app.include_router(uploads_router, prefix="/api")
+app.include_router(bug_reports_router, prefix="/api")
 
 
 @app.get("/health")

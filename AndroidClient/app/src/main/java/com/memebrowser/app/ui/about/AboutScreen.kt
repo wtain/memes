@@ -25,12 +25,15 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -38,8 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.memebrowser.app.util.shareAppLogs
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,10 +49,19 @@ fun AboutScreen(
     viewModel: AboutViewModel = hiltViewModel()
 ) {
     val updateStatus by viewModel.updateStatus.collectAsStateWithLifecycle()
+    val bugReportMessage by viewModel.bugReportMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(bugReportMessage) {
+        if (bugReportMessage != null) {
+            snackbarHostState.showSnackbar(bugReportMessage!!)
+            viewModel.dismissBugReportMessage()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("About") },
@@ -101,7 +111,7 @@ fun AboutScreen(
             Spacer(Modifier.height(8.dp))
 
             OutlinedButton(
-                onClick = { scope.launch { shareAppLogs(context) } },
+                onClick = { viewModel.sendBugReport() },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.BugReport, contentDescription = null)

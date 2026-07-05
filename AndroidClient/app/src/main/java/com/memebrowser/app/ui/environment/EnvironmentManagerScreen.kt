@@ -43,10 +43,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -55,8 +53,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.memebrowser.app.data.model.BackendEnvironment
 import com.memebrowser.app.data.repository.EnvironmentWithSelection
 import com.memebrowser.app.data.repository.isValidCollectionName
-import com.memebrowser.app.util.shareAppLogs
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,8 +63,6 @@ fun EnvironmentManagerScreen(
     val environments by viewModel.environments.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
 
     var showAddDialog by remember { mutableStateOf(false) }
     var editingEnv by remember { mutableStateOf<BackendEnvironment?>(null) }
@@ -79,6 +73,13 @@ fun EnvironmentManagerScreen(
         if (uiState.error != null) {
             snackbarHostState.showSnackbar(uiState.error!!)
             viewModel.dismissError()
+        }
+    }
+
+    LaunchedEffect(uiState.bugReportMessage) {
+        if (uiState.bugReportMessage != null) {
+            snackbarHostState.showSnackbar(uiState.bugReportMessage!!)
+            viewModel.dismissBugReportMessage()
         }
     }
 
@@ -93,7 +94,7 @@ fun EnvironmentManagerScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { coroutineScope.launch { shareAppLogs(context) } }) {
+                    IconButton(onClick = { viewModel.sendBugReport() }) {
                         Icon(Icons.Default.BugReport, contentDescription = "Share Logs")
                     }
                 }

@@ -14,6 +14,9 @@ _IMAGES_DIR = Path(_images_dir)
 _incoming_raw = os.getenv('INCOMING_PATH')
 _INCOMING_DIR = Path(_incoming_raw) if _incoming_raw else _IMAGES_DIR / "incoming"
 
+_bug_reports_raw = os.getenv('BUG_REPORTS_PATH')
+_BUG_REPORTS_DIR = Path(_bug_reports_raw) if _bug_reports_raw else _IMAGES_DIR / "bug_reports"
+
 
 def get_image_path(filename: str) -> Path:
     return _IMAGES_DIR / filename
@@ -32,3 +35,8 @@ def image_exists(filename: str) -> bool:
 def save_incoming(filename: str, data: bytes) -> None:
     _INCOMING_DIR.mkdir(parents=True, exist_ok=True)
     (_INCOMING_DIR / filename).write_bytes(data)
+
+
+def save_bug_report(filename: str, data: bytes) -> None:
+    _BUG_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (_BUG_REPORTS_DIR / filename).write_bytes(data)

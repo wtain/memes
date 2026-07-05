@@ -42,7 +42,7 @@ class EnvironmentManagerScreenTest {
         memeRepo = mockk(relaxed = true)
         every { envRepo.environmentsWithSelection } returns flowOf(envsWithSelection)
         coEvery { memeRepo.healthCheck(any()) } returns Result.success(Unit)
-        viewModel = EnvironmentViewModel(envRepo, memeRepo)
+        viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
     }
 
     private fun setContent(onBack: () -> Unit = {}) {

@@ -11,7 +11,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-suspend fun shareAppLogs(context: Context) = withContext(Dispatchers.IO) {
+suspend fun buildLogFile(context: Context): File = withContext(Dispatchers.IO) {
     val pid = Process.myPid()
     val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
 
@@ -41,7 +41,10 @@ suspend fun shareAppLogs(context: Context) = withContext(Dispatchers.IO) {
     val fileTimestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
     val logFile = File(shareDir, "app-logs-$fileTimestamp.txt")
     logFile.writeText(combined)
+    logFile
+}
 
+suspend fun shareLogFile(context: Context, logFile: File) = withContext(Dispatchers.IO) {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", logFile)
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"

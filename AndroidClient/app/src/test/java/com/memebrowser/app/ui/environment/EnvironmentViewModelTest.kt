@@ -59,7 +59,7 @@ class EnvironmentViewModelTest {
 
     @Test
     fun `environments are exposed from repository flow`() = runTest {
-        viewModel = EnvironmentViewModel(envRepo, memeRepo)
+        viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
         viewModel.environments.test {
             val envs = awaitItem()
             assertEquals(3, envs.size)
@@ -70,7 +70,7 @@ class EnvironmentViewModelTest {
     @Test
     fun `selectEnvironment delegates to repository`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200))
-        viewModel = EnvironmentViewModel(envRepo, memeRepo)
+        viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
         val target = testEnvs[1].environment
         viewModel.selectEnvironment(target)
         coVerify(exactly = 1) { envRepo.selectEnvironment(target) }
@@ -78,21 +78,21 @@ class EnvironmentViewModelTest {
 
     @Test
     fun `addEnvironment delegates to repository`() = runTest {
-        viewModel = EnvironmentViewModel(envRepo, memeRepo)
+        viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
         viewModel.addEnvironment("Staging", "http://staging.example.com")
         coVerify(exactly = 1) { envRepo.addEnvironment("Staging", "http://staging.example.com") }
     }
 
     @Test
     fun `updateEnvironment delegates to repository`() = runTest {
-        viewModel = EnvironmentViewModel(envRepo, memeRepo)
+        viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
         viewModel.updateEnvironment("test-it", "IT Dev", "http://it.example.com")
         coVerify(exactly = 1) { envRepo.updateEnvironment("test-it", "IT Dev", "http://it.example.com") }
     }
 
     @Test
     fun `deleteEnvironment delegates to repository`() = runTest {
-        viewModel = EnvironmentViewModel(envRepo, memeRepo)
+        viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
         viewModel.deleteEnvironment("custom-id-123")
         coVerify(exactly = 1) { envRepo.deleteEnvironment("custom-id-123") }
     }
@@ -100,7 +100,7 @@ class EnvironmentViewModelTest {
     @Test
     fun `checkHealth sets Online on success`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200))
-        viewModel = EnvironmentViewModel(envRepo, memeRepo)
+        viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
         viewModel.checkHealth("test-general", testEnvs[0].environment.baseUrl)
         viewModel.uiState.test {
             val state = awaitItem()
@@ -111,7 +111,7 @@ class EnvironmentViewModelTest {
     @Test
     fun `checkHealth sets Offline on failure`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
-        viewModel = EnvironmentViewModel(envRepo, memeRepo)
+        viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
         viewModel.checkHealth("test-general", testEnvs[0].environment.baseUrl)
         viewModel.uiState.test {
             val state = awaitItem()

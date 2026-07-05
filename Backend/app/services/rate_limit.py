@@ -25,3 +25,7 @@ class SlidingWindowRateLimiter:
 
 # 10 upload requests per IP per minute
 upload_limiter = SlidingWindowRateLimiter(max_calls=10, window_seconds=60)
+
+# 20 bug-report requests per IP per minute — higher than uploads since the client
+# may retry the same log across multiple configured environments in quick succession
+bug_report_limiter = SlidingWindowRateLimiter(max_calls=20, window_seconds=60)

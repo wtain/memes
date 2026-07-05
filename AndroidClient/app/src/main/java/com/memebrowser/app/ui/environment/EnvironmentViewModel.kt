@@ -1,13 +1,16 @@
 package com.memebrowser.app.ui.environment
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.data.model.BackendEnvironment
+import com.memebrowser.app.data.repository.BugReportUploader
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.EnvironmentWithSelection
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.data.repository.isValidCollectionName
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,13 +24,16 @@ enum class EnvHealthStatus { Unknown, Checking, Online, Offline }
 
 data class EnvironmentUiState(
     val healthMap: Map<String, EnvHealthStatus> = emptyMap(),
-    val error: String? = null
+    val error: String? = null,
+    val bugReportMessage: String? = null
 )
 
 @HiltViewModel
 class EnvironmentViewModel @Inject constructor(
     private val envRepo: EnvironmentRepository,
-    private val memeRepo: MemeRepository
+    private val memeRepo: MemeRepository,
+    @ApplicationContext private val appContext: Context,
+    private val bugReportUploader: BugReportUploader
 ) : ViewModel() {
 
     val environments: StateFlow<List<EnvironmentWithSelection>> =
@@ -97,4 +103,14 @@ class EnvironmentViewModel @Inject constructor(
     }
 
     fun dismissError() = _uiState.update { it.copy(error = null) }
+
+    fun sendBugReport() {
+        viewModelScope.launch {
+            bugReportUploader.sendBugReport(appContext) { message ->
+                _uiState.update { it.copy(bugReportMessage = message) }
+            }
+        }
+    }
+
+    fun dismissBugReportMessage() = _uiState.update { it.copy(bugReportMessage = null) }
 }

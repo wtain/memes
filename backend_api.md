@@ -213,6 +213,18 @@ Response from `POST /api/uploads`.
 }
 ```
 
+### BugReportResponse
+
+Response from `POST /api/bug-reports`.
+
+```json
+{
+  "original_filename": "string",
+  "saved_as": "string",
+  "size_bytes": "number"
+}
+```
+
 ### HealthResponse
 
 ```json
@@ -302,6 +314,41 @@ Per-file type or size errors are reported in `failed[]` — the rest of the batc
 - `422`: More than 50 files submitted, or malformed multipart body
 
 **Storage**: `{BASE_PATH}/incoming/` (created automatically on first request). Not served by the API — the batch pipeline picks up files from this directory.
+
+---
+
+### Bug Reports
+
+#### Upload Bug Report
+
+Accept a single log file (e.g. from the Android client's "Save logs" flow) and save it to a dedicated `bug_reports/` directory, separate from `incoming/` and the images directory. Files are saved as `{timestamp}_{uuid}.{ext}` to keep them sortable and collision-free; the original filename is preserved in the response.
+
+- **URL**: `POST /api/bug-reports`
+- **Content-Type**: `multipart/form-data`
+- **Form field**: `file` — a single log file (required)
+
+**Constraints**:
+
+| Rule | Value |
+|------|-------|
+| Accepted extensions | `.txt`, `.log` |
+| Max file size | 10 MB |
+
+**Response** `200 OK` — `BugReportResponse`:
+
+```json
+{
+  "original_filename": "app-logs-20260705-101530.txt",
+  "saved_as": "20260705T101532Z_a1b2c3d4-1234-5678-abcd-ef0123456789.txt",
+  "size_bytes": 20480
+}
+```
+
+**Error Responses**:
+- `422`: Unsupported file extension, empty file, or file exceeds 10 MB
+- `429`: Too many bug report requests from this client in the last minute
+
+**Storage**: `{BASE_PATH}/bug_reports/` (or `BUG_REPORTS_PATH` override; created automatically on first request). Not served by the API.
 
 ---
 

@@ -9,6 +9,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.BuildConfig
+import com.memebrowser.app.data.repository.BugReportUploader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -59,13 +60,29 @@ sealed class UpdateStatus {
 
 @HiltViewModel
 class AboutViewModel @Inject constructor(
-    @ApplicationContext private val appContext: Context
+    @ApplicationContext private val appContext: Context,
+    private val bugReportUploader: BugReportUploader
 ) : ViewModel() {
 
     val currentVersion: String = BuildConfig.ANDROID_VERSION
 
     private val _updateStatus = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
     val updateStatus: StateFlow<UpdateStatus> = _updateStatus.asStateFlow()
+
+    private val _bugReportMessage = MutableStateFlow<String?>(null)
+    val bugReportMessage: StateFlow<String?> = _bugReportMessage.asStateFlow()
+
+    fun sendBugReport() {
+        viewModelScope.launch {
+            bugReportUploader.sendBugReport(appContext) { message ->
+                _bugReportMessage.value = message
+            }
+        }
+    }
+
+    fun dismissBugReportMessage() {
+        _bugReportMessage.value = null
+    }
 
     // Plain client — does NOT go through the backend-rewriting interceptor
     private val githubClient = OkHttpClient.Builder()
