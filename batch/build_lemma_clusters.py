@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import os
@@ -219,10 +220,35 @@ async def run(
     print(f"Written to {output_file}")
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--text-scope", default=None)
+    parser.add_argument("--bow-output-file", default=None)
+    parser.add_argument("--bow-unmatched-file", default=None)
+    parser.add_argument("--cluster-output-file", default=None)
+    parser.add_argument("--language", default=None)
+    parser.add_argument("--min-cluster-size", type=int, default=None)
+    parser.add_argument("--min-samples", type=int, default=None)
+    parser.add_argument("--cluster-selection-epsilon", type=float, default=None)
+    parser.add_argument("--cluster-selection-method", default=None)
+    parser.add_argument("--text-embed-model", default=None)
+    parser.add_argument("--ollama-model", default=None)
+    parser.add_argument("--ollama-enabled", action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument("--lookup-concepts", action=argparse.BooleanOptionalAction, default=None)
+    return parser.parse_args()
+
+
 async def main() -> None:
-    text_scope = os.getenv("TEXT_SCOPE", "unmatched")
-    input_file = os.getenv("BOW_OUTPUT_FILE") if text_scope == "all" else os.getenv("BOW_UNMATCHED_FILE")
-    output_file = os.getenv("CLUSTER_OUTPUT_FILE")
+    args = _parse_args()
+
+    text_scope = args.text_scope if args.text_scope is not None else os.getenv("TEXT_SCOPE", "unmatched")
+
+    if text_scope == "all":
+        input_file = args.bow_output_file if args.bow_output_file is not None else os.getenv("BOW_OUTPUT_FILE")
+    else:
+        input_file = args.bow_unmatched_file if args.bow_unmatched_file is not None else os.getenv("BOW_UNMATCHED_FILE")
+
+    output_file = args.cluster_output_file if args.cluster_output_file is not None else os.getenv("CLUSTER_OUTPUT_FILE")
 
     if not input_file:
         raise SystemExit(
@@ -231,18 +257,38 @@ async def main() -> None:
     if not output_file:
         raise SystemExit("CLUSTER_OUTPUT_FILE must be set")
 
+    if args.min_samples is not None:
+        min_samples = args.min_samples
+    else:
+        min_samples = int(os.getenv("MIN_SAMPLES")) if os.getenv("MIN_SAMPLES") else None
+
     await run(
         input_file=input_file,
         output_file=output_file,
-        language=os.getenv("LANGUAGE", "all"),
-        min_cluster_size=int(os.getenv("MIN_CLUSTER_SIZE", "2")),
-        min_samples=int(os.getenv("MIN_SAMPLES")) if os.getenv("MIN_SAMPLES") else None,
-        cluster_selection_epsilon=float(os.getenv("CLUSTER_SELECTION_EPSILON", "0.0")),
-        cluster_selection_method=os.getenv("CLUSTER_SELECTION_METHOD", "eom"),
-        embed_model=os.getenv("TEXT_EMBED_MODEL", "sbert"),
-        ollama_model=os.getenv("OLLAMA_MODEL", "qwen2"),
-        ollama_enabled=os.getenv("OLLAMA_ENABLED", "true").lower() == "true",
-        lookup_concepts=os.getenv("LOOKUP_CONCEPTS", "false").lower() == "true",
+        language=args.language if args.language is not None else os.getenv("LANGUAGE", "all"),
+        min_cluster_size=(
+            args.min_cluster_size if args.min_cluster_size is not None
+            else int(os.getenv("MIN_CLUSTER_SIZE", "2"))
+        ),
+        min_samples=min_samples,
+        cluster_selection_epsilon=(
+            args.cluster_selection_epsilon if args.cluster_selection_epsilon is not None
+            else float(os.getenv("CLUSTER_SELECTION_EPSILON", "0.0"))
+        ),
+        cluster_selection_method=(
+            args.cluster_selection_method if args.cluster_selection_method is not None
+            else os.getenv("CLUSTER_SELECTION_METHOD", "eom")
+        ),
+        embed_model=args.text_embed_model if args.text_embed_model is not None else os.getenv("TEXT_EMBED_MODEL", "sbert"),
+        ollama_model=args.ollama_model if args.ollama_model is not None else os.getenv("OLLAMA_MODEL", "qwen2"),
+        ollama_enabled=(
+            args.ollama_enabled if args.ollama_enabled is not None
+            else os.getenv("OLLAMA_ENABLED", "true").lower() == "true"
+        ),
+        lookup_concepts=(
+            args.lookup_concepts if args.lookup_concepts is not None
+            else os.getenv("LOOKUP_CONCEPTS", "false").lower() == "true"
+        ),
     )
 
 
