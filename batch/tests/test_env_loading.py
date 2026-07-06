@@ -10,21 +10,77 @@ from dynaconf.validator import ValidationError
 
 from config.settings import load_env, settings
 
+_COMMON = {
+    "RULES.LEMMATIZE": False,
+    "RULES.TAGGING_DATA_DIR": None,
+    "OCR.CONFIDENCE_MIN": 0.4,
+    "OCR.LANG_SCORE_MIN": 0.3,
+    "LEMMA_CLUSTERING.TEXT_SCOPE": "unmatched",
+    "LEMMA_CLUSTERING.LANGUAGE": "all",
+    "LEMMA_CLUSTERING.MIN_CLUSTER_SIZE": 2,
+    "LEMMA_CLUSTERING.SELECTION_EPSILON": 0.0,
+    "LEMMA_CLUSTERING.SELECTION_METHOD": "eom",
+    "LEMMA_CLUSTERING.TEXT_EMBED_MODEL": "sbert",
+    "LEMMA_CLUSTERING.OUTPUT_FILE": None,
+    "LEMMA_CLUSTERING.MIN_SAMPLES": None,
+    "OLLAMA.MODEL": "qwen2",
+    "OLLAMA.ENABLED": True,
+    "CONCEPTS.LOOKUP": False,
+    "CONCEPTS.THRESHOLD": 0.2,
+    "CONCEPTS.LIMIT": 50,
+    "CONCEPTS.TEXT_CONCEPTS_FILE": None,
+    "CONCEPTS.TEXT_CONCEPTS_TEMPLATES_FILE": None,
+    "CONCEPTS.IMAGES_DIR": None,
+    "CONCEPTS.MAPPING_FILE": None,
+    "GENERAL.BATCH_SIZE": 100,
+    "GENERAL.PROGRESS_EVERY": 10,
+    "GENERAL.PROFILE": "general",
+    "GENERAL.FRONTEND_ORIGIN": "http://localhost:5173",
+    "GENERAL.TAGGING_PROFILE": None,
+    "BOW.MIN_WORD_LENGTH": 3,
+    "BOW.MIN_FREQUENCY": 2,
+    "BOW.TEXT_SOURCE": "ocr",
+    "BOW.OUTPUT_FILE": None,
+    "BOW.UNMATCHED_FILE": None,
+    "BOW.IGNORE_FILE": None,
+    "RULES.FILE": None,
+}
+
+# Every tracked key this migration covers, resolved per environment — mirrors
+# Backend/tests/test_config_integration.py's baseline (see
+# docs/superpowers/specs/2026-07-06-config-settings-hierarchical-structure.md).
+# Kept as an independent copy rather than a shared fixture: these two suites
+# exercise the same config module from two different application entry
+# points, and a shared module would obscure that either one is a complete,
+# self-contained regression net on its own.
 _EXPECTED = {
     "metal": {
-        "TAGGING_PROFILE": "metal",
-        "RULES_FILE": "data/rules.json",
-        "CLUSTER_SELECTION_METHOD": "eom",
+        **_COMMON,
+        "GENERAL.TAGGING_PROFILE": "metal",
+        "RULES.FILE": "data/rules.json",
+        "CONCEPTS.TEXT_CONCEPTS_FILE": "data/text-concepts.metal.json",
+        "CONCEPTS.TEXT_CONCEPTS_TEMPLATES_FILE": "data/text-concepts.templates.metal.json",
+        "CONCEPTS.IMAGES_DIR": "images",
     },
     "general": {
-        "TAGGING_PROFILE": "general",
-        "RULES_FILE": "data/rules.general.json",
-        "CLUSTER_SELECTION_METHOD": "leaf",
+        **_COMMON,
+        "GENERAL.TAGGING_PROFILE": "general",
+        "RULES.FILE": "data/rules.general.json",
+        "CONCEPTS.TEXT_CONCEPTS_FILE": "data/text-concepts.general.json",
+        "CONCEPTS.TEXT_CONCEPTS_TEMPLATES_FILE": "data/text-concepts.templates.general.json",
+        "CONCEPTS.IMAGES_DIR": "images-general",
+        "CONCEPTS.MAPPING_FILE": "data/concepts-to-tags.general.json",
+        "BOW.OUTPUT_FILE": "output/bow.general.json",
+        "BOW.UNMATCHED_FILE": "output/bow.unmatched.general.json",
+        "BOW.IGNORE_FILE": "data/ignore-words.general.json",
+        "RULES.LEMMATIZE": True,
+        "LEMMA_CLUSTERING.SELECTION_METHOD": "leaf",
+        "GENERAL.FRONTEND_ORIGIN": "http://localhost:5174",
     },
     "it": {
-        "TAGGING_PROFILE": "it",
-        "RULES_FILE": None,
-        "CLUSTER_SELECTION_METHOD": "eom",
+        **_COMMON,
+        "GENERAL.TAGGING_PROFILE": "it",
+        "GENERAL.FRONTEND_ORIGIN": "http://localhost:5175",
     },
 }
 
@@ -43,12 +99,9 @@ def _dummy_batch_entrypoint(env_name: str, base_dir) -> dict:
     business logic, argparse, or asyncio.
     """
     load_env(env_name, base_dir=base_dir)
-    return {
-        "TAGGING_PROFILE": settings.TAGGING_PROFILE,
-        "RULES_FILE": settings.get("RULES_FILE"),
-        "CLUSTER_SELECTION_METHOD": settings.CLUSTER_SELECTION_METHOD,
-        "DATABASE_URL": settings.DATABASE_URL,
-    }
+    result = {key: settings.get(key) for key in _COMMON}
+    result["DATABASE_URL"] = settings.DATABASE_URL
+    return result
 
 
 @pytest.mark.parametrize("name", ["metal", "general", "it"])
@@ -58,9 +111,8 @@ def test_dummy_batch_entrypoint_resolves_tracked_settings_per_environment(tmp_pa
     result = _dummy_batch_entrypoint(name, tmp_path)
 
     expected = _EXPECTED[name]
-    assert result["TAGGING_PROFILE"] == expected["TAGGING_PROFILE"]
-    assert result["RULES_FILE"] == expected["RULES_FILE"]
-    assert result["CLUSTER_SELECTION_METHOD"] == expected["CLUSTER_SELECTION_METHOD"]
+    for key, value in expected.items():
+        assert result[key] == value, f"{key} for {name}"
 
 
 def test_dummy_batch_entrypoint_secrets_overlay_wins_over_tracked_yaml(tmp_path):

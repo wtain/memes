@@ -1,2 +1,3 @@
-TAGGING_PROFILE: it
-FRONTEND_ORIGIN: http://localhost:5175
+general:
+  tagging_profile: it
+  frontend_origin: http://localhost:5175

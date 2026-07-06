@@ -16,9 +16,20 @@ def _build(name: str) -> Dynaconf:
     raise before main() ever gets a chance to load it. load_env() validates
     explicitly once secrets are actually loaded. Backend gets its own
     fail-fast independently, via Storage/config.py's RuntimeError guard.
+
+    merge_enabled=True is required by the nested tracked-YAML structure: a
+    group like `bow:` is split across settings.yaml (common defaults) and
+    settings.<name>.yaml (per-environment overrides). Without merge_enabled,
+    Dynaconf's multi-file merge is shallow, so the per-environment file's
+    `bow:` dict would replace the common file's `bow:` dict outright instead
+    of merging key-by-key, silently dropping the common defaults. This is
+    unrelated to the environments=True leak documented below — merge_enabled
+    only deep-merges nested dict values within the two files already scoped
+    to the active environment.
     """
     instance = Dynaconf(
         envvar_prefix=False,
+        merge_enabled=True,
         settings_files=[_BASE_SETTINGS_FILE, f"environments/settings.{name}.yaml"],
     )
     instance.validators.register(Validator("DATABASE_URL", must_exist=True))

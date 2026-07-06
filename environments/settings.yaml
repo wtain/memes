@@ -1,21 +1,34 @@
-RULES_LEMMATIZE: false
-OCR_CONFIDENCE_MIN: 0.4
-OCR_LANG_SCORE_MIN: 0.3
-TEXT_SCOPE: unmatched
-LANGUAGE: all
-MIN_CLUSTER_SIZE: 2
-CLUSTER_SELECTION_EPSILON: 0.0
-CLUSTER_SELECTION_METHOD: eom
-TEXT_EMBED_MODEL: sbert
-OLLAMA_MODEL: qwen2
-OLLAMA_ENABLED: true
-LOOKUP_CONCEPTS: false
-BATCH_SIZE: 100
-PROGRESS_EVERY: 10
-BOW_MIN_WORD_LENGTH: 3
-BOW_MIN_FREQUENCY: 2
-TEXT_SOURCE: ocr
-CONCEPT_THRESHOLD: 0.2
-CONCEPT_LIMIT: 50
-PROFILE: general
-FRONTEND_ORIGIN: http://localhost:5173
+ocr:
+  confidence_min: 0.4
+  lang_score_min: 0.3
+
+rules:
+  lemmatize: false
+
+bow:
+  min_word_length: 3
+  min_frequency: 2
+  text_source: ocr
+
+lemma_clustering:
+  text_scope: unmatched
+  language: all
+  min_cluster_size: 2
+  selection_epsilon: 0.0
+  selection_method: eom
+  text_embed_model: sbert
+
+concepts:
+  lookup: false
+  threshold: 0.2
+  limit: 50
+
+ollama:
+  model: qwen2
+  enabled: true
+
+general:
+  batch_size: 100
+  progress_every: 10
+  profile: general
+  frontend_origin: http://localhost:5173

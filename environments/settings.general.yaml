@@ -1,14 +1,23 @@
-TAGGING_PROFILE: general
-RULES_FILE: data/rules.general.json
-TEXT_CONCEPTS_FILE: data/text-concepts.general.json
-TEXT_CONCEPTS_TEMPLATES_FILE: data/text-concepts.templates.general.json
-CONCEPT_IMAGES_DIR: images-general
-CONCEPT_MAPPING_FILE: data/concepts-to-tags.general.json
-BOW_OUTPUT_FILE: output/bow.general.json
-BOW_UNMATCHED_FILE: output/bow.unmatched.general.json
-BOW_IGNORE_FILE: data/ignore-words.general.json
-RULES_LEMMATIZE: true
-# Empirically validated for this environment's OCR data (see CLAUDE.md's
-# Concept discovery note) — leaf avoids one oversized catch-all cluster.
-CLUSTER_SELECTION_METHOD: leaf
-FRONTEND_ORIGIN: http://localhost:5174
+general:
+  tagging_profile: general
+  frontend_origin: http://localhost:5174
+
+rules:
+  file: data/rules.general.json
+  lemmatize: true
+
+bow:
+  output_file: output/bow.general.json
+  unmatched_file: output/bow.unmatched.general.json
+  ignore_file: data/ignore-words.general.json
+
+concepts:
+  text_concepts_file: data/text-concepts.general.json
+  text_concepts_templates_file: data/text-concepts.templates.general.json
+  images_dir: images-general
+  mapping_file: data/concepts-to-tags.general.json
+
+lemma_clustering:
+  # Empirically validated for this environment's OCR data (see CLAUDE.md's
+  # Concept discovery note) — leaf avoids one oversized catch-all cluster.
+  selection_method: leaf
