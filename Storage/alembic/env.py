@@ -7,11 +7,24 @@ from sqlalchemy import pool
 
 from alembic import context
 
-# from Storage.config import DATABASE_URL
-from config import DATABASE_URL
-
 parent = Path(__file__).parent
 sys.path.insert(0, str(parent))
+
+# repo root, so `Storage` (this package) and the top-level `config` package
+# (config/settings.py) both resolve unambiguously. Required because alembic's
+# prepend_sys_path=. (in alembic.ini) puts Storage/ itself on sys.path (the
+# documented workflow runs alembic from cwd=Storage/) — that alone makes
+# Storage/config.py *also* importable under the bare name `config`, colliding
+# with the real top-level config/ package. Storage/config.py's own
+# `from config.settings import settings` would then resolve against itself
+# (the shadowing bare "config" entry) instead of the real package, and crash
+# with "'config' is not a package". Importing `Storage.config` explicitly
+# here, with the repo root on sys.path ahead of Storage/, avoids the bare
+# name entirely.
+repo_root = parent.parent.parent
+sys.path.insert(0, str(repo_root))
+
+from Storage.config import DATABASE_URL
 
 try:
     # Import assuming models are in root/models.py or root/models/

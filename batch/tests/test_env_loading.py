@@ -75,6 +75,7 @@ _EXPECTED = {
         "BOW.IGNORE_FILE": "data/ignore-words.general.json",
         "RULES.LEMMATIZE": True,
         "LEMMA_CLUSTERING.SELECTION_METHOD": "leaf",
+        "LEMMA_CLUSTERING.OUTPUT_FILE": "output/lemma_clusters.general.ru.yaml",
         "GENERAL.FRONTEND_ORIGIN": "http://localhost:5174",
     },
     "it": {
