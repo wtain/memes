@@ -88,15 +88,15 @@ def _write_output(path, data):
 
 
 async def main():
-    text_source = settings.TEXT_SOURCE
-    ocr_confidence_min = settings.OCR_CONFIDENCE_MIN
-    ocr_lang_score_min = settings.OCR_LANG_SCORE_MIN
-    min_word_length = settings.BOW_MIN_WORD_LENGTH
-    min_frequency = settings.BOW_MIN_FREQUENCY
-    output_file = settings.get("BOW_OUTPUT_FILE")
-    ignore_file = settings.get("BOW_IGNORE_FILE")
-    rules_file = settings.get("RULES_FILE")
-    unmatched_file = settings.get("BOW_UNMATCHED_FILE")
+    text_source = settings.BOW.TEXT_SOURCE
+    ocr_confidence_min = settings.OCR.CONFIDENCE_MIN
+    ocr_lang_score_min = settings.OCR.LANG_SCORE_MIN
+    min_word_length = settings.BOW.MIN_WORD_LENGTH
+    min_frequency = settings.BOW.MIN_FREQUENCY
+    output_file = settings.get("BOW.OUTPUT_FILE")
+    ignore_file = settings.get("BOW.IGNORE_FILE")
+    rules_file = settings.get("RULES.FILE")
+    unmatched_file = settings.get("BOW.UNMATCHED_FILE")
 
     print(f"TEXT_SOURCE={text_source}")
     print(f"BOW_MIN_WORD_LENGTH={min_word_length}, BOW_MIN_FREQUENCY={min_frequency}")

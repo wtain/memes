@@ -213,8 +213,8 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10) -> Non
 
 
 async def main(path: str) -> None:
-    batch_size = settings.BATCH_SIZE
-    progress_every = settings.PROGRESS_EVERY
+    batch_size = settings.GENERAL.BATCH_SIZE
+    progress_every = settings.GENERAL.PROGRESS_EVERY
     await run(path, batch_size=batch_size, progress_every=progress_every)
 
 

@@ -29,7 +29,7 @@ TAGS_TO_CHECK = [
 # Pre-existing inconsistency, not fixed by this migration: PROFILE differs from
 # TAGGING_PROFILE used everywhere else; no environment sets PROFILE, so this
 # always resolves to "general" regardless of APP_ENV (see ADR 2026-07-05, decision 7).
-PROFILE = settings.get("PROFILE", "general")
+PROFILE = settings.get("GENERAL.PROFILE", "general")
 JSON_PATH = f"batch/data/rules.{PROFILE}.json"
 DATA_DIR = Path("batch/data/tagging")
 

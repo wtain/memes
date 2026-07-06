@@ -15,10 +15,10 @@ _SCRIPT_DIR = Path(__file__).parent
 
 
 async def main(incremental: bool):
-    data_dir = settings.get("TAGGING_DATA_DIR") or str(_SCRIPT_DIR / "data" / "tagging")
-    profile = settings.TAGGING_PROFILE
-    ocr_confidence_min = settings.OCR_CONFIDENCE_MIN
-    ocr_lang_score_min = settings.OCR_LANG_SCORE_MIN
+    data_dir = settings.get("RULES.TAGGING_DATA_DIR") or str(_SCRIPT_DIR / "data" / "tagging")
+    profile = settings.get("GENERAL.TAGGING_PROFILE")
+    ocr_confidence_min = settings.OCR.CONFIDENCE_MIN
+    ocr_lang_score_min = settings.OCR.LANG_SCORE_MIN
     engine = ConceptTagger.load(data_dir, profile)
 
     async with AsyncSessionLocal() as session:

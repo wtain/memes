@@ -244,14 +244,14 @@ async def main() -> None:
     args = _parse_args()
     load_env(args.env)
 
-    text_scope = args.text_scope if args.text_scope is not None else settings.TEXT_SCOPE
+    text_scope = args.text_scope if args.text_scope is not None else settings.LEMMA_CLUSTERING.TEXT_SCOPE
 
     if text_scope == "all":
-        input_file = args.bow_output_file if args.bow_output_file is not None else settings.get("BOW_OUTPUT_FILE")
+        input_file = args.bow_output_file if args.bow_output_file is not None else settings.get("BOW.OUTPUT_FILE")
     else:
-        input_file = args.bow_unmatched_file if args.bow_unmatched_file is not None else settings.get("BOW_UNMATCHED_FILE")
+        input_file = args.bow_unmatched_file if args.bow_unmatched_file is not None else settings.get("BOW.UNMATCHED_FILE")
 
-    output_file = args.cluster_output_file if args.cluster_output_file is not None else settings.get("CLUSTER_OUTPUT_FILE")
+    output_file = args.cluster_output_file if args.cluster_output_file is not None else settings.get("LEMMA_CLUSTERING.OUTPUT_FILE")
 
     if not input_file:
         raise SystemExit(
@@ -263,35 +263,35 @@ async def main() -> None:
     if args.min_samples is not None:
         min_samples = args.min_samples
     else:
-        min_samples_raw = settings.get("MIN_SAMPLES")
+        min_samples_raw = settings.get("LEMMA_CLUSTERING.MIN_SAMPLES")
         min_samples = int(min_samples_raw) if min_samples_raw else None
 
     await run(
         input_file=input_file,
         output_file=output_file,
-        language=args.language if args.language is not None else settings.LANGUAGE,
+        language=args.language if args.language is not None else settings.LEMMA_CLUSTERING.LANGUAGE,
         min_cluster_size=(
             args.min_cluster_size if args.min_cluster_size is not None
-            else settings.MIN_CLUSTER_SIZE
+            else settings.LEMMA_CLUSTERING.MIN_CLUSTER_SIZE
         ),
         min_samples=min_samples,
         cluster_selection_epsilon=(
             args.cluster_selection_epsilon if args.cluster_selection_epsilon is not None
-            else settings.CLUSTER_SELECTION_EPSILON
+            else settings.LEMMA_CLUSTERING.SELECTION_EPSILON
         ),
         cluster_selection_method=(
             args.cluster_selection_method if args.cluster_selection_method is not None
-            else settings.CLUSTER_SELECTION_METHOD
+            else settings.LEMMA_CLUSTERING.SELECTION_METHOD
         ),
-        embed_model=args.text_embed_model if args.text_embed_model is not None else settings.TEXT_EMBED_MODEL,
-        ollama_model=args.ollama_model if args.ollama_model is not None else settings.OLLAMA_MODEL,
+        embed_model=args.text_embed_model if args.text_embed_model is not None else settings.LEMMA_CLUSTERING.TEXT_EMBED_MODEL,
+        ollama_model=args.ollama_model if args.ollama_model is not None else settings.OLLAMA.MODEL,
         ollama_enabled=(
             args.ollama_enabled if args.ollama_enabled is not None
-            else bool(settings.OLLAMA_ENABLED)
+            else bool(settings.OLLAMA.ENABLED)
         ),
         lookup_concepts=(
             args.lookup_concepts if args.lookup_concepts is not None
-            else bool(settings.LOOKUP_CONCEPTS)
+            else bool(settings.CONCEPTS.LOOKUP)
         ),
     )
 
