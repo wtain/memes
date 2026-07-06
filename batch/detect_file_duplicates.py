@@ -1,7 +1,9 @@
+import argparse
 import asyncio
 import hashlib
 import os
 
+from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
 from graph.uf import UnionFind
 from metrics.listener import SimpleMetricsListener
@@ -35,7 +37,7 @@ def _files_are_identical(paths: list) -> bool:
 
 
 async def main():
-    BASE_PATH = os.getenv("BASE_PATH")
+    BASE_PATH = settings.BASE_PATH
     print(f"BASE_PATH={BASE_PATH}")
     base_path = os.path.abspath(BASE_PATH)
 
@@ -135,4 +137,8 @@ async def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
+    args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main())

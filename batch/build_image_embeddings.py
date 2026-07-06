@@ -2,19 +2,16 @@ import argparse
 import asyncio
 import os
 
-from dotenv import load_dotenv
 from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count
 
 from ai.clip import ClipModel
+from config.settings import load_env, settings
 from embeddingutils.image import load_image
 from Storage.db import AsyncSessionLocal
 from Storage.models import Embedding
 
 from Storage.models import Image as Img
-
-
-load_dotenv()
 
 
 async def main(incremental: bool):
@@ -42,7 +39,7 @@ async def main(incremental: bool):
 
         clip_model = ClipModel()
 
-        BASE_PATH = os.getenv('BASE_PATH')
+        BASE_PATH = settings.BASE_PATH
         print(f"BASE_PATH={BASE_PATH}")
         base_path = os.path.abspath(BASE_PATH)
 
@@ -72,7 +69,9 @@ async def main(incremental: bool):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     parser.add_argument("--incremental", action="store_true",
                         help="Only embed images that have no embedding yet (default: clear all and reprocess)")
     args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main(args.incremental))

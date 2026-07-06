@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import os
@@ -6,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from rules.normalize import lemmatize_word, make_morph, tokenize
 from rules.lang_plausibility import passes_language_filter
@@ -86,15 +88,15 @@ def _write_output(path, data):
 
 
 async def main():
-    text_source = os.getenv("TEXT_SOURCE", TEXT_SOURCE_OCR)
-    ocr_confidence_min = float(os.getenv("OCR_CONFIDENCE_MIN", "0.4"))
-    ocr_lang_score_min = float(os.getenv("OCR_LANG_SCORE_MIN", "0.3"))
-    min_word_length = int(os.getenv("BOW_MIN_WORD_LENGTH", "3"))
-    min_frequency = int(os.getenv("BOW_MIN_FREQUENCY", "2"))
-    output_file = os.getenv("BOW_OUTPUT_FILE")
-    ignore_file = os.getenv("BOW_IGNORE_FILE")
-    rules_file = os.getenv("RULES_FILE")
-    unmatched_file = os.getenv("BOW_UNMATCHED_FILE")
+    text_source = settings.TEXT_SOURCE
+    ocr_confidence_min = settings.OCR_CONFIDENCE_MIN
+    ocr_lang_score_min = settings.OCR_LANG_SCORE_MIN
+    min_word_length = settings.BOW_MIN_WORD_LENGTH
+    min_frequency = settings.BOW_MIN_FREQUENCY
+    output_file = settings.get("BOW_OUTPUT_FILE")
+    ignore_file = settings.get("BOW_IGNORE_FILE")
+    rules_file = settings.get("RULES_FILE")
+    unmatched_file = settings.get("BOW_UNMATCHED_FILE")
 
     print(f"TEXT_SOURCE={text_source}")
     print(f"BOW_MIN_WORD_LENGTH={min_word_length}, BOW_MIN_FREQUENCY={min_frequency}")
@@ -199,4 +201,8 @@ async def _build_descriptions_bow(session, morph, min_word_length, min_frequency
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
+    args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main())

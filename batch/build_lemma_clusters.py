@@ -9,6 +9,7 @@ import numpy as np
 import yaml
 
 from batch.utils.clustering import build_clusters_from_embeddings
+from config.settings import load_env, settings
 from repository.concepts import ConceptsRepository
 from Storage.db import AsyncSessionLocal
 
@@ -222,6 +223,7 @@ async def run(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     parser.add_argument("--text-scope", default=None)
     parser.add_argument("--bow-output-file", default=None)
     parser.add_argument("--bow-unmatched-file", default=None)
@@ -240,15 +242,16 @@ def _parse_args() -> argparse.Namespace:
 
 async def main() -> None:
     args = _parse_args()
+    load_env(args.env)
 
-    text_scope = args.text_scope if args.text_scope is not None else os.getenv("TEXT_SCOPE", "unmatched")
+    text_scope = args.text_scope if args.text_scope is not None else settings.TEXT_SCOPE
 
     if text_scope == "all":
-        input_file = args.bow_output_file if args.bow_output_file is not None else os.getenv("BOW_OUTPUT_FILE")
+        input_file = args.bow_output_file if args.bow_output_file is not None else settings.get("BOW_OUTPUT_FILE")
     else:
-        input_file = args.bow_unmatched_file if args.bow_unmatched_file is not None else os.getenv("BOW_UNMATCHED_FILE")
+        input_file = args.bow_unmatched_file if args.bow_unmatched_file is not None else settings.get("BOW_UNMATCHED_FILE")
 
-    output_file = args.cluster_output_file if args.cluster_output_file is not None else os.getenv("CLUSTER_OUTPUT_FILE")
+    output_file = args.cluster_output_file if args.cluster_output_file is not None else settings.get("CLUSTER_OUTPUT_FILE")
 
     if not input_file:
         raise SystemExit(
@@ -260,34 +263,35 @@ async def main() -> None:
     if args.min_samples is not None:
         min_samples = args.min_samples
     else:
-        min_samples = int(os.getenv("MIN_SAMPLES")) if os.getenv("MIN_SAMPLES") else None
+        min_samples_raw = settings.get("MIN_SAMPLES")
+        min_samples = int(min_samples_raw) if min_samples_raw else None
 
     await run(
         input_file=input_file,
         output_file=output_file,
-        language=args.language if args.language is not None else os.getenv("LANGUAGE", "all"),
+        language=args.language if args.language is not None else settings.LANGUAGE,
         min_cluster_size=(
             args.min_cluster_size if args.min_cluster_size is not None
-            else int(os.getenv("MIN_CLUSTER_SIZE", "2"))
+            else settings.MIN_CLUSTER_SIZE
         ),
         min_samples=min_samples,
         cluster_selection_epsilon=(
             args.cluster_selection_epsilon if args.cluster_selection_epsilon is not None
-            else float(os.getenv("CLUSTER_SELECTION_EPSILON", "0.0"))
+            else settings.CLUSTER_SELECTION_EPSILON
         ),
         cluster_selection_method=(
             args.cluster_selection_method if args.cluster_selection_method is not None
-            else os.getenv("CLUSTER_SELECTION_METHOD", "eom")
+            else settings.CLUSTER_SELECTION_METHOD
         ),
-        embed_model=args.text_embed_model if args.text_embed_model is not None else os.getenv("TEXT_EMBED_MODEL", "sbert"),
-        ollama_model=args.ollama_model if args.ollama_model is not None else os.getenv("OLLAMA_MODEL", "qwen2"),
+        embed_model=args.text_embed_model if args.text_embed_model is not None else settings.TEXT_EMBED_MODEL,
+        ollama_model=args.ollama_model if args.ollama_model is not None else settings.OLLAMA_MODEL,
         ollama_enabled=(
             args.ollama_enabled if args.ollama_enabled is not None
-            else os.getenv("OLLAMA_ENABLED", "true").lower() == "true"
+            else bool(settings.OLLAMA_ENABLED)
         ),
         lookup_concepts=(
             args.lookup_concepts if args.lookup_concepts is not None
-            else os.getenv("LOOKUP_CONCEPTS", "false").lower() == "true"
+            else bool(settings.LOOKUP_CONCEPTS)
         ),
     )
 

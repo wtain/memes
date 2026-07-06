@@ -1,3 +1,4 @@
+import argparse
 import os
 import asyncio
 
@@ -13,6 +14,7 @@ from batch.trocr_fallback import TrOCRFallback
 from batch.tesseract_reader import TesseractReader, is_available as tesseract_available
 from batch.utils.batch_commit import BatchCommitter
 from batch.utils.progress import ProgressTracker
+from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
 from repository.image_procesing_status import ImageProcessingStatusRepository
@@ -211,8 +213,8 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10) -> Non
 
 
 async def main(path: str) -> None:
-    batch_size = int(os.getenv("BATCH_SIZE", "100"))
-    progress_every = int(os.getenv("PROGRESS_EVERY", "10"))
+    batch_size = settings.BATCH_SIZE
+    progress_every = settings.PROGRESS_EVERY
     await run(path, batch_size=batch_size, progress_every=progress_every)
 
 
@@ -223,6 +225,10 @@ async def main(path: str) -> None:
 """
 
 if __name__ == "__main__":
-    source_path = os.getenv('BASE_PATH')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
+    args = parser.parse_args()
+    load_env(args.env)
+    source_path = settings.BASE_PATH
     print(f"Base path: {source_path}")
     asyncio.run(main(source_path))

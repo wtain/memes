@@ -1,8 +1,10 @@
+import argparse
 import asyncio
 import os
 import uuid
 
 from Backend.app.repositories.image_repository import ImageRepository
+from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
 from ai.clip import ClipModel
 from embeddingutils.image import load_image
@@ -47,6 +49,10 @@ async def main(path: str):
                 print(f"Error for {path}: {e}")
 
 if __name__ == "__main__":
-    source_path = os.getenv('BASE_PATH')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
+    args = parser.parse_args()
+    load_env(args.env)
+    source_path = settings.BASE_PATH
     print(f"Base path: {source_path}")
     asyncio.run(main(source_path))

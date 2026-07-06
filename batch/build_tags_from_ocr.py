@@ -1,9 +1,9 @@
 import argparse
 import asyncio
-import os
 from pathlib import Path
 
 from batch.utils.progress import ProgressTracker
+from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from rules.concept_tagger import ConceptTagger
 from rules.lang_plausibility import passes_language_filter
@@ -12,15 +12,15 @@ from repository.images import ImagesRepository
 from repository.tags import TagsRepository, TagsSaver
 
 _SCRIPT_DIR = Path(__file__).parent
-DATA_DIR = os.getenv("TAGGING_DATA_DIR") or str(_SCRIPT_DIR / "data" / "tagging")
-PROFILE = os.getenv("TAGGING_PROFILE", "general")
-OCR_CONFIDENCE_MIN = float(os.getenv("OCR_CONFIDENCE_MIN", "0.4"))
-OCR_LANG_SCORE_MIN = float(os.getenv("OCR_LANG_SCORE_MIN", "0.3"))
-
-engine = ConceptTagger.load(DATA_DIR, PROFILE)
 
 
 async def main(incremental: bool):
+    data_dir = settings.get("TAGGING_DATA_DIR") or str(_SCRIPT_DIR / "data" / "tagging")
+    profile = settings.TAGGING_PROFILE
+    ocr_confidence_min = settings.OCR_CONFIDENCE_MIN
+    ocr_lang_score_min = settings.OCR_LANG_SCORE_MIN
+    engine = ConceptTagger.load(data_dir, profile)
+
     async with AsyncSessionLocal() as session:
         tags_repo = TagsRepository(session)
         images_repo = ImagesRepository(session)
@@ -30,9 +30,9 @@ async def main(incremental: bool):
 
         total_images = await images_repo.get_total_images()
         print(f"Total images: {total_images}")
-        print(f"Tagging with profile '{PROFILE}' from {DATA_DIR} ...")
+        print(f"Tagging with profile '{profile}' from {data_dir} ...")
         print(f"Mode: {'incremental' if incremental else 'full'}")
-        print(f"OCR_CONFIDENCE_MIN={OCR_CONFIDENCE_MIN}, OCR_LANG_SCORE_MIN={OCR_LANG_SCORE_MIN}")
+        print(f"OCR_CONFIDENCE_MIN={ocr_confidence_min}, OCR_LANG_SCORE_MIN={ocr_lang_score_min}")
 
         if incremental:
             images_and_texts_results = await images_repo.get_images_and_ocr_texts_without_tags("OCR")
@@ -48,7 +48,7 @@ async def main(incremental: bool):
 
         async with TagsSaver(session) as tags_saver:
             for filename, image_id, text, confidence, lang_score in images_and_texts_results:
-                if not passes_language_filter(confidence, lang_score, OCR_CONFIDENCE_MIN, OCR_LANG_SCORE_MIN):
+                if not passes_language_filter(confidence, lang_score, ocr_confidence_min, ocr_lang_score_min):
                     metrics.increment("images.skipped")
                     tracker.skip()
                     continue
@@ -68,7 +68,9 @@ async def main(incremental: bool):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     parser.add_argument("--incremental", action="store_true",
                         help="Only process images that have no OCR tags yet (default: clear all and reprocess)")
     args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main(args.incremental))

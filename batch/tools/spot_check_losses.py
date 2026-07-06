@@ -3,18 +3,20 @@ Spot-check token shapes causing losses for a set of tags.
 Usage: python batch/tools/spot_check_losses.py
 """
 import asyncio
-import os
 import sys
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
 from repository.images import ImagesRepository
 from rules.concept_tagger import ConceptTagger
 from rules.engine import RulesEngine
 from rules.normalize import tokenize
+
+load_env()
 
 TAGS_TO_CHECK = [
     "тема:мать",
@@ -24,7 +26,10 @@ TAGS_TO_CHECK = [
     "тема:волки",
 ]
 
-PROFILE = os.environ.get("PROFILE", "general")
+# Pre-existing inconsistency, not fixed by this migration: PROFILE differs from
+# TAGGING_PROFILE used everywhere else; no environment sets PROFILE, so this
+# always resolves to "general" regardless of APP_ENV (see ADR 2026-07-05, decision 7).
+PROFILE = settings.get("PROFILE", "general")
 JSON_PATH = f"batch/data/rules.{PROFILE}.json"
 DATA_DIR = Path("batch/data/tagging")
 
