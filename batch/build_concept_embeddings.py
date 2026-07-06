@@ -252,9 +252,9 @@ def load_json(path: str) -> dict | list:
 
 
 async def main():
-    text_concepts_file = settings.get("TEXT_CONCEPTS_FILE")
-    templates_file = settings.get("TEXT_CONCEPTS_TEMPLATES_FILE")
-    images_dir = settings.get("CONCEPT_IMAGES_DIR")
+    text_concepts_file = settings.get("CONCEPTS.TEXT_CONCEPTS_FILE")
+    templates_file = settings.get("CONCEPTS.TEXT_CONCEPTS_TEMPLATES_FILE")
+    images_dir = settings.get("CONCEPTS.IMAGES_DIR")
 
     text_concepts = load_json(text_concepts_file)
     templates = load_json(templates_file)

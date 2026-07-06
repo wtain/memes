@@ -12,9 +12,9 @@ from repository.tags import TagsRepository, TagsSaver
 async def main():
     TAG_KIND = "CONCEPT"
 
-    mapping_file = settings.get("CONCEPT_MAPPING_FILE")
-    default_threshold = settings.CONCEPT_THRESHOLD
-    default_limit = settings.CONCEPT_LIMIT
+    mapping_file = settings.get("CONCEPTS.MAPPING_FILE")
+    default_threshold = settings.CONCEPTS.THRESHOLD
+    default_limit = settings.CONCEPTS.LIMIT
 
     print(f"CONCEPT_MAPPING_FILE={mapping_file}")
     print(f"default threshold={default_threshold}, default limit={default_limit}")

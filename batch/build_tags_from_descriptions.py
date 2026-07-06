@@ -9,7 +9,7 @@ from rules.engine import RulesEngine
 
 
 async def main(incremental: bool):
-    rules_engine = RulesEngine(settings.get("RULES_FILE"))
+    rules_engine = RulesEngine(settings.get("RULES.FILE"))
 
     async with AsyncSessionLocal() as session:
         tags_repo = TagsRepository(session)
