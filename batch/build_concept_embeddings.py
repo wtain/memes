@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import csv
 import json
@@ -12,6 +13,7 @@ from typing import Protocol
 import numpy as np
 
 from ai.clip import ClipModel
+from config.settings import settings, load_env
 from embeddingutils.image import load_image
 from Storage.db import AsyncSessionLocal
 from Storage.models import Concept, ConceptImageSet, ConceptImage
@@ -250,9 +252,9 @@ def load_json(path: str) -> dict | list:
 
 
 async def main():
-    text_concepts_file = os.getenv("TEXT_CONCEPTS_FILE")
-    templates_file = os.getenv("TEXT_CONCEPTS_TEMPLATES_FILE")
-    images_dir = os.getenv("CONCEPT_IMAGES_DIR")
+    text_concepts_file = settings.get("TEXT_CONCEPTS_FILE")
+    templates_file = settings.get("TEXT_CONCEPTS_TEMPLATES_FILE")
+    images_dir = settings.get("CONCEPT_IMAGES_DIR")
 
     text_concepts = load_json(text_concepts_file)
     templates = load_json(templates_file)
@@ -270,4 +272,9 @@ async def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
+                        help="Environment to load config/secrets for (falls back to APP_ENV)")
+    args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main())

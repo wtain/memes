@@ -1,18 +1,16 @@
 import argparse
 import asyncio
-import os
 
+from config.settings import settings, load_env
 from Storage.db import AsyncSessionLocal
 from repository.images import ImagesRepository
 from repository.tags import TagsRepository, TagsSaver
 from rules.engine import RulesEngine
 
-RULES_FILE = os.getenv("RULES_FILE")
-
-rules_engine = RulesEngine(RULES_FILE)
-
 
 async def main(incremental: bool):
+    rules_engine = RulesEngine(settings.get("RULES_FILE"))
+
     async with AsyncSessionLocal() as session:
         tags_repo = TagsRepository(session)
         images_repo = ImagesRepository(session)
@@ -38,7 +36,10 @@ async def main(incremental: bool):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
+                        help="Environment to load config/secrets for (falls back to APP_ENV)")
     parser.add_argument("--incremental", action="store_true",
                         help="Only process images that have no Ollama tags yet (default: clear all and reprocess)")
     args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main(args.incremental))

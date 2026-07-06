@@ -1,7 +1,9 @@
+import argparse
 import asyncio
 import os
 
 from ai.yolo import YoloAnimalDetector
+from config.settings import load_env
 from Storage.db import AsyncSessionLocal
 
 from repository.images import ImagesRepository
@@ -49,5 +51,10 @@ async def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
+                        help="Environment to load config/secrets for (falls back to APP_ENV)")
+    args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main())
 

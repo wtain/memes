@@ -1,22 +1,20 @@
+import argparse
 import asyncio
 import json
-import os
 
+from config.settings import settings, load_env
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
 from repository.concepts import ConceptsRepository
 from repository.tags import TagsRepository, TagsSaver
 
-DEFAULT_THRESHOLD = 0.2
-DEFAULT_LIMIT = 50
-
 
 async def main():
     TAG_KIND = "CONCEPT"
 
-    mapping_file = os.getenv("CONCEPT_MAPPING_FILE")
-    default_threshold = float(os.getenv("CONCEPT_THRESHOLD", str(DEFAULT_THRESHOLD)))
-    default_limit = int(os.getenv("CONCEPT_LIMIT", str(DEFAULT_LIMIT)))
+    mapping_file = settings.get("CONCEPT_MAPPING_FILE")
+    default_threshold = settings.CONCEPT_THRESHOLD
+    default_limit = settings.CONCEPT_LIMIT
 
     print(f"CONCEPT_MAPPING_FILE={mapping_file}")
     print(f"default threshold={default_threshold}, default limit={default_limit}")
@@ -62,4 +60,9 @@ async def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
+                        help="Environment to load config/secrets for (falls back to APP_ENV)")
+    args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main())

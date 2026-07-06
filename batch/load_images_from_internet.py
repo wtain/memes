@@ -1,13 +1,12 @@
+import argparse
 import asyncio
 
 import aiohttp
-from dotenv import load_dotenv
 from serpapi import GoogleSearch
 import os
 
-load_dotenv()
+from config.settings import load_env
 
-SERP_API_KEY = os.getenv('SERP_API_KEY')
 
 def normalize_query(q: str) -> str:
     return q.lower().replace(" ", "-")
@@ -27,7 +26,7 @@ def fetch_results(query, max_images=100):
     params = {
         "q": query,
         "tbm": "isch",
-        "api_key": SERP_API_KEY,
+        "api_key": os.getenv("SERP_API_KEY"),
     }
 
     search = GoogleSearch(params)
@@ -144,4 +143,9 @@ async def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
+                        help="Environment to load config/secrets for (falls back to APP_ENV)")
+    args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main())

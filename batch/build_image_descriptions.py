@@ -3,6 +3,7 @@ import asyncio
 import os
 
 from ai.ollama import OllamaImageDescriber
+from config.settings import load_env
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
 from repository.images import ImagesRepository
@@ -61,7 +62,10 @@ async def main(incremental: bool):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
+                        help="Environment to load config/secrets for (falls back to APP_ENV)")
     parser.add_argument("--incremental", action="store_true",
                         help="Only describe images that have no description yet (default: clear all and reprocess)")
     args = parser.parse_args()
+    load_env(args.env)
     asyncio.run(main(args.incremental))
