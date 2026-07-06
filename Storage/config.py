@@ -1,9 +1,6 @@
-from dotenv import load_dotenv
-import os
+from config.settings import settings
 
-load_dotenv()
-
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = settings.get('DATABASE_URL')
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not set")

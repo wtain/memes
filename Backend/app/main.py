@@ -1,9 +1,7 @@
 import logging
-import os
 from contextlib import asynccontextmanager
 
 import uvicorn
-from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +17,7 @@ from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.trends import router as trends_router
 from Backend.app.api.uploads import router as uploads_router
 from Backend.app.api.bug_reports import router as bug_reports_router
-
-load_dotenv()
+from config.settings import settings
 
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
 _LOG_DATEFMT = "%Y-%m-%dT%H:%M:%S"
@@ -68,8 +65,8 @@ async def lifespan(_app: FastAPI):
 
 
 _extra_origins = [
-    os.getenv('FRONTEND_ORIGIN'),
-    os.getenv('ALTERNATIVE_FRONTEND_ORIGIN'),
+    settings.get('FRONTEND_ORIGIN'),
+    settings.get('ALTERNATIVE_FRONTEND_ORIGIN'),
 ]
 
 app = FastAPI(

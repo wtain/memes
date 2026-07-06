@@ -1,20 +1,17 @@
-import os
 from pathlib import Path
 from typing import List
 
-from dotenv import load_dotenv
+from config.settings import settings
 
-load_dotenv()
-
-_images_dir = os.getenv('BASE_PATH')
+_images_dir = settings.get('BASE_PATH')
 if not _images_dir:
     raise RuntimeError("BASE_PATH environment variable is required but not set")
 _IMAGES_DIR = Path(_images_dir)
 
-_incoming_raw = os.getenv('INCOMING_PATH')
+_incoming_raw = settings.get('INCOMING_PATH')
 _INCOMING_DIR = Path(_incoming_raw) if _incoming_raw else _IMAGES_DIR / "incoming"
 
-_bug_reports_raw = os.getenv('BUG_REPORTS_PATH')
+_bug_reports_raw = settings.get('BUG_REPORTS_PATH')
 _BUG_REPORTS_DIR = Path(_bug_reports_raw) if _bug_reports_raw else _IMAGES_DIR / "bug_reports"
 
 
