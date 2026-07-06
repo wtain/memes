@@ -93,7 +93,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 
 ```
 environments/.env.*       ← per-environment secrets (DATABASE_URL, BASE_PATH, SERP_API_KEY, …)
-environments/settings*.yaml ← per-environment tracked config (RULES_FILE, TAGGING_PROFILE, …)
+environments/settings*.yaml ← per-environment tracked config, grouped by domain (rules.*, bow.*, concepts.*, ollama.*, lemma_clustering.*, ocr.*, general.*)
 config/settings.py         ← Dynaconf loader shared by Backend and batch — see Configuration below
 Storage/models.py         ← single source of truth for all SQLAlchemy ORM models
 Storage/db.py             ← AsyncSessionLocal, get_async_db dependency
@@ -191,9 +191,9 @@ Two implementations coexist:
 
 `rules/normalize.py` is shared by both engines and `build_bow.py` — use it for all text normalization to keep behavior consistent.
 
-**Concept discovery** (drafting new entries for the new design): `build_lemma_clusters` embeds `build_bow`'s unmatched lemmas (sbert) and clusters them per-language (HDBSCAN; `CLUSTER_SELECTION_METHOD=leaf` avoids one oversized "catch-all" cluster that the default `eom` tends to produce), optionally naming each cluster via Ollama. `draft_concepts_from_clusters` then takes the top N clusters and appends draft entries to `concepts.<env>.yaml` + `tags.<env>.yaml` for human review. Both are chained together by the `/draft-lemma-concepts` Claude Code command (`.claude/commands/draft-lemma-concepts.md`), which also commits the raw draft before review and again after.
+**Concept discovery** (drafting new entries for the new design): `build_lemma_clusters` embeds `build_bow`'s unmatched lemmas (sbert) and clusters them per-language (HDBSCAN; `lemma_clustering.selection_method: leaf` avoids one oversized "catch-all" cluster that the default `eom` tends to produce), optionally naming each cluster via Ollama. `draft_concepts_from_clusters` then takes the top N clusters and appends draft entries to `concepts.<env>.yaml` + `tags.<env>.yaml` for human review. Both are chained together by the `/draft-lemma-concepts` Claude Code command (`.claude/commands/draft-lemma-concepts.md`), which also commits the raw draft before review and again after.
 
-`BOW_IGNORE_FILE` (`batch/data/ignore-words.<env>.json`) edits only take effect after the next `build_bow` run — `build_lemma_clusters` reads `build_bow`'s output (`bow.unmatched.<env>.json`), never the ignore file itself, so a stale unmatched file will keep surfacing already-ignored words until `build_bow` is rerun.
+`bow.ignore_file` (`batch/data/ignore-words.<env>.json`) edits only take effect after the next `build_bow` run — `build_lemma_clusters` reads `build_bow`'s output (`bow.unmatched.<env>.json`), never the ignore file itself, so a stale unmatched file will keep surfacing already-ignored words until `build_bow` is rerun.
 
 ### Frontend
 
@@ -221,7 +221,7 @@ Config is split by whether it's safe to commit:
 - **Secrets** (`environments/.env.<environment>`, gitignored): `APP_ENV`, `DATABASE_URL`, `BASE_PATH`, `SERP_API_KEY`, LAN-facing origins. Loaded by uvicorn's `--env-file` flag (Backend) or `config.settings.load_env()` (batch).
 - **Tracked config** (`environments/settings.yaml` + `settings.<environment>.yaml`, committed): tuning parameters, feature flags, repo-relative paths, deterministic localhost origins. Loaded by `config/settings.py` (Dynaconf), merging the common file with the active environment's override file.
 
-Both layers are read through the single `settings` object in `config/settings.py` — `from config.settings import settings; settings.SOME_KEY`. `os.environ` always wins over tracked YAML (e.g. `DATABASE_URL` only ever comes from the `.env` layer, never from `settings.yaml`).
+Both layers are read through the single `settings` object in `config/settings.py`. Tracked config is grouped by domain — `ocr`, `rules`, `bow`, `lemma_clustering`, `concepts`, `ollama`, `general` (cross-cutting keys with no single domain owner) — so access is `settings.GROUP.KEY` for keys guaranteed present in that group across all three environments, or `settings.get("GROUP.KEY")` (one dotted-path string) for keys that may be entirely absent for an environment (e.g. `it` has no `rules.file`). See `docs/superpowers/specs/2026-07-06-config-settings-hierarchical-structure.md` for the full key inventory and grouping rationale. `os.environ` always wins over tracked YAML (e.g. `DATABASE_URL` only ever comes from the `.env` layer, never from `settings.yaml`).
 
 `APP_ENV` (`metal`/`general`/`it`) selects which environment's YAML overlay and `.env.<environment>` file are used; it defaults to `general` if unset. Backend gets it from `--env-file` (already in `os.environ` by the time `config.settings` is imported). Batch scripts take an explicit `--env {metal,general,it}` CLI flag (falls back to `APP_ENV` if already set) and must call `config.settings.load_env(args.env)` as the first thing in `main()` — never read `settings.X` before that call, since the module-level `settings` object is built once at import time using whatever `APP_ENV` happens to already be in the shell.
 

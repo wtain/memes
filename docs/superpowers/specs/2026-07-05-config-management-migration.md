@@ -1,4 +1,4 @@
-STATUS: DRAFT
+STATUS: IMPLEMENTED
 
 # Config management migration: Dynaconf-backed tracked config, secrets-only .env
 

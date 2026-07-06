@@ -221,7 +221,7 @@ Each environment has its own database, image directory, and configuration.
 Config is split by whether it's safe to commit:
 
 - **Secrets** (`environments/.env.<environment>`, gitignored): `DATABASE_URL`, `BASE_PATH`, API keys, LAN-facing origins. Loaded by uvicorn's `--env-file` flag (backend) or automatically by batch scripts via their `--env` flag.
-- **Tracked config** (`environments/settings.yaml` + `settings.<environment>.yaml`, committed to git): tuning parameters, feature flags, rule/data file paths — things like `RULES_FILE`, `CONCEPT_THRESHOLD`, `BOW_OUTPUT_FILE`. You don't set these in your shell; they're resolved automatically for the active environment.
+- **Tracked config** (`environments/settings.yaml` + `settings.<environment>.yaml`, committed to git): tuning parameters, feature flags, rule/data file paths, grouped by domain — things like `rules.file`, `concepts.threshold`, `bow.output_file`. You don't set these in your shell; they're resolved automatically for the active environment.
 
 You never need to manually "source" the YAML files — passing `--env-file environments/.env.<environment>` to uvicorn, or `--env <environment>` to a batch script, is enough; the tracked YAML is picked up transparently based on the `APP_ENV` value inside that same `.env` file.
 
@@ -296,7 +296,7 @@ Optional data maintenance (run as needed):
 5. **build_tags_from_ocr** - Rule-based tag generation from OCR text
    - Applies pattern rules to extracted text
    - Generates categorical tags for navigation
-   - Config (tracked, per environment): `RULES_FILE`, `RULES_LEMMATIZE` (default `false`), `RULES_FUZZY_THRESHOLD` (default `80`)
+   - Config (tracked, per environment): `rules.file`, `rules.lemmatize` (default `false`), `RULES_FUZZY_THRESHOLD` (default `80`, mentioned here historically but not currently read by any code — treat as stale)
 
 6. **build_image_descriptions** - Generate AI descriptions (requires Ollama)
    - Calls local Ollama LLM to generate image descriptions
@@ -349,22 +349,22 @@ Optional data maintenance (run as needed):
     - Requires `BASE_PATH` (secret env var) pointing to the image directory
 
 16. **tag_images_from_concepts** - Assign concept-derived tags to top-matching images
-    - Reads a JSON mapping file (`CONCEPT_MAPPING_FILE`) that maps concept names to `{key, value}` tag definitions
+    - Reads a JSON mapping file (`concepts.mapping_file`) that maps concept names to `{key, value}` tag definitions
     - Iterates all concepts in the DB; concepts with no mapping entry are skipped (counted in metrics)
     - For each mapped concept, fetches top-matching images via cosine similarity on concept embeddings
     - Tags those images with the mapped `{key, value}` (source: `CONCEPT`); wipes all `CONCEPT` tags before each run
-    - Config (tracked, per environment): `CONCEPT_MAPPING_FILE`, `CONCEPT_THRESHOLD` (default `0.2`), `CONCEPT_LIMIT` (default `50`)
+    - Config (tracked, per environment): `concepts.mapping_file`, `concepts.threshold` (default `0.2`), `concepts.limit` (default `50`)
     - Mapping format: `{"Concept Name": {"key": "genre", "value": "glam_metal", "threshold": 0.15, "limit": 30}, ...}` (`threshold` and `limit` are optional per-concept overrides)
 
 17. **build_bow** - Build a bag-of-words frequency report from text data
     - Lemmatizes all words via pymorphy3 (same tokenization as the rules engine)
-    - Source controlled by `TEXT_SOURCE` config key: `ocr` (default) or `descriptions`
+    - Source controlled by `bow.text_source` config key: `ocr` (default) or `descriptions`
     - OCR mode: output is split per detected language `{"ru": {"кот": 145, ...}, "en": {...}}`
     - Descriptions mode: flat `{"cat": 30, ...}` (no language field on descriptions)
-    - Optional ignore list (`BOW_IGNORE_FILE`): JSON array of words to exclude from all outputs; words are lemmatized on load so any inflected form works
-    - Optional rules coverage check (`RULES_FILE`): lemmatizes all rule keys and writes a second output (`BOW_UNMATCHED_FILE`) containing only lemmas not yet covered by any rule — use this to find gaps in rule coverage
+    - Optional ignore list (`bow.ignore_file`): JSON array of words to exclude from all outputs; words are lemmatized on load so any inflected form works
+    - Optional rules coverage check (`rules.file`): lemmatizes all rule keys and writes a second output (`bow.unmatched_file`) containing only lemmas not yet covered by any rule — use this to find gaps in rule coverage
     - Prints rules coverage summary: `X/N lemmas matched, M unmatched`
-    - Config (tracked, per environment): `BOW_OUTPUT_FILE` required; `BOW_UNMATCHED_FILE` required when `RULES_FILE` is set; optional: `TEXT_SOURCE` (default `ocr`), `BOW_MIN_WORD_LENGTH` (default `3`), `BOW_MIN_FREQUENCY` (default `2`), `OCR_CONFIDENCE_MIN` (default `0.4`, OCR only), `BOW_IGNORE_FILE`, `RULES_FILE`
+    - Config (tracked, per environment): `bow.output_file` required; `bow.unmatched_file` required when `rules.file` is set; optional: `bow.text_source` (default `ocr`), `bow.min_word_length` (default `3`), `bow.min_frequency` (default `2`), `ocr.confidence_min` (default `0.4`, OCR only), `bow.ignore_file`, `rules.file`
 
 **Batch job notes**:
 - Most jobs clear and rebuild all results (idempotent)
@@ -432,7 +432,7 @@ Test data is externalised under `tests/rules/fixtures/`:
 - `rules.json` — rule definitions used as test input; optional `_thresholds` dict sets per-rule fuzzy match thresholds
 - `test_cases.json` — input texts with expected and unexpected tag assertions for `get_tags_for_text`, `get_tags_for_ocr_text`, and `get_tags_for_ocr_text_lemmatized`
 
-**Lemmatized OCR matching** (`RULES_LEMMATIZE=true`): OCR text is word-tokenized and each token is reduced to its pymorphy3 normal form; rule keys are pre-lemmatized at engine init. Matching uses `rapidfuzz.fuzz.ratio` to tolerate OCR character errors. Requires `pymorphy3` and `rapidFuzz`; lemmatized tests are skipped automatically if either package is absent.
+**Lemmatized OCR matching** (`rules.lemmatize: true`): OCR text is word-tokenized and each token is reduced to its pymorphy3 normal form; rule keys are pre-lemmatized at engine init. Matching uses `rapidfuzz.fuzz.ratio` to tolerate OCR character errors. Requires `pymorphy3` and `rapidFuzz`; lemmatized tests are skipped automatically if either package is absent.
 
 **Testing Strategy**: Under active development. Planned approaches:
 - Integration tests for batch jobs
