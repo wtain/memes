@@ -146,9 +146,13 @@ memes/
 ├── embeddingutils/        # Embedding utilities
 ├── shared/                # Shared utilities and schemas
 ├── environments/          # Environment-specific configs
-│   ├── .env.metal
+│   ├── .env.metal             # secrets: DATABASE_URL, BASE_PATH, ...
 │   ├── .env.general
-│   └── .env.it
+│   ├── .env.it
+│   ├── settings.yaml           # tracked config: shared defaults
+│   ├── settings.metal.yaml     # tracked config: per-environment overrides
+│   ├── settings.general.yaml
+│   └── settings.it.yaml
 ├── documents/             # Project documentation
 └── Readme.md
 ```
@@ -197,20 +201,29 @@ The project supports three independent meme environments:
 
 1. **Metal Memes** (metal music culture)
    - Port: 8081
-   - Config: `environments/.env.metal`
+   - Config: `environments/.env.metal` (secrets) + `environments/settings.metal.yaml` (tracked)
    - Focus: Heavy metal, rock music, subcultures
 
 2. **General Memes** (broad internet culture)
    - Port: 8082
-   - Config: `environments/.env.general`
+   - Config: `environments/.env.general` (secrets) + `environments/settings.general.yaml` (tracked)
    - Focus: Wide variety of memes with some exclusions
 
 3. **IT Memes** (software development culture)
    - Port: 8083
-   - Config: `environments/.env.it`
+   - Config: `environments/.env.it` (secrets) + `environments/settings.it.yaml` (tracked)
    - Focus: Programming, DevOps, tech industry humor
 
 Each environment has its own database, image directory, and configuration.
+
+### Configuration
+
+Config is split by whether it's safe to commit:
+
+- **Secrets** (`environments/.env.<environment>`, gitignored): `DATABASE_URL`, `BASE_PATH`, API keys, LAN-facing origins. Loaded by uvicorn's `--env-file` flag (backend) or automatically by batch scripts via their `--env` flag.
+- **Tracked config** (`environments/settings.yaml` + `settings.<environment>.yaml`, committed to git): tuning parameters, feature flags, rule/data file paths — things like `RULES_FILE`, `CONCEPT_THRESHOLD`, `BOW_OUTPUT_FILE`. You don't set these in your shell; they're resolved automatically for the active environment.
+
+You never need to manually "source" the YAML files — passing `--env-file environments/.env.<environment>` to uvicorn, or `--env <environment>` to a batch script, is enough; the tracked YAML is picked up transparently based on the `APP_ENV` value inside that same `.env` file.
 
 ### Running Backend for Each Environment
 
@@ -283,7 +296,7 @@ Optional data maintenance (run as needed):
 5. **build_tags_from_ocr** - Rule-based tag generation from OCR text
    - Applies pattern rules to extracted text
    - Generates categorical tags for navigation
-   - Env vars: `RULES_FILE` (required), `RULES_LEMMATIZE` (default `false`), `RULES_FUZZY_THRESHOLD` (default `80`)
+   - Config (tracked, per environment): `RULES_FILE`, `RULES_LEMMATIZE` (default `false`), `RULES_FUZZY_THRESHOLD` (default `80`)
 
 6. **build_image_descriptions** - Generate AI descriptions (requires Ollama)
    - Calls local Ollama LLM to generate image descriptions
@@ -333,32 +346,32 @@ Optional data maintenance (run as needed):
     - Runs YOLOv8 object detection on every registered image (skips `.webp`)
     - Tags detected animals under `key=animal` and objects under `key=object` (source: `YOLO`)
     - Wipes all `YOLO` tags before each run (full rebuild)
-    - Requires `BASE_PATH` env var pointing to the image directory
+    - Requires `BASE_PATH` (secret env var) pointing to the image directory
 
 16. **tag_images_from_concepts** - Assign concept-derived tags to top-matching images
     - Reads a JSON mapping file (`CONCEPT_MAPPING_FILE`) that maps concept names to `{key, value}` tag definitions
     - Iterates all concepts in the DB; concepts with no mapping entry are skipped (counted in metrics)
     - For each mapped concept, fetches top-matching images via cosine similarity on concept embeddings
     - Tags those images with the mapped `{key, value}` (source: `CONCEPT`); wipes all `CONCEPT` tags before each run
-    - Configurable via env vars: `CONCEPT_MAPPING_FILE` (required), `CONCEPT_THRESHOLD` (default `0.2`), `CONCEPT_LIMIT` (default `50`)
+    - Config (tracked, per environment): `CONCEPT_MAPPING_FILE`, `CONCEPT_THRESHOLD` (default `0.2`), `CONCEPT_LIMIT` (default `50`)
     - Mapping format: `{"Concept Name": {"key": "genre", "value": "glam_metal", "threshold": 0.15, "limit": 30}, ...}` (`threshold` and `limit` are optional per-concept overrides)
 
 17. **build_bow** - Build a bag-of-words frequency report from text data
     - Lemmatizes all words via pymorphy3 (same tokenization as the rules engine)
-    - Source controlled by `TEXT_SOURCE` env var: `ocr` (default) or `descriptions`
+    - Source controlled by `TEXT_SOURCE` config key: `ocr` (default) or `descriptions`
     - OCR mode: output is split per detected language `{"ru": {"кот": 145, ...}, "en": {...}}`
     - Descriptions mode: flat `{"cat": 30, ...}` (no language field on descriptions)
     - Optional ignore list (`BOW_IGNORE_FILE`): JSON array of words to exclude from all outputs; words are lemmatized on load so any inflected form works
     - Optional rules coverage check (`RULES_FILE`): lemmatizes all rule keys and writes a second output (`BOW_UNMATCHED_FILE`) containing only lemmas not yet covered by any rule — use this to find gaps in rule coverage
     - Prints rules coverage summary: `X/N lemmas matched, M unmatched`
-    - Required env vars: `BOW_OUTPUT_FILE`; `BOW_UNMATCHED_FILE` is required when `RULES_FILE` is set
-    - Optional env vars: `TEXT_SOURCE` (default `ocr`), `BOW_MIN_WORD_LENGTH` (default `3`), `BOW_MIN_FREQUENCY` (default `2`), `OCR_CONFIDENCE_MIN` (default `0.4`, OCR only), `BOW_IGNORE_FILE`, `RULES_FILE`
+    - Config (tracked, per environment): `BOW_OUTPUT_FILE` required; `BOW_UNMATCHED_FILE` required when `RULES_FILE` is set; optional: `TEXT_SOURCE` (default `ocr`), `BOW_MIN_WORD_LENGTH` (default `3`), `BOW_MIN_FREQUENCY` (default `2`), `OCR_CONFIDENCE_MIN` (default `0.4`, OCR only), `BOW_IGNORE_FILE`, `RULES_FILE`
 
 **Batch job notes**:
 - Most jobs clear and rebuild all results (idempotent)
 - Exception: `extract_text_from_memes` is pseudo-incremental
 - `rebuild_duplicates` literally drops table and recreates with indexes
 - `experimental/` package contains adhoc tools not in main pipeline
+- Every job takes a `--env {metal,general,it}` flag selecting which environment's secrets and tracked config to load (falls back to `APP_ENV` if already set in the shell), e.g. `python -m batch.build_tags_from_ocr --env general`
 
 **Potential refactoring considerations**:
 - `rebuild_duplicates` + `clusterize` => might be merged into a single batch

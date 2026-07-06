@@ -51,6 +51,9 @@ cd Backend && pytest
 # Rules engine unit tests (no DB, no I/O)
 pytest tests/rules/
 
+# Config loading integration tests (fixture .env files, no real secrets touched)
+pytest batch/tests/
+
 # Single test file
 cd Backend && pytest tests/test_images_endpoints.py
 pytest tests/rules/test_engine.py
@@ -89,7 +92,9 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 ### Layer structure
 
 ```
-environments/.env.*       ← per-environment config (DATABASE_URL, BASE_PATH, RULES_FILE, …)
+environments/.env.*       ← per-environment secrets (DATABASE_URL, BASE_PATH, SERP_API_KEY, …)
+environments/settings*.yaml ← per-environment tracked config (RULES_FILE, TAGGING_PROFILE, …)
+config/settings.py         ← Dynaconf loader shared by Backend and batch — see Configuration below
 Storage/models.py         ← single source of truth for all SQLAlchemy ORM models
 Storage/db.py             ← AsyncSessionLocal, get_async_db dependency
 repository/               ← global data access layer (async, repo pattern)
@@ -209,6 +214,19 @@ Two venvs exist: `.venv` (Python 3.13) and `.venv311` (Python 3.11). The project
 | `requirements-cuda.txt` | Overrides for NVIDIA GPU — includes `--extra-index-url` for PyTorch |
 | `requirements-dev.txt` | Dev tools: `autoflake`, `black`, `isort`, `pytest*`, `coverage` |
 
+### Configuration
+
+Config is split by whether it's safe to commit:
+
+- **Secrets** (`environments/.env.<environment>`, gitignored): `APP_ENV`, `DATABASE_URL`, `BASE_PATH`, `SERP_API_KEY`, LAN-facing origins. Loaded by uvicorn's `--env-file` flag (Backend) or `config.settings.load_env()` (batch).
+- **Tracked config** (`environments/settings.yaml` + `settings.<environment>.yaml`, committed): tuning parameters, feature flags, repo-relative paths, deterministic localhost origins. Loaded by `config/settings.py` (Dynaconf), merging the common file with the active environment's override file.
+
+Both layers are read through the single `settings` object in `config/settings.py` — `from config.settings import settings; settings.SOME_KEY`. `os.environ` always wins over tracked YAML (e.g. `DATABASE_URL` only ever comes from the `.env` layer, never from `settings.yaml`).
+
+`APP_ENV` (`metal`/`general`/`it`) selects which environment's YAML overlay and `.env.<environment>` file are used; it defaults to `general` if unset. Backend gets it from `--env-file` (already in `os.environ` by the time `config.settings` is imported). Batch scripts take an explicit `--env {metal,general,it}` CLI flag (falls back to `APP_ENV` if already set) and must call `config.settings.load_env(args.env)` as the first thing in `main()` — never read `settings.X` before that call, since the module-level `settings` object is built once at import time using whatever `APP_ENV` happens to already be in the shell.
+
+Caveat: batch scripts that import `Storage.db` at module level still require `DATABASE_URL` to already be in the shell — `Storage/config.py`'s own `RuntimeError` guard fires at import time, before `--env`/`load_env()` ever run. `--env` only replaces implicit shell-sourcing for *tracked* `settings.X` values read inside `main()`, not for this secret. See `docs/adr/adr-2026-07-05-config-management.md` for the full design rationale and `docs/superpowers/specs/2026-07-05-config-management-migration.md` for the migration details.
+
 ## Specs and implementation workflow
 
 ### Where specs live
@@ -237,7 +255,7 @@ Examples: `2026-06-29-ocr-safe-full-mode.md`, `2026-07-01-upload-endpoint.md`
 
 ## Key invariants
 
-- Env files live in `environments/` (not `Storage/`).
+- Env files (secrets) and tracked settings YAML both live in `environments/` (not `Storage/`) — see Configuration above.
 - `backend_api.md` must stay in sync with the actual routers.
 - Windows dev: `WATCHFILES_FORCE_POLLING=1` is required for uvicorn `--reload` to work.
 - AGP 8.5.2 requires Java 11+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
