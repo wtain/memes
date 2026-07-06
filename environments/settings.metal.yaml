@@ -1,0 +1,5 @@
+TAGGING_PROFILE: metal
+RULES_FILE: data/rules.json
+TEXT_CONCEPTS_FILE: data/text-concepts.metal.json
+TEXT_CONCEPTS_TEMPLATES_FILE: data/text-concepts.templates.metal.json
+CONCEPT_IMAGES_DIR: images

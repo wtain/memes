@@ -23,6 +23,7 @@ greenlet==3.3.0
 
 # Config
 python-dotenv==1.2.1
+dynaconf==3.3.2
 
 # Async foundations (transitive, pinned for reproducibility)
 anyio==4.12.1
