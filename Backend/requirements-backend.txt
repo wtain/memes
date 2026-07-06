@@ -11,3 +11,5 @@ pydantic==2.13.4
 python-dotenv==1.2.2
 python-multipart==0.0.32
 greenlet==3.5.3
+dynaconf==3.3.2
+PyYAML==6.0.2
