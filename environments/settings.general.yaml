@@ -21,3 +21,4 @@ lemma_clustering:
   # Empirically validated for this environment's OCR data (see CLAUDE.md's
   # Concept discovery note) — leaf avoids one oversized catch-all cluster.
   selection_method: leaf
+  OUTPUT_FILE: output/lemma_clusters.general.ru.yaml
