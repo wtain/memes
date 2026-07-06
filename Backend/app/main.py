@@ -65,7 +65,7 @@ async def lifespan(_app: FastAPI):
 
 
 _extra_origins = [
-    settings.get('FRONTEND_ORIGIN'),
+    settings.get('GENERAL.FRONTEND_ORIGIN'),
     settings.get('ALTERNATIVE_FRONTEND_ORIGIN'),
 ]
 
