@@ -6,6 +6,7 @@ Endpoints tested:
 - get_meme (single meme details)
 - mark_flagged / unmark_flagged / get_flagged
 - get_untagged_images
+- get_no_ocr_images
 - get_duplicate_images
 - get_image (file download)
 """
@@ -707,6 +708,106 @@ class TestGetUntaggedImages:
 
         # Test limit too low
         response = client.get("/api/images/untagged", params={"limit": 0})
+        assert response.status_code == 422
+
+
+class TestGetNoOcrImages:
+    """Tests for GET /api/images/no-ocr endpoint."""
+
+    def test_get_no_ocr_images_success(self, client, mock_image_service):
+        """Test getting no-OCR images successfully."""
+        # Arrange
+        mock_response = MemeSearchResponse(
+            items=[
+                Meme(
+                    id="no-ocr-1",
+                    imageUrl="/api/images/no-ocr-1",
+                    text=[],
+                    tags=[],
+                    originalFileName="no-ocr1.jpg",
+                    flagged=False
+                ),
+                Meme(
+                    id="no-ocr-2",
+                    imageUrl="/api/images/no-ocr-2",
+                    text=[],
+                    tags=[],
+                    originalFileName="no-ocr2.jpg",
+                    flagged=False
+                )
+            ],
+            nextCursor="next-no-ocr",
+            hasNext=True,
+            facets=[]
+        )
+        mock_image_service.get_no_ocr.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/no-ocr")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 2
+        assert data["items"][0]["id"] == "no-ocr-1"
+        assert len(data["items"][0]["text"]) == 0
+        assert data["hasNext"] is True
+        mock_image_service.get_no_ocr.assert_called_once()
+        call_kwargs = mock_image_service.get_no_ocr.call_args.kwargs
+        assert call_kwargs["limit"] == 20
+        assert call_kwargs["cursor"] is None
+
+    def test_get_no_ocr_images_with_limit(self, client, mock_image_service):
+        """Test getting no-OCR images with custom limit."""
+        # Arrange
+        mock_response = MemeSearchResponse(items=[], nextCursor=None, hasNext=False, facets=[])
+        mock_image_service.get_no_ocr.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/no-ocr", params={"limit": 50})
+
+        # Assert
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_no_ocr.call_args.kwargs
+        assert call_kwargs["limit"] == 50
+
+    def test_get_no_ocr_images_with_cursor(self, client, mock_image_service):
+        """Test pagination of no-OCR images with cursor."""
+        # Arrange
+        mock_response = MemeSearchResponse(items=[], nextCursor=None, hasNext=False, facets=[])
+        mock_image_service.get_no_ocr.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/no-ocr", params={"cursor": "cursor123"})
+
+        # Assert
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_no_ocr.call_args.kwargs
+        assert call_kwargs["cursor"] == "cursor123"
+
+    def test_get_no_ocr_images_empty_results(self, client, mock_image_service):
+        """Test getting no-OCR images when none found."""
+        # Arrange
+        mock_response = MemeSearchResponse(items=[], nextCursor=None, hasNext=False, facets=[])
+        mock_image_service.get_no_ocr.return_value = mock_response
+
+        # Act
+        response = client.get("/api/images/no-ocr")
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 0
+        assert data["hasNext"] is False
+
+    def test_get_no_ocr_images_limit_validation(self, client, mock_image_service):
+        """Test limit validation for no-OCR images endpoint."""
+        # Test limit too high
+        response = client.get("/api/images/no-ocr", params={"limit": 101})
+        assert response.status_code == 422
+
+        # Test limit too low
+        response = client.get("/api/images/no-ocr", params={"limit": 0})
         assert response.status_code == 422
 
 

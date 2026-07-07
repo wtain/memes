@@ -123,6 +123,18 @@ async def get_untagged_images(
 
 
 # Must be before /{image_id} endpoint
+@router.get("/no-ocr", response_model=MemeSearchResponse)
+async def get_no_ocr_images(
+    response: Response,
+    limit: int = Query(20, ge=1, le=100),
+    cursor: Optional[str] = None,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    return await service.get_no_ocr(cursor=cursor, limit=limit)
+
+
+# Must be before /{image_id} endpoint
 @router.get("/duplicates", response_model=MemeSearchResponse)
 async def get_duplicate_images(
     response: Response,
