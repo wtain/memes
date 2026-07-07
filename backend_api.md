@@ -439,6 +439,19 @@ Retrieve images that don't have any tags.
 - **Cache**: 30 seconds
 - **Example**: `GET /api/images/untagged?limit=30`
 
+#### Get No-OCR Images
+
+Retrieve images that have no OCR text at all.
+
+- **URL**: `/api/images/no-ocr`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `limit` (optional): Number of results (1-100, default: 20)
+  - `cursor` (optional): Pagination cursor for next page
+- **Response**: `MemeSearchResponse`
+- **Cache**: no-cache
+- **Example**: `GET /api/images/no-ocr?limit=30`
+
 #### Get Duplicate Images
 
 Find duplicate or near-duplicate images using clustering.
