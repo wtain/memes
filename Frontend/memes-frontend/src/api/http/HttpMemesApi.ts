@@ -59,6 +59,30 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
+  async iterateNoOcrMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse> {
+    let paramsString = ""
+    if (limit) {
+      paramsString += `limit=${limit}&`
+    }
+    if (cursor) {
+      paramsString += `cursor=${cursor}`
+    }
+    const response = await fetch(
+      `${this.baseUrl}/api/images/no-ocr?${paramsString}`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
   async iterateDuplicates(limit?: number, cursor?: string, threshold?: number): Promise<MemeSearchResponse> {
     let paramsString = ""
     if (limit) {
