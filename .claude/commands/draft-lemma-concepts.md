@@ -30,12 +30,13 @@ BASE_PATH=$(grep '^BASE_PATH=' environments/.env.<env> | cut -d= -f2-)
 
 `DATABASE_URL` is only needed to satisfy an import-time check in `Storage/db.py` — no live DB connection is actually made unless `LOOKUP_CONCEPTS=true`, which this command never sets. It just needs to be a syntactically valid Postgres URL, so reading it from the env file (even if that DB isn't currently reachable) is always safe.
 
-Run the clustering batch (`DATABASE_URL`/`BASE_PATH` stay as env vars — `Storage/db.py` only reads them from the environment; every other setting is passed as a CLI flag, which overrides the same-named env var if one happens to be set):
+`--env <env>` is required — `build_lemma_clusters.py` calls `config.settings.load_env(args.env)` as the first thing in `main()`, and raises `RuntimeError: No environment selected` if neither `--env` nor `APP_ENV` is set, before any of the CLI flags below are read. Every other setting is passed as an explicit CLI flag, which overrides the tracked-config default for that key once the environment is selected:
 
 ```bash
 DATABASE_URL="$DATABASE_URL" \
 BASE_PATH="$BASE_PATH" \
 .venv311/Scripts/python -m batch.build_lemma_clusters \
+  --env <env> \
   --bow-unmatched-file batch/output/bow.unmatched.<env>.json \
   --cluster-output-file batch/output/lemma_clusters.<env>.<language>.yaml \
   --language <language> \
