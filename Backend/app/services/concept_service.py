@@ -1,3 +1,5 @@
+from fastapi import HTTPException
+
 from Backend.app.repositories.concept_repository import ConceptRepository
 from Backend.app.types.generated.concept import Schema as ConceptDto
 from Backend.app.types.generated.meme import Schema as Meme
@@ -27,4 +29,6 @@ class ConceptService:
 
     async def get_for_image(self, image_id: str) -> list[ConceptDto]:
         rows = await self.repo.top_concepts_for_image(image_id)
+        if rows is None:
+            raise HTTPException(status_code=404, detail="No embedding found for this image")
         return [ConceptDto(id=id, name=name) for (name, id, avg_distance, ) in rows]

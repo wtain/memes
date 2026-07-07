@@ -35,7 +35,7 @@ class ConceptRepository(ConceptRepositoryBase):
         result = await self.session.execute(
             select(Embedding.embedding).filter(Embedding.image_id == image_id)
         )
-        return result.scalar_one()
+        return result.scalars().first()
 
     # deprecate
     async def get_for_image(self, image_embedding, limit: int = 10):
@@ -62,6 +62,8 @@ class ConceptRepository(ConceptRepositoryBase):
         c = Concept
 
         embedding = await self.get_image_embedding(image_id)
+        if embedding is None:
+            return None
         distance = ci.embedding.cosine_distance(embedding)
 
         subquery = (
