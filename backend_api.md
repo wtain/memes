@@ -366,7 +366,7 @@ Search for memes with optional query, facets, and pagination.
   - `facets` (optional): Facet filter string
   - `cursor` (optional): Pagination cursor for next page
 - **Response**: `MemeSearchResponse`
-- **Cache**: 30 seconds
+- **Cache**: no-cache
 - **Example**: `GET /api/images?q=funny&limit=50`
 
 #### Get Similar Images
@@ -436,8 +436,21 @@ Retrieve images that don't have any tags.
   - `limit` (optional): Number of results (1-100, default: 20)
   - `cursor` (optional): Pagination cursor for next page
 - **Response**: `MemeSearchResponse`
-- **Cache**: 30 seconds
+- **Cache**: no-cache
 - **Example**: `GET /api/images/untagged?limit=30`
+
+#### Get Flagged Images
+
+Retrieve images that have been marked as flagged.
+
+- **URL**: `/api/images/flagged`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `limit` (optional): Number of results (1-100, default: 20)
+  - `cursor` (optional): Pagination cursor for next page
+- **Response**: `MemeSearchResponse`
+- **Cache**: no-cache
+- **Example**: `GET /api/images/flagged?limit=30`
 
 #### Get No-OCR Images
 
@@ -463,7 +476,7 @@ Find duplicate or near-duplicate images using clustering.
   - `threshold` (optional): Similarity threshold (0.0-1.0, default: 0.05)
   - `cursor` (optional): Pagination cursor for next page
 - **Response**: `MemeSearchResponse`
-- **Cache**: 30 seconds
+- **Cache**: no-cache
 - **Example**: `GET /api/images/duplicates?threshold=0.1&limit=50`
 
 #### Get Image File
