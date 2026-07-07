@@ -33,6 +33,15 @@ export default function AppLayout() {
           </NavLink>
 
           <NavLink
+            to="/no-ocr"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            No OCR
+          </NavLink>
+
+          <NavLink
             to="/flagged"
             className={({ isActive }) =>
               isActive ? "font-semibold text-blue-600" : "text-gray-600"
