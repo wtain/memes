@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -146,6 +147,7 @@ private fun RecommendationsGrid(
         modifier = Modifier.fillMaxSize()
     ) {
         items(items, key = { it.id }) { meme ->
+            val placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
             Box(
                 modifier = Modifier
                     .aspectRatio(1f)
@@ -156,6 +158,7 @@ private fun RecommendationsGrid(
                     model = "http://localhost${meme.imageUrl}",
                     contentDescription = meme.originalFileName,
                     contentScale = ContentScale.Crop,
+                    placeholder = placeholder,
                     modifier = Modifier.fillMaxSize()
                 )
             }

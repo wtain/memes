@@ -80,6 +80,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -215,10 +216,15 @@ fun SearchScreen(
             }
         ) { paddingValues ->
             Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                } else {
-                    MemeGrid(
+                when {
+                    state.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    state.items.isEmpty() -> Text(
+                        text = "No results",
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    else -> MemeGrid(
                         items = state.items,
                         hasNext = state.hasNext,
                         isLoadingMore = state.isLoadingMore,
@@ -519,6 +525,7 @@ private fun MemeGrid(
 
 @Composable
 private fun MemeGridCell(meme: Meme, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant)
     Box(
         modifier = modifier
             .aspectRatio(1f)
@@ -529,6 +536,7 @@ private fun MemeGridCell(meme: Meme, onClick: () -> Unit, modifier: Modifier = M
             model = "http://localhost${meme.imageUrl}",
             contentDescription = meme.originalFileName,
             contentScale = ContentScale.Crop,
+            placeholder = placeholder,
             modifier = Modifier.fillMaxSize()
         )
         if (meme.flagged == true) {
