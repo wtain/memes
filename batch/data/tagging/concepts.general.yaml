@@ -2284,7 +2284,6 @@ stopping:
   - прекратиться
   - прекращать
   - останавливать
-  - прест
   votes:
     тема:перестать: 1.0
 # Ollama suggested: ""Walks"" (freq=224, size=10, from build_lemma_clusters)
@@ -2294,12 +2293,10 @@ walks:
   - гулять
   - выгулять
   - прогулка
-  - шет
   - погулять
   - пешком
   - ходьба
   - прогуливаться
-  - прогул
   votes:
     тема:ходить: 1.0
 # Ollama suggested: ""Searching"" (freq=223, size=6, from build_lemma_clusters)
