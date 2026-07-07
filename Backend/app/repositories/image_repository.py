@@ -190,6 +190,39 @@ class ImageRepository:
         )
         return results.all()
 
+    async def get_no_ocr(
+            self,
+            cursor_created_at: Optional[datetime],
+            cursor_id: Optional[uuid.UUID],
+            limit: int,
+    ):
+        img = aliased(Image)
+        ocr = aliased(OCRText)
+        extras = aliased(ImageExtras)
+
+        exists_subquery = (
+            select(ocr.image_id)
+            .where(ocr.image_id == img.id)
+            .correlate(img)
+            .exists()
+        )
+
+        query = (
+            select(img.id, img.filename, img.created_at, extras.flagged)
+            .outerjoin(extras, img.id == extras.image_id)
+            .where(~exists_subquery)
+        )
+
+        if cursor_created_at and cursor_id:
+            query = query.where(
+                tuple_(img.created_at, img.id) < tuple_(cursor_created_at, cursor_id)
+            )
+
+        results = await self.session.execute(
+            query.order_by(img.created_at.desc(), img.id.desc()).limit(limit + 1)
+        )
+        return results.all()
+
     # slow? index?
     async def get_duplicates(self,
                              cursor_created_at: Optional[datetime],

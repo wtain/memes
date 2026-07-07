@@ -155,6 +155,35 @@ class ImageService:
 
         return self._paginate_response(rows, items, limit)
 
+    async def get_no_ocr(
+            self,
+            cursor: Optional[str],
+            limit: int,
+    ) -> MemeSearchResponse:
+        cursor_created_at, cursor_id = self._decode_cursor(cursor)
+
+        rows = await self.repo.get_no_ocr(
+            cursor_created_at=cursor_created_at,
+            cursor_id=cursor_id,
+            limit=limit,
+        )
+
+        items = [
+            Meme(
+                id=str(r.id),
+                imageUrl=f"/api/images/{r.id}",
+                text=[],
+                tags=[],
+                originalFileName=r.filename,
+                flagged=r.flagged if r.flagged is not None else False
+            )
+            for r in rows
+        ]
+
+        await self._fill_texts_and_tags(items)
+
+        return self._paginate_response(rows, items, limit)
+
     async def get_duplicates(
             self,
             cursor: Optional[str],
