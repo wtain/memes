@@ -65,6 +65,15 @@ describe('MemesList', () => {
     })
   })
 
+  it('calls iterateNoOcrMemes instead of searchMemes when listNoOcr is true', async () => {
+    const api = makeMockApi()
+    render(<MemesList memesApi={api} listNoOcr />)
+    await waitFor(() => {
+      expect(api.iterateNoOcrMemes).toHaveBeenCalled()
+      expect(api.searchMemes).not.toHaveBeenCalled()
+    })
+  })
+
   it('invokes onFacetsChanged with facets from the response', async () => {
     const onFacetsChanged = vi.fn()
     const facets = [{ name: 'category', buckets: [{ value: 'cats', count: 5 }] }]

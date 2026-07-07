@@ -12,10 +12,11 @@ type MemesListProps = {
   listUntagged?: boolean
   listDuplicates?: boolean
   listFlagged?: boolean
+  listNoOcr?: boolean
   listRecommendations?: boolean
 }
 
-export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listFlagged, listRecommendations }: MemesListProps) {
+export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listFlagged, listNoOcr, listRecommendations }: MemesListProps) {
   const [memes, setMemes] = useState<Meme[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -96,6 +97,9 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
       if (listFlagged) {
         return await memesApi.iterateFlaggedMemes(40, next)
       }
+      if (listNoOcr) {
+        return await memesApi.iterateNoOcrMemes(21, next)
+      }
       if (listRecommendations) {
         return await memesApi.getRecommendations(filter, 36, next)
       }
@@ -106,7 +110,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
         tags,
       })
     }
-  }, [filter, tagFilters, memesApi, onFacetsChanged, listUntagged, listDuplicates, listFlagged, listRecommendations])
+  }, [filter, tagFilters, memesApi, onFacetsChanged, listUntagged, listDuplicates, listFlagged, listNoOcr, listRecommendations])
 
   useEffect(() => { loadMemesRef.current = loadMemes })
 
