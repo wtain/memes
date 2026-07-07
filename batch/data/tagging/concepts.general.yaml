@@ -2253,3 +2253,115 @@ photography:
   - картиночка
   votes:
     тема:фото: 1.0
+# Ollama suggested: "Appearance" (freq=274, size=2, from build_lemma_clusters)
+appearance:
+  words:
+  - выглядеть
+  - казаться
+  votes:
+    тема:выглядеть: 1.0
+# Ollama suggested: ""Мало"" (freq=247, size=5, from build_lemma_clusters)
+мало:
+  words:
+  - немного
+  - мало
+  - чуть
+  - немножко
+  - слегка
+  votes:
+    тема:немного: 1.0
+# Ollama suggested: "Stopping" (freq=245, size=12, from build_lemma_clusters)
+stopping:
+  words:
+  - перестать
+  - стоп
+  - остановить
+  - прекратить
+  - остановка
+  - переставать
+  - останавливаться
+  - остановиться
+  - прекратиться
+  - прекращать
+  - останавливать
+  - прест
+  votes:
+    тема:перестать: 1.0
+# Ollama suggested: ""Walks"" (freq=224, size=10, from build_lemma_clusters)
+walks:
+  words:
+  - ходить
+  - гулять
+  - выгулять
+  - прогулка
+  - шет
+  - погулять
+  - пешком
+  - ходьба
+  - прогуливаться
+  - прогул
+  votes:
+    тема:ходить: 1.0
+# Ollama suggested: ""Searching"" (freq=223, size=6, from build_lemma_clusters)
+searching:
+  words:
+  - искать
+  - поиск
+  - обыск
+  - ищущий
+  - разыскивать
+  - поискавый
+  votes:
+    тема:искать: 1.0
+# Ollama suggested: "News" (freq=223, size=3, from build_lemma_clusters)
+news:
+  words:
+  - новость
+  - вести
+  - вест
+  votes:
+    тема:новость: 1.0
+# Ollama suggested: "Water Signs" (freq=222, size=5, from build_lemma_clusters)
+water_signs:
+  words:
+  - вода
+  - водый
+  - водолей
+  - водный
+  - водяной
+  votes:
+    тема:вода: 1.0
+# Ollama suggested: ""Beginnings"" (freq=222, size=6, from build_lemma_clusters)
+beginnings:
+  words:
+  - начинать
+  - начаться
+  - начинаться
+  - запустить
+  - почеметь
+  - старт
+  votes:
+    тема:начинать: 1.0
+# Ollama suggested: ""Commenting"" (freq=220, size=8, from build_lemma_clusters)
+commenting:
+  words:
+  - комментарий
+  - комментировать
+  - коммент
+  - примечание
+  - замечание
+  - комент
+  - коментить
+  - прокомментит
+  votes:
+    тема:комментарий: 1.0
+# Ollama suggested: ""Normality"" (freq=218, size=5, from build_lemma_clusters)
+normality:
+  words:
+  - нормальный
+  - обычный
+  - типичный
+  - нормальна
+  - нормалёк
+  votes:
+    тема:нормальный: 1.0
