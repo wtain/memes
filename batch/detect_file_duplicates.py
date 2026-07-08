@@ -1,39 +1,14 @@
 import argparse
 import asyncio
-import hashlib
 import os
 
+from batch.utils.file_hash import files_are_identical, sha256_file
 from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
 from graph.uf import UnionFind
 from metrics.listener import SimpleMetricsListener
 from repository.image_extras import ImageExtrasRepository
 from repository.images import ImagesRepository
-
-CHUNK_SIZE = 65_536  # 64 KB
-
-
-def _sha256(path: str) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        while chunk := f.read(CHUNK_SIZE):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def _files_are_identical(paths: list) -> bool:
-    """Stream-compare all files chunk by chunk; True if all are byte-identical."""
-    handles = [open(p, "rb") for p in paths]
-    try:
-        while True:
-            chunks = [fh.read(CHUNK_SIZE) for fh in handles]
-            if len(set(chunks)) > 1:
-                return False
-            if not chunks[0]:  # all handles reached EOF simultaneously
-                return True
-    finally:
-        for fh in handles:
-            fh.close()
 
 
 async def main():
@@ -68,7 +43,7 @@ async def main():
             metrics.increment("hash.from_cache")
         else:
             try:
-                content_hash = _sha256(path)
+                content_hash = sha256_file(path)
                 hash_updates.append((image_id, content_hash))
                 metrics.increment("hash.computed")
             except OSError as e:
@@ -109,7 +84,7 @@ async def main():
 
             paths = [os.path.join(base_path, hashed[mid][0]) for mid in cluster]
 
-            if not _files_are_identical(paths):
+            if not files_are_identical(paths):
                 # SHA-256 collision is astronomically unlikely; more likely a read error
                 names = [hashed[mid][0] for mid in cluster]
                 print(f"  WARNING: content mismatch despite identical hash in cluster {names} — skipping")
