@@ -17,6 +17,7 @@ def _index_reference_dir(reference_dir: str, metrics: SimpleMetricsListener, fai
         path = os.path.join(reference_dir, file)
         if os.path.isdir(path):
             continue
+        metrics.increment("reference_dir.total_files")
         try:
             content_hash = sha256_file(path)
         except OSError as e:
@@ -52,6 +53,7 @@ async def run(
         if os.path.isdir(path):
             metrics.increment("skipped.directory")
             continue
+        metrics.increment("base_path.total_files")
         if file.lower().endswith(".mp4"):
             metrics.increment("skipped.video")
             continue
@@ -60,7 +62,7 @@ async def run(
             metrics.increment("skipped.registered")
             continue
 
-        metrics.increment("candidates.unregistered")
+        metrics.increment("base_path.not_registered")
 
         try:
             content_hash = sha256_file(path)
