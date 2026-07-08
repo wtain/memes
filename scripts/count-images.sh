@@ -1,8 +1,11 @@
-declare -a dirs=("Важные переговоры 2" "MetalMemes" "ITMemes" "Political" "Photos")
+base_path="/c/Users/ramiz/OneDrive/Pictures/Samsung Gallery/DCIM"
 
-for i in "${dirs[@]}"
+for path in "$base_path"/*/;
 do
-   path="/c/Users/ramiz/OneDrive/Pictures/Samsung Gallery/DCIM/$i"
-   count=$(ls "$path" | wc -l)
-   echo "$i: $count"
+  [ -d "$path" ] || break
+  # file="${path##*/}"
+  file=$(basename "$path")
+
+  count=$(find "$path" -maxdepth 1 -type f -printf '.' | wc -c)
+  echo "$file: $count"
 done
