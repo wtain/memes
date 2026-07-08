@@ -10,22 +10,36 @@ from metrics.listener import SimpleMetricsListener
 from repository.images import ImagesRepository
 
 
-def _index_reference_dir(reference_dir: str) -> dict:
+def _index_reference_dir(reference_dir: str, metrics: SimpleMetricsListener, failures: list) -> dict:
     """hash -> list of paths for every top-level file in reference_dir."""
     index: dict = {}
     for file in os.listdir(reference_dir):
         path = os.path.join(reference_dir, file)
         if os.path.isdir(path):
             continue
-        index.setdefault(sha256_file(path), []).append(path)
+        try:
+            content_hash = sha256_file(path)
+        except OSError as e:
+            print(f"  ERROR hashing reference file {file}: {e}")
+            metrics.increment("error.reference_hash_failed")
+            failures.append((file, str(e)))
+            continue
+        index.setdefault(content_hash, []).append(path)
     return index
 
 
-async def run(session, base_path: str, reference_dir: str, dry_run: bool, metrics: SimpleMetricsListener):
+async def run(
+    session,
+    base_path: str,
+    reference_dir: str,
+    dry_run: bool,
+    metrics: SimpleMetricsListener,
+    failures: list,
+):
     images_repo = ImagesRepository(session)
 
     print(f"Indexing reference_dir={reference_dir}")
-    reference_index = _index_reference_dir(reference_dir)
+    reference_index = _index_reference_dir(reference_dir, metrics, failures)
     print(f"Reference files hashed: {sum(len(v) for v in reference_index.values())}")
 
     dest_dir = os.path.join(base_path, "possible_duplicates")
@@ -48,12 +62,27 @@ async def run(session, base_path: str, reference_dir: str, dry_run: bool, metric
 
         metrics.increment("candidates.unregistered")
 
-        content_hash = sha256_file(path)
+        try:
+            content_hash = sha256_file(path)
+        except OSError as e:
+            print(f"  ERROR hashing {file}: {e}")
+            metrics.increment("error.hash_failed")
+            failures.append((file, str(e)))
+            continue
+
         reference_matches = reference_index.get(content_hash)
         if not reference_matches:
             continue
 
-        if not files_are_identical([path, reference_matches[0]]):
+        try:
+            identical = files_are_identical([path, reference_matches[0]])
+        except OSError as e:
+            print(f"  ERROR comparing {file}: {e}")
+            metrics.increment("error.compare_failed")
+            failures.append((file, str(e)))
+            continue
+
+        if not identical:
             print(f"  WARNING: hash collision but content differs for {file} — leaving in place")
             metrics.increment("warning.hash_collision_mismatch")
             continue
@@ -74,10 +103,16 @@ async def main(reference_dir: str, dry_run: bool):
     print(f"BASE_PATH={base_path}")
 
     metrics = SimpleMetricsListener()
+    failures: list = []
     async with AsyncSessionLocal() as session:
-        await run(session, base_path, reference_dir, dry_run, metrics)
+        await run(session, base_path, reference_dir, dry_run, metrics, failures)
 
     metrics.print()
+
+    if failures:
+        print(f"\n{len(failures)} file(s) failed:")
+        for name, error in failures:
+            print(f"  {name}: {error}")
 
 
 if __name__ == "__main__":
