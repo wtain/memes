@@ -193,6 +193,10 @@ export interface StatisticsMemeStats {
    * Images marked as flagged
    */
   flagged: number;
+  /**
+   * Total distinct duplicate-image clusters
+   */
+  duplicate_clusters: number;
   [k: string]: unknown;
 }
 /**

@@ -73,6 +73,7 @@ export default function StatisticsPage({ memesApi }: Props) {
           { label: "Tagged", value: `${n(memes.with_tags)} (${pct(memes.with_tags, memes.total)})` },
           { label: "Not tagged", value: `${n(withoutTags)} (${pct(withoutTags, memes.total)})` },
           { label: "Flagged", value: n(memes.flagged) },
+          { label: "Duplicate clusters", value: n(memes.duplicate_clusters) },
         ]} />
       </section>
 

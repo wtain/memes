@@ -93,6 +93,7 @@ private fun StatisticsContent(data: StatisticsResponse) {
             StatRow("Tagged", pct(data.memes.with_tags))
             StatRow("Not tagged", pct(data.memes.without_tags))
             StatRow("Flagged", "${data.memes.flagged}")
+            StatRow("Duplicate clusters", "${data.memes.duplicate_clusters}")
         }
         StatSection("Pipeline coverage") {
             StatRow("With OCR", pct(data.memes.with_ocr))

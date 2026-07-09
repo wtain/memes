@@ -65,7 +65,8 @@ data class StatisticsMemeStats(
     @SerialName("without_tags") val without_tags: Int,
     @SerialName("with_descriptions") val with_descriptions: Int,
     @SerialName("with_concept_tags") val with_concept_tags: Int,
-    @SerialName("flagged") val flagged: Int
+    @SerialName("flagged") val flagged: Int,
+    @SerialName("duplicate_clusters") val duplicate_clusters: Int
 )
 
 @Serializable

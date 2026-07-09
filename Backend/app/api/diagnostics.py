@@ -23,6 +23,7 @@ class MemeStats(BaseModel):
     with_descriptions: int
     with_concept_tags: int
     flagged: int
+    duplicate_clusters: int
 
 
 class ContentStats(BaseModel):
@@ -74,6 +75,7 @@ async def statistics(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)
             with_descriptions=row.with_descriptions,
             with_concept_tags=row.with_concept_tags,
             flagged=row.flagged,
+            duplicate_clusters=row.duplicate_clusters,
         ),
         content=ContentStats(
             ocr_texts=row.ocr_texts,

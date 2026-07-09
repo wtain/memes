@@ -11,7 +11,8 @@
     "without_tags":       { "type": "integer", "description": "Images with no tags" },
     "with_descriptions":  { "type": "integer", "description": "Images with an Ollama description" },
     "with_concept_tags":  { "type": "integer", "description": "Images with at least one CONCEPT-source tag" },
-    "flagged":            { "type": "integer", "description": "Images marked as flagged" }
+    "flagged":            { "type": "integer", "description": "Images marked as flagged" },
+    "duplicate_clusters": { "type": "integer", "description": "Total distinct duplicate-image clusters" }
   },
-  "required": ["total", "with_embeddings", "with_ocr", "with_tags", "without_tags", "with_descriptions", "with_concept_tags", "flagged"]
+  "required": ["total", "with_embeddings", "with_ocr", "with_tags", "without_tags", "with_descriptions", "with_concept_tags", "flagged", "duplicate_clusters"]
 }

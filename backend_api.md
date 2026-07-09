@@ -245,7 +245,8 @@ Response from `POST /api/bug-reports`.
     "with_tags": "number",
     "with_descriptions": "number",
     "with_concept_tags": "number",
-    "flagged": "number"
+    "flagged": "number",
+    "duplicate_clusters": "number"
   },
   "content": {
     "ocr_texts": "number",
