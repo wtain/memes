@@ -22,26 +22,25 @@ describe('MemeCard', () => {
     expect(api.getImageUrl).toHaveBeenCalledWith(mockMeme)
   })
 
-  it('shows OCR text overlay on mouse enter', () => {
+  it('shows OCR text overlay on OCR button click', () => {
     render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
     expect(screen.queryByText('Hello World')).not.toBeInTheDocument()
-    fireEvent.mouseEnter(screen.getByRole('img').parentElement!)
+    fireEvent.click(screen.getByRole('button', { name: 'OCR' }))
     expect(screen.getByText('Hello World')).toBeInTheDocument()
     expect(screen.getByText('Second line')).toBeInTheDocument()
   })
 
-  it('hides OCR text overlay on mouse leave', () => {
+  it('hides OCR text overlay when overlay is clicked', () => {
     render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
-    const imageWrap = screen.getByRole('img').parentElement!
-    fireEvent.mouseEnter(imageWrap)
-    fireEvent.mouseLeave(imageWrap)
+    fireEvent.click(screen.getByRole('button', { name: 'OCR' }))
+    expect(screen.getByText('Hello World')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Hello World'))
     expect(screen.queryByText('Hello World')).not.toBeInTheDocument()
   })
 
-  it('does not show OCR overlay when meme has no text', () => {
+  it('does not show OCR button when meme has no text', () => {
     render(<MemeCard meme={{ ...mockMeme, text: [] }} memesApi={cardApi()} />)
-    fireEvent.mouseEnter(screen.getByRole('img').parentElement!)
-    expect(screen.queryByText('OCR')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OCR' })).not.toBeInTheDocument()
   })
 
   it('checkbox is unchecked when meme is not flagged', () => {
@@ -75,7 +74,7 @@ describe('MemeCard', () => {
   it('calls onClick when the image area is clicked', () => {
     const onClick = vi.fn()
     render(<MemeCard meme={mockMeme} memesApi={cardApi()} onClick={onClick} />)
-    fireEvent.click(screen.getByRole('img').parentElement!)
+    fireEvent.click(screen.getByRole('img'))
     expect(onClick).toHaveBeenCalledOnce()
   })
 })
