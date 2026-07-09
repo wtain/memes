@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -234,7 +235,7 @@ private fun TagsRow(
         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        items(tags, key = { "${it.category}:${it.name}:${it.source}" }) { tag ->
+        itemsIndexed(tags, key = { i, tag -> "${i}:${tag.category}:${tag.name}" }) { _, tag ->
             SuggestionChip(
                 onClick = { onTagClick(tag.category ?: "tag", tag.name) },
                 label = {
