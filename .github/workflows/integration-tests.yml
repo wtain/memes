@@ -9,6 +9,7 @@ on:
       - 'batch/extract_text_from_memes.py'
       - 'Storage/**'
       - 'repository/**'
+      - 'Backend/app/repositories/**'
       - 'tests/integration/**'
       - '.github/workflows/integration-tests.yml'
   pull_request:
@@ -19,6 +20,7 @@ on:
       - 'batch/extract_text_from_memes.py'
       - 'Storage/**'
       - 'repository/**'
+      - 'Backend/app/repositories/**'
       - 'tests/integration/**'
       - '.github/workflows/integration-tests.yml'
 
