@@ -26,7 +26,7 @@ python-dotenv==1.2.1
 dynaconf==3.3.2
 
 # Async foundations (transitive, pinned for reproducibility)
-anyio==4.12.1
+anyio==4.14.1
 sniffio==1.3.1
 h11==0.16.0
 click==8.3.1
