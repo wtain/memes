@@ -29,6 +29,11 @@ async def create_tmp_duplicates(session: AsyncSessionLocal) -> None:
         "CREATE INDEX idx_tmp_duplicates_id_distance ON tmp_duplicates (id DESC, distance)",
         "CREATE INDEX idx_tmp_duplicates_distance ON tmp_duplicates (distance)",
         "CREATE INDEX idx_tmp_duplicates_id ON tmp_duplicates (id DESC)",
+        # Postgres does not auto-index the referencing side of a FK. Without
+        # these, ON DELETE CASCADE below forces a full sequential scan of this
+        # (cross-join-sized) table for every image deleted elsewhere.
+        "CREATE INDEX idx_tmp_duplicates_image_id1 ON tmp_duplicates (image_id1)",
+        "CREATE INDEX idx_tmp_duplicates_image_id2 ON tmp_duplicates (image_id2)",
         # CREATE TABLE AS SELECT carries no constraints, so these need to be
         # (re)added on every rebuild — otherwise a deleted image's rows
         # linger here forever instead of cascading like tmp_clusters does.
