@@ -23,7 +23,7 @@ coroutinesTest = "1.8.1"
 turbine = "1.2.1"
 archCoreTesting = "2.2.0"
 errorProne = "2.36.0"
-androidxTestExtJunit = "1.2.1"
+androidxTestExtJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
 androidxTestRules = "1.7.0"
 
