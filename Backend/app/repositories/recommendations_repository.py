@@ -26,9 +26,9 @@ class RecommendationsRepository:
         hash_expr = func.md5(func.concat(cast(img.id, String), literal(str(seed))))
 
         query = (
-            select(img.id, img.filename, img.created_at, extras.exclude)
+            select(img.id, img.filename, img.created_at, extras.flagged)
             .outerjoin(extras, img.id == extras.image_id)
-            .where(or_(extras.exclude.is_(None), extras.exclude == False))
+            .where(or_(extras.flagged.is_(None), extras.flagged == False))
         )
 
         if words:
