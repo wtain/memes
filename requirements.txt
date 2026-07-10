@@ -5,7 +5,7 @@ aistudio-sdk==0.3.8
 alembic==1.18.4
 annotated-doc==0.0.4
 annotated-types==0.7.0
-anyio==4.12.1
+anyio==4.14.1
 argcomplete==3.6.3
 astor==0.8.1
 asyncpg==0.31.0
