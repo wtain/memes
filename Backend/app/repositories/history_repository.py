@@ -20,10 +20,13 @@ class HistoryRepository:
         result_count: int,
         tags: list[tuple[str, str]],
     ) -> None:
-        record = SearchHistory(query=query, client=client, result_count=result_count)
+        record = SearchHistory(
+            query=query,
+            client=client,
+            result_count=result_count,
+            tags=[SearchHistoryTag(category=category, value=value) for category, value in tags],
+        )
         self.session.add(record)
-        for category, value in tags:
-            self.session.add(SearchHistoryTag(search_id=record.id, category=category, value=value))
 
     async def list(
         self,
