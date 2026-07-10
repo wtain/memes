@@ -77,6 +77,13 @@ android {
 
 }
 
+// concurrent-futures:1.1.0 is pinned strictly by the Compose BOM (2024.10.00);
+// androidx.test.ext:junit 1.3.0+ requires 1.2.0. Force it to unblock test dep upgrades.
+configurations.all {
+    @Suppress("DEPRECATION")
+    resolutionStrategy.force("androidx.concurrent:concurrent-futures:1.2.0")
+}
+
 androidComponents {
     onVariants { variant ->
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
