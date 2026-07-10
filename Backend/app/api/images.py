@@ -176,6 +176,7 @@ async def get_image(image_id: str, response: Response, db: AsyncSession = Depend
     headers = image_cache_headers()
     cd = content_disposition(filename)
     headers['Content-Disposition'] = cd
+    headers['Access-Control-Allow-Origin'] = '*'
     return FileResponse(
         get_image_path(filename),
         headers=headers,
