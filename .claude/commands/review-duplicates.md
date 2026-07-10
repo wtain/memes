@@ -62,7 +62,7 @@ Append an entry to `logs/agent_unresolved_duplicates.jsonl`:
 
 For each image to exclude, call:
 ```
-PUT http://127.0.0.1:{port}/api/images/meme/{id}/mark_excluded
+PUT http://127.0.0.1:{port}/api/images/meme/{id}/mark_flagged
 ```
 Ports: metal=8081, general=8082, it=8083.
 
