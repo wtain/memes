@@ -4,7 +4,7 @@ from typing import Optional
 import uuid
 
 import sqlalchemy
-from sqlalchemy import select, tuple_, distinct, and_, union_all, func
+from sqlalchemy import select, tuple_, distinct, and_, union_all
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -335,13 +335,6 @@ class ImageRepository:
         cluster = aliased(TmpImageClusters)
         extras = aliased(ImageExtras)
 
-        multi_member_clusters = (
-            select(TmpImageClusters.cluster_id)
-            .group_by(TmpImageClusters.cluster_id)
-            .having(func.count() > 1)
-            .scalar_subquery()
-        )
-
         query = (
             select(
                 img.id,
@@ -352,7 +345,6 @@ class ImageRepository:
             )
             .join(cluster, cluster.image_id == img.id)
             .outerjoin(extras, img.id == extras.image_id)
-            .where(cluster.cluster_id.in_(multi_member_clusters))
         )
 
         if after_cluster_id is not None:

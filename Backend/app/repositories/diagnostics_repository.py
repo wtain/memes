@@ -38,12 +38,8 @@ class DiagnosticsRepository:
                 select(func.count()).select_from(ImageExtras)
                     .where(ImageExtras.flagged == true())
                     .scalar_subquery().label("flagged"),
-                select(func.count()).select_from(
-                    select(TmpImageClusters.cluster_id)
-                    .group_by(TmpImageClusters.cluster_id)
-                    .having(func.count() > 1)
-                    .subquery()
-                ).scalar_subquery().label("duplicate_clusters"),
+                select(func.count(TmpImageClusters.cluster_id.distinct()))
+                    .scalar_subquery().label("duplicate_clusters"),
                 select(func.count()).select_from(OCRText)
                     .scalar_subquery().label("ocr_texts"),
                 select(func.count()).select_from(ImageTag)

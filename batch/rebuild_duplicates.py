@@ -29,6 +29,13 @@ async def create_tmp_duplicates(session: AsyncSessionLocal) -> None:
         "CREATE INDEX idx_tmp_duplicates_id_distance ON tmp_duplicates (id DESC, distance)",
         "CREATE INDEX idx_tmp_duplicates_distance ON tmp_duplicates (distance)",
         "CREATE INDEX idx_tmp_duplicates_id ON tmp_duplicates (id DESC)",
+        # CREATE TABLE AS SELECT carries no constraints, so these need to be
+        # (re)added on every rebuild — otherwise a deleted image's rows
+        # linger here forever instead of cascading like tmp_clusters does.
+        "ALTER TABLE tmp_duplicates ADD CONSTRAINT tmp_duplicates_image_id1_fkey "
+        "FOREIGN KEY (image_id1) REFERENCES images(id) ON DELETE CASCADE",
+        "ALTER TABLE tmp_duplicates ADD CONSTRAINT tmp_duplicates_image_id2_fkey "
+        "FOREIGN KEY (image_id2) REFERENCES images(id) ON DELETE CASCADE",
     ]
 
     for stmt in statements:

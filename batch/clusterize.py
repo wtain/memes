@@ -65,7 +65,8 @@ async def get_duplicates(session, mapping, threshold):
             TmpDuplicates.image_id1,
             TmpDuplicates.image_id2,
         ).where(
-            TmpDuplicates.distance < threshold
+            TmpDuplicates.distance < threshold,
+            TmpDuplicates.image_id1 != TmpDuplicates.image_id2,
         )
     )
     duplicates = await session.execute(query)
