@@ -75,7 +75,7 @@ jobs:
       run: docker save ghcr.io/${{ github.repository }}/backend | gzip > backend-image.tar.gz
 
     - name: Upload Docker image artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: backend-docker-image-${{ github.sha }}
         path: backend-image.tar.gz

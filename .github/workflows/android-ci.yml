@@ -41,7 +41,7 @@ jobs:
         run: gradle :app:assembleDebug --no-daemon
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-debug-${{ github.sha }}
           path: AndroidClient/app/build/outputs/apk/debug/*.apk
@@ -73,7 +73,7 @@ jobs:
 
       - name: Upload unit test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-test-results
           path: AndroidClient/app/build/reports/tests/testDebugUnitTest/
@@ -120,7 +120,7 @@ jobs:
 
       - name: Upload instrumented test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: instrumented-test-results
           path: AndroidClient/app/build/reports/androidTests/connected/
