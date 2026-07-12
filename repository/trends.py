@@ -3,15 +3,15 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from Storage.models import FeedSource, RunStatus, TrendsRun, TrendsRunResult
+from Storage.models import RunStatus, TrendsRun, TrendsRunResult, TrendSource
 
 
-class FeedSourceRepository:
+class TrendSourceRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get_all(self) -> list[FeedSource]:
-        result = await self._session.execute(select(FeedSource))
+    async def get_all(self) -> list[TrendSource]:
+        result = await self._session.execute(select(TrendSource))
         return list(result.scalars().all())
 
 

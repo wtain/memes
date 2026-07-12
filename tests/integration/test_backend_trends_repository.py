@@ -6,13 +6,18 @@ Requires a live PostgreSQL instance with pgvector — see tests/integration/conf
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import select
 
 from Backend.app.repositories.trends_repository import TrendsRepository
-from Storage.models import FeedSource, TrendsRun, TrendsRunResult
+from Storage.models import TrendSource, TrendsRun, TrendsRunResult
 
 
-async def _make_source(db_session) -> FeedSource:
-    source = FeedSource(name="test-source", url="https://example.com", selector=".item")
+async def _make_source(db_session) -> TrendSource:
+    source = TrendSource(
+        name="test-source",
+        connector_type="rss",
+        config={"url": "https://example.com", "selector": ".item"},
+    )
     db_session.add(source)
     await db_session.flush()
     return source
@@ -137,3 +142,30 @@ async def test_get_history_aggregates_across_run(db_session):
     assert matches[0].name == "ai"
     assert matches[0].value == 30
     assert matches[0].date == run.created_at.date()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_trend_source_config_and_extraction_round_trip_as_json(db_session):
+    source = TrendSource(
+        name="round-trip-source",
+        connector_type="api",
+        config={"base_url": "https://meduza.io/api/w5/new_search", "num_pages": 5},
+        extraction={"labels": ["person", "organization"], "model": "urchade/gliner_multi-v2.1"},
+    )
+    db_session.add(source)
+    await db_session.flush()
+    source_id = source.id  # captured before expire() — see note below
+    db_session.expire(source)
+
+    # Note: `TrendSource.id == source.id` would re-trigger a lazy load of the
+    # just-expired `id` attribute while building the WHERE clause, which is a
+    # synchronous attribute access outside any greenlet and raises
+    # sqlalchemy.exc.MissingGreenlet under AsyncSession. Using the
+    # pre-captured `source_id` avoids that and still forces a real DB
+    # round-trip for `config`/`extraction` via the expired identity map entry.
+    reloaded = (await db_session.execute(
+        select(TrendSource).where(TrendSource.id == source_id)
+    )).scalar_one()
+
+    assert reloaded.config == {"base_url": "https://meduza.io/api/w5/new_search", "num_pages": 5}
+    assert reloaded.extraction == {"labels": ["person", "organization"], "model": "urchade/gliner_multi-v2.1"}

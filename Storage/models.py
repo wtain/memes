@@ -317,13 +317,14 @@ class SearchHistoryTag(Base):
     search = relationship("SearchHistory", back_populates="tags")
 
 
-class FeedSource(Base):
-    __tablename__ = "feed_sources"
+class TrendSource(Base):
+    __tablename__ = "trend_sources"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    url: Mapped[str] = mapped_column(Text, nullable=False)
-    selector: Mapped[str] = mapped_column(Text, nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    config: Mapped[dict] = mapped_column(JSON, nullable=False)
+    extraction: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # back-ref to results
     results: Mapped[list["TrendsRunResult"]] = relationship(
@@ -331,7 +332,7 @@ class FeedSource(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<FeedSource id={self.id} name={self.name!r}>"
+        return f"<TrendSource id={self.id} name={self.name!r} connector_type={self.connector_type!r}>"
 
 
 class RunStatus(enum.Enum):
@@ -382,7 +383,7 @@ class TrendsRunResult(Base):
     )
     source_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("feed_sources.id", ondelete="CASCADE"),
+        ForeignKey("trend_sources.id", ondelete="CASCADE"),
         nullable=False,
     )
     label: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -391,7 +392,7 @@ class TrendsRunResult(Base):
 
     # relationships
     run: Mapped["TrendsRun"] = relationship("TrendsRun", back_populates="results")
-    source: Mapped["FeedSource"] = relationship("FeedSource", back_populates="results")
+    source: Mapped["TrendSource"] = relationship("TrendSource", back_populates="results")
 
     def __repr__(self) -> str:
         return (

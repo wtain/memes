@@ -237,15 +237,16 @@ Tags that were active as filters during a search.
 
 ## Trends
 
-### `feed_sources`
-External sources scraped for trends data (e.g. chart pages, RSS feeds).
+### `trend_sources`
+External sources scraped for trends data, via a pluggable connector (RSS feed, API, ...).
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | Integer PK autoincrement | |
 | `name` | String(255) NOT NULL | Display name |
-| `url` | Text NOT NULL | URL of the feed |
-| `selector` | Text NOT NULL | CSS/XPath selector used to extract entries |
+| `connector_type` | String(50) NOT NULL | `rss` \| `api` — selects the connector implementation in `batch/trends/connectors/` |
+| `config` | JSON NOT NULL | Connector-specific fields. `rss`: `{url, selector}`. `api`: `{base_url, locale, per_page, num_pages, sleep_every_pages, sleep_seconds}` |
+| `extraction` | JSON nullable | Per-source override of entity extraction tuning: `{labels, model}`. Falls back to `trends.labels` / `trends.model` in `settings.<env>.yaml` when a key is absent |
 
 ### `trends_runs`
 One row per execution of `trends_batch.py`.
@@ -263,10 +264,10 @@ Individual entries collected during a trends run.
 |---|---|---|
 | `id` | BigInteger PK autoincrement | |
 | `run_id` | UUID FK → trends_runs | CASCADE delete |
-| `source_id` | Integer FK → feed_sources | CASCADE delete |
-| `label` | String(255) NOT NULL | Source-defined label (e.g. chart position) |
-| `name` | String(255) NOT NULL | Entry name (e.g. band or album name) |
-| `value` | Integer NOT NULL | Numeric metric (e.g. chart rank or play count) |
+| `source_id` | Integer FK → trend_sources | CASCADE delete |
+| `label` | String(255) NOT NULL | Entity type extracted (e.g. `band`, `person`) |
+| `name` | String(255) NOT NULL | Entity text (e.g. band or person name) |
+| `value` | Integer NOT NULL | Mention count within the run |
 
 ---
 

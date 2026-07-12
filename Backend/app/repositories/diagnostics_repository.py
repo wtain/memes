@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import (
     Concept, ConceptImage, ConceptImageSet,
-    Embedding, FeedSource, Image, ImageExtras,
-    ImageTag, OCRText, OllamaDescription, TmpImageClusters, TrendsRun,
+    Embedding, Image, ImageExtras,
+    ImageTag, OCRText, OllamaDescription, TmpImageClusters, TrendsRun, TrendSource,
 )
 
 
@@ -60,7 +60,7 @@ class DiagnosticsRepository:
                 ).scalar_subquery().label("tag_values"),
                 select(func.count()).select_from(TrendsRun)
                     .scalar_subquery().label("trends_runs"),
-                select(func.count()).select_from(FeedSource)
+                select(func.count()).select_from(TrendSource)
                     .scalar_subquery().label("feed_sources"),
             )
         )
