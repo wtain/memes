@@ -40,6 +40,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    connection = op.get_bind()
+    non_rss_count = connection.execute(
+        sa.text("SELECT count(*) FROM trend_sources WHERE connector_type != 'rss'")
+    ).scalar()
+    if non_rss_count:
+        raise RuntimeError(
+            f"Cannot downgrade: {non_rss_count} trend_sources row(s) have connector_type "
+            "other than 'rss' (e.g. 'api'), which cannot be represented in the pre-migration "
+            "url/selector-only schema. Remove or migrate those rows before downgrading."
+        )
+
     op.add_column('trend_sources', sa.Column('url', sa.Text(), nullable=True))
     op.add_column('trend_sources', sa.Column('selector', sa.Text(), nullable=True))
 
