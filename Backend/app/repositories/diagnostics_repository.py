@@ -61,7 +61,7 @@ class DiagnosticsRepository:
                 select(func.count()).select_from(TrendsRun)
                     .scalar_subquery().label("trends_runs"),
                 select(func.count()).select_from(TrendSource)
-                    .scalar_subquery().label("feed_sources"),
+                    .scalar_subquery().label("trend_sources"),
             )
         )
         return result.one()

@@ -259,7 +259,7 @@ Response from `POST /api/bug-reports`.
   },
   "trends": {
     "runs": "number",
-    "feed_sources": "number"
+    "trend_sources": "number"
   }
 }
 ```
@@ -750,7 +750,7 @@ Returns row counts across all major tables in a single SQL round-trip.
   },
   "trends": {
     "runs": 14,
-    "feed_sources": 6
+    "trend_sources": 6
   }
 }
 ```

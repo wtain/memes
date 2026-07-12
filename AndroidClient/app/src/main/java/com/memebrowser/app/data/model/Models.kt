@@ -72,7 +72,7 @@ data class StatisticsMemeStats(
 @Serializable
 data class StatisticsTrendsStats(
     @SerialName("runs") val runs: Int,
-    @SerialName("feed_sources") val feed_sources: Int
+    @SerialName("trend_sources") val trend_sources: Int
 )
 
 @Serializable

@@ -4,8 +4,8 @@
   "title": "StatisticsTrendsStats",
   "type": "object",
   "properties": {
-    "runs":         { "type": "integer", "description": "Total trends runs recorded" },
-    "feed_sources": { "type": "integer", "description": "Configured feed sources" }
+    "runs":          { "type": "integer", "description": "Total trends runs recorded" },
+    "trend_sources": { "type": "integer", "description": "Configured trend sources" }
   },
-  "required": ["runs", "feed_sources"]
+  "required": ["runs", "trend_sources"]
 }

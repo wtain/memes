@@ -38,7 +38,7 @@ class ContentStats(BaseModel):
 
 class TrendsStats(BaseModel):
     runs: int
-    feed_sources: int
+    trend_sources: int
 
 
 class StatisticsResponse(BaseModel):
@@ -88,6 +88,6 @@ async def statistics(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)
         ),
         trends=TrendsStats(
             runs=row.trends_runs,
-            feed_sources=row.feed_sources,
+            trend_sources=row.trend_sources,
         ),
     )

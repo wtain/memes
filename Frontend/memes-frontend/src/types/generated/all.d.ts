@@ -244,9 +244,9 @@ export interface StatisticsTrendsStats {
    */
   runs: number;
   /**
-   * Configured feed sources
+   * Configured trend sources
    */
-  feed_sources: number;
+  trend_sources: number;
   [k: string]: unknown;
 }
 /**
