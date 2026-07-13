@@ -3,13 +3,15 @@ from gliner import GLiNER
 
 class Processor:
 
-    def __init__(self, labels=None):
-        if labels is None:
-            labels = ["band", "music genre", "person"]
-        self.model = GLiNER.from_pretrained("urchade/gliner_medium-v2.1")
-        self.labels = labels
+    def __init__(self):
+        self._models: dict[str, GLiNER] = {}
 
-    def process(self, text):
-        entities = self.model.predict_entities(text, self.labels)
+    def _get_model(self, model_name: str) -> GLiNER:
+        if model_name not in self._models:
+            self._models[model_name] = GLiNER.from_pretrained(model_name)
+        return self._models[model_name]
 
-        return [(entity['text'], entity['label']) for entity in entities]
+    def process(self, text: str, model_name: str, labels: list[str]) -> list[tuple[str, str]]:
+        model = self._get_model(model_name)
+        entities = model.predict_entities(text, labels)
+        return [(entity["text"], entity["label"]) for entity in entities]
