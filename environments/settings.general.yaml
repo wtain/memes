@@ -26,3 +26,7 @@ lemma_clustering:
 trends:
   labels: ["person", "organization", "location"]
   model: urchade/gliner_multi-v2.1
+
+image_descriptions:
+  model: qwen2.5vl:7b
+  prompts_file: data/image-description-prompts.general.yaml

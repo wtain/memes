@@ -27,6 +27,9 @@ ollama:
   model: qwen2
   enabled: true
 
+image_descriptions:
+  model: llava
+
 general:
   batch_size: 100
   progress_every: 10

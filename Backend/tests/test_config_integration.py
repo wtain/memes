@@ -42,6 +42,8 @@ _COMMON = {
     "BOW.UNMATCHED_FILE": None,
     "BOW.IGNORE_FILE": None,
     "RULES.FILE": None,
+    "IMAGE_DESCRIPTIONS.MODEL": "llava",
+    "IMAGE_DESCRIPTIONS.PROMPTS_FILE": None,
 }
 
 # Every tracked key this migration covers, resolved per environment. Built by
@@ -74,6 +76,8 @@ _EXPECTED = {
         "LEMMA_CLUSTERING.SELECTION_METHOD": "leaf",
         "LEMMA_CLUSTERING.OUTPUT_FILE": "output/lemma_clusters.general.ru.yaml",
         "GENERAL.FRONTEND_ORIGIN": "http://localhost:5174",
+        "IMAGE_DESCRIPTIONS.MODEL": "qwen2.5vl:7b",
+        "IMAGE_DESCRIPTIONS.PROMPTS_FILE": "data/image-description-prompts.general.yaml",
     },
     "it": {
         **_COMMON,
