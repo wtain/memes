@@ -8,3 +8,7 @@ concepts:
   text_concepts_file: data/text-concepts.metal.json
   text_concepts_templates_file: data/text-concepts.templates.metal.json
   images_dir: images
+
+trends:
+  labels: ["band", "music genre", "person"]
+  model: urchade/gliner_medium-v2.1

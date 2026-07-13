@@ -22,3 +22,7 @@ lemma_clustering:
   # Concept discovery note) — leaf avoids one oversized catch-all cluster.
   selection_method: leaf
   OUTPUT_FILE: output/lemma_clusters.general.ru.yaml
+
+trends:
+  labels: ["person", "organization", "location"]
+  model: urchade/gliner_multi-v2.1
