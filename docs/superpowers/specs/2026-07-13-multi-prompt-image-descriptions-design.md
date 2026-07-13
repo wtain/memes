@@ -67,9 +67,13 @@ class ImageDescriptionEmbedding(Base):
     description = relationship("ImageDescription", back_populates="embedding")
 ```
 
-`TEXT_EMBEDDING_DIM` is a new placeholder constant (alongside the existing
-`EMBEDDING_DIM = 512` for CLIP) — no value is chosen in this spec since no
-embedding model is chosen yet (see "Future work").
+`TEXT_EMBEDDING_DIM` is a new constant (alongside the existing
+`EMBEDDING_DIM = 512` for CLIP), set provisionally to `1024` — pgvector
+requires a concrete dimension at column-creation time even though nothing
+populates this column yet. `1024` matches both models recommended in
+"Future work" below (`BAAI/bge-large-en-v1.5`, `mxbai-embed-large`). If the
+eventually-chosen model differs, a small follow-up migration adjusts the
+dimension — safe since the table is unpopulated until then.
 
 The `(image_id, prompt_key)` unique constraint is what makes "fill only
 missing pairs" reruns possible: one row per image per configured prompt.
