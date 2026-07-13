@@ -4,7 +4,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
     DateTime, JSON, func, Numeric, Index, Boolean,
-    BigInteger
+    BigInteger, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
@@ -14,6 +14,8 @@ import uuid
 Base = declarative_base()
 
 EMBEDDING_DIM = 512
+
+TEXT_EMBEDDING_DIM = 1024
 
 
 class Image(Base):
@@ -35,7 +37,7 @@ class Image(Base):
     )
 
     texts = relationship("OCRText", back_populates="image", cascade="all, delete-orphan")
-    descriptions = relationship("OllamaDescription", back_populates="image", cascade="all, delete-orphan")
+    descriptions = relationship("ImageDescription", back_populates="image", cascade="all, delete-orphan")
     metrics = relationship("ImageMetrics", uselist=False, back_populates="image")
     errors = relationship("ProcessingError", back_populates="image")
     embeddings = relationship("Embedding", back_populates="image", cascade="all, delete-orphan")
@@ -75,17 +77,41 @@ class OCRText(Base):
     image = relationship("Image", back_populates="texts")
 
 
-class OllamaDescription(Base):
-    __tablename__ = "ollama_description"
+class ImageDescription(Base):
+    __tablename__ = "image_descriptions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
+    prompt_key = Column(String, nullable=False)
+    model_used = Column(String, nullable=False)
     text = Column(Text, nullable=False)
 
     created_at = Column(DateTime, server_default=func.now())
 
+    __table_args__ = (
+        UniqueConstraint("image_id", "prompt_key", name="uq_image_description_image_prompt"),
+    )
+
     image = relationship("Image", back_populates="descriptions")
+    embedding = relationship(
+        "ImageDescriptionEmbedding", uselist=False,
+        back_populates="description", cascade="all, delete-orphan",
+    )
+
+
+class ImageDescriptionEmbedding(Base):
+    __tablename__ = "image_description_embeddings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    image_description_id = Column(
+        UUID(as_uuid=True), ForeignKey("image_descriptions.id", ondelete="CASCADE"),
+        index=True, unique=True,
+    )
+    embedding = Column(Vector(TEXT_EMBEDDING_DIM), index=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    description = relationship("ImageDescription", back_populates="embedding")
 
 
 class Embedding(Base):

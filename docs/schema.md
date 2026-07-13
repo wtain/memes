@@ -81,14 +81,26 @@ One row per detected text region per image. Multiple rows per image are normal (
 | `language` | String(8) | Default `"en"`. Values: `en`, `es`, `ru` |
 | `created_at` | DateTime | |
 
-### `ollama_description`
-LLM-generated image descriptions. One row per image (re-run overwrites via batch clear).
+### `image_descriptions`
+LLM-generated image descriptions, one row per (image, prompt_key) pair. `prompt_key` corresponds to an entry in the environment's `image_descriptions.prompts_file` config; `model_used` records which model actually produced the text. Incremental batch runs fill only missing (image, prompt_key) pairs; `--reset` clears all rows for a full regeneration.
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID PK | |
 | `image_id` | UUID FK → images | |
+| `prompt_key` | String NOT NULL | Unique together with `image_id` |
+| `model_used` | String NOT NULL | Model that generated this row's text |
 | `text` | Text NOT NULL | Full description text |
+| `created_at` | DateTime | |
+
+### `image_description_embeddings`
+Placeholder table for future text-embedding-based image linking — not yet populated by any batch job. One row per `image_descriptions` row.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `image_description_id` | UUID FK → image_descriptions, unique | |
+| `embedding` | Vector(1024) | Dimension provisional — see `docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md` |
 | `created_at` | DateTime | |
 
 ### `embeddings`
