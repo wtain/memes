@@ -3,7 +3,7 @@ from sqlalchemy import select, delete, update
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
-from Storage.models import OCRText, Image, OllamaDescription, ImageTag
+from Storage.models import OCRText, Image, ImageDescription, ImageTag
 
 
 class ImagesRepository:
@@ -11,7 +11,7 @@ class ImagesRepository:
     def __init__(self, session):
         self.img = aliased(Image)
         self.ocr = aliased(OCRText)
-        self.description = aliased(OllamaDescription)
+        self.description = aliased(ImageDescription)
         self.session = session
 
     async def get_images_and_ocr_texts(self):
@@ -50,7 +50,7 @@ class ImagesRepository:
         result = await self.session.execute(query)
         return result.fetchall()
 
-    async def get_images_and_ollama_descriptions(self):
+    async def get_images_and_descriptions(self):
         query = (
             select(
                 self.img.filename,
@@ -63,7 +63,7 @@ class ImagesRepository:
         result = await self.session.execute(query)
         return result.fetchall()
 
-    async def get_images_and_ollama_descriptions_without_tags(self, source: str):
+    async def get_images_and_descriptions_without_tags(self, source: str):
         already_tagged = (
             select(ImageTag.image_id)
             .where(ImageTag.source == source)
@@ -81,16 +81,6 @@ class ImagesRepository:
         )
         result = await self.session.execute(query)
         return result.fetchall()
-
-    async def get_all_images_without_description(self):
-        has_description = (
-            select(OllamaDescription.image_id)
-            .distinct()
-            .scalar_subquery()
-        )
-        query = select(Image.filename, Image.id).where(Image.id.not_in(has_description))
-        return await self.session.execute(query)
-
 
     async def get_all_images_with_hash(self):
         query = select(Image.id, Image.filename, Image.content_hash, Image.created_at)
