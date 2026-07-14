@@ -42,7 +42,8 @@ async def main(reset: bool, limit: int | None = None):
         raise RuntimeError(
             "image_descriptions.prompts_file is not configured for this environment"
         )
-    prompts = load_prompts(prompts_file)
+    prompts_path = os.path.join(os.path.dirname(__file__), prompts_file)
+    prompts = load_prompts(prompts_path)
     print(f"Loaded {len(prompts)} prompt(s): {[p.key for p in prompts]}")
 
     metrics = SimpleMetricsListener()
