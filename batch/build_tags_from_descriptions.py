@@ -24,9 +24,9 @@ async def main(incremental: bool):
         print("Running...")
 
         if incremental:
-            images_and_texts_results = await images_repo.get_images_and_ollama_descriptions_without_tags("Ollama")
+            images_and_texts_results = await images_repo.get_images_and_descriptions_without_tags("Ollama")
         else:
-            images_and_texts_results = await images_repo.get_images_and_ollama_descriptions()
+            images_and_texts_results = await images_repo.get_images_and_descriptions()
 
         async with TagsSaver(session) as tags_saver:
             for filename, image_id, text in images_and_texts_results:

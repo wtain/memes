@@ -53,7 +53,7 @@ async def main(env: str, cluster_id_arg: int | None, reset: bool):
 
     from sqlalchemy import select
     from Storage.db import AsyncSessionLocal
-    from Storage.models import OllamaDescription, Embedding
+    from Storage.models import ImageDescription, Embedding
     from Backend.app.repositories.image_repository import ImageRepository
 
     state = {} if reset else _load_state(env)
@@ -97,8 +97,8 @@ async def main(env: str, cluster_id_arg: int | None, reset: bool):
 
         # Descriptions — no repo method, single direct query
         desc_rows = await session.execute(
-            select(OllamaDescription.image_id, OllamaDescription.text)
-            .where(OllamaDescription.image_id.in_(image_ids))
+            select(ImageDescription.image_id, ImageDescription.text)
+            .where(ImageDescription.image_id.in_(image_ids))
         )
         desc_map = {str(r.image_id): r.text for r in desc_rows}
 

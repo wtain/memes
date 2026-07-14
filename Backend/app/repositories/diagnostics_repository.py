@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from Storage.models import (
     Concept, ConceptImage, ConceptImageSet,
     Embedding, Image, ImageExtras,
-    ImageTag, OCRText, OllamaDescription, TmpImageClusters, TrendsRun, TrendSource,
+    ImageTag, OCRText, ImageDescription, TmpImageClusters, TrendsRun, TrendSource,
 )
 
 
@@ -33,7 +33,7 @@ class DiagnosticsRepository:
                 select(func.count()).select_from(Image)
                     .where(~exists(select(ImageTag.image_id).where(ImageTag.image_id == Image.id)))
                     .scalar_subquery().label("without_tags"),
-                select(func.count(OllamaDescription.image_id.distinct()))
+                select(func.count(ImageDescription.image_id.distinct()))
                     .scalar_subquery().label("with_descriptions"),
                 select(func.count()).select_from(ImageExtras)
                     .where(ImageExtras.flagged == true())

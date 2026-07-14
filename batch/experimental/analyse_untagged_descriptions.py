@@ -5,7 +5,7 @@ import re
 from sqlalchemy import select, exists
 
 from Storage.db import AsyncSessionLocal
-from Storage.models import Image, OllamaDescription, ImageTag
+from Storage.models import Image, ImageDescription, ImageTag
 
 
 def extract_words(text):
@@ -33,10 +33,10 @@ async def main():
     async with AsyncSessionLocal() as session:
         query = (
             select(
-                OllamaDescription.text
+                ImageDescription.text
             )
             .where(
-                OllamaDescription.image_id.in_(
+                ImageDescription.image_id.in_(
                     select(Image.id)
                     .where(
                         ~(

@@ -13,7 +13,7 @@ from rules.normalize import lemmatize_word, make_morph, tokenize
 from rules.lang_plausibility import passes_language_filter
 from Storage.db import AsyncSessionLocal
 from repository.ocr_text import OCRTextRepository
-from repository.ollama_descriptions import OllamaDescriptionsRepository
+from repository.image_descriptions import ImageDescriptionsRepository
 
 TEXT_SOURCE_OCR = "ocr"
 TEXT_SOURCE_DESCRIPTIONS = "descriptions"
@@ -181,7 +181,7 @@ async def _build_ocr_bow(session, morph, confidence_min, lang_score_min, min_wor
 
 
 async def _build_descriptions_bow(session, morph, min_word_length, min_frequency, metrics):
-    repo = OllamaDescriptionsRepository(session)
+    repo = ImageDescriptionsRepository(session)
     texts = await repo.get_all_texts()
 
     counter = Counter()

@@ -33,7 +33,7 @@ async def main(env: str, limit: int):
     from sqlalchemy import select, func, exists
     from sqlalchemy.orm import aliased
     from Storage.db import AsyncSessionLocal
-    from Storage.models import Image, OCRText, OllamaDescription, ImageTag, ImageExtras
+    from Storage.models import Image, OCRText, ImageDescription, ImageTag, ImageExtras
 
     img = aliased(Image)
     extras = aliased(ImageExtras)
@@ -64,8 +64,8 @@ async def main(env: str, limit: int):
 
         # Descriptions
         desc_rows = await session.execute(
-            select(OllamaDescription.image_id, OllamaDescription.text)
-            .where(OllamaDescription.image_id.in_(image_ids))
+            select(ImageDescription.image_id, ImageDescription.text)
+            .where(ImageDescription.image_id.in_(image_ids))
         )
         desc_map = {str(r.image_id): r.text for r in desc_rows}
 
