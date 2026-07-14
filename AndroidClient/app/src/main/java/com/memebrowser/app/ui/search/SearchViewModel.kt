@@ -114,7 +114,7 @@ class SearchViewModel @Inject constructor(
                 cursor = s.nextCursor
             ).onSuccess { response ->
                 _state.update { it.copy(
-                    items = it.items + (response.items ?: emptyList()),
+                    items = (it.items + (response.items ?: emptyList())).distinctBy { m -> m.id },
                     nextCursor = response.nextCursor,
                     hasNext = response.hasNext ?: false,
                     isLoadingMore = false
