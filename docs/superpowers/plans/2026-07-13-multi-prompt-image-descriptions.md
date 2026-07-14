@@ -108,13 +108,15 @@ git commit -m "feat: add image_descriptions config keys and general prompts file
 
 ### Task 2: Schema — rename OllamaDescription, add prompt/model tracking, add embeddings table
 
+**Post-implementation note:** the code blocks below (models.py, migration, docs/schema.md) are this task's *first-drafted* form. Task 2's review caught a redundant unique index on `ImageDescriptionEmbedding` (separate `id` PK + `UniqueConstraint(image_description_id)` + an explicit second unique index, all enforcing the same uniqueness); a follow-up fix commit made `image_description_id` itself the primary key instead, dropping the separate `id` column and the extra index. The snippets below are left as originally written for historical fidelity — do not copy them verbatim; see the actual `Storage/models.py`, the migration file, and `docs/schema.md` in this branch (or the progress ledger) for the corrected shape.
+
 **Files:**
 - Modify: `Storage/models.py`
 - Create: `Storage/alembic/versions/2026_07_13_rename_ollama_description_to_image_descriptions.py`
 - Modify: `docs/schema.md`
 
 **Interfaces:**
-- Produces: `ImageDescription` ORM class (table `image_descriptions`, columns `id`, `image_id`, `prompt_key`, `model_used`, `text`, `created_at`, unique constraint `uq_image_description_image_prompt` on `(image_id, prompt_key)`). `ImageDescriptionEmbedding` ORM class (table `image_description_embeddings`, columns `id`, `image_description_id` (unique FK), `embedding` (`Vector(1024)`), `created_at`). New constant `TEXT_EMBEDDING_DIM = 1024`.
+- Produces: `ImageDescription` ORM class (table `image_descriptions`, columns `id`, `image_id`, `prompt_key`, `model_used`, `text`, `created_at`, unique constraint `uq_image_description_image_prompt` on `(image_id, prompt_key)`). `ImageDescriptionEmbedding` ORM class (table `image_description_embeddings`; corrected shape: `image_description_id` as primary key/FK, `embedding` (`Vector(1024)`), `created_at`). New constant `TEXT_EMBEDDING_DIM = 1024`.
 - Consumed by: Task 5 (`repository/image_descriptions.py`, `repository/images.py`), Task 6 (`Backend/app/repositories/diagnostics_repository.py`).
 
 - [ ] **Step 1: Update `Storage/models.py`**
