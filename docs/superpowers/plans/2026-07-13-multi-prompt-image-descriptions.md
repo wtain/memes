@@ -824,9 +824,14 @@ git commit -m "refactor: rename OllamaDescriptionsRepository to ImageDescription
 - Modify: `Backend/app/repositories/diagnostics_repository.py`
 - Modify: `batch/build_tags_from_descriptions.py`
 - Modify: `batch/build_bow.py`
+- Modify: `tools/agent_untagged.py`
+- Modify: `tools/agent_duplicates.py`
+- Modify: `batch/experimental/analyse_untagged_descriptions.py`
 
 **Interfaces:**
 - Consumes: `ImageDescription` (Task 2), `ImagesRepository.get_images_and_descriptions[_without_tags]` (Task 5), `ImageDescriptionsRepository` (Task 5).
+
+**Note (added after Task 5's implementer flagged it):** the original plan's file list for this task was incomplete — a full-repo grep at plan-writing time missed three more direct `OllamaDescription` ORM-class references (these query the class directly via raw `select()`, not through `ImagesRepository`, which is why they weren't caught alongside the repository-layer renames). Steps 4-6 below cover them; step numbers after the original Step 3 have shifted accordingly from the first-drafted version of this task.
 
 - [ ] **Step 1: Update `Backend/app/repositories/diagnostics_repository.py`**
 
@@ -916,28 +921,114 @@ to:
     repo = ImageDescriptionsRepository(session)
 ```
 
-- [ ] **Step 4: Verify nothing else references the old names**
+- [ ] **Step 4: Update `tools/agent_untagged.py`, `tools/agent_duplicates.py`, `batch/experimental/analyse_untagged_descriptions.py`**
+
+In `tools/agent_untagged.py`, change line 36:
+
+```python
+    from Storage.models import Image, OCRText, OllamaDescription, ImageTag, ImageExtras
+```
+
+to:
+
+```python
+    from Storage.models import Image, OCRText, ImageDescription, ImageTag, ImageExtras
+```
+
+Change lines 67-68:
+
+```python
+            select(OllamaDescription.image_id, OllamaDescription.text)
+            .where(OllamaDescription.image_id.in_(image_ids))
+```
+
+to:
+
+```python
+            select(ImageDescription.image_id, ImageDescription.text)
+            .where(ImageDescription.image_id.in_(image_ids))
+```
+
+In `tools/agent_duplicates.py`, change line 56:
+
+```python
+    from Storage.models import OllamaDescription, Embedding
+```
+
+to:
+
+```python
+    from Storage.models import ImageDescription, Embedding
+```
+
+Change lines 100-101:
+
+```python
+            select(OllamaDescription.image_id, OllamaDescription.text)
+            .where(OllamaDescription.image_id.in_(image_ids))
+```
+
+to:
+
+```python
+            select(ImageDescription.image_id, ImageDescription.text)
+            .where(ImageDescription.image_id.in_(image_ids))
+```
+
+In `batch/experimental/analyse_untagged_descriptions.py`, change line 8:
+
+```python
+from Storage.models import Image, OllamaDescription, ImageTag
+```
+
+to:
+
+```python
+from Storage.models import Image, ImageDescription, ImageTag
+```
+
+Change lines 36 and 39 (the two other `OllamaDescription` references inside the `select()`/`.where()` call):
+
+```python
+                OllamaDescription.text
+            )
+            .where(
+                OllamaDescription.image_id.in_(
+```
+
+to:
+
+```python
+                ImageDescription.text
+            )
+            .where(
+                ImageDescription.image_id.in_(
+```
+
+- [ ] **Step 5: Verify nothing else references the old names**
 
 ```bash
-grep -rn "OllamaDescription\|get_images_and_ollama_descriptions\|get_all_images_without_description\|ollama_descriptions" --include="*.py" Backend batch repository tests
+grep -rn "OllamaDescription\|get_images_and_ollama_descriptions\|get_all_images_without_description\|ollama_descriptions" --include="*.py" Backend batch repository tests tools
 ```
 
 Expected: no output (aside from the already-immutable historical migration `Storage/alembic/versions/1d0b68c811bc_added_ollama_descriptions_table.py`, which is out of scope — grep excludes `Storage` above so it won't appear).
 
-- [ ] **Step 5: Run the affected test suites**
+- [ ] **Step 6: Run the affected test suites**
 
 ```bash
 pytest Backend/tests/ -v
 pytest tests/integration/test_backend_diagnostics_repository.py -v
 python -c "import batch.build_tags_from_descriptions; import batch.build_bow"
+python -c "import tools.agent_untagged; import tools.agent_duplicates; import batch.experimental.analyse_untagged_descriptions"
 ```
 
-Expected: PASS / no import errors. The diagnostics integration test requires a reachable test Postgres, same caveat as Task 5.
+Expected: PASS / no import errors. The diagnostics integration test requires a reachable test Postgres, same caveat as Task 5. Note `tools/agent_untagged.py` and `tools/agent_duplicates.py` do their `Storage.models` import inside `main()`, not at module top level, so a bare module import won't actually exercise the changed lines — this command only proves the module itself is syntactically valid. That's still worth running, but it is not a substitute for eyeballing the edited lines directly.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add Backend/app/repositories/diagnostics_repository.py batch/build_tags_from_descriptions.py batch/build_bow.py
+git add Backend/app/repositories/diagnostics_repository.py batch/build_tags_from_descriptions.py batch/build_bow.py \
+  tools/agent_untagged.py tools/agent_duplicates.py batch/experimental/analyse_untagged_descriptions.py
 git commit -m "refactor: update remaining OllamaDescription consumers to ImageDescription"
 ```
 
