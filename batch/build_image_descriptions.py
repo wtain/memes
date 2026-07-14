@@ -32,7 +32,7 @@ async def _images_missing_prompts(images_repo, descriptions_repo, prompts):
     return work
 
 
-async def main(reset: bool):
+async def main(reset: bool, limit: int | None = None):
     BASE_PATH = settings.BASE_PATH
     print(f"BASE_PATH={BASE_PATH}")
     base_path = os.path.abspath(BASE_PATH)
@@ -59,6 +59,8 @@ async def main(reset: bool):
             print("Done")
 
         work = await _images_missing_prompts(images_repo, descriptions_repo, prompts)
+        if limit is not None:
+            work = work[:limit]
 
         committer = DescriptionBatchCommitter(session, batch_size=settings.GENERAL.BATCH_SIZE)
         tracker = ProgressTracker(total=len(work), report_every=settings.GENERAL.PROGRESS_EVERY)
@@ -98,6 +100,8 @@ if __name__ == "__main__":
     parser.add_argument("--reset", action="store_true",
                         help="Delete all existing descriptions before running "
                              "(default: fill only missing image/prompt pairs)")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Process at most this many images (default: no limit)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(args.reset))
+    asyncio.run(main(args.reset, args.limit))
