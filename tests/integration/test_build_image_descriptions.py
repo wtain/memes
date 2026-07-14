@@ -25,9 +25,12 @@ async def _insert_image(session) -> Image:
 async def test_images_missing_prompts_returns_only_uncovered_pairs(db_session):
     image_a = await _insert_image(db_session)
     image_b = await _insert_image(db_session)
+    image_c = await _insert_image(db_session)
 
     descriptions_repo = ImageDescriptionsRepository(db_session)
     descriptions_repo.save(image_a.id, "general_description", "llava", "existing text")
+    descriptions_repo.save(image_c.id, "general_description", "llava", "existing text")
+    descriptions_repo.save(image_c.id, "humor_explanation", "llava", "existing text")
     await db_session.flush()
 
     prompts = [
@@ -43,3 +46,8 @@ async def test_images_missing_prompts_returns_only_uncovered_pairs(db_session):
     assert {p.key for p in work_by_image[image_b.id]} == {"general_description", "humor_explanation"}
     total_missing_pairs = sum(len(missing) for _, _, missing in work)
     assert total_missing_pairs == 3
+
+    # image_c has every configured prompt already covered — it must be excluded
+    # from the work list entirely, not merely mapped to an empty missing list.
+    assert image_c.id not in work_by_image
+    assert len(work) == 2
