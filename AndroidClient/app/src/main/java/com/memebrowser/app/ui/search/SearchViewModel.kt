@@ -64,9 +64,14 @@ class SearchViewModel @Inject constructor(
         }
         viewModelScope.launch {
             envRepo.selectedEnvironmentId.collect { envId ->
+                val isSwitch = currentEnvId != null && currentEnvId != envId
                 currentEnvId = envId
                 val restoredQuery = queryPerEnv[envId] ?: ""
-                _state.update { it.copy(query = restoredQuery) }
+                if (isSwitch) {
+                    _state.update { it.copy(query = restoredQuery, activeFacets = emptyList(), facets = emptyList()) }
+                } else {
+                    _state.update { it.copy(query = restoredQuery) }
+                }
                 triggerSearch()
             }
         }
@@ -137,8 +142,9 @@ class SearchViewModel @Inject constructor(
     fun dismissError() = _state.update { it.copy(error = null) }
 
     private fun triggerSearch() {
+        searchJob?.cancel()
         val s = _state.value
-        viewModelScope.launch {
+        searchJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null, items = emptyList(), nextCursor = null, hasNext = false) }
             repo.search(
                 query = s.query.takeIf { it.isNotBlank() },
