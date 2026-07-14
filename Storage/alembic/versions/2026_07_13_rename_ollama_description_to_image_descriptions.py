@@ -39,17 +39,11 @@ def upgrade() -> None:
 
     op.create_table(
         'image_description_embeddings',
-        sa.Column('id', sa.UUID(), nullable=False),
-        sa.Column('image_description_id', sa.UUID(), nullable=True),
+        sa.Column('image_description_id', sa.UUID(), nullable=False),
         sa.Column('embedding', Vector(TEXT_EMBEDDING_DIM), nullable=True),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
         sa.ForeignKeyConstraint(['image_description_id'], ['image_descriptions.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('image_description_id'),
-    )
-    op.create_index(
-        op.f('ix_image_description_embeddings_image_description_id'),
-        'image_description_embeddings', ['image_description_id'], unique=True,
+        sa.PrimaryKeyConstraint('image_description_id'),
     )
     op.create_index(
         op.f('ix_image_description_embeddings_embedding'),
@@ -59,7 +53,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index(op.f('ix_image_description_embeddings_embedding'), table_name='image_description_embeddings')
-    op.drop_index(op.f('ix_image_description_embeddings_image_description_id'), table_name='image_description_embeddings')
     op.drop_table('image_description_embeddings')
 
     op.drop_constraint('uq_image_description_image_prompt', 'image_descriptions', type_='unique')

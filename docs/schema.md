@@ -98,8 +98,7 @@ Placeholder table for future text-embedding-based image linking — not yet popu
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID PK | |
-| `image_description_id` | UUID FK → image_descriptions, unique | |
+| `image_description_id` | UUID PK, FK → image_descriptions | |
 | `embedding` | Vector(1024) | Dimension provisional — see `docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md` |
 | `created_at` | DateTime | |
 

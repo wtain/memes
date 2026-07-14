@@ -103,10 +103,9 @@ class ImageDescription(Base):
 class ImageDescriptionEmbedding(Base):
     __tablename__ = "image_description_embeddings"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     image_description_id = Column(
         UUID(as_uuid=True), ForeignKey("image_descriptions.id", ondelete="CASCADE"),
-        index=True, unique=True,
+        primary_key=True,
     )
     embedding = Column(Vector(TEXT_EMBEDDING_DIM), index=True)
     created_at = Column(DateTime, server_default=func.now())
