@@ -1,5 +1,19 @@
 # Environments
 
+## Ports & running environments (always-on, do not reuse)
+
+Three environments run **continuously** on this workstation — metal, general, and IT — each with its own backend, frontend, and database. Agents doing manual testing or verification (starting a dev server, running migrations against a scratch DB, etc.) must **not** bind to these ports; they are already in use by the developer's long-running sessions and binding to them will either fail or disrupt live work.
+
+| Environment | Backend (uvicorn) | Frontend (vite) | Database (Postgres) |
+|---|---|---|---|
+| metal   | 8081 | 5173 | 5432 |
+| general | 8082 | 5174 | 5434 |
+| it      | 8083 | 5175 | 5436 |
+
+Each database is a separate Postgres instance/port, not just a separate schema — see `.env.<environment>` (`DATABASE_URL`) for connection details; credentials are not repeated here since they're secrets (gitignored, per CLAUDE.md's Configuration section).
+
+**For agents:** if you need to spin up a temporary backend, frontend, or database for testing, pick a port outside the table above and verify it's actually free first (e.g. `netstat -ano | findstr :<port>` on Windows) rather than assuming a fixed alternate — there's no reserved "testing" port range.
+
 ## Building environment
 
 ### Create .env.[environment-name] and fill:

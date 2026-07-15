@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Semantic search engine for memes. Images are enriched offline (OCR, CLIP embeddings, LLM descriptions, tags) via batch jobs; the FastAPI backend serves pre-computed results; the React frontend provides search and browse UI. Three independent environments run in parallel: **metal** (port 8081), **general** (8082), **IT** (8083), each with its own database and config.
 
+These three environments run continuously on the developer's workstation — their backend, frontend, and database ports are always occupied. See `environments/Environments.md` for the full port table before binding any port for manual testing or verification.
+
 ## First-time repo setup
 
 After cloning, activate the git hooks (one command, all platforms):
@@ -256,6 +258,7 @@ Examples: `2026-06-29-ocr-safe-full-mode.md`, `2026-07-01-upload-endpoint.md`
 ## Key invariants
 
 - Env files (secrets) and tracked settings YAML both live in `environments/` (not `Storage/`) — see Configuration above.
+- The metal/general/IT backend, frontend, and database ports are always occupied by the developer's running environments — never bind to them for testing. See `environments/Environments.md`.
 - `backend_api.md` must stay in sync with the actual routers.
 - Windows dev: `WATCHFILES_FORCE_POLLING=1` is required for uvicorn `--reload` to work.
 - AGP 8.5.2 requires Java 11+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
