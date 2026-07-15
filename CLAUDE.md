@@ -157,6 +157,10 @@ The CI gate runs all three checks plus a `git diff` on the generated types — a
 
 ### Batch pipeline (execution order)
 
+Keep this list in sync: when you add a new batch script under `batch/`, or
+materially change an existing one's CLI/config surface, update its entry
+here in the same change.
+
 ```
 extract_text_from_memes    → registers images + EasyOCR (EN/ES/RU)
 build_image_embeddings     → CLIP 512-dim vectors
@@ -164,7 +168,13 @@ rebuild_duplicates         → near-duplicate clusters  [drops & recreates table
 clusterize                 → optimize cluster index
 
 build_tags_from_ocr        → rule-based tags from OCR text
-build_image_descriptions   → Ollama LLM descriptions (optional)
+build_image_descriptions   → multi-prompt Ollama LLM descriptions (optional), one row per
+                              (image, prompt) pair; configurable prompts/models/context size
+                              per environment; incremental with its own commit interval;
+                              permanently-failed pairs are skipped by default (--retry-failed
+                              to re-attempt, --reset to clear everything, --limit to cap a run).
+                              See docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md
+                              and docs/superpowers/specs/2026-07-15-image-description-failure-tracking-and-context-size.md
 build_tags_from_descriptions → rule-based tags from descriptions
 build_concept_embeddings   → concept CLIP embeddings + mappings
 
@@ -262,3 +272,12 @@ Examples: `2026-06-29-ocr-safe-full-mode.md`, `2026-07-01-upload-endpoint.md`
 - `backend_api.md` must stay in sync with the actual routers.
 - Windows dev: `WATCHFILES_FORCE_POLLING=1` is required for uvicorn `--reload` to work.
 - AGP 8.5.2 requires Java 11+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
+
+## Known gotchas (debugging notes)
+
+- **`data/...` config paths (e.g. `image_descriptions.prompts_file`, `concepts.text_concepts_file`, `rules.file`) are opened as bare relative paths, so they only resolve if cwd happens to be `batch/`.** Running a script the documented way (`python -m batch.xxx` from repo root) leaves cwd at the repo root, not `batch/`, and raises `FileNotFoundError`. Fixed in `batch/build_image_descriptions.py` by resolving `prompts_file` relative to `os.path.dirname(__file__)`. Other scripts reading `data/...` paths directly (e.g. `build_concept_embeddings.py`) likely still have this latent bug — if you hit a `FileNotFoundError` for a `data/...` path, this is probably why.
+- **Never combine `Backend/tests/`, `tests/integration/`, and the other test roots (`batch/tests/`, `tests/rules/`, `tests/ai/`) in one `pytest` invocation.** They have separate `pytest.ini` files with different `asyncio_mode` (Backend's is `Mode.AUTO`, the rest is `Mode.STRICT`); combining roots in one command breaks Backend's `async def` test collection ("async def functions are not natively supported") even though each root passes cleanly on its own. Always run them as separate `pytest` commands.
+- **`tests/integration/` needs `DATABASE_URL` set explicitly on the command line**, e.g. `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/ -v`. A top-level `tests/conftest.py` sets a dummy placeholder `DATABASE_URL` via `os.environ.setdefault(...)` before `tests/integration/conftest.py`'s own default gets a chance to apply, so omitting it fails with `password authentication failed for user "test"` instead of actually connecting. The dedicated test database is `ocrdb_test` (user/password `ocr`) on the `ocr-db` docker container, port 5432 — a genuinely separate database from the real `ocrdb` dev database on the same server, safe to run tests against.
+- **`EnterWorktree` defaults to branching from `origin/<default-branch>`, not local HEAD.** In a sandboxed dev environment with no live GitHub access (`git fetch`/`pull` fail with `Permission denied (publickey)`), the cached `origin/main` ref can be many commits stale, so a new worktree can silently miss recent local-only commits. After creating a worktree, compare `git rev-parse main` against the worktree's `HEAD`; if behind, `git merge --ff-only <target-sha>` inside the worktree before starting work.
+- **Windows: `run_in_background: true` on Bash/PowerShell tool calls still enforces a hard ~10 minute timeout that kills the process**, not just stops watching it — confirmed against a real long-running batch job that was silently gone at exactly the 10-minute mark. For anything that needs longer, either scope it down to finish within ~10 minutes (e.g. a `--limit` flag, rerun as needed) or launch it as a truly detached OS-level process (see `docs/adr/adr-2026-07-10-tmp-duplicates-fk-index.md`'s recovery step 5 for a Windows `Start-Process` pattern).
+- **Some images in the `general` corpus are WebP files saved with a `.jpg` extension**, which Ollama's llava/qwen2.5vl vision backend cannot decode ("Failed to load image or audio file") — the existing `path.lower().endswith("webp")` skip in `build_image_descriptions.py` only checks the extension, not actual content, so these slip through. Rare (a ~2,000-file sample of ~22,000 images found none beyond the two already known) but non-zero. Currently handled behaviorally (the failure-tracking feature marks these permanently failed after one attempt, so they're not retried forever) rather than via content sniffing.
