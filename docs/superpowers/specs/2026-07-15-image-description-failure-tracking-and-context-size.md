@@ -39,6 +39,11 @@ This spec covers:
 1. Making the model's usable context window larger (config, not code logic).
 2. Giving the batch script a way to remember "this pair failed" and stop
    retrying it by default, while still allowing an explicit one-shot retry.
+3. Giving the batch script its own, smaller commit interval instead of
+   sharing the generic `settings.GENERAL.BATCH_SIZE` (100) — at observed
+   per-image latency (35-70s against a real Ollama server), a crash near
+   the end of a 100-image batch can lose close to an hour of real,
+   already-paid-for inference work.
 
 Deliberately out of scope (per discussion): pre-emptively sniffing real
 image format via magic bytes to catch mislabeled files before calling
@@ -229,6 +234,32 @@ if reset:
     print("Done")
 ```
 
+## Dedicated commit batch size
+
+`main()` currently commits every `settings.GENERAL.BATCH_SIZE` images (100)
+— a value shared across every batch job in this repo, sized for cheap,
+fast operations like OCR. At observed real-world Ollama latency
+(35-70s/image), a crash near the end of a 100-image run can lose up to
+an hour of already-paid-for inference. This pipeline gets its own,
+smaller, dedicated commit interval instead of sharing the generic one:
+
+```yaml
+# environments/settings.yaml
+image_descriptions:
+  model: llava
+  num_ctx: 8192
+  batch_size: 50
+```
+
+```python
+committer = DescriptionBatchCommitter(session, batch_size=settings.get("image_descriptions.batch_size"))
+```
+
+`DescriptionBatchCommitter` itself is unchanged — it already takes
+`batch_size` as a constructor parameter; only the call site's source value
+changes, from `settings.GENERAL.BATCH_SIZE` to
+`settings.get("image_descriptions.batch_size")`.
+
 ## Testing
 
 - New `tests/integration/test_image_processing_status_repository.py` — this
@@ -244,5 +275,6 @@ if reset:
   `options={"num_ctx": ...}` on the `ollama.chat()` call.
 - Extend `batch/tests/test_env_loading.py` and
   `Backend/tests/test_config_integration.py` with the new
-  `IMAGE_DESCRIPTIONS.NUM_CTX` key (default `8192`, no per-environment
-  override).
+  `IMAGE_DESCRIPTIONS.NUM_CTX` (default `8192`) and
+  `IMAGE_DESCRIPTIONS.BATCH_SIZE` (default `50`) keys, neither with a
+  per-environment override.
