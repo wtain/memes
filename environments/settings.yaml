@@ -29,6 +29,8 @@ ollama:
 
 image_descriptions:
   model: llava
+  num_ctx: 8192
+  batch_size: 50
 
 general:
   batch_size: 100

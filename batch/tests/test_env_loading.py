@@ -46,6 +46,8 @@ _COMMON = {
     "RULES.FILE": None,
     "IMAGE_DESCRIPTIONS.MODEL": "llava",
     "IMAGE_DESCRIPTIONS.PROMPTS_FILE": None,
+    "IMAGE_DESCRIPTIONS.NUM_CTX": 8192,
+    "IMAGE_DESCRIPTIONS.BATCH_SIZE": 50,
 }
 
 # Every tracked key this migration covers, resolved per environment — mirrors
