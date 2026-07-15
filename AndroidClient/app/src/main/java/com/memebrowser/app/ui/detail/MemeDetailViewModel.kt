@@ -66,7 +66,10 @@ class MemeDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoadingSimilar = true) }
             repo.getSimilarMemes(memeId)
-                .onSuccess { memes -> _state.update { it.copy(similarMemes = memes, isLoadingSimilar = false) } }
+                .onSuccess { memes ->
+                    val deduped = memes.filter { it.id != memeId }.distinctBy { it.id }
+                    _state.update { it.copy(similarMemes = deduped, isLoadingSimilar = false) }
+                }
                 .onFailure { _state.update { it.copy(isLoadingSimilar = false) } }
         }
     }

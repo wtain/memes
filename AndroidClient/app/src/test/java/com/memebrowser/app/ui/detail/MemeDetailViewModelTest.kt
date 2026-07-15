@@ -136,4 +136,36 @@ class MemeDetailViewModelTest {
             assertNull(state.error)
         }
     }
+
+    @Test
+    fun `current meme is excluded from similar results`() = runTest {
+        // Backend should already filter this out, but we guard on the client side too.
+        val withSelf = listOf(
+            fakeMeme.copy(id = "meme-1"),   // same ID as current meme
+            fakeMeme.copy(id = "similar-1")
+        )
+        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(withSelf)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+        viewModel.state.test {
+            val state = awaitItem()
+            assertEquals(1, state.similarMemes.size)
+            assertEquals("similar-1", state.similarMemes[0].id)
+        }
+    }
+
+    @Test
+    fun `duplicate similar IDs are deduplicated`() = runTest {
+        // Guards against a LazyRow key collision crash if the API returns the same ID twice.
+        val withDuplicates = listOf(
+            fakeMeme.copy(id = "similar-1"),
+            fakeMeme.copy(id = "similar-1")
+        )
+        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(withDuplicates)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+        viewModel.state.test {
+            val state = awaitItem()
+            assertEquals(1, state.similarMemes.size)
+            assertEquals("similar-1", state.similarMemes[0].id)
+        }
+    }
 }
