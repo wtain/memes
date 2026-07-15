@@ -3,17 +3,18 @@ import ollama
 from ai.ollama import OllamaImageDescriber, OllamaConceptNamer, build_concept_naming_prompt
 
 
-def test_describe_passes_prompt_and_model_through(monkeypatch):
-    def fake_chat(model, messages):
+def test_describe_passes_prompt_model_and_num_ctx_through(monkeypatch):
+    def fake_chat(model, messages, options):
         assert model == "qwen2.5vl:7b"
         assert messages[0]["content"] == "Explain the joke."
         assert messages[0]["images"] == ["/path/to/image.jpg"]
+        assert options == {"num_ctx": 8192}
         return {"message": {"content": "a description"}}
 
     monkeypatch.setattr(ollama, "chat", fake_chat)
     describer = OllamaImageDescriber()
 
-    result = describer.describe("/path/to/image.jpg", "Explain the joke.", "qwen2.5vl:7b")
+    result = describer.describe("/path/to/image.jpg", "Explain the joke.", "qwen2.5vl:7b", 8192)
 
     assert result == "a description"
 

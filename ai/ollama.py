@@ -3,14 +3,15 @@ import ollama
 
 class OllamaImageDescriber:
 
-    def describe(self, path: str, prompt: str, model: str) -> str:
+    def describe(self, path: str, prompt: str, model: str, num_ctx: int) -> str:
         response = ollama.chat(
             model=model,
             messages=[{
                 'role': 'user',
                 'content': prompt,
                 'images': [path]
-            }]
+            }],
+            options={'num_ctx': num_ctx}
         )
         return response['message']['content']
 
