@@ -15,6 +15,9 @@ from repository.images import ImagesRepository
 
 
 def _status_repos(session, prompts):
+    # Unlike OCR's use of this table (its authoritative done/processing/failed
+    # state machine), here it only ever holds "failed" rows — success is
+    # signaled solely by the image_descriptions unique constraint.
     return {p.key: ImageProcessingStatusRepository(session, f"image_description:{p.key}") for p in prompts}
 
 
