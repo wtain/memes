@@ -1,4 +1,7 @@
+import uuid
 from datetime import datetime
+
+from sqlalchemy import delete, select
 
 from Storage.models import ImageProcessingStatus
 
@@ -62,3 +65,28 @@ class ImageProcessingStatusRepository:
             if existing.status == "processing":
                 return True  # treat as interrupted, retry
         return True
+
+    async def record_failure(self, image_id, error: str) -> None:
+        """No commit — caller controls commit timing via its own batch committer."""
+        status = await self.session.get(
+            ImageProcessingStatus, {"image_id": image_id, "pipeline": self.pipeline}
+        )
+        if status is None:
+            status = ImageProcessingStatus(image_id=image_id, pipeline=self.pipeline)
+            self.session.add(status)
+        status.status = "failed"
+        status.error_message = error
+        status.finished_at = datetime.utcnow()
+
+    async def get_image_ids_with_status(self, status: str) -> set[uuid.UUID]:
+        result = await self.session.execute(
+            select(ImageProcessingStatus.image_id)
+            .where(ImageProcessingStatus.pipeline == self.pipeline, ImageProcessingStatus.status == status)
+        )
+        return set(result.scalars().all())
+
+    async def delete_all(self) -> None:
+        """No commit — same convention as record_failure."""
+        await self.session.execute(
+            delete(ImageProcessingStatus).where(ImageProcessingStatus.pipeline == self.pipeline)
+        )
