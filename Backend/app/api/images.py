@@ -1,6 +1,6 @@
 import logging
 import mimetypes
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, Literal
 from urllib.parse import quote
 
 import unicodedata
@@ -55,10 +55,11 @@ async def get_similar_images(
     image_id: str,
     response: Response,
     limit: int = Query(10, ge=1, le=100),
+    source: Literal["image", "description"] = "image",
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    return await service.get_similar(image_id, limit=limit)
+    return await service.get_similar(image_id, limit=limit, source=source)
 
 
 @router.get("/meme/{image_id}", response_model=Meme)

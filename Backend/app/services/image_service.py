@@ -107,11 +107,17 @@ class ImageService:
             flagged=is_flagged,
         )
 
-    async def get_similar(self, image_id: str, limit: int = 10) -> MemeSearchResponse:
-        embedding = await self.repo.get_embedding(image_id)
-        if embedding is None:
-            raise HTTPException(status_code=404, detail="No embedding found for this image")
-        rows = await self.repo.get_similar(image_id, embedding.tolist(), limit=limit)
+    async def get_similar(self, image_id: str, limit: int = 10, source: str = "image") -> MemeSearchResponse:
+        if source == "description":
+            if not await self.repo.has_description_embedding(image_id):
+                raise HTTPException(status_code=404, detail="No description embedding found for this image")
+            rows = await self.repo.get_similar_by_description(image_id, limit=limit)
+        else:
+            embedding = await self.repo.get_embedding(image_id)
+            if embedding is None:
+                raise HTTPException(status_code=404, detail="No embedding found for this image")
+            rows = await self.repo.get_similar(image_id, embedding.tolist(), limit=limit)
+
         items = [
             Meme(
                 id=str(iid),

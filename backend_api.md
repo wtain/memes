@@ -380,8 +380,10 @@ Find images similar to a given image.
   - `image_id`: Unique identifier of the image
 - **Query Parameters**:
   - `limit` (optional): Number of results (1-100, default: 10)
-- **Response**: `MemeSearchResponse` — each `Meme` item includes `cosineDistance` (float, lower = more similar)
+  - `source` (optional): `image` (default) ranks by CLIP visual-embedding similarity; `description` ranks by LLM-description text-embedding similarity (only images sharing at least one prompt's description embedding with the source image are candidates). Returns 404 if the source image has no embedding of the requested kind.
+- **Response**: `MemeSearchResponse` — each `Meme` item includes `cosineDistance` (float, lower = more similar; not comparable between `source=image` and `source=description` responses — different embedding spaces)
 - **Example**: `GET /api/images/abc123/similar?limit=10`
+- **Example**: `GET /api/images/abc123/similar?source=description&limit=10`
 
 #### Get Meme Details
 
