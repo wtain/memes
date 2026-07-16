@@ -473,7 +473,7 @@ class TestGetSimilarImages:
         assert data["items"][0]["cosineDistance"] == 0.031
         assert data["items"][1]["id"] == "similar-2"
         assert data["items"][1]["cosineDistance"] == 0.089
-        mock_image_service.get_similar.assert_called_once_with("123", limit=10)
+        mock_image_service.get_similar.assert_called_once_with("123", limit=10, source="image")
 
     def test_get_similar_images_no_results(self, client, mock_image_service):
         """Test getting similar images when no similar images found."""
@@ -493,7 +493,7 @@ class TestGetSimilarImages:
         assert response.status_code == 200
         data = response.json()
         assert len(data["items"]) == 0
-        mock_image_service.get_similar.assert_called_once_with("456", limit=10)
+        mock_image_service.get_similar.assert_called_once_with("456", limit=10, source="image")
 
     def test_get_similar_images_with_uuid(self, client, mock_image_service):
         """Test getting similar images with UUID format."""
@@ -512,7 +512,17 @@ class TestGetSimilarImages:
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.get_similar.assert_called_once_with(uuid_id, limit=10)
+        mock_image_service.get_similar.assert_called_once_with(uuid_id, limit=10, source="image")
+
+    def test_get_similar_images_with_source_description(self, client, mock_image_service):
+        """Test that the source query param is passed through to the service."""
+        mock_response = MemeSearchResponse(items=[], nextCursor=None, hasNext=False, facets=[])
+        mock_image_service.get_similar.return_value = mock_response
+
+        response = client.get("/api/images/123/similar?source=description")
+
+        assert response.status_code == 200
+        mock_image_service.get_similar.assert_called_once_with("123", limit=10, source="description")
 
 
 class TestGetMeme:

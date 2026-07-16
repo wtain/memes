@@ -107,8 +107,17 @@ class ImageDescriptionEmbedding(Base):
         UUID(as_uuid=True), ForeignKey("image_descriptions.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    embedding = Column(Vector(TEXT_EMBEDDING_DIM), index=True)
+    embedding = Column(Vector(TEXT_EMBEDDING_DIM))
     created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "ix_image_description_embeddings_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
     description = relationship("ImageDescription", back_populates="embedding")
 

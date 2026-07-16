@@ -4,12 +4,15 @@ from typing import Optional
 import uuid
 
 import sqlalchemy
-from sqlalchemy import select, tuple_, distinct, and_, union_all
+from sqlalchemy import select, tuple_, distinct, and_, union_all, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from Storage.models import Image, OCRText, Embedding, ImageTag, ImageExtras, TmpDuplicates, TmpImageClusters
+from Storage.models import (
+    Image, OCRText, Embedding, ImageTag, ImageExtras, TmpDuplicates, TmpImageClusters,
+    ImageDescription, ImageDescriptionEmbedding,
+)
 from graph.uf import UnionFind
 
 
@@ -136,6 +139,40 @@ class ImageRepository:
             .limit(limit)
         )
         return result.all()
+
+    async def get_similar_by_description(self, image_id: str, limit: int = 10):
+        source_desc, source_emb = aliased(ImageDescription), aliased(ImageDescriptionEmbedding)
+        cand_desc, cand_emb = aliased(ImageDescription), aliased(ImageDescriptionEmbedding)
+        img, extras = aliased(Image), aliased(ImageExtras)
+
+        result = await self.session.execute(
+            select(
+                cand_desc.image_id,
+                func.min(source_emb.embedding.cosine_distance(cand_emb.embedding)).label("distance"),
+                img.filename,
+                extras.flagged,
+            )
+            .select_from(source_desc)
+            .join(source_emb, source_emb.image_description_id == source_desc.id)
+            .join(cand_desc, cand_desc.prompt_key == source_desc.prompt_key)
+            .join(cand_emb, cand_emb.image_description_id == cand_desc.id)
+            .join(img, img.id == cand_desc.image_id)
+            .outerjoin(extras, extras.image_id == cand_desc.image_id)
+            .where(source_desc.image_id == image_id, cand_desc.image_id != image_id)
+            .group_by(cand_desc.image_id, img.filename, extras.flagged)
+            .order_by("distance")
+            .limit(limit)
+        )
+        return result.all()
+
+    async def has_description_embedding(self, image_id: str) -> bool:
+        result = await self.session.execute(
+            select(ImageDescriptionEmbedding.image_description_id)
+            .join(ImageDescription, ImageDescription.id == ImageDescriptionEmbedding.image_description_id)
+            .where(ImageDescription.image_id == image_id)
+            .limit(1)
+        )
+        return result.first() is not None
 
     async def get_meme_data(self, image_id: str):
         filename = await self.get_filename(image_id)
