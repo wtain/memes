@@ -17,6 +17,8 @@ from Backend.app.repositories.image_repository import ImageRepository
 from Storage.models import (
     Embedding,
     Image,
+    ImageDescription,
+    ImageDescriptionEmbedding,
     ImageExtras,
     ImageTag,
     OCRText,
@@ -31,6 +33,24 @@ def _unit_vector(index: int) -> list[float]:
     vec = [0.0] * _DIM
     vec[index] = 1.0
     return vec
+
+
+_TEXT_DIM = 1024
+
+
+def _text_unit_vector(index: int) -> list[float]:
+    vec = [0.0] * _TEXT_DIM
+    vec[index] = 1.0
+    return vec
+
+
+async def _insert_description(session, image, prompt_key: str, text: str = "a description") -> ImageDescription:
+    description = ImageDescription(
+        image_id=image.id, prompt_key=prompt_key, model_used="llava", text=text,
+    )
+    session.add(description)
+    await session.flush()
+    return description
 
 
 # --------------------------------------------------------------------------
@@ -253,6 +273,108 @@ async def test_get_similar_excludes_self_and_orders_by_distance(db_session):
     assert query_image.id not in ids
     assert ids.index(near.id) < ids.index(far.id)
     assert next(r for r in rows if r.image_id == near.id).flagged is True
+
+
+# --------------------------------------------------------------------------
+# get_similar_by_description / has_description_embedding
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_similar_by_description_matches_only_same_prompt_key_and_excludes_self(db_session):
+    query_image = Image(filename=f"{uuid.uuid4()}.jpg")
+    same_prompt_candidate = Image(filename=f"{uuid.uuid4()}.jpg")
+    different_prompt_candidate = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([query_image, same_prompt_candidate, different_prompt_candidate])
+    await db_session.flush()
+
+    query_desc = await _insert_description(db_session, query_image, "general_description")
+    same_desc = await _insert_description(db_session, same_prompt_candidate, "general_description")
+    different_desc = await _insert_description(db_session, different_prompt_candidate, "humor_explanation")
+
+    db_session.add_all([
+        ImageDescriptionEmbedding(image_description_id=query_desc.id, embedding=_text_unit_vector(0)),
+        ImageDescriptionEmbedding(image_description_id=same_desc.id, embedding=_text_unit_vector(0)),
+        ImageDescriptionEmbedding(image_description_id=different_desc.id, embedding=_text_unit_vector(0)),
+    ])
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    rows = await repo.get_similar_by_description(query_image.id, limit=10)
+
+    ids = [r.image_id for r in rows]
+    assert query_image.id not in ids
+    assert same_prompt_candidate.id in ids
+    assert different_prompt_candidate.id not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_similar_by_description_takes_minimum_distance_across_shared_prompts(db_session):
+    query_image = Image(filename=f"{uuid.uuid4()}.jpg")
+    candidate = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([query_image, candidate])
+    await db_session.flush()
+
+    query_general = await _insert_description(db_session, query_image, "general_description")
+    query_humor = await _insert_description(db_session, query_image, "humor_explanation")
+    cand_general = await _insert_description(db_session, candidate, "general_description")
+    cand_humor = await _insert_description(db_session, candidate, "humor_explanation")
+
+    db_session.add_all([
+        ImageDescriptionEmbedding(image_description_id=query_general.id, embedding=_text_unit_vector(0)),
+        ImageDescriptionEmbedding(image_description_id=query_humor.id, embedding=_text_unit_vector(0)),
+        # general_description pair is far (orthogonal); humor_explanation pair is identical (close)
+        ImageDescriptionEmbedding(image_description_id=cand_general.id, embedding=_text_unit_vector(1)),
+        ImageDescriptionEmbedding(image_description_id=cand_humor.id, embedding=_text_unit_vector(0)),
+    ])
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    rows = await repo.get_similar_by_description(query_image.id, limit=10)
+
+    row = next(r for r in rows if r.image_id == candidate.id)
+    assert row.distance == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_similar_by_description_includes_flagged_status(db_session):
+    query_image = Image(filename=f"{uuid.uuid4()}.jpg")
+    flagged_candidate = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([query_image, flagged_candidate])
+    await db_session.flush()
+
+    query_desc = await _insert_description(db_session, query_image, "general_description")
+    cand_desc = await _insert_description(db_session, flagged_candidate, "general_description")
+    db_session.add_all([
+        ImageDescriptionEmbedding(image_description_id=query_desc.id, embedding=_text_unit_vector(0)),
+        ImageDescriptionEmbedding(image_description_id=cand_desc.id, embedding=_text_unit_vector(0)),
+    ])
+    db_session.add(ImageExtras(image_id=flagged_candidate.id, flagged=True))
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    rows = await repo.get_similar_by_description(query_image.id, limit=10)
+
+    row = next(r for r in rows if r.image_id == flagged_candidate.id)
+    assert row.flagged is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_has_description_embedding_true_when_present_false_otherwise(db_session):
+    embedded_image = Image(filename=f"{uuid.uuid4()}.jpg")
+    unembedded_image = Image(filename=f"{uuid.uuid4()}.jpg")
+    no_description_image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([embedded_image, unembedded_image, no_description_image])
+    await db_session.flush()
+
+    embedded_desc = await _insert_description(db_session, embedded_image, "general_description")
+    await _insert_description(db_session, unembedded_image, "general_description")
+    db_session.add(ImageDescriptionEmbedding(image_description_id=embedded_desc.id, embedding=_text_unit_vector(0)))
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    assert await repo.has_description_embedding(embedded_image.id) is True
+    assert await repo.has_description_embedding(unembedded_image.id) is False
+    assert await repo.has_description_embedding(no_description_image.id) is False
 
 
 # --------------------------------------------------------------------------
