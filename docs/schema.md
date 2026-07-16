@@ -94,12 +94,12 @@ LLM-generated image descriptions, one row per (image, prompt_key) pair. `prompt_
 | `created_at` | DateTime | |
 
 ### `image_description_embeddings`
-Placeholder table for future text-embedding-based image linking — not yet populated by any batch job. One row per `image_descriptions` row.
+Text embeddings of `image_descriptions` rows, populated by `batch/build_image_description_embeddings.py`. One row per `image_descriptions` row.
 
 | Column | Type | Notes |
 |---|---|---|
 | `image_description_id` | UUID PK, FK → image_descriptions | |
-| `embedding` | Vector(1024) | Dimension provisional — see `docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md` |
+| `embedding` | Vector(1024) | Indexed via `hnsw`/`vector_cosine_ops` (see `Storage/models.py`'s `ImageDescriptionEmbedding.__table_args__`) |
 | `created_at` | DateTime | |
 
 ### `embeddings`

@@ -17,9 +17,12 @@ def upgrade() -> None:
     # The original migration's op.create_index() defaulted to a plain btree
     # index, which Postgres caps at ~2704 bytes per indexed row — a 1024-dim
     # vector row is 4112 bytes, so every insert into this table failed
-    # outright. hnsw (pgvector's ANN index type) has no such cap and
-    # actually accelerates the cosine_distance() queries this column is
-    # used for, unlike the btree index it replaces.
+    # outright. hnsw (pgvector's ANN index type) has no such cap, and is the
+    # correct index type for a cosine-distance vector column — note it does
+    # not accelerate get_similar_by_description's join-based distance
+    # computation (that compares two joined columns, not a column against a
+    # constant query vector), only true nearest-neighbor-style queries
+    # (ORDER BY embedding <=> :query_vector).
     op.drop_index('ix_image_description_embeddings_embedding', table_name='image_description_embeddings')
     op.create_index(
         'ix_image_description_embeddings_embedding',
