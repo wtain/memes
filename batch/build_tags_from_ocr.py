@@ -35,9 +35,9 @@ async def main(incremental: bool):
         print(f"OCR_CONFIDENCE_MIN={ocr_confidence_min}, OCR_LANG_SCORE_MIN={ocr_lang_score_min}")
 
         if incremental:
-            images_and_texts_results = await images_repo.get_images_and_ocr_texts_without_tags("OCR")
+            images_and_texts_results = await images_repo.get_images_and_ocr_texts_without_tags_with_language("OCR")
         else:
-            images_and_texts_results = await images_repo.get_images_and_ocr_texts()
+            images_and_texts_results = await images_repo.get_images_and_ocr_texts_with_language()
 
         metrics = SimpleMetricsListener()
         tracker = ProgressTracker(
@@ -47,12 +47,12 @@ async def main(incremental: bool):
         )
 
         async with TagsSaver(session) as tags_saver:
-            for filename, image_id, text, confidence, lang_score in images_and_texts_results:
+            for filename, image_id, text, confidence, language, lang_score in images_and_texts_results:
                 if not passes_language_filter(confidence, lang_score, ocr_confidence_min, ocr_lang_score_min):
                     metrics.increment("images.skipped")
                     tracker.skip()
                     continue
-                result = engine.tag(text)
+                result = engine.tag(text, language=language or "unknown")
                 tag_count = len(result.tags)
                 for tag_name, tag_value in result.tags:
                     tags_saver.add_tag(image_id, tag_name, tag_value, "OCR")
