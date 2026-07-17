@@ -184,6 +184,12 @@ detect_entities_and_tag    tag_images_from_concepts  build_bow
 
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters
+
+# Trends (independent of the image pipeline; scrapes/tags news sources on its own schedule)
+trends_batch                → GLiNER NER over each configured trend source's fetched text,
+                               counts label:entity mentions per run, stores results for the
+                               Trends UI/API. Sources (RSS/API connectors) are registered via
+                               batch/trends/seed_sources.py, not part of the regular run.
 ```
 
 Most jobs are idempotent (clear and rebuild). Exception: `rebuild_duplicates` drops its table each run.
