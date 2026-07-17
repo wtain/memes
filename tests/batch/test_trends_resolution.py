@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from batch.trends.resolution import resolve_labels, resolve_model
+from batch.trends.resolution import resolve_labels, resolve_model, resolve_language
 
 
 class _FakeSettings:
@@ -44,3 +44,31 @@ def test_resolve_model_falls_back_to_env_default():
     settings = _FakeSettings({"trends.model": "default-model"})
 
     assert resolve_model(source, settings) == "default-model"
+
+
+def test_resolve_language_uses_source_override_when_present():
+    source = SimpleNamespace(extraction={"language": "ru"})
+    settings = _FakeSettings({"trends.language": "en"})
+
+    assert resolve_language(source, settings) == "ru"
+
+
+def test_resolve_language_falls_back_to_env_default_when_extraction_is_none():
+    source = SimpleNamespace(extraction=None)
+    settings = _FakeSettings({"trends.language": "ru"})
+
+    assert resolve_language(source, settings) == "ru"
+
+
+def test_resolve_language_falls_back_when_extraction_has_no_language_key():
+    source = SimpleNamespace(extraction={"model": "some-model"})
+    settings = _FakeSettings({"trends.language": "ru"})
+
+    assert resolve_language(source, settings) == "ru"
+
+
+def test_resolve_language_returns_none_when_nothing_configures_it():
+    source = SimpleNamespace(extraction=None)
+    settings = _FakeSettings({})
+
+    assert resolve_language(source, settings) is None

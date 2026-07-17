@@ -12,3 +12,11 @@ def resolve_model(source, settings) -> str | None:
     if model:
         return model
     return settings.get("trends.model")
+
+
+def resolve_language(source, settings) -> str | None:
+    extraction = source.extraction or {}
+    language = extraction.get("language")
+    if language:
+        return language
+    return settings.get("trends.language")
