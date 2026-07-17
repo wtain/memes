@@ -36,8 +36,19 @@ is addressed by two sibling specs, not this one:
 `docs/superpowers/specs/2026-07-17-ocr-lemmatization-language-gating-design.md`
 and `docs/superpowers/specs/2026-07-17-ocr-tokenize-punctuation-preservation-design.md`.
 This spec's `lemmatize_phrase()` (below) is deliberately independent of
-`tokenize()` and does not require either sibling spec to land first, though
-it's written to benefit automatically if/when they do.
+`tokenize()` and does not require the tokenize spec to land first, though
+it's written to benefit automatically if/when it does.
+
+This spec does, however, take a small dependency on the language-gating
+spec: rather than hardcoding a duplicate `language == "ru"` check in
+`trends_batch.py`, it reuses that spec's `LEMMATIZABLE_LANGUAGES` constant
+(see Wiring below) — one source of truth for "which languages does this
+module's pymorphy3 lemmatizer support," shared across both pipelines instead
+of drifting independently. `LEMMATIZABLE_LANGUAGES` is a tiny, foundational
+constant (three lines) with no OCR-specific logic attached to it, so if this
+spec is implemented first, add it to `rules/normalize.py` as part of this
+work rather than waiting on the sibling spec; if implemented second, just
+reuse what's already there.
 
 Deliberately out of scope:
 - Backfilling/re-normalizing `name` values already stored in
@@ -123,9 +134,14 @@ lifetime of the run alongside the existing `processor = Processor()`.
 `process_source()` gains two parameters, both defaulted so the existing
 5-arg call shape keeps working: `language: str | None = None` and
 `morph: pymorphy3.MorphAnalyzer | None = None` (the shared analyzer, needed
-only when `language == "ru"`):
+only when `language` is lemmatizable). The gate reuses
+`LEMMATIZABLE_LANGUAGES` from `rules/normalize.py` (introduced by the
+language-gating spec, or by this spec if implemented first — see Context)
+instead of hardcoding `"ru"` again in a second place:
 
 ```python
+from rules.normalize import LEMMATIZABLE_LANGUAGES, lemmatize_phrase
+
 def process_source(source, connector, processor: Processor, labels: list[str],
                     model_name: str, language: str | None = None,
                     morph: pymorphy3.MorphAnalyzer | None = None) -> Counter:
@@ -134,11 +150,21 @@ def process_source(source, connector, processor: Processor, labels: list[str],
     for item in data:
         text = item["text"]
         for entity_text, label in processor.process(text, model_name, labels):
-            if language == "ru":
+            if language in LEMMATIZABLE_LANGUAGES:
                 entity_text = lemmatize_phrase(entity_text, morph)
             trends[f"{label}:{entity_text}"] += 1
     return trends
 ```
+
+Note this mirrors `lemmatize_word()`'s own membership check
+(`language not in LEMMATIZABLE_LANGUAGES`) but isn't the identical
+expression — `lemmatize_word()` treats `language=None` as "no signal, use
+legacy behavior" (see the sibling spec), whereas here `None in
+LEMMATIZABLE_LANGUAGES` is simply `False`, which is exactly the wanted
+result: no declared language means don't lemmatize, full stop. The two
+functions' `None` handling differs by design (see the "Note for callers
+outside this module" docstring the sibling spec adds to `lemmatize_word()`);
+sharing the *constant* doesn't require sharing that behavior.
 
 The two existing tests in `tests/batch/test_trends_batch.py`
 (`test_process_source_tallies_entities_across_items`,
@@ -188,10 +214,10 @@ MEDUZA_SOURCE = {
 content-locale parameter, not the language signal this spec introduces; see
 the "Language signal" decision in the Context section above.)
 
-Sources whose resolved language is not `"ru"` (including `None`) are
-completely unaffected — `entity_text` flows through exactly as today,
-preserving original casing and inflection, and `morph` is simply unused for
-that call.
+Sources whose resolved language is not in `LEMMATIZABLE_LANGUAGES`
+(including `None`) are completely unaffected — `entity_text` flows through
+exactly as today, preserving original casing and inflection, and `morph` is
+simply unused for that call.
 
 `Processor` (GLiNER extraction) is intentionally left untouched: it has one
 job (named-entity recognition) and has no reason to know about languages or
@@ -212,7 +238,8 @@ layer up in `process_source()`.
   (already exercised via `_FakeConnector`/`_FakeProcessor`) with a case
   where two differently-inflected mentions of the same Russian entity
   collapse into one `Counter` entry when `language="ru"`, and a case
-  confirming they stay separate when `language` is `None`/non-`"ru"`.
+  confirming they stay separate when `language` is `None` or otherwise not
+  in `LEMMATIZABLE_LANGUAGES`.
 
 ## Documentation
 
