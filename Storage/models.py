@@ -128,9 +128,18 @@ class Embedding(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
-    embedding = Column(Vector(EMBEDDING_DIM), index=True)
+    embedding = Column(Vector(EMBEDDING_DIM))
 
     created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "ix_embeddings_embedding_hnsw_cosine",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
     image = relationship("Image", back_populates="embeddings")
 
