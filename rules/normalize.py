@@ -18,10 +18,29 @@ def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer) -> str:
     return parsed[0].normal_form if parsed else word.lower()
 
 
+_TOKEN_RE = re.compile(r"[^\W_]+(?:['-][^\W_]+)*", re.UNICODE)
+
+_JOINER_NORMALIZE = str.maketrans({
+    "–": "-",   # en dash
+    "—": "-",   # em dash
+    "'": "'",   # right single quotation mark / smart apostrophe
+})
+
+
+def _normalize_joiners(text: str) -> str:
+    return text.translate(_JOINER_NORMALIZE)
+
+
 def tokenize(text: str) -> list[str]:
     # [^\W_] = letters and digits only; underscores treated as delimiters so that
     # social-media handles like "varg_vikernes" split into ["varg", "vikernes"].
-    return re.findall(r'[^\W_]+', text, re.UNICODE)
+    # A single '-' or "'" between two word-character runs stays part of the token
+    # (compounds like "Санкт-Петербурга", contractions like "don't"); every other
+    # occurrence of either character — with no word character immediately
+    # following — still splits/strips as before. Em/en dashes and the curly
+    # apostrophe are normalized to their ASCII counterparts first so there's one
+    # canonical joiner per type.
+    return _TOKEN_RE.findall(_normalize_joiners(text))
 
 
 def normalize(text: str, morph: pymorphy3.MorphAnalyzer, min_length: int = 3) -> set[str]:
