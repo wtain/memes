@@ -204,8 +204,8 @@ This ensures OCR data is preserved if the run is interrupted.
 
 Two implementations coexist:
 
-- **Current** (`rules/engine.py` + `batch/data/rules.*.json`): regex/substring matching → tags. Used by `build_tags_from_ocr` and `build_tags_from_descriptions`.
-- **New design** (`rules/concept_tagger.py`, `batch/data/tagging/`): concept voting with YAML rule files. See `batch/rules_engine.md` for the full design. Not yet wired into the main pipeline.
+- **Current** (`rules/engine.py` + `batch/data/rules.*.json`): regex/substring matching → tags. Used by `build_tags_from_descriptions`.
+- **New design** (`rules/concept_tagger.py`, `batch/data/tagging/`): concept voting with YAML rule files. See `batch/rules_engine.md` for the full design. Already wired into the main pipeline via `build_tags_from_ocr`.
 
 `rules/normalize.py` is shared by both engines and `build_bow.py` — use it for all text normalization to keep behavior consistent.
 
