@@ -50,6 +50,44 @@ class ImagesRepository:
         result = await self.session.execute(query)
         return result.fetchall()
 
+    async def get_images_and_ocr_texts_with_language(self):
+        query = (
+            select(
+                self.img.filename,
+                self.img.id,
+                self.ocr.text,
+                self.ocr.confidence,
+                self.ocr.language,
+                self.ocr.lang_score,
+            ).join(
+                self.ocr, self.ocr.image_id == self.img.id
+            )
+        )
+        result = await self.session.execute(query)
+        return result.fetchall()
+
+    async def get_images_and_ocr_texts_without_tags_with_language(self, source: str):
+        already_tagged = (
+            select(ImageTag.image_id)
+            .where(ImageTag.source == source)
+            .distinct()
+            .scalar_subquery()
+        )
+        query = (
+            select(
+                self.img.filename,
+                self.img.id,
+                self.ocr.text,
+                self.ocr.confidence,
+                self.ocr.language,
+                self.ocr.lang_score,
+            )
+            .join(self.ocr, self.ocr.image_id == self.img.id)
+            .where(self.img.id.not_in(already_tagged))
+        )
+        result = await self.session.execute(query)
+        return result.fetchall()
+
     async def get_images_and_descriptions(self):
         query = (
             select(
