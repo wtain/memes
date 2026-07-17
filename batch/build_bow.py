@@ -168,7 +168,7 @@ async def _build_ocr_bow(session, morph, confidence_min, lang_score_min, min_wor
         for word in tokenize(text):
             if len(word) < min_word_length or word.isdigit():
                 continue
-            lang_counters[lang][lemmatize_word(word, morph)] += 1
+            lang_counters[lang][lemmatize_word(word, morph, lang)] += 1
         metrics.increment("ocr.rows.processed")
 
     output = {}
