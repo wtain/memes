@@ -100,5 +100,20 @@ def normalize(
 
 def lemmatize_phrase(text: str, morph: pymorphy3.MorphAnalyzer) -> str:
     """Lemmatize each whitespace-delimited chunk of text, preserving
-    internal punctuation (e.g. hyphens in compound names) and word order."""
+    internal punctuation (e.g. hyphens in compound names) and word order.
+
+    Does not accept a language parameter: always performs real Russian lemmatization
+    via lemmatize_word(). Callers are responsible for ensuring the input text is
+    already known to be Russian; this function does not do its own language gating.
+    Unlike lemmatize_word() (which has language-aware fallbacks) or normalize()
+    (which accepts an optional language parameter), lemmatize_phrase() is designed for
+    callers in specialized contexts (e.g., trends_batch) that have already determined
+    language at a higher level and invoke this function only for Russian content.
+
+    Uses simple whitespace splitting (text.split()) rather than tokenize() to preserve
+    ordered, readable phrases as single units. tokenize() is designed for bag-of-words
+    extraction where word order and internal punctuation do not matter — it would break
+    compound proper nouns like "Санкт-Петербург" at their internal hyphens and lose
+    the multi-word structure. lemmatize_phrase() keeps each whitespace-delimited token
+    whole, so compound names and hyphenated expressions remain intact and readable."""
     return " ".join(lemmatize_word(chunk, morph) for chunk in text.split())
