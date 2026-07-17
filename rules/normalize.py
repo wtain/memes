@@ -96,3 +96,9 @@ def normalize(
             if len(shorter) >= min_length:
                 result.add(lemmatize_word(shorter, morph, language))
     return result
+
+
+def lemmatize_phrase(text: str, morph: pymorphy3.MorphAnalyzer) -> str:
+    """Lemmatize each whitespace-delimited chunk of text, preserving
+    internal punctuation (e.g. hyphens in compound names) and word order."""
+    return " ".join(lemmatize_word(chunk, morph) for chunk in text.split())

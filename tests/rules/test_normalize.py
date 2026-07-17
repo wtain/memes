@@ -102,3 +102,29 @@ class TestNormalizeLanguageGating:
         result = normalize("RUNNING FAST", wrapped, language="en")
         assert result == {"running", "fast"}
         wrapped.parse.assert_not_called()
+
+
+from rules.normalize import lemmatize_phrase
+
+
+class TestLemmatizePhrase:
+    def test_single_word(self):
+        morph = make_morph()
+        assert lemmatize_phrase("Путина", morph) == "путин"
+
+    def test_multi_word_phrase_normalizes_each_word(self):
+        morph = make_morph()
+        assert lemmatize_phrase("Владимира Путина", morph) == "владимир путин"
+
+    def test_hyphenated_compound_stays_joined_and_lemmatizes_as_one(self):
+        morph = make_morph()
+        assert lemmatize_phrase("Санкт-Петербурга", morph) == "санкт-петербург"
+
+    def test_already_nominative_input_is_idempotent(self):
+        morph = make_morph()
+        assert lemmatize_phrase("Владимир Путин", morph) == "владимир путин"
+
+    def test_preserves_word_order(self):
+        morph = make_morph()
+        result = lemmatize_phrase("Владимира Путина", morph)
+        assert result.split() == ["владимир", "путин"]
