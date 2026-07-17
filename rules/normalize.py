@@ -23,7 +23,7 @@ _TOKEN_RE = re.compile(r"[^\W_]+(?:['-][^\W_]+)*", re.UNICODE)
 _JOINER_NORMALIZE = str.maketrans({
     "–": "-",   # en dash
     "—": "-",   # em dash
-    "'": "'",   # right single quotation mark / smart apostrophe
+    "’": "'",   # right single quotation mark / smart apostrophe
 })
 
 

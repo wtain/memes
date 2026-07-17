@@ -43,7 +43,7 @@ class TestTokenizeJoinerNormalization:
         assert tokenize("well–known") == ["well-known"]
 
     def test_curly_apostrophe_normalized(self):
-        assert tokenize("don't") == ["don't"]
+        assert tokenize("don’t") == ["don't"]
 
 
 class TestTokenizeUnderscoreStillSplits:
