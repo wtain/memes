@@ -49,3 +49,56 @@ class TestTokenizeJoinerNormalization:
 class TestTokenizeUnderscoreStillSplits:
     def test_underscore_handle_splits(self):
         assert tokenize("varg_vikernes") == ["varg", "vikernes"]
+
+
+from unittest.mock import Mock
+
+from rules.normalize import lemmatize_word, make_morph, normalize
+
+
+class TestLemmatizeWordLanguageGating:
+    def test_language_none_lemmatizes_russian_word_as_before(self):
+        morph = make_morph()
+        assert lemmatize_word("работе", morph) == "работа"
+
+    def test_language_none_lowercases_latin_word_as_before(self):
+        morph = make_morph()
+        assert lemmatize_word("RUNNING", morph) == "running"
+
+    def test_language_ru_lemmatizes_normally(self):
+        morph = make_morph()
+        assert lemmatize_word("Путина", morph, language="ru") == "путин"
+
+    def test_language_en_skips_pymorphy3_entirely(self):
+        morph = make_morph()
+        wrapped = Mock(wraps=morph)
+        result = lemmatize_word("RUNNING", wrapped, language="en")
+        assert result == "running"
+        wrapped.parse.assert_not_called()
+
+    def test_language_es_skips_pymorphy3_entirely(self):
+        morph = make_morph()
+        wrapped = Mock(wraps=morph)
+        result = lemmatize_word("CANCIÓN", wrapped, language="es")
+        assert result == "canción"
+        wrapped.parse.assert_not_called()
+
+    def test_language_unknown_skips_pymorphy3_entirely(self):
+        morph = make_morph()
+        wrapped = Mock(wraps=morph)
+        result = lemmatize_word("MYSTERY", wrapped, language="unknown")
+        assert result == "mystery"
+        wrapped.parse.assert_not_called()
+
+
+class TestNormalizeLanguageGating:
+    def test_language_none_reproduces_default_behavior(self):
+        morph = make_morph()
+        assert normalize("работе сегодня", morph) == {"работа", "сегодня"}
+
+    def test_language_en_lowercases_without_pymorphy3(self):
+        morph = make_morph()
+        wrapped = Mock(wraps=morph)
+        result = normalize("RUNNING FAST", wrapped, language="en")
+        assert result == {"running", "fast"}
+        wrapped.parse.assert_not_called()
