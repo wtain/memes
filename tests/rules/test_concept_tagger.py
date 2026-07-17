@@ -212,3 +212,37 @@ class TestOCRArtifacts:
         })
         # "wi" (2 chars) would be below min_length=3, so it never enters the bag
         assert "ghost:wi" not in _tags(e, "will you come")
+
+
+# ---------------------------------------------------------------------------
+# language parameter (rules/normalize.py language gating)
+# ---------------------------------------------------------------------------
+
+def _tags_lang(engine: ConceptTagger, text: str, language: str | None) -> set[str]:
+    return {f"{k}:{v}" for k, v in engine.tag(text, language=language).tags}
+
+
+class TestLanguageParameter:
+    def test_no_language_arg_is_backward_compatible(self, tmp_path):
+        e = _make_engine(tmp_path, {
+            "metallica": {"words": ["metallica"], "votes": {"band:metallica": 1.0}},
+        })
+        assert "band:metallica" in _tags(e, "Metallica is great")
+
+    def test_language_ru_still_matches_inflected_russian(self, tmp_path):
+        e = _make_engine(tmp_path, {
+            "work": {"words": ["работа"], "votes": {"тема:работа": 1.0}},
+        })
+        assert "тема:работа" in _tags_lang(e, "на работе сегодня", "ru")
+
+    def test_language_en_matches_latin_word(self, tmp_path):
+        e = _make_engine(tmp_path, {
+            "metallica": {"words": ["metallica"], "votes": {"band:metallica": 1.0}},
+        })
+        assert "band:metallica" in _tags_lang(e, "METALLICA RULES", "en")
+
+    def test_language_unknown_matches_latin_word(self, tmp_path):
+        e = _make_engine(tmp_path, {
+            "slayer": {"words": ["slayer"], "votes": {"band:slayer": 1.0}},
+        })
+        assert "band:slayer" in _tags_lang(e, "Slayer tour", "unknown")

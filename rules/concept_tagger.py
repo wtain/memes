@@ -45,12 +45,12 @@ class ConceptTagger:
         concepts = _load_concepts(data_dir / f"concepts.{profile}.yaml", profile, declared, morph)
         return cls(concepts, thresholds, morph)
 
-    def tag(self, text: str) -> TagResult:
-        lemma_bag = normalize(text, self._morph)
+    def tag(self, text: str, language: str | None = None) -> TagResult:
+        lemma_bag = normalize(text, self._morph, language=language)
         # Phrases may contain short words ("zz" in "zz top", "in" in "alice in chains").
         # normalize() drops them, making phrase checks impossible. Build a separate full
         # bag with no length filter just for phrase matching.
-        lemma_bag_full = normalize(text, self._morph, min_length=1)
+        lemma_bag_full = normalize(text, self._morph, min_length=1, language=language)
         scores: dict[tuple[str, str], float] = {}
         trace: list[dict] = []
 
