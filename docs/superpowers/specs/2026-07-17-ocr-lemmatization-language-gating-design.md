@@ -2,7 +2,9 @@
 
 **Date:** 2026-07-17
 **Status:** Proposed
-**Scope:** `rules/normalize.py`, `batch/build_bow.py`, `rules/concept_tagger.py`, `repository/images.py`, `batch/build_tags_from_ocr.py`, new `tests/rules/test_normalize.py`, `tests/rules/test_concept_tagger.py`, `tests/integration/test_build_ocr_bow_lang_filter.py`
+**Scope:** `rules/normalize.py`, `batch/build_bow.py`, `rules/concept_tagger.py`, `repository/images.py` (new methods only — see Design Decisions), `batch/build_tags_from_ocr.py`, new `tests/rules/test_normalize.py`, `tests/rules/test_concept_tagger.py`, `tests/integration/test_build_ocr_bow_lang_filter.py`
+
+**Cross-reference:** a sibling spec, `docs/superpowers/specs/2026-07-17-ocr-tokenize-punctuation-preservation-design.md`, also modifies `rules/normalize.py` (it changes `tokenize()`'s regex; this spec changes `lemmatize_word()`/`normalize()`'s signature and adds `LEMMATIZABLE_LANGUAGES`). The two touch different functions in the same file and compose without conflict, but whoever implements should merge both sets of changes into one final `rules/normalize.py` rather than applying either spec's code blocks as a wholesale file replacement — the `tokenize()` shown "unchanged" below is only unchanged *relative to this spec*, not relative to the sibling spec.
 
 ---
 
@@ -51,6 +53,7 @@ The risk this spec closes is narrower than "every en/es lemma might be wrong": i
 | Should `_build_descriptions_bow` be gated? | **No — out of scope.** `ImageDescription` rows have no `language` column (Ollama descriptions are presumed English-only across environments, and the existing schema reflects that). Adding a language dimension to descriptions is a separate, larger change (new column, backfill, extraction-time detection) that isn't needed to fix the described inconsistency. Left calling `lemmatize_word(word, morph)` with the default `language=None`, i.e. unchanged behavior. |
 | Extensibility for Ukrainian / future languages | `LEMMATIZABLE_LANGUAGES` is a module-level `frozenset` constant in `rules/normalize.py`, not a hardcoded `== "ru"` check inline at each call site. If `pymorphy3-dicts-uk` is ever installed, adding `"uk"` to the set is a one-line change that automatically applies everywhere the gate is used. |
 | `ConceptTagger.tag()` signature | Add `language: str | None = None` (same default-preserves-legacy-behavior convention as `normalize()`), threaded into both of its internal `normalize()` calls. Optional, not required, so every existing caller without a language signal (dev tools, `eval_rules.py`, `diff_rules.py`, unit tests) compiles and behaves identically without modification. |
+| Should `ImagesRepository.get_images_and_ocr_texts()` / `get_images_and_ocr_texts_without_tags()` be modified in place to add `language`? | **No.** Both methods are shared by more than just `build_tags_from_ocr.py`: `batch/diff_rules.py::_load_corpus`, seven `batch/tools/spot_check_*.py` scripts, and two existing integration tests in `tests/integration/test_images_repository.py` all destructure each row as a 5-tuple (`fn, iid, text, conf, _` or equivalent). Inserting a 6th column would break every one of them with `ValueError: too many values to unpack` — verified by grepping every call site, not assumed. Two new methods are added alongside the originals instead (see below); the originals are untouched, so none of those nine call sites or two tests need to change. |
 
 ---
 
@@ -89,6 +92,14 @@ def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer, language: str | No
     analyzer that was never designed for them.
 
     language in LEMMATIZABLE_LANGUAGES ("ru"): real pymorphy3 lemmatization.
+
+    Note for callers outside this module (e.g. trends_batch's separate
+    lemmatize_phrase, see the sibling trends-lemmatization spec): the
+    None-means-"run pymorphy3 anyway" default here is a per-call fallback for
+    callers with no language signal at all. A caller that already knows its
+    own language ahead of time (trends_batch checks `language == "ru"` before
+    ever calling into lemmatization) doesn't rely on this default — it simply
+    never calls this function for non-Russian content in the first place.
     """
     if language is not None and language not in LEMMATIZABLE_LANGUAGES:
         return word.lower()
@@ -165,10 +176,16 @@ No changes to `ConceptTagger.load`, `_load_tags`, or `_load_concepts` (vocabular
 
 ### `repository/images.py::ImagesRepository`
 
-Add `OCRText.language` to the two OCR query methods `ConceptTagger.tag()`'s caller needs it from:
+**Do not modify `get_images_and_ocr_texts()` / `get_images_and_ocr_texts_without_tags()` in place.** Both are shared by callers outside this spec's scope that destructure rows as 5-tuples and would break if a column were inserted into the existing SELECT — confirmed by grep, not assumed:
+
+- `batch/diff_rules.py::_load_corpus`: `[(fn, iid, text) for fn, iid, text, conf, _ in rows ...]`
+- `batch/tools/spot_check_band.py`, `spot_check_burzum.py`, `spot_check_losses.py`, `spot_check_mem.py`, `spot_check_metal_losses.py`, `spot_check_metallica.py`, `spot_check_slayer.py` — same 5-tuple unpack pattern
+- `tests/integration/test_images_repository.py::test_get_images_and_ocr_texts_includes_lang_score` and `::test_get_images_and_ocr_texts_without_tags_includes_lang_score` — explicitly assert the row shape is `(filename, img_id, txt, confidence, lang_score)`
+
+None of these need `language` — they're all out of scope per the Design Decisions table above (dev tools with no language signal to use it for). Instead, add two **new** methods that include the extra column, leaving the originals byte-for-byte unchanged:
 
 ```python
-async def get_images_and_ocr_texts(self):
+async def get_images_and_ocr_texts_with_language(self):
     query = (
         select(
             self.img.filename,
@@ -184,7 +201,7 @@ async def get_images_and_ocr_texts(self):
     result = await self.session.execute(query)
     return result.fetchall()
 
-async def get_images_and_ocr_texts_without_tags(self, source: str):
+async def get_images_and_ocr_texts_without_tags_with_language(self, source: str):
     already_tagged = (
         select(ImageTag.image_id)
         .where(ImageTag.source == source)
@@ -207,11 +224,18 @@ async def get_images_and_ocr_texts_without_tags(self, source: str):
     return result.fetchall()
 ```
 
-`self.ocr.language` is inserted before `lang_score` to match column order in `Storage/models.py::OCRText`; both call sites in `build_tags_from_ocr.py` unpack by position, so the order matters and is called out explicitly here. `get_images_and_descriptions[_without_tags]` are untouched (no `language` column on `ImageDescription`).
+`self.ocr.language` is inserted before `lang_score` to match column order in `Storage/models.py::OCRText`; `build_tags_from_ocr.py` unpacks by position, so the order matters and is called out explicitly here. `get_images_and_ocr_texts` / `get_images_and_ocr_texts_without_tags` (original, no-language versions) and `get_images_and_descriptions[_without_tags]` are all untouched — the latter has no `language` column on `ImageDescription` to add in the first place.
 
 ### `batch/build_tags_from_ocr.py`
 
 ```python
+if incremental:
+    images_and_texts_results = await images_repo.get_images_and_ocr_texts_without_tags_with_language("OCR")
+else:
+    images_and_texts_results = await images_repo.get_images_and_ocr_texts_with_language()
+
+...
+
 for filename, image_id, text, confidence, language, lang_score in images_and_texts_results:
     if not passes_language_filter(confidence, lang_score, ocr_confidence_min, ocr_lang_score_min):
         metrics.increment("images.skipped")
@@ -227,7 +251,7 @@ for filename, image_id, text, confidence, language, lang_score in images_and_tex
     tracker.mark_done()
 ```
 
-Two changes: the tuple unpack gains `language` (matching the new column added to `ImagesRepository`), and `engine.tag(text)` becomes `engine.tag(text, language=language or "unknown")`.
+Three changes: the two repository calls switch to the new `_with_language` methods, the tuple unpack gains `language`, and `engine.tag(text)` becomes `engine.tag(text, language=language or "unknown")`.
 
 ---
 
@@ -264,6 +288,7 @@ Two changes: the tuple unpack gains `language` (matching the new column added to
   - `language="en"` / `language="es"` / `language="unknown"` all return `word.lower()` for a Latin-script word — verify deterministically by spying on `morph.parse` (e.g. `unittest.mock.Mock(wraps=morph)`) and asserting it is never called for these three cases, rather than relying on a specific word that happens to trip pymorphy3's guesser (fragile — depends on undocumented internals that could change with a pymorphy3 upgrade).
 - **`tests/rules/test_concept_tagger.py`:** add cases calling `engine.tag(text, language=...)` for `"en"`/`"es"`/`"ru"`/`"unknown"`, confirming vocabulary matching (word/phrase/fuzzy) still fires correctly for each, and that an existing no-`language`-arg test still passes unmodified (backward-compat check).
 - **`tests/integration/test_build_ocr_bow_lang_filter.py`:** extend with a row where `language="es"` and text contains a token that would be mis-lemmatized if it reached pymorphy3's Russian guesser (e.g. a mixed-script or edge-case token), asserting the output lemma is the plain lowercased token.
+- **`tests/integration/test_images_repository.py`:** add new tests for `get_images_and_ocr_texts_with_language` / `get_images_and_ocr_texts_without_tags_with_language` (mirroring the existing `..._includes_lang_score` tests but asserting the 6-tuple shape and that `language` comes back correctly). The two *existing* tests in this file are not touched and must keep passing unmodified — they exercise the original, untouched methods.
 - Standard pre-commit gate for this change: `cd Backend && pytest`, `pytest tests/rules/`, `pytest batch/tests/` (per CLAUDE.md); the OCR-lang-filter integration test additionally requires the live Postgres integration fixture already used by `tests/integration/`.
 
 ---
@@ -273,8 +298,8 @@ Two changes: the tuple unpack gains `language` (matching the new column added to
 1. `rules/normalize.py` — add `LEMMATIZABLE_LANGUAGES`, extend `lemmatize_word()`/`normalize()` with the optional `language` parameter. Add `tests/rules/test_normalize.py`.
 2. `batch/build_bow.py::_build_ocr_bow` — pass `lang` into `lemmatize_word`.
 3. `rules/concept_tagger.py::ConceptTagger.tag` — add `language` parameter, thread into both `normalize()` calls. Extend `tests/rules/test_concept_tagger.py`.
-4. `repository/images.py` — add `OCRText.language` to `get_images_and_ocr_texts` / `get_images_and_ocr_texts_without_tags`.
-5. `batch/build_tags_from_ocr.py` — unpack the new `language` column, pass `language=language or "unknown"` into `engine.tag()`.
+4. `repository/images.py` — add the two new `_with_language` methods (originals untouched). Add their integration tests.
+5. `batch/build_tags_from_ocr.py` — switch to the new repository methods, unpack the new `language` column, pass `language=language or "unknown"` into `engine.tag()`.
 6. Extend `tests/integration/test_build_ocr_bow_lang_filter.py` with a language-gating case.
 7. Re-run `build_bow` and `build_tags_from_ocr` (full rebuild, not `--incremental` — this is a lemmatization-logic change, not new data) on each environment; spot-check that `unmatched.<env>.json`'s `en`/`es` blocks no longer contain any lemma that looks like a Russian-suffix-guessed artifact.
 
@@ -282,5 +307,5 @@ Two changes: the tuple unpack gains `language` (matching the new column added to
 
 ## Side Notes
 
-- CLAUDE.md currently describes `rules/concept_tagger.py` as "Not yet wired into the main pipeline," but `batch/build_tags_from_ocr.py` already imports and uses `ConceptTagger` directly, and `build_tags_from_ocr` is listed in CLAUDE.md's own batch pipeline execution order. That doc line appears stale relative to the current code. Not fixed as part of this spec (out of scope for a lemmatization design doc), but worth a follow-up doc correction.
+- CLAUDE.md previously described `rules/concept_tagger.py` as "Not yet wired into the main pipeline," despite `batch/build_tags_from_ocr.py` already importing and using `ConceptTagger` directly. This has since been corrected in CLAUDE.md (fixed separately, outside this spec).
 - If a future need arises for genuine English/Spanish lemmatization (not just gating out the Russian analyzer), the `language` parameter added here is the natural extension point — the "Approach C" alternative considered during brainstorming (a pluggable per-language lemmatizer registry) becomes easy to layer in later without another redesign, once/if that's actually needed.

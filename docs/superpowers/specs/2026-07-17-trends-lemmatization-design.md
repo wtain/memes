@@ -32,9 +32,9 @@ brings the same lemmatization to `trends_batch.py`'s entity counting.
 A structurally related but separate problem — that `rules/normalize.py` is
 currently applied *unconditionally* to all OCR text regardless of detected
 language, and that its tokenizer strips internal punctuation like hyphens —
-is being addressed by two sibling specs, not this one: an OCR
-language-gating spec (in progress at the time of writing) and the already
-committed `docs/superpowers/specs/2026-07-17-ocr-tokenize-punctuation-preservation-design.md`.
+is addressed by two sibling specs, not this one:
+`docs/superpowers/specs/2026-07-17-ocr-lemmatization-language-gating-design.md`
+and `docs/superpowers/specs/2026-07-17-ocr-tokenize-punctuation-preservation-design.md`.
 This spec's `lemmatize_phrase()` (below) is deliberately independent of
 `tokenize()` and does not require either sibling spec to land first, though
 it's written to benefit automatically if/when they do.
@@ -94,7 +94,21 @@ readable phrase, and must not fragment a compound proper noun like
 "Санкт-Петербург" across the hyphen — `text.split()` preserves that
 structure by only splitting on whitespace, at the cost of not stripping
 punctuation attached to a word (acceptable here because GLiNER entity spans
-are already clean substrings of the source text, not raw OCR noise).
+are, by construction, contiguous substrings of the source text with
+model-chosen boundaries — unlike raw OCR noise, which is why this spec
+doesn't reuse `tokenize()`'s punctuation-stripping).
+
+**Pre-implementation check, not yet performed:** the claim above that GLiNER
+spans are "clean" (i.e. rarely include trailing punctuation like a comma
+attached with no space) is a reasonable assumption based on how span-based
+NER models are trained, but it hasn't been empirically verified against real
+Meduza output the way the sibling OCR specs verified their pymorphy3/wordfreq
+claims directly. Before implementing, run `Processor.process()` against a
+sample of real Meduza article text and spot-check a few dozen extracted
+`entity_text` values for attached punctuation. If it turns out spans
+sometimes do carry trailing/leading punctuation, `lemmatize_phrase()` may
+need a light strip (e.g. `text.strip(string.punctuation)` per whitespace
+chunk) before lemmatizing — a small addition, not a redesign, if needed.
 
 Per the earlier design decision to match the OCR bag-of-words precedent
 directly, the output is the lemma itself — lowercase, no separate "display
@@ -106,12 +120,15 @@ form" preserving original casing.
 one-time cost, same as `build_bow.py` already accepts), and holds it for the
 lifetime of the run alongside the existing `processor = Processor()`.
 
-`process_source()` gains two parameters: `language: str | None` and `morph`
-(the shared `pymorphy3.MorphAnalyzer`, needed only when `language == "ru"`):
+`process_source()` gains two parameters, both defaulted so the existing
+5-arg call shape keeps working: `language: str | None = None` and
+`morph: pymorphy3.MorphAnalyzer | None = None` (the shared analyzer, needed
+only when `language == "ru"`):
 
 ```python
 def process_source(source, connector, processor: Processor, labels: list[str],
-                    model_name: str, language: str | None, morph) -> Counter:
+                    model_name: str, language: str | None = None,
+                    morph: pymorphy3.MorphAnalyzer | None = None) -> Counter:
     trends = Counter()
     data = connector.fetch()
     for item in data:
@@ -123,12 +140,58 @@ def process_source(source, connector, processor: Processor, labels: list[str],
     return trends
 ```
 
+The two existing tests in `tests/batch/test_trends_batch.py`
+(`test_process_source_tallies_entities_across_items`,
+`test_process_source_handles_entity_text_containing_colon`) call
+`process_source(source, connector, processor, ["band"], "model-a")` with only
+five positional arguments — the defaults above mean neither test needs to
+change; they exercise the `language=None` (no lemmatization) path exactly as
+before.
+
 `main()`'s loop resolves `language = resolve_language(source, settings)`
 alongside the existing `labels`/`model_name` resolution, and passes both
-`language` and the run-level `morph` through to `process_source()`. Sources
-whose resolved language is not `"ru"` (including `None`) are completely
-unaffected — `entity_text` flows through exactly as today, preserving
-original casing and inflection, and `morph` is simply unused for that call.
+`language` and the run-level `morph` through to `process_source()`:
+
+```python
+async def main():
+    processor = Processor()
+    morph = make_morph()
+
+    async with AsyncSessionLocal() as session:
+        ...
+        for source in sources:
+            connector = get_connector(source.name, source.connector_type, source.config)
+            labels = resolve_labels(source, settings)
+            model_name = resolve_model(source, settings)
+            language = resolve_language(source, settings)
+
+            trends = process_source(source, connector, processor, labels, model_name, language, morph)
+            ...
+```
+
+`batch/trends/seed_sources.py::MEDUZA_SOURCE` gets an `extraction` key added:
+
+```python
+MEDUZA_SOURCE = {
+    "name": "Meduza",
+    "connector_type": "api",
+    "extraction": {"language": "ru"},
+    "config": {
+        "base_url": "https://meduza.io/api/w5/new_search",
+        "locale": "ru",
+        ...
+    },
+}
+```
+
+(`config.locale` is unrelated and untouched — it's the Meduza API's own
+content-locale parameter, not the language signal this spec introduces; see
+the "Language signal" decision in the Context section above.)
+
+Sources whose resolved language is not `"ru"` (including `None`) are
+completely unaffected — `entity_text` flows through exactly as today,
+preserving original casing and inflection, and `morph` is simply unused for
+that call.
 
 `Processor` (GLiNER extraction) is intentionally left untouched: it has one
 job (named-entity recognition) and has no reason to know about languages or

@@ -87,6 +87,22 @@ repo's `.venv311` (not assumed from documentation):
   `"санкт-петербург"` all return normal zipf scores). This means the
   language-plausibility filter is **not** regressed by preserving hyphens —
   an initial concern that turned out not to apply.
+- **Digit-containing compounds join too, and this was checked, not just the
+  letter-only case above.** `[^\W_]` (the token-body character class) matches
+  digits as well as letters, so `"covid-19"`, `"top-10"`, `"gta-5"` all
+  tokenize as one joined token under the new regex, not two (confirmed:
+  `_TOKEN_RE.findall("covid-19") == ["covid-19"]`). This means
+  `build_bow.py`'s `word.isdigit()` filter, which previously dropped the pure
+  `"19"` half after a hyphen-split, no longer gets the chance to — the whole
+  compound survives as one BOW/lemma entry going forward. Checked whether
+  this hurts `lang_plausibility.score()`: `zipf_frequency("covid-19", "en")`
+  returns `3.85` and `zipf_frequency("top-10", "en")` returns `5.12` — both
+  are recognized dictionary entries in `wordfreq`'s own corpus, so these
+  specific common cases score identically to before, not worse. A truly
+  obscure alphanumeric compound could still come back unrecognized, but
+  that's the same class of risk the letter-only compound case above already
+  accepts (e.g. an obscure two-word place name) — not a new failure mode
+  introduced by including digits in the joiner's character class.
 
 ## Design
 
@@ -177,6 +193,8 @@ as before. Verified directly:
 | `well–known` (en dash) | `['well-known']` | intended |
 | `varg_vikernes` | `['varg', 'vikernes']` | underscore still splits — deliberately unchanged |
 | `Guns'n'Roses` | `["Guns'n'Roses"]` | single token; see call-site check below |
+| `covid-19` | `['covid-19']` | digits count as word characters too — joins same as a letter-only compound; see Empirical validation |
+| `top-10` | `['top-10']` | same; both this and `covid-19` are recognized `wordfreq` entries, so plausibility scoring is unaffected for these common cases |
 
 ## Known behavior changes and accepted risks
 
