@@ -1,6 +1,7 @@
 package com.memebrowser.app.data.api
 
 import com.memebrowser.app.data.model.HealthResponse
+import com.memebrowser.app.data.model.ImageDescription
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeSearchResponse
 import com.memebrowser.app.data.model.StatisticsResponse
@@ -49,6 +50,9 @@ interface MemeApiService {
 
     @GET("api/images/{id}/similar")
     suspend fun getSimilarMemes(@Path("id") id: String): MemeSearchResponse
+
+    @GET("api/images/{id}/descriptions")
+    suspend fun getDescriptions(@Path("id") id: String): List<ImageDescription>
 
     @Streaming
     @GET("api/images/{id}")
