@@ -174,6 +174,19 @@ class ImageRepository:
         )
         return result.first() is not None
 
+    async def get_descriptions(self, image_id: str):
+        result = await self.session.execute(
+            select(
+                ImageDescription.prompt_key,
+                ImageDescription.text,
+                ImageDescription.model_used,
+                ImageDescription.created_at,
+            )
+            .where(ImageDescription.image_id == image_id)
+            .order_by(ImageDescription.prompt_key)
+        )
+        return result.all()
+
     async def get_meme_data(self, image_id: str):
         filename = await self.get_filename(image_id)
 

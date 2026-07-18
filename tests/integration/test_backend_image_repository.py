@@ -378,6 +378,41 @@ async def test_has_description_embedding_true_when_present_false_otherwise(db_se
 
 
 # --------------------------------------------------------------------------
+# get_descriptions
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_descriptions_returns_rows_ordered_by_prompt_key(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    await _insert_description(db_session, image, "humor_explanation", text="It's funny because...")
+    await _insert_description(db_session, image, "general_description", text="A cat wearing a hat.")
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    rows = await repo.get_descriptions(image.id)
+
+    assert [r.prompt_key for r in rows] == ["general_description", "humor_explanation"]
+    assert rows[0].text == "A cat wearing a hat."
+    assert rows[0].model_used == "llava"
+    assert rows[0].created_at is not None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_descriptions_returns_empty_list_when_none_exist(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    rows = await repo.get_descriptions(image.id)
+
+    assert rows == []
+
+
+# --------------------------------------------------------------------------
 # get_untagged / get_no_ocr
 # --------------------------------------------------------------------------
 
