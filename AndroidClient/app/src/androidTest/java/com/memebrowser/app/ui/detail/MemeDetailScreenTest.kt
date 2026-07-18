@@ -36,7 +36,7 @@ class MemeDetailScreenTest {
         envRepo = mockk(relaxed = true)
         every { envRepo.selectedEnvironmentName } returns flowOf("TestCollection")
         coEvery { repo.getMeme("meme-1") } returns Result.success(androidFakeMeme)
-        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(emptyList())
+        coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(emptyList())
         viewModel = MemeDetailViewModel(
             savedStateHandle = SavedStateHandle(mapOf("memeId" to "meme-1")),
             repo = repo,
@@ -46,7 +46,7 @@ class MemeDetailScreenTest {
 
     private fun setContent(
         onBack: () -> Unit = {},
-        onNavigateToMeme: (String) -> Unit = {}
+        onNavigateToMeme: (id: String, source: String) -> Unit = { _, _ -> }
     ) {
         composeTestRule.setContent {
             MemeBrowserTheme {
@@ -104,10 +104,10 @@ class MemeDetailScreenTest {
     @Test
     fun similarThumbnail_click_invokesNavigateCallback() {
         val similarMeme = androidFakeMeme.copy(id = "similar-1", originalFileName = "similar.jpg")
-        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(listOf(similarMeme))
+        coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(listOf(similarMeme))
         viewModel = MemeDetailViewModel(SavedStateHandle(mapOf("memeId" to "meme-1")), repo, envRepo)
         var navigatedTo: String? = null
-        setContent(onNavigateToMeme = { navigatedTo = it })
+        setContent(onNavigateToMeme = { id, _ -> navigatedTo = id })
         composeTestRule.onNodeWithContentDescription("similar.jpg").performClick()
         assertTrue(navigatedTo == "similar-1")
     }

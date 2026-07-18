@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,7 +66,7 @@ import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
 fun MemeDetailScreen(
     memeId: String,
     onBack: () -> Unit,
-    onNavigateToMeme: (String) -> Unit,
+    onNavigateToMeme: (id: String, source: String) -> Unit,
     onTagClick: (category: String, value: String) -> Unit = { _, _ -> },
     viewModel: MemeDetailViewModel = hiltViewModel()
 ) {
@@ -134,6 +136,8 @@ fun MemeDetailScreen(
                     onToggleFlagged = { viewModel.toggleFlagged() },
                     similarMemes = state.similarMemes,
                     isLoadingSimilar = state.isLoadingSimilar,
+                    similarSource = state.similarSource,
+                    onSimilarSourceChange = { viewModel.setSimilarSource(it) },
                     onSimilarMemeClick = onNavigateToMeme,
                     onTagClick = onTagClick,
                     onInfoClick = { showDescriptions = true }
@@ -166,7 +170,9 @@ private fun BottomActionBar(
     onToggleFlagged: () -> Unit,
     similarMemes: List<Meme>,
     isLoadingSimilar: Boolean,
-    onSimilarMemeClick: (String) -> Unit,
+    similarSource: String,
+    onSimilarSourceChange: (String) -> Unit,
+    onSimilarMemeClick: (id: String, source: String) -> Unit,
     onTagClick: (category: String, value: String) -> Unit,
     onInfoClick: () -> Unit
 ) {
@@ -181,27 +187,53 @@ private fun BottomActionBar(
             .navigationBarsPadding()
             .padding(vertical = 4.dp)
     ) {
-        if (isLoadingSimilar || similarMemes.isNotEmpty()) {
-            LazyRow(
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            FilterChip(
+                selected = similarSource == "image",
+                onClick = { onSimilarSourceChange("image") },
+                label = { Text("Visual", style = MaterialTheme.typography.labelSmall) },
+                colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedLabelColor = Color.Black)
+            )
+            FilterChip(
+                selected = similarSource == "description",
+                onClick = { onSimilarSourceChange("description") },
+                label = { Text("Semantic", style = MaterialTheme.typography.labelSmall) },
+                colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedLabelColor = Color.Black)
+            )
+        }
+
+        when {
+            isLoadingSimilar -> LazyRow(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                if (isLoadingSimilar) {
-                    item { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
-                } else {
-                    items(similarMemes, key = { it.id }) { similar ->
-                        AsyncImage(
-                            model = "http://localhost${similar.imageUrl}",
-                            contentDescription = similar.originalFileName,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { onSimilarMemeClick(similar.id) }
-                        )
-                    }
+                item { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
+            }
+            similarMemes.isNotEmpty() -> LazyRow(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(similarMemes, key = { it.id }) { similar ->
+                    AsyncImage(
+                        model = "http://localhost${similar.imageUrl}",
+                        contentDescription = similar.originalFileName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onSimilarMemeClick(similar.id, similarSource) }
+                    )
                 }
             }
+            else -> Text(
+                text = if (similarSource == "description") "No semantic similarity available for this image yet" else "No similar images found",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.6f),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            )
         }
 
         if (visibleTags.isNotEmpty()) {

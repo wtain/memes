@@ -34,16 +34,19 @@ fun NavGraph() {
             )
         }
         composable(
-            route = "detail/{memeId}",
-            arguments = listOf(navArgument("memeId") { type = NavType.StringType })
+            route = "detail/{memeId}?source={source}",
+            arguments = listOf(
+                navArgument("memeId") { type = NavType.StringType },
+                navArgument("source") { type = NavType.StringType; defaultValue = "image" }
+            )
         ) { backStack ->
             val memeId = backStack.arguments!!.getString("memeId")!!
             MemeDetailScreen(
                 memeId = memeId,
                 onBack = { navController.popBackStack() },
-                onNavigateToMeme = { id ->
-                    navController.navigate("detail/$id") {
-                        popUpTo("detail/{memeId}") { inclusive = true }
+                onNavigateToMeme = { id, source ->
+                    navController.navigate("detail/$id?source=$source") {
+                        popUpTo("detail/{memeId}?source={source}") { inclusive = true }
                     }
                 },
                 onTagClick = { category, value ->
