@@ -2,15 +2,19 @@ import argparse
 import asyncio
 from collections import Counter
 
+import pymorphy3
+
 from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
 from batch.trends.connectors.registry import get_connector
 from batch.trends.processing import Processor
-from batch.trends.resolution import resolve_labels, resolve_model
+from batch.trends.resolution import resolve_labels, resolve_language, resolve_model
 from repository.trends import TrendSourceRepository, TrendsRunRepository, TrendsRunResultRepository
+from rules.normalize import LEMMATIZABLE_LANGUAGES, lemmatize_phrase, make_morph
 
 
-def process_source(source, connector, processor: Processor, labels: list[str], model_name: str) -> Counter:
+def process_source(source, connector, processor: Processor, labels: list[str], model_name: str,
+                    language: str | None = None, morph: pymorphy3.MorphAnalyzer | None = None) -> Counter:
     trends = Counter()
     data = connector.fetch()
     print(f"Scraping {source.name}")
@@ -20,12 +24,15 @@ def process_source(source, connector, processor: Processor, labels: list[str], m
         print(title)
         text = item["text"]
         for entity_text, label in processor.process(text, model_name, labels):
+            if language in LEMMATIZABLE_LANGUAGES:
+                entity_text = lemmatize_phrase(entity_text, morph)
             trends[f"{label}:{entity_text}"] += 1
     return trends
 
 
 async def main():
     processor = Processor()
+    morph = make_morph()
 
     async with AsyncSessionLocal() as session:
 
@@ -43,8 +50,9 @@ async def main():
                 connector = get_connector(source.name, source.connector_type, source.config)
                 labels = resolve_labels(source, settings)
                 model_name = resolve_model(source, settings)
+                language = resolve_language(source, settings)
 
-                trends = process_source(source, connector, processor, labels, model_name)
+                trends = process_source(source, connector, processor, labels, model_name, language, morph)
 
                 for topic, value in trends.items():
                     label, name = topic.split(":", 1)

@@ -2,6 +2,7 @@ from collections import Counter
 from types import SimpleNamespace
 
 from batch.trends_batch import process_source
+from rules.normalize import make_morph
 
 
 class _FakeConnector:
@@ -47,3 +48,36 @@ def test_process_source_handles_entity_text_containing_colon():
 
     label, name = next(iter(trends)).split(":", 1)
     assert (label, name) == ("person", "Tribute: Vinnie Paul")
+
+
+def test_process_source_merges_inflected_russian_entities_when_language_ru():
+    source = SimpleNamespace(name="Meduza")
+    connector = _FakeConnector([
+        {"title": "A", "text": "Путина заявление"},
+        {"title": "B", "text": "Путин выступил"},
+    ])
+    processor = _FakeProcessor({
+        "Путина заявление": [("Путина", "person")],
+        "Путин выступил": [("Путин", "person")],
+    })
+    morph = make_morph()
+
+    trends = process_source(source, connector, processor, ["person"], "model-a", "ru", morph)
+
+    assert trends == Counter({"person:путин": 2})
+
+
+def test_process_source_leaves_entity_text_untouched_when_language_not_lemmatizable():
+    source = SimpleNamespace(name="LoudWire")
+    connector = _FakeConnector([
+        {"title": "A", "text": "Путина заявление"},
+        {"title": "B", "text": "Путин выступил"},
+    ])
+    processor = _FakeProcessor({
+        "Путина заявление": [("Путина", "person")],
+        "Путин выступил": [("Путин", "person")],
+    })
+
+    trends = process_source(source, connector, processor, ["person"], "model-a", None, None)
+
+    assert trends == Counter({"person:Путина": 1, "person:Путин": 1})
