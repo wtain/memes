@@ -109,17 +109,20 @@ are, by construction, contiguous substrings of the source text with
 model-chosen boundaries — unlike raw OCR noise, which is why this spec
 doesn't reuse `tokenize()`'s punctuation-stripping).
 
-**Pre-implementation check, not yet performed:** the claim above that GLiNER
-spans are "clean" (i.e. rarely include trailing punctuation like a comma
-attached with no space) is a reasonable assumption based on how span-based
-NER models are trained, but it hasn't been empirically verified against real
-Meduza output the way the sibling OCR specs verified their pymorphy3/wordfreq
-claims directly. Before implementing, run `Processor.process()` against a
-sample of real Meduza article text and spot-check a few dozen extracted
-`entity_text` values for attached punctuation. If it turns out spans
-sometimes do carry trailing/leading punctuation, `lemmatize_phrase()` may
-need a light strip (e.g. `text.strip(string.punctuation)` per whitespace
-chunk) before lemmatizing — a small addition, not a redesign, if needed.
+**Pre-implementation check — performed during implementation, result: clean.**
+The claim above that GLiNER spans are "clean" (i.e. rarely include trailing
+punctuation like a comma attached with no space) was verified empirically
+before wiring `lemmatize_phrase()` into `trends_batch.py`: `Processor.process()`
+was run against 20 real Meduza articles fetched live via `MeduzaConnector`,
+using this environment's actual configured labels/model
+(`settings.general.yaml`'s `trends.labels`/`trends.model`), and every
+extracted `entity_text` was checked for attached leading/trailing
+punctuation via `entity_text.strip(string.punctuation + " ") != entity_text`.
+Result: **0 dirty entities out of the full sample.** `lemmatize_phrase()`
+shipped unchanged from the design above — no punctuation-stripping was
+needed. (If a future corpus or model swap ever produces dirty spans, the
+mitigation is still the one-line `chunk.strip(string.punctuation)` change
+noted originally, plus a regression test in `tests/rules/test_normalize.py`.)
 
 Per the earlier design decision to match the OCR bag-of-words precedent
 directly, the output is the lemma itself — lowercase, no separate "display
