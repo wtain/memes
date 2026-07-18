@@ -24,8 +24,18 @@ MEDUZA_SOURCE = {
 async def seed_meduza_source(session) -> bool:
     repo = TrendSourceRepository(session)
     existing = await repo.get_all()
-    if any(source.name == MEDUZA_SOURCE["name"] for source in existing):
-        print(f"{MEDUZA_SOURCE['name']} source already exists, skipping")
+    existing_source = next((s for s in existing if s.name == MEDUZA_SOURCE["name"]), None)
+
+    if existing_source is not None:
+        # Sync extraction (e.g. language) on rows seeded before this field existed —
+        # config/connector_type are left alone since they may hold production-tuned
+        # values (rate-limiting knobs) that shouldn't be silently overwritten.
+        if existing_source.extraction != MEDUZA_SOURCE["extraction"]:
+            existing_source.extraction = MEDUZA_SOURCE["extraction"]
+            await session.flush()
+            print(f"{MEDUZA_SOURCE['name']} source already exists, updated extraction")
+        else:
+            print(f"{MEDUZA_SOURCE['name']} source already exists, skipping")
         return False
 
     session.add(TrendSource(**MEDUZA_SOURCE))
