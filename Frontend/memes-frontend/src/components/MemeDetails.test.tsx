@@ -157,6 +157,25 @@ describe('MemeDetails', () => {
       expect(api.similarMemes).toHaveBeenCalledTimes(2)
     })
 
+    it('clears stale results and shows the Semantic empty state when the description fetch fails (e.g. no embedding yet)', async () => {
+      const api = makeMockApi({
+        similarMemes: vi.fn()
+          .mockResolvedValueOnce({ items: [{ id: 'vis-1', imageUrl: '/vis-1.jpg' }], facets: [], hasNext: false })
+          .mockRejectedValueOnce(new Error('404')),
+      })
+      render(
+        <MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>
+      )
+      await act(async () => {})
+      expect(screen.getByAltText(/vis-1/)).toBeInTheDocument()
+
+      screen.getByRole('button', { name: 'Semantic' }).click()
+      await act(async () => {})
+
+      expect(screen.queryByAltText(/vis-1/)).not.toBeInTheDocument()
+      expect(screen.getByText('No semantic similarity available for this image yet')).toBeInTheDocument()
+    })
+
     it('shows the Visual empty-state message when there are no visual matches', async () => {
       renderMemeDetails(DEFAULT_MOCK_MEME, {
         similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),

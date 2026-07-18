@@ -44,6 +44,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
     `${meme.id}:${similarSource}`,
     () => memesApi.similarMemes(meme.id, similarSource),
     resp => setSimilarMemes(resp.items ?? []),
+    () => setSimilarMemes([]),
   )
   useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
   useFetchById(meme.id, id => memesApi.getDescriptions(id), setDescriptions)
