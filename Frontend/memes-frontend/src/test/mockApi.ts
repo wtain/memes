@@ -16,6 +16,7 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     iterateNoOcrMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
     iterateDuplicates: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
     similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
+    getDescriptions: vi.fn().mockResolvedValue([]),
     getImageUrl: vi.fn().mockReturnValue('http://example.com/test.jpg'),
     listConcepts: vi.fn().mockResolvedValue([]),
     getTopImagesForConcept: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),

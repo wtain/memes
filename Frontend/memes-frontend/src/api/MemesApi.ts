@@ -1,4 +1,4 @@
-import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse, TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse } from "../types/generated/all";
+import type { Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse, TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse } from "../types/generated/all";
 
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>
@@ -12,6 +12,8 @@ export interface MemesApi {
   iterateFlaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>;
 
   similarMemes(id: string): Promise<MemeSearchResponse>
+
+  getDescriptions(id: string): Promise<ImageDescription[]>
 
   getImageUrl(meme: Meme): string;
 
