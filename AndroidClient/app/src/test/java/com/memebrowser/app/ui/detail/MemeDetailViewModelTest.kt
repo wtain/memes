@@ -42,7 +42,7 @@ class MemeDetailViewModelTest {
         envRepo = mockk(relaxed = true)
         every { envRepo.selectedEnvironmentName } returns flowOf("TestCollection")
         coEvery { repo.getMeme("meme-1") } returns Result.success(fakeMeme)
-        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(emptyList())
+        coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(emptyList())
         coEvery { repo.getDescriptions("meme-1") } returns Result.success(emptyList())
     }
 
@@ -117,7 +117,7 @@ class MemeDetailViewModelTest {
     @Test
     fun `similar memes are populated in state`() = runTest {
         val similar = listOf(fakeMeme.copy(id = "similar-1"))
-        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(similar)
+        coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(similar)
         viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
@@ -129,7 +129,7 @@ class MemeDetailViewModelTest {
 
     @Test
     fun `getSimilarMemes failure is silent and does not set error`() = runTest {
-        coEvery { repo.getSimilarMemes("meme-1") } returns Result.failure(Exception("network error"))
+        coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.failure(Exception("network error"))
         viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
@@ -146,7 +146,7 @@ class MemeDetailViewModelTest {
             fakeMeme.copy(id = "meme-1"),   // same ID as current meme
             fakeMeme.copy(id = "similar-1")
         )
-        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(withSelf)
+        coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(withSelf)
         viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
@@ -162,7 +162,7 @@ class MemeDetailViewModelTest {
             fakeMeme.copy(id = "similar-1"),
             fakeMeme.copy(id = "similar-1")
         )
-        coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(withDuplicates)
+        coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(withDuplicates)
         viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
         viewModel.state.test {
             val state = awaitItem()
@@ -194,5 +194,37 @@ class MemeDetailViewModelTest {
             assertTrue(state.descriptions.isEmpty())
             assertNull(state.error)
         }
+    }
+
+    @Test
+    fun `setSimilarSource refetches with the new source`() = runTest {
+        val visual = listOf(fakeMeme.copy(id = "visual-1"))
+        val semantic = listOf(fakeMeme.copy(id = "semantic-1"))
+        coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(visual)
+        coEvery { repo.getSimilarMemes("meme-1", "description") } returns Result.success(semantic)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+
+        viewModel.setSimilarSource("description")
+
+        viewModel.state.test {
+            val state = awaitItem()
+            assertEquals("description", state.similarSource)
+            assertEquals(1, state.similarMemes.size)
+            assertEquals("semantic-1", state.similarMemes[0].id)
+        }
+        coVerify(exactly = 1) { repo.getSimilarMemes("meme-1", "description") }
+    }
+
+    @Test
+    fun `initial similarSource is read from the source SavedStateHandle argument`() = runTest {
+        val handleWithSource = SavedStateHandle(mapOf("memeId" to "meme-1", "source" to "description"))
+        coEvery { repo.getSimilarMemes("meme-1", "description") } returns Result.success(emptyList())
+        viewModel = MemeDetailViewModel(handleWithSource, repo, envRepo)
+
+        viewModel.state.test {
+            val state = awaitItem()
+            assertEquals("description", state.similarSource)
+        }
+        coVerify(exactly = 1) { repo.getSimilarMemes("meme-1", "description") }
     }
 }

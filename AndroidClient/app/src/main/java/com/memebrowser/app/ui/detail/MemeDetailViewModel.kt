@@ -31,6 +31,7 @@ data class DetailUiState(
     val saveSuccess: Boolean = false,
     val similarMemes: List<Meme> = emptyList(),
     val isLoadingSimilar: Boolean = false,
+    val similarSource: String = "image",
     val descriptions: List<ImageDescription> = emptyList()
 )
 
@@ -46,8 +47,9 @@ class MemeDetailViewModel @Inject constructor(
 
 
     private val memeId: String = checkNotNull(savedStateHandle["memeId"])
+    private val initialSimilarSource: String = savedStateHandle["source"] ?: "image"
 
-    private val _state = MutableStateFlow(DetailUiState())
+    private val _state = MutableStateFlow(DetailUiState(similarSource = initialSimilarSource))
     val state: StateFlow<DetailUiState> = _state.asStateFlow()
 
     init {
@@ -67,13 +69,14 @@ class MemeDetailViewModel @Inject constructor(
 
     private fun loadSimilar() {
         viewModelScope.launch {
+            val source = _state.value.similarSource
             _state.update { it.copy(isLoadingSimilar = true) }
-            repo.getSimilarMemes(memeId)
+            repo.getSimilarMemes(memeId, source)
                 .onSuccess { memes ->
                     val deduped = memes.filter { it.id != memeId }.distinctBy { it.id }
                     _state.update { it.copy(similarMemes = deduped, isLoadingSimilar = false) }
                 }
-                .onFailure { _state.update { it.copy(isLoadingSimilar = false) } }
+                .onFailure { _state.update { it.copy(similarMemes = emptyList(), isLoadingSimilar = false) } }
         }
     }
 
@@ -97,6 +100,11 @@ class MemeDetailViewModel @Inject constructor(
                 _state.update { it.copy(meme = meme.copy(flagged = currentlyFlagged), error = e.message) }
             }
         }
+    }
+
+    fun setSimilarSource(source: String) {
+        _state.update { it.copy(similarSource = source) }
+        loadSimilar()
     }
 
     fun saveToGallery(context: Context) {

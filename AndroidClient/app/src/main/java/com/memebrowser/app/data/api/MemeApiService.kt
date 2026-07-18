@@ -49,7 +49,7 @@ interface MemeApiService {
     ): MemeSearchResponse
 
     @GET("api/images/{id}/similar")
-    suspend fun getSimilarMemes(@Path("id") id: String): MemeSearchResponse
+    suspend fun getSimilarMemes(@Path("id") id: String, @Query("source") source: String = "image"): MemeSearchResponse
 
     @GET("api/images/{id}/descriptions")
     suspend fun getDescriptions(@Path("id") id: String): List<ImageDescription>

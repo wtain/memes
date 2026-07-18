@@ -70,8 +70,8 @@ open class MemeRepository @Inject constructor(
         api.getFlagged(limit = limit, cursor = cursor)
     }
 
-    suspend fun getSimilarMemes(id: String): Result<List<Meme>> = runCatching {
-        api.getSimilarMemes(id).items ?: emptyList()
+    suspend fun getSimilarMemes(id: String, source: String = "image"): Result<List<Meme>> = runCatching {
+        api.getSimilarMemes(id, source).items ?: emptyList()
     }
 
     suspend fun getDescriptions(id: String): Result<List<ImageDescription>> = runCatching {
