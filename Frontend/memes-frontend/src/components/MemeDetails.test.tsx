@@ -75,7 +75,7 @@ describe('MemeDetails', () => {
       const { api } = renderMemeDetails()
       await act(async () => {})
       expect(api.similarMemes).toHaveBeenCalledTimes(1)
-      expect(api.similarMemes).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
+      expect(api.similarMemes).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id, "image")
     })
 
     it('re-fetches when meme ID changes', async () => {
@@ -89,7 +89,7 @@ describe('MemeDetails', () => {
 
       rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
       await act(async () => {})
-      expect(api.similarMemes).toHaveBeenCalledWith('meme-B')
+      expect(api.similarMemes).toHaveBeenCalledWith('meme-B', "image")
       expect(api.similarMemes).toHaveBeenCalledTimes(2)
     })
   })
@@ -127,6 +127,78 @@ describe('MemeDetails', () => {
       await waitFor(() => {
         expect(screen.getByText('No description available')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('similarity mode toggle', () => {
+    it('defaults to Visual and fetches with source=image', async () => {
+      const { api } = renderMemeDetails()
+      await act(async () => {})
+      expect(api.similarMemes).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id, "image")
+      expect(screen.getByRole('button', { name: 'Visual' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Semantic' })).toBeInTheDocument()
+    })
+
+    it('clicking Semantic refetches with source=description', async () => {
+      const api = makeMockApi({
+        similarMemes: vi.fn()
+          .mockResolvedValueOnce({ items: [], facets: [], hasNext: false })
+          .mockResolvedValueOnce({ items: [{ id: 'sem-1', imageUrl: '/sem-1.jpg' }], facets: [], hasNext: false }),
+      })
+      render(
+        <MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>
+      )
+      await act(async () => {})
+
+      screen.getByRole('button', { name: 'Semantic' }).click()
+      await act(async () => {})
+
+      expect(api.similarMemes).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id, "description")
+      expect(api.similarMemes).toHaveBeenCalledTimes(2)
+    })
+
+    it('shows the Visual empty-state message when there are no visual matches', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
+      })
+      await waitFor(() => {
+        expect(screen.getByText('No similar images found')).toBeInTheDocument()
+      })
+    })
+
+    it('shows the Semantic empty-state message when there are no semantic matches', async () => {
+      const api = makeMockApi({
+        similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
+      })
+      render(
+        <MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>
+      )
+      await act(async () => {})
+
+      screen.getByRole('button', { name: 'Semantic' }).click()
+      await act(async () => {})
+
+      expect(screen.getByText('No semantic similarity available for this image yet')).toBeInTheDocument()
+    })
+
+    it('carries the selected mode over when the meme changes', async () => {
+      const api = makeMockApi({
+        similarMemes: vi.fn().mockResolvedValue({ items: [], facets: [], hasNext: false }),
+      })
+      const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+      const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+      const { rerender } = render(
+        <MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>
+      )
+      await act(async () => {})
+
+      screen.getByRole('button', { name: 'Semantic' }).click()
+      await act(async () => {})
+
+      rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+
+      expect(api.similarMemes).toHaveBeenCalledWith('meme-B', "description")
     })
   })
 })

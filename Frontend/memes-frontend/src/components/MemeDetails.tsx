@@ -24,6 +24,7 @@ function humanizePromptKey(promptKey: string): string {
 
 export function MemeDetails({ meme, memesApi }: Props) {
   const [similarMemes, setSimilarMemes] = useState<Meme[]>([])
+  const [similarSource, setSimilarSource] = useState<"image" | "description">("image")
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [descriptions, setDescriptions] = useState<ImageDescription[]>([])
   const [isFlagged, setIsFlagged] = useState<boolean | null>(null)
@@ -39,7 +40,11 @@ export function MemeDetails({ meme, memesApi }: Props) {
 
   const navigate = useNavigate()
 
-  useFetchById(meme.id, id => memesApi.similarMemes(id), resp => setSimilarMemes(resp.items ?? []))
+  useFetchById(
+    `${meme.id}:${similarSource}`,
+    () => memesApi.similarMemes(meme.id, similarSource),
+    resp => setSimilarMemes(resp.items ?? []),
+  )
   useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
   useFetchById(meme.id, id => memesApi.getDescriptions(id), setDescriptions)
   useFetchById(meme.id, id => memesApi.getImageIsFlagged(id), setIsFlagged)
@@ -237,15 +242,39 @@ export function MemeDetails({ meme, memesApi }: Props) {
           </table>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {similarMemes.map(m => (
-            <div key={m.id}>
-              <MemeCard meme={m} memesApi={memesApi} onClick={() => navigate(`/memes/${m.id}`)} />
-              {typeof m.cosineDistance === "number" && (
-                <p className="text-center text-xs text-gray-400 mt-1">{m.cosineDistance.toFixed(2)}</p>
-              )}
+        <div>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={() => setSimilarSource("image")}
+              className={`px-3 py-1 text-xs rounded border ${similarSource === "image" ? "bg-gray-800 text-white border-gray-800" : "border-gray-300 text-gray-600 hover:bg-gray-100"}`}
+            >
+              Visual
+            </button>
+            <button
+              onClick={() => setSimilarSource("description")}
+              className={`px-3 py-1 text-xs rounded border ${similarSource === "description" ? "bg-gray-800 text-white border-gray-800" : "border-gray-300 text-gray-600 hover:bg-gray-100"}`}
+            >
+              Semantic
+            </button>
+          </div>
+          {similarMemes.length === 0 ? (
+            <p className="text-gray-400 text-sm">
+              {similarSource === "description"
+                ? "No semantic similarity available for this image yet"
+                : "No similar images found"}
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {similarMemes.map(m => (
+                <div key={m.id}>
+                  <MemeCard meme={m} memesApi={memesApi} onClick={() => navigate(`/memes/${m.id}`)} />
+                  {typeof m.cosineDistance === "number" && (
+                    <p className="text-center text-xs text-gray-400 mt-1">{m.cosineDistance.toFixed(2)}</p>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
