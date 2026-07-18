@@ -13,6 +13,7 @@ from Storage.db import AsyncSessionLocal
 from Backend.app.types.generated.facet import Schema as Facet
 from Backend.app.types.generated.facetbucket import Schema as FacetBucket
 from Backend.app.types.generated.meme import Schema as Meme
+from Backend.app.types.generated.imagedescription import Schema as ImageDescription
 from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from graph.uf import UnionFind
@@ -106,6 +107,18 @@ class ImageService:
             originalFileName=filename,
             flagged=is_flagged,
         )
+
+    async def get_descriptions(self, image_id: str) -> list[ImageDescription]:
+        rows = await self.repo.get_descriptions(image_id)
+        return [
+            ImageDescription(
+                promptKey=prompt_key,
+                text=text,
+                modelUsed=model_used,
+                createdAt=created_at.isoformat(),
+            )
+            for prompt_key, text, model_used, created_at in rows
+        ]
 
     async def get_similar(self, image_id: str, limit: int = 10, source: str = "image") -> MemeSearchResponse:
         if source == "description":

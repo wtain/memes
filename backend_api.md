@@ -385,6 +385,18 @@ Find images similar to a given image.
 - **Example**: `GET /api/images/abc123/similar?limit=10`
 - **Example**: `GET /api/images/abc123/similar?source=description&limit=10`
 
+#### Get Image Descriptions
+
+Retrieve the AI-generated descriptions for a specific image (one entry per
+configured prompt; see `image_descriptions.prompts_file`).
+
+- **URL**: `/api/images/{image_id}/descriptions`
+- **Method**: `GET`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image
+- **Response**: `ImageDescription[]` — `{ promptKey, text, modelUsed, createdAt }` per entry. An image with no descriptions yet returns `200 []`, never `404`.
+- **Example**: `GET /api/images/abc123/descriptions`
+
 #### Get Meme Details
 
 Retrieve detailed information about a specific meme.

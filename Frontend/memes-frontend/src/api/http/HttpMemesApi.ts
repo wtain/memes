@@ -1,5 +1,5 @@
 import type { MemesApi } from "../MemesApi"
-import type { Concept, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse, TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse } from "../../types/generated/all"
+import type { Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse, TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -134,6 +134,23 @@ export class HttpMemesApi implements MemesApi {
 
     if (!response.ok) {
       throw new Error(`Search failed: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async getDescriptions(id: string): Promise<ImageDescription[]> {
+    const response = await fetch(
+      `${this.baseUrl}/api/images/${id}/descriptions`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch descriptions: ${response.status}`)
     }
 
     return response.json()

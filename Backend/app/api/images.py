@@ -16,6 +16,7 @@ from Backend.app.services.cache import image_cache_headers, no_cache_headers
 from Backend.app.services.image_service import ImageService
 from Backend.app.services.image_store import get_image_path, image_exists
 from Backend.app.types.generated.meme import Schema as Meme
+from Backend.app.types.generated.imagedescription import Schema as ImageDescription
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -60,6 +61,16 @@ async def get_similar_images(
 ):
     response.headers.update(no_cache_headers())
     return await service.get_similar(image_id, limit=limit, source=source)
+
+
+@router.get("/{image_id}/descriptions", response_model=list[ImageDescription])
+async def get_image_descriptions(
+    image_id: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    return await service.get_descriptions(image_id)
 
 
 @router.get("/meme/{image_id}", response_model=Meme)

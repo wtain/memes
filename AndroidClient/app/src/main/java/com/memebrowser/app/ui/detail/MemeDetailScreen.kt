@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,6 +72,7 @@ fun MemeDetailScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var toolbarVisible by remember { mutableStateOf(true) }
+    var showDescriptions by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.error) {
         if (state.error != null) {
@@ -133,9 +135,17 @@ fun MemeDetailScreen(
                     similarMemes = state.similarMemes,
                     isLoadingSimilar = state.isLoadingSimilar,
                     onSimilarMemeClick = onNavigateToMeme,
-                    onTagClick = onTagClick
+                    onTagClick = onTagClick,
+                    onInfoClick = { showDescriptions = true }
                 )
             }
+        }
+
+        if (showDescriptions) {
+            DescriptionsBottomSheet(
+                descriptions = state.descriptions,
+                onDismiss = { showDescriptions = false }
+            )
         }
 
         SnackbarHost(
@@ -157,7 +167,8 @@ private fun BottomActionBar(
     similarMemes: List<Meme>,
     isLoadingSimilar: Boolean,
     onSimilarMemeClick: (String) -> Unit,
-    onTagClick: (category: String, value: String) -> Unit
+    onTagClick: (category: String, value: String) -> Unit,
+    onInfoClick: () -> Unit
 ) {
     val visibleTags = remember(meme.tags) {
         meme.tags.orEmpty().filter { it.score == null || it.score > 0.3f }
@@ -221,6 +232,9 @@ private fun BottomActionBar(
                 } else {
                     Icon(Icons.Default.Block, contentDescription = "Mark flagged", tint = Color.White)
                 }
+            }
+            IconButton(onClick = onInfoClick) {
+                Icon(Icons.Default.Info, contentDescription = "Description", tint = Color.White)
             }
         }
     }

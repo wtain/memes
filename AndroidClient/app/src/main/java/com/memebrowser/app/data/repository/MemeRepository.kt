@@ -3,6 +3,7 @@ package com.memebrowser.app.data.repository
 import android.util.Log
 import com.memebrowser.app.data.api.MemeApiService
 import com.memebrowser.app.data.model.HealthResponse
+import com.memebrowser.app.data.model.ImageDescription
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeSearchResponse
 import com.memebrowser.app.data.model.StatisticsResponse
@@ -71,6 +72,10 @@ open class MemeRepository @Inject constructor(
 
     suspend fun getSimilarMemes(id: String): Result<List<Meme>> = runCatching {
         api.getSimilarMemes(id).items ?: emptyList()
+    }
+
+    suspend fun getDescriptions(id: String): Result<List<ImageDescription>> = runCatching {
+        api.getDescriptions(id)
     }
 
     suspend fun uploadImages(parts: List<MultipartBody.Part>): Result<UploadResponse> = runCatching {

@@ -3,6 +3,7 @@ package com.memebrowser.app.ui.detail
 import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
 import com.memebrowser.app.data.model.HealthResponse
+import com.memebrowser.app.data.model.ImageDescription
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.util.MainDispatcherRule
@@ -42,6 +43,7 @@ class MemeDetailViewModelTest {
         every { envRepo.selectedEnvironmentName } returns flowOf("TestCollection")
         coEvery { repo.getMeme("meme-1") } returns Result.success(fakeMeme)
         coEvery { repo.getSimilarMemes("meme-1") } returns Result.success(emptyList())
+        coEvery { repo.getDescriptions("meme-1") } returns Result.success(emptyList())
     }
 
     @Test
@@ -166,6 +168,31 @@ class MemeDetailViewModelTest {
             val state = awaitItem()
             assertEquals(1, state.similarMemes.size)
             assertEquals("similar-1", state.similarMemes[0].id)
+        }
+    }
+
+    @Test
+    fun `descriptions are populated in state`() = runTest {
+        val descriptions = listOf(
+            ImageDescription(promptKey = "general_description", text = "A cat.", modelUsed = "llava", createdAt = "2026-07-18T12:00:00")
+        )
+        coEvery { repo.getDescriptions("meme-1") } returns Result.success(descriptions)
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+        viewModel.state.test {
+            val state = awaitItem()
+            assertEquals(1, state.descriptions.size)
+            assertEquals("general_description", state.descriptions[0].promptKey)
+        }
+    }
+
+    @Test
+    fun `getDescriptions failure is silent and does not set error`() = runTest {
+        coEvery { repo.getDescriptions("meme-1") } returns Result.failure(Exception("network error"))
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+        viewModel.state.test {
+            val state = awaitItem()
+            assertTrue(state.descriptions.isEmpty())
+            assertNull(state.error)
         }
     }
 }
