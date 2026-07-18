@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "imagedescription.schema.json",
+  "title": "ImageDescription",
+  "type": "object",
+  "properties": {
+    "promptKey": {
+      "type": "string",
+      "description": "Identifies which configured prompt produced this description (see image_descriptions.prompts_file)"
+    },
+    "text": { "type": "string" },
+    "modelUsed": {
+      "type": "string",
+      "description": "The Ollama model that generated this text"
+    },
+    "createdAt": { "type": "string" }
+  },
+  "required": ["promptKey", "text", "modelUsed", "createdAt"]
+}

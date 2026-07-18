@@ -85,6 +85,23 @@ export interface MemeSearchResponse {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ImageDescription".
+ */
+export interface ImageDescription {
+  /**
+   * Identifies which configured prompt produced this description (see image_descriptions.prompts_file)
+   */
+  promptKey: string;
+  text: string;
+  /**
+   * The Ollama model that generated this text
+   */
+  modelUsed: string;
+  createdAt: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "Concept".
  */
 export interface Concept {

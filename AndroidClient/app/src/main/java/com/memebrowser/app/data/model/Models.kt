@@ -32,6 +32,14 @@ data class HealthResponse(
 )
 
 @Serializable
+data class ImageDescription(
+    @SerialName("promptKey") val promptKey: String,
+    @SerialName("text") val text: String,
+    @SerialName("modelUsed") val modelUsed: String,
+    @SerialName("createdAt") val createdAt: String
+)
+
+@Serializable
 data class MemeTag(
     @SerialName("name") val name: String,
     @SerialName("category") val category: String? = null,
