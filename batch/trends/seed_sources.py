@@ -9,6 +9,7 @@ from repository.trends import TrendSourceRepository
 MEDUZA_SOURCE = {
     "name": "Meduza",
     "connector_type": "api",
+    "extraction": {"language": "ru"},
     "config": {
         "base_url": "https://meduza.io/api/w5/new_search",
         "locale": "ru",

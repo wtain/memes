@@ -24,3 +24,4 @@ async def test_seed_meduza_source_adds_row_once(db_session):
     assert len(matching) == 1
     assert matching[0].connector_type == "api"
     assert matching[0].config["base_url"] == MEDUZA_SOURCE["config"]["base_url"]
+    assert matching[0].extraction == {"language": "ru"}
