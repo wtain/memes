@@ -93,4 +93,40 @@ describe('MemeDetails', () => {
       expect(api.similarMemes).toHaveBeenCalledTimes(2)
     })
   })
+
+  describe('descriptions', () => {
+    it('renders each description with its humanized prompt label', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getDescriptions: vi.fn().mockResolvedValue([
+          { promptKey: 'general_description', text: 'A cat wearing a hat.', modelUsed: 'qwen2.5vl:7b', createdAt: '2026-07-18T12:00:00' },
+        ]),
+      })
+      await waitFor(() => {
+        expect(screen.getByText('General description:')).toBeInTheDocument()
+        expect(screen.getByText(/A cat wearing a hat\./)).toBeInTheDocument()
+      })
+    })
+
+    it('renders multiple descriptions', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getDescriptions: vi.fn().mockResolvedValue([
+          { promptKey: 'general_description', text: 'A cat.', modelUsed: 'llava', createdAt: '2026-07-18T12:00:00' },
+          { promptKey: 'humor_explanation', text: 'Because cats.', modelUsed: 'llava', createdAt: '2026-07-18T12:00:00' },
+        ]),
+      })
+      await waitFor(() => {
+        expect(screen.getByText('General description:')).toBeInTheDocument()
+        expect(screen.getByText('Humor explanation:')).toBeInTheDocument()
+      })
+    })
+
+    it('shows a quiet empty state when there are no descriptions', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getDescriptions: vi.fn().mockResolvedValue([]),
+      })
+      await waitFor(() => {
+        expect(screen.getByText('No description available')).toBeInTheDocument()
+      })
+    })
+  })
 })

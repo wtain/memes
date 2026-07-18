@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { TagList } from "./TagList"
 import type { MemesApi } from "../api/MemesApi"
 import MemeCard from "./MemeCard"
-import type { Concept, Meme } from "../types/generated/all"
+import type { Concept, ImageDescription, Meme } from "../types/generated/all"
 import { ConceptRow } from "./ConceptRow"
 import { useNavigate } from "react-router-dom"
 import { useFetchById } from "../utils/useFetchById"
@@ -17,9 +17,15 @@ const MAX_ZOOM = 4
 const ZOOM_STEP = 0.25
 const FADE_DELAY_MS = 1500
 
+function humanizePromptKey(promptKey: string): string {
+  const spaced = promptKey.replace(/_/g, " ")
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
 export function MemeDetails({ meme, memesApi }: Props) {
   const [similarMemes, setSimilarMemes] = useState<Meme[]>([])
   const [concepts, setConcepts] = useState<Concept[]>([])
+  const [descriptions, setDescriptions] = useState<ImageDescription[]>([])
   const [isFlagged, setIsFlagged] = useState<boolean | null>(null)
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -35,6 +41,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
 
   useFetchById(meme.id, id => memesApi.similarMemes(id), resp => setSimilarMemes(resp.items ?? []))
   useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
+  useFetchById(meme.id, id => memesApi.getDescriptions(id), setDescriptions)
   useFetchById(meme.id, id => memesApi.getImageIsFlagged(id), setIsFlagged)
 
   function toggleFlagged() {
@@ -178,6 +185,21 @@ export function MemeDetails({ meme, memesApi }: Props) {
           <ul className="list-disc ml-6">
             {meme.text!.map((line, i) => <li key={i}>{line}</li>)}
           </ul>
+        </div>
+
+        <div>
+          <strong>Descriptions:</strong>
+          {descriptions.length === 0 ? (
+            <p className="text-gray-400">No description available</p>
+          ) : (
+            <ul className="ml-2 space-y-2">
+              {descriptions.map(d => (
+                <li key={d.promptKey}>
+                  <span className="font-medium">{humanizePromptKey(d.promptKey)}:</span> {d.text}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div>
