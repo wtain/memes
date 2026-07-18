@@ -21,6 +21,7 @@ from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.facet import Schema as Facet
 from Backend.app.types.generated.facetbucket import Schema as FacetBucket
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
+from Backend.app.types.generated.imagedescription import Schema as ImageDescription
 
 
 # Create test app
@@ -523,6 +524,38 @@ class TestGetSimilarImages:
 
         assert response.status_code == 200
         mock_image_service.get_similar.assert_called_once_with("123", limit=10, source="description")
+
+
+class TestGetImageDescriptions:
+    """Tests for GET /api/images/{image_id}/descriptions endpoint."""
+
+    def test_get_image_descriptions_success(self, client, mock_image_service):
+        mock_image_service.get_descriptions.return_value = [
+            ImageDescription(
+                promptKey="general_description",
+                text="A cat wearing a hat.",
+                modelUsed="qwen2.5vl:7b",
+                createdAt="2026-07-18T12:00:00",
+            )
+        ]
+
+        response = client.get("/api/images/123/descriptions")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["promptKey"] == "general_description"
+        assert data[0]["text"] == "A cat wearing a hat."
+        assert data[0]["modelUsed"] == "qwen2.5vl:7b"
+        mock_image_service.get_descriptions.assert_called_once_with("123")
+
+    def test_get_image_descriptions_empty(self, client, mock_image_service):
+        mock_image_service.get_descriptions.return_value = []
+
+        response = client.get("/api/images/456/descriptions")
+
+        assert response.status_code == 200
+        assert response.json() == []
 
 
 class TestGetMeme:
