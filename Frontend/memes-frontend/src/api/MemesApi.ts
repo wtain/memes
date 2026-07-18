@@ -11,7 +11,7 @@ export interface MemesApi {
 
   iterateFlaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>;
 
-  similarMemes(id: string): Promise<MemeSearchResponse>
+  similarMemes(id: string, source?: "image" | "description"): Promise<MemeSearchResponse>
 
   getDescriptions(id: string): Promise<ImageDescription[]>
 
