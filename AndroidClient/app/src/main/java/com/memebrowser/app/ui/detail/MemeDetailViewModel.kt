@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.data.model.Meme
+import com.memebrowser.app.data.model.ImageDescription
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.util.detectMimeType
@@ -29,7 +30,8 @@ data class DetailUiState(
     val error: String? = null,
     val saveSuccess: Boolean = false,
     val similarMemes: List<Meme> = emptyList(),
-    val isLoadingSimilar: Boolean = false
+    val isLoadingSimilar: Boolean = false,
+    val descriptions: List<ImageDescription> = emptyList()
 )
 
 @HiltViewModel
@@ -51,6 +53,7 @@ class MemeDetailViewModel @Inject constructor(
     init {
         loadMeme()
         loadSimilar()
+        loadDescriptions()
     }
 
     private fun loadMeme() {
@@ -71,6 +74,14 @@ class MemeDetailViewModel @Inject constructor(
                     _state.update { it.copy(similarMemes = deduped, isLoadingSimilar = false) }
                 }
                 .onFailure { _state.update { it.copy(isLoadingSimilar = false) } }
+        }
+    }
+
+    private fun loadDescriptions() {
+        viewModelScope.launch {
+            repo.getDescriptions(memeId)
+                .onSuccess { descriptions -> _state.update { it.copy(descriptions = descriptions) } }
+                .onFailure { /* silent — supplementary content, matches loadSimilar's failure handling */ }
         }
     }
 
