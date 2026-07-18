@@ -67,7 +67,12 @@ jobs:
           # explicitly here rather than via the top-level requirements.txt, which pulls in the
           # full ML/batch stack (opencv/paddleocr) that Backend/requirements-backend.txt exists
           # specifically to avoid — see that file's header comment.
-          pip install wordfreq==3.1.1 pymorphy3==2.0.6 pymorphy3-dicts-ru==2.4.417150.4580142 PyYAML==6.0.2 numpy==2.2.6
+          #
+          # ollama is the thin HTTP client `ai/ollama.py` imports at module level (needed to
+          # collect tests/integration/test_build_image_descriptions.py, which only exercises
+          # DB logic and never actually calls Ollama) — not part of the heavy ML stack, safe
+          # to install standalone here.
+          pip install wordfreq==3.1.1 pymorphy3==2.0.6 pymorphy3-dicts-ru==2.4.417150.4580142 PyYAML==6.0.2 numpy==2.2.6 ollama==0.6.1
 
       - name: Enable pgvector extension
         run: |
