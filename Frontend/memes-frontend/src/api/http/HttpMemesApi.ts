@@ -150,7 +150,7 @@ export class HttpMemesApi implements MemesApi {
     )
 
     if (!response.ok) {
-      throw new Error(`Search failed: ${response.status}`)
+      throw new Error(`Failed to fetch descriptions: ${response.status}`)
     }
 
     return response.json()
