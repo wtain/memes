@@ -394,8 +394,37 @@ configured prompt; see `image_descriptions.prompts_file`).
 - **Method**: `GET`
 - **Path Parameters**:
   - `image_id`: Unique identifier of the image
-- **Response**: `ImageDescription[]` — `{ promptKey, text, modelUsed, createdAt }` per entry. An image with no descriptions yet returns `200 []`, never `404`.
+- **Response**: `ImageDescription[]` — `{ promptKey, text, modelUsed, createdAt, feedback }` per entry (`feedback` is `"approved"`, `"rejected"`, or absent/null). An image with no descriptions yet returns `200 []`, never `404`.
 - **Example**: `GET /api/images/abc123/descriptions`
+
+#### Approve Image Description
+
+Record a human "approved" judgment on one AI-generated description. Toggles:
+calling this when the description is already approved clears the feedback
+back to no-feedback instead of re-approving.
+
+- **URL**: `/api/images/{image_id}/descriptions/{prompt_key}/approve`
+- **Method**: `PUT`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image
+  - `prompt_key`: Identifies which description (see `image_descriptions.prompts_file`)
+- **Response**: `DescriptionFeedbackResponse` — `{ feedback: "approved" | "rejected" | null }`, the resulting state. `404` if no description exists for that `(image_id, prompt_key)` pair.
+- **Example**: `PUT /api/images/abc123/descriptions/general_description/approve`
+
+#### Reject Image Description
+
+Record a human "rejected" judgment on one AI-generated description. Toggles
+the same way as Approve, in the opposite direction. Does **not** hide the
+description or exclude it from semantic-similarity search — this is a pure
+feedback signal.
+
+- **URL**: `/api/images/{image_id}/descriptions/{prompt_key}/reject`
+- **Method**: `PUT`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image
+  - `prompt_key`: Identifies which description (see `image_descriptions.prompts_file`)
+- **Response**: `DescriptionFeedbackResponse` — `{ feedback: "approved" | "rejected" | null }`, the resulting state. `404` if no description exists for that `(image_id, prompt_key)` pair.
+- **Example**: `PUT /api/images/abc123/descriptions/general_description/reject`
 
 #### Get Meme Details
 

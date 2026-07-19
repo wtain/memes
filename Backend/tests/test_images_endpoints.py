@@ -536,6 +536,7 @@ class TestGetImageDescriptions:
                 text="A cat wearing a hat.",
                 modelUsed="qwen2.5vl:7b",
                 createdAt="2026-07-18T12:00:00",
+                feedback="approved",
             )
         ]
 
@@ -547,7 +548,23 @@ class TestGetImageDescriptions:
         assert data[0]["promptKey"] == "general_description"
         assert data[0]["text"] == "A cat wearing a hat."
         assert data[0]["modelUsed"] == "qwen2.5vl:7b"
+        assert data[0]["feedback"] == "approved"
         mock_image_service.get_descriptions.assert_called_once_with("123")
+
+    def test_get_image_descriptions_feedback_absent_when_none(self, client, mock_image_service):
+        mock_image_service.get_descriptions.return_value = [
+            ImageDescription(
+                promptKey="general_description",
+                text="A cat wearing a hat.",
+                modelUsed="qwen2.5vl:7b",
+                createdAt="2026-07-18T12:00:00",
+            )
+        ]
+
+        response = client.get("/api/images/123/descriptions")
+
+        assert response.status_code == 200
+        assert response.json()[0]["feedback"] is None
 
     def test_get_image_descriptions_empty(self, client, mock_image_service):
         mock_image_service.get_descriptions.return_value = []
@@ -1246,3 +1263,65 @@ class TestFlaggedHydration:
 
         assert response.status_code == 200
         assert data["flagged"] is True
+
+
+class TestApproveDescription:
+    """Tests for PUT /api/images/{image_id}/descriptions/{prompt_key}/approve endpoint."""
+
+    def test_approve_success(self, client, mock_image_service):
+        mock_image_service.approve_description_feedback.return_value = "approved"
+
+        response = client.put("/api/images/123/descriptions/general_description/approve")
+
+        assert response.status_code == 200
+        assert response.json() == {"feedback": "approved"}
+        mock_image_service.approve_description_feedback.assert_called_once_with("123", "general_description")
+
+    def test_approve_toggle_clears(self, client, mock_image_service):
+        mock_image_service.approve_description_feedback.return_value = None
+
+        response = client.put("/api/images/123/descriptions/general_description/approve")
+
+        assert response.status_code == 200
+        assert response.json() == {"feedback": None}
+
+    def test_approve_not_found(self, client, mock_image_service):
+        from fastapi import HTTPException
+        mock_image_service.approve_description_feedback.side_effect = HTTPException(
+            status_code=404, detail="Description not found"
+        )
+
+        response = client.put("/api/images/123/descriptions/unknown_prompt/approve")
+
+        assert response.status_code == 404
+
+
+class TestRejectDescription:
+    """Tests for PUT /api/images/{image_id}/descriptions/{prompt_key}/reject endpoint."""
+
+    def test_reject_success(self, client, mock_image_service):
+        mock_image_service.reject_description_feedback.return_value = "rejected"
+
+        response = client.put("/api/images/123/descriptions/general_description/reject")
+
+        assert response.status_code == 200
+        assert response.json() == {"feedback": "rejected"}
+        mock_image_service.reject_description_feedback.assert_called_once_with("123", "general_description")
+
+    def test_reject_toggle_clears(self, client, mock_image_service):
+        mock_image_service.reject_description_feedback.return_value = None
+
+        response = client.put("/api/images/123/descriptions/general_description/reject")
+
+        assert response.status_code == 200
+        assert response.json() == {"feedback": None}
+
+    def test_reject_not_found(self, client, mock_image_service):
+        from fastapi import HTTPException
+        mock_image_service.reject_description_feedback.side_effect = HTTPException(
+            status_code=404, detail="Description not found"
+        )
+
+        response = client.put("/api/images/123/descriptions/unknown_prompt/reject")
+
+        assert response.status_code == 404

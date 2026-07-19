@@ -18,6 +18,13 @@ from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from graph.uf import UnionFind
 
+
+def _feedback_label(approved: Optional[bool]) -> Optional[str]:
+    if approved is None:
+        return None
+    return "approved" if approved else "rejected"
+
+
 class ImageService:
     def __init__(self, repo: ImageRepository):
         self.repo = repo
@@ -116,9 +123,31 @@ class ImageService:
                 text=text,
                 modelUsed=model_used,
                 createdAt=created_at.isoformat(),
+                feedback=_feedback_label(approved),
             )
-            for prompt_key, text, model_used, created_at in rows
+            for prompt_key, text, model_used, created_at, approved in rows
         ]
+
+    async def approve_description_feedback(self, image_id: str, prompt_key: str) -> Optional[str]:
+        return await self._toggle_description_feedback(image_id, prompt_key, target_approved=True)
+
+    async def reject_description_feedback(self, image_id: str, prompt_key: str) -> Optional[str]:
+        return await self._toggle_description_feedback(image_id, prompt_key, target_approved=False)
+
+    async def _toggle_description_feedback(
+        self, image_id: str, prompt_key: str, target_approved: bool
+    ) -> Optional[str]:
+        description_id = await self.repo.get_description_id(image_id, prompt_key)
+        if description_id is None:
+            raise HTTPException(status_code=404, detail="Description not found")
+
+        current = await self.repo.get_description_feedback(description_id)
+        if current is target_approved:
+            await self.repo.clear_description_feedback(description_id)
+            return None
+
+        await self.repo.set_description_feedback(description_id, target_approved)
+        return _feedback_label(target_approved)
 
     async def get_similar(self, image_id: str, limit: int = 10, source: str = "image") -> MemeSearchResponse:
         if source == "description":

@@ -13,7 +13,11 @@
       "type": "string",
       "description": "The Ollama model that generated this text"
     },
-    "createdAt": { "type": "string" }
+    "createdAt": { "type": "string" },
+    "feedback": {
+      "type": "string",
+      "description": "\"approved\" or \"rejected\" if a human has reviewed this description; absent/null if no feedback given yet"
+    }
   },
   "required": ["promptKey", "text", "modelUsed", "createdAt"]
 }

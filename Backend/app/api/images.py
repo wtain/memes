@@ -18,6 +18,7 @@ from Backend.app.services.image_store import get_image_path, image_exists
 from Backend.app.types.generated.meme import Schema as Meme
 from Backend.app.types.generated.imagedescription import Schema as ImageDescription
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
+from Backend.app.types.generated.descriptionfeedbackresponse import Schema as DescriptionFeedbackResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -71,6 +72,30 @@ async def get_image_descriptions(
 ):
     response.headers.update(no_cache_headers())
     return await service.get_descriptions(image_id)
+
+
+@router.put("/{image_id}/descriptions/{prompt_key}/approve", response_model=DescriptionFeedbackResponse)
+async def approve_description(
+    image_id: str,
+    prompt_key: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    feedback = await service.approve_description_feedback(image_id, prompt_key)
+    return DescriptionFeedbackResponse(feedback=feedback)
+
+
+@router.put("/{image_id}/descriptions/{prompt_key}/reject", response_model=DescriptionFeedbackResponse)
+async def reject_description(
+    image_id: str,
+    prompt_key: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    feedback = await service.reject_description_feedback(image_id, prompt_key)
+    return DescriptionFeedbackResponse(feedback=feedback)
 
 
 @router.get("/meme/{image_id}", response_model=Meme)

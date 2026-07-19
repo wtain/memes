@@ -4,14 +4,14 @@ from typing import Optional
 import uuid
 
 import sqlalchemy
-from sqlalchemy import select, tuple_, distinct, and_, union_all, func
+from sqlalchemy import select, tuple_, distinct, and_, union_all, func, delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from Storage.models import (
     Image, OCRText, Embedding, ImageTag, ImageExtras, TmpDuplicates, TmpImageClusters,
-    ImageDescription, ImageDescriptionEmbedding,
+    ImageDescription, ImageDescriptionEmbedding, ImageDescriptionFeedback,
 )
 from graph.uf import UnionFind
 
@@ -181,11 +181,47 @@ class ImageRepository:
                 ImageDescription.text,
                 ImageDescription.model_used,
                 ImageDescription.created_at,
+                ImageDescriptionFeedback.approved,
+            )
+            .outerjoin(
+                ImageDescriptionFeedback,
+                ImageDescriptionFeedback.image_description_id == ImageDescription.id,
             )
             .where(ImageDescription.image_id == image_id)
             .order_by(ImageDescription.prompt_key)
         )
         return result.all()
+
+    async def get_description_id(self, image_id: str, prompt_key: str) -> Optional[uuid.UUID]:
+        result = await self.session.execute(
+            select(ImageDescription.id)
+            .where(ImageDescription.image_id == image_id, ImageDescription.prompt_key == prompt_key)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_description_feedback(self, description_id) -> Optional[bool]:
+        result = await self.session.execute(
+            select(ImageDescriptionFeedback.approved)
+            .where(ImageDescriptionFeedback.image_description_id == description_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def set_description_feedback(self, description_id, approved: bool) -> None:
+        stmt = (
+            insert(ImageDescriptionFeedback)
+            .values(image_description_id=description_id, approved=approved)
+            .on_conflict_do_update(
+                index_elements=["image_description_id"],
+                set_={"approved": approved},
+            )
+        )
+        await self.session.execute(stmt)
+
+    async def clear_description_feedback(self, description_id) -> None:
+        await self.session.execute(
+            delete(ImageDescriptionFeedback)
+            .where(ImageDescriptionFeedback.image_description_id == description_id)
+        )
 
     async def get_meme_data(self, image_id: str):
         filename = await self.get_filename(image_id)

@@ -8,6 +8,7 @@ file, no test exercised ImageService.get_similar's actual branching logic
 integration tests call ImageRepository directly, never through the service.
 """
 import pytest
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 from fastapi import HTTPException
 
@@ -92,3 +93,110 @@ class TestGetSimilarDescriptionMode:
 
         assert [item.id for item in result.items] == ["image-4"]
         assert [item.cosineDistance for item in result.items] == [0.02]
+
+
+class TestGetDescriptionsFeedback:
+    async def test_feedback_is_none_when_no_row(self, service, mock_repo):
+        mock_repo.get_descriptions.return_value = [
+            ("general_description", "A cat.", "llava", datetime(2026, 7, 19, 12, 0, 0), None),
+        ]
+
+        result = await service.get_descriptions("image-1")
+
+        assert result[0].feedback is None
+
+    async def test_feedback_approved_maps_to_string(self, service, mock_repo):
+        mock_repo.get_descriptions.return_value = [
+            ("general_description", "A cat.", "llava", datetime(2026, 7, 19, 12, 0, 0), True),
+        ]
+
+        result = await service.get_descriptions("image-1")
+
+        assert result[0].feedback == "approved"
+
+    async def test_feedback_rejected_maps_to_string(self, service, mock_repo):
+        mock_repo.get_descriptions.return_value = [
+            ("general_description", "A cat.", "llava", datetime(2026, 7, 19, 12, 0, 0), False),
+        ]
+
+        result = await service.get_descriptions("image-1")
+
+        assert result[0].feedback == "rejected"
+
+
+class TestApproveDescriptionFeedback:
+    async def test_raises_404_when_description_missing(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.approve_description_feedback("image-1", "unknown_prompt")
+
+        assert exc_info.value.status_code == 404
+        mock_repo.set_description_feedback.assert_not_called()
+
+    async def test_approve_when_no_prior_feedback_sets_approved(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = "desc-uuid-1"
+        mock_repo.get_description_feedback.return_value = None
+
+        result = await service.approve_description_feedback("image-1", "general_description")
+
+        mock_repo.set_description_feedback.assert_awaited_once_with("desc-uuid-1", True)
+        mock_repo.clear_description_feedback.assert_not_called()
+        assert result == "approved"
+
+    async def test_approve_when_already_approved_clears(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = "desc-uuid-1"
+        mock_repo.get_description_feedback.return_value = True
+
+        result = await service.approve_description_feedback("image-1", "general_description")
+
+        mock_repo.clear_description_feedback.assert_awaited_once_with("desc-uuid-1")
+        mock_repo.set_description_feedback.assert_not_called()
+        assert result is None
+
+    async def test_approve_when_currently_rejected_switches(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = "desc-uuid-1"
+        mock_repo.get_description_feedback.return_value = False
+
+        result = await service.approve_description_feedback("image-1", "general_description")
+
+        mock_repo.set_description_feedback.assert_awaited_once_with("desc-uuid-1", True)
+        assert result == "approved"
+
+
+class TestRejectDescriptionFeedback:
+    async def test_raises_404_when_description_missing(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.reject_description_feedback("image-1", "unknown_prompt")
+
+        assert exc_info.value.status_code == 404
+
+    async def test_reject_when_no_prior_feedback_sets_rejected(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = "desc-uuid-1"
+        mock_repo.get_description_feedback.return_value = None
+
+        result = await service.reject_description_feedback("image-1", "general_description")
+
+        mock_repo.set_description_feedback.assert_awaited_once_with("desc-uuid-1", False)
+        assert result == "rejected"
+
+    async def test_reject_when_already_rejected_clears(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = "desc-uuid-1"
+        mock_repo.get_description_feedback.return_value = False
+
+        result = await service.reject_description_feedback("image-1", "general_description")
+
+        mock_repo.clear_description_feedback.assert_awaited_once_with("desc-uuid-1")
+        mock_repo.set_description_feedback.assert_not_called()
+        assert result is None
+
+    async def test_reject_when_currently_approved_switches(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = "desc-uuid-1"
+        mock_repo.get_description_feedback.return_value = True
+
+        result = await service.reject_description_feedback("image-1", "general_description")
+
+        mock_repo.set_description_feedback.assert_awaited_once_with("desc-uuid-1", False)
+        assert result == "rejected"
