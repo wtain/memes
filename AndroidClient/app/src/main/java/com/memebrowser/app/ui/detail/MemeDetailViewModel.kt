@@ -107,6 +107,21 @@ class MemeDetailViewModel @Inject constructor(
         loadSimilar()
     }
 
+    fun setDescriptionFeedback(promptKey: String, action: String) {
+        viewModelScope.launch {
+            repo.setDescriptionFeedback(memeId, promptKey, action)
+                .onSuccess { resp ->
+                    _state.update { current ->
+                        current.copy(
+                            descriptions = current.descriptions.map { d ->
+                                if (d.promptKey == promptKey) d.copy(feedback = resp.feedback) else d
+                            }
+                        )
+                    }
+                }
+        }
+    }
+
     fun saveToGallery(context: Context) {
         val meme = _state.value.meme ?: return
         viewModelScope.launch {

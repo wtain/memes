@@ -1,5 +1,6 @@
 package com.memebrowser.app.data.api
 
+import com.memebrowser.app.data.model.DescriptionFeedbackResponse
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.ImageDescription
 import com.memebrowser.app.data.model.Meme
@@ -53,6 +54,12 @@ interface MemeApiService {
 
     @GET("api/images/{id}/descriptions")
     suspend fun getDescriptions(@Path("id") id: String): List<ImageDescription>
+
+    @PUT("api/images/{id}/descriptions/{promptKey}/approve")
+    suspend fun approveDescription(@Path("id") id: String, @Path("promptKey") promptKey: String): DescriptionFeedbackResponse
+
+    @PUT("api/images/{id}/descriptions/{promptKey}/reject")
+    suspend fun rejectDescription(@Path("id") id: String, @Path("promptKey") promptKey: String): DescriptionFeedbackResponse
 
     @Streaming
     @GET("api/images/{id}")

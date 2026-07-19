@@ -148,7 +148,8 @@ fun MemeDetailScreen(
         if (showDescriptions) {
             DescriptionsBottomSheet(
                 descriptions = state.descriptions,
-                onDismiss = { showDescriptions = false }
+                onDismiss = { showDescriptions = false },
+                onFeedback = { promptKey, action -> viewModel.setDescriptionFeedback(promptKey, action) }
             )
         }
 

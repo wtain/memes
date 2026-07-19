@@ -2,6 +2,7 @@ package com.memebrowser.app.data.repository
 
 import android.util.Log
 import com.memebrowser.app.data.api.MemeApiService
+import com.memebrowser.app.data.model.DescriptionFeedbackResponse
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.ImageDescription
 import com.memebrowser.app.data.model.Meme
@@ -76,6 +77,10 @@ open class MemeRepository @Inject constructor(
 
     suspend fun getDescriptions(id: String): Result<List<ImageDescription>> = runCatching {
         api.getDescriptions(id)
+    }
+
+    suspend fun setDescriptionFeedback(id: String, promptKey: String, action: String): Result<DescriptionFeedbackResponse> = runCatching {
+        if (action == "approve") api.approveDescription(id, promptKey) else api.rejectDescription(id, promptKey)
     }
 
     suspend fun uploadImages(parts: List<MultipartBody.Part>): Result<UploadResponse> = runCatching {

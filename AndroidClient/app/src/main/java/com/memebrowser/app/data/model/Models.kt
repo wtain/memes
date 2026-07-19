@@ -15,6 +15,11 @@ data class Concept(
 )
 
 @Serializable
+data class DescriptionFeedbackResponse(
+    @SerialName("feedback") val feedback: String? = null
+)
+
+@Serializable
 data class FacetBucket(
     @SerialName("value") val value: String,
     @SerialName("count") val count: Float
@@ -36,7 +41,8 @@ data class ImageDescription(
     @SerialName("promptKey") val promptKey: String,
     @SerialName("text") val text: String,
     @SerialName("modelUsed") val modelUsed: String,
-    @SerialName("createdAt") val createdAt: String
+    @SerialName("createdAt") val createdAt: String,
+    @SerialName("feedback") val feedback: String? = null
 )
 
 @Serializable
@@ -61,7 +67,10 @@ data class StatisticsContentStats(
     @SerialName("tag_values") val tag_values: Int,
     @SerialName("concepts") val concepts: Int,
     @SerialName("concept_image_sets") val concept_image_sets: Int,
-    @SerialName("concept_images") val concept_images: Int
+    @SerialName("concept_images") val concept_images: Int,
+    @SerialName("descriptions_approved") val descriptions_approved: Int,
+    @SerialName("descriptions_rejected") val descriptions_rejected: Int,
+    @SerialName("descriptions_feedback_total") val descriptions_feedback_total: Int
 )
 
 @Serializable

@@ -2,6 +2,7 @@ package com.memebrowser.app.ui.detail
 
 import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
+import com.memebrowser.app.data.model.DescriptionFeedbackResponse
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.ImageDescription
 import com.memebrowser.app.data.repository.EnvironmentRepository
@@ -226,5 +227,46 @@ class MemeDetailViewModelTest {
             assertEquals("description", state.similarSource)
         }
         coVerify(exactly = 1) { repo.getSimilarMemes("meme-1", "description") }
+    }
+
+    @Test
+    fun `setDescriptionFeedback calls repo and updates matching description in state`() = runTest {
+        val descriptions = listOf(
+            ImageDescription(promptKey = "general_description", text = "A cat.", modelUsed = "llava", createdAt = "2026-07-19T12:00:00"),
+            ImageDescription(promptKey = "humor_explanation", text = "Because cats.", modelUsed = "llava", createdAt = "2026-07-19T12:00:00"),
+        )
+        coEvery { repo.getDescriptions("meme-1") } returns Result.success(descriptions)
+        coEvery { repo.setDescriptionFeedback("meme-1", "general_description", "approve") } returns
+            Result.success(DescriptionFeedbackResponse(feedback = "approved"))
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+
+        viewModel.setDescriptionFeedback("general_description", "approve")
+
+        viewModel.state.test {
+            val state = awaitItem()
+            val updated = state.descriptions.first { it.promptKey == "general_description" }
+            val untouched = state.descriptions.first { it.promptKey == "humor_explanation" }
+            assertEquals("approved", updated.feedback)
+            assertNull(untouched.feedback)
+        }
+        coVerify(exactly = 1) { repo.setDescriptionFeedback("meme-1", "general_description", "approve") }
+    }
+
+    @Test
+    fun `setDescriptionFeedback clears feedback when response is null`() = runTest {
+        val descriptions = listOf(
+            ImageDescription(promptKey = "general_description", text = "A cat.", modelUsed = "llava", createdAt = "2026-07-19T12:00:00", feedback = "approved"),
+        )
+        coEvery { repo.getDescriptions("meme-1") } returns Result.success(descriptions)
+        coEvery { repo.setDescriptionFeedback("meme-1", "general_description", "approve") } returns
+            Result.success(DescriptionFeedbackResponse(feedback = null))
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+
+        viewModel.setDescriptionFeedback("general_description", "approve")
+
+        viewModel.state.test {
+            val state = awaitItem()
+            assertNull(state.descriptions.first { it.promptKey == "general_description" }.feedback)
+        }
     }
 }
