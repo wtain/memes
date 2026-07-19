@@ -789,7 +789,10 @@ Returns row counts across all major tables in a single SQL round-trip.
     "tag_values": 340,
     "concepts": 47,
     "concept_image_sets": 63,
-    "concept_images": 14200
+    "concept_images": 14200,
+    "descriptions_approved": 210,
+    "descriptions_rejected": 34,
+    "descriptions_feedback_total": 244
   },
   "trends": {
     "runs": 14,

@@ -1,10 +1,10 @@
-from sqlalchemy import exists, func, select, text, true
+from sqlalchemy import exists, func, select, text, true, false
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import (
     Concept, ConceptImage, ConceptImageSet,
     Embedding, Image, ImageExtras,
-    ImageTag, OCRText, ImageDescription, TmpImageClusters, TrendsRun, TrendSource,
+    ImageTag, OCRText, ImageDescription, ImageDescriptionFeedback, TmpImageClusters, TrendsRun, TrendSource,
 )
 
 
@@ -62,6 +62,14 @@ class DiagnosticsRepository:
                     .scalar_subquery().label("trends_runs"),
                 select(func.count()).select_from(TrendSource)
                     .scalar_subquery().label("trend_sources"),
+                select(func.count()).select_from(ImageDescriptionFeedback)
+                    .where(ImageDescriptionFeedback.approved == true())
+                    .scalar_subquery().label("descriptions_approved"),
+                select(func.count()).select_from(ImageDescriptionFeedback)
+                    .where(ImageDescriptionFeedback.approved == false())
+                    .scalar_subquery().label("descriptions_rejected"),
+                select(func.count()).select_from(ImageDescriptionFeedback)
+                    .scalar_subquery().label("descriptions_feedback_total"),
             )
         )
         return result.one()

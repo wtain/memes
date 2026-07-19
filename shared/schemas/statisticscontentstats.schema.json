@@ -10,7 +10,10 @@
     "tag_values":         { "type": "integer", "description": "Distinct tag key+value pairs" },
     "concepts":           { "type": "integer", "description": "Concepts defined in the knowledge base" },
     "concept_image_sets": { "type": "integer", "description": "Concept image sets (reference image groups)" },
-    "concept_images":     { "type": "integer", "description": "Individual reference images across all concept sets" }
+    "concept_images":     { "type": "integer", "description": "Individual reference images across all concept sets" },
+    "descriptions_approved":      { "type": "integer", "description": "Descriptions with approved human feedback" },
+    "descriptions_rejected":      { "type": "integer", "description": "Descriptions with rejected human feedback" },
+    "descriptions_feedback_total": { "type": "integer", "description": "Descriptions with any human feedback (approved + rejected)" }
   },
-  "required": ["ocr_texts", "tags", "tag_keys", "tag_values", "concepts", "concept_image_sets", "concept_images"]
+  "required": ["ocr_texts", "tags", "tag_keys", "tag_values", "concepts", "concept_image_sets", "concept_images", "descriptions_approved", "descriptions_rejected", "descriptions_feedback_total"]
 }

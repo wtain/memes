@@ -34,6 +34,9 @@ class ContentStats(BaseModel):
     concepts: int
     concept_image_sets: int
     concept_images: int
+    descriptions_approved: int
+    descriptions_rejected: int
+    descriptions_feedback_total: int
 
 
 class TrendsStats(BaseModel):
@@ -85,6 +88,9 @@ async def statistics(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)
             concepts=row.concepts,
             concept_image_sets=row.concept_image_sets,
             concept_images=row.concept_images,
+            descriptions_approved=row.descriptions_approved,
+            descriptions_rejected=row.descriptions_rejected,
+            descriptions_feedback_total=row.descriptions_feedback_total,
         ),
         trends=TrendsStats(
             runs=row.trends_runs,
