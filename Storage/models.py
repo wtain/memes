@@ -98,6 +98,10 @@ class ImageDescription(Base):
         "ImageDescriptionEmbedding", uselist=False,
         back_populates="description", cascade="all, delete-orphan",
     )
+    feedback = relationship(
+        "ImageDescriptionFeedback", uselist=False,
+        back_populates="description", cascade="all, delete-orphan",
+    )
 
 
 class ImageDescriptionEmbedding(Base):
@@ -120,6 +124,19 @@ class ImageDescriptionEmbedding(Base):
     )
 
     description = relationship("ImageDescription", back_populates="embedding")
+
+
+class ImageDescriptionFeedback(Base):
+    __tablename__ = "image_description_feedback"
+
+    image_description_id = Column(
+        UUID(as_uuid=True), ForeignKey("image_descriptions.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    approved = Column(Boolean, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    description = relationship("ImageDescription", back_populates="feedback")
 
 
 class Embedding(Base):
