@@ -130,6 +130,90 @@ describe('MemeDetails', () => {
     })
   })
 
+  describe('description feedback', () => {
+    it('renders Approve/Reject buttons per description', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getDescriptions: vi.fn().mockResolvedValue([
+          { promptKey: 'general_description', text: 'A cat.', modelUsed: 'llava', createdAt: '2026-07-19T12:00:00' },
+        ]),
+      })
+      await waitFor(() => {
+        expect(screen.getByLabelText('Approve General description')).toBeInTheDocument()
+        expect(screen.getByLabelText('Reject General description')).toBeInTheDocument()
+      })
+    })
+
+    it('clicking Approve calls the API and updates the button state from the response', async () => {
+      const api = makeMockApi({
+        getDescriptions: vi.fn().mockResolvedValue([
+          { promptKey: 'general_description', text: 'A cat.', modelUsed: 'llava', createdAt: '2026-07-19T12:00:00' },
+        ]),
+        setDescriptionFeedback: vi.fn().mockResolvedValue({ feedback: 'approved' }),
+      })
+      render(<MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+
+      screen.getByLabelText('Approve General description').click()
+      await act(async () => {})
+
+      expect(api.setDescriptionFeedback).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id, 'general_description', 'approve')
+      expect(screen.getByLabelText('Approve General description')).toHaveClass('bg-green-600')
+    })
+
+    it('clicking the already-approved button again clears feedback', async () => {
+      const api = makeMockApi({
+        getDescriptions: vi.fn().mockResolvedValue([
+          { promptKey: 'general_description', text: 'A cat.', modelUsed: 'llava', createdAt: '2026-07-19T12:00:00', feedback: 'approved' },
+        ]),
+        setDescriptionFeedback: vi.fn().mockResolvedValue({ feedback: undefined }),
+      })
+      render(<MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+      expect(screen.getByLabelText('Approve General description')).toHaveClass('bg-green-600')
+
+      screen.getByLabelText('Approve General description').click()
+      await act(async () => {})
+
+      expect(screen.getByLabelText('Approve General description')).not.toHaveClass('bg-green-600')
+    })
+
+    it('clicking Reject while approved switches directly to rejected', async () => {
+      const api = makeMockApi({
+        getDescriptions: vi.fn().mockResolvedValue([
+          { promptKey: 'general_description', text: 'A cat.', modelUsed: 'llava', createdAt: '2026-07-19T12:00:00', feedback: 'approved' },
+        ]),
+        setDescriptionFeedback: vi.fn().mockResolvedValue({ feedback: 'rejected' }),
+      })
+      render(<MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+
+      screen.getByLabelText('Reject General description').click()
+      await act(async () => {})
+
+      expect(api.setDescriptionFeedback).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id, 'general_description', 'reject')
+      expect(screen.getByLabelText('Reject General description')).toHaveClass('bg-red-600')
+      expect(screen.getByLabelText('Approve General description')).not.toHaveClass('bg-green-600')
+    })
+
+    it('feedback on one description does not affect another', async () => {
+      const api = makeMockApi({
+        getDescriptions: vi.fn().mockResolvedValue([
+          { promptKey: 'general_description', text: 'A cat.', modelUsed: 'llava', createdAt: '2026-07-19T12:00:00' },
+          { promptKey: 'humor_explanation', text: 'Because cats.', modelUsed: 'llava', createdAt: '2026-07-19T12:00:00' },
+        ]),
+        setDescriptionFeedback: vi.fn().mockResolvedValue({ feedback: 'approved' }),
+      })
+      render(<MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+
+      screen.getByLabelText('Approve General description').click()
+      await act(async () => {})
+
+      expect(screen.getByLabelText('Approve General description')).toHaveClass('bg-green-600')
+      expect(screen.getByLabelText('Approve Humor explanation')).not.toHaveClass('bg-green-600')
+    })
+  })
+
   describe('similarity mode toggle', () => {
     it('defaults to Visual and fetches with source=image', async () => {
       const { api } = renderMemeDetails()

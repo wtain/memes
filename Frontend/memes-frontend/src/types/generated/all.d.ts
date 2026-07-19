@@ -98,6 +98,21 @@ export interface ImageDescription {
    */
   modelUsed: string;
   createdAt: string;
+  /**
+   * "approved" or "rejected" if a human has reviewed this description; absent/null if no feedback given yet
+   */
+  feedback?: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DescriptionFeedbackResponse".
+ */
+export interface DescriptionFeedbackResponse {
+  /**
+   * Resulting state after the toggle: "approved", "rejected", or absent/null if cleared back to no feedback
+   */
+  feedback?: string;
   [k: string]: unknown;
 }
 /**
@@ -249,6 +264,18 @@ export interface StatisticsContentStats {
    * Individual reference images across all concept sets
    */
   concept_images: number;
+  /**
+   * Descriptions with approved human feedback
+   */
+  descriptions_approved: number;
+  /**
+   * Descriptions with rejected human feedback
+   */
+  descriptions_rejected: number;
+  /**
+   * Descriptions with any human feedback (approved + rejected)
+   */
+  descriptions_feedback_total: number;
   [k: string]: unknown;
 }
 /**

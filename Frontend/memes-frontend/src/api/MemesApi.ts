@@ -15,6 +15,8 @@ export interface MemesApi {
 
   getDescriptions(id: string): Promise<ImageDescription[]>
 
+  setDescriptionFeedback(imageId: string, promptKey: string, action: "approve" | "reject"): Promise<{ feedback?: string }>
+
   getImageUrl(meme: Meme): string;
 
   listConcepts(): Promise<Concept[]>;

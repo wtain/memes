@@ -27,6 +27,7 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     markImageIsFlagged: vi.fn().mockResolvedValue(undefined),
     unmarkImageIsFlagged: vi.fn().mockResolvedValue(undefined),
     getImageIsFlagged: vi.fn().mockResolvedValue(false),
+    setDescriptionFeedback: vi.fn().mockResolvedValue({ feedback: undefined }),
     ...overrides,
   } as MemesApi
 }

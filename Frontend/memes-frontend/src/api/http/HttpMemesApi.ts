@@ -157,6 +157,19 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
+  async setDescriptionFeedback(imageId: string, promptKey: string, action: "approve" | "reject"): Promise<{ feedback?: string }> {
+    const response = await fetch(
+      `${this.baseUrl}/api/images/${imageId}/descriptions/${promptKey}/${action}`,
+      { method: "PUT", headers: { "Accept": "application/json" } }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to set description feedback: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
   getImageUrl(meme: Meme): string {
     return this.baseUrl + meme.imageUrl;
   }

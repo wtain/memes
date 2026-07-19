@@ -56,6 +56,14 @@ export function MemeDetails({ meme, memesApi }: Props) {
     call.then(() => setIsFlagged(next))
   }
 
+  function setDescriptionFeedback(promptKey: string, action: "approve" | "reject") {
+    memesApi.setDescriptionFeedback(meme.id, promptKey, action).then(resp => {
+      setDescriptions(prev => prev.map(d =>
+        d.promptKey === promptKey ? { ...d, feedback: resp.feedback } : d
+      ))
+    })
+  }
+
   function bumpControls() {
     setControlsActive(true)
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
@@ -202,6 +210,20 @@ export function MemeDetails({ meme, memesApi }: Props) {
               {descriptions.map(d => (
                 <li key={d.promptKey}>
                   <span className="font-medium">{humanizePromptKey(d.promptKey)}:</span> {d.text}
+                  <button
+                    onClick={() => setDescriptionFeedback(d.promptKey, "approve")}
+                    aria-label={`Approve ${humanizePromptKey(d.promptKey)}`}
+                    className={`ml-2 px-1.5 py-0.5 text-xs rounded border ${d.feedback === "approved" ? "bg-green-600 text-white border-green-600" : "border-gray-300 text-gray-500 hover:bg-gray-100"}`}
+                  >
+                    👍
+                  </button>
+                  <button
+                    onClick={() => setDescriptionFeedback(d.promptKey, "reject")}
+                    aria-label={`Reject ${humanizePromptKey(d.promptKey)}`}
+                    className={`ml-1 px-1.5 py-0.5 text-xs rounded border ${d.feedback === "rejected" ? "bg-red-600 text-white border-red-600" : "border-gray-300 text-gray-500 hover:bg-gray-100"}`}
+                  >
+                    👎
+                  </button>
                 </li>
               ))}
             </ul>
