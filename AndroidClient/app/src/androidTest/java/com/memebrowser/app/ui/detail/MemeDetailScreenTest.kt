@@ -37,6 +37,7 @@ class MemeDetailScreenTest {
         every { envRepo.selectedEnvironmentName } returns flowOf("TestCollection")
         coEvery { repo.getMeme("meme-1") } returns Result.success(androidFakeMeme)
         coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(emptyList())
+        coEvery { repo.getDescriptions("meme-1") } returns Result.success(emptyList())
         viewModel = MemeDetailViewModel(
             savedStateHandle = SavedStateHandle(mapOf("memeId" to "meme-1")),
             repo = repo,
