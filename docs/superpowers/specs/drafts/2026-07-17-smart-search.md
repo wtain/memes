@@ -21,7 +21,7 @@ For example, searching for "полиция" won't find "звоню в полиц
 - N-grams - store in a separate table? (like the all strings joined?)
 - Use TF-IDF/BM25?
 - Fuzzy search - levenshtein/trigram-similarity - native postgres support?
-- Separate LLM to tackle erratives - offline phase, index build (превед → привет; превед → привет)
+- Separate LLM to tackle erratives - offline phase, index build (превед → привет; кросавчег → красавчик)
 - Use OCR confidence score
 - Disable online search? Or increase delay - heavier search would take more time
 - Caching (in future) - input embeddings (if used)
