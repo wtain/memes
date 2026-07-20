@@ -81,7 +81,7 @@ android {
 // androidx.test.ext:junit 1.3.0+ requires 1.2.0. Force it to unblock test dep upgrades.
 configurations.all {
     @Suppress("DEPRECATION")
-    resolutionStrategy.force("androidx.concurrent:concurrent-futures:1.2.0")
+    resolutionStrategy.force("androidx.concurrent:concurrent-futures:1.3.0")
 }
 
 androidComponents {
