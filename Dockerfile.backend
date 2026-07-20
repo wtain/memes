@@ -36,8 +36,12 @@ COPY --from=builder /app/requirements-backend.txt .
 RUN pip install --no-cache-dir /wheels/* && \
     rm -rf /wheels
 
-# Copy application code
-COPY Backend/app ./app
+# Copy application code. Backend/app's own internal imports are absolute
+# (e.g. `from Backend.app.api.diagnostics import ...`, matching how it's run
+# locally: `uvicorn Backend.app.main:app` from the repo root) -- so Backend
+# must be preserved as a package here too, not flattened to ./app.
+COPY Backend/__init__.py ./Backend/__init__.py
+COPY Backend/app ./Backend/app
 COPY Storage ./Storage
 COPY shared ./shared
 COPY ai ./ai
@@ -46,6 +50,8 @@ COPY repository ./repository
 COPY rules ./rules
 COPY graph ./graph
 COPY metrics ./metrics
+COPY config ./config
+COPY environments ./environments
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
@@ -59,4 +65,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Run application with gunicorn (production) using uvicorn workers
-CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "Backend.app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]

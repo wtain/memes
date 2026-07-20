@@ -1,0 +1,14 @@
+# Never let secrets reach a Docker build context / image layer.
+# environments/.env.* holds DATABASE_URL, SERP_API_KEY, etc. -- Dockerfile.backend
+# COPYs environments/ for the tracked settings*.yaml files only.
+.env
+.env.*
+environments/.env
+environments/.env.*
+
+.git
+.venv
+.venv311
+node_modules
+__pycache__
+*.pyc

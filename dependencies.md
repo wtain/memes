@@ -78,19 +78,39 @@ requirements.txt` broke immediately after merging — a real symptom of the same
   graph mechanics above, so the next person doesn't have to reverse-engineer
   `dependabot-core` again.
 
-## Separate finding (not fixed, out of scope): production image can't boot
+## Follow-up fix (separate session, same day): production image couldn't boot at all
 
-While smoke-testing the `Dockerfile.backend` rebuild, `python -c "import app.main"`
-inside the built image failed with `ModuleNotFoundError: No module named 'config'`.
-`Storage/config.py` imports `config.settings`, which in turn reads
-`environments/settings.yaml` at import time — but `Dockerfile.backend` never `COPY`s
-the `config/` package or the `environments/` directory (its `COPY` list is
-`Backend/app`, `Storage`, `shared`, `ai`, `embeddingutils`, `repository`, `rules`,
-`graph`, `metrics`). Confirmed via `git show HEAD~1:Dockerfile.backend` that this
-predates every change in this session — it's not something this fix introduced.
+While smoke-testing the `Dockerfile.backend` rebuild above, `python -c "import
+app.main"` inside the built image failed with `ModuleNotFoundError: No module named
+'config'`. `Storage/config.py` imports `config.settings`, which in turn reads
+`environments/settings.yaml` at import time — but `Dockerfile.backend` never `COPY`d
+the `config/` package or the `environments/` directory. Confirmed via `git show
+HEAD~1:Dockerfile.backend` that this predated every change in this session.
 
-This means the current production image cannot start at all. It needs its own fix
-(deciding how `environments/*.yaml` and `environments/.env.*` — the latter being
-gitignored secrets — should reach the container: baked in, mounted as a volume, or
-passed as env vars) and wasn't addressed here since it's unrelated to dependency
-drift.
+Fixed with tests first (`tests/docker/test_backend_image_boots.py`, requires a local
+Docker daemon, runs in CI as a step in `Backend Docker Build`):
+
+1. Wrote two failing tests that build the real `Dockerfile.backend` and actually run
+   the container — `test_image_imports_app_main` and
+   `test_container_boots_and_stays_running`. Confirmed both failed with the exact
+   `ModuleNotFoundError: No module named 'config'` traceback above.
+2. Added `COPY config ./config` and `COPY environments ./environments` to
+   `Dockerfile.backend`. Added a `.dockerignore` (there wasn't one) excluding
+   `.env`/`.env.*`/`environments/.env*` so copying `environments/` can never leak the
+   gitignored secrets that live alongside the tracked `settings*.yaml` files there.
+3. Re-ran the tests — new failure: `ModuleNotFoundError: No module named 'Backend'`.
+   `Backend/app/main.py`'s own internal imports are absolute
+   (`from Backend.app.api.diagnostics import ...`, matching how it's run locally —
+   `uvicorn Backend.app.main:app` from the repo root, per `CLAUDE.md`), but the
+   Dockerfile flattened `Backend/app` to `./app` and pointed gunicorn at `app.main:app`
+   — a layout that never matched the code's own import convention, in production only.
+   Fixed by preserving `Backend` as a package (`COPY Backend/__init__.py
+   ./Backend/__init__.py` + `COPY Backend/app ./Backend/app`) and changing the
+   gunicorn `CMD` to `Backend.app.main:app`.
+4. Re-ran the tests — `BASE_PATH environment variable is required but not set`. This
+   one's not a Dockerfile bug: `BASE_PATH` is a legitimately required runtime secret
+   (per `CLAUDE.md`'s Configuration section). Added it to the test's dummy env
+   alongside `DATABASE_URL`/`APP_ENV`.
+5. Both tests pass. Verified `test_image_imports_app_main` itself against a stale
+   assumption too — it originally asserted the old `import app.main` path; updated to
+   `import Backend.app.main` to match the real fix in step 3.

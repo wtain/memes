@@ -56,6 +56,11 @@ pytest tests/rules/
 # Config loading integration tests (fixture .env files, no real secrets touched)
 pytest batch/tests/
 
+# Dockerfile.backend smoke test — builds the image and verifies it actually boots
+# (not just that `docker build` succeeds). Requires a local Docker daemon; skips
+# otherwise. Runs in CI as part of Backend Docker Build.
+pytest tests/docker/
+
 # Single test file
 cd Backend && pytest tests/test_images_endpoints.py
 pytest tests/rules/test_engine.py

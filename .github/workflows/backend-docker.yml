@@ -71,6 +71,18 @@ jobs:
         cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/backend:buildcache
         cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref=ghcr.io/{0}/backend:buildcache,mode=max', github.repository) || '' }}
 
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install test dependencies
+      run: pip install pytest
+
+    - name: Smoke-test the built image actually boots
+      run: pytest tests/docker/ -v --tb=short
+
     - name: Export Docker image
       run: docker save ghcr.io/${{ github.repository }}/backend | gzip > backend-image.tar.gz
 
