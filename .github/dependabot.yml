@@ -1,6 +1,14 @@
 version: 2
 updates:
-  # Root-level Python requirements (batch jobs, shared packages)
+  # Root-level Python requirements: requirements.txt, requirements-dev.txt,
+  # requirements-cuda.txt (batch/ML stack). Dependabot's pip ecosystem already
+  # auto-discovers every *.txt file with "requirements" in its name within a
+  # directory — there is no per-file key to add here, and no separate entry
+  # is needed per file. All files it finds in this directory are resolved as
+  # ONE combined dependency graph, so a bump can silently fail to produce a
+  # PR for a package if the huge combined ML/batch stack can't resolve it
+  # (this is what caused the requirements-backend.txt drift documented in
+  # dependencies.md — keep backend-only deps out of this directory).
   - package-ecosystem: pip
     directory: /
     schedule:
@@ -9,7 +17,10 @@ updates:
       - dependencies
       - python
 
-  # Backend-specific Python requirements
+  # Backend-specific Python requirements (Backend/requirements-backend.txt) —
+  # kept in its own directory specifically so its resolution graph stays
+  # small and isolated from the root ML/batch stack above. This is also the
+  # single file used by Dockerfile.backend (see dependencies.md).
   - package-ecosystem: pip
     directory: /Backend
     schedule:

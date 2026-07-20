@@ -227,10 +227,12 @@ Two venvs exist: `.venv` (Python 3.13) and `.venv311` (Python 3.11). The project
 
 | File | Use |
 |------|-----|
-| `requirements-backend.txt` | FastAPI server only (Docker, CI) |
-| `requirements.txt` | Full ML/batch stack, CPU PyTorch — no dev tools |
-| `requirements-cuda.txt` | Overrides for NVIDIA GPU — includes `--extra-index-url` for PyTorch |
-| `requirements-dev.txt` | Dev tools: `autoflake`, `black`, `isort`, `pytest*`, `coverage` |
+| `Backend/requirements-backend.txt` | FastAPI server only — single source of truth for both CI (tests/coverage/integration) and `Dockerfile.backend` (production image). Built with `pip wheel --no-deps`, so this file must be the full closure (direct + transitive pins), not just top-level packages — regenerate via a clean-venv `pip freeze` when changing it, don't hand-edit individual versions. |
+| `requirements.txt` (root) | Full ML/batch stack, CPU PyTorch — no dev tools |
+| `requirements-cuda.txt` (root) | Overrides for NVIDIA GPU — includes `--extra-index-url` for PyTorch |
+| `requirements-dev.txt` (root) | Dev tools: `autoflake`, `black`, `isort`, `pytest*`, `coverage` |
+
+There used to be a second, near-duplicate `requirements-backend.txt` at the repo root — `Dockerfile.backend` used it while CI used `Backend/requirements-backend.txt`, and the two drifted apart (root stuck on `fastapi==0.128.0` while `Backend/`'s stayed current at `0.139.2`). The root copy was removed; `Dockerfile.backend` now points at `Backend/requirements-backend.txt` for both. See `dependencies.md` for the full investigation.
 
 ### Configuration
 

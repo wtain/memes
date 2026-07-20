@@ -472,14 +472,14 @@ PyTorch CUDA builds (`+cu121`) are not published on PyPI — they live on PyTorc
 
 | File | Purpose |
 |------|---------|
-| `requirements-backend.txt` | FastAPI server only — no ML stack. Used by `Dockerfile.backend` and CI |
-| `requirements.txt` | Full ML/batch stack (CPU torch) — no dev tools |
-| `requirements-cuda.txt` | CUDA overrides — requires PyTorch's extra index URL, for local GPU dev |
-| `requirements-dev.txt` | Dev tools only: `autoflake`, `black`, `isort`, `pytest*`, `coverage` |
+| `Backend/requirements-backend.txt` | FastAPI server only — no ML stack. Single source of truth for both `Dockerfile.backend` and CI |
+| `requirements.txt` (root) | Full ML/batch stack (CPU torch) — no dev tools |
+| `requirements-cuda.txt` (root) | CUDA overrides — requires PyTorch's extra index URL, for local GPU dev |
+| `requirements-dev.txt` (root) | Dev tools only: `autoflake`, `black`, `isort`, `pytest*`, `coverage` |
 
 **Docker / CI (backend server only):**
 ```bash
-pip install -r requirements-backend.txt
+cd Backend && pip install -r requirements-backend.txt
 ```
 
 **Batch processing — no GPU:**
