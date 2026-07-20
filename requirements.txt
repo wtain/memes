@@ -6,7 +6,7 @@ alembic==1.18.4
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.14.2
-argcomplete==3.6.3
+argcomplete==3.7.0
 astor==0.8.1
 asyncpg==0.31.0
 attrs==26.1.0
