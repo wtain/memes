@@ -109,7 +109,7 @@ pymorphy3==2.0.6
 pymorphy3-dicts-ru==2.4.417150.4580142
 PyMuPDF==1.23.7
 PyMuPDFb==1.23.7
-pyparsing==3.3.1
+pyparsing==3.3.2
 pypdfium2==5.3.0
 PySocks==1.7.1
 python-bidi==0.6.7
