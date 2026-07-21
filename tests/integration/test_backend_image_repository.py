@@ -21,6 +21,7 @@ from Storage.models import (
     ImageDescriptionEmbedding,
     ImageExtras,
     ImageTag,
+    OCRLemma,
     OCRText,
     TmpDuplicates,
     TmpImageClusters,
@@ -83,8 +84,8 @@ async def test_search_filters_by_text(db_session):
     db_session.add_all([matching, other])
     await db_session.flush()
     db_session.add_all([
-        OCRText(image_id=matching.id, text="distracted boyfriend meme", confidence=0.9),
-        OCRText(image_id=other.id, text="totally different text", confidence=0.9),
+        OCRLemma(image_id=matching.id, lemma="boyfriend"),
+        OCRLemma(image_id=other.id, lemma="unrelated"),
     ])
     await db_session.flush()
 
@@ -94,6 +95,20 @@ async def test_search_filters_by_text(db_session):
     ids = {r.id for r in rows}
     assert matching.id in ids
     assert other.id not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_search_matches_lemma_regardless_of_query_word_form(db_session):
+    matching = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(matching)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=matching.id, lemma="полиция"))
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    rows, _ = await repo.search(q="полицию", tags={}, cursor_created_at=None, cursor_id=None, limit=50)
+
+    assert matching.id in {r.id for r in rows}
 
 
 @pytest.mark.asyncio(loop_scope="session")

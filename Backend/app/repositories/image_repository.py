@@ -14,6 +14,7 @@ from Storage.models import (
     ImageDescription, ImageDescriptionEmbedding, ImageDescriptionFeedback,
 )
 from graph.uf import UnionFind
+from repository.ocr_lemmas import matching_image_ids
 
 
 class ImageRepository:
@@ -27,19 +28,13 @@ class ImageRepository:
     ):
         """Returns a scalar-subquery of image IDs matching q and tags, unpaginated."""
         img = aliased(Image)
-        ocr = aliased(OCRText)
         image_tag = aliased(ImageTag)
 
         query = select(img.id)
 
-        if q:
-            text_filter = (
-                select(distinct(img.id))
-                .join(ocr, ocr.image_id == img.id)
-                .where(sqlalchemy.func.upper(ocr.text).contains(str.upper(q)))
-            )
-            ids_result = await self.session.execute(text_filter)
-            query = query.where(img.id.in_([id for (id,) in ids_result.all()]))
+        matching_ids = await matching_image_ids(self.session, q)
+        if matching_ids is not None:
+            query = query.where(img.id.in_(matching_ids))
 
         if tags:
             tag_queries = [
