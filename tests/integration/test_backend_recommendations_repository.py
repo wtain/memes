@@ -16,7 +16,7 @@ import uuid
 import pytest
 
 from Backend.app.repositories.recommendations_repository import RecommendationsRepository
-from Storage.models import Image, ImageExtras, OCRText, ImageTag
+from Storage.models import Image, ImageExtras, ImageTag, OCRLemma
 
 _BBOX = [[0, 0], [10, 0], [10, 10], [0, 10]]
 
@@ -35,7 +35,7 @@ async def test_excludes_flagged_images(db_session):
     await db_session.flush()
 
     repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=[], seed=1, last_hash=None, limit=50)
+    rows = await repo.get_recommendations(q=None, seed=1, last_hash=None, limit=50)
 
     ids = {r.id for r in rows}
     assert kept.id in ids
@@ -49,7 +49,7 @@ async def test_includes_image_with_no_extras_row(db_session):
     await db_session.flush()
 
     repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=[], seed=1, last_hash=None, limit=50)
+    rows = await repo.get_recommendations(q=None, seed=1, last_hash=None, limit=50)
 
     matches = [r for r in rows if r.id == image.id]
     assert len(matches) == 1
@@ -65,7 +65,7 @@ async def test_includes_explicitly_unflagged_image(db_session):
     await db_session.flush()
 
     repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=[], seed=1, last_hash=None, limit=50)
+    rows = await repo.get_recommendations(q=None, seed=1, last_hash=None, limit=50)
 
     matches = [r for r in rows if r.id == image.id]
     assert len(matches) == 1
@@ -73,19 +73,19 @@ async def test_includes_explicitly_unflagged_image(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_words_filter_matches_ocr_text(db_session):
+async def test_query_filter_matches_ocr_lemma_index(db_session):
     matching = Image(filename=f"{uuid.uuid4()}.jpg")
     other = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add_all([matching, other])
     await db_session.flush()
     db_session.add_all([
-        OCRText(image_id=matching.id, text="grumpy cat is not amused", confidence=0.9),
-        OCRText(image_id=other.id, text="totally unrelated content", confidence=0.9),
+        OCRLemma(image_id=matching.id, lemma="cat"),
+        OCRLemma(image_id=other.id, lemma="unrelated"),
     ])
     await db_session.flush()
 
     repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=["cat"], seed=1, last_hash=None, limit=50)
+    rows = await repo.get_recommendations(q="cat", seed=1, last_hash=None, limit=50)
 
     ids = {r.id for r in rows}
     assert matching.id in ids
@@ -93,21 +93,7 @@ async def test_words_filter_matches_ocr_text(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_words_filter_ignores_low_confidence_ocr(db_session):
-    image = Image(filename=f"{uuid.uuid4()}.jpg")
-    db_session.add(image)
-    await db_session.flush()
-    db_session.add(OCRText(image_id=image.id, text="grumpy cat", confidence=0.5))
-    await db_session.flush()
-
-    repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=["cat"], seed=1, last_hash=None, limit=50)
-
-    assert image.id not in {r.id for r in rows}
-
-
-@pytest.mark.asyncio(loop_scope="session")
-async def test_words_filter_matches_tag(db_session):
+async def test_query_filter_matches_tag(db_session):
     image = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add(image)
     await db_session.flush()
@@ -115,13 +101,13 @@ async def test_words_filter_matches_tag(db_session):
     await db_session.flush()
 
     repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=["cat"], seed=1, last_hash=None, limit=50)
+    rows = await repo.get_recommendations(q="cat", seed=1, last_hash=None, limit=50)
 
     assert image.id in {r.id for r in rows}
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_words_filter_requires_all_words(db_session):
+async def test_query_filter_requires_all_words(db_session):
     both = Image(filename=f"{uuid.uuid4()}.jpg")
     only_cat = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add_all([both, only_cat])
@@ -134,7 +120,7 @@ async def test_words_filter_requires_all_words(db_session):
     await db_session.flush()
 
     repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=["cat", "dog"], seed=1, last_hash=None, limit=50)
+    rows = await repo.get_recommendations(q="cat dog", seed=1, last_hash=None, limit=50)
 
     ids = {r.id for r in rows}
     assert both.id in ids
@@ -148,7 +134,7 @@ async def test_no_matches_returns_empty_list(db_session):
     await db_session.flush()
 
     repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=["nonexistentword"], seed=1, last_hash=None, limit=50)
+    rows = await repo.get_recommendations(q="nonexistentword", seed=1, last_hash=None, limit=50)
 
     assert rows == []
 
@@ -164,7 +150,7 @@ async def test_last_hash_pagination_excludes_seen_and_earlier(db_session):
 
     repo = RecommendationsRepository(db_session)
     cutoff = _md5_hash(ordered[1].id, seed)
-    rows = await repo.get_recommendations(words=[], seed=seed, last_hash=cutoff, limit=50)
+    rows = await repo.get_recommendations(q=None, seed=seed, last_hash=cutoff, limit=50)
 
     returned_ids = [r.id for r in rows if r.id in {img.id for img in images}]
     expected_ids = [img.id for img in ordered[2:]]
@@ -178,6 +164,6 @@ async def test_limit_returns_at_most_limit_plus_one(db_session):
     await db_session.flush()
 
     repo = RecommendationsRepository(db_session)
-    rows = await repo.get_recommendations(words=[], seed=3, last_hash=None, limit=2)
+    rows = await repo.get_recommendations(q=None, seed=3, last_hash=None, limit=2)
 
     assert len(rows) <= 3
