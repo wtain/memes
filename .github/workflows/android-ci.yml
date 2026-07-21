@@ -80,7 +80,7 @@ jobs:
           retention-days: 14
 
   instrumented-tests:
-    name: Instrumented Tests (API 29)
+    name: Instrumented Tests (API 31)
     runs-on: ubuntu-latest
     # Skip on draft PRs to keep CI fast (~15 min with emulator).
     if: github.event_name == 'push' || !github.event.pull_request.draft
@@ -110,7 +110,15 @@ jobs:
       - name: Run instrumented tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          # Must stay >=31: androidx.activity 1.13.0 makes ComponentActivity
+          # implement a callback referencing android.app.PictureInPictureUiState
+          # (API 31+ only). MockK's reflection-based method scan touches that
+          # class on any lower API level and crashes every instrumented test
+          # that pauses an Activity while any mock exists -- unrelated to PiP.
+          # Confirmed upstream MockK bug (mockk/mockk#1518), fix merged
+          # upstream (mockk/mockk#1531) but not in any released mockk version
+          # as of 2026-07-21. minSdk stays 29; only this test target moved.
+          api-level: 31
           arch: x86_64
           profile: pixel_3a
           avd-name: test_device
