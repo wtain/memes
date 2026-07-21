@@ -48,6 +48,44 @@ The OkHttp application interceptor in `NetworkModule` rewrites `localhost` to
 the configured server host/port at request time, so environment switching still
 works correctly.
 
+## CI runs instrumented tests on API 31, not the real minSdk (29) — temporary
+
+`minSdk = 29` in `app/build.gradle.kts`, but `.github/workflows/android-ci.yml`'s
+`instrumented-tests` job runs on an **API 31** emulator, not 29. This is a
+workaround, not a design choice — don't "fix" it back to 29 without checking
+whether the underlying issue is resolved (see below).
+
+**Why:** `androidx.activity:activity-compose` 1.13.0+ makes `ComponentActivity`
+implement a callback referencing `android.app.PictureInPictureUiState`, a class
+that only exists on API 31+. MockK's Android proxy reflectively scans all
+declared methods on a class when deciding whether to intercept a call, and that
+scan touches the missing class on API <31, crashing with
+`ClassNotFoundException: android.app.PictureInPictureUiState` — in *any*
+instrumented test that pauses an Activity while any mock exists, not just PiP
+tests. Confirmed upstream MockK bug: mockk/mockk#1518. Fix merged upstream
+(mockk/mockk#1531) on 2026-06-12 but not in any released mockk version as of
+2026-07-21.
+
+**Why it's low-risk right now:** this app has zero `Build.VERSION.SDK_INT`
+branches anywhere in `app/src/main`, and its only permissions (`INTERNET`,
+`ACCESS_NETWORK_STATE`, `REQUEST_INSTALL_PACKAGES`) don't behave differently
+between API 29 and 31 — no scoped-storage, media, notification, or Bluetooth
+permission changes apply here. There's no version-conditional code path for
+the API-29-vs-31 gap to actually hide a bug in.
+
+**Coverage gap this leaves:** automated instrumented (Espresso/Compose) tests
+no longer run against the real minSdk floor. The `smoke-test-min-sdk` CI job
+(also in `android-ci.yml`) partially covers this: it installs the real debug
+APK on an API 29 emulator and confirms the app launches without crashing —
+no MockK, no Espresso, just `adb install` + `adb shell am start` + a logcat
+crash check. It won't catch UI-level regressions, only gross launch/install
+failures on API 29 specifically.
+
+**To revert:** once mockk ships a release containing #1531, bump the `mockk`
+version in `gradle/libs.versions.toml`, change `instrumented-tests`' `api-level`
+back to 29, and remove the `smoke-test-min-sdk` job (no longer needed once
+instrumented tests cover 29 again).
+
 ## Architecture notes
 
 ### Detail screen

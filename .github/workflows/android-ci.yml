@@ -133,3 +133,54 @@ jobs:
           name: instrumented-test-results
           path: AndroidClient/app/build/reports/androidTests/connected/
           retention-days: 14
+
+  smoke-test-min-sdk:
+    name: Smoke Test (API 29 — real minSdk floor)
+    runs-on: ubuntu-latest
+    needs: build-apk
+    # Skip on draft PRs to keep CI fast (~10 min with emulator).
+    if: github.event_name == 'push' || !github.event.pull_request.draft
+    # Instrumented tests moved to API 31 (see comment above) to work around
+    # an upstream MockK bug -- MockK's reflection crashes on API <31, unrelated
+    # to any real app/OS behavior difference. That leaves API 29 (the actual
+    # minSdk) with zero automated coverage. This job closes that gap cheaply:
+    # no MockK, no Espresso/Compose test APIs -- just install the real debug
+    # APK on an API 29 emulator, launch it, and confirm it doesn't crash.
+
+    steps:
+      - name: Download debug APK
+        uses: actions/download-artifact@v7
+        with:
+          name: app-debug-${{ github.sha }}
+          path: apk
+
+      - name: Enable KVM for hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install and launch on API 29, verify no crash
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_3a
+          avd-name: smoke_test_device
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            adb install -r apk/app-debug.apk
+            adb logcat -c
+            adb shell am start -n com.memebrowser.app/.MainActivity
+            sleep 5
+            if adb logcat -d | grep -q "FATAL EXCEPTION"; then
+              echo "App crashed on launch (API 29):"
+              adb logcat -d | grep -B 5 -A 30 "FATAL EXCEPTION"
+              exit 1
+            fi
+            if ! adb shell pidof com.memebrowser.app; then
+              echo "App process not running after launch (API 29) -- crashed or failed to start"
+              exit 1
+            fi
+            echo "App launched and stayed running on API 29 -- OK"
