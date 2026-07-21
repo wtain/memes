@@ -14,7 +14,7 @@ colorama==0.4.6
 dynaconf==3.3.2
 fastapi==0.139.2
 greenlet==3.5.3
-gunicorn==23.0.0
+gunicorn==26.0.0
 h11==0.16.0
 idna==3.18
 packaging==26.2
