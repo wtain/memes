@@ -128,3 +128,24 @@ class TestLemmatizePhrase:
         morph = make_morph()
         result = lemmatize_phrase("Владимира Путина", morph)
         assert result.split() == ["владимир", "путин"]
+
+
+class TestNormalizeKeepDigitTokens:
+    def test_digit_token_dropped_by_default(self):
+        morph = make_morph()
+        assert normalize("year 2020 report", morph) == {"year", "report"}
+
+    def test_digit_token_kept_when_requested(self):
+        morph = make_morph()
+        assert normalize("year 2020 report", morph, keep_digit_tokens=True) == {"year", "2020", "report"}
+
+    def test_short_digit_token_still_dropped_when_kept(self):
+        morph = make_morph()
+        assert normalize("a 12 report", morph, min_length=3, keep_digit_tokens=True) == {"report"}
+
+    def test_kept_digit_token_is_not_lemmatized(self):
+        morph = make_morph()
+        wrapped = Mock(wraps=morph)
+        result = normalize("2020", wrapped, keep_digit_tokens=True)
+        assert result == {"2020"}
+        wrapped.parse.assert_not_called()
