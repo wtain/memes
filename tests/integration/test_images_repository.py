@@ -9,7 +9,7 @@ import pytest
 
 from repository.images import ImagesRepository
 from repository.ocr_text import OCRTextRepository
-from Storage.models import Image
+from Storage.models import Image, OCRLemma
 
 _BBOX = [[0, 0], [10, 0], [10, 10], [0, 10]]
 
@@ -106,3 +106,26 @@ async def test_get_images_and_ocr_texts_without_tags_with_language_includes_lang
     assert len(matches) == 1
     assert matches[0][4] == "en"
     assert matches[0][5] == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_images_and_ocr_texts_without_lemmas_excludes_indexed_images(db_session):
+    indexed = Image(filename=f"{uuid.uuid4()}.jpg")
+    not_indexed = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([indexed, not_indexed])
+    await db_session.flush()
+
+    ocr_repo = OCRTextRepository(db_session)
+    await ocr_repo.overwrite_texts(indexed, [(_BBOX, "already indexed text", 0.9)], "en")
+    await ocr_repo.overwrite_texts(not_indexed, [(_BBOX, "not indexed yet", 0.9)], "en")
+    await db_session.flush()
+
+    db_session.add(OCRLemma(image_id=indexed.id, lemma="already"))
+    await db_session.flush()
+
+    images_repo = ImagesRepository(db_session)
+    rows = await images_repo.get_images_and_ocr_texts_without_lemmas_with_language()
+    matched_ids = {img_id for _filename, img_id, _text, _confidence, _language, _lang_score in rows}
+
+    assert not_indexed.id in matched_ids
+    assert indexed.id not in matched_ids
