@@ -1,7 +1,13 @@
 # Runtime deps for the Backend API server.
-# DO NOT add ML/OCR/batch/GPU libs here — this is the single source of truth
-# for both CI (backend tests/coverage/integration) and Dockerfile.backend
-# (production image), and avoids the opencv/paddleocr conflict in requirements.txt.
+# DO NOT add heavy ML/OCR/batch/GPU libs here (opencv, paddleocr, torch, etc.)
+# — this is the single source of truth for both CI (backend tests/coverage/
+# integration) and Dockerfile.backend (production image), and adding those
+# would reintroduce the opencv/paddleocr conflict that requirements.txt has.
+# pymorphy3 is a deliberate exception: it's a genuine runtime dependency of
+# the query-time OCR-lemma search matching (repository/ocr_lemmas.py calls
+# rules.normalize.normalize() on every search request), not a batch-only
+# tool, and it's lightweight (pure Python + a dictionary data file) — it
+# doesn't conflict with anything the way the CV/ML training stacks do.
 # Dockerfile.backend builds wheels with --no-deps, so this list must be the
 # full closure (direct + transitive) — regenerate via a clean-venv `pip freeze`
 # after changing any pin here, don't hand-edit individual versions.
@@ -11,6 +17,7 @@ anyio==4.14.2
 asyncpg==0.31.0
 click==8.4.2
 colorama==0.4.6
+DAWG2-Python==0.9.0
 dynaconf==3.3.2
 fastapi==0.139.2
 greenlet==3.5.3
@@ -22,6 +29,8 @@ pgvector==0.5.0
 psycopg2-binary==2.9.12
 pydantic==2.13.4
 pydantic_core==2.46.4
+pymorphy3==2.0.6
+pymorphy3-dicts-ru==2.4.417150.4580142
 python-dotenv==1.2.2
 python-multipart==0.0.32
 PyYAML==6.0.3
