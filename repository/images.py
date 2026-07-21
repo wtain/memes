@@ -109,6 +109,7 @@ class ImagesRepository:
         )
         result = await self.session.execute(query)
         return result.fetchall()
+
     async def get_images_and_descriptions(self):
         query = (
             select(
