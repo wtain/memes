@@ -208,28 +208,6 @@ class TestQueryHandling:
 
 # ── Service unit tests ────────────────────────────────────────────────────────
 
-class TestParseQuery:
-    def test_none_returns_empty(self):
-        assert RecommendationsService._parse_query(None) == []
-
-    def test_empty_string_returns_empty(self):
-        assert RecommendationsService._parse_query("") == []
-
-    def test_whitespace_only_returns_empty(self):
-        assert RecommendationsService._parse_query("   ") == []
-
-    def test_single_word(self):
-        assert RecommendationsService._parse_query("cat") == ["cat"]
-
-    def test_multiple_words_split_on_whitespace(self):
-        assert RecommendationsService._parse_query("hello world") == ["hello", "world"]
-
-    def test_extra_whitespace_between_words(self):
-        result = RecommendationsService._parse_query("hello   world")
-        assert "hello" in result
-        assert "world" in result
-
-
 class TestCursorEncoding:
     def test_encode_decode_roundtrip(self):
         seed = 123456

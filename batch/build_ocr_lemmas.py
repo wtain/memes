@@ -1,0 +1,73 @@
+import argparse
+import asyncio
+
+from batch.utils.ocr_lemmas import group_lemmas_by_image
+from batch.utils.progress import ProgressTracker
+from config.settings import load_env, settings
+from metrics.listener import SimpleMetricsListener
+from rules.normalize import make_morph
+from Storage.db import AsyncSessionLocal
+from repository.images import ImagesRepository
+from repository.ocr_lemmas import OCRLemmasRepository, OCRLemmasSaver
+
+
+async def main(incremental: bool):
+    ocr_confidence_min = settings.OCR.CONFIDENCE_MIN
+    ocr_lang_score_min = settings.OCR.LANG_SCORE_MIN
+    min_word_length = settings.BOW.MIN_WORD_LENGTH
+
+    morph = make_morph()
+    metrics = SimpleMetricsListener()
+
+    async with AsyncSessionLocal() as session:
+        lemmas_repo = OCRLemmasRepository(session)
+        images_repo = ImagesRepository(session)
+
+        if not incremental:
+            await lemmas_repo.delete_all()
+
+        print(f"Mode: {'incremental' if incremental else 'full'}")
+        print(f"OCR_CONFIDENCE_MIN={ocr_confidence_min}, OCR_LANG_SCORE_MIN={ocr_lang_score_min}")
+        print(f"BOW_MIN_WORD_LENGTH={min_word_length}")
+
+        if incremental:
+            rows = await images_repo.get_images_and_ocr_texts_without_lemmas_with_language()
+        else:
+            rows = await images_repo.get_images_and_ocr_texts_with_language()
+
+        simplified_rows = [
+            (image_id, text, confidence, language, lang_score)
+            for _filename, image_id, text, confidence, language, lang_score in rows
+        ]
+
+        lemmas_by_image, stats = group_lemmas_by_image(
+            simplified_rows, morph, ocr_confidence_min, ocr_lang_score_min, min_word_length
+        )
+        metrics.add("ocr_rows.total", stats["rows_total"])
+        metrics.add("ocr_rows.skipped", stats["rows_skipped"])
+        metrics.add("ocr_rows.processed", stats["rows_processed"])
+
+        print(f"Total images: {len(lemmas_by_image)}")
+        tracker = ProgressTracker(len(lemmas_by_image), report_every=100, report_interval_secs=10)
+
+        async with OCRLemmasSaver(session) as saver:
+            for image_id, lemma_set in lemmas_by_image.items():
+                saver.add_lemmas(image_id, lemma_set)
+                metrics.add("lemmas.total", len(lemma_set))
+                metrics.bucket("lemmas_per_image", len(lemma_set))
+                tracker.mark_done()
+
+        tracker.summary()
+
+    print("Lemmas:")
+    metrics.print()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
+    parser.add_argument("--incremental", action="store_true",
+                        help="Only process images that have no ocr_lemmas rows yet (default: clear all and reprocess)")
+    args = parser.parse_args()
+    load_env(args.env)
+    asyncio.run(main(args.incremental))

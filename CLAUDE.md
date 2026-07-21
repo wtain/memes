@@ -173,6 +173,9 @@ rebuild_duplicates         → near-duplicate clusters  [drops & recreates table
 clusterize                 → optimize cluster index
 
 build_tags_from_ocr        → rule-based tags from OCR text
+build_ocr_lemmas           → per-image lemma index for smart search (see
+                              docs/superpowers/specs/2026-07-21-smart-search-design.md);
+                              --incremental skips images already indexed
 build_image_descriptions   → multi-prompt Ollama LLM descriptions (optional), one row per
                               (image, prompt) pair; configurable prompts/models/context size
                               per environment; incremental with its own commit interval;

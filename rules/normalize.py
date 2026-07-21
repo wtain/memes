@@ -75,11 +75,23 @@ def normalize(
     morph: pymorphy3.MorphAnalyzer,
     min_length: int = 3,
     language: str | None = None,
+    keep_digit_tokens: bool = False,
 ) -> set[str]:
-    """Tokenize, drop short tokens and pure digits, return lemma set."""
+    """Tokenize, drop short tokens and pure digits, return lemma set.
+
+    keep_digit_tokens=True keeps a pure-digit token (still subject to
+    min_length) as a literal lemma instead of dropping it — used by search
+    indexing/matching, where numeric queries (years, model numbers) should
+    still be findable. Default False preserves the original tag/concept-
+    vocabulary behavior for every other caller.
+    """
     result: set[str] = set()
     for word in tokenize(text):
-        if len(word) < min_length or word.isdigit():
+        if len(word) < min_length:
+            continue
+        if word.isdigit():
+            if keep_digit_tokens:
+                result.add(word)
             continue
         lemma = lemmatize_word(word, morph, language)
         result.add(lemma)

@@ -1,12 +1,11 @@
 from typing import Optional
 
-from sqlalchemy import select, distinct, func, cast, String, union, literal, or_
+from sqlalchemy import select, func, cast, String, literal, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from Storage.models import Image, OCRText, ImageTag, ImageExtras
-
-OCR_CONFIDENCE_THRESHOLD = 0.8
+from repository.ocr_lemmas import matching_image_ids
+from Storage.models import Image, ImageExtras
 
 
 class RecommendationsRepository:
@@ -15,7 +14,7 @@ class RecommendationsRepository:
 
     async def get_recommendations(
         self,
-        words: list[str],
+        q: Optional[str],
         seed: int,
         last_hash: Optional[str],
         limit: int,
@@ -31,8 +30,8 @@ class RecommendationsRepository:
             .where(or_(extras.flagged.is_(None), extras.flagged == False))
         )
 
-        if words:
-            matching_ids = await self._get_matching_ids(words)
+        matching_ids = await matching_image_ids(self.session, q)
+        if matching_ids is not None:
             if not matching_ids:
                 return []
             query = query.where(img.id.in_(matching_ids))
@@ -44,33 +43,3 @@ class RecommendationsRepository:
 
         result = await self.session.execute(query)
         return result.all()
-
-    async def _get_matching_ids(self, words: list[str]) -> set:
-        matching_ids: Optional[set] = None
-
-        for word in words:
-            combined = func.string_agg(OCRText.text, ' ')
-            ocr_subq = (
-                select(OCRText.image_id)
-                .where(OCRText.confidence > OCR_CONFIDENCE_THRESHOLD)
-                .group_by(OCRText.image_id)
-                .having(func.upper(combined).contains(word.upper()))
-            )
-
-            tag_subq = (
-                select(distinct(ImageTag.image_id))
-                .where(func.upper(ImageTag.value).contains(word.upper()))
-            )
-
-            result = await self.session.execute(union(ocr_subq, tag_subq))
-            word_ids = {row[0] for row in result.all()}
-
-            if matching_ids is None:
-                matching_ids = word_ids
-            else:
-                matching_ids &= word_ids
-
-            if not matching_ids:
-                break
-
-        return matching_ids or set()

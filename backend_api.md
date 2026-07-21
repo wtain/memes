@@ -362,7 +362,7 @@ Search for memes with optional query, facets, and pagination.
 - **URL**: `/api/images`
 - **Method**: `GET`
 - **Query Parameters**:
-  - `q` (optional): Search query string
+  - `q` (optional): Search query string — same tokenize/lemmatize/AND matching as `/api/recommendations`'s `q` (see below); both endpoints share one matching implementation.
   - `limit` (optional): Number of results (1-100, default: 20)
   - `facets` (optional): Facet filter string
   - `cursor` (optional): Pagination cursor for next page
@@ -556,7 +556,7 @@ GET /api/recommendations
 
 | Parameter | Type   | Default              | Description |
 |-----------|--------|----------------------|-------------|
-| `q`       | string | —                    | Optional search query. Split on whitespace; all words must match (AND). Each word is matched case-insensitively against the combined OCR text (confidence > 0.8, all blocks joined with a space) **or** any tag value. Empty string is treated as no query. |
+| `q`       | string | —                    | Optional search query. Tokenized and lemmatized per word (Russian words normalized to dictionary form via pymorphy3; other languages lowercased; pure-digit tokens like years are kept as-is). All resulting lemmas must match (AND), each against either the image's precomputed OCR-lemma index (`ocr_lemmas`, built offline by `batch/build_ocr_lemmas.py`) or some tag value (case-insensitive equality). Matching is per-image, not per-OCR-line, so a multi-word query matches even when its words came from different OCR-detected lines on the same meme. Empty string is treated as no query. |
 | `seed`    | int    | server-random        | Randomization seed. On the first call (no `cursor`) a seed controls the shuffle. If omitted, the server picks one. On subsequent pages the seed is read from the `cursor` and the URL param is ignored (a mismatch is logged as a warning). |
 | `limit`   | int    | 20                   | Items per page (1–100). |
 | `cursor`  | string | —                    | Opaque pagination token from the previous response. Encodes `{seed, last_hash}` where `last_hash = md5(last_item_id || seed)`. |

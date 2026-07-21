@@ -22,8 +22,7 @@ class RecommendationsService:
         last_hash: Optional[str],
         limit: int,
     ) -> MemeSearchResponse:
-        words = self._parse_query(q)
-        rows = await self.repo.get_recommendations(words=words, seed=seed, last_hash=last_hash, limit=limit)
+        rows = await self.repo.get_recommendations(q=q, seed=seed, last_hash=last_hash, limit=limit)
 
         has_next = len(rows) > limit
         rows = rows[:limit]
@@ -58,12 +57,6 @@ class RecommendationsService:
             index[str(row.image_id)].text.append(row.text)
         for image_id, key, value, source in await self.image_repo.get_tags(ids):
             index[str(image_id)].tags.append(MemeTag(name=value, category=key, score=1, source=source))
-
-    @staticmethod
-    def _parse_query(q: Optional[str]) -> list[str]:
-        if not q or not q.strip():
-            return []
-        return q.split()
 
     @staticmethod
     def _encode_cursor(seed: int, last_hash: str) -> str:

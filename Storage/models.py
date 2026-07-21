@@ -42,6 +42,7 @@ class Image(Base):
     errors = relationship("ProcessingError", back_populates="image")
     embeddings = relationship("Embedding", back_populates="image", cascade="all, delete-orphan")
     tags = relationship("ImageTag", back_populates="image", cascade="all, delete-orphan")
+    ocr_lemmas = relationship("OCRLemma", back_populates="image", cascade="all, delete-orphan")
     image_extras = relationship("ImageExtras", back_populates="image", cascade="all, delete-orphan")
 
 
@@ -221,6 +222,21 @@ class ImageTag(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     image = relationship("Image", back_populates="tags")
+
+
+class OCRLemma(Base):
+    __tablename__ = "ocr_lemmas"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    lemma = Column(String, primary_key=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_ocr_lemmas_lemma", "lemma"),
+    )
+
+    image = relationship("Image", back_populates="ocr_lemmas")
 
 
 class Concept(Base):
