@@ -80,7 +80,7 @@ jobs:
           retention-days: 14
 
   instrumented-tests:
-    name: Instrumented Tests (API 29)
+    name: Instrumented Tests (API 31)
     runs-on: ubuntu-latest
     # Skip on draft PRs to keep CI fast (~15 min with emulator).
     if: github.event_name == 'push' || !github.event.pull_request.draft
@@ -110,7 +110,15 @@ jobs:
       - name: Run instrumented tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          # Must stay >=31: androidx.activity 1.13.0 makes ComponentActivity
+          # implement a callback referencing android.app.PictureInPictureUiState
+          # (API 31+ only). MockK's reflection-based method scan touches that
+          # class on any lower API level and crashes every instrumented test
+          # that pauses an Activity while any mock exists -- unrelated to PiP.
+          # Confirmed upstream MockK bug (mockk/mockk#1518), fix merged
+          # upstream (mockk/mockk#1531) but not in any released mockk version
+          # as of 2026-07-21. minSdk stays 29; only this test target moved.
+          api-level: 31
           arch: x86_64
           profile: pixel_3a
           avd-name: test_device
@@ -125,3 +133,48 @@ jobs:
           name: instrumented-test-results
           path: AndroidClient/app/build/reports/androidTests/connected/
           retention-days: 14
+
+  smoke-test-min-sdk:
+    name: Smoke Test (API 29 — real minSdk floor)
+    runs-on: ubuntu-latest
+    needs: build-apk
+    # Skip on draft PRs to keep CI fast (~10 min with emulator).
+    if: github.event_name == 'push' || !github.event.pull_request.draft
+    # Instrumented tests moved to API 31 (see comment above) to work around
+    # an upstream MockK bug -- MockK's reflection crashes on API <31, unrelated
+    # to any real app/OS behavior difference. That leaves API 29 (the actual
+    # minSdk) with zero automated coverage. This job closes that gap cheaply:
+    # no MockK, no Espresso/Compose test APIs -- just install the real debug
+    # APK on an API 29 emulator, launch it, and confirm it doesn't crash.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download debug APK
+        uses: actions/download-artifact@v7
+        with:
+          name: app-debug-${{ github.sha }}
+          path: apk
+
+      - name: Enable KVM for hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install and launch on API 29, verify no crash
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_3a
+          avd-name: smoke_test_device
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          # android-emulator-runner's `script` input runs each line as its own
+          # separate `sh -c` invocation (see ReactiveCircus/android-emulator-runner
+          # src/script-parser.ts) -- variables set on one line are gone on the
+          # next. Multi-step logic has to live in an actual script file, hence
+          # this one-liner calling out to smoke_test_min_sdk.sh.
+          script: bash AndroidClient/scripts/smoke_test_min_sdk.sh apk
