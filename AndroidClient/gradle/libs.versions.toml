@@ -19,7 +19,7 @@ coreKtx = "1.19.0"
 # Test
 junit4 = "4.13.2"
 mockk = "1.14.11"
-coroutinesTest = "1.8.1"
+coroutinesTest = "1.11.0"
 turbine = "1.2.1"
 archCoreTesting = "2.2.0"
 errorProne = "2.50.0"
