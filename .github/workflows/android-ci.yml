@@ -169,20 +169,9 @@ jobs:
           avd-name: smoke_test_device
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            APK_PATH=$(find apk -name '*.apk' | head -n 1)
-            echo "Installing $APK_PATH"
-            adb install -r "$APK_PATH"
-            adb logcat -c
-            adb shell am start -n com.memebrowser.app/.MainActivity
-            sleep 5
-            if adb logcat -d | grep -q "FATAL EXCEPTION"; then
-              echo "App crashed on launch (API 29):"
-              adb logcat -d | grep -B 5 -A 30 "FATAL EXCEPTION"
-              exit 1
-            fi
-            if ! adb shell pidof com.memebrowser.app; then
-              echo "App process not running after launch (API 29) -- crashed or failed to start"
-              exit 1
-            fi
-            echo "App launched and stayed running on API 29 -- OK"
+          # android-emulator-runner's `script` input runs each line as its own
+          # separate `sh -c` invocation (see ReactiveCircus/android-emulator-runner
+          # src/script-parser.ts) -- variables set on one line are gone on the
+          # next. Multi-step logic has to live in an actual script file, hence
+          # this one-liner calling out to smoke_test_min_sdk.sh.
+          script: bash AndroidClient/scripts/smoke_test_min_sdk.sh apk
