@@ -148,6 +148,9 @@ jobs:
     # APK on an API 29 emulator, launch it, and confirm it doesn't crash.
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
       - name: Download debug APK
         uses: actions/download-artifact@v7
         with:
