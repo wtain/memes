@@ -159,7 +159,7 @@ typeguard==4.4.4
 typer-slim==0.24.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
-tzdata==2025.3
+tzdata==2026.3
 ujson==5.11.0
 ultralytics==8.4.50
 ultralytics-thop==2.0.19
