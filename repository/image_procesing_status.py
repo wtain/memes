@@ -78,6 +78,17 @@ class ImageProcessingStatusRepository:
         status.error_message = error
         status.finished_at = datetime.utcnow()
 
+    async def mark_done_by_id(self, image_id) -> None:
+        """No commit — caller controls commit timing via its own batch committer."""
+        status = await self.session.get(
+            ImageProcessingStatus, {"image_id": image_id, "pipeline": self.pipeline}
+        )
+        if status is None:
+            status = ImageProcessingStatus(image_id=image_id, pipeline=self.pipeline)
+            self.session.add(status)
+        status.status = "done"
+        status.finished_at = datetime.utcnow()
+
     async def get_image_ids_with_status(self, status: str) -> set[uuid.UUID]:
         result = await self.session.execute(
             select(ImageProcessingStatus.image_id)

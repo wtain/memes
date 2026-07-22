@@ -3,7 +3,7 @@ from sqlalchemy import select, delete, update
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
-from Storage.models import OCRText, Image, ImageDescription, ImageTag, OCRLemma
+from Storage.models import OCRText, Image, ImageDescription, ImageTag, ImageProcessingStatus
 
 
 class ImagesRepository:
@@ -91,8 +91,11 @@ class ImagesRepository:
 
     async def get_images_and_ocr_texts_without_lemmas_with_language(self):
         already_indexed = (
-            select(OCRLemma.image_id)
-            .distinct()
+            select(ImageProcessingStatus.image_id)
+            .where(
+                ImageProcessingStatus.pipeline == "ocr_lemmas",
+                ImageProcessingStatus.status == "done",
+            )
             .scalar_subquery()
         )
         query = (

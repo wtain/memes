@@ -7,8 +7,11 @@ from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from rules.normalize import make_morph
 from Storage.db import AsyncSessionLocal
+from repository.image_procesing_status import ImageProcessingStatusRepository
 from repository.images import ImagesRepository
 from repository.ocr_lemmas import OCRLemmasRepository, OCRLemmasSaver
+
+PIPELINE = "ocr_lemmas"
 
 
 async def main(incremental: bool):
@@ -22,9 +25,11 @@ async def main(incremental: bool):
     async with AsyncSessionLocal() as session:
         lemmas_repo = OCRLemmasRepository(session)
         images_repo = ImagesRepository(session)
+        status_repo = ImageProcessingStatusRepository(session, PIPELINE)
 
         if not incremental:
             await lemmas_repo.delete_all()
+            await status_repo.delete_all()
 
         print(f"Mode: {'incremental' if incremental else 'full'}")
         print(f"OCR_CONFIDENCE_MIN={ocr_confidence_min}, OCR_LANG_SCORE_MIN={ocr_lang_score_min}")
@@ -53,6 +58,7 @@ async def main(incremental: bool):
         async with OCRLemmasSaver(session) as saver:
             for image_id, lemma_set in lemmas_by_image.items():
                 saver.add_lemmas(image_id, lemma_set)
+                await status_repo.mark_done_by_id(image_id)
                 metrics.add("lemmas.total", len(lemma_set))
                 metrics.bucket("lemmas_per_image", len(lemma_set))
                 tracker.mark_done()
@@ -67,7 +73,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     parser.add_argument("--incremental", action="store_true",
-                        help="Only process images that have no ocr_lemmas rows yet (default: clear all and reprocess)")
+                        help="Only process images not yet marked done for the ocr_lemmas "
+                             "pipeline (default: clear all and reprocess)")
     args = parser.parse_args()
     load_env(args.env)
     asyncio.run(main(args.incremental))

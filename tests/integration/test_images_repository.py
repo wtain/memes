@@ -7,9 +7,10 @@ import uuid
 
 import pytest
 
+from repository.image_procesing_status import ImageProcessingStatusRepository
 from repository.images import ImagesRepository
 from repository.ocr_text import OCRTextRepository
-from Storage.models import Image, OCRLemma
+from Storage.models import Image
 
 _BBOX = [[0, 0], [10, 0], [10, 10], [0, 10]]
 
@@ -120,7 +121,8 @@ async def test_get_images_and_ocr_texts_without_lemmas_excludes_indexed_images(d
     await ocr_repo.overwrite_texts(not_indexed, [(_BBOX, "not indexed yet", 0.9)], "en")
     await db_session.flush()
 
-    db_session.add(OCRLemma(image_id=indexed.id, lemma="already"))
+    status_repo = ImageProcessingStatusRepository(db_session, "ocr_lemmas")
+    await status_repo.mark_done_by_id(indexed.id)
     await db_session.flush()
 
     images_repo = ImagesRepository(db_session)
@@ -129,3 +131,27 @@ async def test_get_images_and_ocr_texts_without_lemmas_excludes_indexed_images(d
 
     assert not_indexed.id in matched_ids
     assert indexed.id not in matched_ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_images_and_ocr_texts_without_lemmas_excludes_lemma_less_but_done_images(db_session):
+    """Regression test: an image whose OCR text yields zero lemmas must still
+    converge once marked done -- it must not be reprocessed forever just
+    because it has no ocr_lemmas rows."""
+    done_but_lemma_less = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(done_but_lemma_less)
+    await db_session.flush()
+
+    ocr_repo = OCRTextRepository(db_session)
+    await ocr_repo.overwrite_texts(done_but_lemma_less, [(_BBOX, "xy", 0.9)], "en")
+    await db_session.flush()
+
+    status_repo = ImageProcessingStatusRepository(db_session, "ocr_lemmas")
+    await status_repo.mark_done_by_id(done_but_lemma_less.id)
+    await db_session.flush()
+
+    images_repo = ImagesRepository(db_session)
+    rows = await images_repo.get_images_and_ocr_texts_without_lemmas_with_language()
+    matched_ids = {img_id for _filename, img_id, _text, _confidence, _language, _lang_score in rows}
+
+    assert done_but_lemma_less.id not in matched_ids

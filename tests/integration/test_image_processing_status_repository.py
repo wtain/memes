@@ -39,6 +39,44 @@ async def test_record_failure_writes_without_committing(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_mark_done_by_id_writes_without_committing(db_session):
+    image = await _insert_image(db_session)
+    repo = ImageProcessingStatusRepository(db_session, "ocr_lemmas")
+
+    await repo.mark_done_by_id(image.id)
+    await db_session.flush()
+
+    result = await db_session.execute(
+        select(ImageProcessingStatus).where(
+            ImageProcessingStatus.image_id == image.id,
+            ImageProcessingStatus.pipeline == "ocr_lemmas",
+        )
+    )
+    row = result.scalar_one()
+    assert row.status == "done"
+    assert row.finished_at is not None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_mark_done_by_id_is_idempotent(db_session):
+    image = await _insert_image(db_session)
+    repo = ImageProcessingStatusRepository(db_session, "ocr_lemmas")
+
+    await repo.mark_done_by_id(image.id)
+    await repo.mark_done_by_id(image.id)
+    await db_session.flush()
+
+    result = await db_session.execute(
+        select(ImageProcessingStatus).where(
+            ImageProcessingStatus.image_id == image.id,
+            ImageProcessingStatus.pipeline == "ocr_lemmas",
+        )
+    )
+    rows = result.scalars().all()
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_get_image_ids_with_status_filters_by_pipeline_and_status(db_session):
     image_a = await _insert_image(db_session)
     image_b = await _insert_image(db_session)
