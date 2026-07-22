@@ -24,6 +24,12 @@ async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optiona
     if not q:
         return None
 
+    # language=None enables pymorphy3's script-based fallback (real Cyrillic
+    # lemmatization) for a query string, which has no per-word language tag.
+    # This is intentionally more thorough than the index side
+    # (batch/utils/ocr_lemmas.py), which trusts each OCR row's own detected
+    # language and skips lemmatization for confidently-non-Russian rows — see
+    # that file's comment for the resulting (accepted) asymmetry.
     lemmas = normalize(
         q, _get_morph(),
         min_length=settings.BOW.MIN_WORD_LENGTH,

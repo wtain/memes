@@ -24,6 +24,14 @@ def group_lemmas_by_image(rows, morph, confidence_min, lang_score_min, min_word_
         if not passes_language_filter(confidence, lang_score, confidence_min, lang_score_min):
             stats["rows_skipped"] += 1
             continue
+        # Lemmatized using this row's own detected language (always a confident
+        # ru/en/es per EasyOCR — never None/"unknown" in practice, confirmed
+        # against real corpus data). A Cyrillic row EasyOCR confidently but
+        # wrongly tagged non-ru still only gets lowercased here, while the same
+        # word in a search query (repository/ocr_lemmas.py's matching_image_ids)
+        # always gets real lemmatization via language=None's script-based
+        # fallback. Accepted asymmetry — fixing OCR language misdetection is a
+        # separate problem (see docs/superpowers/specs/2026-07-22-smart-search-phase1-hardening-design.md).
         lemmas_by_image[image_id] |= normalize(
             text, morph, min_length=min_word_length, language=language, keep_digit_tokens=True
         )
