@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
 
 from Storage.models import ImageProcessingStatus
 
@@ -80,14 +81,16 @@ class ImageProcessingStatusRepository:
 
     async def mark_done_by_id(self, image_id) -> None:
         """No commit — caller controls commit timing via its own batch committer."""
-        status = await self.session.get(
-            ImageProcessingStatus, {"image_id": image_id, "pipeline": self.pipeline}
+        now = datetime.utcnow()
+        stmt = (
+            insert(ImageProcessingStatus)
+            .values(image_id=image_id, pipeline=self.pipeline, status="done", finished_at=now)
+            .on_conflict_do_update(
+                index_elements=["image_id", "pipeline"],
+                set_={"status": "done", "finished_at": now},
+            )
         )
-        if status is None:
-            status = ImageProcessingStatus(image_id=image_id, pipeline=self.pipeline)
-            self.session.add(status)
-        status.status = "done"
-        status.finished_at = datetime.utcnow()
+        await self.session.execute(stmt)
 
     async def get_image_ids_with_status(self, status: str) -> set[uuid.UUID]:
         result = await self.session.execute(
