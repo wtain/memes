@@ -37,13 +37,42 @@ async def test_saver_writes_one_row_per_lemma(db_session, db_engine):
     await db_session.flush()
 
     async with OCRLemmasSaver(db_session) as saver:
-        saver.add_lemmas(image.id, {"кот", "собака"})
+        await saver.add_lemmas(image.id, {"кот", "собака"})
 
     async with _fresh_session(db_engine) as session:
         rows = (await session.execute(
             select(OCRLemma.lemma).where(OCRLemma.image_id == image.id)
         )).scalars().all()
         assert set(rows) == {"кот", "собака"}
+
+        # Clean up the rows OCRLemmasSaver committed for real.
+        await session.execute(delete(OCRLemma).where(OCRLemma.image_id == image.id))
+        await session.execute(delete(Image).where(Image.id == image.id))
+        await session.commit()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_add_lemmas_is_safe_to_call_twice_for_same_pair(db_session, db_engine):
+    """Regression test: a duplicate (image_id, lemma) write (e.g. from an
+    overlapping/concurrent job invocation) must be a no-op, not a crash.
+
+    Uses the same second-session workaround as test_saver_writes_one_row_per_lemma
+    (see module docstring): OCRLemmasSaver.__aexit__ commits for real, which ends
+    db_session's transaction, so db_session can't be queried afterward.
+    """
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    async with OCRLemmasSaver(db_session) as saver:
+        await saver.add_lemmas(image.id, {"кот"})
+        await saver.add_lemmas(image.id, {"кот"})
+
+    async with _fresh_session(db_engine) as session:
+        rows = (await session.execute(
+            select(OCRLemma.lemma).where(OCRLemma.image_id == image.id)
+        )).scalars().all()
+        assert rows == ["кот"]
 
         # Clean up the rows OCRLemmasSaver committed for real.
         await session.execute(delete(OCRLemma).where(OCRLemma.image_id == image.id))

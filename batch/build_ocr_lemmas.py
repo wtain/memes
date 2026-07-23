@@ -57,7 +57,7 @@ async def main(incremental: bool):
         async with OCRLemmasSaver(session) as saver:
             for image_id in all_image_ids:
                 lemma_set = lemmas_by_image.get(image_id, set())
-                saver.add_lemmas(image_id, lemma_set)
+                await saver.add_lemmas(image_id, lemma_set)
                 await status_repo.mark_done_by_id(image_id)
                 metrics.add("lemmas.total", len(lemma_set))
                 metrics.bucket("lemmas_per_image", len(lemma_set))

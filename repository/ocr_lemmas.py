@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import Optional
 
 from sqlalchemy import delete, distinct, func, select, union
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
@@ -71,10 +72,16 @@ class OCRLemmasSaver:
         self.session = session
         self.image_count = 0
 
-    def add_lemmas(self, image_id, lemmas: set) -> None:
+    async def add_lemmas(self, image_id, lemmas: set) -> None:
         self.image_count += 1
-        for lemma in lemmas:
-            self.session.add(OCRLemma(image_id=image_id, lemma=lemma))
+        if not lemmas:
+            return
+        stmt = (
+            insert(OCRLemma)
+            .values([{"image_id": image_id, "lemma": lemma} for lemma in lemmas])
+            .on_conflict_do_nothing(index_elements=["image_id", "lemma"])
+        )
+        await self.session.execute(stmt)
 
     async def __aenter__(self):
         return self
