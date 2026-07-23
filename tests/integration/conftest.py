@@ -24,7 +24,7 @@ os.environ.setdefault(
     "postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test",
 )
 
-from Storage.db import AsyncSessionLocal  # noqa: E402 — env must be set first
+import Storage.db  # noqa: E402,F401 — env must be set first; import triggers Storage/config.py's DATABASE_URL validation
 from Storage.models import Base  # noqa: E402
 
 
