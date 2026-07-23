@@ -44,18 +44,19 @@ async def main(incremental: bool):
             for _filename, image_id, text, confidence, language, lang_score in rows
         ]
 
-        lemmas_by_image, stats = group_lemmas_by_image(
+        lemmas_by_image, all_image_ids, stats = group_lemmas_by_image(
             simplified_rows, morph, ocr_confidence_min, ocr_lang_score_min, min_word_length
         )
         metrics.add("ocr_rows.total", stats["rows_total"])
         metrics.add("ocr_rows.skipped", stats["rows_skipped"])
         metrics.add("ocr_rows.processed", stats["rows_processed"])
 
-        print(f"Total images: {len(lemmas_by_image)}")
-        tracker = ProgressTracker(len(lemmas_by_image), report_every=100, report_interval_secs=10)
+        print(f"Total images: {len(all_image_ids)}")
+        tracker = ProgressTracker(len(all_image_ids), report_every=100, report_interval_secs=10)
 
         async with OCRLemmasSaver(session) as saver:
-            for image_id, lemma_set in lemmas_by_image.items():
+            for image_id in all_image_ids:
+                lemma_set = lemmas_by_image.get(image_id, set())
                 saver.add_lemmas(image_id, lemma_set)
                 await status_repo.mark_done_by_id(image_id)
                 metrics.add("lemmas.total", len(lemma_set))

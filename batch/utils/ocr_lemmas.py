@@ -8,18 +8,24 @@ def group_lemmas_by_image(rows, morph, confidence_min, lang_score_min, min_word_
     """
     rows: iterable of (image_id, text, confidence, language, lang_score).
 
-    Returns (lemmas_by_image, stats):
+    Returns (lemmas_by_image, all_image_ids, stats):
       - lemmas_by_image: dict[image_id, set[str]] — the union of lemmas
         across every surviving OCR row for that image. This union is what
         makes cross-line phrase matching work: a multi-word query matches
         as soon as each word's lemma is present anywhere in the image's
         set, regardless of which OCR line contributed it.
+      - all_image_ids: set of every distinct image_id seen in rows,
+        regardless of whether any of its rows passed the filter -- lets
+        the caller mark an image done even when it produced zero lemmas
+        (including when every one of its rows was filtered out).
       - stats: {"rows_total": int, "rows_skipped": int, "rows_processed": int}
     """
     lemmas_by_image = defaultdict(set)
+    all_image_ids = set()
     stats = {"rows_total": 0, "rows_skipped": 0, "rows_processed": 0}
 
     for image_id, text, confidence, language, lang_score in rows:
+        all_image_ids.add(image_id)
         stats["rows_total"] += 1
         if not passes_language_filter(confidence, lang_score, confidence_min, lang_score_min):
             stats["rows_skipped"] += 1
@@ -37,4 +43,4 @@ def group_lemmas_by_image(rows, morph, confidence_min, lang_score_min, min_word_
         )
         stats["rows_processed"] += 1
 
-    return dict(lemmas_by_image), stats
+    return dict(lemmas_by_image), all_image_ids, stats
