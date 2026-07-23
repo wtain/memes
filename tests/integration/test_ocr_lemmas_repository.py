@@ -2,36 +2,18 @@
 Integration tests for repository/ocr_lemmas.py.
 
 Requires a live PostgreSQL instance with pgvector — see tests/integration/conftest.py.
-
-Note on the two write-path tests below (test_saver_writes_one_row_per_lemma,
-test_delete_all_clears_table): OCRLemmasSaver.__aexit__ and
-OCRLemmasRepository.delete_all() call session.commit() per their documented
-contract ("commits on exit" / "deletes all rows, commits"). That real commit
-ends the transaction the db_session fixture opened via
-`async with session.begin():`, so db_session cannot be used for any further
-statement afterwards — SQLAlchemy raises "Can't operate on closed transaction
-inside context manager". These two tests therefore verify through a second,
-independent session opened directly from db_engine, and explicitly clean up
-what they committed, since the fixture's end-of-test rollback no longer
-covers data that was already committed for real.
 """
 import uuid
 
 import pytest
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
 
 from repository.ocr_lemmas import OCRLemmasRepository, OCRLemmasSaver, matching_image_ids
 from Storage.models import Image, ImageTag, OCRLemma
 
 
-def _fresh_session(db_engine):
-    return sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)()
-
-
 @pytest.mark.asyncio(loop_scope="session")
-async def test_saver_writes_one_row_per_lemma(db_session, db_engine):
+async def test_saver_writes_one_row_per_lemma(db_session):
     image = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add(image)
     await db_session.flush()
@@ -39,27 +21,16 @@ async def test_saver_writes_one_row_per_lemma(db_session, db_engine):
     async with OCRLemmasSaver(db_session) as saver:
         await saver.add_lemmas(image.id, {"кот", "собака"})
 
-    async with _fresh_session(db_engine) as session:
-        rows = (await session.execute(
-            select(OCRLemma.lemma).where(OCRLemma.image_id == image.id)
-        )).scalars().all()
-        assert set(rows) == {"кот", "собака"}
-
-        # Clean up the rows OCRLemmasSaver committed for real.
-        await session.execute(delete(OCRLemma).where(OCRLemma.image_id == image.id))
-        await session.execute(delete(Image).where(Image.id == image.id))
-        await session.commit()
+    rows = (await db_session.execute(
+        select(OCRLemma.lemma).where(OCRLemma.image_id == image.id)
+    )).scalars().all()
+    assert set(rows) == {"кот", "собака"}
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_add_lemmas_is_safe_to_call_twice_for_same_pair(db_session, db_engine):
+async def test_add_lemmas_is_safe_to_call_twice_for_same_pair(db_session):
     """Regression test: a duplicate (image_id, lemma) write (e.g. from an
-    overlapping/concurrent job invocation) must be a no-op, not a crash.
-
-    Uses the same second-session workaround as test_saver_writes_one_row_per_lemma
-    (see module docstring): OCRLemmasSaver.__aexit__ commits for real, which ends
-    db_session's transaction, so db_session can't be queried afterward.
-    """
+    overlapping/concurrent job invocation) must be a no-op, not a crash."""
     image = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add(image)
     await db_session.flush()
@@ -68,20 +39,14 @@ async def test_add_lemmas_is_safe_to_call_twice_for_same_pair(db_session, db_eng
         await saver.add_lemmas(image.id, {"кот"})
         await saver.add_lemmas(image.id, {"кот"})
 
-    async with _fresh_session(db_engine) as session:
-        rows = (await session.execute(
-            select(OCRLemma.lemma).where(OCRLemma.image_id == image.id)
-        )).scalars().all()
-        assert rows == ["кот"]
-
-        # Clean up the rows OCRLemmasSaver committed for real.
-        await session.execute(delete(OCRLemma).where(OCRLemma.image_id == image.id))
-        await session.execute(delete(Image).where(Image.id == image.id))
-        await session.commit()
+    rows = (await db_session.execute(
+        select(OCRLemma.lemma).where(OCRLemma.image_id == image.id)
+    )).scalars().all()
+    assert rows == ["кот"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_delete_all_clears_table(db_session, db_engine):
+async def test_delete_all_clears_table(db_session):
     image = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add(image)
     await db_session.flush()
@@ -90,14 +55,8 @@ async def test_delete_all_clears_table(db_session, db_engine):
 
     await OCRLemmasRepository(db_session).delete_all()
 
-    async with _fresh_session(db_engine) as session:
-        remaining = (await session.execute(select(OCRLemma))).scalars().all()
-        assert remaining == []
-
-        # Clean up the image row committed for real (delete_all() only
-        # touches the ocr_lemmas table, by design — it's a table-wide clear).
-        await session.execute(delete(Image).where(Image.id == image.id))
-        await session.commit()
+    remaining = (await db_session.execute(select(OCRLemma))).scalars().all()
+    assert remaining == []
 
 
 @pytest.mark.asyncio(loop_scope="session")

@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
 
 # Ensure repo root is on the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -43,9 +42,20 @@ async def db_engine():
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def db_session(db_engine):
-    """Yields a session that is rolled back after each test."""
-    async_session = sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session() as session:
-        async with session.begin():
+    """Yields a session wrapped in an outer transaction that is always rolled
+    back after each test, isolating tests from each other -- same guarantee
+    as before. Bound via join_transaction_mode="create_savepoint" (SQLAlchemy
+    2.0+) so that code under test which calls session.commit() (e.g.
+    repository classes that manage their own commit timing, like
+    OCRLemmasSaver/OCRLemmasRepository.delete_all()) only commits an inner
+    SAVEPOINT -- invisible to the test, which keeps using this same session
+    normally before and after -- rather than ending the outer transaction the
+    way the previous plain session.begin() wrapping did."""
+    async with db_engine.connect() as conn:
+        await conn.begin()
+        session = AsyncSession(bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False)
+        try:
             yield session
-            await session.rollback()
+        finally:
+            await session.close()
+            await conn.rollback()
