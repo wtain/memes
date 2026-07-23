@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from repository.image_procesing_status import ImageProcessingStatusRepository
+from repository.images import OCR_LEMMAS_PIPELINE
 from Storage.models import Image, ImageProcessingStatus
 
 
@@ -41,7 +42,7 @@ async def test_record_failure_writes_without_committing(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_mark_done_by_id_writes_without_committing(db_session):
     image = await _insert_image(db_session)
-    repo = ImageProcessingStatusRepository(db_session, "ocr_lemmas")
+    repo = ImageProcessingStatusRepository(db_session, OCR_LEMMAS_PIPELINE)
 
     await repo.mark_done_by_id(image.id)
     await db_session.flush()
@@ -49,7 +50,7 @@ async def test_mark_done_by_id_writes_without_committing(db_session):
     result = await db_session.execute(
         select(ImageProcessingStatus).where(
             ImageProcessingStatus.image_id == image.id,
-            ImageProcessingStatus.pipeline == "ocr_lemmas",
+            ImageProcessingStatus.pipeline == OCR_LEMMAS_PIPELINE,
         )
     )
     row = result.scalar_one()
@@ -60,7 +61,7 @@ async def test_mark_done_by_id_writes_without_committing(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_mark_done_by_id_is_idempotent(db_session):
     image = await _insert_image(db_session)
-    repo = ImageProcessingStatusRepository(db_session, "ocr_lemmas")
+    repo = ImageProcessingStatusRepository(db_session, OCR_LEMMAS_PIPELINE)
 
     await repo.mark_done_by_id(image.id)
     await repo.mark_done_by_id(image.id)
@@ -69,7 +70,7 @@ async def test_mark_done_by_id_is_idempotent(db_session):
     result = await db_session.execute(
         select(ImageProcessingStatus).where(
             ImageProcessingStatus.image_id == image.id,
-            ImageProcessingStatus.pipeline == "ocr_lemmas",
+            ImageProcessingStatus.pipeline == OCR_LEMMAS_PIPELINE,
         )
     )
     rows = result.scalars().all()

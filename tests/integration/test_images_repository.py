@@ -8,7 +8,7 @@ import uuid
 import pytest
 
 from repository.image_procesing_status import ImageProcessingStatusRepository
-from repository.images import ImagesRepository
+from repository.images import ImagesRepository, OCR_LEMMAS_PIPELINE
 from repository.ocr_text import OCRTextRepository
 from Storage.models import Image
 
@@ -121,7 +121,7 @@ async def test_get_images_and_ocr_texts_without_lemmas_excludes_indexed_images(d
     await ocr_repo.overwrite_texts(not_indexed, [(_BBOX, "not indexed yet", 0.9)], "en")
     await db_session.flush()
 
-    status_repo = ImageProcessingStatusRepository(db_session, "ocr_lemmas")
+    status_repo = ImageProcessingStatusRepository(db_session, OCR_LEMMAS_PIPELINE)
     await status_repo.mark_done_by_id(indexed.id)
     await db_session.flush()
 
@@ -146,7 +146,7 @@ async def test_get_images_and_ocr_texts_without_lemmas_excludes_lemma_less_but_d
     await ocr_repo.overwrite_texts(done_but_lemma_less, [(_BBOX, "xy", 0.9)], "en")
     await db_session.flush()
 
-    status_repo = ImageProcessingStatusRepository(db_session, "ocr_lemmas")
+    status_repo = ImageProcessingStatusRepository(db_session, OCR_LEMMAS_PIPELINE)
     await status_repo.mark_done_by_id(done_but_lemma_less.id)
     await db_session.flush()
 

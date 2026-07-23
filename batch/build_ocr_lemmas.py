@@ -8,10 +8,8 @@ from metrics.listener import SimpleMetricsListener
 from rules.normalize import make_morph
 from Storage.db import AsyncSessionLocal
 from repository.image_procesing_status import ImageProcessingStatusRepository
-from repository.images import ImagesRepository
+from repository.images import ImagesRepository, OCR_LEMMAS_PIPELINE
 from repository.ocr_lemmas import OCRLemmasRepository, OCRLemmasSaver
-
-PIPELINE = "ocr_lemmas"
 
 
 async def main(incremental: bool):
@@ -25,11 +23,12 @@ async def main(incremental: bool):
     async with AsyncSessionLocal() as session:
         lemmas_repo = OCRLemmasRepository(session)
         images_repo = ImagesRepository(session)
-        status_repo = ImageProcessingStatusRepository(session, PIPELINE)
+        status_repo = ImageProcessingStatusRepository(session, OCR_LEMMAS_PIPELINE)
 
         if not incremental:
             await lemmas_repo.delete_all()
             await status_repo.delete_all()
+            await session.commit()
 
         print(f"Mode: {'incremental' if incremental else 'full'}")
         print(f"OCR_CONFIDENCE_MIN={ocr_confidence_min}, OCR_LANG_SCORE_MIN={ocr_lang_score_min}")

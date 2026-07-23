@@ -59,9 +59,10 @@ class OCRLemmasRepository:
         self.session = session
 
     async def delete_all(self) -> None:
+        """No commit — caller controls commit timing, same convention as
+        ImageProcessingStatusRepository.delete_all()/record_failure."""
         print("Deleting all ocr_lemmas rows...")
         await self.session.execute(delete(OCRLemma))
-        await self.session.commit()
         print("Done")
 
 

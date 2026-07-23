@@ -5,6 +5,8 @@ from sqlalchemy.sql.functions import count
 
 from Storage.models import OCRText, Image, ImageDescription, ImageTag, ImageProcessingStatus
 
+OCR_LEMMAS_PIPELINE = "ocr_lemmas"
+
 
 class ImagesRepository:
 
@@ -93,7 +95,7 @@ class ImagesRepository:
         already_indexed = (
             select(ImageProcessingStatus.image_id)
             .where(
-                ImageProcessingStatus.pipeline == "ocr_lemmas",
+                ImageProcessingStatus.pipeline == OCR_LEMMAS_PIPELINE,
                 ImageProcessingStatus.status == "done",
             )
             .scalar_subquery()
