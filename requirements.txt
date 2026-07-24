@@ -155,7 +155,7 @@ tqdm==4.67.1
 transformers==4.57.6
 trio==0.33.0
 trio-websocket==0.12.2
-typeguard==4.4.4
+typeguard==4.5.2
 typer-slim==0.24.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
