@@ -37,3 +37,7 @@ general:
   progress_every: 10
   profile: general
   frontend_origin: http://localhost:5173
+
+search:
+  fuzzy_min_lemma_length: 5
+  fuzzy_similarity_threshold: 0.35

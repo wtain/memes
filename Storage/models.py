@@ -234,6 +234,12 @@ class OCRLemma(Base):
 
     __table_args__ = (
         Index("ix_ocr_lemmas_lemma", "lemma"),
+        Index(
+            "ix_ocr_lemmas_lemma_trgm",
+            "lemma",
+            postgresql_using="gin",
+            postgresql_ops={"lemma": "gin_trgm_ops"},
+        ),
     )
 
     image = relationship("Image", back_populates="ocr_lemmas")
