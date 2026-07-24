@@ -123,3 +123,59 @@ async def test_no_match_returns_empty_set(db_session):
     ids = await matching_image_ids(db_session, "nonexistentword")
 
     assert ids == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_exact_match_takes_precedence_over_fuzzy(db_session):
+    exact = Image(filename=f"{uuid.uuid4()}.jpg")
+    similar_only = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([exact, similar_only])
+    await db_session.flush()
+    db_session.add_all([
+        OCRLemma(image_id=exact.id, lemma="реклама"),
+        OCRLemma(image_id=similar_only.id, lemma="рекламо"),
+    ])
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "реклама")
+
+    assert ids == {exact.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_fuzzy_fallback_finds_misspelled_lemma_when_no_exact_match(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=image.id, lemma="рекламо"))
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "реклама")
+
+    assert ids == {image.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_short_lemma_below_length_guard_is_not_fuzzy_matched(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=image.id, lemma="код"))
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "кот")
+
+    assert ids == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_no_similar_match_returns_empty_set(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=image.id, lemma="совершенно"))
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "различие")
+
+    assert ids == set()
