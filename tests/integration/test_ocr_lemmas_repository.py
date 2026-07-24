@@ -102,6 +102,28 @@ async def test_multi_word_query_requires_all_lemmas(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_multi_lemma_query_mixes_exact_and_fuzzy_matching(db_session):
+    """One query lemma matches exactly, the other only via fuzzy fallback --
+    proves the AND-across-lemmas intersection works correctly when the two
+    lemmas take different code paths (_exact_lemma_ids vs _fuzzy_lemma_ids)
+    within the same query."""
+    both = Image(filename=f"{uuid.uuid4()}.jpg")
+    only_one = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([both, only_one])
+    await db_session.flush()
+    db_session.add_all([
+        OCRLemma(image_id=both.id, lemma="кот"),        # matches "кот" exactly
+        OCRLemma(image_id=both.id, lemma="рекламо"),    # matches "реклама" via fuzzy only
+        OCRLemma(image_id=only_one.id, lemma="кот"),    # exact match, but missing the second lemma entirely
+    ])
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "кот реклама")
+
+    assert ids == {both.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_tag_value_matches_query_lemma(db_session):
     image = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add(image)
@@ -164,6 +186,27 @@ async def test_short_lemma_below_length_guard_is_not_fuzzy_matched(db_session):
     await db_session.flush()
 
     ids = await matching_image_ids(db_session, "кот")
+
+    assert ids == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_fuzzy_fallback_respects_configured_threshold_not_pg_trgm_default(db_session):
+    """Regression test: 'который'/'колотрый' scores ~0.31 similarity -- above
+    pg_trgm's own built-in default threshold (0.30) but below our configured
+    threshold (settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD = 0.35). If the
+    SET LOCAL statement in _fuzzy_lemma_ids ever silently failed or was
+    removed, this pair would incorrectly match under pg_trgm's looser
+    default -- this test is the only thing in the suite that would catch
+    that, since every other fuzzy test uses pairs far above or far below
+    the 0.30-0.35 gap."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=image.id, lemma="колотрый"))
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "который")
 
     assert ids == set()
 

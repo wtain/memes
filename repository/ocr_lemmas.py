@@ -50,6 +50,7 @@ async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
     reuses the same pooled connection.
     """
     threshold = float(settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD)
+    assert 0 < threshold <= 1, f"invalid fuzzy similarity threshold: {threshold}"
     await session.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
     ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma.op("%")(lemma))
     tag_subq = select(distinct(ImageTag.image_id)).where(ImageTag.value.op("%")(lemma))
