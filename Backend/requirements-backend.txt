@@ -12,7 +12,7 @@
 # full closure (direct + transitive) — regenerate via a clean-venv `pip freeze`
 # after changing any pin here, don't hand-edit individual versions.
 annotated-doc==0.0.4
-annotated-types==0.7.0
+annotated-types==0.8.0
 anyio==4.14.2
 asyncpg==0.31.0
 click==8.4.2
