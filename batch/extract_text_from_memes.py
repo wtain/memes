@@ -1,6 +1,13 @@
 import argparse
 import os
+import sys
 import asyncio
+
+# Windows consoles default to a codepage (e.g. cp1252) that can't encode Cyrillic/etc. OCR
+# results -- reconfigure stdout to UTF-8 so a print() of non-Latin OCR text doesn't crash the
+# whole run partway through. No-op on platforms where stdout is already UTF-8.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import cv2
 import numpy as np
