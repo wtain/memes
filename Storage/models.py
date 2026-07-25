@@ -229,6 +229,13 @@ class OCRLemma(Base):
 
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
     lemma = Column(String, primary_key=True)
+    # Nullable by design: only OCRLemmasSaver.add_lemmas() (the real write
+    # path) populates it; rows created directly for tests unrelated to
+    # phonetic matching are correctly inert with phonetic_code=NULL (NULL
+    # never equals anything in SQL, so they never participate in phonetic
+    # lookups). See docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md
+    # for why this isn't a NOT NULL column or an ORM @validates hook.
+    phonetic_code = Column(String, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
 
@@ -240,6 +247,7 @@ class OCRLemma(Base):
             postgresql_using="gin",
             postgresql_ops={"lemma": "gin_trgm_ops"},
         ),
+        Index("ix_ocr_lemmas_phonetic_code", "phonetic_code"),
     )
 
     image = relationship("Image", back_populates="ocr_lemmas")
