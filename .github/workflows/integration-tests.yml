@@ -79,5 +79,10 @@ jobs:
           PGPASSWORD=ocr psql -h localhost -U ocr -d ocrdb_test \
             -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
+      - name: Enable pg_trgm extension
+        run: |
+          PGPASSWORD=ocr psql -h localhost -U ocr -d ocrdb_test \
+            -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
       - name: Run integration tests
         run: pytest tests/integration/ -v --tb=short
