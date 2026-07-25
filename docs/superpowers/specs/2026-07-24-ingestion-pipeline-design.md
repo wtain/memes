@@ -113,16 +113,21 @@ Survivors register as `Image` rows (`status = 'pending'`, `ingestion_batch_id` =
 1. **Compute embeddings** — `build_image_embeddings.py --status pending --incremental`.
 2. **Find candidate pairs**, tight threshold — reuse `clusterize.py`'s existing `0.05`
    (`PROXIMITY_THRESHOLD`, already the codebase's "confirmed duplicate" cutoff for the active
-   library) as Tier A's cutoff, rather than inventing a new number:
-   - *In-batch:* probe = corpus = `ingestion_batch_id = :batch_id AND status = 'pending'`.
-   - *Cross-corpus:* probe = `ingestion_batch_id = :batch_id AND status = 'pending'`, corpus =
-     `status = 'active'`.
-3. **Review — human, via UI**, thumbnails + distance only (no OCR yet — at this tightness that's
-   sufficient; this is exactly what makes Tier A safe to review pre-OCR, unlike Tier B). In-batch
-   matches: pick a keeper among near-identical siblings. Cross-corpus matches: the existing active
-   image wins by default; the new one is the candidate for rejection.
+   library) as Tier A's cutoff. **One merged query**, not two: probe =
+   `ingestion_batch_id = :batch_id AND status = 'pending'`, corpus = `status = 'active' OR
+   (status = 'pending' AND ingestion_batch_id = :batch_id)` — the active library and this image's
+   own batch siblings in a single scan, per the duplicate-clustering prereq's `match_source`
+   addition. Pairs are grouped into review clusters via a batch-scoped union-find (not the global
+   `clusterize.py`) so a cluster can naturally mix new and existing images.
+3. **Review — human, via UI, one queue.** Thumbnails + distance only (no OCR yet — at this
+   tightness that's sufficient; this is exactly what makes Tier A safe to review pre-OCR, unlike
+   Tier B). Each cluster carries a `match_source` badge per member (`in_batch` / `cross_corpus`)
+   so the reviewer sees at a glance what kind of match it is, but reviews it in the same place:
+   in-batch members require picking a keeper among near-identical siblings; a `cross_corpus` member
+   means the existing active image is fixed (not touched) and only the new image is a candidate for
+   rejection.
 4. **Apply decisions.** Confirmed duplicates: `status = 'rejected'`; file moved from `BASE_PATH`
-   into a rejected-images location (naming TBD — open question 5). Row stays for undo.
+   into a rejected-images location (naming TBD — open question 4). Row stays for undo.
 
 ### Stage 3 — OCR pre-pass + Tier B: loose-similarity embedding dedup
 
@@ -130,16 +135,16 @@ Survivors register as `Image` rows (`status = 'pending'`, `ingestion_batch_id` =
    (new flag, mirrors `build_image_embeddings.py`'s). OCR only — not tags, not descriptions — kept
    cheap deliberately, since some of these images will still be rejected in this same stage.
 2. **Find candidate pairs**, loose band (proposed `0.05`–`0.3`, upper bound matching the
-   duplicate-clustering prereq's general candidate cutoff):
-   - *In-batch:* same scoping as Tier A step 2, different threshold band.
-   - *Cross-corpus:* same scoping as Tier A step 2, different threshold band.
-3. **Review — human, via UI**, now with OCR text available — same signal priority the existing
-   `review-duplicates` skill already established (OCR text first, to catch "same template,
-   different joke" and correctly *not* reject those; embedding distance as a secondary check).
-   Cross-corpus matches are asymmetric (see Open Questions — exact UX still undecided): reviewer
-   needs the *active* candidate's existing tags/description/OCR alongside the *pending* candidate's
-   now-available OCR. Allowed outcomes: reject the new image, or confirm it's not a duplicate
-   (proceeds to promotion). "Replace the existing active image" is out of scope.
+   duplicate-clustering prereq's general candidate cutoff) — same merged query and same
+   batch-scoped clustering as Tier A step 2, different threshold band.
+3. **Review — human, via UI, one queue**, now with OCR text available — same signal priority the
+   existing `review-duplicates` skill already established (OCR text first, to catch "same
+   template, different joke" and correctly *not* reject those; embedding distance as a secondary
+   check). `in_batch` members: same siblings-among-new-images decision as Tier A, now informed by
+   OCR text too. `cross_corpus` members are asymmetric (see Open Questions — exact UX still
+   undecided): reviewer needs the *active* candidate's existing tags/description/OCR alongside the
+   *pending* candidate's now-available OCR. Allowed outcomes: reject the new image, or confirm it's
+   not a duplicate (proceeds to promotion). "Replace the existing active image" is out of scope.
 4. **Apply decisions** — same mechanics as stage 2 step 4.
 
 ### Stage 4 — Promotion
@@ -182,35 +187,35 @@ skips already-processed images the normal way), so the pipeline picks up at
 
 - New route reusing `MemesList` with `status`/`batch` filter props, following the existing
   `ExploreDuplicatesPage` pattern of a thin page wrapping a shared list component.
-- Two review views (or one view with a tier toggle) — Tier A (thumbnails + distance only) and Tier B
-  (thumbnails + distance + OCR text, and for cross-corpus matches, the active candidate's existing
-  tags/description too).
-- Explicit reject/undo action per cluster/pair.
+- Two review queues — one per tier, each merging in-batch and cross-corpus matches (per the
+  duplicate-clustering prereq's `match_source`). Tier A (thumbnails + distance, `match_source`
+  badge per cluster member) and Tier B (same, plus OCR text, and for `cross_corpus` members the
+  active candidate's existing tags/description too).
+- Explicit reject/undo action per cluster member, contextual on `match_source` (in-batch: pick a
+  keeper among siblings; cross-corpus: reject-new or confirm-not-duplicate, existing image untouched).
 - Batch progress/status view, reading the `batch_runs` row via the new endpoint above.
 
 ---
 
 ## Open questions
 
-1. **Stage 3 (Tier B) cross-corpus asymmetric review UX** — exact layout/interaction for "here's a
-   new image with fresh OCR text, here's the existing corpus image it resembles, with its full
-   tags/description/OCR" needs a concrete design, not just the allowed-outcomes list above.
-2. **Six review queues is a lot of surface area** (in-batch × cross-corpus × Tier A × Tier B, though
-   Tier A's two are thumbnail-only and could plausibly be merged into one combined-source queue
-   with a "matched within batch" vs "matched in library" badge, rather than two separate views).
-   Worth deciding whether to merge in-batch/cross-corpus within a tier before building the UI, since
-   it changes the review endpoint shape.
-3. **Resumability within a stage.** `batch_runs.stage` + `images.status` describe *which stage* a
+1. **Tier B cross-corpus asymmetric review UX** — exact layout/interaction for "here's a new image
+   with fresh OCR text, here's the existing corpus image it resembles, with its full
+   tags/description/OCR" needs a concrete design, not just the allowed-outcomes list above. Applies
+   only to `cross_corpus`-tagged members of a Tier B cluster; `in_batch` members are symmetric
+   (pick a keeper among new-image siblings), so this question is narrower than it was before
+   in-batch/cross-corpus review was merged into one queue per tier.
+2. **Resumability within a stage.** `batch_runs.stage` + `images.status` describe *which stage* a
    run is in and survive across process restarts. Still open: if a human review session is
    interrupted mid-cluster-list within a stage, is there a per-cluster "already reviewed" marker, or
    does the reviewer just re-see already-decided clusters (harmless — re-confirming a `rejected`
    image is a no-op)? Leaning toward the latter (simpler, idempotent) unless review volume per batch
    turns out large enough for re-scanning to be annoying in practice.
-4. **`k` / threshold tuning** for both tiers — Tier A reuses `clusterize.py`'s existing `0.05` as a
+3. **`k` / threshold tuning** for both tiers — Tier A reuses `clusterize.py`'s existing `0.05` as a
    starting point (a value already validated for the active library, though not specifically for
    "small new batch vs. large existing corpus"); Tier B's `0.05`–`0.3` band and both tiers' `k` are
    unvalidated guesses pending real data.
-5. **Rejected-images directory naming and location** — Decision #1 means Tier A/B rejects move
+4. **Rejected-images directory naming and location** — Decision #1 means Tier A/B rejects move
    within `BASE_PATH`, not back into `PATH_INGESTION_SOURCE` (the original proposal's
    `duplicates2`/`duplicates3` naming assumed the latter). Needs a concrete directory structure
    under `BASE_PATH` — e.g. `BASE_PATH/rejected/tier_a/` and `BASE_PATH/rejected/tier_b/` — before
@@ -239,10 +244,9 @@ skips already-processed images the normal way), so the pipeline picks up at
 
 1. Implement the three prerequisites (image-visibility and batch-run-tracking are both needed
    before ingestion-specific work starts; duplicate-clustering can follow once Tier A work begins).
-2. Resolve open questions 1/2 (review UX/queue shape) and 5 (directory layout) — all three block
+2. Resolve open questions 1 (cross-corpus review UX) and 4 (rejected-directory layout) — both block
    writing stage 2/3 apply-decision code.
 3. Phased build: Phase A — stage 1 (hash dedup, in-batch + cross-corpus, lowest risk, no schema
-   dependency beyond `content_hash` backfill). Phase B — Tier A (registration, embeddings, tight
-   scoped clustering, thumbnail-only review UI). Phase C — Tier B (OCR pre-pass, loose scoped
-   clustering, OCR-aware review UI, asymmetric cross-corpus UX). Phase D — promotion + pipeline
-   hookup + run-status UI polish.
+   dependency beyond `content_hash` backfill). Phase B — Tier A (registration, embeddings, merged
+   tight-threshold review queue). Phase C — Tier B (OCR pre-pass, merged loose-threshold review
+   queue, asymmetric cross-corpus UX). Phase D — promotion + pipeline hookup + run-status UI polish.
