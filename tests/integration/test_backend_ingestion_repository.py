@@ -221,3 +221,76 @@ async def test_get_ocr_texts_concatenates_blocks_and_drops_low_confidence(db_ses
 async def test_get_ocr_texts_empty_input_returns_empty_dict(db_session):
     repo = IngestionRepository(db_session)
     assert await repo.get_ocr_texts(set()) == {}
+
+
+# --------------------------------------------------------------------------
+# get_blocked_pending_ids / promote_images
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_blocked_pending_ids_includes_unresolved_tier_a_and_tier_b(db_session):
+    batch_id = await _make_run(db_session)
+    clear = await _make_image(db_session, "pending", batch_id)
+    tier_a_blocked = await _make_image(db_session, "pending", batch_id)
+    tier_b_blocked = await _make_image(db_session, "pending", batch_id)
+    active_a = await _make_image(db_session, "active")
+    active_b = await _make_image(db_session, "active")
+    await _make_pair(db_session, tier_a_blocked, active_a, distance=0.02)
+    await _make_pair(db_session, tier_b_blocked, active_b, distance=0.15)
+
+    repo = IngestionRepository(db_session)
+    blocked = await repo.get_blocked_pending_ids(batch_id, tier_a_high=0.05, tier_b_high=0.3)
+
+    assert blocked == {tier_a_blocked, active_a, tier_b_blocked, active_b}
+    assert clear not in blocked
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_blocked_pending_ids_excludes_reviewed_pairs(db_session):
+    batch_id = await _make_run(db_session)
+    pending = await _make_image(db_session, "pending", batch_id)
+    active = await _make_image(db_session, "active")
+    reviewed_pair = TmpDuplicates(
+        image_id1=min(pending, active), image_id2=max(pending, active),
+        distance=0.02, match_source="cross_corpus", tier_a_reviewed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(reviewed_pair)
+    await db_session.flush()
+
+    repo = IngestionRepository(db_session)
+    blocked = await repo.get_blocked_pending_ids(batch_id, tier_a_high=0.05, tier_b_high=0.3)
+
+    assert pending not in blocked
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_blocked_pending_ids_excludes_pairs_with_rejected_side(db_session):
+    batch_id = await _make_run(db_session)
+    pending = await _make_image(db_session, "pending", batch_id)
+    rejected = await _make_image(db_session, "rejected", batch_id)
+    await _make_pair(db_session, pending, rejected, distance=0.02, match_source="in_batch")
+
+    repo = IngestionRepository(db_session)
+    blocked = await repo.get_blocked_pending_ids(batch_id, tier_a_high=0.05, tier_b_high=0.3)
+
+    assert blocked == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_promote_images_sets_status_active(db_session):
+    batch_id = await _make_run(db_session)
+    a = await _make_image(db_session, "pending", batch_id)
+    b = await _make_image(db_session, "pending", batch_id)
+
+    repo = IngestionRepository(db_session)
+    count = await repo.promote_images([a, b])
+
+    assert count == 2
+    assert (await db_session.get(Image, a)).status == "active"
+    assert (await db_session.get(Image, b)).status == "active"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_promote_images_empty_list_is_noop(db_session):
+    repo = IngestionRepository(db_session)
+    assert await repo.promote_images([]) == 0

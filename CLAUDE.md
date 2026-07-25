@@ -224,8 +224,13 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                pre-pass and its review-queue behavior are not yet implemented.
                                Review (listing clusters, resolving reject/keep decisions) is the
                                /api/ingestion/* endpoints (Backend/app/api/ingestion.py), with a
-                               frontend page at /ingestion (Tier A only; Tier B/promotion still
-                               not implemented).
+                               frontend page at /ingestion covering both tiers (switches queue
+                               based on the run's stage).
+ingest_promote              → Stage 4 (final): promotes pending images with no remaining
+                               unresolved Tier A/B candidate pairs to `active` (pure status flip
+                               -- files are already in BASE_PATH from Stage 1). Marks the run
+                               `completed` once every pending image in the batch is resolved
+                               (promoted or rejected); safe to re-run as more images clear review.
 ```
 
 Most jobs are idempotent (clear and rebuild). `rebuild_duplicates` is also idempotent as of

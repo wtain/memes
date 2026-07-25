@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -90,6 +90,30 @@ class IngestionRepository:
                 continue
             by_image.setdefault(image_id, []).append(text)
         return {image_id: " ".join(parts) for image_id, parts in by_image.items()}
+
+    async def get_blocked_pending_ids(self, batch_id, tier_a_high: float, tier_b_high: float) -> set:
+        """Pending image ids in this batch that still have at least one unresolved candidate
+        pair in either tier -- not yet safe to promote. tier_a_high is the Tier A/B boundary
+        (clusterize.py's PROXIMITY_THRESHOLD); tier_b_high is Tier B's outer bound
+        (settings.DUPLICATES.THRESHOLD) -- callers pass these rather than this repository
+        importing config, keeping it config-agnostic like the rest of this layer."""
+        tier_a_rows = await self.get_tier_candidate_rows(batch_id, "tier_a", 0.0, tier_a_high)
+        tier_b_rows = await self.get_tier_candidate_rows(batch_id, "tier_b", tier_a_high, tier_b_high)
+        blocked = set()
+        for id1, _, _, id2, _, _, _, _ in (*tier_a_rows, *tier_b_rows):
+            blocked.add(id1)
+            blocked.add(id2)
+        return blocked
+
+    async def promote_images(self, image_ids) -> int:
+        """Flip status to active for the given image ids (already validated by the caller as
+        clear of unresolved candidates). Returns the number of rows updated."""
+        if not image_ids:
+            return 0
+        result = await self.session.execute(
+            update(Image).where(Image.id.in_(image_ids)).values(status="active")
+        )
+        return result.rowcount
 
     async def reject_image(self, image_id) -> Optional[str]:
         """Flip status to rejected. Returns the filename (for the caller to move the file),
