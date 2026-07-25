@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestionpendingimage.schema.json",
+  "title": "IngestionPendingImage",
+  "type": "object",
+  "properties": {
+    "image_id": { "type": "string" },
+    "filename": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "required": ["image_id", "filename", "created_at"]
+}

@@ -351,3 +351,97 @@ export interface UploadResponse {
   total_failed: number;
   [k: string]: unknown;
 }
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionRunStatus".
+ */
+export interface IngestionRunStatus {
+  run_id: string;
+  /**
+   * started | completed | failed
+   */
+  status: string;
+  /**
+   * hash_dedup | tier_a_review | ocr_prepass | tier_b_review | promoted
+   */
+  stage: string | null;
+  stats: {
+    [k: string]: unknown;
+  } | null;
+  created_at: string;
+  completed_at: string | null;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionPendingImage".
+ */
+export interface IngestionPendingImage {
+  image_id: string;
+  filename: string;
+  created_at: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionClusterMember".
+ */
+export interface IngestionClusterMember {
+  image_id: string;
+  filename: string;
+  /**
+   * pending (actionable) or active (read-only context) -- rejected images never appear here
+   */
+  status: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionClusterEdge".
+ */
+export interface IngestionClusterEdge {
+  image_id1: string;
+  image_id2: string;
+  distance: number;
+  /**
+   * in_batch | cross_corpus
+   */
+  match_source: string | null;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionCluster".
+ */
+export interface IngestionCluster {
+  members: IngestionClusterMember[];
+  edges: IngestionClusterEdge[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionDecision".
+ */
+export interface IngestionDecision {
+  image_id: string;
+  decision: "reject" | "keep";
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionResolveResponse".
+ */
+export interface IngestionResolveResponse {
+  rejected: string[];
+  kept: string[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionUndoRejectResponse".
+ */
+export interface IngestionUndoRejectResponse {
+  image_id: string;
+  status: string;
+  [k: string]: unknown;
+}

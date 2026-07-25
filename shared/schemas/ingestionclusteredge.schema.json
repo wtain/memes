@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestionclusteredge.schema.json",
+  "title": "IngestionClusterEdge",
+  "type": "object",
+  "properties": {
+    "image_id1": { "type": "string" },
+    "image_id2": { "type": "string" },
+    "distance": { "type": "number" },
+    "match_source": { "type": ["string", "null"], "description": "in_batch | cross_corpus" }
+  },
+  "required": ["image_id1", "image_id2", "distance", "match_source"]
+}

@@ -1,4 +1,11 @@
-import type { Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse, TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse } from "../types/generated/all";
+import type {
+  Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse,
+  TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
+  IngestionRunStatus, IngestionPendingImage, IngestionCluster, IngestionDecision,
+  IngestionResolveResponse, IngestionUndoRejectResponse,
+} from "../types/generated/all";
+
+export type IngestionTier = "tier_a" | "tier_b"
 
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>
@@ -18,6 +25,8 @@ export interface MemesApi {
   setDescriptionFeedback(imageId: string, promptKey: string, action: "approve" | "reject"): Promise<{ feedback?: string }>
 
   getImageUrl(meme: Meme): string;
+
+  getImageUrlById(imageId: string): string;
 
   listConcepts(): Promise<Concept[]>;
 
@@ -45,4 +54,11 @@ export interface MemesApi {
   uploadMemes(files: File[]): Promise<UploadResponse>;
 
   getStatistics(): Promise<StatisticsResponse>;
+
+  /** Resolves to null (not a rejection) when no ingestion run is currently in progress. */
+  getIngestionRunStatus(): Promise<IngestionRunStatus | null>;
+  getIngestionPending(): Promise<IngestionPendingImage[]>;
+  getIngestionClusters(tier: IngestionTier): Promise<IngestionCluster[]>;
+  resolveIngestionCluster(tier: IngestionTier, decisions: IngestionDecision[]): Promise<IngestionResolveResponse>;
+  undoIngestionReject(imageId: string): Promise<IngestionUndoRejectResponse>;
 }

@@ -205,7 +205,7 @@ trends_batch                → GLiNER NER over each configured trend source's f
                                batch/trends/seed_sources.py, not part of the regular run.
 
 # Ingestion (new-image intake from PATH_INGESTION_SOURCE into the active library; partial --
-# Stage 1 + Tier A backend implemented so far, see
+# Stage 1 + Tier A (backend and frontend) implemented so far, see
 # docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md)
 ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOURCE, dedupes
                                in-batch and against the active corpus's content_hash, registers
@@ -223,8 +223,9 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                uses settings.DUPLICATES.THRESHOLD (0.3) but Tier B's OCR
                                pre-pass and its review-queue behavior are not yet implemented.
                                Review (listing clusters, resolving reject/keep decisions) is the
-                               /api/ingestion/* endpoints (Backend/app/api/ingestion.py) — no
-                               frontend page yet.
+                               /api/ingestion/* endpoints (Backend/app/api/ingestion.py), with a
+                               frontend page at /ingestion (Tier A only; Tier B/promotion still
+                               not implemented).
 ```
 
 Most jobs are idempotent (clear and rebuild). `rebuild_duplicates` is also idempotent as of

@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestiondecision.schema.json",
+  "title": "IngestionDecision",
+  "type": "object",
+  "properties": {
+    "image_id": { "type": "string" },
+    "decision": { "type": "string", "enum": ["reject", "keep"] }
+  },
+  "required": ["image_id", "decision"]
+}

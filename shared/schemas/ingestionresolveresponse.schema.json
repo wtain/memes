@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestionresolveresponse.schema.json",
+  "title": "IngestionResolveResponse",
+  "type": "object",
+  "properties": {
+    "rejected": { "type": "array", "items": { "type": "string" } },
+    "kept": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["rejected", "kept"]
+}

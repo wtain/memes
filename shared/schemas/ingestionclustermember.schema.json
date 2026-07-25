@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestionclustermember.schema.json",
+  "title": "IngestionClusterMember",
+  "type": "object",
+  "properties": {
+    "image_id": { "type": "string" },
+    "filename": { "type": "string" },
+    "status": { "type": "string", "description": "pending (actionable) or active (read-only context) -- rejected images never appear here" }
+  },
+  "required": ["image_id", "filename", "status"]
+}

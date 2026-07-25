@@ -23,6 +23,14 @@
     "HealthResponse":         { "$ref": "healthresponse.schema.json" },
     "UploadedFile":           { "$ref": "uploadedfile.schema.json" },
     "FailedFile":             { "$ref": "failedfile.schema.json" },
-    "UploadResponse":         { "$ref": "uploadresponse.schema.json" }
+    "UploadResponse":         { "$ref": "uploadresponse.schema.json" },
+    "IngestionRunStatus":         { "$ref": "ingestionrunstatus.schema.json" },
+    "IngestionPendingImage":      { "$ref": "ingestionpendingimage.schema.json" },
+    "IngestionClusterMember":     { "$ref": "ingestionclustermember.schema.json" },
+    "IngestionClusterEdge":       { "$ref": "ingestionclusteredge.schema.json" },
+    "IngestionCluster":           { "$ref": "ingestioncluster.schema.json" },
+    "IngestionDecision":          { "$ref": "ingestiondecision.schema.json" },
+    "IngestionResolveResponse":   { "$ref": "ingestionresolveresponse.schema.json" },
+    "IngestionUndoRejectResponse": { "$ref": "ingestionundorejectresponse.schema.json" }
   }
 }

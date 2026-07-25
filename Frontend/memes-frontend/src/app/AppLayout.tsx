@@ -103,6 +103,15 @@ export default function AppLayout() {
           >
             Statistics
           </NavLink>
+
+          <NavLink
+            to="/ingestion"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Ingestion
+          </NavLink>
         </div>
       </header>
 

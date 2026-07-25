@@ -1,5 +1,10 @@
-import type { MemesApi } from "../MemesApi"
-import type { Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse, TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse } from "../../types/generated/all"
+import type { MemesApi, IngestionTier } from "../MemesApi"
+import type {
+  Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse,
+  TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
+  IngestionRunStatus, IngestionPendingImage, IngestionCluster, IngestionDecision,
+  IngestionResolveResponse, IngestionUndoRejectResponse,
+} from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -174,6 +179,10 @@ export class HttpMemesApi implements MemesApi {
     return this.baseUrl + meme.imageUrl;
   }
 
+  getImageUrlById(imageId: string): string {
+    return `${this.baseUrl}/api/images/${imageId}`
+  }
+
   async listConcepts(): Promise<Concept[]> {
     const response = await fetch(
       `${this.baseUrl}/api/concepts`,
@@ -316,6 +325,44 @@ export class HttpMemesApi implements MemesApi {
   async getStatistics(): Promise<StatisticsResponse> {
     const res = await fetch(`${this.baseUrl}/api/diagnostics/statistics`, { headers: { Accept: "application/json" } })
     if (!res.ok) throw new Error(`Failed to fetch statistics: ${res.status}`)
+    return res.json()
+  }
+
+  async getIngestionRunStatus(): Promise<IngestionRunStatus | null> {
+    const res = await fetch(`${this.baseUrl}/api/ingestion/run`, { headers: { Accept: "application/json" } })
+    if (res.status === 404) return null // no active ingestion run -- not an error
+    if (!res.ok) throw new Error(`Failed to fetch ingestion run status: ${res.status}`)
+    return res.json()
+  }
+
+  async getIngestionPending(): Promise<IngestionPendingImage[]> {
+    const res = await fetch(`${this.baseUrl}/api/ingestion/pending`, { headers: { Accept: "application/json" } })
+    if (!res.ok) throw new Error(`Failed to fetch pending images: ${res.status}`)
+    return res.json()
+  }
+
+  async getIngestionClusters(tier: IngestionTier): Promise<IngestionCluster[]> {
+    const res = await fetch(`${this.baseUrl}/api/ingestion/clusters/${tier}`, { headers: { Accept: "application/json" } })
+    if (!res.ok) throw new Error(`Failed to fetch ${tier} clusters: ${res.status}`)
+    return res.json()
+  }
+
+  async resolveIngestionCluster(tier: IngestionTier, decisions: IngestionDecision[]): Promise<IngestionResolveResponse> {
+    const res = await fetch(`${this.baseUrl}/api/ingestion/clusters/${tier}/resolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ decisions }),
+    })
+    if (!res.ok) throw new Error(`Failed to resolve ${tier} decisions: ${res.status}`)
+    return res.json()
+  }
+
+  async undoIngestionReject(imageId: string): Promise<IngestionUndoRejectResponse> {
+    const res = await fetch(`${this.baseUrl}/api/ingestion/images/${imageId}/undo-reject`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`Failed to undo reject: ${res.status}`)
     return res.json()
   }
 }
