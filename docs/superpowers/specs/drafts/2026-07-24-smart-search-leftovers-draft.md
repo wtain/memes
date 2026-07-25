@@ -48,13 +48,32 @@ a result matches the query).
   set, is itself an open design fork that needs its own brainstorming session before any
   implementation work.
 
-## 2. Erratives normalization (превед→привет, кросавчег→красавчик, etc.)
+## 2. Erratives normalization (превед→привет, кросавчег→красавчик, etc.) — DONE (mostly)
 
-**What it would do:** recognize deliberate internet-slang misspellings as their
-canonical word, so a query for the canonical form finds captions written in errative
-form (and vice versa).
+**Status: shipped.** See
+`docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md`. The
+trigram-similarity-can't-catch-this finding below (kept for the record) turned out
+correct, but the conclusion that only a hand-curated dictionary could work was wrong —
+a ported Russian Metaphone algorithm, gated on pymorphy3's `is_known` flag (to avoid
+real dictionary words like `кот`/`код` cross-matching), handles the general case without
+per-word curation. Along the way, a real bug was found and fixed in
+`rules/normalize.py::lemmatize_word`: pymorphy3's own unknown-word guesser was
+corrupting erratives' lemma before phonetic matching could even run (`превед` →
+`преведа`).
 
-**Why deferred:** this was *actively investigated* during the fuzzy-matching design
+**What's still open:** erratives that imitate a specific *inflected* surface form
+whose dictionary lemma differs from that form (e.g. `жжот` evoking `жжёт`, which
+lemmatizes to the infinitive `жечь` — a different surface form the errative never
+imitated) aren't caught; fixing this needs matching against un-lemmatized surface
+forms, a materially larger change. Also, an LLM-assisted dictionary-mining idea for
+erratives that don't reduce to a clean phonetic rule at all remains an unimplemented
+placeholder:
+`docs/superpowers/specs/drafts/2026-07-25-erratives-llm-dictionary-mining-draft.md`.
+
+<details>
+<summary>Original why-deferred reasoning (kept for the record, now superseded)</summary>
+
+This was *actively investigated* during the fuzzy-matching design
 (`2026-07-24-smart-search-fuzzy-matching-design.md`) — not skipped for lack of time. The
 obvious cheap approach (let trigram similarity catch erratives as a side effect of
 generic fuzzy/typo tolerance) was empirically tested against the real database and
@@ -73,23 +92,9 @@ deliberately substitute characters (е↔и, а↔о, в↔ф) in ways that soun
 substring overlap. There is no single similarity threshold that catches erratives
 without also flooding short-word queries with false positives.
 
-- **Needs a fundamentally different mechanism.** The only reliable approach is a
-  hand-curated substitution dictionary (word → canonical form) applied at normalize
-  time — a lookup table, not a similarity algorithm.
-- **Different *kind* of work than the rest of this feature.** Building and maintaining
-  that dictionary is linguistic/cultural curation — identifying which erratives are
-  common enough in this corpus to be worth encoding — not algorithm or schema design.
-  It has an ongoing maintenance burden unlike a fixed rule: internet slang keeps
-  producing new erratives.
-- **Real ambiguity in scope.** The same misspelling can be an intentional errative in
-  one caption and a genuine unrelated typo or dialectal spelling in another; a
-  substitution dictionary needs judgment calls about how aggressively to normalize, and
-  risks conflating a real (different) word with an errative-lookalike.
-- **Index/query symmetry risk.** Whatever substitution list is built must be applied
-  identically at both index-build time and query time, or it reintroduces the same
-  *class* of asymmetry bug already documented as an accepted limitation elsewhere (see
-  item 4) — this needs deliberate design attention, not just a lookup table bolted onto
-  `normalize()`.
+The original conclusion — "needs a hand-curated substitution dictionary, not an
+algorithm" — is what the phonetic-erratives design superseded.
+</details>
 
 ## 3. Non-Russian lemmatization (English, Spanish)
 
