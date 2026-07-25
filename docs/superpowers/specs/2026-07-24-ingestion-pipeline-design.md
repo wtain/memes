@@ -1,118 +1,78 @@
 # Ingestion Pipeline Design (Draft)
 
-**Date:** 2026-07-24
-**Status:** Draft for brainstorming — contains open decisions and ambiguities, not an approved
-implementation plan. Builds on `2026-07-24-ingestion-pipeline-pre-spec.md`.
+**Date:** 2026-07-24 (revised 2026-07-25 after first brainstorming pass)
+**Status:** Draft — architecture decisions below are now confirmed with the user; a handful of
+UX-level open questions remain. Builds on `2026-07-24-ingestion-pipeline-pre-spec.md`.
 
 ---
+
+## Prerequisites
+
+This design depends on three pieces of infrastructure that don't exist yet. None of them are
+ingestion-specific — each is a generalization of something already in the codebase — and each has
+its own spec:
+
+| Spec | Unblocks |
+|---|---|
+| [`2026-07-25-batch-run-tracking-design.md`](2026-07-25-batch-run-tracking-design.md) | Generic `batch_runs` table (generalized from `trends_batch`'s `TrendsRun`). Ingestion uses one `batch_runs` row (`kind="ingestion"`) to track which stage a run is in, instead of a bespoke `ingestion_batches` table. |
+| [`2026-07-25-image-visibility-status-design.md`](2026-07-25-image-visibility-status-design.md) | `images.status` (`pending`/`active`/`rejected`) plus the full audit of every read path that must filter to `active`. This is what makes "register into the same `images` table but keep it hidden" possible at all. |
+| [`2026-07-25-duplicate-clustering-incremental-design.md`](2026-07-25-duplicate-clustering-incremental-design.md) | Replaces `rebuild_duplicates.py`'s O(n²) whole-corpus cross join with an incremental, threshold-bounded, HNSW-assisted KNN query, parameterized by probe/corpus scope. This single primitive covers active-library maintenance, ingestion stage 2, *and* stage 3 — see below. |
+
+Implementation order isn't strictly linear (see Next Steps), but conceptually: batch-run-tracking
+and image-visibility are foundational (nothing ingestion-specific can be built without them);
+duplicate-clustering is needed once stage 2 work starts.
 
 ## Goal
 
 Give each environment (metal / general / it) a repeatable way to bring a batch of new images from
 an external drop location into its active library, filtering out exact and near-duplicates —
 against both the incoming batch itself and the existing corpus — before the expensive per-image
-enrichment pipeline (OCR, tags, descriptions) ever runs on them, and without recomputing CLIP
-embeddings that were already computed during duplicate review.
+enrichment pipeline (OCR, tags, descriptions) runs on them, without recomputing CLIP embeddings
+already computed during duplicate review, and with **human-driven** review only (see Decisions
+below).
 
-## Non-goals (for this draft)
+## Non-goals
 
-- Cross-environment ingestion (one drop location feeding multiple environments, or moving images
-  between environments) — out of scope; one `PATH_INGESTION_SOURCE` maps to one environment.
-- Automatic (non-human/agent-reviewed) duplicate resolution — every near-dup decision in stages 2
-  and 3 requires explicit confirmation, same as the existing `review-duplicates` flow.
-- Re-architecting the existing active-library duplicate review (`ExploreDuplicatesPage`,
-  `rebuild_duplicates.py`) — this design scopes/reuses it, doesn't replace it.
+- Cross-environment ingestion — one `PATH_INGESTION_SOURCE` maps to one environment.
+- Agent/skill-driven duplicate review for ingestion. The existing `review-duplicates` skill +
+  `tools/agent_duplicates.py` pattern is explicitly **not** reused here — see Decisions.
+- Re-architecting the existing active-library duplicate review UI/flow — scoped/reused via the
+  duplicate-clustering prerequisite, not replaced.
 
 ## Terminology
 
 | Term | Meaning |
 |---|---|
-| **Pending image** | An image registered in the DB but not yet visible in normal browse/search — mid-ingestion. |
-| **Active image** | An image visible in normal browse/search — today's only state; the implicit default. |
-| **Ingestion batch** | One run of the pipeline over one drop of files in `PATH_INGESTION_SOURCE`; a unit of scoping for stage-2 dedup and review progress. |
-| **Promotion** | Moving a pending image's file into `BASE_PATH` and flipping its status to active. |
+| **Pending image** | `images.status = 'pending'` — registered, has an embedding, not yet visible in browse/search. |
+| **Active image** | `images.status = 'active'` — visible, fully promoted. |
+| **Rejected image** | `images.status = 'rejected'` — confirmed duplicate during review; row kept for undo, excluded from listings the same as pending. |
+| **Ingestion run** | One `batch_runs` row, `kind = 'ingestion'`; `stage` tracks progress (`hash_dedup` → `in_batch_review` → `cross_corpus_review` → `promoted`). |
 
 ---
 
-## Architecture decision (working assumption — see Open Questions)
+## Decisions confirmed 2026-07-25
 
-**Pending images are registered in the same `images`/`embeddings` tables as the target
-environment's active library**, distinguished by a new `images.status` column
-(`pending` / `active`, default `active` for all pre-existing rows via migration default).
-
-This is chosen over a separate staging table/DB because:
-
-- Embeddings computed in stage 2 are FK'd to `images.id` and never need to move or be recomputed —
-  promotion is `UPDATE images SET status = 'active' WHERE id = ...` plus a filesystem move.
-- Stage 3 (new vs. existing corpus) can reuse the existing cosine-distance/HNSW similarity query
-  as-is, just adding `status = 'active'` to the candidate-corpus side — no cross-database vector
-  work.
-- The existing dup-review stack (schema, repository query shapes, `tools/agent_duplicates.py`
-  pattern) is reusable with scoping rather than forked.
-
-**Cost of this choice:** every read path that lists or searches images must filter to
-`status = 'active'` by default, or pending images leak into production results. This needs to be
-enumerated exhaustively (see Visibility Audit below) and covered by a test that asserts no pending
-image is ever returned by a production-facing endpoint.
-
----
-
-## Data model changes
-
-### `images` table
-
-- Add `status` column: `VARCHAR` or Postgres enum, values `pending` | `active`. Default `active`.
-  (Considered `ingestion_batch_id IS NULL` as an implicit "active" signal instead of an explicit
-  status column — rejected because it conflates "not part of a tracked batch" with "visible",
-  which breaks the moment we want to keep ingestion-batch history around after promotion for
-  audit/debugging.)
-- Add `ingestion_batch_id` (nullable FK → `ingestion_batches.id`). Null for images that predate
-  this feature or were registered outside the ingestion pipeline.
-
-### New table: `ingestion_batches`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | UUID PK | |
-| `environment` | string | metal / general / it — redundant with the DB itself but useful if batches are ever inspected cross-environment |
-| `source_path` | string | `PATH_INGESTION_SOURCE` value at time of run, for audit |
-| `created_at` | timestamp | |
-| `stage` | enum | `hash_dedup` / `in_batch_review` / `cross_corpus_review` / `promoted` / `aborted` — coarse progress marker for resumability |
-| `stats` | JSON | counts per stage: intake, hash-duplicates removed, in-batch duplicates removed, cross-corpus duplicates removed, promoted |
-
-Whether per-image review progress (stage 2/3 resumability) is tracked on `ingestion_batches.stats`
-or via a state file like `tools/agent_duplicates.py`'s `.agent_state/` pattern is an open question
-below.
-
-### `image_extras.flagged`
-
-**Not reused for pending/visibility.** Its existing semantics (visible admin marker for pending
-bulk ops) stay as-is. A future "flag this pending image during review" affordance, if wanted, would
-need its own field — not folded into this one, to avoid re-litigating the June 2026 rename.
-
----
-
-## Visibility audit (must filter `status = 'active'`)
-
-Every one of these currently has no status filter and must gain one:
-
-- `Backend/app/repositories/image_repository.py`: paginated browse, search, `get_flagged`,
-  `get_duplicates_clustered`, similarity/recommendation queries — every `select(Image...)`.
-- `Backend/app/repositories/diagnostics_repository.py`: stats/counts (`/api/diagnostics/health`,
-  totals) — pending images should not inflate corpus-size stats shown to users.
-- `repository/images.py` global repo, where used outside the ingestion pipeline itself.
-- Batch jobs that iterate "all images" for enrichment (`build_tags_from_ocr`,
-  `build_image_descriptions`, `build_tags_from_descriptions`, `build_concept_embeddings`,
-  `build_bow`) — pending images must **not** be picked up by these before promotion, since stage 2
-  intentionally runs before OCR/tags exist.
-- Android client — no separate filtering needed if the backend never returns pending images, but
-  worth a note in `backend_api.md` that "all image-returning endpoints implicitly exclude pending
-  images" is now a documented contract, not an accident.
-
-`build_image_embeddings.py` is the one deliberate **exception** — the ingestion pipeline needs to
-call embedding computation for pending images specifically (stage 2), so this script needs a mode
-(or the ingestion pipeline needs a dedicated call path) that targets pending images rather than
-excluding them. See Stage 2 below.
+1. **No separate pending-file storage location.** Images move from `PATH_INGESTION_SOURCE` into
+   `BASE_PATH` immediately after stage 1 (hash dedup), exactly like the pipeline moves files today
+   — they just aren't visible yet because `status = 'pending'`. This eliminates an entire category
+   of complexity the first draft carried (a second file-serving path for pending images); file
+   serving code needs no changes at all. It also **simplifies stage 4 (promotion) down to a pure
+   status flip** — there's no file move left to do at promotion time, since the file has already
+   been sitting in `BASE_PATH` since right after stage 1.
+2. **Cross-corpus hash check added to stage 1.** In addition to hashing the incoming batch against
+   itself, new images are also hash-checked against the *existing* corpus's `content_hash` values —
+   a cheap, exact-match win before any embedding work happens. See Stage 1 below for the dependency
+   this creates.
+3. **Duplicate clustering is incremental and threshold-bounded**, per the dedicated prerequisite
+   spec — this resolves what was previously open question #3 (whether batch-scoped and
+   active-library dedup could safely share `tmp_duplicates`): since the new design never drops the
+   table and inserts are idempotent (`ON CONFLICT DO NOTHING` on a normalized pair), an
+   active-library incremental rebuild and an in-progress ingestion review can coexist safely.
+4. **Review is purely human-driven, via UI — not the existing agent skill.** The existing
+   `review-duplicates` skill / `tools/agent_duplicates.py` pattern has produced false positives in
+   practice that permanently lost images. Ingestion review reuses the *visual* pattern (cluster →
+   decide → mark) but as a UI flow, and rejections are recoverable by design (`status = 'rejected'`,
+   not a delete — see the visibility spec) specifically because of that history.
 
 ---
 
@@ -120,85 +80,71 @@ excluding them. See Stage 2 below.
 
 ### Stage 0 — Intake
 
-- `PATH_INGESTION_SOURCE` is a new per-environment secret in `.env.<environment>`, analogous to
-  `BASE_PATH`. One source directory per environment (see Non-goals).
-- No DB interaction. Files just sit on disk.
+`PATH_INGESTION_SOURCE` is a new per-environment secret in `.env.<environment>`, analogous to
+`BASE_PATH`. One source directory per environment. A new ingestion run is refused if
+`BatchRunRepository.get_active_run(kind="ingestion")` returns a row for this environment's DB —
+cheap concurrency guard, provided for free by the batch-run-tracking prerequisite.
 
-### Stage 1 — Coarse filter (file hash dedup)
+### Stage 1 — Coarse filter (hash dedup, in-batch and cross-corpus)
 
-- Pure filesystem operation, no DB, no registration.
-- Reuse `batch/utils/file_hash.py` (`sha256_file`, `files_are_identical`) directly.
-- New script (working name `batch/ingest_hash_dedup.py`): hash every file in
-  `PATH_INGESTION_SOURCE`, union-find on identical hashes (mirroring `detect_file_duplicates.py`'s
-  approach but without any DB read/write), keep one per hash cluster, move the rest to
-  `PATH_INGESTION_SOURCE/duplicates/`.
-- Tie-break for "which one to keep" among byte-identical files: doesn't matter which (they're
-  identical), so filename sort is fine — unlike `detect_file_duplicates.py`'s "keep oldest
-  `created_at`" rule, there's no DB row yet to have a `created_at`. Use filesystem mtime or just
-  lexicographic filename order.
+Pure filesystem + hash-lookup work, no embeddings involved yet.
+
+1. **In-batch:** hash every file in `PATH_INGESTION_SOURCE` (reusing
+   `batch/utils/file_hash.py`'s `sha256_file`/`files_are_identical` directly), union-find on
+   identical hashes, keep one per cluster, move the rest to `PATH_INGESTION_SOURCE/duplicates/`.
+2. **Cross-corpus:** look up each surviving file's hash against `images.content_hash` for
+   `status = 'active'` rows. A match moves the new file to `PATH_INGESTION_SOURCE/duplicates/` too
+   (same tier as in-batch hash matches — both are byte-identical decisions, no need for a separate
+   directory just because the comparison side differs).
+   - **Dependency:** this is only a cheap indexed lookup if the existing corpus's `content_hash`
+     is actually populated. Today it's populated lazily, only when `detect_file_duplicates.py`
+     (a "run as needed" maintenance script) happens to run — not guaranteed. Two things follow:
+     (a) each environment needs a one-time `detect_file_duplicates.py` run before the *first*
+     ingestion batch, as a documented operational prerequisite, not a code change; (b) going
+     forward, `content_hash` should be computed at registration time during stage 1 itself (a small
+     addition — compute it once per file, already being read for the hash check, and store it
+     immediately) so coverage never drifts again and this cross-corpus check never needs to
+     re-hash the *existing* corpus, only ever look it up.
 
 ### Stage 2 — In-batch near-duplicate review
 
-1. **Register** surviving files as `Image` rows with `status = 'pending'` and
-   `ingestion_batch_id` set to the current batch. Filenames must be preserved verbatim (see
-   pre-spec point 5) — no UUID-renaming at this stage (contrast with `save_incoming()`, which does
-   rename; that's fine for the upload endpoint's crash-safety goals but would break the
-   "filename is the join key" assumption `extract_text_from_memes` relies on later).
-   - File stays physically in `PATH_INGESTION_SOURCE` at this point — it does **not** need to be
-     under `BASE_PATH` yet, since nothing that reads pending images (embedding computation, the
-     review UI) needs to resolve paths via `BASE_PATH`. Needs a path-resolution strategy that
-     isn't just "`BASE_PATH` + filename" (see Open Questions).
-2. **Compute embeddings** for this batch's pending images only. `build_image_embeddings.py`
-   already supports `--incremental` (images with no embedding yet); extend it (or add a sibling
-   entry point) to accept an explicit image-id/batch scope so a stage-2 run doesn't accidentally
-   sweep in every pending image from unrelated concurrent batches, and reads file paths from
-   `PATH_INGESTION_SOURCE` rather than `BASE_PATH` for pending rows.
-3. **Cluster within the batch only.** A scoped variant of `rebuild_duplicates.py` +
-   `clusterize.py`: cross join restricted to `WHERE ingestion_batch_id = :batch_id` on both sides,
-   not the full `images` table. Output into the existing `tmp_duplicates`/`tmp_clusters` shape (or
-   a parallel batch-scoped table, if reusing the global tmp tables risks colliding with a
-   concurrently-running active-library `rebuild_duplicates` run — see Open Questions) so the
-   existing repository query shape (`get_duplicates_clustered`) can be reused with a batch filter
-   added.
-4. **Review.** Reuse the `review-duplicates` skill / `tools/agent_duplicates.py` pattern, scoped to
-   `ingestion_batch_id = :batch_id`, and/or a frontend page reusing `ExploreDuplicatesPage.tsx` /
-   `MemesList` with a `status=pending&batch=...` filter instead of the current unscoped
-   `listDuplicates` prop. Both surfaces are candidates; see Open Questions on whether both are
-   needed for v1.
-5. **Apply decisions.** Confirmed duplicates: move file from `PATH_INGESTION_SOURCE` to
-   `PATH_INGESTION_SOURCE/duplicates2/` and delete (or mark deleted-state on) their `Image` row —
-   needs a decision on whether rejected pending images keep a DB row (audit trail) or are hard
-   -deleted (simpler, avoids ever having to filter them out later too). Leaning delete, since
-   they never had OCR/tags/descriptions to lose and the `duplicates2/` directory is itself the
-   audit trail.
+1. **Register** survivors as `Image` rows: `status = 'pending'`, `ingestion_batch_id` = the current
+   `batch_runs.run_id`. Filename must be preserved verbatim (no UUID-renaming) — `extract_text_from_memes`
+   later depends on filename as the lookup key.
+2. **Compute embeddings** — `build_image_embeddings.py --status pending --incremental`, scoped
+   implicitly to whatever's pending (per the visibility prerequisite's proposed `--status` flag).
+3. **Find candidate pairs** — the duplicate-clustering primitive with probe set = corpus filter =
+   `ingestion_batch_id = :batch_id AND status = 'pending'` (see that spec's scoping table).
+4. **Review — human, via UI.** New page reusing the `MemesList`/`ExploreDuplicatesPage` pattern
+   with a `status=pending&batch=...` filter, showing clusters from step 3. See Open Questions below
+   re: what signal is actually available to the reviewer at this point (OCR hasn't run yet).
+5. **Apply decisions.** Confirmed duplicates: `status = 'rejected'`, file moved out of the active
+   `BASE_PATH` tree into a rejected-images location under `BASE_PATH` — not back into
+   `PATH_INGESTION_SOURCE`, since the file already left there at the end of stage 1 (Decision #1).
+   Exact directory naming/structure is open question 5 below. Row stays, status change only,
+   enabling undo.
 
 ### Stage 3 — Cross-corpus near-duplicate review
 
-1. For each surviving pending image, run the existing similarity search
-   (`embedding.cosine_distance(...)` ANN query) against `status = 'active'` images only.
-2. Present matches above a similarity threshold for review — reusing the same review surface as
-   stage 2, but the decision shape is different (see pre-spec point on stage-3 asymmetry): the two
-   candidates are not interchangeable — one is new, one is already-published. Needs an explicit
-   decision UX for "discard the new one" vs. "this isn't actually a duplicate, keep both" (there's
-   no realistic "replace the existing active one" case in scope here — that would be a separate,
-   riskier operation).
-3. Confirmed duplicates: move to `PATH_INGESTION_SOURCE/duplicates3/`, same row-deletion question
-   as stage 2.
+1. Duplicate-clustering primitive with probe set = `ingestion_batch_id = :batch_id AND status =
+   'pending'`, corpus filter = `status = 'active'`.
+2. **Review — same UI surface**, but the decision is asymmetric (candidates aren't interchangeable
+   — one is new, one already-published). Reviewer needs to see the *active* candidate's existing
+   context (tags, description, OCR text — all of which exist for it, since it's fully enriched) even
+   though the *pending* candidate has none of that yet. Allowed outcomes: reject the new image
+   (`status = 'rejected'`, same recoverability as stage 2), or confirm it's not actually a duplicate
+   (no state change, proceeds to promotion). "Replace the existing active image" is explicitly not
+   an outcome here — out of scope, a different and riskier operation.
 
 ### Stage 4 — Promotion
 
-1. For each image still `status = 'pending'` in the batch: move its file from
-   `PATH_INGESTION_SOURCE` to `BASE_PATH` (same filename), then `UPDATE images SET status =
-   'active'`.
-2. Run `extract_text_from_memes` in its normal incremental mode against `BASE_PATH` — since these
-   images are already registered (from stage 2) with a filename `extract_text_from_memes` will
-   find via `find_image_by_filename`, it will skip re-registration and go straight to OCR, which
-   is exactly the desired incremental behavior. No changes needed to this script itself, *provided*
-   the visibility audit is done — it currently has no status filter and doesn't need one added
-   (it operates on `os.listdir(BASE_PATH)`, which pending images aren't in until this exact step).
-3. Continue the rest of the standard pipeline order from CLAUDE.md
-   (`build_tags_from_ocr` → `build_ocr_lemmas` → `build_image_descriptions` → ...) unmodified.
-4. Mark `ingestion_batches.stage = 'promoted'`.
+Now genuinely simple, per Decision #1: for each surviving `pending` image in the run,
+`UPDATE images SET status = 'active'`. No file move — the file has been in `BASE_PATH` since stage
+1. Mark `batch_runs.stage = 'promoted'`. Run `extract_text_from_memes` in its normal incremental
+mode — since these images are already registered with the right filename, and are no longer
+`pending` (so the visibility prerequisite's skip-if-pending check in `io_producer` no longer
+applies to them), the script picks them up exactly like any other unprocessed file in `BASE_PATH`.
+Continue the rest of the standard pipeline order from CLAUDE.md unmodified.
 
 ---
 
@@ -206,105 +152,103 @@ excluding them. See Stage 2 below.
 
 | Component | Change |
 |---|---|
-| `batch/ingest_hash_dedup.py` | **New.** Stage 1, filesystem-only. |
-| `batch/build_image_embeddings.py` | **Extend.** Scope to pending images in a given batch, read from `PATH_INGESTION_SOURCE`. |
-| `batch/rebuild_duplicates.py` / `clusterize.py` | **Extend or fork.** Batch-scoped cross join instead of whole-corpus. |
-| `tools/agent_duplicates.py` | **Extend.** Accept `--batch_id`, filter cluster query accordingly. |
-| `.claude/commands/review-duplicates.md` | **Extend or new sibling command.** Ingestion-scoped review entry point. |
-| `batch/ingest_promote.py` | **New.** Stage 4 file-move + status flip, then hands off to `extract_text_from_memes`. |
-| `extract_text_from_memes.py` | **No change** — works as-is once files are physically in `BASE_PATH`. |
+| `batch/ingest_hash_dedup.py` | **New.** Stage 1: in-batch + cross-corpus hash check, per above. |
+| `batch/build_image_embeddings.py` | **Extend** (per visibility prereq) with `--status`. |
+| `batch/rebuild_duplicates.py` | **Extend** (per duplicate-clustering prereq) with probe/corpus scoping — ingestion calls the same query builder, not this script's CLI directly. |
+| `batch/ingest_promote.py` | **New**, but now trivial — a status flip + `batch_runs.stage` update, no file I/O. |
+| `extract_text_from_memes.py` | **Small addition** (per visibility prereq): skip files whose registered image is still `pending`. |
+| `tools/agent_duplicates.py` / `review-duplicates` skill | **Not used** for ingestion — see Decision #4. |
 | Rest of pipeline (tags, lemmas, descriptions, concepts) | **No change.** |
 
 ## Backend / API changes
 
-- New endpoints (exact shape TBD, follow Router → Service → Repository per CLAUDE.md):
-  - List pending images for a batch (`status=pending&ingestion_batch_id=...`).
-  - Batch-scoped duplicate clusters (extends `/api/images/duplicates` with a batch filter, or a
-    new `/api/ingestion/batches/{id}/duplicates`).
-  - Confirm/reject a pending duplicate decision.
-  - Trigger/inspect batch stage progress (`/api/ingestion/batches/{id}`).
-- `backend_api.md` must be updated per CLAUDE.md's API contract requirement.
-- Every existing endpoint touched by the visibility audit needs its query updated, not its
-  contract — response shape is unchanged, just row filtering.
+- List pending images for a run (`status=pending&ingestion_batch_id=...`).
+- Batch-scoped duplicate clusters — extends the existing duplicates endpoint with a batch filter,
+  backed by the scoped duplicate-clustering query.
+- Confirm-reject / undo endpoints (status transitions `pending ↔ rejected`).
+- Ingestion run status (`GET /api/ingestion/runs/{id}` — thin wrapper over the `batch_runs` row).
+- `backend_api.md` updated per CLAUDE.md's API contract requirement.
+- Every endpoint touched by the visibility-audit prerequisite needs its query updated (that spec
+  owns the exhaustive list); no new *contract* changes to existing endpoints, just row filtering.
 
 ## Frontend changes
 
-- New route/page for browsing a pending batch — likely reuses `MemesList` with new
-  `status`/`batch` filter props rather than a bespoke component, per the existing
-  `ExploreDuplicatesPage` pattern of thin pages wrapping a shared list component.
-- A way to kick off / monitor batch stages — could be CLI-only for v1 (agent/operator runs the
-  batch scripts by hand) with UI added later, or UI-first — open question below.
+- New route reusing `MemesList` with `status`/`batch` filter props, following the existing
+  `ExploreDuplicatesPage` pattern of a thin page wrapping a shared list component.
+- Review UI needs an explicit reject/undo action per cluster/pair, and — for stage 3 — a way to
+  show the active candidate's existing tags/description/OCR alongside the pending candidate's bare
+  thumbnail (see Open Questions on signal asymmetry).
+- Batch progress/status view, reading the `batch_runs` row via the new endpoint above.
 
 ---
 
-## Open questions / ambiguities
+## Open questions
 
-These need resolving (via brainstorming) before this becomes an implementation plan.
-
-1. **Same-DB-with-status vs. separate staging store** — this draft assumes same-DB. Confirm.
-2. **Path resolution for pending images.** Stage 2/3 need to read pending image bytes (for
-   embedding, for thumbnails in the review UI) while the file still lives in
-   `PATH_INGESTION_SOURCE`, not `BASE_PATH`. `Backend/app/services/image_store.py`'s
-   `get_image_path()` is hardcoded to `_IMAGES_DIR` (`BASE_PATH`). Does the review UI need a new
-   "serve from ingestion source" path, or does stage 2 physically copy (not move) files into a
-   `BASE_PATH/_pending/` subdirectory up front so all existing file-serving code keeps working
-   unmodified, and stage 4 becomes a rename within `BASE_PATH` instead of a cross-directory move?
-   This changes the answer to point 5 in the pre-spec (filename stability) very little, but changes
-   a lot about how much file-serving code needs touching.
-3. **Do batch-scoped `tmp_duplicates`/`tmp_clusters` reuse the global tables (row-level filtered)
-   or need parallel tables?** Reusing the global tables risks a concurrently-running full
-   `rebuild_duplicates` (active-library maintenance) truncating/rebuilding out from under an
-   in-progress ingestion review, since `rebuild_duplicates` currently does a blanket
-   `DROP TABLE IF EXISTS` / recreate. If ingestion review and active-library dedup maintenance can
-   ever run concurrently, they need separate tables.
-4. **Rejected-image row lifecycle** — hard delete vs. soft delete/audit trail for images excluded
-   at stages 2/3.
-5. **Review surface: UI, agent/skill, or both for v1?** The existing `review-duplicates` skill is
-   agent-driven and stateful via a file; `ExploreDuplicatesPage` is human/UI-driven. Building both
-   scoped variants doubles the work; picking one for v1 needs a call on who actually reviews
-   ingestion batches day to day.
-6. **Stage 3 decision UX** — for an asymmetric match (new vs. active), what are the actual allowed
-   outcomes, and does a human/agent need to see the *active* image's context (tags, description) to
-   decide, which the pending image won't have yet?
-7. **Resumability** — if a batch is interrupted mid-review, does `ingestion_batches.stage` plus
-   `images.status = 'pending'` rows fully describe resumable state, or is a per-image review
-   progress marker (like `tools/agent_duplicates.py`'s state file) still needed within a stage?
-8. **`PATH_INGESTION_SOURCE` scoping** — confirmed per-environment per the proposal; does the
-   ingestion pipeline need to guard against two batches being ingested concurrently into the same
-   environment (e.g. a lock or a "one active batch per environment" constraint)?
-9. **Threshold tuning** — stage 2 reuses `PROXIMITY_THRESHOLD = 0.05` from `clusterize.py`; stage 3
-   needs its own threshold for "new vs. active" similarity, which may reasonably differ (looser or
-   tighter) from the in-batch one. Needs empirical tuning, not just reuse of the existing constant.
-10. **Failure mid-embedding-computation** — if `build_image_embeddings` for a pending batch dies
-    partway (as it can today — see the `except Exception` swallow-and-skip in the existing script),
-    does stage 2 review proceed with partial embeddings (some pending images with no embedding
-    yet), or block until the whole batch has embeddings?
-
----
+1. **Review signal availability — OCR hasn't run yet at stage 2/3, but it's the primary signal
+   the existing review process relies on.** The existing `review-duplicates` skill's signal
+   priority is explicitly OCR text first, embedding distance second, description third — but
+   ingestion's stage ordering deliberately runs dedup *before* OCR (to avoid wasting OCR compute
+   on images likely to be rejected). That means a human reviewing an ingestion cluster has only
+   thumbnails + a distance number, a strictly weaker signal than what the existing review UI/flow
+   gives for the active library — which risks *increasing* the false-positive rate this design is
+   specifically trying to avoid (per Decision #4's motivation). Options, none chosen yet:
+   - (a) Accept the weaker signal — thumbnails + distance is close to what a human would use
+     visually anyway for genuine near-duplicates (same template, near-identical crop).
+   - (b) Run OCR (not the rest of enrichment — just OCR, which is meaningfully cheaper than the
+     LLM description step) as part of stage 2, before review, so reviewers get text to compare.
+     "Wasted" OCR on later-rejected images is a smaller cost than wasted LLM descriptions, so this
+     may be an acceptable trade even though it reintroduces some pre-review compute.
+   - (c) Keep OCR-less review but make the UI lean harder on side-by-side visual comparison
+     (larger thumbnails, overlay/diff view) to compensate.
+   This needs a real decision before stage 2's UI is built — recommend (b) as a starting point
+   given OCR's relatively low cost, but flagging for discussion rather than deciding unilaterally.
+2. **Stage 3 asymmetric review UX** — exact layout/interaction for "here's a new image, here's the
+   existing one it resembles, with its tags/description" needs a concrete design, not just the
+   allowed-outcomes list above.
+3. **Resumability within a stage.** `batch_runs.stage` + `images.status` describe *which stage* a
+   run is in and survive across process restarts, which resolves cross-run resumability. Still
+   open: if a human review session is interrupted mid-cluster-list within a stage, is there a
+   per-cluster "already reviewed" marker, or does the reviewer just re-see already-decided clusters
+   (harmless — re-confirming a `rejected` image is a no-op) until everything in the batch is
+   decided? Leaning toward the latter (simpler, and idempotent) unless review volume per batch
+   turns out large enough that re-scanning already-decided clusters is annoying in practice.
+4. **`k`/`threshold` tuning** for the duplicate-clustering primitive — delegated to that spec, but
+   ingestion is the first caller that will surface whether the chosen defaults are actually right
+   for a "small new batch vs. large existing corpus" shape specifically (as opposed to the
+   whole-corpus incremental case that spec's design was primarily reasoned about).
+5. **`rejected_ingestion/` directory naming and location** — Decision #1 means stage 2/3 rejects
+   move within `BASE_PATH`, not back into `PATH_INGESTION_SOURCE` (which the original proposal's
+   `duplicates2`/`duplicates3` naming assumed). Needs a concrete decision on directory structure
+   under `BASE_PATH` — e.g. `BASE_PATH/rejected/in_batch/` and `BASE_PATH/rejected/cross_corpus/` —
+   before stage 2/3 apply-decision code is written.
 
 ## Risks
 
-- **Visibility leak** (see Architecture decision) — highest risk, needs explicit test coverage,
-  not just code review.
-- **Cross join blast radius** — if the batch-scoped duplicate query is implemented as a filtered
-  version of the existing unscoped query rather than a genuinely restricted join, a large batch
-  (thousands of images) still produces an O(n²) row explosion within the batch; likely fine at
-  typical batch sizes but worth sizing before committing to the approach.
-- **Two review surfaces drifting** — if both a UI and an agent/skill path are built for the same
-  review step, decision logic (thresholds, tie-breakers) needs to live in one place both surfaces
-  call, not be duplicated per surface.
+- **OCR-less review quality (open question 1 above)** is now the primary quality risk for this
+  design, directly because of the "images get lost" lesson that motivated moving to human-only
+  review in the first place — worth resolving before building the stage 2/3 UI, not after.
+- **Visibility leak** — owned by the visibility prerequisite's audit + contract test; not
+  ingestion-specific risk anymore, but ingestion is the first real-world exercise of that audit
+  being complete.
+- **`k`/`threshold` mistuned for the new-batch-vs-large-corpus shape** — could either miss genuine
+  cross-corpus duplicates (k too low, or threshold too tight) or overwhelm reviewers with
+  borderline candidates (threshold too loose) — needs empirical tuning once real data is available.
 
-## Out of scope (explicitly, for this draft)
+## Out of scope
 
-- Automated re-scoring or ML-based duplicate resolution beyond the existing OCR-text +
-  embedding-distance + description heuristic already used by `review-duplicates`.
+- Automated (non-human-reviewed) duplicate resolution.
 - Multi-environment or cross-environment ingestion routing.
-- UI/tooling for un-doing a promotion once the full enrichment pipeline has run on an image.
+- UI/tooling for undoing a promotion once the full enrichment pipeline has run on an image (undo
+  during stages 2/3, before promotion, is in scope; undo after promotion is not).
 
 ## Next steps
 
-Brainstorm the open questions above, in particular #1–#3 (they gate almost everything else), then
-turn this into a phased implementation plan — likely: Phase A (stage 1, filesystem-only, lowest
-risk) → Phase B (schema + visibility audit, no new UI yet) → Phase C (stage 2 scoped dedup + review
-reuse) → Phase D (stage 3 cross-corpus review) → Phase E (promotion + UI polish), given the
-explicit sizing/risk concerns already called out above.
+1. Implement the three prerequisites (any order, though image-visibility and batch-run-tracking are
+   both needed before ingestion-specific work starts; duplicate-clustering can follow once stage 2
+   work begins).
+2. Resolve open questions 1 (OCR timing) and 5 (directory layout) — both block writing stage 2/3
+   apply-decision code.
+3. Phased build: Phase A — stage 1 (hash dedup, in-batch + cross-corpus, lowest risk, no schema
+   dependency beyond `content_hash` backfill). Phase B — stage 2 (registration, embeddings, scoped
+   clustering, review UI). Phase C — stage 3 (cross-corpus review, asymmetric UX). Phase D —
+   promotion (now small) + pipeline hookup + run-status UI polish.
