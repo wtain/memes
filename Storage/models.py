@@ -4,7 +4,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
     DateTime, JSON, func, Numeric, Index, Boolean,
-    BigInteger, UniqueConstraint
+    BigInteger, UniqueConstraint, text
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
@@ -27,12 +27,23 @@ class Image(Base):
     width = Column(Integer)
     height = Column(Integer)
     created_at = Column(DateTime, server_default=func.now())
+    status = Column(String(20), nullable=False, server_default="active")
+    ingestion_batch_id = Column(
+        UUID(as_uuid=True), ForeignKey("batch_runs.run_id", ondelete="SET NULL"), nullable=True
+    )
 
     __table_args__ = (
         Index(
             "ix_images_created_at_id_desc",
             created_at.desc(),
             id.desc()
+        ),
+        # Partial index sized to the small pending minority, not the whole (overwhelmingly
+        # active) table -- see 2026-07-25-image-visibility-status-design.md.
+        Index(
+            "ix_images_status_pending",
+            "id",
+            postgresql_where=text("status = 'pending'"),
         ),
     )
 
@@ -161,43 +172,46 @@ class Embedding(Base):
 
     image = relationship("Image", back_populates="embeddings")
 
-"""
-DROP TABLE IF EXISTS tmp_duplicates;
-
-CREATE TABLE tmp_duplicates AS
-WITH image_embeddings AS (
-    SELECT i.id, e.embedding, i.created_at
-    FROM images i
-    JOIN embeddings e ON i.id = e.image_id
-)
-SELECT ROW_NUMBER() OVER () AS id,
-       ie1.id AS image_id1,
-       ie2.id AS image_id2,
-       ie1.created_at as created_at,
-       ie1.embedding <=> ie2.embedding AS distance
-FROM image_embeddings ie1
-JOIN image_embeddings ie2 ON true;
-
--- Add PK constraint after the fact (CTAS doesn't support inline constraints)
-ALTER TABLE tmp_duplicates ADD PRIMARY KEY (id);
-
--- Covers the WHERE + ORDER BY (most important)
-CREATE INDEX idx_tmp_duplicates_id_distance ON tmp_duplicates (id DESC, distance);
-
--- Or if distance filtering is very selective, separate indexes may work too:
-CREATE INDEX idx_tmp_duplicates_distance ON tmp_duplicates (distance);
-CREATE INDEX idx_tmp_duplicates_id ON tmp_duplicates (id DESC);
-"""
 class TmpDuplicates(Base):
+    """Candidate duplicate pairs found by rebuild_duplicates.py's incremental,
+    HNSW-assisted KNN search -- see
+    docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
+    A real, migration-managed table (not script-created DDL) so inserts can be
+    incremental and idempotent via the (image_id1, image_id2) unique constraint;
+    image_id1/image_id2 are always stored as (LEAST(a, b), GREATEST(a, b)) so a
+    pair is only ever represented once, not twice as (a, b) and (b, a)."""
+
     __tablename__ = "tmp_duplicates"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    image_id1 = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
-    image_id2 = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
+    # server_default matters here, unlike most other models' id columns -- rows are
+    # inserted via raw SQL (INSERT ... SELECT ... ON CONFLICT), not constructed as ORM
+    # objects, so there's no Python-side default to fall back on.
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+                server_default=text("gen_random_uuid()"), index=True)
+    image_id1 = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), nullable=False, index=True)
+    image_id2 = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), nullable=False, index=True)
 
     distance = Column(Float, nullable=False)
 
+    # 'in_batch' | 'cross_corpus' -- which side of an ingestion review query this pair
+    # came from; always 'cross_corpus' for active-library rebuild rows (probe and corpus
+    # are both status='active'). Ingestion-specific, unused by the active-library rebuild
+    # beyond always populating it via the same query.
+    match_source = Column(String(20), nullable=True)
+
+    # Ingestion-specific, tier-scoped review-queue resumability markers -- set only by an
+    # explicit "not a duplicate" decision in that tier's review UI. Never set by the
+    # active-library rebuild. See 2026-07-24-ingestion-pipeline-design.md's
+    # "Review-queue resumability" section.
+    tier_a_reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    tier_b_reviewed_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("image_id1", "image_id2", name="uq_tmp_duplicates_pair"),
+        Index("idx_tmp_duplicates_distance", "distance"),
+    )
 
 
 class TmpImageClusters(Base):
@@ -434,24 +448,32 @@ class RunStatus(enum.Enum):
         return self.value
 
 
-class TrendsRun(Base):
-    __tablename__ = "trends_runs"
+class BatchRun(Base):
+    __tablename__ = "batch_runs"
 
     run_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
     )
+    kind: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default=str(RunStatus.started),
     )
+    stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    stats: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # back-ref to results
     results: Mapped[list["TrendsRunResult"]] = relationship(
@@ -459,7 +481,7 @@ class TrendsRun(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<TrendsRun run_id={self.run_id} created_at={self.created_at}>"
+        return f"<BatchRun run_id={self.run_id} kind={self.kind!r} created_at={self.created_at}>"
 
 
 class TrendsRunResult(Base):
@@ -468,7 +490,7 @@ class TrendsRunResult(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     run_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("trends_runs.run_id", ondelete="CASCADE"),
+        ForeignKey("batch_runs.run_id", ondelete="CASCADE"),
         nullable=False,
     )
     source_id: Mapped[int] = mapped_column(
@@ -481,7 +503,7 @@ class TrendsRunResult(Base):
     value: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # relationships
-    run: Mapped["TrendsRun"] = relationship("TrendsRun", back_populates="results")
+    run: Mapped["BatchRun"] = relationship("BatchRun", back_populates="results")
     source: Mapped["TrendSource"] = relationship("TrendSource", back_populates="results")
 
     def __repr__(self) -> str:

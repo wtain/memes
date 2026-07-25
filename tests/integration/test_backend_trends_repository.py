@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from Backend.app.repositories.trends_repository import TrendsRepository
-from Storage.models import TrendSource, TrendsRun, TrendsRunResult
+from Storage.models import TrendSource, BatchRun, TrendsRunResult
 
 
 async def _make_source(db_session) -> TrendSource:
@@ -23,8 +23,8 @@ async def _make_source(db_session) -> TrendSource:
     return source
 
 
-async def _make_run(db_session, created_at=None) -> TrendsRun:
-    run = TrendsRun(created_at=created_at) if created_at else TrendsRun()
+async def _make_run(db_session, created_at=None) -> BatchRun:
+    run = BatchRun(kind="trends", created_at=created_at) if created_at else BatchRun(kind="trends")
     db_session.add(run)
     await db_session.flush()
     return run

@@ -169,7 +169,12 @@ here in the same change.
 ```
 extract_text_from_memes    → registers images + EasyOCR (EN/ES/RU)
 build_image_embeddings     → CLIP 512-dim vectors
-rebuild_duplicates         → near-duplicate clusters  [drops & recreates table — non-idempotent]
+rebuild_duplicates         → near-duplicate candidate pairs, incremental by default (only images
+                              without an existing tmp_duplicates row are probed); HNSW-assisted
+                              KNN, not a full cross join — see
+                              docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
+                              --full clears active-library pairs and re-probes everything;
+                              --k/--threshold override settings.DUPLICATES.K/THRESHOLD.
 clusterize                 → optimize cluster index
 
 build_tags_from_ocr        → rule-based tags from OCR text
@@ -200,7 +205,9 @@ trends_batch                → GLiNER NER over each configured trend source's f
                                batch/trends/seed_sources.py, not part of the regular run.
 ```
 
-Most jobs are idempotent (clear and rebuild). Exception: `rebuild_duplicates` drops its table each run.
+Most jobs are idempotent (clear and rebuild). `rebuild_duplicates` is also idempotent as of
+2026-07-25 — it inserts incrementally into a persistent, migration-managed `tmp_duplicates` table
+(`ON CONFLICT DO NOTHING`) rather than dropping and recreating it every run.
 
 **Full re-run (re-process all images):**
 Do NOT clear the `ocr_texts` table. Instead:

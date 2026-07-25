@@ -1,62 +1,108 @@
+import argparse
 import asyncio
 
 from sqlalchemy import text
 
+from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
 
+# Scoping fragments for the active-library rebuild -- see
+# docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
+# Ingestion's Tier A/Tier B review will call the same find_duplicates() shape with
+# different probe/corpus fragments and threshold, not this script's CLI.
+_ACTIVE_PROBE_INCREMENTAL = """
+    SELECT i.id, e.embedding
+    FROM images i
+    JOIN embeddings e ON e.image_id = i.id
+    WHERE i.status = 'active'
+      AND NOT EXISTS (
+          SELECT 1 FROM tmp_duplicates d
+          WHERE d.image_id1 = i.id OR d.image_id2 = i.id
+      )
+"""
 
-async def create_tmp_duplicates(session: AsyncSessionLocal) -> None:
-    statements = [
-        """
-        DROP TABLE IF EXISTS tmp_duplicates
-        """,
-        """
-        CREATE TABLE tmp_duplicates AS
-        WITH image_embeddings AS (
-            SELECT i.id, e.embedding, i.created_at
-            FROM images i
-            JOIN embeddings e ON i.id = e.image_id
-        )
-        SELECT ROW_NUMBER() OVER () AS id,
-               ie1.id AS image_id1,
-               ie2.id AS image_id2,
-               ie1.created_at AS created_at,
-               ie1.embedding <=> ie2.embedding AS distance
-        FROM image_embeddings ie1
-        JOIN image_embeddings ie2 ON true
-        """,
-        "ALTER TABLE tmp_duplicates ADD PRIMARY KEY (id)",
-        "CREATE INDEX idx_tmp_duplicates_id_distance ON tmp_duplicates (id DESC, distance)",
-        "CREATE INDEX idx_tmp_duplicates_distance ON tmp_duplicates (distance)",
-        "CREATE INDEX idx_tmp_duplicates_id ON tmp_duplicates (id DESC)",
-        # Postgres does not auto-index the referencing side of a FK. Without
-        # these, ON DELETE CASCADE below forces a full sequential scan of this
-        # (cross-join-sized) table for every image deleted elsewhere.
-        "CREATE INDEX idx_tmp_duplicates_image_id1 ON tmp_duplicates (image_id1)",
-        "CREATE INDEX idx_tmp_duplicates_image_id2 ON tmp_duplicates (image_id2)",
-        # CREATE TABLE AS SELECT carries no constraints, so these need to be
-        # (re)added on every rebuild — otherwise a deleted image's rows
-        # linger here forever instead of cascading like tmp_clusters does.
-        "ALTER TABLE tmp_duplicates ADD CONSTRAINT tmp_duplicates_image_id1_fkey "
-        "FOREIGN KEY (image_id1) REFERENCES images(id) ON DELETE CASCADE",
-        "ALTER TABLE tmp_duplicates ADD CONSTRAINT tmp_duplicates_image_id2_fkey "
-        "FOREIGN KEY (image_id2) REFERENCES images(id) ON DELETE CASCADE",
-    ]
+_ACTIVE_PROBE_FULL = """
+    SELECT i.id, e.embedding
+    FROM images i
+    JOIN embeddings e ON e.image_id = i.id
+    WHERE i.status = 'active'
+"""
 
-    for stmt in statements:
-        print(stmt)
-        await session.execute(text(stmt))
+_ACTIVE_CORPUS_FILTER = "i2.status = 'active'"
 
 
-async def main():
+async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: int, threshold: float) -> int:
+    """Insert candidate duplicate pairs found by probing `probe_sql` images (must select
+    exactly (id, embedding)) against `corpus_filter_sql`-scoped neighbors, via an
+    HNSW-assisted per-image KNN search rather than a full cross join. Idempotent --
+    re-running with no new probe rows inserts zero rows, and a pair already present (from
+    either probe direction) is skipped via ON CONFLICT DO NOTHING. Returns the number of
+    rows actually inserted."""
+    stmt = text(f"""
+        INSERT INTO tmp_duplicates (image_id1, image_id2, distance, match_source)
+        SELECT
+            LEAST(probe.id, nn.image_id)    AS image_id1,
+            GREATEST(probe.id, nn.image_id) AS image_id2,
+            nn.distance,
+            nn.match_source
+        FROM ({probe_sql}) AS probe(id, embedding)
+        CROSS JOIN LATERAL (
+            SELECT
+                e2.image_id,
+                probe.embedding <=> e2.embedding AS distance,
+                CASE WHEN i2.status = 'active' THEN 'cross_corpus' ELSE 'in_batch' END AS match_source
+            FROM embeddings e2
+            JOIN images i2 ON i2.id = e2.image_id
+            WHERE e2.image_id != probe.id
+              AND ({corpus_filter_sql})
+            ORDER BY probe.embedding <=> e2.embedding
+            LIMIT :k
+        ) nn
+        WHERE nn.distance < :threshold
+        ON CONFLICT (image_id1, image_id2) DO NOTHING
+    """)
+    result = await session.execute(stmt, {"k": k, "threshold": threshold})
+    return result.rowcount
 
+
+async def rebuild_active_library(session, k: int, threshold: float, full: bool = False) -> int:
+    if full:
+        print("Full rebuild: clearing existing active-library candidate pairs...")
+        # Scoped to pairs where both sides are active, so a future in-flight ingestion
+        # review (pending-involving rows) is never touched by a routine active-library
+        # rebuild.
+        await session.execute(text("""
+            DELETE FROM tmp_duplicates
+            WHERE image_id1 IN (SELECT id FROM images WHERE status = 'active')
+              AND image_id2 IN (SELECT id FROM images WHERE status = 'active')
+        """))
+        probe_sql = _ACTIVE_PROBE_FULL
+    else:
+        probe_sql = _ACTIVE_PROBE_INCREMENTAL
+
+    return await find_duplicates(session, probe_sql, _ACTIVE_CORPUS_FILTER, k, threshold)
+
+
+async def main(k: int, threshold: float, full: bool) -> None:
     async with AsyncSessionLocal() as session:
-        await create_tmp_duplicates(session)
+        inserted = await rebuild_active_library(session, k=k, threshold=threshold, full=full)
         await session.commit()
-
+        print(f"Inserted {inserted} candidate duplicate pair(s) (k={k}, threshold={threshold}).")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
+    parser.add_argument("--full", action="store_true",
+                        help="Clear existing active-library candidate pairs and re-probe every "
+                             "active image (default: incremental -- only images with no existing "
+                             "tmp_duplicates row are probed)")
+    parser.add_argument("--k", type=int, default=None,
+                        help="Neighbors considered per probe image (default: settings.DUPLICATES.K)")
+    parser.add_argument("--threshold", type=float, default=None,
+                        help="Candidate distance cutoff (default: settings.DUPLICATES.THRESHOLD)")
+    args = parser.parse_args()
+    load_env(args.env)
+    k = args.k if args.k is not None else settings.DUPLICATES.K
+    threshold = args.threshold if args.threshold is not None else settings.DUPLICATES.THRESHOLD
+    asyncio.run(main(k, threshold, args.full))

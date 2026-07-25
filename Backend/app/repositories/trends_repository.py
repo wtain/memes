@@ -4,7 +4,7 @@ from datetime import date
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from Storage.models import TrendsRun, TrendsRunResult
+from Storage.models import BatchRun, TrendsRunResult
 
 
 class TrendsRepository:
@@ -16,10 +16,10 @@ class TrendsRepository:
         label: str | None = None,
         name: str | None = None,
     ) -> list[date]:
-        date_expr = cast(TrendsRun.created_at, Date)
-        query = select(date_expr).distinct()
+        date_expr = cast(BatchRun.created_at, Date)
+        query = select(date_expr).select_from(BatchRun).where(BatchRun.kind == "trends").distinct()
         if label or name:
-            query = query.join(TrendsRunResult, TrendsRun.run_id == TrendsRunResult.run_id)
+            query = query.join(TrendsRunResult, BatchRun.run_id == TrendsRunResult.run_id)
             if label:
                 query = query.where(TrendsRunResult.label == label)
             if name:
@@ -28,19 +28,19 @@ class TrendsRepository:
         result = await self._session.execute(query)
         return list(result.scalars().all())
 
-    async def get_runs_for_date(self, run_date: date) -> list[TrendsRun]:
+    async def get_runs_for_date(self, run_date: date) -> list[BatchRun]:
         result = await self._session.execute(
-            select(TrendsRun)
-            .where(cast(TrendsRun.created_at, Date) == run_date)
-            .order_by(TrendsRun.created_at.desc())
+            select(BatchRun)
+            .where(BatchRun.kind == "trends", cast(BatchRun.created_at, Date) == run_date)
+            .order_by(BatchRun.created_at.desc())
         )
         return list(result.scalars().all())
 
-    async def get_latest_run_for_date(self, run_date: date) -> TrendsRun | None:
+    async def get_latest_run_for_date(self, run_date: date) -> BatchRun | None:
         result = await self._session.execute(
-            select(TrendsRun)
-            .where(cast(TrendsRun.created_at, Date) == run_date)
-            .order_by(TrendsRun.created_at.desc())
+            select(BatchRun)
+            .where(BatchRun.kind == "trends", cast(BatchRun.created_at, Date) == run_date)
+            .order_by(BatchRun.created_at.desc())
             .limit(1)
         )
         return result.scalar_one_or_none()
@@ -73,18 +73,19 @@ class TrendsRepository:
         name: str | None = None,
         min_value: int = 10,
     ):
-        date_expr = cast(TrendsRun.created_at, Date)
+        date_expr = cast(BatchRun.created_at, Date)
         value_sum = func.sum(TrendsRunResult.value)
         query = (
             select(
-                TrendsRun.run_id,
+                BatchRun.run_id,
                 date_expr.label("date"),
                 TrendsRunResult.label,
                 TrendsRunResult.name,
                 value_sum.label("value"),
             )
-            .join(TrendsRunResult, TrendsRun.run_id == TrendsRunResult.run_id)
-            .group_by(TrendsRun.run_id, date_expr, TrendsRunResult.label, TrendsRunResult.name)
+            .join(TrendsRunResult, BatchRun.run_id == TrendsRunResult.run_id)
+            .where(BatchRun.kind == "trends")
+            .group_by(BatchRun.run_id, date_expr, TrendsRunResult.label, TrendsRunResult.name)
             .having(value_sum >= min_value)
             .order_by(date_expr.desc(), value_sum.desc())
         )

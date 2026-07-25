@@ -9,7 +9,8 @@ from Storage.db import AsyncSessionLocal
 from batch.trends.connectors.registry import get_connector
 from batch.trends.processing import Processor
 from batch.trends.resolution import resolve_labels, resolve_language, resolve_model
-from repository.trends import TrendSourceRepository, TrendsRunRepository, TrendsRunResultRepository
+from repository.batch_runs import BatchRunRepository
+from repository.trends import TrendSourceRepository, TrendsRunResultRepository
 from rules.normalize import LEMMATIZABLE_LANGUAGES, lemmatize_phrase, make_morph
 
 
@@ -39,9 +40,9 @@ async def main():
         sources_repo = TrendSourceRepository(session)
         sources = await sources_repo.get_all()
 
-        runs_repo = TrendsRunRepository(session)
+        runs_repo = BatchRunRepository(session)
 
-        run_id = await runs_repo.create_run()
+        run_id = await runs_repo.create_run(kind="trends")
 
         results_repo = TrendsRunResultRepository(session, run_id)
 

@@ -1,0 +1,62 @@
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from Storage.models import BatchRun, RunStatus
+
+
+class BatchRunRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create_run(self, kind: str, stage: str | None = None) -> uuid.UUID:
+        run = BatchRun(kind=kind, status=str(RunStatus.started), stage=stage)
+        self._session.add(run)
+        await self._session.flush()  # populates run_id without closing the transaction
+        return run.run_id
+
+    async def set_stage(self, run_id: uuid.UUID, stage: str) -> None:
+        run = await self._get(run_id)
+        run.stage = stage
+        await self._session.flush()
+
+    async def update_stats(self, run_id: uuid.UUID, **kwargs) -> None:
+        run = await self._get(run_id)
+        run.stats = {**(run.stats or {}), **kwargs}
+        await self._session.flush()
+
+    async def commit(self, run_id: uuid.UUID, stats: dict | None = None) -> None:
+        run = await self._get(run_id)
+        run.status = str(RunStatus.completed)
+        run.completed_at = datetime.now(timezone.utc)
+        if stats is not None:
+            run.stats = {**(run.stats or {}), **stats}
+        await self._session.flush()
+
+    async def fail(self, run_id: uuid.UUID, error: str | None = None) -> None:
+        run = await self._get(run_id)
+        run.status = str(RunStatus.failed)
+        run.completed_at = datetime.now(timezone.utc)
+        if error is not None:
+            run.error = error
+        await self._session.flush()
+
+    async def get_run(self, run_id: uuid.UUID) -> BatchRun | None:
+        return await self._get(run_id)
+
+    async def get_active_run(self, kind: str) -> BatchRun | None:
+        result = await self._session.execute(
+            select(BatchRun)
+            .where(BatchRun.kind == kind, BatchRun.status == str(RunStatus.started))
+            .order_by(BatchRun.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def _get(self, run_id: uuid.UUID) -> BatchRun:
+        result = await self._session.execute(
+            select(BatchRun).where(BatchRun.run_id == run_id)
+        )
+        return result.scalar_one()

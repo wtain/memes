@@ -42,3 +42,13 @@ search:
   fuzzy_min_lemma_length: 5
   fuzzy_similarity_threshold: 0.35
   phonetic_min_lemma_length: 5
+
+duplicates:
+  # Candidate cutoff for rebuild_duplicates.py's KNN search -- cheap/loose, decides what's
+  # worth storing in tmp_duplicates at all. Distinct from clusterize.py's own tighter
+  # PROXIMITY_THRESHOLD (0.05), which decides what's shown as a confirmed duplicate cluster.
+  # See docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
+  threshold: 0.3
+  # Neighbors considered per probe image. Unvalidated starting point -- see that spec's
+  # Open Questions.
+  k: 20

@@ -23,7 +23,7 @@ from repository.images import ImagesRepository
 PIPELINE = "easyocr:en"
 
 
-async def io_producer(path, io_queue, pipeline, metrics_listener, tracker: ProgressTracker):
+async def io_producer(path, io_queue, pipeline, metrics_listener, tracker: ProgressTracker, target_status: str = "active"):
     async with AsyncSessionLocal() as session:
         status_repo = ImageProcessingStatusRepository(session, pipeline)
         image_repo = ImagesRepository(session)
@@ -39,14 +39,28 @@ async def io_producer(path, io_queue, pipeline, metrics_listener, tracker: Progr
                 continue
 
             image = await image_repo.find_image_by_filename(file)
-            if image and not await status_repo.should_process(image.id):
-                metrics_listener.increment("skipped.existing")
+
+            if image is None:
+                # Auto-registering unregistered files only makes sense for the default
+                # "active" scope (a file dropped directly into BASE_PATH outside the
+                # ingestion pipeline). Ingestion's own --status pending pre-pass runs
+                # against already-registered pending images only -- see
+                # docs/superpowers/specs/2026-07-25-image-visibility-status-design.md.
+                if target_status not in ("active", "all"):
+                    metrics_listener.increment("skipped.not_registered")
+                    tracker.skip()
+                    continue
+                image = await image_repo.register_image(file)
+                metrics_listener.increment("new.registered")
+            elif target_status != "all" and image.status != target_status:
+                metrics_listener.increment("skipped.status_mismatch")
                 tracker.skip()
                 continue
 
-            if image is None:
-                image = await image_repo.register_image(file)
-                metrics_listener.increment("new.registered")
+            if not await status_repo.should_process(image.id):
+                metrics_listener.increment("skipped.existing")
+                tracker.skip()
+                continue
 
             await status_repo.mark_started(image)
 
@@ -186,7 +200,7 @@ async def gpu_consumer(
         tracker.mark_done()
 
 
-async def run(path: str, batch_size: int = 100, progress_every: int = 10) -> None:
+async def run(path: str, batch_size: int = 100, progress_every: int = 10, target_status: str = "active") -> None:
     total = len([f for f in os.listdir(path) if not os.path.isdir(os.path.join(path, f))])
     tracker = ProgressTracker(total=total, report_every=progress_every)
 
@@ -199,7 +213,7 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10) -> Non
         committer = BatchCommitter(session, batch_size=batch_size, pipeline=PIPELINE)
         try:
             await asyncio.gather(
-                io_producer(path, io_queue, PIPELINE, metrics_listener, tracker),
+                io_producer(path, io_queue, PIPELINE, metrics_listener, tracker, target_status),
                 cpu_worker(io_queue, cpu_queue, cpu_executor, metrics_listener),
                 gpu_consumer(cpu_queue, PIPELINE, metrics_listener, committer, tracker),
             )
@@ -212,10 +226,10 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10) -> Non
     metrics_listener.print()
 
 
-async def main(path: str) -> None:
+async def main(path: str, target_status: str = "active") -> None:
     batch_size = settings.GENERAL.BATCH_SIZE
     progress_every = settings.GENERAL.PROGRESS_EVERY
-    await run(path, batch_size=batch_size, progress_every=progress_every)
+    await run(path, batch_size=batch_size, progress_every=progress_every, target_status=target_status)
 
 
 """
@@ -227,8 +241,12 @@ async def main(path: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
+    parser.add_argument("--status", choices=["pending", "active", "all"], default="active",
+                        help="Only OCR images with this registration status (default: active). "
+                             "'pending' is for the ingestion pipeline's pre-review OCR pass; "
+                             "unregistered files are only auto-registered in the default 'active' mode.")
     args = parser.parse_args()
     load_env(args.env)
     source_path = settings.BASE_PATH
     print(f"Base path: {source_path}")
-    asyncio.run(main(source_path))
+    asyncio.run(main(source_path, target_status=args.status))

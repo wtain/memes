@@ -14,26 +14,29 @@ from Storage.models import Embedding
 from Storage.models import Image as Img
 
 
-async def main(incremental: bool):
+async def main(incremental: bool, target_status: str = "active"):
+
+    status_filter = () if target_status == "all" else (Img.status == target_status,)
 
     async with AsyncSessionLocal() as session:
         if not incremental:
-            print("Deleting all embeddings...")
+            print(f"Deleting embeddings (status={target_status})...")
+            in_scope_ids = select(Img.id).where(*status_filter).scalar_subquery()
             await session.execute(
-                delete(Embedding)
+                delete(Embedding).where(Embedding.image_id.in_(in_scope_ids))
             )
             await session.commit()
             print("Done")
 
         total_images = (await session.execute(
-            select(count(Img.id))
+            select(count(Img.id)).where(*status_filter)
         )).scalar_one()
 
         if incremental:
             has_embedding = select(Embedding.image_id).distinct().scalar_subquery()
-            stmt = select(Img.filename, Img.id).where(Img.id.not_in(has_embedding))
+            stmt = select(Img.filename, Img.id).where(Img.id.not_in(has_embedding), *status_filter)
         else:
-            stmt = select(Img.filename, Img.id)
+            stmt = select(Img.filename, Img.id).where(*status_filter)
 
         result = await session.execute(stmt)
 
@@ -72,6 +75,9 @@ if __name__ == "__main__":
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     parser.add_argument("--incremental", action="store_true",
                         help="Only embed images that have no embedding yet (default: clear all and reprocess)")
+    parser.add_argument("--status", choices=["pending", "active", "all"], default="active",
+                        help="Only embed images with this registration status (default: active). "
+                             "Ingestion's own duplicate-review stage calls this with --status pending.")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(args.incremental))
+    asyncio.run(main(args.incremental, target_status=args.status))

@@ -30,7 +30,7 @@ class ImageRepository:
         img = aliased(Image)
         image_tag = aliased(ImageTag)
 
-        query = select(img.id)
+        query = select(img.id).where(img.status == "active")
 
         matching_ids = await matching_image_ids(self.session, q)
         if matching_ids is not None:
@@ -129,7 +129,7 @@ class ImageRepository:
             select(embed.image_id, embed.embedding.cosine_distance(embedding), img.filename, extras.flagged)
             .join(img, img.id == embed.image_id)
             .outerjoin(extras, img.id == extras.image_id)
-            .filter(embed.image_id != image_id)
+            .filter(embed.image_id != image_id, img.status == "active")
             .order_by(embed.embedding.cosine_distance(embedding))
             .limit(limit)
         )
@@ -153,7 +153,11 @@ class ImageRepository:
             .join(cand_emb, cand_emb.image_description_id == cand_desc.id)
             .join(img, img.id == cand_desc.image_id)
             .outerjoin(extras, extras.image_id == cand_desc.image_id)
-            .where(source_desc.image_id == image_id, cand_desc.image_id != image_id)
+            .where(
+                source_desc.image_id == image_id,
+                cand_desc.image_id != image_id,
+                img.status == "active",
+            )
             .group_by(cand_desc.image_id, img.filename, extras.flagged)
             .order_by("distance")
             .limit(limit)
@@ -258,7 +262,7 @@ class ImageRepository:
         query = (
             select(img.id, img.filename, img.created_at, extras.flagged)
             .outerjoin(extras, img.id == extras.image_id)
-            .where(~exists_subquery)
+            .where(~exists_subquery, img.status == "active")
         )
 
         if cursor_created_at and cursor_id:
@@ -291,7 +295,7 @@ class ImageRepository:
         query = (
             select(img.id, img.filename, img.created_at, extras.flagged)
             .outerjoin(extras, img.id == extras.image_id)
-            .where(~exists_subquery)
+            .where(~exists_subquery, img.status == "active")
         )
 
         if cursor_created_at and cursor_id:
@@ -426,6 +430,7 @@ class ImageRepository:
             )
             .join(cluster, cluster.image_id == img.id)
             .outerjoin(extras, img.id == extras.image_id)
+            .where(img.status == "active")
         )
 
         if after_cluster_id is not None:
@@ -453,7 +458,7 @@ class ImageRepository:
         query = (
             select(img.id, img.filename, img.created_at, extras.flagged)
             .join(extras, img.id == extras.image_id)
-            .where(extras.flagged == True)
+            .where(extras.flagged == True, img.status == "active")
         )
 
         if cursor_created_at and cursor_id:
