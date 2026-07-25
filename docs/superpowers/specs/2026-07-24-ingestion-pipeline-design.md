@@ -77,6 +77,14 @@ below).
    Tier B review, and only then promotes. This keeps the "nothing skips review before becoming
    visible" guarantee intact, at the cost of one more stage and an OCR pass earlier than the
    original single-pass design assumed.
+6. **Rejected images move to a single `BASE_PATH/rejected/` directory**, not split by tier — kept
+   deliberately separate from `PATH_INGESTION_SOURCE/duplicates/` (stage 1's hash-dedup rejects) so
+   the two directories read unambiguously: `duplicates/` is exact-hash matches caught before a file
+   ever became a DB row or entered `BASE_PATH`; `rejected/` is anything that made it further (had an
+   embedding, went through human review) and was rejected there. Since the directory no longer
+   encodes *which tier* rejected an image, per-tier audit relies on the DB — the `status = 'rejected'`
+   row plus the `tmp_duplicates` pair that triggered it (queryable, not lost) rather than the
+   filename path.
 
 ---
 
@@ -127,7 +135,7 @@ Survivors register as `Image` rows (`status = 'pending'`, `ingestion_batch_id` =
    means the existing active image is fixed (not touched) and only the new image is a candidate for
    rejection.
 4. **Apply decisions.** Confirmed duplicates: `status = 'rejected'`; file moved from `BASE_PATH`
-   into a rejected-images location (naming TBD — open question 4). Row stays for undo.
+   into `BASE_PATH/rejected/` (Decision #6). Row stays for undo.
 
 ### Stage 3 — OCR pre-pass + Tier B: loose-similarity embedding dedup
 
@@ -215,11 +223,6 @@ skips already-processed images the normal way), so the pipeline picks up at
    starting point (a value already validated for the active library, though not specifically for
    "small new batch vs. large existing corpus"); Tier B's `0.05`–`0.3` band and both tiers' `k` are
    unvalidated guesses pending real data.
-4. **Rejected-images directory naming and location** — Decision #1 means Tier A/B rejects move
-   within `BASE_PATH`, not back into `PATH_INGESTION_SOURCE` (the original proposal's
-   `duplicates2`/`duplicates3` naming assumed the latter). Needs a concrete directory structure
-   under `BASE_PATH` — e.g. `BASE_PATH/rejected/tier_a/` and `BASE_PATH/rejected/tier_b/` — before
-   stage 2/3 apply-decision code is written.
 
 ## Risks
 
@@ -244,8 +247,8 @@ skips already-processed images the normal way), so the pipeline picks up at
 
 1. Implement the three prerequisites (image-visibility and batch-run-tracking are both needed
    before ingestion-specific work starts; duplicate-clustering can follow once Tier A work begins).
-2. Resolve open questions 1 (cross-corpus review UX) and 4 (rejected-directory layout) — both block
-   writing stage 2/3 apply-decision code.
+2. Resolve open question 1 (cross-corpus review UX) — blocks writing stage 3's apply-decision code
+   for `cross_corpus`-tagged members specifically.
 3. Phased build: Phase A — stage 1 (hash dedup, in-batch + cross-corpus, lowest risk, no schema
    dependency beyond `content_hash` backfill). Phase B — Tier A (registration, embeddings, merged
    tight-threshold review queue). Phase C — Tier B (OCR pre-pass, merged loose-threshold review
