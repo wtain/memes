@@ -54,15 +54,20 @@ that index for approximate nearest-neighbor search instead of a full scan — tu
 O(n²) to roughly O(n·k):
 
 ```sql
-INSERT INTO tmp_duplicates (image_id1, image_id2, distance)
+INSERT INTO tmp_duplicates (image_id1, image_id2, distance, match_source)
 SELECT
     LEAST(probe.image_id, nn.image_id)    AS image_id1,
     GREATEST(probe.image_id, nn.image_id) AS image_id2,
-    nn.distance
+    nn.distance,
+    nn.match_source
 FROM (:probe_set) AS probe(image_id, embedding)  -- see scoping below
 CROSS JOIN LATERAL (
-    SELECT e2.image_id, probe.embedding <=> e2.embedding AS distance
+    SELECT
+        e2.image_id,
+        probe.embedding <=> e2.embedding AS distance,
+        CASE WHEN i2.status = 'active' THEN 'cross_corpus' ELSE 'in_batch' END AS match_source
     FROM embeddings e2
+    JOIN images i2 ON i2.id = e2.image_id
     WHERE e2.image_id != probe.image_id
       AND (:corpus_filter)                 -- see scoping below
     ORDER BY probe.embedding <=> e2.embedding
@@ -74,24 +79,34 @@ ON CONFLICT (image_id1, image_id2) DO NOTHING;
 
 `LEAST`/`GREATEST` on the two UUIDs normalizes each pair to a single stored direction, which is
 what makes `ON CONFLICT (image_id1, image_id2) DO NOTHING` both meaningful (a real uniqueness
-constraint, not an accidental dedup of identical rows) and safe to re-run.
+constraint, not an accidental dedup of identical rows) and safe to re-run. `match_source` is a
+small addition (see Schema below) added specifically for ingestion's merged review queues — see
+`2026-07-24-ingestion-pipeline-design.md`'s decision to merge in-batch and cross-corpus review into
+one queue per tier rather than four separate ones; the active-library rebuild caller ignores it
+(always `cross_corpus`, since its probe and corpus are both `status = 'active'`).
 
-### Scoping (`probe_set` / `corpus_filter`) — this is what unifies rebuild, ingestion stage 2, and stage 3
+### Scoping (`probe_set` / `corpus_filter`) — this is what unifies rebuild and both ingestion tiers
 
 The query shape above takes two independent scopes: which images are doing the searching (probe
-set) and which images they're allowed to match against (corpus filter). Three callers, three
-scope combinations, same query:
+set) and which images they're allowed to match against (corpus filter). Two callers, three scope
+combinations (ingestion's two tiers share the *same* scoping — they differ only in `:threshold`):
 
-| Caller | Probe set | Corpus filter |
-|---|---|---|
-| **Active-library incremental rebuild** (replaces today's default `rebuild_duplicates.py` run) | Images with no existing `tmp_duplicates` row yet (`NOT EXISTS (SELECT 1 FROM tmp_duplicates WHERE image_id1 = e.image_id OR image_id2 = e.image_id)`) | All images (`status = 'active'`, per the visibility design) |
-| **Ingestion stage 2** (in-batch near-dup) | `ingestion_batch_id = :batch_id AND status = 'pending'` | Same — `ingestion_batch_id = :batch_id AND status = 'pending'` |
-| **Ingestion stage 3** (cross-corpus near-dup) | `ingestion_batch_id = :batch_id AND status = 'pending'` | `status = 'active'` |
+| Caller | Probe set | Corpus filter | `:threshold` |
+|---|---|---|---|
+| **Active-library incremental rebuild** (replaces today's default `rebuild_duplicates.py` run) | Images with no existing `tmp_duplicates` row yet (`NOT EXISTS (SELECT 1 FROM tmp_duplicates WHERE image_id1 = e.image_id OR image_id2 = e.image_id)`) | All images (`status = 'active'`, per the visibility design) | configured default (candidate cutoff) |
+| **Ingestion Tier A** (pre-OCR, strong similarity) | `ingestion_batch_id = :batch_id AND status = 'pending'` | `status = 'active' OR (status = 'pending' AND ingestion_batch_id = :batch_id)` — i.e. "the active corpus, plus this image's own batch siblings" | tight (`~0.05`) |
+| **Ingestion Tier B** (post-OCR-prepass, loose similarity) | Same probe set as Tier A | Same corpus filter as Tier A | loose (`0.05`–`0.3`) |
 
-This directly replaces two previously-separate mechanisms the ingestion draft had proposed
-independently — a "scoped cross join" for stage 2 and a "similarity search, like the existing
-endpoint" for stage 3 — with one parameterized primitive. Worth calling out as the main payoff of
-building this prerequisite rather than letting ingestion special-case its own dedup query twice.
+A single corpus filter covering both "the active library" and "this image's own batch" is what
+makes the merged review queue possible at the query level, not just the UI level — one KNN pass per
+probe image already finds both kinds of match, tagged via `match_source` rather than requiring two
+separate queries whose results get merged in application code.
+
+This directly replaces what the ingestion draft had originally proposed as two independent
+mechanisms — a "scoped cross join" for in-batch dedup and a "similarity search, like the existing
+endpoint" for cross-corpus dedup — with one parameterized primitive, called twice (once per tier,
+different threshold) rather than four times. Worth calling out as the main payoff of building this
+prerequisite rather than letting ingestion special-case its own dedup query.
 
 **Why probing only from the new/pending side is still correct:** when a new image is inserted, an
 *existing* active image's true nearest-neighbor set could now include that new image — but since
@@ -114,6 +129,7 @@ op.create_table(
     sa.Column('image_id1', UUID(as_uuid=True), sa.ForeignKey('images.id', ondelete='CASCADE'), nullable=False),
     sa.Column('image_id2', UUID(as_uuid=True), sa.ForeignKey('images.id', ondelete='CASCADE'), nullable=False),
     sa.Column('distance', sa.Float, nullable=False),
+    sa.Column('match_source', sa.String(20), nullable=True),  # 'in_batch' | 'cross_corpus'; null for active-library rebuild rows
     sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
 )
 op.create_unique_constraint('uq_tmp_duplicates_pair', 'tmp_duplicates', ['image_id1', 'image_id2'])
@@ -173,6 +189,17 @@ it as part of this change. (2) `clusterize.py` still does a full rebuild of `tmp
 whatever's in `tmp_duplicates` each run — that's fine (`tmp_clusters` is small, cluster-membership
 rows, not pairwise-distance rows) and out of scope for this spec.
 
+**Ingestion's merged review queues need clusters too, but not `clusterize.py`'s.** Grouping a
+tier's pairs into connected components (so a reviewer sees "these 3 images — 2 new, 1 already in
+the library — are one cluster" rather than a flat pair list) is a union-find over `tmp_duplicates`
+rows, same as `clusterize.py` — but running the *global* `clusterize.py` for every ingestion review
+page load would needlessly recompute clusters for the entire active library. Ingestion instead
+needs a small, batch-scoped variant: union-find restricted to rows where `image_id1` or `image_id2`
+belongs to the current batch (`ingestion_batch_id = :batch_id AND status = 'pending'`), which
+transitively pulls in any connected active images without touching unrelated parts of the corpus
+graph. Left as an implementation detail for the ingestion spec/build, not this one — the primitive
+query (rows touching the batch) is straightforward given the schema above.
+
 ---
 
 ## Migration / rollout
@@ -182,9 +209,10 @@ rows, not pairwise-distance rows) and out of scope for this spec.
 2. Add `settings.duplicates.k` / `settings.duplicates.threshold` to `environments/settings.yaml`
    (+ per-environment overrides if `general`'s larger corpus warrants different tuning).
 3. Rewrite `rebuild_duplicates.py`: `--incremental` (default) / `--full`, `--k`, `--threshold` args;
-   `LATERAL` KNN query per the scoping table above (active-library case only — ingestion's stage
-   2/3 scopes are consumed by the ingestion pipeline itself, calling the same underlying query
-   builder with different `probe_set`/`corpus_filter` parameters, not by this script's CLI).
+   `LATERAL` KNN query per the scoping table above (active-library case only — ingestion's Tier
+   A/B scopes are consumed by the ingestion pipeline itself, calling the same underlying query
+   builder with different `probe_set`/`corpus_filter`/`threshold` parameters, not by this script's
+   CLI).
 4. Update `tests/integration/test_rebuild_duplicates.py` for the new incremental/idempotent
    behavior (re-running with no new images should insert zero rows, not error).
 5. One-time: drop `general`'s existing oversized table, run a `--full` rebuild under the new
