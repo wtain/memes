@@ -55,9 +55,66 @@ than two common, unrelated dictionary words silently merging.
 Verified separately: checking `is_known` on the *already-lemmatized* lemma
 string (what `matching_image_ids` has in hand) gives identical results to
 checking it on the original raw query token, for every word tested above —
-so this can be implemented entirely inside `repository/ocr_lemmas.py` using
-the module's existing cached `_get_morph()` analyzer, without touching the
-shared `rules/normalize.py` interface used by many other callers.
+so `is_known` itself can be checked entirely inside `repository/ocr_lemmas.py`
+using the module's existing cached `_get_morph()` analyzer, without
+touching the shared `rules/normalize.py` interface used by many other
+callers.
+
+## Second empirical finding: lemmatization itself corrupts erratives before phonetics ever runs
+
+The check above only validated `is_known`. Separately testing the *phonetic
+code* on the already-lemmatized form (rather than the raw word) surfaced a
+second, more serious problem: pymorphy3's `.parse(word)[0].normal_form`,
+for a word it doesn't recognize, isn't a no-op — it runs pymorphy3's own
+unknown-word-guessing heuristics (suffix-pattern-based), which can invent
+letters that were never in the original word:
+
+```
+превед    -> normal_form "преведа"   -> phonetic code ПРИВИДА
+привет    -> normal_form "привет"    -> phonetic code ПРИВИТ     -- no longer matches!
+
+аффтар    -> normal_form "аффтара"   -> phonetic code АФТАРА
+автор     -> normal_form "автор"     -> phonetic code АФТАР      -- no longer matches!
+
+кросавчег -> normal_form "кросавчег" (unchanged) -> phonetic code КРАСАФЧИК
+красавчик -> normal_form "красавчик"             -> phonetic code КРАСАФЧИК  -- matches, but only by luck
+```
+
+Since both index-time (`batch/utils/ocr_lemmas.py`) and query-time
+(`matching_image_ids`) only ever see the *lemma*, never the raw token —
+that information is gone by the time phonetic matching would run — the
+two most commonly-cited erratives in this whole feature (`превед`,
+`аффтар`) would silently fail to match their canonical forms exactly
+because of this, with no way to recover the raw token downstream.
+
+**Fix**: `rules/normalize.py::lemmatize_word` returns `word.lower()`
+instead of pymorphy3's guessed `normal_form` when `parsed[0].is_known` is
+`False`. This is a deliberate, narrow change to shared infrastructure (used
+by the rules engine, tag derivation, BOW building, and concept clustering,
+not just this feature) — reviewed for blast radius before adopting:
+- No existing test in `tests/rules/test_normalize.py` or elsewhere pins a
+  specific pymorphy3-guessed `normal_form` for an out-of-vocabulary word —
+  checked directly, no hits.
+- The change is likely neutral-to-positive for other callers: grouping
+  distinct out-of-vocabulary spellings under an arbitrary invented guess
+  (current behavior) is arguably less correct than keeping each one
+  distinct (new behavior) for BOW counting and concept-cluster discovery,
+  since there's no real dictionary entry backing the guess either way.
+- Re-verified with the fix in place: `превед`/`привет` and
+  `аффтар`/`автор` now correctly collide, with the same
+  `_get_morph().parse(word)[0].is_known` gating as before — the fix only
+  changes what `is_known=False` words lemmatize *to*, not the flag itself.
+
+**Disclosed, accepted limitation**: this fix does not help erratives that
+imitate a specific *inflected* surface form of a word whose dictionary
+lemma differs from that surface form. `жжот` (errative) is meant to evoke
+`жжёт` ("[it] burns", a real 3rd-person-present verb form, `is_known=True`)
+— but `жжёт` lemmatizes to its infinitive `жечь` ("to burn"), a
+legitimately different surface form the errative was never imitating in
+the first place. Fixing this would require matching against un-lemmatized
+surface forms end-to-end, a materially larger change; out of scope here.
+`жжот` remains a valid algorithm-level test case (pure `russian_metaphone`
+behavior) but is not used as a cross-matching integration test case.
 
 ## Design
 
@@ -153,10 +210,24 @@ the algorithm reference (not copied code).
 
 ## Storage
 
-New column on `OCRLemma`: `phonetic_code` (`String`, not null), with a plain
-btree index (`ix_ocr_lemmas_phonetic_code`) — equality lookup only, no
+New column on `OCRLemma`: `phonetic_code` (`String`, **nullable**), with a
+plain btree index (`ix_ocr_lemmas_phonetic_code`) — equality lookup only, no
 trigram/GIN needed since phonetic matching is exact-code lookup, not
 similarity search.
+
+Nullable rather than `NOT NULL` deliberately: `OCRLemmasSaver.add_lemmas()`
+(the real production write path) always computes and sets it, but
+`tests/integration/test_ocr_lemmas_repository.py` and other test fixtures
+construct `OCRLemma(...)` directly via the plain ORM constructor for tests
+that have nothing to do with phonetic matching. Forcing `NOT NULL` would
+require touching every one of those call sites just to satisfy a constraint
+irrelevant to what they're testing. A row with `phonetic_code IS NULL`
+simply never matches any phonetic lookup (`NULL` never equals anything in
+SQL) — correctly inert for rows that don't care about this feature. This
+also avoids importing `rules/phonetic.py` (business logic) into
+`Storage/models.py`, which sits below `rules/`/`repository/` in this
+project's layering (see the Architecture section of `CLAUDE.md`) — an ORM
+`@validates` hook was considered and rejected for this reason.
 
 Computed once per row at write time in
 `OCRLemmasSaver.add_lemmas()` (`repository/ocr_lemmas.py`), alongside the
@@ -169,13 +240,12 @@ of redundancy.
 
 **Migration**: one Alembic revision, chained from the current head
 (`6fc209b37e8b_add_ocr_lemmas_trigram_index`):
-1. Add `phonetic_code` as nullable.
+1. Add `phonetic_code` as a nullable column.
 2. Data migration: iterate existing rows in Python, compute
    `russian_metaphone(lemma)`, batched `UPDATE`.
-3. Alter the column to `NOT NULL`.
-4. Create the btree index.
+3. Create the btree index.
 
-This is done inside the migration itself (not "just rerun the batch job")
+Step 2 is done inside the migration itself (not "just rerun the batch job")
 because `OCRLemmasSaver.add_lemmas()` upserts with
 `ON CONFLICT DO NOTHING` — a rerun of `build_ocr_lemmas.py` against
 already-indexed images would silently no-op on every existing row and never
@@ -205,9 +275,15 @@ search:
     its canonical form, when the canonical form is only reachable via the
     phonetic path (not exact, not trigram).
   - a real dictionary word that happens to phonetically collide with
-    another real word (e.g. `код`) does *not* pull in matches for the
-    other word (`кот`), because `is_known=True` blocks the phonetic
-    fallback for dictionary words.
+    another real word (`полка`/`палка` — both real, both length 5, both
+    unaffected by lemmatization since each is already its own nominative
+    singular form, phonetic code `ПАЛКА` for both, trigram similarity 0.333
+    so not already caught by the trigram tier) does *not* pull in matches
+    for the other word, because `is_known=True` blocks the phonetic
+    fallback for dictionary words. (`кот`/`код` — the pair used earlier in
+    this document to demonstrate the algorithm's own false-positive
+    behavior — can't be used for this end-to-end test: both are only 3
+    characters, below `PHONETIC_MIN_LEMMA_LENGTH`.)
   - a short (below `PHONETIC_MIN_LEMMA_LENGTH`) unknown token does not
     trigger phonetic matching.
   - a non-Cyrillic query token does not trigger phonetic matching.
