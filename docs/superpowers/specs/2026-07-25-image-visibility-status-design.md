@@ -58,9 +58,20 @@ op.create_index(
 Depends on `2026-07-25-batch-run-tracking-design.md` landing first (`ingestion_batch_id` FKs to
 `batch_runs.run_id`).
 
-- `status`: plain `String(20)`, values `pending` / `active` — matches the existing
+- `status`: plain `String(20)`, values `pending` / `active` / `rejected` — matches the existing
   `TrendsRun.status` / soon `BatchRun.status` convention of app-level string enums over native
   Postgres enum types (cheaper to extend later, no `ALTER TYPE`).
+
+**Why a third value, `rejected`, and not a hard delete.** Added per user feedback (2026-07-25): the
+existing agent-driven duplicate-review skill has produced false positives that permanently lost
+images, which is exactly the failure mode a reject-by-status-flip avoids. When ingestion review
+(stages 2/3 of `2026-07-24-ingestion-pipeline-design.md`) confirms a duplicate, the image's `status`
+flips to `rejected` rather than the row being deleted — the file still physically moves to
+`duplicates2/`/`duplicates3/` (the audit trail for *why*), but the DB row survives so an incorrect
+rejection can be undone from the review UI itself (flip back to `pending`, move the file back)
+without needing to reconstruct a deleted row from scratch. `rejected` needs no separate visibility
+audit work — every query already defaults to `status="active"`, so `rejected` is excluded by the
+exact same default as `pending`, for free.
 - **Partial index on `pending` only, not a plain index on `status`.** With images overwhelmingly
   `active` (pending images are a small, transient minority — reviewed and promoted within a batch's
   lifetime), a full index on `status` gives the planner almost no selectivity for the common
@@ -194,11 +205,8 @@ a new `select(Image...)`.
 
 ## Out of scope
 
-- Any UI for browsing pending images — that's the ingestion pipeline spec's concern, built on top
-  of the `status="pending"` parameter this spec adds.
-- Soft-delete / audit-trail semantics for images rejected during ingestion review — separate
-  concern, addressed in the main ingestion design (leaning recoverable given past false-positive
-  data loss with the existing duplicate-review skill — see that spec's Open Questions resolution).
-- Row-level security or DB-role-based enforcement of the pending/active split — the repository
+- Any UI for browsing pending images, or the actual reject/undo actions — that's the ingestion
+  pipeline spec's concern, built on top of the `status` values this spec adds.
+- Row-level security or DB-role-based enforcement of the pending/active/rejected split — the repository
   convention + contract test is the chosen mechanism; a DB-level guarantee was considered too heavy
   for a single-operator dev-workstation project and was rejected.
