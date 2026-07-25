@@ -21,6 +21,7 @@ Each database is a separate Postgres instance/port, not just a separate schema �
 ```dotenv
 DATABASE_URL=postgresql+asyncpg://...
 BASE_PATH=...
+PATH_INGESTION_SOURCE=...\inbox
 VITE_BACKEND_API_URL=http://...
 VITE_ENV_NAME=general
 FRONTEND_ORIGIN=...
@@ -30,6 +31,15 @@ TEXT_CONCEPTS_FILE=data/text-concepts.[environment-name].json
 TEXT_CONCEPTS_TEMPLATES_FILE=data/text-concepts.templates.[environment-name].json
 CONCEPT_IMAGES_DIR=images-[environment-name]
 ```
+
+`PATH_INGESTION_SOURCE` is where new images get dropped for review before entering the
+active library. Convention: `BASE_PATH\inbox` — a subdirectory of `BASE_PATH`, not a
+sibling. This is safe because every script that scans `BASE_PATH` (`extract_text_from_memes.py`
+and friends) does so non-recursively and already skips subdirectories (same reason
+`excluded/`, and now `rejected/`, don't interfere either) — files inside `inbox/` are
+invisible to the rest of the pipeline until Stage 1 moves them up into `BASE_PATH` itself.
+See `docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md` for the full pipeline;
+not required until you actually run `batch/ingest_hash_dedup.py` against this environment.
 
 ### Build and run database
 

@@ -217,10 +217,13 @@ class ImagesRepository:
         )
         return result.scalar_one_or_none()
 
-    async def register_image(self, file, status: str = "active"):
+    async def register_image(self, file, status: str = "active", content_hash: str | None = None,
+                              ingestion_batch_id=None):
         image = Image(
             filename=file,
             status=status,
+            content_hash=content_hash,
+            ingestion_batch_id=ingestion_batch_id,
         )
         self.session.add(image)
         await self.session.flush()  # image.id available

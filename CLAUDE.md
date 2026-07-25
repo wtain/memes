@@ -203,6 +203,17 @@ trends_batch                → GLiNER NER over each configured trend source's f
                                counts label:entity mentions per run, stores results for the
                                Trends UI/API. Sources (RSS/API connectors) are registered via
                                batch/trends/seed_sources.py, not part of the regular run.
+
+# Ingestion (new-image intake from PATH_INGESTION_SOURCE into the active library; partial --
+# only Stage 1 implemented so far, see docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md)
+ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOURCE, dedupes
+                               in-batch and against the active corpus's content_hash, registers
+                               survivors as `pending` images (content_hash + ingestion_batch_id
+                               set at registration) and moves them into BASE_PATH. Refuses to
+                               start if another ingestion run (batch_runs, kind="ingestion") is
+                               already in progress. Tier A/B near-duplicate review (embeddings,
+                               OCR pre-pass, human review) and promotion are later phases, not
+                               yet implemented.
 ```
 
 Most jobs are idempotent (clear and rebuild). `rebuild_duplicates` is also idempotent as of
