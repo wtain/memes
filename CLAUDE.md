@@ -205,15 +205,26 @@ trends_batch                → GLiNER NER over each configured trend source's f
                                batch/trends/seed_sources.py, not part of the regular run.
 
 # Ingestion (new-image intake from PATH_INGESTION_SOURCE into the active library; partial --
-# only Stage 1 implemented so far, see docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md)
+# Stage 1 + Tier A backend implemented so far, see
+# docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md)
 ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOURCE, dedupes
                                in-batch and against the active corpus's content_hash, registers
                                survivors as `pending` images (content_hash + ingestion_batch_id
                                set at registration) and moves them into BASE_PATH. Refuses to
                                start if another ingestion run (batch_runs, kind="ingestion") is
-                               already in progress. Tier A/B near-duplicate review (embeddings,
-                               OCR pre-pass, human review) and promotion are later phases, not
-                               yet implemented.
+                               already in progress.
+build_image_embeddings --status pending --incremental
+                             → embeds Stage 1's survivors (existing script/flag, no ingestion-
+                               specific code)
+ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_duplicates for the
+                               active ingestion run's pending images via the same merged
+                               probe/corpus find_duplicates() primitive rebuild_duplicates.py
+                               uses, at clusterize.py's PROXIMITY_THRESHOLD (0.05). --tier tier_b
+                               uses settings.DUPLICATES.THRESHOLD (0.3) but Tier B's OCR
+                               pre-pass and its review-queue behavior are not yet implemented.
+                               Review (listing clusters, resolving reject/keep decisions) is the
+                               /api/ingestion/* endpoints (Backend/app/api/ingestion.py) — no
+                               frontend page yet.
 ```
 
 Most jobs are idempotent (clear and rebuild). `rebuild_duplicates` is also idempotent as of

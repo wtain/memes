@@ -807,6 +807,114 @@ Returns row counts across all major tables in a single SQL round-trip.
 
 ---
 
+### Ingestion
+
+Tier A/B near-duplicate review for new images brought in via `batch/ingest_hash_dedup.py` /
+`batch/ingest_find_duplicates.py` — see
+`docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md`. All endpoints below
+implicitly operate on the current *active* ingestion run (`batch_runs`, `kind="ingestion"`,
+`status="started"`) — there is at most one at a time.
+
+#### Get Run Status
+
+- **URL**: `/api/ingestion/run`
+- **Method**: `GET`
+- **Response**: `RunStatusResponse`
+- **Errors**: `404` if no ingestion run is currently in progress
+- **Example**: `GET /api/ingestion/run`
+
+```json
+{
+  "run_id": "b3f1...",
+  "status": "started",
+  "stage": "tier_a_review",
+  "stats": { "intake": 3, "hash_duplicates_in_batch": 0, "hash_duplicates_cross_corpus": 0, "registered": 3 },
+  "created_at": "2026-07-25T18:58:12Z",
+  "completed_at": null
+}
+```
+
+#### List Pending Images
+
+- **URL**: `/api/ingestion/pending`
+- **Method**: `GET`
+- **Response**: `PendingImage[]`
+- **Example**: `GET /api/ingestion/pending`
+
+```json
+[
+  { "image_id": "a1b2...", "filename": "new.jpg", "created_at": "2026-07-25T18:58:12Z" }
+]
+```
+
+#### List Tier Clusters
+
+Near-duplicate candidate clusters for the given tier — one merged query covering both
+in-batch and cross-corpus matches (`match_source` per edge), per
+`2026-07-25-duplicate-clustering-incremental-design.md`. Only clusters with at least one
+still-undecided member are returned — resolved rows drop out automatically.
+
+- **URL**: `/api/ingestion/clusters/{tier}`
+- **Method**: `GET`
+- **Path params**: `tier` — `tier_a` (pre-OCR, tight threshold) or `tier_b` (post-OCR-prepass, loose threshold)
+- **Response**: `Cluster[]`
+- **Example**: `GET /api/ingestion/clusters/tier_a`
+
+```json
+[
+  {
+    "members": [
+      { "image_id": "a1b2...", "filename": "new.jpg", "status": "pending" },
+      { "image_id": "c3d4...", "filename": "existing.jpg", "status": "active" }
+    ],
+    "edges": [
+      { "image_id1": "a1b2...", "image_id2": "c3d4...", "distance": 0.021, "match_source": "cross_corpus" }
+    ]
+  }
+]
+```
+
+#### Resolve Cluster
+
+Applies per-image `reject`/`keep` decisions. `reject` flips the image's `status` to
+`rejected` and moves its file to `BASE_PATH/rejected/`; `keep` marks every candidate pair
+touching that image as reviewed for this tier, so it won't resurface in this tier's queue.
+Partial resolution is allowed — omit members you're not ready to decide yet.
+
+- **URL**: `/api/ingestion/clusters/{tier}/resolve`
+- **Method**: `POST`
+- **Body**: `ResolveRequest`
+- **Response**: `ResolveResponse`
+- **Example**:
+
+```json
+// Request
+{ "decisions": [
+  { "image_id": "a1b2...", "decision": "reject" },
+  { "image_id": "c3d4...", "decision": "keep" }
+] }
+
+// Response
+{ "rejected": ["a1b2..."], "kept": ["c3d4..."] }
+```
+
+#### Undo Reject
+
+Reverts a `rejected` image back to `pending` and moves its file back out of
+`BASE_PATH/rejected/`.
+
+- **URL**: `/api/ingestion/images/{image_id}/undo-reject`
+- **Method**: `POST`
+- **Response**: `UndoRejectResponse`
+- **Errors**: `404` if the image doesn't exist or isn't currently `rejected`
+- **Example**: `POST /api/ingestion/images/a1b2.../undo-reject`
+
+```json
+{ "image_id": "a1b2...", "status": "pending" }
+```
+
+---
+
 ## Running the API
 
 ### Development Mode

@@ -31,13 +31,19 @@ _ACTIVE_PROBE_FULL = """
 _ACTIVE_CORPUS_FILTER = "i2.status = 'active'"
 
 
-async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: int, threshold: float) -> int:
+async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: int, threshold: float,
+                           extra_params: dict | None = None) -> int:
     """Insert candidate duplicate pairs found by probing `probe_sql` images (must select
     exactly (id, embedding)) against `corpus_filter_sql`-scoped neighbors, via an
     HNSW-assisted per-image KNN search rather than a full cross join. Idempotent --
     re-running with no new probe rows inserts zero rows, and a pair already present (from
     either probe direction) is skipped via ON CONFLICT DO NOTHING. Returns the number of
-    rows actually inserted."""
+    rows actually inserted.
+
+    `probe_sql`/`corpus_filter_sql` may reference named bind params (e.g. `:batch_id`) --
+    pass their values via `extra_params` rather than string-interpolating them into the
+    fragment, even though callers so far only ever pass internally-generated values (never
+    raw user input)."""
     stmt = text(f"""
         INSERT INTO tmp_duplicates (image_id1, image_id2, distance, match_source)
         SELECT
@@ -61,7 +67,8 @@ async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: in
         WHERE nn.distance < :threshold
         ON CONFLICT (image_id1, image_id2) DO NOTHING
     """)
-    result = await session.execute(stmt, {"k": k, "threshold": threshold})
+    params = {"k": k, "threshold": threshold, **(extra_params or {})}
+    result = await session.execute(stmt, params)
     return result.rowcount
 
 

@@ -17,6 +17,7 @@ from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.trends import router as trends_router
 from Backend.app.api.uploads import router as uploads_router
 from Backend.app.api.bug_reports import router as bug_reports_router
+from Backend.app.api.ingestion import router as ingestion_router
 from config.settings import settings
 
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
@@ -101,6 +102,7 @@ app.include_router(recommendations_router, prefix="/api")
 app.include_router(trends_router, prefix="/api")
 app.include_router(uploads_router, prefix="/api")
 app.include_router(bug_reports_router, prefix="/api")
+app.include_router(ingestion_router, prefix="/api")
 
 
 @app.get("/health")

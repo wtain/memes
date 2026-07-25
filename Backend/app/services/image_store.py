@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from typing import List
 
@@ -13,6 +14,11 @@ _INCOMING_DIR = Path(_incoming_raw) if _incoming_raw else _IMAGES_DIR / "incomin
 
 _bug_reports_raw = settings.get('BUG_REPORTS_PATH')
 _BUG_REPORTS_DIR = Path(_bug_reports_raw) if _bug_reports_raw else _IMAGES_DIR / "bug_reports"
+
+# Ingestion review rejects -- single flat directory, deliberately distinct from
+# PATH_INGESTION_SOURCE/duplicates/ (stage 1's hash-dedup rejects, which never became a DB
+# row). See docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md Decision #6.
+_REJECTED_DIR = _IMAGES_DIR / "rejected"
 
 
 def get_image_path(filename: str) -> Path:
@@ -37,3 +43,16 @@ def save_incoming(filename: str, data: bytes) -> None:
 def save_bug_report(filename: str, data: bytes) -> None:
     _BUG_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (_BUG_REPORTS_DIR / filename).write_bytes(data)
+
+
+def move_to_rejected(filename: str) -> None:
+    _REJECTED_DIR.mkdir(parents=True, exist_ok=True)
+    src = _IMAGES_DIR / filename
+    if src.exists():
+        shutil.move(str(src), str(_REJECTED_DIR / filename))
+
+
+def move_from_rejected(filename: str) -> None:
+    src = _REJECTED_DIR / filename
+    if src.exists():
+        shutil.move(str(src), str(_IMAGES_DIR / filename))
