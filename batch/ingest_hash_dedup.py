@@ -157,7 +157,12 @@ async def main(env: str | None) -> None:
         stats = None
         try:
             stats = await run(session, source_path, base_path, batch_id)
-            await runs_repo.commit(batch_id, stats=stats)
+            # Not runs_repo.commit() -- that would mark the *whole* ingestion run
+            # completed, but Stage 1 is only the first of several stages spanning
+            # multiple later script invocations and human review. The run stays
+            # `started` (and so still blocks a second concurrent run, correctly) until
+            # promotion -- not yet implemented -- finishes it.
+            await runs_repo.update_stats(batch_id, **stats)
         except Exception as e:
             await runs_repo.fail(batch_id, error=str(e))
             raise
