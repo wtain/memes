@@ -136,17 +136,24 @@ Each of these needs the `status` parameter added:
 - Corpus-size / stats counts (`/api/diagnostics/health` and friends) — pending images must not
   inflate counts shown to users as "current library size."
 
-### `batch/extract_text_from_memes.py` — special case, no repository involved
+### `batch/extract_text_from_memes.py` — special case, no repository involved, and *not* a blanket exclusion
 
 This script does **not** query the DB for its candidate list — it calls `os.listdir(BASE_PATH)`
 directly (`io_producer`), then looks up or registers each file by filename. Since ingestion now
 moves pending files into `BASE_PATH` early, this script *will* see pending images sitting on disk
-before they clear review. Needs an explicit check added in `io_producer`: after
-`find_image_by_filename`, if `image.status == "pending"`, skip (same `tracker.skip()` /
-`metrics_listener.increment(...)` path already used for other skip reasons) rather than proceeding
-to OCR it. This isn't just a visibility concern — running OCR (and downstream tags/descriptions) on
-an image that stage-2/3 review might still reject is wasted compute, the same category of "don't
-do double work" the ingestion design already cares about for embeddings.
+before they clear review.
+
+Unlike the repository methods above, this is **not** a simple "default to active" fix — ingestion
+deliberately needs to run OCR on `pending` images partway through its own review flow (a lightweight
+OCR pass ahead of loose-threshold duplicate review, so reviewers have text to compare — see
+`2026-07-24-ingestion-pipeline-design.md`'s Tier B). So this script needs the same shape of fix as
+`build_image_embeddings.py`: an explicit `--status {pending,active,all}` flag (default `active`,
+matching today's de facto behavior once the column exists), checked in `io_producer` after
+`find_image_by_filename` — process only if `image.status` matches the requested value(s), otherwise
+skip (same `tracker.skip()` / `metrics_listener.increment(...)` path already used for other skip
+reasons). Ingestion's Tier B pre-pass calls it with `--status pending`; routine/manual runs keep the
+default `--status active`, so a human running the script by hand never accidentally OCRs
+not-yet-reviewed images.
 
 ### `batch/build_image_embeddings.py` — deliberate exception, needs a mode, not a blanket filter
 
@@ -197,8 +204,8 @@ a new `select(Image...)`.
 2. Patch `repository/images.py` methods with the `status` parameter (default `"active"`).
 3. Patch `Backend/app/repositories/image_repository.py` and `diagnostics_repository.py` the same
    way.
-4. Add the `io_producer` skip-if-pending check to `extract_text_from_memes.py`.
-5. Add `--status` to `build_image_embeddings.py`.
+4. Add `--status {pending,active,all}` to `extract_text_from_memes.py` (default `active`).
+5. Add `--status {pending,active,all}` to `build_image_embeddings.py` (default `active`).
 6. Add `tests/integration/test_image_visibility.py`.
 7. All existing rows backfill to `active` — zero behavior change for the current corpus; the new
    code paths are exercised only once ingestion starts registering `pending` rows.
