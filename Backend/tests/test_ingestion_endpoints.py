@@ -71,8 +71,8 @@ class TestListClusters:
         mock_service.list_clusters.return_value = [
             {
                 "members": [
-                    {"image_id": a, "filename": "a.jpg", "status": "pending"},
-                    {"image_id": b, "filename": "b.jpg", "status": "active"},
+                    {"image_id": a, "filename": "a.jpg", "status": "pending", "ocr_text": None},
+                    {"image_id": b, "filename": "b.jpg", "status": "active", "ocr_text": "existing meme text"},
                 ],
                 "edges": [
                     {"image_id1": a, "image_id2": b, "distance": 0.02, "match_source": "cross_corpus"},

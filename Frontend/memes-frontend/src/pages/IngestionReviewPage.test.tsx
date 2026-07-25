@@ -15,8 +15,8 @@ const mockStatus: IngestionRunStatus = {
 
 const mockCluster: IngestionCluster = {
   members: [
-    { image_id: 'pending-1', filename: 'new.jpg', status: 'pending' },
-    { image_id: 'active-1', filename: 'existing.jpg', status: 'active' },
+    { image_id: 'pending-1', filename: 'new.jpg', status: 'pending', ocr_text: null },
+    { image_id: 'active-1', filename: 'existing.jpg', status: 'active', ocr_text: 'existing meme text' },
   ],
   edges: [
     { image_id1: 'pending-1', image_id2: 'active-1', distance: 0.021, match_source: 'cross_corpus' },
@@ -78,5 +78,42 @@ describe('IngestionReviewPage', () => {
 
     await waitFor(() => expect(screen.getByText('Submit decisions')).toBeInTheDocument())
     expect(screen.getByText('Submit decisions')).toBeDisabled()
+  })
+
+  it('switches to the Tier B queue and shows OCR text once the run reaches tier_b_review', async () => {
+    const tierBCluster: IngestionCluster = {
+      members: [
+        { image_id: 'pending-2', filename: 'meme.jpg', status: 'pending', ocr_text: 'nice meme bro' },
+        { image_id: 'active-2', filename: 'template.jpg', status: 'active', ocr_text: 'original template text' },
+      ],
+      edges: [
+        { image_id1: 'pending-2', image_id2: 'active-2', distance: 0.12, match_source: 'cross_corpus' },
+      ],
+    }
+    const getIngestionClusters = vi.fn().mockResolvedValue([tierBCluster])
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue({ ...mockStatus, stage: 'tier_b_review' }),
+      getIngestionClusters,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('Ingestion Review — Tier B')).toBeInTheDocument())
+    expect(getIngestionClusters).toHaveBeenCalledWith('tier_b')
+    expect(screen.getByText('“nice meme bro”')).toBeInTheDocument()
+    expect(screen.getByText('“original template text”')).toBeInTheDocument()
+  })
+
+  it('shows a waiting message during the OCR pre-pass stage, without fetching clusters', async () => {
+    const getIngestionClusters = vi.fn()
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue({ ...mockStatus, stage: 'ocr_prepass' }),
+      getIngestionClusters,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() =>
+      expect(screen.getByText(/OCR pre-pass is running/)).toBeInTheDocument()
+    )
+    expect(getIngestionClusters).not.toHaveBeenCalled()
   })
 })

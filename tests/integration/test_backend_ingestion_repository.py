@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from repository.batch_runs import BatchRunRepository
-from Storage.models import Image, TmpDuplicates
+from Storage.models import Image, OCRText, TmpDuplicates
 
 
 async def _make_run(session) -> uuid.UUID:
@@ -192,3 +192,32 @@ async def test_mark_reviewed_sets_column_only_on_rows_touching_the_image(db_sess
     bc = touched[(min(b, c), max(b, c))]
     assert ab is True
     assert bc is False
+
+
+# --------------------------------------------------------------------------
+# get_ocr_texts
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_ocr_texts_concatenates_blocks_and_drops_low_confidence(db_session):
+    batch_id = await _make_run(db_session)
+    image_id = await _make_image(db_session, "pending", batch_id)
+    no_ocr_id = await _make_image(db_session, "pending", batch_id)
+    db_session.add_all([
+        OCRText(image_id=image_id, text="hello", confidence=0.9),
+        OCRText(image_id=image_id, text="world", confidence=0.5),
+        OCRText(image_id=image_id, text="noise", confidence=0.1),
+    ])
+    await db_session.flush()
+
+    repo = IngestionRepository(db_session)
+    texts = await repo.get_ocr_texts({image_id, no_ocr_id})
+
+    assert texts[image_id] == "hello world"
+    assert no_ocr_id not in texts
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_ocr_texts_empty_input_returns_empty_dict(db_session):
+    repo = IngestionRepository(db_session)
+    assert await repo.get_ocr_texts(set()) == {}

@@ -5,7 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from Storage.models import BatchRun, Image, RunStatus, TmpDuplicates
+from Storage.models import BatchRun, Image, OCRText, RunStatus, TmpDuplicates
 
 
 class IngestionRepository:
@@ -72,6 +72,24 @@ class IngestionRepository:
         )
         result = await self.session.execute(query)
         return result.all()
+
+    async def get_ocr_texts(self, image_ids) -> dict:
+        """Concatenated OCR text per image id, low-confidence blocks dropped -- Tier B's
+        primary review signal (same OCR-text-first priority the review-duplicates skill
+        already used). Pending members may have none yet if OCR hasn't reached them;
+        active members always do, since they're already fully enriched."""
+        if not image_ids:
+            return {}
+        result = await self.session.execute(
+            select(OCRText.image_id, OCRText.text, OCRText.confidence)
+            .where(OCRText.image_id.in_(image_ids))
+        )
+        by_image: dict = {}
+        for image_id, text, confidence in result.all():
+            if confidence is not None and confidence < 0.3:
+                continue
+            by_image.setdefault(image_id, []).append(text)
+        return {image_id: " ".join(parts) for image_id, parts in by_image.items()}
 
     async def reject_image(self, image_id) -> Optional[str]:
         """Flip status to rejected. Returns the filename (for the caller to move the file),

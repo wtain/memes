@@ -6,7 +6,8 @@
   "properties": {
     "image_id": { "type": "string" },
     "filename": { "type": "string" },
-    "status": { "type": "string", "description": "pending (actionable) or active (read-only context) -- rejected images never appear here" }
+    "status": { "type": "string", "description": "pending (actionable) or active (read-only context) -- rejected images never appear here" },
+    "ocr_text": { "type": ["string", "null"], "description": "Tier B's primary review signal; null if OCR hasn't run for this image yet (e.g. Tier A, before the OCR pre-pass)" }
   },
-  "required": ["image_id", "filename", "status"]
+  "required": ["image_id", "filename", "status", "ocr_text"]
 }

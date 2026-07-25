@@ -65,15 +65,24 @@ class IngestionService:
         uf = UnionFind()
         member_info: dict[str, dict] = {}
         edges: list[dict] = []
+        member_uuids: set = set()
 
         for id1, filename1, status1, id2, filename2, status2, distance, match_source in rows:
             uf.connect(id1, id2)
             member_info[id1] = {"image_id": str(id1), "filename": filename1, "status": status1}
             member_info[id2] = {"image_id": str(id2), "filename": filename2, "status": status2}
+            member_uuids.update((id1, id2))
             edges.append({
                 "image_id1": str(id1), "image_id2": str(id2),
                 "distance": distance, "match_source": match_source,
             })
+
+        # OCR text is Tier B's primary review signal (same OCR-first priority the
+        # review-duplicates skill already used) -- Tier A is reviewed on thumbnails alone
+        # by design, but fetching it for both tiers is cheap and harmless.
+        ocr_texts = await self.repo.get_ocr_texts(member_uuids)
+        for uid, info in member_info.items():
+            info["ocr_text"] = ocr_texts.get(uid)
 
         clusters = []
         for root in uf.list_clusters():

@@ -393,6 +393,10 @@ export interface IngestionClusterMember {
    * pending (actionable) or active (read-only context) -- rejected images never appear here
    */
   status: string;
+  /**
+   * Tier B's primary review signal; null if OCR hasn't run for this image yet (e.g. Tier A, before the OCR pre-pass)
+   */
+  ocr_text: string | null;
   [k: string]: unknown;
 }
 /**

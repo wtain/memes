@@ -33,6 +33,7 @@ class ClusterMember(BaseModel):
     image_id: str
     filename: str
     status: str
+    ocr_text: Optional[str]
 
 
 class ClusterEdge(BaseModel):

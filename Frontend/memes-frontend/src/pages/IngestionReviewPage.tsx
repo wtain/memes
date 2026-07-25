@@ -6,7 +6,16 @@ type Props = { memesApi: MemesApi }
 
 type Decision = "reject" | "keep"
 
-const TIER: IngestionTier = "tier_a" // Tier B review isn't implemented on the backend yet
+// Which tier's queue to show, driven by the run's current stage -- promotion isn't
+// implemented yet, so "promoted" falls back to tier_b's (empty, by then) queue rather than
+// a dedicated "done" view.
+function tierForStage(stage: string | null): IngestionTier | null {
+  if (stage === "tier_a_review") return "tier_a"
+  if (stage === "tier_b_review" || stage === "promoted") return "tier_b"
+  return null // hash_dedup (candidates not computed yet) or ocr_prepass (transient)
+}
+
+const TIER_LABEL: Record<IngestionTier, string> = { tier_a: "Tier A", tier_b: "Tier B" }
 
 function StatusBanner({ status }: { status: IngestionRunStatus | null }) {
   if (!status) return null
@@ -29,19 +38,20 @@ function StatusBanner({ status }: { status: IngestionRunStatus | null }) {
 }
 
 function MemberTile({
-  memesApi, memberId, filename, memberStatus, edgeLabels, decision, onDecide,
+  memesApi, memberId, filename, memberStatus, ocrText, edgeLabels, decision, onDecide,
 }: {
   memesApi: MemesApi
   memberId: string
   filename: string
   memberStatus: string
+  ocrText: string | null
   edgeLabels: string[]
   decision: Decision | undefined
   onDecide: (decision: Decision) => void
 }) {
   const isPending = memberStatus === "pending"
   return (
-    <div className={`border rounded-lg p-2 w-40 ${decision === "reject" ? "opacity-40" : ""}`}>
+    <div className={`border rounded-lg p-2 w-48 ${decision === "reject" ? "opacity-40" : ""}`}>
       <img
         src={memesApi.getImageUrlById(memberId)}
         alt={filename}
@@ -51,6 +61,11 @@ function MemberTile({
       <div className="text-xs">
         <span className={isPending ? "text-blue-600" : "text-gray-400"}>{memberStatus}</span>
       </div>
+      {ocrText && (
+        <div className="text-[11px] text-gray-700 mt-1 line-clamp-3" title={ocrText}>
+          “{ocrText}”
+        </div>
+      )}
       {edgeLabels.map((label) => (
         <div key={label} className="text-[11px] text-gray-500">{label}</div>
       ))}
@@ -81,13 +96,15 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState<number | null>(null)
+  const tier = status ? tierForStage(status.stage) : null
 
   const load = useCallback(() => {
     return memesApi.getIngestionRunStatus()
       .then((s) => {
         setStatus(s)
         setError(null)
-        return s ? memesApi.getIngestionClusters(TIER) : []
+        const tier = s ? tierForStage(s.stage) : null
+        return tier ? memesApi.getIngestionClusters(tier) : []
       })
       .then(setClusters)
       .catch((e: unknown) => {
@@ -118,11 +135,11 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       }
     }
 
-    if (clusterDecisions.length === 0) return
+    if (clusterDecisions.length === 0 || !tier) return
 
     setSubmitting(clusterIndex)
     try {
-      await memesApi.resolveIngestionCluster(TIER, clusterDecisions)
+      await memesApi.resolveIngestionCluster(tier, clusterDecisions)
       load()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to submit decisions")
@@ -154,11 +171,21 @@ export default function IngestionReviewPage({ memesApi }: Props) {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">Ingestion Review — Tier A</h1>
+      <h1 className="text-2xl font-bold mb-4">
+        Ingestion Review{tier ? ` — ${TIER_LABEL[tier]}` : ""}
+      </h1>
       <StatusBanner status={status} />
 
-      {clusters.length === 0 && (
-        <p className="text-sm text-gray-400">No Tier A clusters need review right now.</p>
+      {!tier && (
+        <p className="text-sm text-gray-400">
+          {status.stage === "ocr_prepass"
+            ? "OCR pre-pass is running — Tier B review will be available once it finishes."
+            : "Candidates haven't been computed for this run yet."}
+        </p>
+      )}
+
+      {tier && clusters.length === 0 && (
+        <p className="text-sm text-gray-400">No {TIER_LABEL[tier]} clusters need review right now.</p>
       )}
 
       <div className="space-y-4">
@@ -180,6 +207,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
                       memberId={member.image_id}
                       filename={member.filename}
                       memberStatus={member.status}
+                      ocrText={member.ocr_text}
                       edgeLabels={edgeLabels}
                       decision={decisions[member.image_id]}
                       onDecide={(d) => setDecision(member.image_id, d)}
