@@ -130,6 +130,8 @@ op.create_table(
     sa.Column('image_id2', UUID(as_uuid=True), sa.ForeignKey('images.id', ondelete='CASCADE'), nullable=False),
     sa.Column('distance', sa.Float, nullable=False),
     sa.Column('match_source', sa.String(20), nullable=True),  # 'in_batch' | 'cross_corpus'; null for active-library rebuild rows
+    sa.Column('tier_a_reviewed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('tier_b_reviewed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
 )
 op.create_unique_constraint('uq_tmp_duplicates_pair', 'tmp_duplicates', ['image_id1', 'image_id2'])
@@ -137,6 +139,13 @@ op.create_index('idx_tmp_duplicates_image_id1', 'tmp_duplicates', ['image_id1'])
 op.create_index('idx_tmp_duplicates_image_id2', 'tmp_duplicates', ['image_id2'])
 op.create_index('idx_tmp_duplicates_distance', 'tmp_duplicates', ['distance'])
 ```
+
+`tier_a_reviewed_at` / `tier_b_reviewed_at` are ingestion-specific — they exist to make ingestion's
+human review queues resumable per pair, per tier, without a decision on one tier silently
+suppressing the other's independent look at the same pair. The active-library rebuild caller
+never sets or reads them (they stay `NULL` for its rows). See
+`2026-07-24-ingestion-pipeline-design.md`'s "Review-queue resumability" section for the full
+reasoning and query semantics; they're defined here because they live on this table.
 
 This also incidentally fixes the ADR's underlying complaint: the FK-index gotcha was only painful
 *because* the table got dropped and recreated (indexes had to be re-added in code every time,

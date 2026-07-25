@@ -85,6 +85,11 @@ below).
    encodes *which tier* rejected an image, per-tier audit relies on the DB — the `status = 'rejected'`
    row plus the `tmp_duplicates` pair that triggered it (queryable, not lost) rather than the
    filename path.
+7. **Review-queue resumability is per-pair, tier-scoped, and explicit — not "just re-show
+   everything, it's harmless."** See the dedicated section below; the short version is that
+   "confirmed not a duplicate" is currently a no-op with no state change, so without an explicit
+   marker the same cluster would resurface every time the queue reopens, indefinitely, not just
+   occasionally.
 
 ---
 
@@ -166,6 +171,41 @@ skips already-processed images the normal way), so the pipeline picks up at
 
 ---
 
+## Review-queue resumability
+
+**Problem.** Within a stage, a review session can span multiple sittings (a human isn't going to
+clear a whole batch in one pass). Rejections are self-cleaning — a rejected image's `status`
+changes, so it drops out of the duplicate-clustering query's probe/corpus filters and can never
+resurface. But "confirmed not a duplicate" leaves the image `pending` with no other state change,
+so without an explicit marker, reopening the queue mid-review would re-show every
+already-cleared cluster, forever — not a one-time nuisance, since nothing ever removes it.
+
+**Design.** Two nullable `TIMESTAMP` columns on `tmp_duplicates` (extending the schema from
+`2026-07-25-duplicate-clustering-incremental-design.md`, ingestion-specific, not part of that
+spec's own scope): `tier_a_reviewed_at`, `tier_b_reviewed_at`. Set only by an explicit "keep both,
+not a duplicate" decision on that specific pair, in that specific tier's review UI.
+
+- **Per-pair, not per-image.** An image cleared in Tier A says nothing about Tier B — Tier B is a
+  deliberately independent second look, with OCR text Tier A didn't have (Decision #5). A
+  per-image marker shared across tiers would let Tier B silently inherit Tier A's blind-to-OCR
+  verdict, defeating the reason Tier B exists. Per-pair, tier-scoped columns mean: if Tier B's
+  looser threshold rediscovers the *exact same* pair Tier A already cleared, it's suppressed
+  (no new signal changes a verdict already made on this specific pair); if Tier B surfaces a *new*
+  pair for that same image (a looser-band neighbor Tier A's tighter search never considered), it's
+  correctly treated as unreviewed.
+- **Queue query per tier:** pending-side pairs in that tier's distance band where the tier's
+  `reviewed_at` column is `NULL` and the pending-side image is still `status = 'pending'`
+  (rejected images are already excluded by the underlying duplicate-clustering query's own status
+  filter, so no separate check is needed here).
+- **Resolving a cluster, not a pair.** The review UI shows a whole connected cluster (via the
+  batch-scoped union-find) in one screen; the "resolve" action takes per-member decisions
+  (`reject` or `keep`) and applies them atomically — `reject` flips that image's `status`;
+  `keep` sets the current tier's `reviewed_at` on every `tmp_duplicates` row touching that image
+  within the displayed cluster, not just one pair, so the whole cluster's relevant edges clear
+  together rather than needing to be resolved one pair at a time.
+
+---
+
 ## Batch / tooling changes summary
 
 | Component | Change |
@@ -184,7 +224,9 @@ skips already-processed images the normal way), so the pipeline picks up at
 - Batch-scoped duplicate clusters, parameterized by tier (threshold band) — extends the existing
   duplicates endpoint with batch + threshold-band filters, backed by the scoped duplicate-clustering
   query.
-- Confirm-reject / undo endpoints (status transitions `pending ↔ rejected`).
+- Resolve-cluster endpoint (`POST .../clusters/{cluster_key}/resolve`, per-member `reject`/`keep`
+  decisions applied atomically — see Review-queue resumability above) plus a separate undo endpoint
+  for reverting a `rejected` image back to `pending`.
 - Ingestion run status (`GET /api/ingestion/runs/{id}` — thin wrapper over the `batch_runs` row,
   including current `stage`).
 - `backend_api.md` updated per CLAUDE.md's API contract requirement.
@@ -213,13 +255,7 @@ skips already-processed images the normal way), so the pipeline picks up at
    only to `cross_corpus`-tagged members of a Tier B cluster; `in_batch` members are symmetric
    (pick a keeper among new-image siblings), so this question is narrower than it was before
    in-batch/cross-corpus review was merged into one queue per tier.
-2. **Resumability within a stage.** `batch_runs.stage` + `images.status` describe *which stage* a
-   run is in and survive across process restarts. Still open: if a human review session is
-   interrupted mid-cluster-list within a stage, is there a per-cluster "already reviewed" marker, or
-   does the reviewer just re-see already-decided clusters (harmless — re-confirming a `rejected`
-   image is a no-op)? Leaning toward the latter (simpler, idempotent) unless review volume per batch
-   turns out large enough for re-scanning to be annoying in practice.
-3. **`k` / threshold tuning** for both tiers — Tier A reuses `clusterize.py`'s existing `0.05` as a
+2. **`k` / threshold tuning** for both tiers — Tier A reuses `clusterize.py`'s existing `0.05` as a
    starting point (a value already validated for the active library, though not specifically for
    "small new batch vs. large existing corpus"); Tier B's `0.05`–`0.3` band and both tiers' `k` are
    unvalidated guesses pending real data.
