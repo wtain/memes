@@ -240,6 +240,8 @@ Response from `POST /api/bug-reports`.
 {
   "memes": {
     "total": "number",
+    "pending": "number",
+    "rejected": "number",
     "with_embeddings": "number",
     "with_ocr": "number",
     "with_tags": "number",
@@ -774,6 +776,8 @@ Returns row counts across all major tables in a single SQL round-trip.
 {
   "memes": {
     "total": 12400,
+    "pending": 6,
+    "rejected": 2,
     "with_embeddings": 11800,
     "with_ocr": 9200,
     "with_tags": 10100,

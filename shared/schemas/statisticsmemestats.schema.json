@@ -4,7 +4,9 @@
   "title": "StatisticsMemeStats",
   "type": "object",
   "properties": {
-    "total":              { "type": "integer", "description": "Total registered images" },
+    "total":              { "type": "integer", "description": "Total active (visible) images" },
+    "pending":            { "type": "integer", "description": "Images awaiting ingestion review (status=pending), not yet visible in browse/search" },
+    "rejected":           { "type": "integer", "description": "Images rejected during ingestion review (status=rejected) as confirmed duplicates" },
     "with_embeddings":    { "type": "integer", "description": "Images with a CLIP embedding" },
     "with_ocr":           { "type": "integer", "description": "Images with at least one OCR text block" },
     "with_tags":          { "type": "integer", "description": "Images with at least one tag (any source)" },
@@ -14,5 +16,5 @@
     "flagged":            { "type": "integer", "description": "Images marked as flagged" },
     "duplicate_clusters": { "type": "integer", "description": "Total distinct duplicate-image clusters" }
   },
-  "required": ["total", "with_embeddings", "with_ocr", "with_tags", "without_tags", "with_descriptions", "with_concept_tags", "flagged", "duplicate_clusters"]
+  "required": ["total", "pending", "rejected", "with_embeddings", "with_ocr", "with_tags", "without_tags", "with_descriptions", "with_concept_tags", "flagged", "duplicate_clusters"]
 }

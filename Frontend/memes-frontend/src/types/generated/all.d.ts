@@ -194,9 +194,17 @@ export interface SearchHistoryResponse {
  */
 export interface StatisticsMemeStats {
   /**
-   * Total registered images
+   * Total active (visible) images
    */
   total: number;
+  /**
+   * Images awaiting ingestion review (status=pending), not yet visible in browse/search
+   */
+  pending: number;
+  /**
+   * Images rejected during ingestion review (status=rejected) as confirmed duplicates
+   */
+  rejected: number;
   /**
    * Images with a CLIP embedding
    */

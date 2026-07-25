@@ -44,3 +44,20 @@ async def test_get_statistics_counts_seeded_rows(db_session):
     assert after.flagged == before.flagged + 1
     assert after.ocr_texts == before.ocr_texts + 1
     assert after.tags == before.tags + 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_statistics_counts_pending_and_rejected_separately_from_total(db_session):
+    before = await DiagnosticsRepository(db_session).get_statistics()
+
+    db_session.add_all([
+        Image(filename=f"{uuid.uuid4()}.jpg", status="pending"),
+        Image(filename=f"{uuid.uuid4()}.jpg", status="rejected"),
+    ])
+    await db_session.flush()
+
+    after = await DiagnosticsRepository(db_session).get_statistics()
+
+    assert after.pending == before.pending + 1
+    assert after.rejected == before.rejected + 1
+    assert after.total_memes == before.total_memes  # neither counts as "active"

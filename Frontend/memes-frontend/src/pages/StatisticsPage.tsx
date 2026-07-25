@@ -74,6 +74,8 @@ export default function StatisticsPage({ memesApi }: Props) {
           { label: "Not tagged", value: `${n(withoutTags)} (${pct(withoutTags, memes.total)})` },
           { label: "Flagged", value: n(memes.flagged) },
           { label: "Duplicate clusters", value: n(memes.duplicate_clusters) },
+          { label: "Pending ingestion review", value: n(memes.pending) },
+          { label: "Rejected (ingestion)", value: n(memes.rejected) },
         ]} />
       </section>
 

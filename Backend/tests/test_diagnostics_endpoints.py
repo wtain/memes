@@ -38,7 +38,7 @@ def client(mock_diagnostics_repo):
 
 def _fake_stats_row(**overrides):
     defaults = dict(
-        total_memes=100, with_embeddings=90, with_ocr=80, with_tags=70,
+        total_memes=100, pending=6, rejected=2, with_embeddings=90, with_ocr=80, with_tags=70,
         without_tags=30, with_descriptions=60, with_concept_tags=40,
         flagged=5, duplicate_clusters=3,
         ocr_texts=200, tags=300, concepts=10, concept_image_sets=12,
@@ -62,6 +62,16 @@ class TestStatistics:
         assert data["content"]["descriptions_approved"] == 21
         assert data["content"]["descriptions_rejected"] == 3
         assert data["content"]["descriptions_feedback_total"] == 24
+
+    def test_statistics_includes_pending_and_rejected_image_counts(self, client, mock_diagnostics_repo):
+        mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(pending=6, rejected=2)
+
+        response = client.get("/api/diagnostics/statistics")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["memes"]["pending"] == 6
+        assert data["memes"]["rejected"] == 2
 
     def test_statistics_zero_feedback(self, client, mock_diagnostics_repo):
         mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(

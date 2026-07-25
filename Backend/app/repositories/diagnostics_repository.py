@@ -29,6 +29,12 @@ class DiagnosticsRepository:
                 select(func.count()).select_from(Image)
                     .where(Image.status == "active")
                     .scalar_subquery().label("total_memes"),
+                select(func.count()).select_from(Image)
+                    .where(Image.status == "pending")
+                    .scalar_subquery().label("pending"),
+                select(func.count()).select_from(Image)
+                    .where(Image.status == "rejected")
+                    .scalar_subquery().label("rejected"),
                 select(func.count(Embedding.image_id.distinct()))
                     .select_from(Embedding).join(Image, Image.id == Embedding.image_id)
                     .where(Image.status == "active")

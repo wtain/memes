@@ -16,6 +16,8 @@ class HealthResponse(BaseModel):
 
 class MemeStats(BaseModel):
     total: int
+    pending: int
+    rejected: int
     with_embeddings: int
     with_ocr: int
     with_tags: int
@@ -71,6 +73,8 @@ async def statistics(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)
     return StatisticsResponse(
         memes=MemeStats(
             total=row.total_memes,
+            pending=row.pending,
+            rejected=row.rejected,
             with_embeddings=row.with_embeddings,
             with_ocr=row.with_ocr,
             with_tags=row.with_tags,
