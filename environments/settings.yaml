@@ -41,3 +41,4 @@ general:
 search:
   fuzzy_min_lemma_length: 5
   fuzzy_similarity_threshold: 0.35
+  phonetic_min_lemma_length: 5

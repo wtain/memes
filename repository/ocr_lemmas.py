@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
 from rules.normalize import make_morph, normalize
+from rules.phonetic import is_cyrillic_word, russian_metaphone
 from Storage.models import ImageTag, OCRLemma
 
 
@@ -58,6 +59,31 @@ async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
     return {row[0] for row in result.all()}
 
 
+def _is_known_word(lemma: str) -> bool:
+    """True if pymorphy3 recognizes lemma via genuine dictionary lookup, as
+    opposed to falling back to its unknown-word-guessing analyzer. This is
+    what separates erratives (is_known=False) from real dictionary words
+    that happen to collide phonetically (is_known=True) -- see the design
+    doc for the empirical basis."""
+    return bool(_get_morph().parse(lemma)[0].is_known)
+
+
+async def _phonetic_lemma_ids(session: AsyncSession, lemma: str) -> set:
+    """
+    Phonetic-code fallback for erratives that trigram similarity cannot
+    catch -- see docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md
+    for the empirical case against trigram-only and phonetic-only
+    approaches. Queries OCRLemma only, not ImageTag: tags come from a
+    controlled tagging vocabulary and are essentially never themselves an
+    errative string.
+    """
+    code = russian_metaphone(lemma)
+    result = await session.execute(
+        select(OCRLemma.image_id).where(OCRLemma.phonetic_code == code)
+    )
+    return {row[0] for row in result.all()}
+
+
 async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optional[set]:
     """
     None means "apply no filter" (q is falsy, or every token normalizes
@@ -65,12 +91,24 @@ async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optiona
     OCR-lemma index or tags contain every query lemma (AND); an empty set
     means no image matches.
 
-    Each query lemma is matched exactly first; only if that finds nothing,
-    and the lemma is at least settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH
-    characters (avoiding short-word false positives — see the design doc's
-    empirical similarity-score table), a trigram-similarity fallback
-    (settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD) is tried instead. See
+    Each query lemma is matched exactly first. If that finds nothing and
+    the lemma is at least settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH characters
+    (avoiding short-word false positives — see the design doc's empirical
+    similarity-score table), a trigram-similarity fallback
+    (settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD) is tried. See
     docs/superpowers/specs/2026-07-24-smart-search-fuzzy-matching-design.md.
+
+    Additionally, when the lemma is Cyrillic, at least
+    settings.SEARCH.PHONETIC_MIN_LEMMA_LENGTH characters, and not a
+    pymorphy3-recognized dictionary word (_is_known_word is False), a
+    phonetic-code fallback is unioned in on top of the trigram result --
+    this catches erratives (deliberate misspellings like "превед") that
+    trigram similarity cannot. The is_known gate is what prevents real
+    dictionary words that happen to sound alike (e.g. "кот"/"код") from
+    cross-matching via this path; trigram doesn't need the same gate
+    because its own false-positive class is different (typo-of-same-word,
+    not sounds-like-a-different-word). See
+    docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md.
     """
     if not q:
         return None
@@ -95,6 +133,12 @@ async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optiona
         lemma_ids = await _exact_lemma_ids(session, lemma)
         if not lemma_ids and len(lemma) >= settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH:
             lemma_ids = await _fuzzy_lemma_ids(session, lemma)
+            if (
+                is_cyrillic_word(lemma)
+                and len(lemma) >= settings.SEARCH.PHONETIC_MIN_LEMMA_LENGTH
+                and not _is_known_word(lemma)
+            ):
+                lemma_ids = lemma_ids | await _phonetic_lemma_ids(session, lemma)
 
         matching_ids = lemma_ids if matching_ids is None else (matching_ids & lemma_ids)
         if not matching_ids:
@@ -126,7 +170,14 @@ class OCRLemmasSaver:
             return
         stmt = (
             insert(OCRLemma)
-            .values([{"image_id": image_id, "lemma": lemma} for lemma in lemmas])
+            .values([
+                {
+                    "image_id": image_id,
+                    "lemma": lemma,
+                    "phonetic_code": russian_metaphone(lemma) if is_cyrillic_word(lemma) else None,
+                }
+                for lemma in lemmas
+            ])
             .on_conflict_do_nothing(index_elements=["image_id", "lemma"])
         )
         await self.session.execute(stmt)
