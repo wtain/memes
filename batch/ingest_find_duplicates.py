@@ -13,6 +13,15 @@ the design's "don't invent a second number for the same concept" reasoning. Tier
 settings.DUPLICATES.THRESHOLD (0.3) as its outer bound; the 0.05 lower bound that
 distinguishes Tier B's *review queue* from Tier A's is enforced by the review query, not
 here -- this script's job is just to populate candidates, generously, once per tier.
+
+Run `extract_text_from_memes.py --status pending` *before* this script's `--tier tier_a`
+call, not between Tier A and Tier B as earlier drafts of the design assumed -- empirical
+validation (2026-07-25) found Tier A's "thumbnails alone are decisive" premise doesn't hold
+for all content (e.g. visually-similar-format-but-different-text meme cards), so both tiers
+need OCR text available for review, not just Tier B. This needs no code change here or in
+the review API/UI -- both already fetch/display OCR text unconditionally per member; it's
+purely an operational ordering fix. See Decision #10 in
+docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md.
 """
 import argparse
 import asyncio

@@ -77,9 +77,12 @@ class IngestionService:
                 "distance": distance, "match_source": match_source,
             })
 
-        # OCR text is Tier B's primary review signal (same OCR-first priority the
-        # review-duplicates skill already used) -- Tier A is reviewed on thumbnails alone
-        # by design, but fetching it for both tiers is cheap and harmless.
+        # OCR text is the primary review signal for both tiers (same OCR-first priority the
+        # review-duplicates skill already used) -- empirical validation (2026-07-25) found
+        # Tier A's original "thumbnails alone are decisive" premise doesn't hold universally
+        # (e.g. visually-similar-format-but-different-text meme cards), so the operational
+        # order now runs OCR before Tier A review, not just before Tier B's. This method
+        # doesn't need to know or care which tier it's serving -- it always fetches OCR text.
         ocr_texts = await self.repo.get_ocr_texts(member_uuids)
         for uid, info in member_info.items():
             info["ocr_text"] = ocr_texts.get(uid)

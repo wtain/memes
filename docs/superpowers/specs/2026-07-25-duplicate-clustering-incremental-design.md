@@ -233,12 +233,20 @@ query (rows touching the batch) is straightforward given the schema above.
 
 ## Open questions
 
-- Exact default for `k` — proposed `20`, needs empirical check against real duplicate cluster sizes
-  in an existing environment (e.g. `general`, which already has known heavily-reposted memes).
-- Whether `general`'s pre-existing `tmp_duplicates` needs to be dropped by an agent/operator as a
-  manual one-time step, or scripted as part of the migration itself (leaning manual + documented,
-  since a migration silently dropping 84 GB of data is the kind of thing that should be a visible,
-  reviewed action, not implicit in `alembic upgrade head`).
+- ~~Exact default for `k`~~ — **resolved 2026-07-26.** Empirically checked against real
+  `tmp_duplicates` data on `metal` (182K+ pairs) and `general` (331K+ pairs) after the migration
+  shipped: `metal`'s worst-case real duplicate-cluster degree was 8; `general`'s was 37, meaning
+  the original `k=20` default was silently truncating real near-duplicate clusters there (the
+  KNN query's `LIMIT k` means neighbors beyond the k-th nearest are never fetched at all, not
+  filtered out afterward — a true gap, not just a stored-row-count difference). Raised to `k=50`
+  as one global value in `environments/settings.yaml` — not a per-environment override, since
+  raising `k` costs sparse corpora nothing (a sparse image's stored results are identical at
+  k=20 or k=50; only the traversal cost differs marginally, because `LIMIT k` candidates still
+  get filtered by `:threshold` afterward regardless of how many were fetched). `it` wasn't
+  sampled in this pass; `k=50` should have ample headroom there too but is unconfirmed.
+- ~~Whether `general`'s pre-existing `tmp_duplicates` needs to be dropped manually or scripted~~
+  — resolved during the actual migration rollout: scripted into the migration itself
+  (`DROP TABLE IF EXISTS` before recreating), applied to all three environments without incident.
 
 ## Out of scope
 

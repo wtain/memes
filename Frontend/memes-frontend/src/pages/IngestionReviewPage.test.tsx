@@ -112,7 +112,7 @@ describe('IngestionReviewPage', () => {
     render(<IngestionReviewPage memesApi={api} />)
 
     await waitFor(() =>
-      expect(screen.getByText(/OCR pre-pass is running/)).toBeInTheDocument()
+      expect(screen.getByText(/OCR is running/)).toBeInTheDocument()
     )
     expect(getIngestionClusters).not.toHaveBeenCalled()
   })

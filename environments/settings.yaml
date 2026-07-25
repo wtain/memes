@@ -49,6 +49,12 @@ duplicates:
   # PROXIMITY_THRESHOLD (0.05), which decides what's shown as a confirmed duplicate cluster.
   # See docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
   threshold: 0.3
-  # Neighbors considered per probe image. Unvalidated starting point -- see that spec's
-  # Open Questions.
-  k: 20
+  # Neighbors considered per probe image. Empirically validated 2026-07-25 against real
+  # tmp_duplicates data on metal (max real tight-band cluster degree: 8) and general (max: 37,
+  # meaning k=20 was silently truncating real near-duplicate clusters there -- images beyond
+  # the 20th-nearest were never fetched at all, not just filtered out). 50 gives headroom above
+  # the observed worst case; kept as one global value rather than per-environment since raising
+  # k costs sparse corpora (metal, it) nothing -- LIMIT k still filters by :threshold afterward,
+  # so extra fetched-then-discarded candidates for low-density images don't change stored
+  # results, only add a small uniform per-probe-image traversal cost.
+  k: 50

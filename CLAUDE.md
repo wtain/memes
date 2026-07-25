@@ -204,9 +204,23 @@ trends_batch                → GLiNER NER over each configured trend source's f
                                Trends UI/API. Sources (RSS/API connectors) are registered via
                                batch/trends/seed_sources.py, not part of the regular run.
 
-# Ingestion (new-image intake from PATH_INGESTION_SOURCE into the active library; partial --
-# Stage 1 + Tier A (backend and frontend) implemented so far, see
+# Ingestion (new-image intake from PATH_INGESTION_SOURCE into the active library; fully
+# implemented end to end -- hash dedup through promotion -- see
 # docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md)
+#
+# Run order:
+#   ingest_hash_dedup
+#   build_image_embeddings --status pending --incremental
+#   extract_text_from_memes --status pending   <-- before Tier A, not between the tiers (see
+#                                                   Decision #10 in the design spec: empirical
+#                                                   validation found Tier A's "thumbnails alone
+#                                                   are decisive" premise doesn't hold for all
+#                                                   content, e.g. same-format-different-text
+#                                                   meme cards -- both tiers need OCR now)
+#   ingest_find_duplicates --tier tier_a   (review in UI, reject/keep)
+#   ingest_find_duplicates --tier tier_b   (review in UI, reject/keep)
+#   ingest_promote
+#
 ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOURCE, dedupes
                                in-batch and against the active corpus's content_hash, registers
                                survivors as `pending` images (content_hash + ingestion_batch_id
@@ -216,16 +230,19 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
 build_image_embeddings --status pending --incremental
                              → embeds Stage 1's survivors (existing script/flag, no ingestion-
                                specific code)
+extract_text_from_memes --status pending
+                             → OCR for Stage 1's survivors, run before either tier's review (see
+                               run-order note above; existing script/flag, no ingestion-specific
+                               code)
 ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_duplicates for the
                                active ingestion run's pending images via the same merged
                                probe/corpus find_duplicates() primitive rebuild_duplicates.py
                                uses, at clusterize.py's PROXIMITY_THRESHOLD (0.05). --tier tier_b
-                               uses settings.DUPLICATES.THRESHOLD (0.3) but Tier B's OCR
-                               pre-pass and its review-queue behavior are not yet implemented.
+                               uses settings.DUPLICATES.THRESHOLD (0.3) as its outer bound.
                                Review (listing clusters, resolving reject/keep decisions) is the
                                /api/ingestion/* endpoints (Backend/app/api/ingestion.py), with a
                                frontend page at /ingestion covering both tiers (switches queue
-                               based on the run's stage).
+                               based on the run's stage) -- both tiers show OCR text per member.
 ingest_promote              → Stage 4 (final): promotes pending images with no remaining
                                unresolved Tier A/B candidate pairs to `active` (pure status flip
                                -- files are already in BASE_PATH from Stage 1). Marks the run

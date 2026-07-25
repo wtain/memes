@@ -6,13 +6,16 @@ type Props = { memesApi: MemesApi }
 
 type Decision = "reject" | "keep"
 
-// Which tier's queue to show, driven by the run's current stage -- promotion isn't
-// implemented yet, so "promoted" falls back to tier_b's (empty, by then) queue rather than
-// a dedicated "done" view.
+// Which tier's queue to show, driven by the run's current stage. "promoted" falls back to
+// tier_b's (empty, by then) queue rather than a dedicated "done" view -- once a run
+// completes it drops out of getIngestionRunStatus() entirely (no longer the active run), so
+// this branch is mostly a safety net, not the normal path to seeing a finished run.
 function tierForStage(stage: string | null): IngestionTier | null {
   if (stage === "tier_a_review") return "tier_a"
   if (stage === "tier_b_review" || stage === "promoted") return "tier_b"
-  return null // hash_dedup (candidates not computed yet) or ocr_prepass (transient)
+  return null // hash_dedup, or ocr_prepass (transient; OCR now runs before Tier A review,
+  // not between the tiers -- see Decision #10 in
+  // docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md)
 }
 
 const TIER_LABEL: Record<IngestionTier, string> = { tier_a: "Tier A", tier_b: "Tier B" }
@@ -179,7 +182,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       {!tier && (
         <p className="text-sm text-gray-400">
           {status.stage === "ocr_prepass"
-            ? "OCR pre-pass is running — Tier B review will be available once it finishes."
+            ? "OCR is running — Tier A review will be available once it finishes."
             : "Candidates haven't been computed for this run yet."}
         </p>
       )}

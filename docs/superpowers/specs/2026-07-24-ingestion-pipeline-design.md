@@ -93,6 +93,34 @@ below).
 8. **Cluster review is one uniform per-pending-image `reject`/`keep` decision**, not two separate
    interaction modes for in-batch vs. cross-corpus matches. See "Cluster review UX" below — the
    two-mode framing broke down once a single cluster could contain both kinds of match at once.
+9. **`k` raised from `20` to `50`**, empirically validated 2026-07-25 against real `tmp_duplicates`
+   data: `metal`'s worst-case real cluster degree was 8 (comfortable headroom even at 20), but
+   `general`'s was 37 — `k=20` was silently truncating real near-duplicate clusters there (neighbors
+   beyond the 20th-nearest are never fetched by the KNN query at all, not filtered out afterward —
+   see `2026-07-25-duplicate-clustering-incremental-design.md`'s "What `k` actually does" for why).
+   Kept as one global value rather than a per-environment override: raising `k` costs sparse corpora
+   nothing, since `LIMIT k` candidates still get filtered by `:threshold` afterward — a sparse
+   image's stored results are identical whether `k` is 20 or 50, only the traversal cost differs
+   marginally. `it` wasn't sampled in this validation pass; 50 gives it slack too.
+10. **OCR now runs before Tier A review, not between Tier A and Tier B.** The original design's
+    premise — Tier A's tight threshold is visually decisive enough that thumbnails alone are safe,
+    OCR only needed for Tier B's looser matches — was empirically tested 2026-07-25 and found not to
+    hold universally: on `general`, the single highest-degree tight-band (`<0.05`) cluster turned out
+    to be three *different* plain-white-background/black-text quote memes with entirely different
+    text, clustered because CLIP embeds visual layout/format, not textual content, for this kind of
+    image. A human reviewing Tier A on thumbnails alone could plausibly reject two unrelated memes
+    for looking like "the same template" — precisely the failure class that motivated moving
+    duplicate review off the agent-driven skill and onto human-in-the-loop UI in the first place
+    (Decision #4). Fix: run `extract_text_from_memes.py --status pending` right after embeddings,
+    before *either* tier's review, not just before Tier B's. Needed **no functional code change** —
+    `IngestionService.list_clusters()` already fetches OCR text unconditionally per tier, and the
+    frontend already renders it whenever present — this was purely an operational-ordering fix (see
+    Stage 2/3 below) plus updated comments/docs. Considered and rejected: a separate, cheaper
+    "lightweight" OCR pass just for Tier A — rejected because the failure mode specifically requires
+    *reliable* text transcription to disambiguate near-identical-looking memes, which is exactly
+    where a lower-quality OCR pass would be weakest, not a place to cut corners. The tier split
+    itself still earns its keep for review ergonomics (confidence/volume batching), just no longer
+    implies "Tier A doesn't need OCR."
 
 ---
 
@@ -124,10 +152,14 @@ Survivors register as `Image` rows (`status = 'pending'`, `ingestion_batch_id` =
 `batch_runs.run_id`) and move into `BASE_PATH` here, per Decision #1. Filename preserved verbatim —
 `extract_text_from_memes` depends on it as the lookup key later.
 
-### Stage 2 — Tier A: strong-similarity embedding dedup (pre-OCR)
+### Stage 2 — Embeddings + OCR, then Tier A: strong-similarity embedding dedup
 
 1. **Compute embeddings** — `build_image_embeddings.py --status pending --incremental`.
-2. **Find candidate pairs**, tight threshold — reuse `clusterize.py`'s existing `0.05`
+2. **OCR pre-pass** — `extract_text_from_memes.py --status pending`. Runs here, before *either*
+   tier's review, not between Tier A and Tier B as originally designed — see Decision #10: empirical
+   validation found Tier A's original "thumbnails alone are decisive" premise doesn't hold for all
+   content, so both tiers need OCR text available, not just Tier B.
+3. **Find candidate pairs**, tight threshold — reuse `clusterize.py`'s existing `0.05`
    (`PROXIMITY_THRESHOLD`, already the codebase's "confirmed duplicate" cutoff for the active
    library) as Tier A's cutoff. **One merged query**, not two: probe =
    `ingestion_batch_id = :batch_id AND status = 'pending'`, corpus = `status = 'active' OR
@@ -135,35 +167,34 @@ Survivors register as `Image` rows (`status = 'pending'`, `ingestion_batch_id` =
    own batch siblings in a single scan, per the duplicate-clustering prereq's `match_source`
    addition. Pairs are grouped into review clusters via a batch-scoped union-find (not the global
    `clusterize.py`) so a cluster can naturally mix new and existing images.
-3. **Review — human, via UI, one queue.** Thumbnails + distance only (no OCR yet — at this
-   tightness that's sufficient; this is exactly what makes Tier A safe to review pre-OCR, unlike
-   Tier B). Per-pending-image `reject`/`keep` decisions, uniform regardless of `match_source` —
-   see "Cluster review UX" below for why this replaced an earlier "pick a keeper" framing.
-4. **Apply decisions.** Confirmed duplicates: `status = 'rejected'`; file moved from `BASE_PATH`
+4. **Review — human, via UI, one queue.** Thumbnails + distance + OCR text. Per-pending-image
+   `reject`/`keep` decisions, uniform regardless of `match_source` — see "Cluster review UX" below
+   for why this replaced an earlier "pick a keeper" framing.
+5. **Apply decisions.** Confirmed duplicates: `status = 'rejected'`; file moved from `BASE_PATH`
    into `BASE_PATH/rejected/` (Decision #6). Row stays for undo.
 
-### Stage 3 — OCR pre-pass + Tier B: loose-similarity embedding dedup
+### Stage 3 — Tier B: loose-similarity embedding dedup
 
-1. **OCR pre-pass**, Tier-A survivors only: `extract_text_from_memes.py --status pending`
-   (new flag, mirrors `build_image_embeddings.py`'s). OCR only — not tags, not descriptions — kept
-   cheap deliberately, since some of these images will still be rejected in this same stage.
-2. **Find candidate pairs**, loose band (proposed `0.05`–`0.3`, upper bound matching the
+OCR already ran in Stage 2, so this stage is just the loose-threshold pass — no separate OCR
+step needed here (a simplification over the original design, which ran OCR between the tiers).
+
+1. **Find candidate pairs**, loose band (`0.05`–`0.3`, upper bound matching the
    duplicate-clustering prereq's general candidate cutoff) — same merged query and same
-   batch-scoped clustering as Tier A step 2, different threshold band.
-3. **Review — human, via UI, one queue**, now with OCR text available — same signal priority the
-   existing `review-duplicates` skill already established (OCR text first, to catch "same
+   batch-scoped clustering as Tier A step 3, different threshold band.
+2. **Review — human, via UI, one queue** — same OCR-text-first signal priority as Tier A (the
+   existing `review-duplicates` skill's established priority: OCR text first, to catch "same
    template, different joke" and correctly *not* reject those; embedding distance as a secondary
-   check). Same per-pending-image `reject`/`keep` decision as Tier A, now informed by OCR text and,
+   check). Same per-pending-image `reject`/`keep` decision as Tier A, informed by OCR text and,
    for `cross_corpus` edges, the active candidate's full existing context. See "Cluster review UX"
    below.
-4. **Apply decisions** — same mechanics as stage 2 step 4.
+3. **Apply decisions** — same mechanics as stage 2 step 5.
 
 ### Stage 4 — Promotion
 
 For each surviving `pending` image in the run: `UPDATE images SET status = 'active'`. No file move
 — the file has been in `BASE_PATH` since stage 1. Mark `batch_runs.stage = 'promoted'`. Continue
 the rest of the standard pipeline order from CLAUDE.md — `extract_text_from_memes` is effectively a
-no-op for these images now (already OCR'd in stage 3; its own incremental/should-process logic
+no-op for these images now (already OCR'd in stage 2; its own incremental/should-process logic
 skips already-processed images the normal way), so the pipeline picks up at
 `build_tags_from_ocr` / `build_ocr_lemmas` / `build_image_descriptions` / etc., unmodified.
 
@@ -273,9 +304,9 @@ not a duplicate" decision on that specific pair, in that specific tier's review 
   `ExploreDuplicatesPage` pattern of a thin page wrapping a shared list component.
 - Two review queues — one per tier, each merging in-batch and cross-corpus matches per the
   duplicate-clustering prereq's `match_source`. Per "Cluster review UX" above: one card per
-  `pending` member (thumbnail, OCR text in Tier B only, `reject`/`keep` toggle, per-edge distance
-  labelled by `match_source`) plus, where relevant, read-only cards for connected `active` members
-  showing their existing OCR/description/tags.
+  `pending` member (thumbnail, OCR text, `reject`/`keep` toggle, per-edge distance labelled by
+  `match_source`) plus, where relevant, read-only cards for connected `active` members showing
+  their existing OCR (description/tags not surfaced yet — see Open Questions).
 - Resolve action submits whatever subset of member decisions the reviewer has made (partial
   resolution allowed); undecided members stay in the queue.
 - Batch progress/status view, reading the `batch_runs` row via the new endpoint above.
@@ -284,22 +315,35 @@ not a duplicate" decision on that specific pair, in that specific tier's review 
 
 ## Open questions
 
-1. **`k` / threshold tuning** for both tiers — Tier A reuses `clusterize.py`'s existing `0.05` as a
-   starting point (a value already validated for the active library, though not specifically for
-   "small new batch vs. large existing corpus"); Tier B's `0.05`–`0.3` band and both tiers' `k` are
-   unvalidated guesses pending real data.
+`k`/threshold tuning (formerly open question 1) was empirically resolved 2026-07-26 against real
+`tmp_duplicates` data on `metal` and `general` — see Decision #9/#10 above and
+`2026-07-25-duplicate-clustering-incremental-design.md`'s tuning section for the full findings.
+Remaining smaller items:
+
+1. **`it` (the smallest environment) wasn't sampled** in the empirical validation pass — its
+   corpus-density characteristics are unconfirmed; `k=50` should be adequate (it's well above both
+   sampled environments' worst cases) but hasn't been checked against `it` specifically.
+2. **Stage 3 (Tier B) cross-corpus asymmetric review still only shows OCR text for the active
+   candidate, not its tags/description** — the original design called for "the active candidate's
+   full existing context"; only OCR shipped so far (see Frontend changes above).
+3. **Resumability within a stage** (a human review session interrupted mid-cluster-list) still
+   relies on "re-showing an already-decided cluster is harmless" rather than a dedicated per-cluster
+   progress marker — untested at any real review volume large enough to know if that's actually
+   annoying in practice.
 
 ## Risks
 
-- **Visibility leak** — owned by the visibility prerequisite's audit + contract test; ingestion is
-  the first real-world exercise of that audit being complete.
-- **`k`/threshold mistuned for the new-batch-vs-large-corpus shape**, either tier — could miss
-  genuine duplicates or overwhelm reviewers with borderline candidates; needs empirical tuning once
-  real data is available.
-- **OCR pre-pass cost creep** — if Tier A's threshold is too tight (rejecting too little), the OCR
-  pre-pass ends up running on most of a batch, eroding the compute-avoidance rationale for
-  splitting into two tiers in the first place. Worth monitoring in practice, not just assuming the
-  split pays for itself.
+- **Visibility leak** — owned by the visibility prerequisite's audit + contract test; exercised for
+  real during this feature's own development with no leaks found.
+- **Tier A's "thumbnails are decisive" premise turned out to be content-type-dependent, not
+  universal** (Decision #10) — mitigated by moving OCR earlier rather than assumed away; worth
+  re-checking if a *new* failure mode surfaces once more real ingestion batches run, since the
+  empirical validation so far only examined `metal` and `general`'s existing active-library data,
+  not actual ingestion batches at volume.
+- **`general`'s duplicate-detection density is real and non-trivial** (max observed tight-band
+  cluster degree 37) — large batches on `general` specifically may produce big, review-heavy
+  clusters; not yet observed at ingestion scale (only exercised via `metal`'s small real batch so
+  far).
 
 ## Out of scope
 
@@ -308,13 +352,10 @@ not a duplicate" decision on that specific pair, in that specific tier's review 
 - UI/tooling for undoing a promotion once the full enrichment pipeline has run on an image (undo
   during stages 2/3, before promotion, is in scope; undo after promotion is not).
 
-## Next steps
+## Status
 
-1. Implement the three prerequisites (image-visibility and batch-run-tracking are both needed
-   before ingestion-specific work starts; duplicate-clustering can follow once Tier A work begins).
-2. Resolve open question 1 (`k`/threshold tuning) empirically once real batch data is available —
-   not a blocker for building the pipeline, since both tiers ship with reasoned starting defaults.
-3. Phased build: Phase A — stage 1 (hash dedup, in-batch + cross-corpus, lowest risk, no schema
-   dependency beyond `content_hash` backfill). Phase B — Tier A (registration, embeddings, merged
-   tight-threshold review queue). Phase C — Tier B (OCR pre-pass, merged loose-threshold review
-   queue). Phase D — promotion + pipeline hookup + run-status UI polish.
+All four stages (hash dedup, Tier A, Tier B, promotion) are implemented and have each been run
+end to end against real data on `metal`: 3 images intake → 1 rejected (confirmed duplicate via
+Tier A cross-corpus match) → 2 promoted to `active`, run marked `completed`. `general` and `it`
+haven't had a real ingestion batch run yet — only the active-library duplicate data used for
+threshold validation.
