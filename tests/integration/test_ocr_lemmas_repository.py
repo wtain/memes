@@ -222,3 +222,78 @@ async def test_no_similar_match_returns_empty_set(db_session):
     ids = await matching_image_ids(db_session, "различие")
 
     assert ids == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_errative_query_matches_canonical_form_via_phonetic_fallback(db_session):
+    """"превед" (an errative) has no exact match to "привет", and their
+    trigram similarity (0.167, verified against the real corpus during
+    design) is well below settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD
+    (0.35) -- only the phonetic path connects them."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    async with OCRLemmasSaver(db_session) as saver:
+        await saver.add_lemmas(image.id, {"привет"})
+
+    ids = await matching_image_ids(db_session, "превед")
+
+    assert ids == {image.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_known_word_phonetic_collision_does_not_cross_match(db_session):
+    """"полка" (shelf) and "палка" (stick) are both real dictionary words
+    (is_known=True) that are already their own nominative-singular form
+    (lemmatization leaves each unchanged) and phonetically collide (both
+    reduce to "ПАЛКА"). Their trigram similarity (0.333, verified against
+    the real corpus during design) is below the 0.35 threshold, so trigram
+    doesn't already connect them either -- this isolates the is_known gate
+    specifically: without it, phonetic matching alone would incorrectly
+    connect these two unrelated real words. (An earlier candidate pair,
+    "парта"/"порта", doesn't work for this: "порта" lemmatizes to "порт",
+    which no longer collides with "парта"'s code at all.)"""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    async with OCRLemmasSaver(db_session) as saver:
+        await saver.add_lemmas(image.id, {"палка"})
+
+    ids = await matching_image_ids(db_session, "полка")
+
+    assert ids == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_short_lemma_does_not_reach_phonetic_fallback(db_session):
+    """"жот" (3 chars) would phonetically collide with "жжот" (both reduce
+    to "ЖАТ") if it reached the phonetic fallback at all, but its length is
+    below both FUZZY_MIN_LEMMA_LENGTH and PHONETIC_MIN_LEMMA_LENGTH (both
+    5 by default) -- it never attempts trigram or phonetic matching."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    async with OCRLemmasSaver(db_session) as saver:
+        await saver.add_lemmas(image.id, {"жжот"})
+
+    ids = await matching_image_ids(db_session, "жот")
+
+    assert ids == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_non_cyrillic_query_does_not_trigger_phonetic_matching(db_session):
+    """Guards against russian_metaphone() being applied to non-Russian
+    query tokens -- is_known(lemma) would also be False for most
+    non-Cyrillic tokens (pymorphy3's dictionary is Russian-only), so
+    without the explicit Cyrillic check every Latin-script query would
+    otherwise attempt (meaningless) phonetic matching too."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    async with OCRLemmasSaver(db_session) as saver:
+        await saver.add_lemmas(image.id, {"привет"})
+
+    ids = await matching_image_ids(db_session, "hello")
+
+    assert ids == set()

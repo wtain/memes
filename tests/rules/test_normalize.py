@@ -91,6 +91,30 @@ class TestLemmatizeWordLanguageGating:
         wrapped.parse.assert_not_called()
 
 
+class TestLemmatizeWordUnknownWordsStayAsTyped:
+    """pymorphy3 runs its own unknown-word-guessing heuristics even for
+    words it doesn't recognize, and that guess can invent letters that
+    were never in the original word (e.g. "превед" -> "преведа"). For
+    genuinely unrecognized words -- typos, internet-slang erratives,
+    foreign fragments -- the word as typed is a more stable, predictable
+    lemma than an unreliable guess with no real dictionary entry backing
+    it. See docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md."""
+
+    def test_preved_stays_unchanged(self):
+        morph = make_morph()
+        assert lemmatize_word("превед", morph) == "превед"
+
+    def test_afftar_stays_unchanged(self):
+        morph = make_morph()
+        assert lemmatize_word("аффтар", morph) == "аффтар"
+
+    def test_known_word_still_lemmatizes_normally(self):
+        """Regression guard: the fix must only change is_known=False
+        behavior -- known words still get their real normal_form."""
+        morph = make_morph()
+        assert lemmatize_word("работе", morph) == "работа"
+
+
 class TestNormalizeLanguageGating:
     def test_language_none_reproduces_default_behavior(self):
         morph = make_morph()

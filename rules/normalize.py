@@ -31,7 +31,10 @@ def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer, language: str | No
     Rows known, or assumed, not to be Russian never reach an analyzer that was never
     designed for them.
 
-    language in LEMMATIZABLE_LANGUAGES ("ru"): real pymorphy3 lemmatization.
+    language in LEMMATIZABLE_LANGUAGES ("ru"): real pymorphy3 lemmatization
+    for recognized words; for words pymorphy3 doesn't recognize
+    (is_known=False), returns word.lower() rather than pymorphy3's guessed
+    normal_form -- see the is_known branch below for why.
 
     Note for callers outside this module (e.g. trends_batch's lemmatize_phrase): the
     None-means-"run pymorphy3 anyway" default here is a per-call fallback for callers
@@ -42,7 +45,18 @@ def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer, language: str | No
     if language is not None and language not in LEMMATIZABLE_LANGUAGES:
         return word.lower()
     parsed = morph.parse(word)
-    return parsed[0].normal_form if parsed else word.lower()
+    if not parsed:
+        return word.lower()
+    if not parsed[0].is_known:
+        # Words pymorphy3 doesn't recognize still get run through its
+        # unknown-word guesser, which can invent a normal_form via
+        # heuristic suffix-stripping (e.g. "превед" -> "преведа",
+        # "аффтар" -> "аффтара") -- a guess with no real dictionary entry
+        # backing it. The word as typed is a more stable, predictable
+        # lemma for genuinely unrecognized words (typos, internet-slang
+        # erratives, foreign fragments) than an invented guess.
+        return word.lower()
+    return parsed[0].normal_form
 
 
 _TOKEN_RE = re.compile(r"[^\W_]+(?:['-][^\W_]+)*", re.UNICODE)
