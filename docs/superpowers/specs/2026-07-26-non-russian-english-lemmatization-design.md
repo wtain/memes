@@ -192,12 +192,32 @@ fixing it.
 
 ## Data flow / storage
 
-No schema changes. This only changes what string `OCRLemma.lemma` stores for
+No schema changes. Within the search-matching path itself (trigram index, phonetic
+index, `ImageTag` matching), this only changes what string `OCRLemma.lemma` stores for
 `"en"`-tagged rows (a stem instead of a bare lowercase form) and what candidate strings
-get tried at query time. Since `OCRLemma.lemma` was never guaranteed to be a real
-dictionary word to begin with, this is invisible to every other part of the pipeline
-(trigram index, phonetic index, `ImageTag` matching) — none of them care what produced
-the stored string.
+get tried at query time — since `OCRLemma.lemma` was never guaranteed to be a real
+dictionary word to begin with, none of those other matching mechanisms care what
+produced the stored string.
+
+**Correction, found during the final whole-branch review — this is *not* invisible to
+the rest of the pipeline.** `lemmatize_word` is shared infrastructure, not
+search-matching-private: `batch/build_bow.py:171` and `rules/concept_tagger.py`
+(via `batch/build_tags_from_ocr.py`) both call it with each OCR row's own `language`,
+so `"en"`-tagged rows now get stemmed there too, not just in the search index. This
+was not accounted for when this design was written, and it introduces a real
+asymmetry: `rules/concept_tagger.py::_load_concepts` loads the concept **vocabulary**
+via `lemmatize_word(p, morph)` with no `language` argument at all (i.e. unstemmed,
+via pymorphy3's plain Latin passthrough) — so after the next `build_tags_from_ocr`
+rebuild, an English concept word stored as a base form will newly match stemmed OCR
+text it didn't before (a recall gain), while a concept word stored as an inflected
+form will stop matching (a recall loss), for reasons nobody decided. `metal` being
+93.8% English magnifies this. **Deliberately left as a disclosed, undecided
+follow-up rather than patched into this branch**: whether to also stem the concept
+vocabulary for symmetry is its own design question (does it actually improve tagging
+quality, or introduce new stem-collision false positives the way ungated phonetic
+matching did for search?) that deserves its own brainstorming pass and empirical
+validation against real concept-tag counts, not a same-branch patch bolted onto an
+already-reviewed feature.
 
 ## Dependencies
 
