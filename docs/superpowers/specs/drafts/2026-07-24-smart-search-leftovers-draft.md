@@ -96,10 +96,10 @@ The original conclusion — "needs a hand-curated substitution dictionary, not a
 algorithm" — is what the phonetic-erratives design superseded.
 </details>
 
-## 3. Non-Russian lemmatization (English, Spanish) — English: design approved, not yet implemented
+## 3. Non-Russian lemmatization (English, Spanish) — English: shipped
 
-**Status: partially addressed.** An approved (but not yet implemented) design now exists
-for English: `docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md`.
+**Status: partially addressed — English shipped.** See
+`docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md`.
 It adds a lightweight rule-based *stemmer* (the `snowballstemmer` package — not a full
 POS-aware lemmatizer like spaCy) that unifies English inflections for OCR text and search
 queries (e.g. "cats"/"cat", "running"/"run"). It's wired in as a new query-time
@@ -116,8 +116,25 @@ that adding Spanish later means adding its own `language == "es"` index-time bra
 its own query-time fallback tier, following the same pattern, without needing to revisit
 or rework the English implementation.
 
-**What's still open (within the approved English design, not yet implemented at all):**
+**What's still open (within the shipped English feature):**
 
+- **Concept tagging now has an undecided vocab/text asymmetry — found during the
+  final whole-branch review, after the design was written.** `rules/normalize.py`'s
+  `lemmatize_word` is shared infrastructure, not search-matching-private:
+  `batch/build_bow.py` and `rules/concept_tagger.py` (via `batch/build_tags_from_ocr.py`)
+  also call it with each OCR row's own `language`, so `"en"`-tagged OCR text now gets
+  stemmed there too — but `concept_tagger.py::_load_concepts` loads the concept
+  **vocabulary** unstemmed (no `language` argument passed). After the next
+  `build_tags_from_ocr` rebuild, this will silently shift some English concept tags
+  (base-form vocab entries gain new matches against stemmed OCR text; inflected-form
+  vocab entries lose matches they had before) — nobody decided this should happen, it's
+  just a consequence of `lemmatize_word` being shared. `metal` being 93.8% English
+  magnifies the effect. Deliberately left undecided rather than patched in: whether to
+  also stem the concept vocabulary for symmetry needs its own brainstorming pass (does
+  it actually improve tagging, or introduce new stem-collision false positives the way
+  ungated phonetic matching did for search?) and empirical validation against real
+  concept-tag counts before `build_tags_from_ocr`/`build_bow` are next rerun in any
+  environment.
 - **Hyphenated compounds and contractions aren't stemmed.** The design's
   `is_latin_word()` gate uses the matching regex `^[a-z]+$`, which only matches an
   unbroken sequence of plain lowercase letters — so tokens like "well-known" or "don't"
