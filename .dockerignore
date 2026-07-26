@@ -12,3 +12,33 @@ environments/.env.*
 node_modules
 __pycache__
 *.pyc
+
+# Dockerfile.backend only ever COPYs Backend/, Storage/, shared/, ai/,
+# embeddingutils/, repository/, rules/, graph/, metrics/, config/,
+# environments/, and two specific files from batch/. Everything below is
+# irrelevant to that build but was still being sent as build context on
+# every build (batch/images/ alone made the context 500MB+ and climbing --
+# it's the actual meme image corpus, tens of thousands of files).
+AndroidClient
+Frontend
+docs
+documents
+logs
+scripts
+tools
+tests
+batch/*
+!batch/__init__.py
+!batch/clusterize.py
+
+# Storage/backups/ is local Postgres dump storage (gitignored, see
+# Storage/.gitignore) -- 33GB on a real dev machine. .dockerignore doesn't
+# read .gitignore, so this was being sent as build context on every build
+# even though Dockerfile.backend never references it.
+Storage/backups
+Storage/__pycache__
+.pytest_cache
+htmlcov
+.agent_state
+.superpowers
+*.log

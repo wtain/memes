@@ -114,3 +114,34 @@ Docker daemon, runs in CI as a step in `Backend Docker Build`):
 5. Both tests pass. Verified `test_image_imports_app_main` itself against a stale
    assumption too — it originally asserted the old `import app.main` path; updated to
    `import Backend.app.main` to match the real fix in step 3.
+
+## Follow-up (2026-07-26): missing `batch/clusterize` import, and a 33GB build context
+
+A new feature (`Backend/app/services/ingestion_service.py`) started importing
+`batch.clusterize.PROXIMITY_THRESHOLD`, and `Dockerfile.backend` never copied `batch/` at
+all — same class of bug as the `config`/`environments` one above, caught the same way
+(`tests/docker/` failed with `ModuleNotFoundError: No module named 'batch'`). Fixed by
+copying only the two files actually needed — `COPY batch/__init__.py ./batch/__init__.py`
+and `COPY batch/clusterize.py ./batch/clusterize.py` — not all of `batch/`, which is
+mostly offline enrichment scripts with heavy ML deps that don't belong in
+`requirements-backend.txt`.
+
+That surfaced a second, much bigger problem while verifying the fix locally: the Docker
+build context transfer alone took multiple minutes and kept growing past 500MB, even
+though `.dockerignore` already existed. Cause: `.dockerignore` has no relationship to
+`.gitignore` — files that are gitignored (untracked, invisible to `git`) are **not**
+automatically excluded from a Docker build context. `Storage/backups/` (gitignored local
+Postgres dumps, 33GB on this machine) and `batch/images/` (the actual meme corpus,
+tens of thousands of files) were both being sent as build context on every single build,
+despite neither ever being referenced by any `COPY` in `Dockerfile.backend`. Added
+explicit excludes for both, plus every other top-level directory the backend image never
+touches (`AndroidClient/`, `Frontend/`, `docs/`, `documents/`, `logs/`, `scripts/`,
+`tools/`, `tests/`) and common artifact patterns (`.pytest_cache/`, `htmlcov/`, `*.log`).
+Context transfer dropped from 500MB+/climbing to 764KB in ~3s; the full `tests/docker/`
+suite (which builds the image for real) went from not finishing in 10 minutes to 44s.
+
+**Takeaway for next time:** if a Docker build (or its build-context transfer step
+specifically) is unexpectedly slow, check `.dockerignore` against what's *actually on
+disk* — `du -sh */` at the repo root — not just against what the Dockerfile's `COPY`
+lines reference. A directory can be gitignored, huge, and still fully present in every
+build context.

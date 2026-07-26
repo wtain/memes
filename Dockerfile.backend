@@ -52,6 +52,14 @@ COPY graph ./graph
 COPY metrics ./metrics
 COPY config ./config
 COPY environments ./environments
+# Backend/app/services/ingestion_service.py imports batch.clusterize for a
+# shared constant (see docs/superpowers/specs/2026-07-25-duplicate-clustering-
+# incremental-design.md). Copy only that module, not all of batch/ -- the rest
+# is offline enrichment scripts (heavy ML deps not in requirements-backend.txt)
+# plus batch/data, batch/downloads, batch/images*, which are data directories,
+# not code, and don't belong in the image at all.
+COPY batch/__init__.py ./batch/__init__.py
+COPY batch/clusterize.py ./batch/clusterize.py
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
