@@ -297,3 +297,79 @@ async def test_non_cyrillic_query_does_not_trigger_phonetic_matching(db_session)
     ids = await matching_image_ids(db_session, "hello")
 
     assert ids == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_english_stem_fallback_matches_different_inflection(db_session):
+    """"cats" (query) matches an image indexed with lemma "cat" -- the
+    stem OCRLemmasSaver.add_lemmas() would have stored for an
+    "en"-tagged OCR row containing "cats" (stem_english_word produces the
+    same "cat" stem for both "cats" and "cat")."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=image.id, lemma="cat"))
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "cats")
+
+    assert ids == {image.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_spanish_word_still_matches_via_exact_match_unaffected_by_stemming(db_session):
+    """Regression guard for the exact concern that drove the query-time
+    design: a Spanish word indexed and queried identically must still
+    match via exact match, unaffected by the new English-stemming
+    fallback existing at all. Spanish is also Latin-script
+    (is_latin_word("gatos") is True), so this only passes if exact match
+    genuinely wins before the stemming fallback ever gets a chance to
+    run."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=image.id, lemma="gatos"))
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "gatos")
+
+    assert ids == {image.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_spanish_word_without_exact_match_does_not_spuriously_match_via_stemming(db_session):
+    """If a Spanish query word has no exact match, the stemming fallback
+    still runs (is_latin_word can't distinguish Spanish from English --
+    stem_english_word("gatos") == "gato") -- but since nothing in the
+    index has "gato" as its lemma, this must not produce a spurious
+    match. Verifies the design doc's "harmless, not wrong" claim about
+    the fallback running on non-English Latin-script content: it can
+    only add correct matches, never a false one."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=image.id, lemma="perro"))
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "gatos")
+
+    assert ids == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_short_english_word_still_reaches_stemming_fallback(db_session):
+    """Stemming has no length guard (unlike trigram/phonetic's
+    FUZZY_MIN_LEMMA_LENGTH) -- it's deterministic suffix-stripping, not a
+    similarity search, so it doesn't carry the same short-word
+    false-positive risk. "run" (3 chars) is well below
+    settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH (5) but must still reach the
+    stemming fallback."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=image.id, lemma="run"))
+    await db_session.flush()
+
+    ids = await matching_image_ids(db_session, "runs")
+
+    assert ids == {image.id}

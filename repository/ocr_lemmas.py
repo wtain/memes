@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
+from rules.english_stemming import is_latin_word, stem_english_word
 from rules.normalize import make_morph, normalize
 from rules.phonetic import is_cyrillic_word, russian_metaphone
 from Storage.models import ImageTag, OCRLemma
@@ -84,6 +85,32 @@ async def _phonetic_lemma_ids(session: AsyncSession, lemma: str) -> set:
     return {row[0] for row in result.all()}
 
 
+async def _stem_lemma_ids(session: AsyncSession, lemma: str) -> set:
+    """
+    Query-time-only fallback for English word-form variation (e.g. a
+    query for "cats" reaching an indexed "cat"). OCRLemmasSaver.add_lemmas()
+    already stores the *stemmed* form for "en"-tagged OCR rows (via
+    lemmatize_word's STEMMABLE_LANGUAGES branch), so an exact match
+    against the query's own stem is enough here -- no separate storage or
+    index needed.
+
+    Tried only after exact match already fails (see matching_image_ids),
+    mirroring the trigram/phonetic fallback pattern -- NOT baked into the
+    primary lemma path, to avoid stemming Spanish (also Latin-script)
+    query tokens with English-specific rules and breaking exact match for
+    Spanish content that works today. See
+    docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md.
+
+    OCRLemma only, not ImageTag -- same scope reduction as the phonetic
+    fallback (tags are a controlled vocabulary, not raw OCR text).
+    """
+    stem = stem_english_word(lemma)
+    result = await session.execute(
+        select(OCRLemma.image_id).where(OCRLemma.lemma == stem)
+    )
+    return {row[0] for row in result.all()}
+
+
 async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optional[set]:
     """
     None means "apply no filter" (q is falsy, or every token normalizes
@@ -91,24 +118,33 @@ async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optiona
     OCR-lemma index or tags contain every query lemma (AND); an empty set
     means no image matches.
 
-    Each query lemma is matched exactly first. If that finds nothing and
-    the lemma is at least settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH characters
-    (avoiding short-word false positives — see the design doc's empirical
-    similarity-score table), a trigram-similarity fallback
-    (settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD) is tried. See
-    docs/superpowers/specs/2026-07-24-smart-search-fuzzy-matching-design.md.
+    Each query lemma is matched exactly first. If that finds nothing,
+    every applicable fallback tier below is unioned together (not tried
+    sequentially with early exit) -- they catch different failure classes,
+    so there's no reason one should suppress another:
 
-    Additionally, when the lemma is Cyrillic, at least
-    settings.SEARCH.PHONETIC_MIN_LEMMA_LENGTH characters, and not a
-    pymorphy3-recognized dictionary word (_is_known_word is False), a
-    phonetic-code fallback is unioned in on top of the trigram result --
-    this catches erratives (deliberate misspellings like "превед") that
-    trigram similarity cannot. The is_known gate is what prevents real
-    dictionary words that happen to sound alike (e.g. "кот"/"код") from
-    cross-matching via this path; trigram doesn't need the same gate
-    because its own false-positive class is different (typo-of-same-word,
-    not sounds-like-a-different-word). See
-    docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md.
+    - If the lemma is Latin-script (is_latin_word), an English-stemming
+      fallback (stem_english_word) is tried, with no length guard --
+      it's deterministic suffix-stripping, not a similarity search, so it
+      doesn't carry the short-word false-positive risk that motivates a
+      length guard elsewhere. Deliberately NOT applied to the lemma's
+      primary normalization (see rules/normalize.py::lemmatize_word) --
+      only as this query-time fallback -- because Spanish is also
+      Latin-script and would otherwise get incorrectly stemmed with
+      English-specific rules. See
+      docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md.
+    - If the lemma is at least settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH
+      characters (avoiding short-word false positives — see the design
+      doc's empirical similarity-score table), a trigram-similarity
+      fallback (settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD) is tried. See
+      docs/superpowers/specs/2026-07-24-smart-search-fuzzy-matching-design.md.
+    - Additionally, when the lemma is Cyrillic, at least
+      settings.SEARCH.PHONETIC_MIN_LEMMA_LENGTH characters, and not a
+      pymorphy3-recognized dictionary word (_is_known_word is False), a
+      phonetic-code fallback is unioned in too -- this catches erratives
+      (deliberate misspellings like "превед") that trigram similarity
+      cannot. See
+      docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md.
     """
     if not q:
         return None
@@ -131,14 +167,17 @@ async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optiona
     matching_ids: Optional[set] = None
     for lemma in lemmas:
         lemma_ids = await _exact_lemma_ids(session, lemma)
-        if not lemma_ids and len(lemma) >= settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH:
-            lemma_ids = await _fuzzy_lemma_ids(session, lemma)
-            if (
-                is_cyrillic_word(lemma)
-                and len(lemma) >= settings.SEARCH.PHONETIC_MIN_LEMMA_LENGTH
-                and not _is_known_word(lemma)
-            ):
-                lemma_ids = lemma_ids | await _phonetic_lemma_ids(session, lemma)
+        if not lemma_ids:
+            if is_latin_word(lemma):
+                lemma_ids = lemma_ids | await _stem_lemma_ids(session, lemma)
+            if len(lemma) >= settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH:
+                lemma_ids = lemma_ids | await _fuzzy_lemma_ids(session, lemma)
+                if (
+                    is_cyrillic_word(lemma)
+                    and len(lemma) >= settings.SEARCH.PHONETIC_MIN_LEMMA_LENGTH
+                    and not _is_known_word(lemma)
+                ):
+                    lemma_ids = lemma_ids | await _phonetic_lemma_ids(session, lemma)
 
         matching_ids = lemma_ids if matching_ids is None else (matching_ids & lemma_ids)
         if not matching_ids:
