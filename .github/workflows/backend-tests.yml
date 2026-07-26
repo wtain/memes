@@ -58,13 +58,18 @@ jobs:
         pip install -r Backend/requirements-backend.txt
         pip install -r Backend/requirements-test.txt
 
-    - name: Lint with flake8
+    - name: Lint with flake8 (syntax errors / undefined names)
+      # No continue-on-error: this check is meant to hard-fail the build. It
+      # previously had continue-on-error covering it too, which combined with
+      # flake8 not actually being installed (see requirements-test.txt) meant
+      # this never actually ran for months and let a real NameError bug
+      # (undefined INCOMING_DIR in app/api/uploads.py) ship silently.
       run: |
-        # Stop the build if there are Python syntax errors or undefined names
         flake8 Backend/app Backend/tests --count --select=E9,F63,F7,F82 --show-source --statistics
-        # Exit-zero treats all errors as warnings
+
+    - name: Lint with flake8 (style, advisory)
+      run: |
         flake8 Backend/app Backend/tests --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      continue-on-error: true
 
     - name: Run tests with pytest
       run: |

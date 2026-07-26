@@ -76,8 +76,6 @@ async def upload_images(request: Request, files: list[UploadFile] = File(...)):
     if len(files) > MAX_FILES:
         raise HTTPException(status_code=422, detail=f"Too many files: max {MAX_FILES} per request")
 
-    INCOMING_DIR.mkdir(parents=True, exist_ok=True)
-
     uploaded: list[UploadedFile] = []
     failed: list[FailedFile] = []
 
