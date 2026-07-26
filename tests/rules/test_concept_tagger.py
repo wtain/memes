@@ -80,16 +80,53 @@ class TestSingleWord:
         assert "animal:cat" not in _tags(e, "МОКОТОВ")
 
 
+class TestVocabularyLanguageAutodetection:
+    def test_english_vocabulary_word_matches_stemmed_ocr_text(self, tmp_path):
+        """The vocabulary word "cat" is itself already a stem, so this
+        only proves the match works when OCR text is tagged "en" (and
+        therefore stemmed at query/tag time) -- it does NOT yet prove the
+        vocabulary side is being autodetected/stemmed. See the next test
+        for that."""
+        e = _make_engine(tmp_path, {
+            "felines": {"words": ["cat"], "votes": {"topic:cat": 1.0}},
+        })
+
+        result = e.tag("look at these cats", language="en")
+
+        assert ("topic", "cat") in result.tags
+
+    def test_inflected_english_vocabulary_word_matches_via_stemming(self, tmp_path):
+        """The vocabulary word "cats" (inflected, not a base form) only
+        matches OCR text "cat" if the vocabulary side is ALSO stemmed at
+        load time -- this is the actual vocab/text symmetry this feature
+        adds. Before this feature, "cats" would have been loaded as the
+        plain lowercase string "cats", which would never match a stemmed
+        "cat" in OCR text."""
+        e = _make_engine(tmp_path, {
+            "felines": {"words": ["cats"], "votes": {"topic:cat": 1.0}},
+        })
+
+        result = e.tag("I have one cat", language="en")
+
+        assert ("topic", "cat") in result.tags
+
+
 # ---------------------------------------------------------------------------
 # multi-word phrase matching
 # ---------------------------------------------------------------------------
 
 class TestPhraseMatching:
     def test_two_word_phrase(self, tmp_path):
+        """Vocabulary loading now autodetects script and stems English words
+        at load time (e.g. "chains" -> "chain"), so matching this phrase
+        against OCR text requires tagging that text "en" too -- exactly how
+        batch/build_tags_from_ocr.py calls .tag() in production (always with
+        each row's real detected language). _tags(engine, text) (no language)
+        would leave the text side unstemmed and never match here."""
         e = _make_engine(tmp_path, {
             "alice": {"words": ["alice in chains"], "votes": {"band:aic": 1.0}},
         })
-        assert "band:aic" in _tags(e, "listening to Alice in Chains today")
+        assert "band:aic" in _tags_lang(e, "listening to Alice in Chains today", "en")
 
     def test_phrase_with_function_word(self, tmp_path):
         """Short function words ('of', 'in', 'a') must not break phrase matching."""

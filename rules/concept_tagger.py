@@ -7,7 +7,7 @@ from pathlib import Path
 import pymorphy3
 import yaml
 
-from rules.normalize import lemmatize_word, make_morph, normalize
+from rules.normalize import lemmatize_word_autodetect, make_morph, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -130,10 +130,10 @@ def _load_concepts(
         lemmatized: set[str] = set()
         for w in raw_words:
             parts = w.split()
-            lemmatized.add(" ".join(lemmatize_word(p, morph) for p in parts))
+            lemmatized.add(" ".join(lemmatize_word_autodetect(p, morph) for p in parts))
 
         fuzzy = [
-            {"lemma": lemmatize_word(fe["word"], morph), "threshold": fe["threshold"]}
+            {"lemma": lemmatize_word_autodetect(fe["word"], morph), "threshold": fe["threshold"]}
             for fe in raw_fuzzy
         ]
 
