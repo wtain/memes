@@ -96,7 +96,41 @@ The original conclusion — "needs a hand-curated substitution dictionary, not a
 algorithm" — is what the phonetic-erratives design superseded.
 </details>
 
-## 3. Non-Russian lemmatization (English, Spanish)
+## 3. Non-Russian lemmatization (English, Spanish) — English: design approved, not yet implemented
+
+**Status: partially addressed.** An approved (but not yet implemented) design now exists
+for English: `docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md`.
+It adds a lightweight rule-based *stemmer* (the `snowballstemmer` package — not a full
+POS-aware lemmatizer like spaCy) that unifies English inflections for OCR text and search
+queries (e.g. "cats"/"cat", "running"/"run"). It's wired in as a new query-time
+*fallback* tier in `repository/ocr_lemmas.py::matching_image_ids` — tried only after
+exact match already fails, the same layered pattern trigram and phonetic fallback
+already use — rather than as a change to the primary lemma path, specifically to avoid
+regressing Spanish-tagged content (Spanish is also Latin-script, so a query-time check
+that can't tell English and Spanish apart must not unconditionally stem every
+Latin-script token).
+
+Spanish itself remains fully deferred; the original reasoning below still applies to it
+unchanged. The English design's query-time fallback tier is deliberately structured so
+that adding Spanish later means adding its own `language == "es"` index-time branch and
+its own query-time fallback tier, following the same pattern, without needing to revisit
+or rework the English implementation.
+
+**What's still open (within the approved English design, not yet implemented at all):**
+
+- **Hyphenated compounds and contractions aren't stemmed.** The design's
+  `is_latin_word()` gate uses the matching regex `^[a-z]+$`, which only matches an
+  unbroken sequence of plain lowercase letters — so tokens like "well-known" or "don't"
+  (containing a hyphen or apostrophe) fall through without ever reaching the stemmer.
+  This was a deliberate scope-narrowing for the first pass, explicitly flagged in the
+  design itself as "take this on later" rather than a blocker.
+- **Irregular forms a real lemmatizer would unify but a stemmer can't** (e.g.
+  "better"/"good" staying as distinct, unrelated tokens) — an accepted tradeoff of
+  choosing a lightweight stemmer over a heavier dependency like spaCy or NLTK, not
+  expected to be revisited unless real search-quality complaints surface.
+
+<details>
+<summary>Original why-deferred reasoning (kept for the record; still applies to Spanish)</summary>
 
 **What it would do:** true lemmatization (not just lowercasing) for English and Spanish
 OCR text — e.g. unifying "cats"/"cat" the way Russian case declensions are already
@@ -121,6 +155,8 @@ unified.
   for English/Spanish text hasn't been checked against real corpus data the way the
   Russian case was.
 
+</details>
+
 ## 4. Accepted OCR-language cross-detection asymmetry (documented limitation, not planned work)
 
 Not a deferred feature — a permanently accepted tradeoff, included here only for a
@@ -131,6 +167,75 @@ Russian lemmatization. Fixing this means fixing OCR language misdetection itself
 different problem than search. Documented via code comment
 (`docs/superpowers/specs/2026-07-22-smart-search-phase1-hardening-design.md`), not
 revisited here.
+
+## 5. Fallback-tier short-circuiting makes results corpus-dependent
+
+**What it would do:** Today, `repository/ocr_lemmas.py::matching_image_ids` tries an
+exact match for each query lemma first; only if that returns *zero* results does it fall
+through to the fuzzier fallback tiers (trigram-similarity matching, phonetic matching for
+Russian "erratives" — deliberate phonetic misspellings like `превед` for `привет` — and,
+once `docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md` is
+implemented, English stemming too). The fuzzy tiers are unioned together when more than
+one of them runs (e.g. trigram and phonetic results are combined, not tried one after
+another until one succeeds) — but the boundary between "exact match found something" and
+"exact match found nothing, so try the fuzzy tiers" is a hard all-or-nothing gate: if
+exact match finds even one result for a query lemma, none of the fuzzy tiers run at all
+for that lemma, no matter how many additional legitimate results a fuzzier tier might
+have surfaced.
+
+The idea floated here (not committed to, just raised for the record) is to stop
+short-circuiting: run every tier unconditionally for every query and merge/union all of
+their results together, rather than gating the fuzzy tiers behind "did exact match come
+up empty."
+
+**Why deferred:**
+
+- **Depends on ranking existing first.** The main reason today's exact-match tier is
+  allowed to fully suppress the fuzzy tiers is that there's no relevance ranking yet —
+  see item 1 above, "Ranking / relevance scoring." Without ranking, merging all tiers
+  unconditionally would mix an exact match for one meme with a fuzzy/phonetic/stemmed
+  match for a much less relevant meme into one undifferentiated result set, with no
+  signal to tell the two apart or sort one above the other. A ranking signal (once item 1
+  is implemented) would let exact matches naturally surface above fuzzy matches within a
+  single merged result set, making the current tier gate unnecessary as a stand-in for
+  quality — but until ranking exists, removing the gate would make result quality worse,
+  not better. This idea can't really be tackled in isolation from item 1; it would need
+  to be designed alongside it, or after it.
+- **The corpus-dependency problem this is meant to fix.** The short-circuit means
+  whether a query benefits from fuzzy matching at all depends entirely on whether some
+  *unrelated* image happens to satisfy exact match first — not on any property of the
+  query itself. Concretely: if a new meme gets added to the corpus that happens to
+  satisfy exact match for a given query, the result set can silently *shrink* to just
+  that one exact hit, even though before that meme was added, the same query surfaced
+  several results via the fuzzy tiers. In other words, the quality and composition of
+  today's search results depend on incidental corpus contents rather than being
+  consistently well-defined by the tiers' own individual quality — an easy thing to
+  overlook when trying to explain why a query's result set changed between two points in
+  time.
+
+This is a general architectural concern about the whole fallback-chain design, not
+specific to any one fuzzy tier — it applies equally to the existing trigram and phonetic
+tiers and to the not-yet-implemented English stemming tier. The stemming design doc
+above discusses this same short-circuiting behavior briefly from its own narrower
+angle (in its "Known, disclosed limitations" section); this item is the general version
+of that concern, covering all fallback tiers, not just stemming.
+
+## 6. Progressive / asynchronous search (open, not fleshed out)
+
+**What it would do:** Return the fast exact-match tier's results to the user
+immediately, then keep computing the heavier fuzzy tiers (trigram, phonetic, and
+eventually English stemming) in the background, refining/updating the visible result set
+as each tier finishes — instead of making the user wait for every tier to finish before
+seeing anything.
+
+**Why deferred:** This is a related but distinct idea from item 5 above, raised in the
+same discussion but not fleshed out at all beyond the basic concept. It's recorded here
+purely so a future brainstorming pass doesn't have to rediscover that it was raised.
+Open questions that would need their own dedicated design work include: what this
+implies for the API contract (streaming responses? client-side polling? websockets?),
+and what it implies for the frontend UX (partial results appearing first, then updating
+in place as later tiers complete). None of these have been thought through yet — this
+item is a placeholder to pick up later, not a proposal to build from.
 
 ---
 
