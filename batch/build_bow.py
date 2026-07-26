@@ -9,7 +9,7 @@ import yaml
 
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
-from rules.normalize import lemmatize_word, make_morph, tokenize
+from rules.normalize import lemmatize_word_autodetect, make_morph, tokenize
 from rules.lang_plausibility import passes_language_filter
 from Storage.db import AsyncSessionLocal
 from repository.ocr_text import OCRTextRepository
@@ -47,7 +47,7 @@ def _count_lemmas(output, text_source):
 def _load_ignore_lemmas(morph, path):
     with open(path, encoding="utf-8") as f:
         words = json.load(f)
-    return {lemmatize_word(w, morph) for w in words}
+    return {lemmatize_word_autodetect(w, morph) for w in words}
 
 
 def _build_vocab_lemma_set(morph, path):
@@ -64,7 +64,7 @@ def _build_json_rules_lemma_set(morph, path):
     covered = set()
     for rule_key in data:
         for word in tokenize(rule_key):
-            covered.add(lemmatize_word(word, morph))
+            covered.add(lemmatize_word_autodetect(word, morph))
     return covered
 
 
@@ -75,9 +75,9 @@ def _build_concepts_lemma_set(morph, path):
     for _concept_name, cfg in (data or {}).items():
         for word in (cfg.get("words") or []):
             for token in tokenize(word):
-                covered.add(lemmatize_word(token, morph))
+                covered.add(lemmatize_word_autodetect(token, morph))
         for fe in (cfg.get("fuzzy") or []):
-            covered.add(lemmatize_word(fe["word"], morph))
+            covered.add(lemmatize_word_autodetect(fe["word"], morph))
     return covered
 
 
