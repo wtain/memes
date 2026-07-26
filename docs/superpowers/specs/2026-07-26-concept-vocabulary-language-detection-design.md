@@ -120,6 +120,35 @@ lower:
   stem-collision this change introduces as a visible warning, not a silent failure —
   no new gate needed on top of it.
 
+**Disclosed limitation found during the final whole-branch review — a false-*negative*
+in the opposite direction, not covered by the collision-risk analysis above.**
+`lemmatize_word_autodetect` treats *any* pure-Latin-script vocabulary word as English
+and stems it unconditionally. But the OCR-text side only stems when the row's own
+detected `language` is actually `"en"` — rows tagged `"es"` (Spanish, also Latin-script)
+or `"unknown"` (NULL/undetected, the fallback `batch/build_tags_from_ocr.py:55`
+substitutes via `language or "unknown"`) stay lowercase-only, unstemmed. Consequence: an
+**inflected** English vocabulary entry (e.g. `"cats"`, stemmed at load time to `"cat"`)
+will no longer match the same inflected word in an `"es"`/`"unknown"`-tagged OCR row
+(still `"cats"`, unstemmed) — a match that *did* work before this branch, when both
+sides were plain-lowercased. This is accepted, not fixed: most vocabulary entries are
+either base forms or proper nouns that stem to themselves (`"opeth"`, `"metallica"`
+unchanged), so the practical blast radius is narrow (only inflected common-word English
+vocabulary matched against non-`en`-tagged rows), and the dominant corpus is `en`/`ru`.
+Same tradeoff class already noted in `lemmatize_word`'s own docstring for the
+`STEMMABLE_LANGUAGES`/`LEMMATIZABLE_LANGUAGES` gap generally.
+
+**Second disclosed limitation, also found during that review**: the vocabulary sets this
+change touches (`ignore_lemmas`, `rules_lemmas` in `batch/build_bow.py::main()`) are
+built once and applied to *either* the OCR-BOW or the descriptions-BOW output, whichever
+`settings.BOW.TEXT_SOURCE` selects — not just the OCR path this design otherwise
+reasons about. `_build_descriptions_bow` itself is untouched (still plain
+`lemmatize_word(word, morph)`, unstemmed), but if `TEXT_SOURCE` were ever set to
+`descriptions` in any environment, its unstemmed output would be compared against these
+now-stemmed vocabulary sets — the same asymmetry class as above, on a path this design
+otherwise describes as fully out of scope. Not active today: no environment's
+`settings.yaml` sets `text_source: descriptions`. Worth revisiting if that path is ever
+enabled.
+
 ## Testing
 
 - `tests/rules/test_normalize.py`: new test class for `lemmatize_word_autodetect`
