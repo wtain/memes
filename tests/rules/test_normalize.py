@@ -53,7 +53,7 @@ class TestTokenizeUnderscoreStillSplits:
 
 from unittest.mock import Mock
 
-from rules.normalize import lemmatize_word, make_morph, normalize
+from rules.normalize import lemmatize_word, lemmatize_word_autodetect, make_morph, normalize
 
 
 class TestLemmatizeWordLanguageGating:
@@ -126,6 +126,30 @@ class TestLemmatizeWordUnknownWordsStayAsTyped:
         behavior -- known words still get their real normal_form."""
         morph = make_morph()
         assert lemmatize_word("работе", morph) == "работа"
+
+
+class TestLemmatizeWordAutodetect:
+    def test_cyrillic_word_gets_real_lemmatization(self):
+        morph = make_morph()
+        assert lemmatize_word_autodetect("кошки", morph) == "кошка"
+
+    def test_latin_word_gets_stemmed(self):
+        morph = make_morph()
+        assert lemmatize_word_autodetect("cats", morph) == "cat"
+
+    def test_digit_only_word_falls_through_to_plain_lowercase(self):
+        morph = make_morph()
+        assert lemmatize_word_autodetect("2020", morph) == "2020"
+
+    def test_mixed_script_word_falls_through_to_plain_lowercase(self):
+        morph = make_morph()
+        assert lemmatize_word_autodetect("METALLICAкринж", morph) == "metallicaкринж"
+
+    def test_uppercase_latin_word_is_detected_and_stemmed(self):
+        # is_cyrillic_word/is_latin_word require already-lowercased input;
+        # this pins that lemmatize_word_autodetect lowercases before checking.
+        morph = make_morph()
+        assert lemmatize_word_autodetect("CATS", morph) == "cat"
 
 
 class TestNormalizeLanguageGating:

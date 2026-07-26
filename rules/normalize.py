@@ -2,7 +2,8 @@ import re
 
 import pymorphy3
 
-from rules.english_stemming import stem_english_word
+from rules.english_stemming import is_latin_word, stem_english_word
+from rules.phonetic import is_cyrillic_word
 
 # Reddit watermarks OCR'd as "riSubredditName" (the slash is read as 'i').
 # For any token matching this pattern we also emit the suffix as an extra lemma so that
@@ -84,6 +85,27 @@ def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer, language: str | No
         # erratives, foreign fragments) than an invented guess.
         return word.lower()
     return parsed[0].normal_form
+
+
+def lemmatize_word_autodetect(word: str, morph: pymorphy3.MorphAnalyzer) -> str:
+    """
+    Like lemmatize_word, but for callers with no external language signal
+    at all (hand-curated vocabulary in concepts/tags/ignore-word files,
+    as opposed to OCR text rows which carry their own detected language).
+    Detects the word's own script and dispatches accordingly, reusing
+    is_cyrillic_word/is_latin_word (the same checks matching_image_ids
+    uses at query time) instead of requiring per-word language metadata
+    in the data files -- vocabulary words are already almost always pure
+    single-script tokens ("opeth", "кринж"), even when a word list mixes
+    languages overall. See
+    docs/superpowers/specs/2026-07-26-concept-vocabulary-language-detection-design.md.
+    """
+    lowered = word.lower()
+    if is_cyrillic_word(lowered):
+        return lemmatize_word(word, morph, language="ru")
+    if is_latin_word(lowered):
+        return lemmatize_word(word, morph, language="en")
+    return lemmatize_word(word, morph)
 
 
 _TOKEN_RE = re.compile(r"[^\W_]+(?:['-][^\W_]+)*", re.UNICODE)
