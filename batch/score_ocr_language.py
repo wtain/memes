@@ -26,15 +26,21 @@ async def run(rescore_all: bool = False) -> None:
         print(f"Rows to score: {len(rows)}")
 
         scored = 0
+        batch = []
         for row in rows:
             lang_score = score(row.text, row.language)
-            await repo.update_lang_score(row.id, lang_score)
+            batch.append({"b_id": row.id, "lang_score": lang_score})
             scored += 1
-            if scored % COMMIT_EVERY == 0:
+            if len(batch) >= COMMIT_EVERY:
+                await repo.update_lang_scores(batch)
                 await session.commit()
+                batch = []
                 print(f"  scored {scored}/{len(rows)}")
 
-        await session.commit()
+        if batch:
+            await repo.update_lang_scores(batch)
+            await session.commit()
+
         print(f"Done. Scored {scored} rows.")
 
 

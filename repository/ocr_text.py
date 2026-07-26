@@ -1,5 +1,5 @@
 import numpy
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, select, text
 from sqlalchemy.sql.functions import count
 
 from Storage.models import OCRText
@@ -72,7 +72,18 @@ class OCRTextRepository:
         result = await self.session.execute(query)
         return result.all()
 
-    async def update_lang_score(self, text_id, lang_score: float | None) -> None:
+    async def update_lang_scores(self, updates: list[dict]) -> None:
+        """Bulk-update lang_score for many rows in a single round trip
+        (executemany), instead of one individually-awaited UPDATE per row --
+        the latter was the bottleneck in batch/score_ocr_language.py at
+        real corpus scale (~29 rows/sec measured against a live environment,
+        which would have taken hours per environment).
+
+        Each dict must have keys "b_id" (OCRText.id) and "lang_score".
+        """
+        if not updates:
+            return
         await self.session.execute(
-            update(OCRText).where(OCRText.id == text_id).values(lang_score=lang_score)
+            text("UPDATE ocr_texts SET lang_score = :lang_score WHERE id = :b_id"),
+            updates,
         )

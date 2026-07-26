@@ -112,17 +112,34 @@ async def test_get_rows_for_scoring_defaults_to_unscored_only(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_update_lang_score_writes_the_value(db_session):
+async def test_update_lang_scores_writes_values_in_bulk(db_session):
     image = await _insert_image(db_session)
     repo = OCRTextRepository(db_session)
-    await repo.overwrite_texts(image, [(_BBOX, "lol", 0.5)], "en")
+    await repo.overwrite_texts(image, [(_BBOX, "lol", 0.5), (_BBOX, "rofl", 0.5)], "en")
     await db_session.flush()
 
-    result = await db_session.execute(select(OCRText).where(OCRText.image_id == image.id))
-    row = result.scalar_one()
-    assert row.lang_score is None
+    result = await db_session.execute(
+        select(OCRText).where(OCRText.image_id == image.id).order_by(OCRText.text)
+    )
+    rows = result.scalars().all()
+    assert [r.lang_score for r in rows] == [None, None]
 
-    await repo.update_lang_score(row.id, 0.42)
+    await repo.update_lang_scores([
+        {"b_id": rows[0].id, "lang_score": 0.42},
+        {"b_id": rows[1].id, "lang_score": 0.9},
+    ])
     await db_session.flush()
-    await db_session.refresh(row)
-    assert row.lang_score == pytest.approx(0.42)
+    for row in rows:
+        await db_session.refresh(row)
+
+    assert [r.lang_score for r in rows] == [pytest.approx(0.42), pytest.approx(0.9)]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_update_lang_scores_no_op_on_empty_list(db_session):
+    """Guards the early return -- calling execute() with an empty params
+    list would otherwise be a no-op UPDATE with no WHERE match anyway, but
+    an empty executemany batch is worth an explicit guard and test since
+    the batching loop in batch/score_ocr_language.py can produce one."""
+    repo = OCRTextRepository(db_session)
+    await repo.update_lang_scores([])
