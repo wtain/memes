@@ -2,6 +2,8 @@ import re
 
 import pymorphy3
 
+from rules.english_stemming import stem_english_word
+
 # Reddit watermarks OCR'd as "riSubredditName" (the slash is read as 'i').
 # For any token matching this pattern we also emit the suffix as an extra lemma so that
 # concepts like "metallica" still fire on "rimetallica". Safe to do unconditionally: any
@@ -13,6 +15,13 @@ _SUBREDDIT_OCR_RE = re.compile(r'^ri([a-zA-Z]{5,})$', re.IGNORECASE)
 # requirements file today; add "uk" here if that ever changes.
 LEMMATIZABLE_LANGUAGES = frozenset({"ru"})
 
+# Languages handled by a rule-based stemmer instead of a real dictionary
+# lemmatizer -- a different mechanism than LEMMATIZABLE_LANGUAGES (pymorphy3),
+# so kept as its own constant rather than folded into that one. See
+# rules/english_stemming.py and
+# docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md.
+STEMMABLE_LANGUAGES = frozenset({"en"})
+
 
 def make_morph() -> pymorphy3.MorphAnalyzer:
     return pymorphy3.MorphAnalyzer()
@@ -20,16 +29,32 @@ def make_morph() -> pymorphy3.MorphAnalyzer:
 
 def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer, language: str | None = None) -> str:
     """
+    language in STEMMABLE_LANGUAGES ("en"): stems via
+    rules.english_stemming.stem_english_word() instead of lowercasing.
+    Checked first, before the LEMMATIZABLE_LANGUAGES gate below, since
+    "en" would otherwise match "not in LEMMATIZABLE_LANGUAGES" and just
+    get lowercased. This branch is index-time only in practice: each OCR
+    row already carries its own detected language tag, so there's no
+    ambiguity here the way there is at query time (see
+    repository/ocr_lemmas.py's separate, query-time-only stemming
+    fallback tier, gated by is_latin_word rather than an explicit
+    language tag, and deliberately NOT wired into this function's
+    language=None path -- see
+    docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md
+    for why: Spanish is also Latin-script, and this function has no way
+    to distinguish it from English by language tag alone at query time).
+
     language=None (default): unchanged legacy behavior — always call morph.parse(),
     relying on pymorphy3's own script-based fallback (real RU dictionary lookup for
     Cyrillic, LatinAnalyzer passthrough-lowercase for Latin script). Used by callers
     with no per-word language signal (concept/rules vocabulary loading, dev tools,
-    tests).
+    tests, and query-time search matching).
 
-    language is a string not in LEMMATIZABLE_LANGUAGES (including "unknown" for
-    NULL/undetected OCR rows): pymorphy3 is skipped entirely; returns word.lower().
-    Rows known, or assumed, not to be Russian never reach an analyzer that was never
-    designed for them.
+    language is a string not in LEMMATIZABLE_LANGUAGES or STEMMABLE_LANGUAGES
+    (including "unknown" for NULL/undetected OCR rows, and "es" for Spanish):
+    pymorphy3 is skipped entirely; returns word.lower(). Rows known, or assumed,
+    not to be Russian or English never reach an analyzer that was never designed
+    for them.
 
     language in LEMMATIZABLE_LANGUAGES ("ru"): real pymorphy3 lemmatization
     for recognized words; for words pymorphy3 doesn't recognize
@@ -42,6 +67,8 @@ def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer, language: str | No
     of time doesn't rely on this default — it simply never calls this function for
     non-lemmatizable content in the first place.
     """
+    if language in STEMMABLE_LANGUAGES:
+        return stem_english_word(word)
     if language is not None and language not in LEMMATIZABLE_LANGUAGES:
         return word.lower()
     parsed = morph.parse(word)

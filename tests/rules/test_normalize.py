@@ -73,7 +73,7 @@ class TestLemmatizeWordLanguageGating:
         morph = make_morph()
         wrapped = Mock(wraps=morph)
         result = lemmatize_word("RUNNING", wrapped, language="en")
-        assert result == "running"
+        assert result == "run"
         wrapped.parse.assert_not_called()
 
     def test_language_es_skips_pymorphy3_entirely(self):
@@ -88,6 +88,19 @@ class TestLemmatizeWordLanguageGating:
         wrapped = Mock(wraps=morph)
         result = lemmatize_word("MYSTERY", wrapped, language="unknown")
         assert result == "mystery"
+        wrapped.parse.assert_not_called()
+
+
+class TestLemmatizeWordStemmable:
+    def test_language_en_stems_instead_of_lowercasing(self):
+        morph = make_morph()
+        assert lemmatize_word("cats", morph, language="en") == "cat"
+
+    def test_language_en_does_not_call_pymorphy3(self):
+        morph = make_morph()
+        wrapped = Mock(wraps=morph)
+        result = lemmatize_word("cats", wrapped, language="en")
+        assert result == "cat"
         wrapped.parse.assert_not_called()
 
 
@@ -124,7 +137,7 @@ class TestNormalizeLanguageGating:
         morph = make_morph()
         wrapped = Mock(wraps=morph)
         result = normalize("RUNNING FAST", wrapped, language="en")
-        assert result == {"running", "fast"}
+        assert result == {"run", "fast"}
         wrapped.parse.assert_not_called()
 
 
