@@ -186,6 +186,7 @@ import gc
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -266,13 +267,57 @@ class TestSpawn:
         mock_logger.info.assert_any_call("scheduler: job %s exited with code %s", "ok", 0)
 
 
+class TestWaitForProcess:
+    """_wait_for_process bridges a subprocess.Popen's blocking .wait() back to the
+    event loop via a manually-created daemon thread + loop.call_soon_threadsafe,
+    NOT asyncio.to_thread. That distinction is load-bearing: asyncio.to_thread
+    dispatches to the loop's *default* ThreadPoolExecutor, whose worker threads
+    are non-daemon, so both asyncio.Runner.close() (shutdown_default_executor(),
+    unbounded on Python 3.11) and the interpreter's own atexit hook
+    (concurrent.futures.thread._python_exit) block waiting for that thread before
+    letting the process exit -- empirically confirmed to hang backend shutdown
+    for as long as a scheduled job is still running. A manually-created daemon
+    thread is invisible to both of those, so shutdown isn't blocked by it.
+    """
+
+    async def test_returns_the_process_returncode(self):
+        class _FakeProc:
+            def wait(self):
+                time.sleep(0.05)
+                return 7
+
+        returncode = await scheduler_module._wait_for_process(_FakeProc())
+
+        assert returncode == 7
+
+    async def test_uses_a_manually_created_daemon_thread_not_a_threadpool(self, monkeypatch):
+        real_thread_cls = threading.Thread
+        captured_threads = []
+
+        class _CapturingThread(real_thread_cls):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                captured_threads.append(self)
+
+        monkeypatch.setattr(threading, "Thread", _CapturingThread)
+
+        class _FakeProc:
+            def wait(self):
+                return 0
+
+        await scheduler_module._wait_for_process(_FakeProc())
+
+        assert len(captured_threads) == 1
+        assert captured_threads[0].daemon is True
+
+
 class TestRunTickPropagatesSpawnFailure:
     async def test_spawn_failure_propagates_for_safe_tick_to_log(self, monkeypatch):
         """_run_tick awaits _spawn inline (not detached into its own task) so that a
         _spawn failure naturally propagates up through _safe_tick's existing
         exception handling, which already logs with job-name context. This is the
         simpler design restored after switching _spawn to subprocess.Popen +
-        asyncio.to_thread(proc.wait): Popen.__del__ never kills its child (see
+        _wait_for_process's daemon thread: Popen.__del__ never kills its child (see
         CPython's subprocess.py -- it only emits a ResourceWarning and, if the
         child is still running, keeps itself alive in the module-level _active
         list until it CAN be waited on), unlike the old asyncio subprocess
@@ -322,12 +367,14 @@ class TestSpawnSurvivesRealShutdown:
     async def test_real_subprocess_survives_job_loop_cancellation(self, monkeypatch, tmp_path):
         """A synthetic, lighter-weight check: cancel the task running _run_tick
         (as stop_scheduler does to each job-loop task) while it's genuinely blocked
-        inside _spawn's asyncio.to_thread(proc.wait), and confirm the real child
-        process still runs to completion. See
+        inside _spawn's _wait_for_process (the daemon-thread bridge), and confirm
+        the real child process still runs to completion. See
         test_real_subprocess_survives_asyncio_runner_close below (a standalone,
         non-async test) for the closer-to-real-uvicorn-shutdown version using
         asyncio.Runner, which this async version can't do (a running pytest-asyncio
-        loop can't also host asyncio.Runner's own loop).
+        loop can't also host asyncio.Runner's own loop) -- and which additionally
+        verifies shutdown isn't blocked (this test only verifies the child survives,
+        not how quickly the surrounding code returns).
         """
         monkeypatch.chdir(tmp_path)
         (tmp_path / "sleepy_job.py").write_text(
@@ -368,32 +415,56 @@ class TestSpawnSurvivesRealShutdown:
 
 
 def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
-    """Regression test for the finding that broke the previous fix: cancelling a
-    single task explicitly (stop_scheduler, or the async test above) is not the
-    only cancellation a real backend shutdown does. uvicorn's actual shutdown path
-    is Server.run() -> asyncio.run(...) -> `with asyncio.Runner(...) as runner` ->
-    Runner.close() -> _cancel_all_tasks(loop) -- which cancels EVERY remaining task
-    on the loop, not just the ones stop_scheduler explicitly cancels. A prior fix
-    (detaching _spawn into its own asyncio.Task, tracked via a strong reference so
-    stop_scheduler's cancellation of the job-loop task wouldn't touch it) held up
-    against a single explicit cancel, but not against this: the detached task is
-    still an ordinary task on the same loop, so Runner.close() cancels it too, just
-    one level removed, defeating the whole point of detaching it.
+    """Regression test for two separate findings across two review rounds, both of
+    which require exercising a *real* asyncio.Runner teardown (mocks can't expose
+    either):
 
-    This test drives the real _run_tick -> _spawn path (real subprocess.Popen
-    subprocess, real asyncio.to_thread wait) inside an actual asyncio.Runner, then
-    lets the `with` block's exit trigger Runner.close() -- the same
-    _cancel_all_tasks + loop.close() sequence uvicorn's own shutdown goes through
-    -- and confirms the child still completes on its own afterward.
+    1. (Earlier finding) cancelling a single task explicitly (stop_scheduler, or
+       the lighter-weight async test above) is not the only cancellation a real
+       backend shutdown does. uvicorn's actual shutdown path is Server.run() ->
+       asyncio.run(...) -> `with asyncio.Runner(...) as runner` -> Runner.close()
+       -> _cancel_all_tasks(loop) -- which cancels EVERY remaining task on the
+       loop, not just the ones stop_scheduler explicitly cancels. A prior fix
+       (detaching _spawn into its own asyncio.Task, tracked via a strong reference
+       so stop_scheduler's cancellation of the job-loop task wouldn't touch it)
+       held up against a single explicit cancel, but not against this: the
+       detached task is still an ordinary task on the same loop, so Runner.close()
+       cancels it too, one level removed. Fixed by switching subprocess creation
+       to subprocess.Popen (see _spawn's docstring): Popen.__del__ never kills its
+       child, so no cancellation of any task, anywhere, can reach it.
+
+    2. (Later finding, introduced by fixing #1) awaiting completion via
+       asyncio.to_thread(proc.wait) traded that problem for a new one:
+       to_thread's non-daemon ThreadPoolExecutor worker thread makes
+       Runner.close() (via shutdown_default_executor(), unbounded on Python 3.11)
+       and the interpreter's own atexit hook block waiting for that thread --
+       i.e. for as long as the child subprocess is still running (up to
+       max_runtime_minutes) -- which is the opposite of the intent (exit
+       promptly, leave the child running as an orphan). Empirically confirmed:
+       Runner.close() blocked for the full duration of a 6-second-sleeping test
+       child under the to_thread version of this code. Fixed by
+       _wait_for_process's manually-created daemon thread (see its docstring),
+       which neither shutdown_default_executor() nor _python_exit's atexit join
+       know about.
+
+    This test drives the real _run_tick -> _spawn -> _wait_for_process path (a
+    real subprocess.Popen child that sleeps for several seconds, real daemon
+    thread) inside an actual asyncio.Runner, then lets the `with` block's exit
+    trigger Runner.close() -- the same _cancel_all_tasks + shutdown_default_executor
+    + loop.close() sequence uvicorn's own shutdown goes through -- and asserts
+    BOTH properties that must hold simultaneously: the `with` block returns
+    promptly (not blocked for anywhere near the child's remaining sleep), AND the
+    child still completes on its own afterward, unattended.
 
     Deliberately a plain (non-async) test function: it manages its own
     asyncio.Runner-owned loop rather than running inside pytest-asyncio's per-test
     loop, so pytest must not wrap it in one.
     """
     old_cwd = Path.cwd()
+    child_sleep_seconds = 5
     (tmp_path / "sleepy_job.py").write_text(
         "import time\n"
-        "time.sleep(3)\n"
+        f"time.sleep({child_sleep_seconds})\n"
         "open('done.txt', 'w').close()\n"
     )
     job = _job(module="sleepy_job", name="sleepy")
@@ -417,21 +488,34 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
         scheduler_module.AsyncSessionLocal = lambda: _FakeSession()
         scheduler_module._should_run = AsyncMock(return_value=True)
         try:
+            close_started_at = time.monotonic()
             with asyncio.Runner() as runner:
                 runner.run(_drive())
             # Runner.close() (triggered by the `with` block exiting) has now cancelled
-            # every remaining task on that loop -- including the one blocked inside
-            # _spawn's asyncio.to_thread(proc.wait) -- and closed the loop entirely,
-            # mirroring uvicorn's real shutdown sequence.
+            # every remaining task on that loop, run shutdown_default_executor(), and
+            # closed the loop entirely -- mirroring uvicorn's real shutdown sequence.
+            close_elapsed = time.monotonic() - close_started_at
         finally:
             scheduler_module.AsyncSessionLocal = original_async_session_local
             scheduler_module._should_run = original_should_run
     finally:
         os.chdir(old_cwd)
 
-    # The loop is fully closed now, same as after a real backend shutdown -- poll
-    # for the file the child only ever writes after completing its 3-second sleep,
-    # using plain time.sleep since there's no event loop left to await inside.
+    # Property 1: shutdown must not block on the still-running child. The `with`
+    # block (including the initial 0.5s setup sleep) must return in well under
+    # the child's remaining sleep time -- generous margin (2s) above the ~0.5s
+    # expected, but nowhere near child_sleep_seconds=5, so a regression back to
+    # the to_thread-based wait (which blocked for the full ~5-6s in manual
+    # verification) fails this loudly rather than marginally.
+    assert close_elapsed < 2.0, (
+        f"asyncio.Runner's `with` block took {close_elapsed:.2f}s to return -- "
+        "shutdown is blocking on the child subprocess instead of returning "
+        "promptly and leaving it running as an orphan"
+    )
+
+    # Property 2: the child must still be alive and complete on its own,
+    # unattended, well after the loop that spawned it is gone. Poll for the file
+    # it only ever writes after finishing its multi-second sleep.
     for _ in range(100):
         if done_marker.exists():
             break
