@@ -1,6 +1,9 @@
 general:
   tagging_profile: metal
 
+scheduler:
+  enabled: true
+
 rules:
   file: data/rules.json
 

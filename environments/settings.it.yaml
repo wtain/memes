@@ -1,3 +1,6 @@
 general:
   tagging_profile: it
   frontend_origin: http://localhost:5175
+
+scheduler:
+  enabled: true

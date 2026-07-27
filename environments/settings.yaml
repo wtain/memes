@@ -58,3 +58,21 @@ duplicates:
   # so extra fetched-then-discarded candidates for low-density images don't change stored
   # results, only add a small uniform per-probe-image traversal cost.
   k: 50
+
+scheduler:
+  # Opt-in per environment (see settings.metal.yaml / settings.general.yaml /
+  # settings.it.yaml, which each set this true) rather than a global default here.
+  # This file is also the only tracked config Dockerfile.backend's deployment path
+  # loads with no per-environment overlay of its own selected, so a global `true`
+  # here would silently try to run batch.trends_batch (not present in that image,
+  # and its ML deps aren't installed there either) on every tick, with no
+  # cross-worker locking across gunicorn's multiple uvicorn workers. See
+  # docs/superpowers/specs/2026-07-27-batch-job-scheduler-design.md.
+  enabled: false
+  jobs:
+    - name: trends_batch
+      module: batch.trends_batch
+      batch_run_kind: trends
+      interval_minutes: 360
+      max_runtime_minutes: 60
+      enabled: true

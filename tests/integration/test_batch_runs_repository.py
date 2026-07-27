@@ -109,3 +109,42 @@ async def test_get_active_run_none_when_no_runs_of_that_kind(db_session):
     await repo.create_run(kind="trends")
 
     assert await repo.get_active_run(kind="ingestion") is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_most_recent_run_returns_latest_regardless_of_status(db_session):
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select
+    from Storage.models import BatchRun
+
+    repo = BatchRunRepository(db_session)
+    older_id = await repo.create_run(kind="trends")
+    await repo.commit(older_id)
+    newer_id = await repo.create_run(kind="trends")
+    await repo.fail(newer_id, error="disk full")
+
+    # Explicitly set distinguishable created_at values to avoid timestamp collisions
+    # (PostgreSQL's func.now() returns transaction start time, not per-statement time)
+    older_time = datetime(2026, 7, 27, 10, 0, 0, tzinfo=timezone.utc)
+    newer_time = older_time + timedelta(seconds=1)
+
+    older_run = await db_session.scalar(select(BatchRun).where(BatchRun.run_id == older_id))
+    older_run.created_at = older_time
+
+    newer_run = await db_session.scalar(select(BatchRun).where(BatchRun.run_id == newer_id))
+    newer_run.created_at = newer_time
+
+    await db_session.flush()
+
+    result = await repo.get_most_recent_run(kind="trends")
+
+    assert result is not None
+    assert result.run_id == newer_id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_most_recent_run_none_when_no_runs_of_that_kind(db_session):
+    repo = BatchRunRepository(db_session)
+    await repo.create_run(kind="ingestion", stage="hash_dedup")
+
+    assert await repo.get_most_recent_run(kind="trends") is None

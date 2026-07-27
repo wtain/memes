@@ -1,6 +1,6 @@
 # Batch Job Scheduler — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-07-27-batch-job-scheduler.md
 
 **Date:** 2026-07-27.
@@ -181,14 +181,13 @@ and none is needed, since each environment's `batch_runs` table is already a sep
 
 ### Jobs without `BatchRun` integration
 
-The restart-safe delay and orphan-recovery check both key off `BatchRun.kind`. A job that doesn't
-write `BatchRun` rows (most of `batch/` today — see the "out of scope" note in
-`2026-07-25-batch-run-tracking-design.md`) can still be added to `scheduler.jobs`, but without a
-`batch_run_kind` it falls back to firing on a plain in-memory interval with no restart-safety and no
-overlap protection — a backend restart mid-run would cause an early re-fire, and a legitimately
-long-running instance could get a second overlapping instance spawned. This is a known, accepted
-limitation, not solved here: give a job proper `BatchRun` tracking (a small, job-specific effort)
-before scheduling it if that matters.
+The restart-safe delay and orphan-recovery check both key off `BatchRun.kind`, so `batch_run_kind`
+is a **mandatory** field for any `scheduler.jobs` entry — `_load_job_configs` skips (logging an
+error, not crashing the backend) any job config missing it or any other required key, rather than
+falling back to a naive in-memory-only timer. A job that doesn't write `BatchRun` rows (most of
+`batch/` today — see the "out of scope" note in `2026-07-25-batch-run-tracking-design.md`) cannot
+be scheduled through this mechanism yet: give it proper `BatchRun` tracking (a small, job-specific
+effort) first.
 
 ### Operational caveat (explicit)
 
