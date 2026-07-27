@@ -1,6 +1,7 @@
 # Batch Job Scheduler — Design
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-07-27-batch-job-scheduler.md
 
 **Date:** 2026-07-27.
 
