@@ -1,6 +1,9 @@
 # Smart Search (Phase 1: Cross-Line Join + Lemma Matching) — Design
 
-Status: Draft
+Status: done
+Plan: docs/superpowers/plans/2026-07-21-smart-search.md
+Originates from: docs/superpowers/specs/drafts/2026-07-17-smart-search.md
+Follow-ups: docs/superpowers/specs/2026-07-22-smart-search-phase1-hardening-design.md
 
 ## Context
 

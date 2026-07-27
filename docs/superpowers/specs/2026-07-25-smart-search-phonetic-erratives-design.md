@@ -1,6 +1,9 @@
 # Smart Search: Phonetic Erratives Normalization — Design
 
-Status: Approved direction, written up in full after empirical validation.
+Status: done
+Plan: docs/superpowers/plans/2026-07-25-smart-search-phonetic-erratives.md
+Originates from: docs/superpowers/specs/drafts/2026-07-24-smart-search-leftovers-draft.md (item 2)
+Follow-ups: docs/superpowers/specs/drafts/2026-07-25-erratives-llm-dictionary-mining-draft.md
 
 ## Problem
 

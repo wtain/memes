@@ -1,10 +1,10 @@
 # Erratives: LLM-Assisted Dictionary Mining — Placeholder
 
-Status: Draft / placeholder — not researched in depth, not ready for brainstorming or
+Status: draft / placeholder — not researched in depth, not ready for brainstorming or
 implementation. Captured now so the idea isn't lost; revisit as a standalone spec later,
-likely after the phonetic-normalization work
-(see the sibling "smart search: phonetic erratives normalization" design, once written)
-has shipped and its real remaining gap is visible.
+now that the phonetic-normalization work has shipped and its real remaining gap
+(erratives that don't reduce to a clean phonetic rule) is visible.
+Originates from: docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md
 
 ## Idea
 

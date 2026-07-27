@@ -1,6 +1,9 @@
 # Smart Search Phase 1 Hardening — Design
 
-Status: Draft
+Status: done
+Plan: docs/superpowers/plans/2026-07-22-smart-search-phase1-hardening.md
+Originates from: docs/superpowers/specs/2026-07-21-smart-search-design.md
+Follow-ups: docs/superpowers/specs/2026-07-23-smart-search-phase1-hardening-round2-design.md
 
 ## Context
 

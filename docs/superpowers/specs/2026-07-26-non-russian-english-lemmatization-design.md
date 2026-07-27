@@ -1,6 +1,9 @@
 # Smart Search: Non-Russian (English) Lemmatization — Design
 
-Status: Approved, ready for implementation planning.
+Status: done
+Plan: docs/superpowers/plans/2026-07-26-non-russian-english-lemmatization.md
+Originates from: docs/superpowers/specs/drafts/2026-07-24-smart-search-leftovers-draft.md (item 3)
+Follow-ups: docs/superpowers/specs/2026-07-26-concept-vocabulary-language-detection-design.md
 
 ## Problem
 

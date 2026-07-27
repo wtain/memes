@@ -1,7 +1,10 @@
 # Smart Search — Leftovers
 
-Status: Draft (backlog notes, not a design — no implementation plan should be written
-directly from this file; each item needs its own brainstorming pass when picked up)
+Status: draft (living backlog, not a single design — no implementation plan should be
+written directly from this file; each item needs its own brainstorming pass when
+picked up)
+Originates from: docs/superpowers/specs/2026-07-24-smart-search-fuzzy-matching-design.md
+Follow-ups: docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md (item 2), docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md (item 3)
 
 ## Purpose
 

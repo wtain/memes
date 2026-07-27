@@ -1,6 +1,9 @@
 # Smart Search: Fuzzy Matching (Trigram Similarity) — Design
 
-Status: Draft
+Status: done
+Plan: docs/superpowers/plans/2026-07-24-smart-search-fuzzy-matching.md
+Originates from: docs/superpowers/specs/2026-07-23-smart-search-phase1-hardening-round3-design.md
+Follow-ups: docs/superpowers/specs/drafts/2026-07-24-smart-search-leftovers-draft.md, docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md
 
 ## Context
 

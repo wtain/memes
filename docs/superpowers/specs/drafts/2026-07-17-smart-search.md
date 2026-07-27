@@ -1,6 +1,7 @@
 # Smart Search
 
-Status: Draft
+Status: done — superseded by the formal design this draft led to.
+Follow-ups: docs/superpowers/specs/2026-07-21-smart-search-design.md
 
 ## Summary
 

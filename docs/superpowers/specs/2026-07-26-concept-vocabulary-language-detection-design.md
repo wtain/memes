@@ -1,6 +1,8 @@
 # Concept Vocabulary Language Detection — Design
 
-Status: Approved, ready for implementation planning.
+Status: done
+Plan: docs/superpowers/plans/2026-07-26-concept-vocabulary-language-detection.md
+Originates from: docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md (final whole-branch review finding)
 
 ## Problem
 
