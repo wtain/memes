@@ -18,6 +18,7 @@ from Backend.app.api.trends import router as trends_router
 from Backend.app.api.uploads import router as uploads_router
 from Backend.app.api.bug_reports import router as bug_reports_router
 from Backend.app.api.ingestion import router as ingestion_router
+from Backend.app.scheduler import start_scheduler, stop_scheduler
 from config.settings import settings
 
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
@@ -62,7 +63,9 @@ def _configure_logging() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _configure_logging()
+    scheduler_tasks = await start_scheduler()
     yield
+    await stop_scheduler(scheduler_tasks)
 
 
 _extra_origins = [

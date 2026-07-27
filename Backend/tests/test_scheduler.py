@@ -128,3 +128,70 @@ class TestShouldRun:
         repo.fail.assert_awaited_once_with(
             "stale-run-1", error="orphaned: presumed crashed or killed"
         )
+
+
+import asyncio
+import sys
+
+import Backend.app.scheduler as scheduler_module
+from Backend.app.scheduler import start_scheduler, stop_scheduler
+
+
+class TestSafeTick:
+    async def test_calls_run_tick_with_job_and_app_env(self, monkeypatch):
+        run_tick = AsyncMock()
+        monkeypatch.setattr(scheduler_module, "_run_tick", run_tick)
+
+        await scheduler_module._safe_tick(_job(), "general")
+
+        run_tick.assert_awaited_once_with(_job(), "general")
+
+    async def test_swallows_exception_from_run_tick(self, monkeypatch):
+        monkeypatch.setattr(
+            scheduler_module, "_run_tick", AsyncMock(side_effect=RuntimeError("boom"))
+        )
+
+        await scheduler_module._safe_tick(_job(), "general")  # must not raise
+
+
+class TestSpawn:
+    async def test_invokes_subprocess_with_expected_args(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        fake_proc = AsyncMock()
+        fake_proc.wait = AsyncMock(return_value=0)
+        create_subprocess = AsyncMock(return_value=fake_proc)
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
+
+        await scheduler_module._spawn(_job(), "general")
+
+        args, kwargs = create_subprocess.call_args
+        assert args == (sys.executable, "-m", "batch.trends_batch", "--env", "general")
+        assert "stdout" in kwargs and "stderr" in kwargs
+        fake_proc.wait.assert_awaited_once()
+        assert (tmp_path / "logs" / "scheduler-trends_batch.log").exists()
+
+
+class TestStartStopScheduler:
+    async def test_start_creates_one_task_per_job_stop_cancels_all(self, monkeypatch):
+        monkeypatch.setattr(
+            scheduler_module, "_load_job_configs", lambda: [_job(name="a"), _job(name="b")]
+        )
+
+        async def _fake_job_loop(job, app_env):
+            await asyncio.Event().wait()  # blocks until cancelled
+
+        monkeypatch.setattr(scheduler_module, "_job_loop", _fake_job_loop)
+
+        tasks = await start_scheduler()
+        assert len(tasks) == 2
+        assert all(not task.done() for task in tasks)
+
+        await stop_scheduler(tasks)
+        assert all(task.done() for task in tasks)
+
+    async def test_start_creates_no_tasks_when_scheduler_disabled(self, monkeypatch):
+        monkeypatch.setattr(scheduler_module, "_load_job_configs", lambda: [])
+
+        tasks = await start_scheduler()
+
+        assert tasks == []
