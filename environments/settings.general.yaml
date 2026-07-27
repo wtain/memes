@@ -2,6 +2,9 @@ general:
   tagging_profile: general
   frontend_origin: http://localhost:5174
 
+scheduler:
+  enabled: true
+
 rules:
   file: data/rules.general.json
   lemmatize: true
