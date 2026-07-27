@@ -1,6 +1,7 @@
-STATUS: IMPLEMENTED
-
 # Config management migration: Dynaconf-backed tracked config, secrets-only .env
+
+Status: done
+Follow-ups: docs/superpowers/specs/2026-07-06-config-settings-hierarchical-structure.md
 
 ## Problem
 

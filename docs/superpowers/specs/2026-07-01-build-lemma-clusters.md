@@ -1,7 +1,9 @@
 # build_lemma_clusters: Semantic Clustering of Unmatched OCR Lemmas
 
+Status: done
+Follow-ups: docs/superpowers/specs/2026-07-02-draft-multi-model-concept-embeddings.md, docs/superpowers/specs/2026-07-03-draft-concepts-from-clusters.md, docs/superpowers/specs/2026-07-05-build-lemma-clusters-cli-overrides.md
+
 **Date:** 2026-07-01  
-**Status:** Proposed  
 **Scope:** new `batch/build_lemma_clusters.py` + `batch/utils/clustering.py`
 
 ---

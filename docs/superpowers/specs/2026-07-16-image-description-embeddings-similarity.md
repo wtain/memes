@@ -1,5 +1,9 @@
 # Image description embeddings + description-based similarity
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-16-image-description-embeddings-similarity.md
+Originates from: docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md
+
 ## Context
 
 `ImageDescriptionEmbedding` was created as a schema-only placeholder in the

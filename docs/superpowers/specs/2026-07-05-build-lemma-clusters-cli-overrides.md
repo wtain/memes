@@ -1,7 +1,10 @@
 # build_lemma_clusters: CLI Overrides on Top of Environment Variables
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-05-build-lemma-clusters-cli-overrides.md
+Originates from: docs/superpowers/specs/2026-07-01-build-lemma-clusters.md
+
 **Date:** 2026-07-05
-**Status:** Proposed
 **Scope:** `batch/build_lemma_clusters.py` (`main()` only), `environments/.env.general`, `docs/superpowers/specs/2026-07-01-build-lemma-clusters.md`, `.claude/commands/draft-lemma-concepts.md`
 
 ---

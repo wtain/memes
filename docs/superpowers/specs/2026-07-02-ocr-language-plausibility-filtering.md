@@ -1,7 +1,8 @@
 # OCR Language Plausibility Filtering
 
+Status: done
+
 **Date:** 2026-07-02
-**Status:** Proposed
 **Scope:** `Storage/models.py`, new Alembic migration, `repository/ocr_text.py`, `batch/extract_text_from_memes.py`, new `batch/lang_plausibility.py`, new `batch/score_ocr_language.py`, `batch/build_bow.py`, `batch/build_tags_from_ocr.py`, new `batch/eval_ocr_language_filter.py`, new `batch/data/tagging/golden_ocr_language.yaml`
 
 ---

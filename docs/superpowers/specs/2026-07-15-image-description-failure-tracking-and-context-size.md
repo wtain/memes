@@ -1,5 +1,9 @@
 # Image description failure tracking + Ollama context size
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-15-image-description-failure-tracking-and-context-size.md
+Originates from: docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md
+
 ## Context
 
 A manual smoke test of `batch/build_image_descriptions.py` against the real

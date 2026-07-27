@@ -1,5 +1,9 @@
 # Multi-prompt, configurable-model image descriptions
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-13-multi-prompt-image-descriptions.md
+Follow-ups: docs/superpowers/specs/2026-07-15-image-description-failure-tracking-and-context-size.md, docs/superpowers/specs/2026-07-16-image-description-embeddings-similarity.md
+
 ## Context
 
 `batch/build_image_descriptions.py` currently runs a single hard-coded Ollama

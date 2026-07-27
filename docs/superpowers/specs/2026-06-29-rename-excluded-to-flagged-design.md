@@ -1,7 +1,8 @@
 # Rename `excluded` → `flagged` Design
 
+Status: done
+
 **Date:** 2026-06-29
-**Status:** Approved — ready for implementation
 
 ---
 

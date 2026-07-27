@@ -1,7 +1,9 @@
 # [DRAFT] Multi-Model Concept Embeddings
 
+Status: draft
+Originates from: docs/superpowers/specs/2026-07-01-build-lemma-clusters.md
+
 **Date:** 2026-07-02
-**Status:** Draft — intent and rationale only, no design yet
 **Scope:** TBD — likely `Storage/models.py`, `repository/concepts.py`, `batch/build_concept_embeddings.py`, and any `LOOKUP_CONCEPTS`-style consumers
 
 ---

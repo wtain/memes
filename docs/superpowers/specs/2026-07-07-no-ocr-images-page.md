@@ -1,5 +1,8 @@
 # No-OCR Images Page
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-07-no-ocr-images-page.md
+
 ## Summary
 
 Add a paginated view listing images that have no OCR data at all — no

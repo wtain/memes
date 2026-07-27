@@ -1,6 +1,7 @@
-STATUS: IMPLEMENTED
-
 # Config settings: hierarchical YAML structure
+
+Status: done
+Originates from: docs/superpowers/specs/2026-07-05-config-management-migration.md
 
 ## Problem
 

@@ -1,7 +1,10 @@
 # draft_concepts_from_clusters: Turn Top Lemma Clusters into Draft Concept Entries
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-03-draft-concepts-from-clusters.md
+Originates from: docs/superpowers/specs/2026-07-01-build-lemma-clusters.md
+
 **Date:** 2026-07-03
-**Status:** Proposed
 **Scope:** new `batch/draft_concepts_from_clusters.py`
 
 ---

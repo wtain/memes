@@ -1,5 +1,8 @@
 # Generalize Trends Pipeline
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-12-generalize-trends-pipeline.md
+
 ## Context
 
 `batch/trends_batch.py` currently only serves the Metal environment: it reads

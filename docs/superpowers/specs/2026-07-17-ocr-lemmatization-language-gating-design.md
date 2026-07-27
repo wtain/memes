@@ -1,7 +1,9 @@
 # OCR Lemmatization Language Gating
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-17-lemmatization-uniformity.md
+
 **Date:** 2026-07-17
-**Status:** Proposed
 **Scope:** `rules/normalize.py`, `batch/build_bow.py`, `rules/concept_tagger.py`, `repository/images.py` (new methods only — see Design Decisions), `batch/build_tags_from_ocr.py`, new `tests/rules/test_normalize.py`, `tests/rules/test_concept_tagger.py`, `tests/integration/test_build_ocr_bow_lang_filter.py`
 
 **Cross-reference:** a sibling spec, `docs/superpowers/specs/2026-07-17-ocr-tokenize-punctuation-preservation-design.md`, also modifies `rules/normalize.py` (it changes `tokenize()`'s regex; this spec changes `lemmatize_word()`/`normalize()`'s signature and adds `LEMMATIZABLE_LANGUAGES`). The two touch different functions in the same file and compose without conflict, but whoever implements should merge both sets of changes into one final `rules/normalize.py` rather than applying either spec's code blocks as a wholesale file replacement — the `tokenize()` shown "unchanged" below is only unchanged *relative to this spec*, not relative to the sibling spec.

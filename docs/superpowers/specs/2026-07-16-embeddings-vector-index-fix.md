@@ -1,5 +1,8 @@
 # Fix the ineffective btree index on `embeddings.embedding`
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-16-embeddings-vector-index-fix.md
+
 ## Context
 
 `Storage/models.py`'s `Embedding` model (the CLIP image-embedding table,
