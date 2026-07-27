@@ -52,8 +52,13 @@ async def test_build_ocr_bow_excludes_low_lang_score_rows(db_session):
     )
 
     en_lemmas = output.get("en", {})
-    assert "genuine" in en_lemmas
+    # "genuine" stems to "genuin" -- this row is tagged "en", so it goes
+    # through lemmatize_word's STEMMABLE_LANGUAGES branch (see
+    # docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md),
+    # not plain lowercasing.
+    assert "genuin" in en_lemmas
     assert "garbled" not in en_lemmas
+    assert "garbl" not in en_lemmas  # confirms exclusion is by lang_score filter, not incidental stemming
 
 
 @pytest.mark.asyncio(loop_scope="session")

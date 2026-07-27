@@ -9,7 +9,7 @@ import yaml
 
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
-from rules.normalize import lemmatize_word_autodetect, make_morph, tokenize
+from rules.normalize import lemmatize_word, lemmatize_word_autodetect, make_morph, tokenize
 from rules.lang_plausibility import passes_language_filter
 from Storage.db import AsyncSessionLocal
 from repository.ocr_text import OCRTextRepository

@@ -48,7 +48,12 @@ async def test_full_mode_indexes_lemmas_and_marks_image_done(db_session):
     lemmas = (await db_session.execute(
         select(OCRLemma.lemma).where(OCRLemma.image_id == image.id)
     )).scalars().all()
-    assert "grumpy" in lemmas
+    # "grumpy" stems to "grumpi" -- this row is tagged "en" (the default
+    # language of _insert_image_with_ocr), so it goes through
+    # lemmatize_word's STEMMABLE_LANGUAGES branch (see
+    # docs/superpowers/specs/2026-07-26-non-russian-english-lemmatization-design.md),
+    # not plain lowercasing.
+    assert "grumpi" in lemmas
     assert "cat" in lemmas
 
     status = await ImageProcessingStatusRepository(db_session, OCR_LEMMAS_PIPELINE).get_image_status(image.id)
@@ -96,5 +101,7 @@ async def test_incremental_mode_skips_already_done_images(db_session):
     not_yet_done_lemmas = (await db_session.execute(
         select(OCRLemma.lemma).where(OCRLemma.image_id == not_yet_done.id)
     )).scalars().all()
-    assert "grumpy" in not_yet_done_lemmas
+    # "grumpy" stems to "grumpi" -- see the comment in
+    # test_full_mode_indexes_lemmas_and_marks_image_done above.
+    assert "grumpi" in not_yet_done_lemmas
     assert "cat" in not_yet_done_lemmas
