@@ -1,7 +1,7 @@
 import asyncio
-import functools
 import logging
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,15 +18,30 @@ def _load_job_configs(cfg=settings) -> list[dict]:
         return []
     result = []
     for job in cfg.SCHEDULER.JOBS:
-        if not job.get("enabled", True):
-            continue
-        result.append({
-            "name": job["name"],
-            "module": job["module"],
-            "batch_run_kind": job["batch_run_kind"],
-            "interval_minutes": job["interval_minutes"],
-            "max_runtime_minutes": job["max_runtime_minutes"],
-        })
+        try:
+            if not job.get("enabled", True):
+                continue
+            result.append({
+                "name": job["name"],
+                "module": job["module"],
+                # Mandatory: _initial_delay/_should_run both key off this to query
+                # BatchRun history. A job that doesn't write BatchRun rows can't be
+                # scheduled through this mechanism yet -- see "Jobs without BatchRun
+                # integration" in the design spec.
+                "batch_run_kind": job["batch_run_kind"],
+                # max(..., 1) guards against a misconfigured 0 (or negative) interval
+                # turning into a tight asyncio.sleep(0) loop hammering the DB every tick.
+                "interval_minutes": max(job["interval_minutes"], 1),
+                "max_runtime_minutes": job["max_runtime_minutes"],
+            })
+        except KeyError as exc:
+            # A malformed entry (typo'd/missing required key in settings.yaml) must not
+            # crash the whole backend at boot -- this is a supposedly-optional background
+            # feature. Skip just this entry and keep loading the rest.
+            logger.error(
+                "scheduler: skipping malformed job config (name=%s): missing key %s",
+                job.get("name", "<unknown>"), exc,
+            )
     return result
 
 
@@ -62,41 +77,13 @@ async def _should_run(repo: BatchRunRepository, job: dict) -> bool:
     if age_seconds < job["max_runtime_minutes"] * 60:
         return False
 
+    logger.warning(
+        "scheduler: job %s (kind=%s) run %s exceeded max_runtime_minutes=%s -- "
+        "marking failed as orphaned",
+        job["name"], job["batch_run_kind"], active.run_id, job["max_runtime_minutes"],
+    )
     await repo.fail(active.run_id, error="orphaned: presumed crashed or killed")
     return True
-
-
-# Strong references to in-flight "wait for this spawned subprocess to exit" tasks.
-#
-# _spawn is deliberately NOT awaited inline by _run_tick (see below) -- it is launched as
-# its own asyncio.Task via asyncio.create_task and tracked here. This is required, not
-# cosmetic: the job-loop task (the one create_task'd in start_scheduler, and the one
-# stop_scheduler cancels on shutdown) must never be the task that's blocked inside
-# _spawn's `await proc.wait()`. If it were, cancelling it would unwind that coroutine
-# frame, drop the last reference to the asyncio subprocess transport before it has
-# observed the child exit, and CPython's BaseSubprocessTransport kills the still-running
-# child during its GC/close() path -- violating "in-flight subprocesses are never killed
-# on backend shutdown". Keeping a strong reference here (removed via the done-callback
-# once the subprocess actually exits) keeps the transport alive independent of whatever
-# happens to the job-loop task, so cancelling the scheduler can never reach into an
-# in-flight subprocess wait.
-_in_flight_spawns: set[asyncio.Task] = set()
-
-
-def _on_spawn_done(job_name: str, task: asyncio.Task) -> None:
-    """Done-callback for a detached _spawn task: untrack it, and -- since nothing
-    else awaits this task -- surface any exception it raised (e.g. a bad module
-    path, or an OSError opening the log file) the same way _safe_tick surfaces a
-    _run_tick failure: logged via this module's own logger, with the job name for
-    context. Without this, such an exception would otherwise only ever reach
-    asyncio's generic "Task exception was never retrieved" handler at GC time --
-    no job-name context, wrong logger, non-deterministic timing.
-    """
-    _in_flight_spawns.discard(task)
-    if not task.cancelled() and task.exception() is not None:
-        logger.exception(
-            "scheduler: job %s spawn failed", job_name, exc_info=task.exception()
-        )
 
 
 async def _run_tick(job: dict, app_env: str) -> None:
@@ -105,9 +92,7 @@ async def _run_tick(job: dict, app_env: str) -> None:
         run_now = await _should_run(repo, job)
         await session.commit()
     if run_now:
-        spawn_task = asyncio.create_task(_spawn(job, app_env))
-        _in_flight_spawns.add(spawn_task)
-        spawn_task.add_done_callback(functools.partial(_on_spawn_done, job["name"]))
+        await _spawn(job, app_env)
 
 
 async def _safe_tick(job: dict, app_env: str) -> None:
@@ -118,19 +103,65 @@ async def _safe_tick(job: dict, app_env: str) -> None:
 
 
 async def _spawn(job: dict, app_env: str) -> None:
+    """Launch job['module'] as a subprocess and wait for it to exit.
+
+    Uses subprocess.Popen (not asyncio.create_subprocess_exec) plus
+    asyncio.to_thread(proc.wait) to wait for completion off the event loop.
+    This is deliberate, not a style choice: asyncio's own subprocess transport
+    (BaseSubprocessTransport) kills its child during its GC/close() path if the
+    transport is collected before the child has been reaped -- which happens
+    whenever the coroutine awaiting proc.wait() is cancelled and nothing else
+    references the transport. That's exactly what happens on real backend
+    shutdown: uvicorn's actual teardown path (Server.run() -> asyncio.run() ->
+    `with asyncio.Runner(...)` -> Runner.close() -> _cancel_all_tasks(loop))
+    cancels EVERY remaining task, not just the ones stop_scheduler explicitly
+    cancels -- so no amount of "detach this into its own task and hold a
+    strong reference" (see git history: this module briefly did exactly that)
+    survives a real shutdown, since Runner.close() cancels the detached task
+    too, moments later. subprocess.Popen sidesteps the whole problem: its
+    __del__ never kills the child (it only emits a ResourceWarning about an
+    unreaped process), so there is no GC/cancellation path on the asyncio side
+    that can reach it at all, regardless of which task (if any) is cancelled
+    or when. This makes "in-flight subprocesses are never killed on backend
+    shutdown" hold unconditionally rather than depending on transport-GC
+    timing or which task tree the wait happens to run inside.
+    """
     log_path = Path("logs") / f"scheduler-{job['name']}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("scheduler: job %s launching subprocess", job["name"])
     with open(log_path, "ab") as log_file:
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", job["module"], "--env", app_env,
+        proc = subprocess.Popen(
+            [sys.executable, "-m", job["module"], "--env", app_env],
             stdout=log_file, stderr=log_file,
         )
-        await proc.wait()
+        returncode = await asyncio.to_thread(proc.wait)
+
+    if returncode == 0:
+        logger.info("scheduler: job %s exited with code %s", job["name"], returncode)
+    else:
+        logger.warning("scheduler: job %s exited with code %s", job["name"], returncode)
+
+
+async def _safe_initial_delay(job: dict) -> float:
+    """_initial_delay, guarded: a startup-time DB hiccup (not reachable yet,
+    mid-restart, ...) must not kill this job's task before it ever enters its
+    loop -- fall back to an immediate first tick instead of restart-safe timing
+    for this one time, and log so the failure isn't silent.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            return await _initial_delay(BatchRunRepository(session), job)
+    except Exception:
+        logger.exception(
+            "scheduler: job %s failed to compute initial delay -- falling back to an "
+            "immediate first tick",
+            job["name"],
+        )
+        return 0.0
 
 
 async def _job_loop(job: dict, app_env: str) -> None:
-    async with AsyncSessionLocal() as session:
-        delay = await _initial_delay(BatchRunRepository(session), job)
+    delay = await _safe_initial_delay(job)
 
     interval_seconds = job["interval_minutes"] * 60
     while True:
@@ -141,7 +172,14 @@ async def _job_loop(job: dict, app_env: str) -> None:
 
 async def start_scheduler() -> list[asyncio.Task]:
     app_env = os.environ.get("APP_ENV", "general")
-    return [asyncio.create_task(_job_loop(job, app_env)) for job in _load_job_configs()]
+    jobs = _load_job_configs()
+    logger.info(
+        "scheduler: starting %d job(s): %s",
+        len(jobs), ", ".join(job["name"] for job in jobs) or "<none>",
+    )
+    return [
+        asyncio.create_task(_job_loop(job, app_env), name=job["name"]) for job in jobs
+    ]
 
 
 async def stop_scheduler(tasks: list[asyncio.Task]) -> None:
@@ -152,3 +190,9 @@ async def stop_scheduler(tasks: list[asyncio.Task]) -> None:
             await task
         except asyncio.CancelledError:
             pass
+        except Exception:
+            # A job-loop task that died for some other reason must not propagate out of
+            # lifespan and take the rest of shutdown down with it.
+            logger.exception(
+                "scheduler: job-loop task %s ended with an unexpected error", task.get_name()
+            )

@@ -31,6 +31,23 @@ def _run(*, run_id="run-1", created_at):
     return SimpleNamespace(run_id=run_id, created_at=created_at)
 
 
+class _FakeSession:
+    """Minimal async-context-manager stand-in for AsyncSessionLocal()'s session,
+    used wherever a test needs to exercise real scheduler.py code that opens a
+    session but doesn't care about actual DB behavior (that part is separately
+    mocked via _should_run/_initial_delay).
+    """
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+    async def commit(self):
+        pass
+
+
 class TestLoadJobConfigs:
     def test_returns_empty_when_scheduler_disabled(self):
         cfg = _settings(False, [_job()])
@@ -65,6 +82,33 @@ class TestLoadJobConfigs:
         result = _load_job_configs(cfg)
 
         assert len(result) == 1
+
+    def test_zero_interval_minutes_is_clamped_to_one(self):
+        cfg = _settings(True, [_job(interval_minutes=0)])
+
+        result = _load_job_configs(cfg)
+
+        assert result[0]["interval_minutes"] == 1
+
+    def test_skips_malformed_entry_and_logs_but_keeps_valid_ones(self, monkeypatch):
+        """A typo'd/missing required key (e.g. batch_run_kind) in one job entry must
+        not crash the whole backend at boot -- skip just that entry, log it, and
+        keep loading the rest. batch_run_kind is mandatory (see design spec's "Jobs
+        without BatchRun integration" section): _initial_delay/_should_run both key
+        off it, so a job missing it can't be scheduled through this mechanism.
+        """
+        mock_logger = MagicMock()
+        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
+        bad_job = _job(name="bad")
+        del bad_job["batch_run_kind"]
+        cfg = _settings(True, [bad_job, _job(name="good")])
+
+        result = _load_job_configs(cfg)
+
+        assert [job["name"] for job in result] == ["good"]
+        mock_logger.error.assert_called_once()
+        args, kwargs = mock_logger.error.call_args
+        assert args[1] == "bad"
 
 
 class TestInitialDelay:
@@ -115,7 +159,9 @@ class TestShouldRun:
         assert await _should_run(repo, _job(max_runtime_minutes=60)) is False
         repo.fail.assert_not_called()
 
-    async def test_true_and_marks_failed_when_active_run_is_stale(self):
+    async def test_true_and_marks_failed_when_active_run_is_stale(self, monkeypatch):
+        mock_logger = MagicMock()
+        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
         repo = AsyncMock()
         repo.get_active_run.return_value = _run(
             run_id="stale-run-1",
@@ -128,12 +174,22 @@ class TestShouldRun:
         repo.fail.assert_awaited_once_with(
             "stale-run-1", error="orphaned: presumed crashed or killed"
         )
+        # Spec requires a warning log on orphan/crash recovery, with job name and kind.
+        mock_logger.warning.assert_called_once()
+        args, kwargs = mock_logger.warning.call_args
+        assert "trends_batch" in args
+        assert "trends" in args
 
 
 import asyncio
 import gc
+import os
+import subprocess
 import sys
+import time
 from pathlib import Path
+
+import pytest
 
 import Backend.app.scheduler as scheduler_module
 from Backend.app.scheduler import start_scheduler, stop_scheduler
@@ -159,15 +215,15 @@ class TestSafeTick:
 class TestSpawn:
     async def test_invokes_subprocess_with_expected_args(self, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
-        fake_proc = AsyncMock()
-        fake_proc.wait = AsyncMock(return_value=0)
-        create_subprocess = AsyncMock(return_value=fake_proc)
-        monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess)
+        fake_proc = MagicMock()
+        fake_proc.wait = MagicMock(return_value=0)
+        popen_mock = MagicMock(return_value=fake_proc)
+        monkeypatch.setattr(subprocess, "Popen", popen_mock)
 
         await scheduler_module._spawn(_job(), "general")
 
-        args, kwargs = create_subprocess.call_args
-        assert args == (sys.executable, "-m", "batch.trends_batch", "--env", "general")
+        args, kwargs = popen_mock.call_args
+        assert args[0] == [sys.executable, "-m", "batch.trends_batch", "--env", "general"]
         log_path = tmp_path / "logs" / "scheduler-trends_batch.log"
         assert log_path.exists()
         # Must be the actual opened log file object, not merely "some truthy value" --
@@ -179,138 +235,99 @@ class TestSpawn:
         assert kwargs["stdout"].name == str(relative_log_path)
         assert kwargs["stderr"].name == str(relative_log_path)
         assert kwargs["stdout"] is kwargs["stderr"]
-        fake_proc.wait.assert_awaited_once()
+        fake_proc.wait.assert_called_once()
 
-
-class TestOnSpawnDone:
-    """_on_spawn_done is the done-callback attached to every detached spawn task.
-
-    It has two responsibilities: untrack the task from _in_flight_spawns (already
-    covered indirectly elsewhere), and -- since nothing else ever awaits a detached
-    spawn task -- surface any exception it raised via this module's logger, with
-    the job name for context, the same way _safe_tick surfaces a _run_tick failure.
-    Without this, such an exception would otherwise only reach asyncio's own
-    generic "Task exception was never retrieved" warning at GC time.
-    """
-
-    async def test_logs_exception_with_job_name_when_spawn_task_failed(self, monkeypatch):
+    async def test_logs_launch_and_nonzero_exit_code(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        fake_proc = MagicMock()
+        fake_proc.wait = MagicMock(return_value=1)
+        monkeypatch.setattr(subprocess, "Popen", MagicMock(return_value=fake_proc))
         mock_logger = MagicMock()
         monkeypatch.setattr(scheduler_module, "logger", mock_logger)
 
-        async def _failing():
-            raise RuntimeError("boom")
+        await scheduler_module._spawn(_job(name="flaky"), "general")
 
-        task = asyncio.create_task(_failing())
-        try:
-            await task
-        except RuntimeError:
-            pass
+        mock_logger.info.assert_any_call("scheduler: job %s launching subprocess", "flaky")
+        mock_logger.warning.assert_called_once_with(
+            "scheduler: job %s exited with code %s", "flaky", 1
+        )
 
-        scheduler_module._on_spawn_done("trends_batch", task)
-
-        mock_logger.exception.assert_called_once()
-        args, kwargs = mock_logger.exception.call_args
-        assert args == ("scheduler: job %s spawn failed", "trends_batch")
-        assert kwargs["exc_info"] is not None
-        assert isinstance(kwargs["exc_info"], RuntimeError)
-
-    async def test_does_not_log_when_spawn_task_succeeded(self, monkeypatch):
+    async def test_logs_zero_exit_code_at_info_level(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        fake_proc = MagicMock()
+        fake_proc.wait = MagicMock(return_value=0)
+        monkeypatch.setattr(subprocess, "Popen", MagicMock(return_value=fake_proc))
         mock_logger = MagicMock()
         monkeypatch.setattr(scheduler_module, "logger", mock_logger)
 
-        async def _ok():
-            return None
+        await scheduler_module._spawn(_job(name="ok"), "general")
 
-        task = asyncio.create_task(_ok())
-        await task
-
-        scheduler_module._on_spawn_done("trends_batch", task)
-
-        mock_logger.exception.assert_not_called()
-
-    async def test_does_not_raise_when_spawn_task_was_cancelled(self, monkeypatch):
-        # task.exception() raises CancelledError if called on a cancelled task --
-        # _on_spawn_done must guard against that (it's not a "spawn failure" to log).
-        mock_logger = MagicMock()
-        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
-
-        async def _blocks_forever():
-            await asyncio.Event().wait()
-
-        task = asyncio.create_task(_blocks_forever())
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-
-        scheduler_module._on_spawn_done("trends_batch", task)  # must not raise
-
-        mock_logger.exception.assert_not_called()
+        mock_logger.warning.assert_not_called()
+        mock_logger.info.assert_any_call("scheduler: job %s exited with code %s", "ok", 0)
 
 
-class TestRunTickSpawnFailureIsolation:
-    async def test_spawn_failure_does_not_propagate_and_gets_logged(self, monkeypatch):
-        """End-to-end wiring check: _run_tick creates the detached spawn task via
-        asyncio.create_task(_spawn(...)) and attaches _on_spawn_done as its
-        done-callback (Backend/app/scheduler.py:~93). This exercises that wiring
-        for real (not by calling _on_spawn_done directly) -- _spawn itself raises,
-        and we confirm both that _run_tick itself never raises (it only creates and
-        detaches the task) and that the failure still reaches the logger with the
-        job's name once the detached task actually completes.
+class TestRunTickPropagatesSpawnFailure:
+    async def test_spawn_failure_propagates_for_safe_tick_to_log(self, monkeypatch):
+        """_run_tick awaits _spawn inline (not detached into its own task) so that a
+        _spawn failure naturally propagates up through _safe_tick's existing
+        exception handling, which already logs with job-name context. This is the
+        simpler design restored after switching _spawn to subprocess.Popen +
+        asyncio.to_thread(proc.wait): Popen.__del__ never kills its child (see
+        CPython's subprocess.py -- it only emits a ResourceWarning and, if the
+        child is still running, keeps itself alive in the module-level _active
+        list until it CAN be waited on), unlike the old asyncio subprocess
+        transport, so there's no cancellation-safety reason left to keep _spawn
+        off the job-loop task's own call stack.
         """
-        class _FakeSession:
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *exc_info):
-                return False
-
-            async def commit(self):
-                pass
-
         monkeypatch.setattr(scheduler_module, "AsyncSessionLocal", lambda: _FakeSession())
         monkeypatch.setattr(scheduler_module, "_should_run", AsyncMock(return_value=True))
         monkeypatch.setattr(
             scheduler_module, "_spawn", AsyncMock(side_effect=RuntimeError("spawn boom"))
         )
+
+        with pytest.raises(RuntimeError, match="spawn boom"):
+            await scheduler_module._run_tick(_job(), "general")
+
+
+class TestSafeInitialDelay:
+    async def test_returns_computed_delay_on_success(self, monkeypatch):
+        monkeypatch.setattr(scheduler_module, "AsyncSessionLocal", lambda: _FakeSession())
+        monkeypatch.setattr(scheduler_module, "_initial_delay", AsyncMock(return_value=42.0))
+
+        delay = await scheduler_module._safe_initial_delay(_job())
+
+        assert delay == 42.0
+
+    async def test_falls_back_to_zero_and_logs_when_initial_delay_raises(self, monkeypatch):
+        """I2: a startup-time DB hiccup computing the restart-safe delay must not
+        kill the job-loop task before it ever enters its loop -- fall back to an
+        immediate first tick instead, and log so the failure isn't silent.
+        """
+        monkeypatch.setattr(scheduler_module, "AsyncSessionLocal", lambda: _FakeSession())
+        monkeypatch.setattr(
+            scheduler_module, "_initial_delay", AsyncMock(side_effect=RuntimeError("db down"))
+        )
         mock_logger = MagicMock()
         monkeypatch.setattr(scheduler_module, "logger", mock_logger)
 
-        await scheduler_module._run_tick(_job(name="flaky"), "general")  # must not raise
+        delay = await scheduler_module._safe_initial_delay(_job(name="flaky"))
 
-        for _ in range(50):
-            if mock_logger.exception.called:
-                break
-            await asyncio.sleep(0.02)
-
+        assert delay == 0.0
         mock_logger.exception.assert_called_once()
         args, kwargs = mock_logger.exception.call_args
-        assert args == ("scheduler: job %s spawn failed", "flaky")
-        assert isinstance(kwargs["exc_info"], RuntimeError)
+        assert args[1] == "flaky"
 
 
-class TestSpawnSurvivesJobLoopCancellation:
+class TestSpawnSurvivesRealShutdown:
     async def test_real_subprocess_survives_job_loop_cancellation(self, monkeypatch, tmp_path):
-        """Regression test for a real bug found in review: cancelling the job-loop
-        task (exactly what stop_scheduler does on shutdown) must never kill an
-        in-flight subprocess. This can NOT be reproduced with a mocked subprocess --
-        the bug lives in asyncio's real BaseSubprocessTransport GC/close() behavior
-        (the transport kills its child during close() if it's collected before the
-        child has been reaped), which only triggers with a genuine OS process/
-        transport. So this test spawns a real Python script and verifies, via a
-        file the script only writes after completing a multi-second sleep, that the
-        child ran to completion rather than being killed.
-
-        Deliberately captures only the subprocess's PID, never the asyncio Process/
-        transport object itself: holding a second reference to Process would keep
-        the transport alive independent of the job-loop task's coroutine frame,
-        which would mask the very bug under test (the transport is only torn down,
-        killing the child, when its LAST reference disappears -- exactly what
-        happens when the frame that awaited proc.wait() is unwound by cancellation).
-        An earlier version of this test kept the Process object alive via a
-        captured list for convenience and consequently could not detect the bug at
-        all, passing identically against both the buggy and fixed implementation.
+        """A synthetic, lighter-weight check: cancel the task running _run_tick
+        (as stop_scheduler does to each job-loop task) while it's genuinely blocked
+        inside _spawn's asyncio.to_thread(proc.wait), and confirm the real child
+        process still runs to completion. See
+        test_real_subprocess_survives_asyncio_runner_close below (a standalone,
+        non-async test) for the closer-to-real-uvicorn-shutdown version using
+        asyncio.Runner, which this async version can't do (a running pytest-asyncio
+        loop can't also host asyncio.Runner's own loop).
         """
         monkeypatch.chdir(tmp_path)
         (tmp_path / "sleepy_job.py").write_text(
@@ -320,65 +337,26 @@ class TestSpawnSurvivesJobLoopCancellation:
         )
         job = _job(module="sleepy_job", name="sleepy")
 
-        class _FakeSession:
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *exc_info):
-                return False
-
-            async def commit(self):
-                pass
-
         monkeypatch.setattr(scheduler_module, "AsyncSessionLocal", lambda: _FakeSession())
         monkeypatch.setattr(scheduler_module, "_should_run", AsyncMock(return_value=True))
 
-        # Wrap (don't replace) the real create_subprocess_exec so we can observe that a
-        # subprocess was spawned, while still exercising a genuine OS process end to
-        # end -- this is the crucial difference from TestSpawn's fully-mocked version.
-        real_create_subprocess_exec = asyncio.create_subprocess_exec
-        pids: list[int] = []
-        spawned = asyncio.Event()
+        done_marker = tmp_path / "done.txt"
 
-        async def _capturing_create_subprocess_exec(*args, **kwargs):
-            proc = await real_create_subprocess_exec(*args, **kwargs)
-            pids.append(proc.pid)
-            spawned.set()
-            return proc
-
-        monkeypatch.setattr(
-            asyncio, "create_subprocess_exec", _capturing_create_subprocess_exec
-        )
-
-        # Stand-in for the job-loop's own task -- the one start_scheduler creates and
-        # stop_scheduler cancels.
         job_loop_task = asyncio.create_task(scheduler_module._run_tick(job, "general"))
 
-        await asyncio.wait_for(spawned.wait(), timeout=5)
-        assert pids, "subprocess was never spawned"
-        done_marker = tmp_path / "done.txt"
-        assert not done_marker.exists(), "test setup bug: child finished before we could cancel"
+        await asyncio.sleep(0.5)  # let Popen actually launch + the thread dispatch the wait
+        assert not job_loop_task.done(), "spawn finished before we could cancel -- flaky timing"
+        assert not done_marker.exists()
 
-        # Cancel the job-loop stand-in exactly like stop_scheduler does. Under the old
-        # (buggy) design, where _run_tick awaited _spawn inline, this task would still be
-        # blocked inside `await proc.wait()` at this point, and cancelling it would tear
-        # down the only frame referencing the Process/transport, triggering the transport
-        # to kill the child during its GC/close() path. Post-fix, _run_tick has already
-        # detached the wait via asyncio.create_task + _in_flight_spawns, so this
-        # cancellation never touches the subprocess.
         job_loop_task.cancel()
         try:
             await job_loop_task
         except asyncio.CancelledError:
             pass
 
-        # Give the interpreter a beat to run whatever GC/transport-close cancellation
-        # would have triggered under the buggy implementation.
         gc.collect()
         await asyncio.sleep(0.1)
 
-        # The real assertion: the child must run to completion on its own. Poll for the
-        # file it only ever writes AFTER finishing its 3-second sleep.
         for _ in range(100):
             if done_marker.exists():
                 break
@@ -387,6 +365,120 @@ class TestSpawnSurvivesJobLoopCancellation:
             "child did not run to completion -- it was killed as a side effect of "
             "cancelling the job-loop task"
         )
+
+
+def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
+    """Regression test for the finding that broke the previous fix: cancelling a
+    single task explicitly (stop_scheduler, or the async test above) is not the
+    only cancellation a real backend shutdown does. uvicorn's actual shutdown path
+    is Server.run() -> asyncio.run(...) -> `with asyncio.Runner(...) as runner` ->
+    Runner.close() -> _cancel_all_tasks(loop) -- which cancels EVERY remaining task
+    on the loop, not just the ones stop_scheduler explicitly cancels. A prior fix
+    (detaching _spawn into its own asyncio.Task, tracked via a strong reference so
+    stop_scheduler's cancellation of the job-loop task wouldn't touch it) held up
+    against a single explicit cancel, but not against this: the detached task is
+    still an ordinary task on the same loop, so Runner.close() cancels it too, just
+    one level removed, defeating the whole point of detaching it.
+
+    This test drives the real _run_tick -> _spawn path (real subprocess.Popen
+    subprocess, real asyncio.to_thread wait) inside an actual asyncio.Runner, then
+    lets the `with` block's exit trigger Runner.close() -- the same
+    _cancel_all_tasks + loop.close() sequence uvicorn's own shutdown goes through
+    -- and confirms the child still completes on its own afterward.
+
+    Deliberately a plain (non-async) test function: it manages its own
+    asyncio.Runner-owned loop rather than running inside pytest-asyncio's per-test
+    loop, so pytest must not wrap it in one.
+    """
+    old_cwd = Path.cwd()
+    (tmp_path / "sleepy_job.py").write_text(
+        "import time\n"
+        "time.sleep(3)\n"
+        "open('done.txt', 'w').close()\n"
+    )
+    job = _job(module="sleepy_job", name="sleepy")
+    done_marker = tmp_path / "done.txt"
+
+    os.chdir(tmp_path)
+    try:
+        async def _drive():
+            # Patch inside the Runner's own loop context -- plain attribute
+            # assignment (not pytest's monkeypatch fixture, which isn't safe to use
+            # from a sync test driving its own separate event loop) is fine here
+            # since we restore it manually in the `finally` block below.
+            task = asyncio.create_task(scheduler_module._run_tick(job, "general"))
+            await asyncio.sleep(0.5)  # let Popen actually launch + dispatch the wait
+            assert not task.done(), "spawn finished before we could tear down the loop"
+            assert not done_marker.exists()
+            return task
+
+        original_async_session_local = scheduler_module.AsyncSessionLocal
+        original_should_run = scheduler_module._should_run
+        scheduler_module.AsyncSessionLocal = lambda: _FakeSession()
+        scheduler_module._should_run = AsyncMock(return_value=True)
+        try:
+            with asyncio.Runner() as runner:
+                runner.run(_drive())
+            # Runner.close() (triggered by the `with` block exiting) has now cancelled
+            # every remaining task on that loop -- including the one blocked inside
+            # _spawn's asyncio.to_thread(proc.wait) -- and closed the loop entirely,
+            # mirroring uvicorn's real shutdown sequence.
+        finally:
+            scheduler_module.AsyncSessionLocal = original_async_session_local
+            scheduler_module._should_run = original_should_run
+    finally:
+        os.chdir(old_cwd)
+
+    # The loop is fully closed now, same as after a real backend shutdown -- poll
+    # for the file the child only ever writes after completing its 3-second sleep,
+    # using plain time.sleep since there's no event loop left to await inside.
+    for _ in range(100):
+        if done_marker.exists():
+            break
+        time.sleep(0.1)
+    assert done_marker.exists(), (
+        "child did not run to completion -- it was killed as a side effect of "
+        "asyncio.Runner.close()'s full-loop task cancellation"
+    )
+
+
+class TestStopSchedulerErrorHandling:
+    async def test_swallows_cancelled_error_as_before(self):
+        async def _blocks_forever():
+            await asyncio.Event().wait()
+
+        task = asyncio.create_task(_blocks_forever(), name="ok-job")
+        await asyncio.sleep(0)  # let it actually start
+
+        await stop_scheduler([task])  # must not raise
+
+        assert task.cancelled()
+
+    async def test_logs_and_does_not_propagate_when_task_died_of_something_else(
+        self, monkeypatch
+    ):
+        """I3: if a job-loop task already died for a reason other than cancellation
+        (e.g. I2's failure mode slipping past _safe_initial_delay somehow, or any
+        other bug), `await task` inside stop_scheduler must not re-raise that
+        exception out of lifespan -- log it and move on.
+        """
+        mock_logger = MagicMock()
+        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
+
+        async def _dies():
+            raise RuntimeError("db down")
+
+        task = asyncio.create_task(_dies(), name="flaky-job")
+        for _ in range(50):  # let it actually finish (with the exception) first
+            if task.done():
+                break
+            await asyncio.sleep(0.01)
+
+        await stop_scheduler([task])  # must not raise
+
+        mock_logger.exception.assert_called_once()
+        args, kwargs = mock_logger.exception.call_args
+        assert args[1] == "flaky-job"
 
 
 class TestStartStopScheduler:
@@ -413,3 +505,24 @@ class TestStartStopScheduler:
         tasks = await start_scheduler()
 
         assert tasks == []
+
+    async def test_start_logs_loaded_job_names(self, monkeypatch):
+        monkeypatch.setattr(
+            scheduler_module, "_load_job_configs", lambda: [_job(name="a"), _job(name="b")]
+        )
+
+        async def _fake_job_loop(job, app_env):
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(scheduler_module, "_job_loop", _fake_job_loop)
+        mock_logger = MagicMock()
+        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
+
+        tasks = await start_scheduler()
+
+        mock_logger.info.assert_called_once()
+        args, kwargs = mock_logger.info.call_args
+        assert args[1] == 2
+        assert "a" in args[2] and "b" in args[2]
+
+        await stop_scheduler(tasks)
