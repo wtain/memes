@@ -65,13 +65,32 @@ async def _should_run(repo: BatchRunRepository, job: dict) -> bool:
     return True
 
 
+# Strong references to in-flight "wait for this spawned subprocess to exit" tasks.
+#
+# _spawn is deliberately NOT awaited inline by _run_tick (see below) -- it is launched as
+# its own asyncio.Task via asyncio.create_task and tracked here. This is required, not
+# cosmetic: the job-loop task (the one create_task'd in start_scheduler, and the one
+# stop_scheduler cancels on shutdown) must never be the task that's blocked inside
+# _spawn's `await proc.wait()`. If it were, cancelling it would unwind that coroutine
+# frame, drop the last reference to the asyncio subprocess transport before it has
+# observed the child exit, and CPython's BaseSubprocessTransport kills the still-running
+# child during its GC/close() path -- violating "in-flight subprocesses are never killed
+# on backend shutdown". Keeping a strong reference here (removed via the done-callback
+# once the subprocess actually exits) keeps the transport alive independent of whatever
+# happens to the job-loop task, so cancelling the scheduler can never reach into an
+# in-flight subprocess wait.
+_in_flight_spawns: set[asyncio.Task] = set()
+
+
 async def _run_tick(job: dict, app_env: str) -> None:
     async with AsyncSessionLocal() as session:
         repo = BatchRunRepository(session)
         run_now = await _should_run(repo, job)
         await session.commit()
     if run_now:
-        await _spawn(job, app_env)
+        spawn_task = asyncio.create_task(_spawn(job, app_env))
+        _in_flight_spawns.add(spawn_task)
+        spawn_task.add_done_callback(_in_flight_spawns.discard)
 
 
 async def _safe_tick(job: dict, app_env: str) -> None:

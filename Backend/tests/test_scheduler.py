@@ -131,7 +131,9 @@ class TestShouldRun:
 
 
 import asyncio
+import gc
 import sys
+from pathlib import Path
 
 import Backend.app.scheduler as scheduler_module
 from Backend.app.scheduler import start_scheduler, stop_scheduler
@@ -166,9 +168,117 @@ class TestSpawn:
 
         args, kwargs = create_subprocess.call_args
         assert args == (sys.executable, "-m", "batch.trends_batch", "--env", "general")
-        assert "stdout" in kwargs and "stderr" in kwargs
+        log_path = tmp_path / "logs" / "scheduler-trends_batch.log"
+        assert log_path.exists()
+        # Must be the actual opened log file object, not merely "some truthy value" --
+        # a regression that silently swapped in subprocess.PIPE would pass a weaker
+        # "key present" check but must fail this one. _spawn opens the file with a
+        # relative Path (cwd is monkeypatched to tmp_path), so compare against that
+        # same relative form rather than the absolute tmp_path-prefixed one.
+        relative_log_path = Path("logs") / "scheduler-trends_batch.log"
+        assert kwargs["stdout"].name == str(relative_log_path)
+        assert kwargs["stderr"].name == str(relative_log_path)
+        assert kwargs["stdout"] is kwargs["stderr"]
         fake_proc.wait.assert_awaited_once()
-        assert (tmp_path / "logs" / "scheduler-trends_batch.log").exists()
+
+
+class TestSpawnSurvivesJobLoopCancellation:
+    async def test_real_subprocess_survives_job_loop_cancellation(self, monkeypatch, tmp_path):
+        """Regression test for a real bug found in review: cancelling the job-loop
+        task (exactly what stop_scheduler does on shutdown) must never kill an
+        in-flight subprocess. This can NOT be reproduced with a mocked subprocess --
+        the bug lives in asyncio's real BaseSubprocessTransport GC/close() behavior
+        (the transport kills its child during close() if it's collected before the
+        child has been reaped), which only triggers with a genuine OS process/
+        transport. So this test spawns a real Python script and verifies, via a
+        file the script only writes after completing a multi-second sleep, that the
+        child ran to completion rather than being killed.
+
+        Deliberately captures only the subprocess's PID, never the asyncio Process/
+        transport object itself: holding a second reference to Process would keep
+        the transport alive independent of the job-loop task's coroutine frame,
+        which would mask the very bug under test (the transport is only torn down,
+        killing the child, when its LAST reference disappears -- exactly what
+        happens when the frame that awaited proc.wait() is unwound by cancellation).
+        An earlier version of this test kept the Process object alive via a
+        captured list for convenience and consequently could not detect the bug at
+        all, passing identically against both the buggy and fixed implementation.
+        """
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "sleepy_job.py").write_text(
+            "import time\n"
+            "time.sleep(3)\n"
+            "open('done.txt', 'w').close()\n"
+        )
+        job = _job(module="sleepy_job", name="sleepy")
+
+        class _FakeSession:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc_info):
+                return False
+
+            async def commit(self):
+                pass
+
+        monkeypatch.setattr(scheduler_module, "AsyncSessionLocal", lambda: _FakeSession())
+        monkeypatch.setattr(scheduler_module, "_should_run", AsyncMock(return_value=True))
+
+        # Wrap (don't replace) the real create_subprocess_exec so we can observe that a
+        # subprocess was spawned, while still exercising a genuine OS process end to
+        # end -- this is the crucial difference from TestSpawn's fully-mocked version.
+        real_create_subprocess_exec = asyncio.create_subprocess_exec
+        pids: list[int] = []
+        spawned = asyncio.Event()
+
+        async def _capturing_create_subprocess_exec(*args, **kwargs):
+            proc = await real_create_subprocess_exec(*args, **kwargs)
+            pids.append(proc.pid)
+            spawned.set()
+            return proc
+
+        monkeypatch.setattr(
+            asyncio, "create_subprocess_exec", _capturing_create_subprocess_exec
+        )
+
+        # Stand-in for the job-loop's own task -- the one start_scheduler creates and
+        # stop_scheduler cancels.
+        job_loop_task = asyncio.create_task(scheduler_module._run_tick(job, "general"))
+
+        await asyncio.wait_for(spawned.wait(), timeout=5)
+        assert pids, "subprocess was never spawned"
+        done_marker = tmp_path / "done.txt"
+        assert not done_marker.exists(), "test setup bug: child finished before we could cancel"
+
+        # Cancel the job-loop stand-in exactly like stop_scheduler does. Under the old
+        # (buggy) design, where _run_tick awaited _spawn inline, this task would still be
+        # blocked inside `await proc.wait()` at this point, and cancelling it would tear
+        # down the only frame referencing the Process/transport, triggering the transport
+        # to kill the child during its GC/close() path. Post-fix, _run_tick has already
+        # detached the wait via asyncio.create_task + _in_flight_spawns, so this
+        # cancellation never touches the subprocess.
+        job_loop_task.cancel()
+        try:
+            await job_loop_task
+        except asyncio.CancelledError:
+            pass
+
+        # Give the interpreter a beat to run whatever GC/transport-close cancellation
+        # would have triggered under the buggy implementation.
+        gc.collect()
+        await asyncio.sleep(0.1)
+
+        # The real assertion: the child must run to completion on its own. Poll for the
+        # file it only ever writes AFTER finishing its 3-second sleep.
+        for _ in range(100):
+            if done_marker.exists():
+                break
+            await asyncio.sleep(0.1)
+        assert done_marker.exists(), (
+            "child did not run to completion -- it was killed as a side effect of "
+            "cancelling the job-loop task"
+        )
 
 
 class TestStartStopScheduler:
