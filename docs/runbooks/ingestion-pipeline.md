@@ -10,6 +10,26 @@ All commands below run from the repo root, in the batch venv (`.venv311`), with
 `DATABASE_URL` already set in the shell (see CLAUDE.md's Configuration section) and
 `--env` set to whichever of `metal` / `general` / `it` you're ingesting into.
 
+## TL;DR
+
+Drop new images into `<BASE_PATH>\inbox\` for the target environment (see
+[Where do new images go?](#where-do-new-images-go) below), then run in order:
+
+```powershell
+python -m batch.ingest_hash_dedup --env <env>
+python -m batch.build_image_embeddings --env <env> --status pending --incremental
+python -m batch.extract_text_from_memes --env <env> --status pending
+python -m batch.ingest_find_duplicates --env <env> --tier tier_a
+# → review Tier A at /ingestion, keep/reject, submit
+python -m batch.ingest_find_duplicates --env <env> --tier tier_b
+# → review Tier B at /ingestion, keep/reject, submit
+python -m batch.ingest_promote --env <env>
+```
+
+Then, separately, run the normal enrichment pipeline (tags, lemmas, descriptions,
+concepts) — see [Does NOT cover](#does-not-cover). Full detail on each step, plus
+prerequisites and status-checking, is below.
+
 ## Scope
 
 ### Covers
@@ -55,26 +75,44 @@ want these images' duplicate relationships to show up in the Explore → Duplica
 page — that page reads from `tmp_clusters`, which is a separate index rebuilt from
 `tmp_duplicates` each time `clusterize.py` runs.
 
+## Where do new images go?
+
+`PATH_INGESTION_SOURCE` (the inbox) is a **subdirectory of `BASE_PATH`**, not a separate
+top-level directory — each environment's `.env.<env>` sets it to `<BASE_PATH>\inbox`:
+
+| Environment | Drop new images into            |
+| ----------- | -------------------------------- |
+| `metal`     | `...\MetalMemes\inbox\`          |
+| `general`   | `...\Важные переговоры 2\inbox\` |
+| `it`        | `...\ITmemes\inbox\`             |
+
+(Exact `BASE_PATH` values live in `environments/.env.<env>` — gitignored, not reproduced
+here.) Stage 1 (`ingest_hash_dedup`) is what moves survivors *out* of `inbox\` and into
+`BASE_PATH` itself (the root, alongside every other active image) — until that script
+runs, files just sit in `inbox\` untouched.
+
 ## Prerequisites (one-time per environment)
 
-- `PATH_INGESTION_SOURCE` set in `environments/.env.<env>` (the inbox directory).
-- That directory exists on disk.
+- `PATH_INGESTION_SOURCE` set in `environments/.env.<env>` and the directory created on
+  disk (see table above).
 - `content_hash` is backfilled for the existing active corpus (run
   `detect_file_duplicates.py --env <env>` once if you've never run it) — otherwise Stage
   1's cross-corpus hash check has nothing to compare new files against.
 
 ## Running a batch
 
-1. Drop new image files directly into `<PATH_INGESTION_SOURCE>` (not a subdirectory).
+1. Drop new image files directly into `<BASE_PATH>\inbox\` (i.e. `PATH_INGESTION_SOURCE`;
+   not a further subdirectory of it — Stage 1 only scans the top level).
 
 2. **Stage 1 — hash dedup:**
    ```powershell
    python -m batch.ingest_hash_dedup --env <env>
    ```
    Exact-hash duplicates (in-batch and cross-corpus) move to
-   `<PATH_INGESTION_SOURCE>/duplicates/`. Survivors are registered as `pending` `Image`
-   rows and moved into `BASE_PATH`. Refuses to start if an ingestion run is already active
-   for this environment — finish or promote the existing one first.
+   `<BASE_PATH>\inbox\duplicates\`. Survivors are registered as `pending` `Image` rows and
+   moved into `BASE_PATH` itself — this is the step that actually leaves the inbox.
+   Refuses to start if an ingestion run is already active for this environment — finish or
+   promote the existing one first.
 
 3. **Embeddings for the new pending images:**
    ```powershell
