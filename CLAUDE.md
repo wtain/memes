@@ -316,6 +316,34 @@ All design specs are stored in `docs/superpowers/specs/`.
 **Naming convention:** `YYYY-MM-DD-<short-kebab-summary>.md`  
 Examples: `2026-06-29-ocr-safe-full-mode.md`, `2026-07-01-upload-endpoint.md`
 
+### Specification status and cross-references
+
+Every spec (including drafts in `docs/superpowers/specs/drafts/`) starts with a
+status line directly under its title, using exactly one of these values:
+
+- `draft` — idea captured, not yet reviewed/approved by the user.
+- `approved` — design reviewed and approved, ready for an implementation plan.
+- `planned` — an implementation plan exists (link it, see below).
+- `implementation` — a plan is actively being executed (subagent-driven-development
+  in progress).
+- `done` — implemented and merged.
+
+Update the status line in place as the spec moves through its lifecycle — a spec
+that's actually merged should not still say `approved` or `planned`.
+
+Carry whichever of these cross-reference links are applicable directly under the
+status line:
+
+- `Plan:` — path to the implementation plan, once `writing-plans` creates one.
+- `Originates from:` — path to the spec (or backlog draft item) this one was
+  spawned from, if any. A spec discovered as a side effect of another feature's
+  final whole-branch review, or picked up from a backlog draft item, always gets
+  this link.
+- `Follow-ups:` — paths to specs this one later spawned. Add this link to the
+  *earlier* spec retroactively once the follow-up spec is written, so the chain is
+  navigable in both directions — don't leave it as a link only the newer spec
+  carries.
+
 ### Implementing a spec
 
 1. Read `docs/superpowers/specs/<spec-file>.md` in full before touching any code.
@@ -323,7 +351,9 @@ Examples: `2026-06-29-ocr-safe-full-mode.md`, `2026-07-01-upload-endpoint.md`
 3. When implementation is complete, review the changes:
    - Logic correctness against the spec
    - Code quality: duplication, readability, reusability, structure, test coverage
-   - Run tests (`pytest` for backend, `vitest run` for frontend)
+   - Run tests (`pytest` for backend, `vitest run` for frontend) — see the
+     "Running the right test scope" gotcha below before deciding which test roots
+     a given change actually needs
    - Confirm every requirement in the spec is addressed
 4. Save the review report in `docs/superpowers/reviews/` named after the spec:  
    `YYYY-MM-DD-<spec-summary>-review.md`
@@ -346,6 +376,7 @@ Examples: `2026-06-29-ocr-safe-full-mode.md`, `2026-07-01-upload-endpoint.md`
 - **`data/...` config paths (e.g. `image_descriptions.prompts_file`, `concepts.text_concepts_file`, `rules.file`) are opened as bare relative paths, so they only resolve if cwd happens to be `batch/`.** Running a script the documented way (`python -m batch.xxx` from repo root) leaves cwd at the repo root, not `batch/`, and raises `FileNotFoundError`. Fixed in `batch/build_image_descriptions.py` by resolving `prompts_file` relative to `os.path.dirname(__file__)`. Other scripts reading `data/...` paths directly (e.g. `build_concept_embeddings.py`) likely still have this latent bug — if you hit a `FileNotFoundError` for a `data/...` path, this is probably why.
 - **Never combine `Backend/tests/`, `tests/integration/`, and the other test roots (`batch/tests/`, `tests/rules/`, `tests/ai/`) in one `pytest` invocation.** They have separate `pytest.ini` files with different `asyncio_mode` (Backend's is `Mode.AUTO`, the rest is `Mode.STRICT`); combining roots in one command breaks Backend's `async def` test collection ("async def functions are not natively supported") even though each root passes cleanly on its own. Always run them as separate `pytest` commands.
 - **`tests/integration/` needs `DATABASE_URL` set explicitly on the command line**, e.g. `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/ -v`. A top-level `tests/conftest.py` sets a dummy placeholder `DATABASE_URL` via `os.environ.setdefault(...)` before `tests/integration/conftest.py`'s own default gets a chance to apply, so omitting it fails with `password authentication failed for user "test"` instead of actually connecting. The dedicated test database is `ocrdb_test` (user/password `ocr`) on the `ocr-db` docker container, port 5432 — a genuinely separate database from the real `ocrdb` dev database on the same server, safe to run tests against.
+- **Running the right test scope: the one integration test file that looks relevant to a change is not enough — run the whole root.** Confirmed twice across two consecutive merged branches: a shared-code change (`rules/normalize.py`'s stemming dispatch, then a follow-up vocabulary-loading change touching `batch/build_bow.py`) broke assertions in `tests/integration/test_build_ocr_lemmas.py` and `tests/integration/test_build_ocr_bow_lang_filter.py` — neither file seemed related to the change under review (reviews were scoped to `tests/rules/`/`batch/tests/`, or to the one integration file most directly tied to the feature, e.g. `test_ocr_lemmas_repository.py` for search-matching work), so neither got run, and both sat broken through two merges before being caught. Any change to shared normalization/matching code (`rules/normalize.py`, `repository/ocr_lemmas.py`, `rules/concept_tagger.py`, `batch/build_bow.py`, or anything else many callers share) needs the **entire** `tests/integration/` root run (`DATABASE_URL=... pytest tests/integration/ -v`) before merging, and that same full-root scope should be handed to any subagent doing a task or final whole-branch review of such a change — not just the file(s) that look directly on-topic.
 - **`EnterWorktree` defaults to branching from `origin/<default-branch>`, not local HEAD.** In a sandboxed dev environment with no live GitHub access (`git fetch`/`pull` fail with `Permission denied (publickey)`), the cached `origin/main` ref can be many commits stale, so a new worktree can silently miss recent local-only commits. After creating a worktree, compare `git rev-parse main` against the worktree's `HEAD`; if behind, `git merge --ff-only <target-sha>` inside the worktree before starting work.
 - **Windows: `run_in_background: true` on Bash/PowerShell tool calls still enforces a hard ~10 minute timeout that kills the process**, not just stops watching it — confirmed against a real long-running batch job that was silently gone at exactly the 10-minute mark. For anything that needs longer, either scope it down to finish within ~10 minutes (e.g. a `--limit` flag, rerun as needed) or launch it as a truly detached OS-level process (see `docs/adr/adr-2026-07-10-tmp-duplicates-fk-index.md`'s recovery step 5 for a Windows `Start-Process` pattern).
 - **Some images in the `general` corpus are WebP files saved with a `.jpg` extension**, which Ollama's llava/qwen2.5vl vision backend cannot decode ("Failed to load image or audio file") — the existing `path.lower().endswith("webp")` skip in `build_image_descriptions.py` only checks the extension, not actual content, so these slip through. Rare (a ~2,000-file sample of ~22,000 images found none beyond the two already known) but non-zero. Currently handled behaviorally (the failure-tracking feature marks these permanently failed after one attempt, so they're not retried forever) rather than via content sniffing.
