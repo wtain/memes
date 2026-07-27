@@ -59,7 +59,7 @@ class BatchRunRepository:
         result = await self._session.execute(
             select(BatchRun)
             .where(BatchRun.kind == kind)
-            .order_by(BatchRun.created_at.desc(), BatchRun.run_id.asc())
+            .order_by(BatchRun.created_at.desc())
             .limit(1)
         )
         return result.scalar_one_or_none()
