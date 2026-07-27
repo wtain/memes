@@ -55,6 +55,15 @@ class BatchRunRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_most_recent_run(self, kind: str) -> BatchRun | None:
+        result = await self._session.execute(
+            select(BatchRun)
+            .where(BatchRun.kind == kind)
+            .order_by(BatchRun.created_at.desc(), BatchRun.run_id.asc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def _get(self, run_id: uuid.UUID) -> BatchRun:
         result = await self._session.execute(
             select(BatchRun).where(BatchRun.run_id == run_id)

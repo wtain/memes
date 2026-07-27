@@ -109,3 +109,25 @@ async def test_get_active_run_none_when_no_runs_of_that_kind(db_session):
     await repo.create_run(kind="trends")
 
     assert await repo.get_active_run(kind="ingestion") is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_most_recent_run_returns_latest_regardless_of_status(db_session):
+    repo = BatchRunRepository(db_session)
+    older_id = await repo.create_run(kind="trends")
+    await repo.commit(older_id)
+    newer_id = await repo.create_run(kind="trends")
+    await repo.fail(newer_id, error="disk full")
+
+    result = await repo.get_most_recent_run(kind="trends")
+
+    assert result is not None
+    assert result.run_id == newer_id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_most_recent_run_none_when_no_runs_of_that_kind(db_session):
+    repo = BatchRunRepository(db_session)
+    await repo.create_run(kind="ingestion", stage="hash_dedup")
+
+    assert await repo.get_most_recent_run(kind="trends") is None
