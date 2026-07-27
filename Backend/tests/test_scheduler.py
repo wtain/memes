@@ -5,7 +5,7 @@ the ImageService test style in test_image_service.py.
 """
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from Backend.app.scheduler import _initial_delay, _load_job_configs, _should_run
 
@@ -180,6 +180,114 @@ class TestSpawn:
         assert kwargs["stderr"].name == str(relative_log_path)
         assert kwargs["stdout"] is kwargs["stderr"]
         fake_proc.wait.assert_awaited_once()
+
+
+class TestOnSpawnDone:
+    """_on_spawn_done is the done-callback attached to every detached spawn task.
+
+    It has two responsibilities: untrack the task from _in_flight_spawns (already
+    covered indirectly elsewhere), and -- since nothing else ever awaits a detached
+    spawn task -- surface any exception it raised via this module's logger, with
+    the job name for context, the same way _safe_tick surfaces a _run_tick failure.
+    Without this, such an exception would otherwise only reach asyncio's own
+    generic "Task exception was never retrieved" warning at GC time.
+    """
+
+    async def test_logs_exception_with_job_name_when_spawn_task_failed(self, monkeypatch):
+        mock_logger = MagicMock()
+        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
+
+        async def _failing():
+            raise RuntimeError("boom")
+
+        task = asyncio.create_task(_failing())
+        try:
+            await task
+        except RuntimeError:
+            pass
+
+        scheduler_module._on_spawn_done("trends_batch", task)
+
+        mock_logger.exception.assert_called_once()
+        args, kwargs = mock_logger.exception.call_args
+        assert args == ("scheduler: job %s spawn failed", "trends_batch")
+        assert kwargs["exc_info"] is not None
+        assert isinstance(kwargs["exc_info"], RuntimeError)
+
+    async def test_does_not_log_when_spawn_task_succeeded(self, monkeypatch):
+        mock_logger = MagicMock()
+        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
+
+        async def _ok():
+            return None
+
+        task = asyncio.create_task(_ok())
+        await task
+
+        scheduler_module._on_spawn_done("trends_batch", task)
+
+        mock_logger.exception.assert_not_called()
+
+    async def test_does_not_raise_when_spawn_task_was_cancelled(self, monkeypatch):
+        # task.exception() raises CancelledError if called on a cancelled task --
+        # _on_spawn_done must guard against that (it's not a "spawn failure" to log).
+        mock_logger = MagicMock()
+        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
+
+        async def _blocks_forever():
+            await asyncio.Event().wait()
+
+        task = asyncio.create_task(_blocks_forever())
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        scheduler_module._on_spawn_done("trends_batch", task)  # must not raise
+
+        mock_logger.exception.assert_not_called()
+
+
+class TestRunTickSpawnFailureIsolation:
+    async def test_spawn_failure_does_not_propagate_and_gets_logged(self, monkeypatch):
+        """End-to-end wiring check: _run_tick creates the detached spawn task via
+        asyncio.create_task(_spawn(...)) and attaches _on_spawn_done as its
+        done-callback (Backend/app/scheduler.py:~93). This exercises that wiring
+        for real (not by calling _on_spawn_done directly) -- _spawn itself raises,
+        and we confirm both that _run_tick itself never raises (it only creates and
+        detaches the task) and that the failure still reaches the logger with the
+        job's name once the detached task actually completes.
+        """
+        class _FakeSession:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc_info):
+                return False
+
+            async def commit(self):
+                pass
+
+        monkeypatch.setattr(scheduler_module, "AsyncSessionLocal", lambda: _FakeSession())
+        monkeypatch.setattr(scheduler_module, "_should_run", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            scheduler_module, "_spawn", AsyncMock(side_effect=RuntimeError("spawn boom"))
+        )
+        mock_logger = MagicMock()
+        monkeypatch.setattr(scheduler_module, "logger", mock_logger)
+
+        await scheduler_module._run_tick(_job(name="flaky"), "general")  # must not raise
+
+        for _ in range(50):
+            if mock_logger.exception.called:
+                break
+            await asyncio.sleep(0.02)
+
+        mock_logger.exception.assert_called_once()
+        args, kwargs = mock_logger.exception.call_args
+        assert args == ("scheduler: job %s spawn failed", "flaky")
+        assert isinstance(kwargs["exc_info"], RuntimeError)
 
 
 class TestSpawnSurvivesJobLoopCancellation:

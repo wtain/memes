@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import os
 import sys
@@ -82,6 +83,22 @@ async def _should_run(repo: BatchRunRepository, job: dict) -> bool:
 _in_flight_spawns: set[asyncio.Task] = set()
 
 
+def _on_spawn_done(job_name: str, task: asyncio.Task) -> None:
+    """Done-callback for a detached _spawn task: untrack it, and -- since nothing
+    else awaits this task -- surface any exception it raised (e.g. a bad module
+    path, or an OSError opening the log file) the same way _safe_tick surfaces a
+    _run_tick failure: logged via this module's own logger, with the job name for
+    context. Without this, such an exception would otherwise only ever reach
+    asyncio's generic "Task exception was never retrieved" handler at GC time --
+    no job-name context, wrong logger, non-deterministic timing.
+    """
+    _in_flight_spawns.discard(task)
+    if not task.cancelled() and task.exception() is not None:
+        logger.exception(
+            "scheduler: job %s spawn failed", job_name, exc_info=task.exception()
+        )
+
+
 async def _run_tick(job: dict, app_env: str) -> None:
     async with AsyncSessionLocal() as session:
         repo = BatchRunRepository(session)
@@ -90,7 +107,7 @@ async def _run_tick(job: dict, app_env: str) -> None:
     if run_now:
         spawn_task = asyncio.create_task(_spawn(job, app_env))
         _in_flight_spawns.add(spawn_task)
-        spawn_task.add_done_callback(_in_flight_spawns.discard)
+        spawn_task.add_done_callback(functools.partial(_on_spawn_done, job["name"]))
 
 
 async def _safe_tick(job: dict, app_env: str) -> None:
