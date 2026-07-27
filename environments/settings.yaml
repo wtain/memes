@@ -58,3 +58,13 @@ duplicates:
   # so extra fetched-then-discarded candidates for low-density images don't change stored
   # results, only add a small uniform per-probe-image traversal cost.
   k: 50
+
+scheduler:
+  enabled: true
+  jobs:
+    - name: trends_batch
+      module: batch.trends_batch
+      batch_run_kind: trends
+      interval_minutes: 360
+      max_runtime_minutes: 60
+      enabled: true
