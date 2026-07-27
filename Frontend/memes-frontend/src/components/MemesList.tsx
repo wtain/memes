@@ -14,9 +14,10 @@ type MemesListProps = {
   listFlagged?: boolean
   listNoOcr?: boolean
   listRecommendations?: boolean
+  groupByCluster?: boolean
 }
 
-export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listFlagged, listNoOcr, listRecommendations }: MemesListProps) {
+export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listFlagged, listNoOcr, listRecommendations, groupByCluster }: MemesListProps) {
   const [memes, setMemes] = useState<Meme[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -137,13 +138,37 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
     return () => observerRef.current?.disconnect()
   }, [loadMemes])
 
+  const clusterGroups: [number | string, Meme[]][] = (() => {
+    if (!groupByCluster) return []
+    const map = new Map<number | string, Meme[]>()
+    for (const meme of memes) {
+      const key = meme.clusterId ?? "unknown"
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(meme)
+    }
+    return [...map.entries()]
+  })()
+
   return (
     <div>
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        {memes.map(meme => (
-          <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
-        ))}
-      </div>
+      {groupByCluster ? (
+        clusterGroups.map(([clusterId, group], idx) => (
+          <div key={clusterId}>
+            {idx > 0 && <hr className="my-4 border-gray-300" />}
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              {group.map(meme => (
+                <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
+              ))}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          {memes.map(meme => (
+            <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
+          ))}
+        </div>
+      )}
 
       {selectedMeme && (
         <MemeDetailsModal meme={selectedMeme} onClose={() => setSelectedMeme(null)} memesApi={memesApi} />

@@ -13,6 +13,7 @@ export default function ExploreDuplicatesPage({ memesApi }: ExploreDuplicatesPag
       <MemesList
         memesApi={memesApi}
         listDuplicates={true}
+        groupByCluster={true}
       />
     </div>
   )
