@@ -1,5 +1,8 @@
 # trends_batch Russian lemmatization
 
+Status: done
+Plan: docs/superpowers/plans/2026-07-17-lemmatization-uniformity.md
+
 ## Context
 
 `batch/trends_batch.py` runs GLiNER NER (`batch/trends/processing.py::Processor`)

@@ -1,7 +1,9 @@
 # Image Pending/Active Visibility — Design
 
-**Date:** 2026-07-25
-**Status:** Draft. Prerequisite for `2026-07-24-ingestion-pipeline-design.md` — ingestion needs
+Status: done
+Originates from: docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md
+
+**Date:** 2026-07-25. Prerequisite for `2026-07-24-ingestion-pipeline-design.md` — ingestion needs
 newly-registered images to be invisible to normal browse/search until duplicate review clears
 them, and to reuse the *same* `images`/`embeddings` tables so embeddings computed during review
 aren't recomputed on promotion.

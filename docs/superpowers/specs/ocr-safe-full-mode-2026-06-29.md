@@ -1,7 +1,8 @@
 # OCR Pipeline: Safe Full-Mode Execution (Restorable OCR Data)
 
+Status: done
+
 **Date:** 2026-06-29  
-**Status:** Proposed  
 **Scope:** `batch/extract_text_from_memes.py`, `batch/reset_ocr_status.py`, `repository/ocr_text.py`
 
 ---

@@ -1,7 +1,8 @@
 # extract_text_from_memes: Progress Reporting, Batching & Reusability
 
+Status: done
+
 **Date:** 2026-06-29  
-**Status:** Proposed  
 **Scope:** `batch/extract_text_from_memes.py` and supporting infrastructure
 
 ---

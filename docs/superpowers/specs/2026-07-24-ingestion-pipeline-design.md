@@ -1,8 +1,10 @@
 # Ingestion Pipeline Design (Draft)
 
+Status: done
+Originates from: docs/superpowers/specs/2026-07-24-ingestion-pipeline-pre-spec.md
+Follow-ups: docs/superpowers/specs/2026-07-25-batch-run-tracking-design.md, docs/superpowers/specs/2026-07-25-image-visibility-status-design.md, docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md
+
 **Date:** 2026-07-24 (revised 2026-07-25 — brainstorming rounds 1–3)
-**Status:** Draft — architecture and UX decisions below are confirmed with the user; only
-empirical tuning (Open Questions) remains. Builds on `2026-07-24-ingestion-pipeline-pre-spec.md`.
 
 ---
 

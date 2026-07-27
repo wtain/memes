@@ -1,6 +1,7 @@
 # Image Descriptions Visualization
 
-Status: Draft
+Status: draft
+Follow-ups: docs/superpowers/specs/2026-07-18-image-descriptions-display-design.md, docs/superpowers/specs/2026-07-18-similarity-mode-toggle-design.md, docs/superpowers/specs/2026-07-19-description-feedback-design.md
 
 # Summary
 

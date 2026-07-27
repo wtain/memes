@@ -1,7 +1,9 @@
 # Ingestion Pipeline — Pre-Spec (Assessment)
 
-**Date:** 2026-07-24
-**Status:** Assessment of an initial proposal, written before the full design draft. Not an implementation plan.
+Status: done
+Follow-ups: docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md
+
+**Date:** 2026-07-24. Assessment of an initial proposal, written before the full design draft. Not an implementation plan.
 
 ---
 

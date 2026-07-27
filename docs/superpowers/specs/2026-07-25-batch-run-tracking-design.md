@@ -1,7 +1,9 @@
 # Generic Batch Run Tracking — Design
 
-**Date:** 2026-07-25
-**Status:** Draft. Prerequisite for `2026-07-24-ingestion-pipeline-design.md` — ingestion needs a
+Status: done
+Originates from: docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md
+
+**Date:** 2026-07-25. Prerequisite for `2026-07-24-ingestion-pipeline-design.md` — ingestion needs a
 run-tracking concept and this generalizes the one that already exists for trends instead of
 inventing a second, ingestion-specific one.
 

@@ -1,5 +1,7 @@
 # Agent Skills Spec
 
+Status: done
+
 Two Claude Code slash-command skills for semi-automated curation of the meme database.
 Both skills are designed for a human-in-the-loop workflow: the agent does the heavy lifting,
 a human reviews and confirms before anything irreversible happens.

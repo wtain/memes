@@ -1,6 +1,8 @@
 # Similarity Mode Toggle — Design
 
-Status: Draft
+Status: done
+Plan: docs/superpowers/plans/2026-07-18-similarity-mode-toggle.md
+Originates from: docs/superpowers/specs/drafts/2026-07-17-descriptions-visualisation.md
 
 ## Context
 

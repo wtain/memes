@@ -1,7 +1,8 @@
 # `tokenize()` punctuation preservation for compound words
 
 Date: 2026-07-17
-Status: approved design, not yet implemented
+Status: done
+Plan: docs/superpowers/plans/2026-07-17-lemmatization-uniformity.md
 
 ## Problem
 

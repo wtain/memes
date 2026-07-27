@@ -1,5 +1,7 @@
 # Spec: Image Upload Endpoint
 
+Status: done
+
 ## Overview
 
 `POST /api/uploads` — accepts one or more image files via multipart upload and saves them to

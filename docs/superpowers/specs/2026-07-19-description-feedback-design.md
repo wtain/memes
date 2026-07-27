@@ -1,6 +1,8 @@
 # Description Approve/Reject Feedback — Design
 
-Status: Draft
+Status: done
+Plan: docs/superpowers/plans/2026-07-19-description-feedback.md
+Originates from: docs/superpowers/specs/drafts/2026-07-17-descriptions-visualisation.md
 
 ## Context
 

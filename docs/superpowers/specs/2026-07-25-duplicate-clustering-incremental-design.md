@@ -1,7 +1,9 @@
 # Incremental, Threshold-Bounded Duplicate Clustering — Design
 
-**Date:** 2026-07-25
-**Status:** Draft. Prerequisite for `2026-07-24-ingestion-pipeline-design.md` — both ingestion
+Status: done
+Originates from: docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md
+
+**Date:** 2026-07-25. Prerequisite for `2026-07-24-ingestion-pipeline-design.md` — both ingestion
 stage 2 (in-batch near-dup review) and stage 3 (cross-corpus near-dup review) need a scoped,
 cheap way to find candidate duplicate pairs, and the current `rebuild_duplicates.py` can provide
 neither: it's whole-corpus, non-incremental, and doesn't filter by distance until a later step.
