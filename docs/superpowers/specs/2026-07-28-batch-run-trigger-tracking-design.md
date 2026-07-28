@@ -1,6 +1,7 @@
 # Batch Run Trigger Tracking — Design
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-07-28-batch-run-trigger-tracking.md
 Follow-ups: docs/superpowers/specs/2026-07-28-batch-run-wrapper-design.md, docs/superpowers/specs/2026-07-28-admin-batch-controller-design.md
 
 **Date:** 2026-07-28.

@@ -1,6 +1,7 @@
 # Universal Batch Run Wrapper — Design
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-07-28-batch-run-wrapper.md
 Originates from: docs/superpowers/specs/2026-07-28-batch-run-trigger-tracking-design.md
 Follow-ups: docs/superpowers/specs/2026-07-28-admin-batch-controller-design.md
 
