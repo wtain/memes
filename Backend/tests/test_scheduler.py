@@ -430,15 +430,44 @@ class TestSpawnSurvivesRealShutdown:
         scheduler._spawn -> real subprocess.Popen("python -m batch.run_wrapper
         --script sleepy ...") -> run_wrapper resolving "sleepy" via a fixture
         BatchRegistry (see _write_sleepy_job_fixture) -> importlib importing the
-        throwaway sleepy_job module -> awaiting its main(). The OS-level
-        guarantee under test (a bare subprocess.Popen child is never killed by
-        cancelling the asyncio task that's waiting on it) is unchanged by this
-        extra in-process hop -- it's still exactly one OS child process, same as
-        before -- so this remains a faithful regression check for that property,
-        not a weaker one.
+        throwaway sleepy_job module -> awaiting its main(). This extra in-process
+        hop doesn't change what this test can and can't prove -- it's still
+        exactly one OS child process either way -- so its catching power for the
+        transport-GC-kill regression below is unchanged relative to before this
+        task. That said, be clear-eyed about what that catching power actually
+        is: verified (by temporarily reintroducing asyncio.create_subprocess_exec
+        + a bare `await proc.wait()` into _spawn, the exact regression
+        _wait_for_process's docstring describes) that THIS test does not detect
+        that regression, gc.collect() call below notwithstanding -- this test's
+        own event loop (pytest-asyncio's ambient per-test loop) stays alive and
+        running throughout, so the loop's internal child-watching machinery
+        keeps a live, legitimate reference to the subprocess transport the
+        entire time; there is no point at which the reference cycle becomes
+        collectible, because the loop never closes. That's a different
+        (structurally alive, not merely uncollected) situation from
+        test_real_subprocess_survives_asyncio_runner_close below, where
+        asyncio.Runner.close() genuinely tears the loop down first, dropping the
+        loop's own reference, at which point the leftover reference cycle
+        actually does need (and, with its own gc.collect() call, gets) an
+        explicit cyclic-GC pass to be reclaimed and its kill-on-unreaped-child
+        __del__ path to fire. Tearing down this test's own ambient event loop
+        mid-test to reproduce that same teardown-then-collect sequence isn't
+        practical here (see the "which this async version can't do" note
+        above) -- so treat this test as validating only what it actually
+        exercises: that cancelling the single task explicitly awaiting _spawn
+        (the same shape of cancellation stop_scheduler performs) doesn't stop
+        the child from completing, on the specific execution path where the
+        surrounding event loop keeps running. The stronger, loop-teardown
+        version of the guarantee is the sync Runner-based test's job, not
+        this one's.
         """
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("PYTHONPATH", str(_REPO_ROOT))
+        existing_pythonpath = os.environ.get("PYTHONPATH")
+        monkeypatch.setenv(
+            "PYTHONPATH",
+            os.pathsep.join([str(_REPO_ROOT), existing_pythonpath])
+            if existing_pythonpath else str(_REPO_ROOT),
+        )
         _write_sleepy_job_fixture(tmp_path, sleep_seconds=3)
         job = _job(script="sleepy", name="sleepy")
 
@@ -542,7 +571,10 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
     # this test drives its own separate event loop outside pytest-asyncio, so
     # everything here is restored by hand in the `finally` blocks.
     original_pythonpath = os.environ.get("PYTHONPATH")
-    os.environ["PYTHONPATH"] = str(_REPO_ROOT)
+    os.environ["PYTHONPATH"] = (
+        os.pathsep.join([str(_REPO_ROOT), original_pythonpath])
+        if original_pythonpath else str(_REPO_ROOT)
+    )
     try:
         async def _drive():
             # Patch inside the Runner's own loop context -- plain attribute
@@ -567,6 +599,23 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
             # every remaining task on that loop, run shutdown_default_executor(), and
             # closed the loop entirely -- mirroring uvicorn's real shutdown sequence.
             close_elapsed = time.monotonic() - close_started_at
+            # asyncio's subprocess transport participates in a reference cycle, so
+            # plain refcounting does not free it the instant Runner.close() drops the
+            # loop's own references -- only the cyclic GC does, and it isn't
+            # guaranteed to run on its own before the poll loop below starts checking
+            # done_marker. Without this explicit collect, a regression that
+            # reintroduces the killed-on-GC transport (asyncio.create_subprocess_exec
+            # in place of subprocess.Popen) can slip through: the transport would
+            # eventually be collected and its child killed, but only after this test
+            # already observed done_marker and declared success, or possibly never
+            # within this process's lifetime. Forcing collection here, right after
+            # Runner.close() and before the poll loop, makes the kill (if any)
+            # observable to Property 2 below instead of racing it. Verified by
+            # temporarily reintroducing asyncio.create_subprocess_exec +
+            # bare `await proc.wait()` in _spawn: with this gc.collect() present, the
+            # test correctly fails; on the real subprocess.Popen-based _spawn, it
+            # still passes.
+            gc.collect()
         finally:
             scheduler_module.AsyncSessionLocal = original_async_session_local
             scheduler_module._should_run = original_should_run
