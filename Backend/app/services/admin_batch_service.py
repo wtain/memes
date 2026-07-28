@@ -31,10 +31,10 @@ class AdminBatchService:
 
         try:
             run_id = await self.repo.create_run(kind=entry["kind"], trigger="manual")
-        except BatchAlreadyRunningError:
+        except BatchAlreadyRunningError as e:
             raise HTTPException(
                 status_code=409, detail=f"{batch_name} is already running"
-            )
+            ) from e
 
         # Deliberate exception to the usual get_async_db convention: the spawned
         # subprocess is a separate OS process with its own DB connection and must

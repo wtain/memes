@@ -4,7 +4,7 @@ mocked -- matching IngestionService's own test style (no real DB, no real subpro
 """
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException

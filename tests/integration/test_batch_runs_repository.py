@@ -208,16 +208,27 @@ async def test_list_runs_filters_by_kind_and_paginates(db_session):
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_pool_usable_after_rollback_following_already_running_error(db_engine):
-    """Verifies the reasoning behind AdminBatchService.trigger_run's 409 handling: when
-    create_run()'s flush() hits the DB's IntegrityError, Postgres leaves that session's
-    transaction in an aborted state (create_run itself does not call rollback() before
-    re-raising as BatchAlreadyRunningError). AdminBatchService only catches
-    BatchAlreadyRunningError and re-raises fastapi.HTTPException(409) -- it never touches
-    the session directly. The claim under test is that this is still safe because the
-    HTTPException propagates all the way out of the endpoint uncaught, and FastAPI's
-    Storage.db.get_async_db dependency's own `except Exception: await db.rollback(); raise`
-    handler is what actually recovers things -- the same mechanism every other router in
-    this codebase already relies on.
+    """Verifies AdminBatchService.trigger_run's 409 handling is safe: when create_run()'s
+    flush() hits the DB's IntegrityError, Postgres leaves that session's transaction in an
+    aborted state (create_run itself does not call rollback() before re-raising as
+    BatchAlreadyRunningError). AdminBatchService only catches BatchAlreadyRunningError and
+    re-raises fastapi.HTTPException(409) -- it never touches the session directly.
+
+    Correction (an earlier version of this docstring got the mechanism wrong): the recovery
+    here is NOT because of Storage.db.get_async_db's own
+    `except Exception: await db.rollback(); raise` handler. The sibling test right below,
+    test_pool_recovers_even_without_any_explicit_rollback, is the same three-session
+    scenario with rollback removed at EVERY layer (not just the one AdminBatchService
+    itself skips) and it still recovers cleanly, reusing the exact same underlying DBAPI
+    connection. The actual mechanism is SQLAlchemy's connection pool self-healing on
+    session close/checkin: `pool_reset_on_return` defaults to `"rollback"`, so simply
+    closing a session -- which `async with AsyncSessionLocal() as db:` always does,
+    exception or not -- issues a ROLLBACK on the underlying DBAPI connection before
+    returning it to the pool, regardless of whether any app-level code ever explicitly
+    called `.rollback()`. get_async_db's explicit rollback is still good practice (it
+    frees the connection sooner and keeps the session object itself usable for any code
+    that might run before the `async with` block actually exits), but it is not what
+    makes this specific 409 scenario safe.
 
     Uses three independent sessions bound directly to the session-scoped `db_engine`
     (not the function-scoped `db_session` savepoint fixture the rest of this file uses)
@@ -227,12 +238,11 @@ async def test_pool_usable_after_rollback_following_already_running_error(db_eng
 
       1. "request 1" creates and commits an active 'trends' run (a stand-in for some
          earlier, already-completed request).
-      2. "request 2" mimics AdminBatchService.trigger_run + get_async_db exactly: a
-         fresh session's create_run() collides with request 1's still-active run,
-         raises BatchAlreadyRunningError, and -- WITHOUT the service touching the
-         session itself -- is followed by exactly the rollback get_async_db's except
-         clause performs (standing in for the HTTPException(409) propagating out
-         uncaught).
+      2. "request 2" mimics AdminBatchService.trigger_run + get_async_db: a fresh
+         session's create_run() collides with request 1's still-active run, raises
+         BatchAlreadyRunningError, and -- WITHOUT the service touching the session
+         itself -- is followed by the same rollback get_async_db's except clause
+         performs (standing in for the HTTPException(409) propagating out uncaught).
       3. "request 3" is a brand new session pulled from the same pool. If request 2's
          aborted transaction had poisoned the underlying connection/pool, this would
          fail here with asyncpg's InFailedSQLTransactionError or SQLAlchemy's
@@ -252,8 +262,9 @@ async def test_pool_usable_after_rollback_following_already_running_error(db_eng
             await repo2.create_run(kind="trends", trigger="manual")
             await session2.commit()
         except BatchAlreadyRunningError:
-            # Stand-in for get_async_db's `except Exception: await db.rollback(); raise`
-            # -- the step AdminBatchService itself never performs.
+            # Mirrors get_async_db's `except Exception: await db.rollback(); raise` --
+            # the step AdminBatchService itself never performs. See the sibling test
+            # below for proof this line isn't actually what makes recovery work.
             await session2.rollback()
         else:
             pytest.fail("expected BatchAlreadyRunningError")
@@ -270,6 +281,47 @@ async def test_pool_usable_after_rollback_following_already_running_error(db_eng
         # Clean up both 'started' runs (partial unique index only guards one active
         # run per kind) so this test doesn't leave permanently-active rows behind for
         # other tests sharing this session-scoped db_engine.
+        await repo3.commit(active.run_id)
+        await repo3.commit(other_id)
+        await session3.commit()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_pool_recovers_even_without_any_explicit_rollback(db_engine):
+    """Stronger variant of test_pool_usable_after_rollback_following_already_running_error,
+    added after a review found the other test's docstring misattributed *why* recovery
+    works. This version omits session.rollback() entirely -- not just the one
+    AdminBatchService skips, but also the one get_async_db's except-clause would normally
+    perform -- and shows the pool still recovers via SQLAlchemy's default checkin reset
+    (`pool_reset_on_return="rollback"`), which fires whenever a session is closed,
+    independent of any explicit app-level rollback call. This is a permanent regression
+    guard for the actual claim: AdminBatchService.trigger_run needs no special rollback
+    handling for the 409 path because the pool would recover even if
+    get_async_db's own rollback line were deleted.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    async with AsyncSession(db_engine, expire_on_commit=False) as session1:
+        repo1 = BatchRunRepository(session1)
+        await repo1.create_run(kind="trends", trigger="manual")
+        await session1.commit()
+
+    # No rollback anywhere in this block -- just closes via `async with`'s __aexit__,
+    # exactly like a get_async_db WITHOUT its except-clause rollback would.
+    async with AsyncSession(db_engine, expire_on_commit=False) as session2:
+        repo2 = BatchRunRepository(session2)
+        with pytest.raises(BatchAlreadyRunningError):
+            await repo2.create_run(kind="trends", trigger="manual")
+
+    async with AsyncSession(db_engine, expire_on_commit=False) as session3:
+        repo3 = BatchRunRepository(session3)
+
+        active = await repo3.get_active_run(kind="trends")
+        assert active is not None
+
+        other_id = await repo3.create_run(kind="move_flagged", trigger="manual")
+        assert other_id is not None
+
         await repo3.commit(active.run_id)
         await repo3.commit(other_id)
         await session3.commit()
