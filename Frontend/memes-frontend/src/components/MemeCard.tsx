@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { TagList } from "./TagList"
 import type { MemesApi } from "../api/MemesApi"
 import type { Meme } from "../types/generated/all"
@@ -13,6 +13,16 @@ type Props = {
 export default function MemeCard({ meme, memesApi, onClick, variant = "square" }: Props) {
   const [showText, setShowText] = useState(false)
   const [isFlagged, setIsFlagged] = useState(meme.flagged ?? false)
+  const [copied, setCopied] = useState(false)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function copyId() {
+    navigator.clipboard.writeText(meme.id).then(() => {
+      setCopied(true)
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1000)
+    })
+  }
 
   return (
     <div className={`relative overflow-hidden rounded-xl bg-white shadow-sm hover:shadow-md transition border-2 ${isFlagged ? "border-red-500" : "border-black"}`}>
@@ -49,7 +59,17 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
         )}
       </div>
       {meme.clusterId != null && (
-        <div className="px-4 py-1 text-xs text-gray-500 border-b">Cluster {meme.clusterId}</div>
+        <div className="px-4 py-1 text-xs text-gray-500 border-b flex items-center gap-2">
+          <span>Cluster {meme.clusterId}</span>
+          <button
+            onClick={copyId}
+            className="hover:text-gray-800 transition-colors"
+            title="Copy image ID"
+          >🔗</button>
+          <span className={`transition-opacity duration-500 ${copied ? "opacity-100" : "opacity-0"}`}>
+            Copied
+          </span>
+        </div>
       )}
       <div>
         <input type="checkbox" className="ml-4 mr-2" checked={isFlagged} onChange={(e) => {
