@@ -1,6 +1,7 @@
 from datetime import datetime
 import enum
 from pgvector.sqlalchemy import Vector
+import sqlalchemy as sa
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
     DateTime, JSON, func, Numeric, Index, Boolean,
@@ -448,8 +449,24 @@ class RunStatus(enum.Enum):
         return self.value
 
 
+class TriggerType(enum.Enum):
+    manual = "manual"
+    scheduled = "scheduled"
+    unknown = "unknown"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 class BatchRun(Base):
     __tablename__ = "batch_runs"
+    __table_args__ = (
+        Index(
+            "ix_batch_runs_one_active_per_kind", "kind",
+            unique=True,
+            postgresql_where=sa.text("status = 'started'"),
+        ),
+    )
 
     run_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -457,6 +474,7 @@ class BatchRun(Base):
         default=uuid.uuid4,
     )
     kind: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    trigger: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
