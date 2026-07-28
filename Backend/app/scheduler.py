@@ -24,7 +24,7 @@ def _load_job_configs(cfg=settings) -> list[dict]:
                 continue
             result.append({
                 "name": job["name"],
-                "module": job["module"],
+                "script": job["script"],
                 # Mandatory: _initial_delay/_should_run both key off this to query
                 # BatchRun history. A job that doesn't write BatchRun rows can't be
                 # scheduled through this mechanism yet -- see "Jobs without BatchRun
@@ -155,7 +155,8 @@ async def _wait_for_process(proc: subprocess.Popen) -> int:
 
 
 async def _spawn(job: dict, app_env: str) -> None:
-    """Launch job['module'] as a subprocess and wait for it to exit.
+    """Launch job['script'] (a registry-resolvable name) via batch/run_wrapper.py
+    as a subprocess and wait for it to exit.
 
     Uses subprocess.Popen (not asyncio.create_subprocess_exec) to create the
     subprocess. This is deliberate, not a style choice: asyncio's own
@@ -188,7 +189,8 @@ async def _spawn(job: dict, app_env: str) -> None:
     logger.info("scheduler: job %s launching subprocess", job["name"])
     with open(log_path, "ab") as log_file:
         proc = subprocess.Popen(
-            [sys.executable, "-m", job["module"], "--env", app_env],
+            [sys.executable, "-m", "batch.run_wrapper",
+             "--script", job["script"], "--env", app_env, "--trigger", "scheduled"],
             stdout=log_file, stderr=log_file,
         )
         returncode = await _wait_for_process(proc)

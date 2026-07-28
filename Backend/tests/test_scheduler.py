@@ -13,7 +13,7 @@ from Backend.app.scheduler import _initial_delay, _load_job_configs, _should_run
 def _job(**overrides):
     base = {
         "name": "trends_batch",
-        "module": "batch.trends_batch",
+        "script": "trends_batch",
         "batch_run_kind": "trends",
         "interval_minutes": 360,
         "max_runtime_minutes": 60,
@@ -68,7 +68,7 @@ class TestLoadJobConfigs:
 
         assert result == [{
             "name": "trends_batch",
-            "module": "batch.trends_batch",
+            "script": "trends_batch",
             "batch_run_kind": "trends",
             "interval_minutes": 360,
             "max_runtime_minutes": 60,
@@ -195,6 +195,52 @@ import pytest
 import Backend.app.scheduler as scheduler_module
 from Backend.app.scheduler import start_scheduler, stop_scheduler
 
+# Backend/tests/test_scheduler.py -> Backend/tests -> Backend -> repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _write_sleepy_job_fixture(tmp_path: Path, sleep_seconds: int) -> None:
+    """Registry-resolvable stand-in for a throwaway batch script.
+
+    _spawn now always launches `python -m batch.run_wrapper --script ...`
+    instead of invoking a raw module path directly, so TestSpawnSurvivesRealShutdown
+    and test_real_subprocess_survives_asyncio_runner_close can no longer point
+    _spawn at an arbitrary bare module the way they used to. run_wrapper.main()
+    resolves --script through a real BatchRegistry(base_dir="environments")
+    (relative to *its own* cwd, which is tmp_path -- inherited from the
+    subprocess's parent, whose cwd the test has chdir'd) and then calls
+    load_env(), which validates DATABASE_URL. This fixture lays down
+    everything run_wrapper needs to resolve "sleepy" to this throwaway module
+    and get through load_env() without ever touching the real, gitignored
+    environments/ directory:
+      - sleepy_job.py itself: a real async main(trigger, run_id=None), matching
+        the signature every real batch script's main() now has post Tasks 3-4.
+      - environments/batch_registry.yaml mapping "sleepy" -> sleepy_job so
+        argparse's --script choices (and the later registry.get() lookup)
+        resolve it.
+      - environments/.env.general with a dummy DATABASE_URL so load_env()'s
+        Validator doesn't blow up before sleepy_job.main() ever gets a chance
+        to run.
+    The caller is still responsible for pointing PYTHONPATH at the real repo
+    root (see _REPO_ROOT) so the child's own `import batch.run_wrapper` /
+    `import config.settings` resolve despite cwd being tmp_path, not the repo.
+    """
+    (tmp_path / "sleepy_job.py").write_text(
+        "import asyncio\n"
+        "\n"
+        "async def main(trigger, run_id=None):\n"
+        f"    await asyncio.sleep({sleep_seconds})\n"
+        "    open('done.txt', 'w').close()\n"
+    )
+    env_dir = tmp_path / "environments"
+    env_dir.mkdir(exist_ok=True)
+    (env_dir / "batch_registry.yaml").write_text(
+        "sleepy:\n  module: sleepy_job\n  kind: sleepy\n"
+    )
+    (env_dir / ".env.general").write_text(
+        "DATABASE_URL=postgresql+asyncpg://test:test@localhost/test\n"
+    )
+
 
 class TestSafeTick:
     async def test_calls_run_tick_with_job_and_app_env(self, monkeypatch):
@@ -224,7 +270,10 @@ class TestSpawn:
         await scheduler_module._spawn(_job(), "general")
 
         args, kwargs = popen_mock.call_args
-        assert args[0] == [sys.executable, "-m", "batch.trends_batch", "--env", "general"]
+        assert args[0] == [
+            sys.executable, "-m", "batch.run_wrapper",
+            "--script", "trends_batch", "--env", "general", "--trigger", "scheduled",
+        ]
         log_path = tmp_path / "logs" / "scheduler-trends_batch.log"
         assert log_path.exists()
         # Must be the actual opened log file object, not merely "some truthy value" --
@@ -375,14 +424,23 @@ class TestSpawnSurvivesRealShutdown:
         loop can't also host asyncio.Runner's own loop) -- and which additionally
         verifies shutdown isn't blocked (this test only verifies the child survives,
         not how quickly the surrounding code returns).
+
+        _spawn now always goes through `python -m batch.run_wrapper`, not a raw
+        module path, so this drives the real subprocess-of-a-subprocess:
+        scheduler._spawn -> real subprocess.Popen("python -m batch.run_wrapper
+        --script sleepy ...") -> run_wrapper resolving "sleepy" via a fixture
+        BatchRegistry (see _write_sleepy_job_fixture) -> importlib importing the
+        throwaway sleepy_job module -> awaiting its main(). The OS-level
+        guarantee under test (a bare subprocess.Popen child is never killed by
+        cancelling the asyncio task that's waiting on it) is unchanged by this
+        extra in-process hop -- it's still exactly one OS child process, same as
+        before -- so this remains a faithful regression check for that property,
+        not a weaker one.
         """
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "sleepy_job.py").write_text(
-            "import time\n"
-            "time.sleep(3)\n"
-            "open('done.txt', 'w').close()\n"
-        )
-        job = _job(module="sleepy_job", name="sleepy")
+        monkeypatch.setenv("PYTHONPATH", str(_REPO_ROOT))
+        _write_sleepy_job_fixture(tmp_path, sleep_seconds=3)
+        job = _job(script="sleepy", name="sleepy")
 
         monkeypatch.setattr(scheduler_module, "AsyncSessionLocal", lambda: _FakeSession())
         monkeypatch.setattr(scheduler_module, "_should_run", AsyncMock(return_value=True))
@@ -404,7 +462,12 @@ class TestSpawnSurvivesRealShutdown:
         gc.collect()
         await asyncio.sleep(0.1)
 
-        for _ in range(100):
+        # Wider poll budget than before (was range(100), i.e. 10s): run_wrapper's
+        # own imports (config.settings/Dynaconf, batch.registry/yaml) add
+        # measurable startup latency on top of the child's own sleep_seconds=3,
+        # confirmed empirically to add roughly another second beyond the bare
+        # single-module version this replaced.
+        for _ in range(150):
             if done_marker.exists():
                 break
             await asyncio.sleep(0.1)
@@ -459,18 +522,27 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
     Deliberately a plain (non-async) test function: it manages its own
     asyncio.Runner-owned loop rather than running inside pytest-asyncio's per-test
     loop, so pytest must not wrap it in one.
+
+    _spawn now always goes through `python -m batch.run_wrapper`, not a raw
+    module path (see TestSpawnSurvivesRealShutdown above for the full rationale
+    on why this still exercises the same guarantee: it's the same single OS
+    child process either way, just with one more in-process import/dispatch hop
+    inside it -- run_wrapper resolving "sleepy" via a fixture BatchRegistry,
+    then importing and awaiting the throwaway sleepy_job module's main()).
     """
     old_cwd = Path.cwd()
     child_sleep_seconds = 5
-    (tmp_path / "sleepy_job.py").write_text(
-        "import time\n"
-        f"time.sleep({child_sleep_seconds})\n"
-        "open('done.txt', 'w').close()\n"
-    )
-    job = _job(module="sleepy_job", name="sleepy")
+    _write_sleepy_job_fixture(tmp_path, sleep_seconds=child_sleep_seconds)
+    job = _job(script="sleepy", name="sleepy")
     done_marker = tmp_path / "done.txt"
 
     os.chdir(tmp_path)
+    # Plain os.environ save/restore (not pytest's monkeypatch fixture) for the
+    # same reason as the manual AsyncSessionLocal/_should_run patching below:
+    # this test drives its own separate event loop outside pytest-asyncio, so
+    # everything here is restored by hand in the `finally` blocks.
+    original_pythonpath = os.environ.get("PYTHONPATH")
+    os.environ["PYTHONPATH"] = str(_REPO_ROOT)
     try:
         async def _drive():
             # Patch inside the Runner's own loop context -- plain attribute
@@ -500,6 +572,10 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
             scheduler_module._should_run = original_should_run
     finally:
         os.chdir(old_cwd)
+        if original_pythonpath is None:
+            os.environ.pop("PYTHONPATH", None)
+        else:
+            os.environ["PYTHONPATH"] = original_pythonpath
 
     # Property 1: shutdown must not block on the still-running child. The `with`
     # block (including the initial 0.5s setup sleep) must return in well under
@@ -515,8 +591,11 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
 
     # Property 2: the child must still be alive and complete on its own,
     # unattended, well after the loop that spawned it is gone. Poll for the file
-    # it only ever writes after finishing its multi-second sleep.
-    for _ in range(100):
+    # it only ever writes after finishing its multi-second sleep. Wider budget
+    # than before (was range(100), i.e. 10s): run_wrapper's own imports
+    # (config.settings/Dynaconf, batch.registry/yaml) add measurable startup
+    # latency inside the child on top of child_sleep_seconds=5.
+    for _ in range(150):
         if done_marker.exists():
             break
         time.sleep(0.1)
