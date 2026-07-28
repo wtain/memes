@@ -489,7 +489,11 @@ git commit -m "refactor: extract subprocess spawn/wait mechanism into Backend/ap
 **Interfaces:**
 - Consumes: `repository.batch_runs.BatchRunRepository`/`.BatchAlreadyRunningError` (trigger-tracking
   plan); `batch.registry.BatchRegistry` (wrapper plan); `Backend.app.batch_subprocess.build_log_path`/
-  `.spawn_and_track`/`.fire_and_forget` (Task 1).
+  `.spawn_and_track`/`.fire_and_forget` (Task 1). **Note:** Task 1's own fix round added a required
+  third parameter to `spawn_and_track` after this task was originally drafted --
+  `spawn_and_track(args: list[str], log_path: Path, label: str) -> int`, where `label` is a
+  logging-only identifier (not passed to `Popen`) so failed/non-zero-exit runs can be attributed to
+  the right batch in the logs. Call it as `spawn_and_track(args, log_path, label=batch_name)`.
 - Produces: `AdminBatchService` with `trigger_run(batch_name) -> dict`, `get_run(run_id) -> dict`,
   `list_runs(limit, offset) -> dict` — all raising `fastapi.HTTPException` directly on error paths,
   matching `IngestionService`'s existing style; the router in `Backend/app/api/admin.py`, registered
@@ -743,7 +747,7 @@ class AdminBatchService:
         args = [sys.executable, "-m", "batch.run_wrapper",
                 "--script", batch_name, "--env", app_env, "--trigger", "manual",
                 "--run-id", str(run_id)]
-        await fire_and_forget(spawn_and_track(args, log_path))
+        await fire_and_forget(spawn_and_track(args, log_path, label=batch_name))
 
         return {"run_id": str(run_id), "status": "running"}
 
