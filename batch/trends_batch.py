@@ -11,7 +11,6 @@ from Storage.db import AsyncSessionLocal
 from batch.trends.connectors.registry import get_connector
 from batch.trends.processing import Processor
 from batch.trends.resolution import resolve_labels, resolve_language, resolve_model
-from repository.batch_runs import BatchRunRepository
 from repository.trends import TrendSourceRepository, TrendsRunResultRepository
 from rules.normalize import LEMMATIZABLE_LANGUAGES, lemmatize_phrase, make_morph
 
@@ -56,14 +55,25 @@ async def run(session, run_id: uuid.UUID) -> None:
 
 
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    # TrendsRunResultRepository.add_result() only add()s + flush()es -- per this repo's
+    # convention, repositories never commit(), callers do. The old inlined main() covered
+    # this with a `finally: await session.commit()` around its whole try/except, so results
+    # written before a mid-run failure were still persisted. Match that here: commit in a
+    # finally so partial results survive a `run()` exception too, not just the success path.
     if run_id is not None:
         async with finish_existing_run(run_id):
             async with AsyncSessionLocal() as session:
-                await run(session, run_id)
+                try:
+                    await run(session, run_id)
+                finally:
+                    await session.commit()
     else:
         async with tracked_run(kind="trends", trigger=trigger) as new_run_id:
             async with AsyncSessionLocal() as session:
-                await run(session, new_run_id)
+                try:
+                    await run(session, new_run_id)
+                finally:
+                    await session.commit()
 
 
 if __name__ == "__main__":
