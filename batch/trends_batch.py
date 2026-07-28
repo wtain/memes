@@ -1,9 +1,11 @@
 import argparse
 import asyncio
+import uuid
 from collections import Counter
 
 import pymorphy3
 
+from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
 from batch.trends.connectors.registry import get_connector
@@ -31,43 +33,37 @@ def process_source(source, connector, processor: Processor, labels: list[str], m
     return trends
 
 
-async def main():
+async def run(session, run_id: uuid.UUID) -> None:
     processor = Processor()
     morph = make_morph()
 
-    async with AsyncSessionLocal() as session:
+    sources_repo = TrendSourceRepository(session)
+    sources = await sources_repo.get_all()
 
-        sources_repo = TrendSourceRepository(session)
-        sources = await sources_repo.get_all()
+    results_repo = TrendsRunResultRepository(session, run_id)
 
-        runs_repo = BatchRunRepository(session)
+    for source in sources:
+        connector = get_connector(source.name, source.connector_type, source.config)
+        labels = resolve_labels(source, settings)
+        model_name = resolve_model(source, settings)
+        language = resolve_language(source, settings)
 
-        # trigger="unknown" is temporary: this code path currently serves both a human running this
-        # script directly and the scheduler, with no way to distinguish them yet -- superseded by
-        # docs/superpowers/specs/2026-07-28-batch-run-wrapper-design.md.
-        run_id = await runs_repo.create_run(kind="trends", trigger="unknown")
+        trends = process_source(source, connector, processor, labels, model_name, language, morph)
 
-        results_repo = TrendsRunResultRepository(session, run_id)
+        for topic, value in trends.items():
+            label, name = topic.split(":", 1)
+            await results_repo.add_result(source_id=source.id, label=label, name=name, value=value)
 
-        try:
-            for source in sources:
-                connector = get_connector(source.name, source.connector_type, source.config)
-                labels = resolve_labels(source, settings)
-                model_name = resolve_model(source, settings)
-                language = resolve_language(source, settings)
 
-                trends = process_source(source, connector, processor, labels, model_name, language, morph)
-
-                for topic, value in trends.items():
-                    label, name = topic.split(":", 1)
-                    await results_repo.add_result(source_id=source.id, label=label, name=name, value=value)
-
-            await runs_repo.commit(run_id)
-        except Exception:
-            await runs_repo.fail(run_id)
-            raise
-        finally:
-            await session.commit()
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            async with AsyncSessionLocal() as session:
+                await run(session, run_id)
+    else:
+        async with tracked_run(kind="trends", trigger=trigger) as new_run_id:
+            async with AsyncSessionLocal() as session:
+                await run(session, new_run_id)
 
 
 if __name__ == "__main__":
@@ -76,4 +72,4 @@ if __name__ == "__main__":
                         help="Environment to load config/secrets for (falls back to APP_ENV)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main())
+    asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior
