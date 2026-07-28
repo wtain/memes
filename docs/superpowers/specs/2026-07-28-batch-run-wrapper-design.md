@@ -68,23 +68,73 @@ handles its own tracking as a side effect, with no way for the scheduler to pass
 
 ## Design
 
-### `batch/registry.py` — the fixed allow-list
+### `batch/registry.py` — the fixed allow-list, externalized and hot-reloadable
 
-```python
-BATCH_REGISTRY: dict[str, dict[str, str]] = {
-    "trends_batch": {"module": "batch.trends_batch", "kind": "trends"},
-    "move_flagged": {"module": "batch.move_flagged", "kind": "move_flagged"},
-    "unregister_deleted_images": {
-        "module": "batch.unregister_deleted_images", "kind": "unregister_deleted_images",
-    },
-}
+Not a Python constant — a tracked YAML file, following the same common-file-plus-per-environment-
+override convention already used for `environments/settings.yaml`, since the set of triggerable
+batches may differ per environment later even though all three environments share the same set
+today:
+
+`environments/batch_registry.yaml` (common):
+
+```yaml
+trends_batch:
+  module: batch.trends_batch
+  kind: trends
+move_flagged:
+  module: batch.move_flagged
+  kind: move_flagged
+unregister_deleted_images:
+  module: batch.unregister_deleted_images
+  kind: unregister_deleted_images
 ```
 
-This is the *only* place that maps a public script name to a Python module path — a plain,
-server-side Python constant, never editable by a client. Both `run_wrapper.py` (this spec) and the
-admin API (spec 3) import it; neither ever constructs a module path from client input. `kind`
-values for the two previously-untracked scripts are new (`move_flagged`, `unregister_deleted_images`)
-— `trends`'s existing `kind` value is kept as-is, no rename/backfill of historical rows.
+An optional `environments/batch_registry.<env>.yaml` can add/override entries per environment later
+— not needed yet since all three environments expose the same three batches today, but the loader
+supports it from day one so a future environment-specific batch doesn't need a loader change.
+
+`batch/registry.py` provides a small class rather than a bare dict, and — deliberately — reads the
+file(s) fresh on every call rather than caching:
+
+```python
+class BatchRegistry:
+    def __init__(self, base_dir: Path = Path("environments")):
+        self._base_dir = base_dir
+
+    def get(self, script_name: str) -> dict | None:
+        """Fresh read on every call -- editing the registry file takes effect immediately,
+        no backend/scheduler restart needed."""
+        return self._load().get(script_name)
+
+    def all_names(self) -> list[str]:
+        return list(self._load().keys())
+
+    def name_for_kind(self, kind: str) -> str | None:
+        """Reverse lookup -- BatchRun.kind -> public script name, for API responses that need
+        to show a human-facing batch_name without exposing the internal kind value directly
+        (used by spec 3's status/list endpoints)."""
+        for name, entry in self._load().items():
+            if entry["kind"] == kind:
+                return name
+        return None
+
+    def _load(self) -> dict:
+        common = _read_yaml(self._base_dir / "batch_registry.yaml")
+        env = os.environ.get("APP_ENV")
+        override = _read_yaml(self._base_dir / f"batch_registry.{env}.yaml") if env else {}
+        return {**common, **override}
+```
+
+This is the *only* place that maps a public script name to a Python module path — a fixed,
+server-side-controlled file, never editable by a client. Both `run_wrapper.py` (this spec) and the
+admin API (spec 3) use `BatchRegistry`; neither ever constructs a module path from client input.
+`kind` values for the two previously-untracked scripts are new (`move_flagged`,
+`unregister_deleted_images`) — `trends`'s existing `kind` value is kept as-is, no rename/backfill of
+historical rows.
+
+Re-reading the file on every lookup costs a small amount of I/O per trigger/scheduler-tick, which is
+negligible at this call frequency (nowhere near a hot path) and is the deliberate trade-off for
+"no restart needed to pick up a registry change."
 
 ### `batch/run_tracking.py` — shared tracking helper
 
@@ -130,9 +180,13 @@ async def finish_existing_run(run_id: uuid.UUID):
 
 ### Script shape: `main(trigger, run_id=None)`
 
-Every script's `main()` becomes the single entry point for both direct-CLI and wrapper use:
+Every script's `main()` becomes the single entry point for both direct-CLI and wrapper use. Shown
+here for `move_flagged.py` specifically — **`kind` is that script's own registry `kind` value in
+every case** (`"trends"` for `trends_batch.py`, `"unregister_deleted_images"` for that script), not
+a value to copy verbatim across all three:
 
 ```python
+# move_flagged.py
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
     if run_id is not None:
         async with finish_existing_run(run_id):
@@ -140,7 +194,7 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None
                 base_path = os.path.abspath(settings.BASE_PATH)
                 await run(session, base_path)
     else:
-        async with tracked_run(kind="move_flagged", trigger=trigger):
+        async with tracked_run(kind="move_flagged", trigger=trigger):  # this script's own kind
             async with AsyncSessionLocal() as session:
                 base_path = os.path.abspath(settings.BASE_PATH)
                 await run(session, base_path)
@@ -163,7 +217,8 @@ temporary `trigger="unknown"` call site from spec 1 is fully replaced here.
 
 ```python
 async def main():
-    parser.add_argument("--script", choices=BATCH_REGISTRY.keys(), required=True)
+    registry = BatchRegistry()
+    parser.add_argument("--script", choices=registry.all_names(), required=True)
     parser.add_argument("--env", choices=["metal", "general", "it"], required=True)
     parser.add_argument("--trigger", choices=["manual", "scheduled"], required=True)
     parser.add_argument("--run-id", default=None,
@@ -172,7 +227,8 @@ async def main():
     args = parser.parse_args()
     load_env(args.env)
 
-    module = importlib.import_module(BATCH_REGISTRY[args.script]["module"])
+    entry = registry.get(args.script)  # re-read here too, not reused from the choices lookup above
+    module = importlib.import_module(entry["module"])
     run_id = uuid.UUID(args.run_id) if args.run_id else None
     await module.main(trigger=args.trigger, run_id=run_id)
 
@@ -180,7 +236,13 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-`import_module` only ever receives a value looked up from `BATCH_REGISTRY` by an `argparse
+Each invocation of `run_wrapper.py` is already a fresh process, so `BatchRegistry()` reading the
+file fresh here is inherent, not an extra step — the "no restart needed" property specifically
+matters for the two long-running processes that use `BatchRegistry` repeatedly over their lifetime
+(the admin API and the scheduler, both covered below/in spec 3), where the whole point is that
+neither needs restarting for a registry edit to take effect.
+
+`import_module` only ever receives a value looked up from `BatchRegistry` by an `argparse
 choices`-constrained `--script` — never a client-supplied string used directly.
 
 ### `scheduler.py` change
@@ -196,12 +258,23 @@ proc = subprocess.Popen(
 ```
 
 Job config (`environments/settings.yaml`'s `scheduler.jobs`) changes its `module` key to `script`,
-using the same registry names as `BATCH_REGISTRY` (`trends_batch`, not `batch.trends_batch`) — one
-shared vocabulary between the scheduler's config and the admin controller's allow-list, rather than
-two separately-maintained mappings. `_load_job_configs` (Task 2 of the scheduler plan) is updated
-accordingly. Everything else about the scheduler (restart-safe timing, orphan recovery, per-tick
-error isolation, the daemon-thread subprocess wait) is unchanged — this only touches what gets
-spawned and with what arguments.
+using the same registry names as `environments/batch_registry.yaml` (`trends_batch`, not
+`batch.trends_batch`) — one shared vocabulary between the scheduler's config and the admin
+controller's allow-list, rather than two separately-maintained mappings. `_load_job_configs` (Task 2
+of the scheduler plan) is updated accordingly. Everything else about the scheduler's own logic
+(restart-safe timing, orphan recovery, per-tick error isolation) is unchanged — this only touches
+what gets spawned and with what arguments. The daemon-thread subprocess-wait *mechanism* itself is
+also unchanged in behavior, but its code moves out of `scheduler.py` into a shared module as part of
+spec 3 (which also changes the log file naming scheme it uses) — see
+`2026-07-28-admin-batch-controller-design.md`.
+
+Note: `scheduler.py` itself never needs to call `BatchRegistry` directly for validation — the
+`script` value in `environments/settings.yaml` is server-side tracked config already, not client
+input, and `run_wrapper.py` (a fresh process each tick) is what actually resolves it against the
+registry. The "no restart needed" property that matters for the scheduler is about
+`environments/batch_registry.yaml` edits taking effect on the *next tick* without a scheduler
+restart — which holds automatically, since each tick spawns a brand-new `run_wrapper.py` process
+that reads the registry fresh.
 
 ### Testing
 

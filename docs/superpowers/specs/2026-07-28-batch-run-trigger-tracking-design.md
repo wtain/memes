@@ -63,7 +63,16 @@ both seeing "no active run" and both inserting a `started` row for the same `kin
 
 New Alembic revision, run from `Storage/`:
 
+**Table lock first, before anything else in `upgrade()`.** Alembic migrations run inside a
+transaction by default; taking an exclusive lock as the very first statement means any concurrent
+`create_run()` (from the scheduler ticking, or a manual trigger once spec 3 exists) simply blocks
+until this migration's transaction commits or rolls back, rather than racing the cleanup/backfill
+steps below — closing the window where a new row could appear between the cleanup UPDATE and the
+unique index creation:
+
 ```python
+op.execute("LOCK TABLE batch_runs IN ACCESS EXCLUSIVE MODE")
+
 op.add_column('batch_runs', sa.Column('trigger', sa.String(20), nullable=True))
 
 # Defensive cleanup before the unique index: if migration ever runs against data with more
@@ -149,6 +158,11 @@ all existing calls in that file); a new test asserts a second `create_run(kind=X
 convention in `CLAUDE.md`, since `repository/batch_runs.py` is shared code.
 
 ## Rollout
+
+**Operational note:** the table lock guarantees correctness even if the scheduler is running during
+this migration (a concurrent `create_run()` just blocks briefly rather than racing), but as a
+belt-and-suspenders step, stop the backend (or set `scheduler.enabled: false` and restart it) before
+running this migration in each environment, so no tick is left waiting on the lock at all.
 
 1. Alembic revision per above (each environment's DB migrates independently, as usual).
 2. Add `TriggerType`, extend `BatchRun` (`Storage/models.py`).
