@@ -15,9 +15,11 @@ type MemesListProps = {
   listNoOcr?: boolean
   listRecommendations?: boolean
   groupByCluster?: boolean
+  initialCursor?: string
+  onCursorChange?: (cursor: string | undefined) => void
 }
 
-export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listFlagged, listNoOcr, listRecommendations, groupByCluster }: MemesListProps) {
+export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listDuplicates, listFlagged, listNoOcr, listRecommendations, groupByCluster, initialCursor, onCursorChange }: MemesListProps) {
   const [memes, setMemes] = useState<Meme[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
@@ -31,6 +33,9 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
   const hasMoreRef = useRef(true)
   const cursorRef = useRef<string | undefined>(undefined)
   const loadMemesRef = useRef<(next: string | undefined) => void>(() => {})
+  const initialCursorRef = useRef(initialCursor)
+  const onCursorChangeRef = useRef(onCursorChange)
+  useEffect(() => { onCursorChangeRef.current = onCursorChange })
 
   const loadMemes = useCallback(async (next: string | undefined) => {
     if (loadingRef.current) return
@@ -65,6 +70,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
 
     const nextCursor = response.nextCursor
     cursorRef.current = nextCursor
+    onCursorChangeRef.current?.(nextCursor)
 
     loadingRef.current = false
     setLoading(false)
@@ -116,9 +122,10 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
   useEffect(() => { loadMemesRef.current = loadMemes })
 
   useEffect(() => {
-    loadMemesRef.current(undefined)
-    cursorRef.current = undefined
-    window.scrollTo({ top: 0 })
+    const start = initialCursorRef.current
+    loadMemesRef.current(start)
+    cursorRef.current = start
+    if (!start) window.scrollTo({ top: 0 })
   }, [filter, tagFilters])
 
   useEffect(() => {
