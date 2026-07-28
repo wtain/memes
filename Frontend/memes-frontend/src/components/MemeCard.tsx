@@ -63,7 +63,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
           <span>Cluster {meme.clusterId}</span>
           <button
             onClick={copyId}
-            className="hover:text-gray-800 transition-colors"
+            className="hover:text-gray-800 transition-colors cursor-pointer"
             title="Copy image ID"
           >🔗</button>
           <span className={`transition-opacity duration-500 ${copied ? "opacity-100" : "opacity-0"}`}>
