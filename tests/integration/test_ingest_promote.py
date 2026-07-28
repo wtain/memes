@@ -17,7 +17,7 @@ _TIER_B_THRESHOLD = 0.3
 
 
 async def _make_run(session) -> uuid.UUID:
-    return await BatchRunRepository(session).create_run(kind="ingestion", stage="hash_dedup")
+    return await BatchRunRepository(session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
 
 async def _make_image(session, status: str, batch_id=None) -> uuid.UUID:

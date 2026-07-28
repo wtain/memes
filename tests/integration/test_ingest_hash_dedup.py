@@ -121,7 +121,7 @@ async def test_register_and_move_creates_pending_images_in_base_path(tmp_path, d
     _write(source, "new.jpg", b"bytes")
 
     runs_repo = BatchRunRepository(db_session)
-    batch_id = await runs_repo.create_run(kind="ingestion", stage="hash_dedup")
+    batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     ids = await register_and_move_to_base_path(
         db_session, str(source), str(base), {"new.jpg": "abc123"}, batch_id
@@ -160,7 +160,7 @@ async def test_run_end_to_end_stats_and_final_state(tmp_path, db_session):
     await db_session.flush()
 
     runs_repo = BatchRunRepository(db_session)
-    batch_id = await runs_repo.create_run(kind="ingestion", stage="hash_dedup")
+    batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     stats = await run(db_session, str(source), str(base), batch_id)
 
@@ -181,7 +181,7 @@ async def test_run_end_to_end_stats_and_final_state(tmp_path, db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_active_run_finds_started_ingestion_run(db_session):
     runs_repo = BatchRunRepository(db_session)
-    batch_id = await runs_repo.create_run(kind="ingestion", stage="hash_dedup")
+    batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     active = await runs_repo.get_active_run(kind="ingestion")
 
@@ -192,7 +192,7 @@ async def test_get_active_run_finds_started_ingestion_run(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_active_run_none_once_completed(db_session):
     runs_repo = BatchRunRepository(db_session)
-    batch_id = await runs_repo.create_run(kind="ingestion", stage="hash_dedup")
+    batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
     await runs_repo.commit(batch_id)
 
     active = await runs_repo.get_active_run(kind="ingestion")

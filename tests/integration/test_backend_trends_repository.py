@@ -24,7 +24,7 @@ async def _make_source(db_session) -> TrendSource:
 
 
 async def _make_run(db_session, created_at=None) -> BatchRun:
-    run = BatchRun(kind="trends", created_at=created_at) if created_at else BatchRun(kind="trends")
+    run = BatchRun(kind="trends", trigger="manual", created_at=created_at) if created_at else BatchRun(kind="trends", trigger="manual")
     db_session.add(run)
     await db_session.flush()
     return run
@@ -71,8 +71,12 @@ async def test_get_runs_for_date_returns_runs_on_that_date(db_session):
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_latest_run_for_date_returns_most_recent(db_session):
+    from repository.batch_runs import BatchRunRepository
+
     base = datetime.now(timezone.utc)
     earlier = await _make_run(db_session, created_at=base)
+    # Complete earlier run before creating another to satisfy the unique index constraint
+    await BatchRunRepository(db_session).commit(earlier.run_id)
     later = await _make_run(db_session, created_at=base + timedelta(minutes=5))
 
     repo = TrendsRepository(db_session)

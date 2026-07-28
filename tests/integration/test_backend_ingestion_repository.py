@@ -17,7 +17,7 @@ from Storage.models import Image, OCRText, TmpDuplicates
 
 
 async def _make_run(session) -> uuid.UUID:
-    return await BatchRunRepository(session).create_run(kind="ingestion", stage="hash_dedup")
+    return await BatchRunRepository(session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
 
 async def _make_image(session, status: str, batch_id=None) -> uuid.UUID:
@@ -41,8 +41,11 @@ async def _make_pair(session, id1, id2, distance: float, match_source: str = "cr
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_list_pending_images_scoped_to_batch(db_session):
-    batch_id = await _make_run(db_session)
+    # Create and complete a prior batch to avoid unique index conflict
     other_batch_id = await _make_run(db_session)
+    await BatchRunRepository(db_session).commit(other_batch_id)
+    # Create the current batch to test
+    batch_id = await _make_run(db_session)
     mine = await _make_image(db_session, "pending", batch_id)
     await _make_image(db_session, "pending", other_batch_id)
 

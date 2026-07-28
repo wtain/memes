@@ -12,13 +12,13 @@ tests pin down that distinction directly.
 """
 import pytest
 
-from repository.batch_runs import BatchRunRepository
+from repository.batch_runs import BatchRunRepository, BatchAlreadyRunningError
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_create_run_starts_as_started(db_session):
     repo = BatchRunRepository(db_session)
-    run_id = await repo.create_run(kind="ingestion", stage="hash_dedup")
+    run_id = await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     run = await repo.get_run(run_id)
 
@@ -32,7 +32,7 @@ async def test_update_stats_merges_without_changing_status(db_session):
     """The bug this test exists to prevent: a script recording progress mid-pipeline must
     not accidentally mark the whole run finished."""
     repo = BatchRunRepository(db_session)
-    run_id = await repo.create_run(kind="ingestion", stage="hash_dedup")
+    run_id = await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     await repo.update_stats(run_id, intake=3, registered=2)
     await repo.update_stats(run_id, tier_a_candidates=5)  # a later stage's own call
@@ -47,7 +47,7 @@ async def test_update_stats_merges_without_changing_status(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_commit_marks_completed(db_session):
     repo = BatchRunRepository(db_session)
-    run_id = await repo.create_run(kind="trends")
+    run_id = await repo.create_run(kind="trends", trigger="manual")
 
     await repo.commit(run_id, stats={"sources": 4})
 
@@ -60,7 +60,7 @@ async def test_commit_marks_completed(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_fail_marks_failed_with_error(db_session):
     repo = BatchRunRepository(db_session)
-    run_id = await repo.create_run(kind="ingestion", stage="hash_dedup")
+    run_id = await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     await repo.fail(run_id, error="disk full")
 
@@ -73,7 +73,7 @@ async def test_fail_marks_failed_with_error(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_set_stage_updates_stage_only(db_session):
     repo = BatchRunRepository(db_session)
-    run_id = await repo.create_run(kind="ingestion", stage="hash_dedup")
+    run_id = await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     await repo.set_stage(run_id, "tier_a_review")
 
@@ -85,8 +85,8 @@ async def test_set_stage_updates_stage_only(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_active_run_finds_started_run_of_given_kind(db_session):
     repo = BatchRunRepository(db_session)
-    await repo.create_run(kind="trends")
-    ingestion_id = await repo.create_run(kind="ingestion", stage="hash_dedup")
+    await repo.create_run(kind="trends", trigger="manual")
+    ingestion_id = await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     active = await repo.get_active_run(kind="ingestion")
 
@@ -97,7 +97,7 @@ async def test_get_active_run_finds_started_run_of_given_kind(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_active_run_none_once_completed(db_session):
     repo = BatchRunRepository(db_session)
-    run_id = await repo.create_run(kind="ingestion", stage="hash_dedup")
+    run_id = await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
     await repo.commit(run_id)
 
     assert await repo.get_active_run(kind="ingestion") is None
@@ -106,7 +106,7 @@ async def test_get_active_run_none_once_completed(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_active_run_none_when_no_runs_of_that_kind(db_session):
     repo = BatchRunRepository(db_session)
-    await repo.create_run(kind="trends")
+    await repo.create_run(kind="trends", trigger="manual")
 
     assert await repo.get_active_run(kind="ingestion") is None
 
@@ -118,9 +118,9 @@ async def test_get_most_recent_run_returns_latest_regardless_of_status(db_sessio
     from Storage.models import BatchRun
 
     repo = BatchRunRepository(db_session)
-    older_id = await repo.create_run(kind="trends")
+    older_id = await repo.create_run(kind="trends", trigger="manual")
     await repo.commit(older_id)
-    newer_id = await repo.create_run(kind="trends")
+    newer_id = await repo.create_run(kind="trends", trigger="manual")
     await repo.fail(newer_id, error="disk full")
 
     # Explicitly set distinguishable created_at values to avoid timestamp collisions
@@ -145,6 +145,43 @@ async def test_get_most_recent_run_returns_latest_regardless_of_status(db_sessio
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_most_recent_run_none_when_no_runs_of_that_kind(db_session):
     repo = BatchRunRepository(db_session)
-    await repo.create_run(kind="ingestion", stage="hash_dedup")
+    await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
 
     assert await repo.get_most_recent_run(kind="trends") is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_create_run_stores_trigger(db_session):
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="trends", trigger="scheduled")
+
+    run = await repo.get_run(run_id)
+    assert run.trigger == "scheduled"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_create_run_raises_when_kind_already_active(db_session):
+    repo = BatchRunRepository(db_session)
+    await repo.create_run(kind="trends", trigger="manual")
+
+    with pytest.raises(BatchAlreadyRunningError):
+        await repo.create_run(kind="trends", trigger="scheduled")
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_create_run_succeeds_for_different_kind_while_one_active(db_session):
+    repo = BatchRunRepository(db_session)
+    await repo.create_run(kind="trends", trigger="manual")
+
+    # must not raise
+    await repo.create_run(kind="move_flagged", trigger="manual")
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_create_run_succeeds_once_prior_run_of_same_kind_is_completed(db_session):
+    repo = BatchRunRepository(db_session)
+    first_id = await repo.create_run(kind="trends", trigger="manual")
+    await repo.commit(first_id)
+
+    # must not raise -- first run is no longer 'started'
+    await repo.create_run(kind="trends", trigger="scheduled")

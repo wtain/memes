@@ -2,19 +2,28 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import BatchRun, RunStatus
+
+
+class BatchAlreadyRunningError(Exception):
+    """Raised by create_run() when the one-active-per-kind partial unique index rejects a
+    concurrent duplicate -- there is already a 'started' BatchRun row for this kind."""
 
 
 class BatchRunRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def create_run(self, kind: str, stage: str | None = None) -> uuid.UUID:
-        run = BatchRun(kind=kind, status=str(RunStatus.started), stage=stage)
+    async def create_run(self, kind: str, trigger: str, stage: str | None = None) -> uuid.UUID:
+        run = BatchRun(kind=kind, trigger=trigger, status=str(RunStatus.started), stage=stage)
         self._session.add(run)
-        await self._session.flush()  # populates run_id without closing the transaction
+        try:
+            await self._session.flush()  # populates run_id without closing the transaction
+        except IntegrityError as e:
+            raise BatchAlreadyRunningError(kind) from e
         return run.run_id
 
     async def set_stage(self, run_id: uuid.UUID, stage: str) -> None:

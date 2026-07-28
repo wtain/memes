@@ -33,7 +33,7 @@ async def _insert_image(session, embedding_values, status: str, batch_id=None) -
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_finds_in_batch_match(db_session):
-    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", stage="hash_dedup")
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
     a = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
     b = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
 
@@ -49,7 +49,7 @@ async def test_finds_in_batch_match(db_session):
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_finds_cross_corpus_match(db_session):
-    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", stage="hash_dedup")
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
     pending = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
     active = await _insert_image(db_session, _unit_vector(0), "active")
 
@@ -68,8 +68,11 @@ async def test_excludes_other_batches_pending_images(db_session):
     """A pending image from a different, concurrent-or-prior batch is neither an in-batch
     sibling nor part of the active corpus -- it must not surface as a candidate."""
     runs_repo = BatchRunRepository(db_session)
-    batch_id = await runs_repo.create_run(kind="ingestion", stage="hash_dedup")
-    other_batch_id = await runs_repo.create_run(kind="ingestion", stage="hash_dedup")
+    # Create and complete a prior batch
+    other_batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    await runs_repo.commit(other_batch_id)
+    # Create the current batch to test
+    batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
     await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
     await _insert_image(db_session, _unit_vector(0), "pending", other_batch_id)
 
@@ -80,7 +83,7 @@ async def test_excludes_other_batches_pending_images(db_session):
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_respects_threshold(db_session):
-    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", stage="hash_dedup")
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
     await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
     await _insert_image(db_session, _unit_vector(1), "pending", batch_id)  # orthogonal
 

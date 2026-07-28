@@ -42,7 +42,10 @@ async def main():
 
         runs_repo = BatchRunRepository(session)
 
-        run_id = await runs_repo.create_run(kind="trends")
+        # trigger="unknown" is temporary: this code path currently serves both a human running this
+        # script directly and the scheduler, with no way to distinguish them yet -- superseded by
+        # docs/superpowers/specs/2026-07-28-batch-run-wrapper-design.md.
+        run_id = await runs_repo.create_run(kind="trends", trigger="unknown")
 
         results_repo = TrendsRunResultRepository(session, run_id)
 
