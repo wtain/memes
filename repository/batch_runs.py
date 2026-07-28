@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,6 +72,18 @@ class BatchRunRepository:
             .limit(1)
         )
         return result.scalar_one_or_none()
+
+    async def list_runs(self, kinds: list[str], limit: int, offset: int) -> tuple[list[BatchRun], int]:
+        base_where = BatchRun.kind.in_(kinds)
+        items_result = await self._session.execute(
+            select(BatchRun).where(base_where)
+            .order_by(BatchRun.created_at.desc())
+            .limit(limit).offset(offset)
+        )
+        total_result = await self._session.execute(
+            select(func.count()).select_from(BatchRun).where(base_where)
+        )
+        return list(items_result.scalars()), total_result.scalar_one()
 
     async def _get(self, run_id: uuid.UUID) -> BatchRun:
         result = await self._session.execute(

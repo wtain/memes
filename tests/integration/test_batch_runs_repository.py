@@ -185,3 +185,91 @@ async def test_create_run_succeeds_once_prior_run_of_same_kind_is_completed(db_s
 
     # must not raise -- first run is no longer 'started'
     await repo.create_run(kind="trends", trigger="scheduled")
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_list_runs_filters_by_kind_and_paginates(db_session):
+    repo = BatchRunRepository(db_session)
+    await repo.create_run(kind="trends", trigger="manual")
+    await repo.create_run(kind="move_flagged", trigger="scheduled")
+    await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+
+    items, total = await repo.list_runs(kinds=["trends", "move_flagged"], limit=10, offset=0)
+
+    assert total == 2
+    assert {item.kind for item in items} == {"trends", "move_flagged"}
+
+    items_page_2, total_page_2 = await repo.list_runs(
+        kinds=["trends", "move_flagged"], limit=1, offset=1
+    )
+    assert total_page_2 == 2
+    assert len(items_page_2) == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_pool_usable_after_rollback_following_already_running_error(db_engine):
+    """Verifies the reasoning behind AdminBatchService.trigger_run's 409 handling: when
+    create_run()'s flush() hits the DB's IntegrityError, Postgres leaves that session's
+    transaction in an aborted state (create_run itself does not call rollback() before
+    re-raising as BatchAlreadyRunningError). AdminBatchService only catches
+    BatchAlreadyRunningError and re-raises fastapi.HTTPException(409) -- it never touches
+    the session directly. The claim under test is that this is still safe because the
+    HTTPException propagates all the way out of the endpoint uncaught, and FastAPI's
+    Storage.db.get_async_db dependency's own `except Exception: await db.rollback(); raise`
+    handler is what actually recovers things -- the same mechanism every other router in
+    this codebase already relies on.
+
+    Uses three independent sessions bound directly to the session-scoped `db_engine`
+    (not the function-scoped `db_session` savepoint fixture the rest of this file uses)
+    so each one models a genuinely separate HTTP request sharing the same connection
+    pool, matching how Storage.db.get_async_db actually works in production (a fresh
+    AsyncSessionLocal() per request):
+
+      1. "request 1" creates and commits an active 'trends' run (a stand-in for some
+         earlier, already-completed request).
+      2. "request 2" mimics AdminBatchService.trigger_run + get_async_db exactly: a
+         fresh session's create_run() collides with request 1's still-active run,
+         raises BatchAlreadyRunningError, and -- WITHOUT the service touching the
+         session itself -- is followed by exactly the rollback get_async_db's except
+         clause performs (standing in for the HTTPException(409) propagating out
+         uncaught).
+      3. "request 3" is a brand new session pulled from the same pool. If request 2's
+         aborted transaction had poisoned the underlying connection/pool, this would
+         fail here with asyncpg's InFailedSQLTransactionError or SQLAlchemy's
+         PendingRollbackError. Instead it must both read request 1's run back out and
+         perform a brand new write, proving the pool is completely healthy.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    async with AsyncSession(db_engine, expire_on_commit=False) as session1:
+        repo1 = BatchRunRepository(session1)
+        await repo1.create_run(kind="trends", trigger="manual")
+        await session1.commit()
+
+    async with AsyncSession(db_engine, expire_on_commit=False) as session2:
+        repo2 = BatchRunRepository(session2)
+        try:
+            await repo2.create_run(kind="trends", trigger="manual")
+            await session2.commit()
+        except BatchAlreadyRunningError:
+            # Stand-in for get_async_db's `except Exception: await db.rollback(); raise`
+            # -- the step AdminBatchService itself never performs.
+            await session2.rollback()
+        else:
+            pytest.fail("expected BatchAlreadyRunningError")
+
+    async with AsyncSession(db_engine, expire_on_commit=False) as session3:
+        repo3 = BatchRunRepository(session3)
+
+        active = await repo3.get_active_run(kind="trends")
+        assert active is not None  # request 1's run, unaffected by request 2's failure
+
+        other_id = await repo3.create_run(kind="move_flagged", trigger="manual")
+        assert other_id is not None
+
+        # Clean up both 'started' runs (partial unique index only guards one active
+        # run per kind) so this test doesn't leave permanently-active rows behind for
+        # other tests sharing this session-scoped db_engine.
+        await repo3.commit(active.run_id)
+        await repo3.commit(other_id)
+        await session3.commit()
