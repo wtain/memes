@@ -52,8 +52,9 @@ async def _wait_for_process(proc: subprocess.Popen) -> int:
     polling/blocking on the child's exit status, not holding anything that
     keeps the child alive or sends it any signal -- abandoning the thread at
     interpreter exit does not touch the child OS process at all, so it keeps
-    running exactly as intended either way (see _spawn's docstring for why
-    subprocess.Popen itself is what actually guarantees that).
+    running exactly as intended either way (see spawn_and_track's docstring,
+    this module, for why subprocess.Popen itself is what actually guarantees
+    that).
     """
     loop = asyncio.get_running_loop()
     future: asyncio.Future[int] = loop.create_future()
@@ -79,13 +80,38 @@ async def _wait_for_process(proc: subprocess.Popen) -> int:
     return await future
 
 
-async def spawn_and_track(args: list[str], log_path: Path) -> int:
-    """Spawn args via Popen (see this module's git-history ancestor, scheduler.py's
-    _spawn docstring, for why Popen specifically -- its __del__ never kills the child,
-    unlike asyncio's own subprocess transport), redirect stdout/stderr to log_path,
-    await completion via _wait_for_process's daemon thread (survives cancellation and
-    doesn't block shutdown), log the exit code, and return it. Caller decides whether
-    to await this inline (the scheduler) or via fire_and_forget (the admin endpoint).
+async def spawn_and_track(args: list[str], log_path: Path, label: str) -> int:
+    """Spawn args via subprocess.Popen, redirect stdout/stderr to log_path, await
+    completion via _wait_for_process's daemon thread (survives cancellation and
+    doesn't block shutdown), log the exit code (tagged with label, since args[0] is
+    just the interpreter path and identifies nothing about which job/run this was),
+    and return it. Caller decides whether to await this inline (the scheduler) or via
+    fire_and_forget (the admin endpoint).
+
+    Uses subprocess.Popen (not asyncio.create_subprocess_exec) to create the
+    subprocess. This is deliberate, not a style choice: asyncio's own subprocess
+    transport (BaseSubprocessTransport) kills its child during its GC/close() path if
+    the transport is collected before the child has been reaped -- which happens
+    whenever the coroutine awaiting proc.wait() is cancelled and nothing else
+    references the transport. That's exactly what happens on real backend shutdown:
+    uvicorn's actual teardown path (Server.run() -> asyncio.run() -> `with
+    asyncio.Runner(...)` -> Runner.close() -> _cancel_all_tasks(loop)) cancels EVERY
+    remaining task, not just the ones stop_scheduler explicitly cancels -- so no
+    amount of "detach this into its own task and hold a strong reference" (see git
+    history: scheduler.py, this module's direct ancestor, briefly did exactly that)
+    survives a real shutdown, since Runner.close() cancels the detached task too,
+    moments later. subprocess.Popen sidesteps the whole problem: its __del__ never
+    kills the child (it only emits a ResourceWarning about an unreaped process), so
+    there is no GC/cancellation path on the asyncio side that can reach it at all,
+    regardless of which task (if any) is cancelled or when. This makes "in-flight
+    subprocesses are never killed on backend shutdown" hold unconditionally rather
+    than depending on transport-GC timing or which task tree the wait happens to run
+    inside.
+
+    Waits for completion via _wait_for_process (a manually-created daemon thread),
+    not asyncio.to_thread -- see that function's docstring for why: to_thread's
+    non-daemon executor thread would otherwise block backend shutdown for as long as
+    this subprocess is still running.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info("batch_subprocess: launching %s", args)
@@ -94,9 +120,9 @@ async def spawn_and_track(args: list[str], log_path: Path) -> int:
         returncode = await _wait_for_process(proc)
 
     if returncode == 0:
-        logger.info("batch_subprocess: %s exited with code %s", args[0], returncode)
+        logger.info("batch_subprocess: %s exited with code %s", label, returncode)
     else:
-        logger.warning("batch_subprocess: %s exited with code %s", args[0], returncode)
+        logger.warning("batch_subprocess: %s exited with code %s", label, returncode)
     return returncode
 
 

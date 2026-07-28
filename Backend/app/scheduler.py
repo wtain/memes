@@ -105,7 +105,7 @@ async def _spawn(job: dict, app_env: str) -> None:
     log_path = build_log_path(app_env, job["script"])
     args = [sys.executable, "-m", "batch.run_wrapper",
             "--script", job["script"], "--env", app_env, "--trigger", "scheduled"]
-    await spawn_and_track(args, log_path)
+    await spawn_and_track(args, log_path, label=job["name"])
 
 
 async def _safe_initial_delay(job: dict) -> float:

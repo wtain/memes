@@ -222,6 +222,7 @@ class TestSpawn:
             [sys.executable, "-m", "batch.run_wrapper",
              "--script", "trends_batch", "--env", "general", "--trigger", "scheduled"],
             Path("fake.log"),
+            label="trends_batch",
         )
 
 
@@ -230,8 +231,10 @@ class TestRunTickPropagatesSpawnFailure:
         """_run_tick awaits _spawn inline (not detached into its own task) so that a
         _spawn failure naturally propagates up through _safe_tick's existing
         exception handling, which already logs with job-name context. This is the
-        simpler design restored after switching _spawn to subprocess.Popen +
-        _wait_for_process's daemon thread: Popen.__del__ never kills its child (see
+        simpler design restored after switching _spawn to delegate to
+        batch_subprocess.spawn_and_track, which itself uses subprocess.Popen +
+        a manually-created daemon thread (see batch_subprocess.py's
+        _wait_for_process docstring): Popen.__del__ never kills its child (see
         CPython's subprocess.py -- it only emits a ResourceWarning and, if the
         child is still running, keeps itself alive in the module-level _active
         list until it CAN be waited on), unlike the old asyncio subprocess

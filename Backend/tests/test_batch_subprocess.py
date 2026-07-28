@@ -15,8 +15,6 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 import Backend.app.batch_subprocess as batch_subprocess
 from Backend.app.batch_subprocess import build_log_path, fire_and_forget, spawn_and_track
 
@@ -53,7 +51,9 @@ class TestSpawnAndTrack:
         monkeypatch.setattr(subprocess, "Popen", popen_mock)
         log_path = tmp_path / "logs" / "metal" / "trends_batch_x.log"
 
-        returncode = await spawn_and_track([sys.executable, "-m", "batch.run_wrapper"], log_path)
+        returncode = await spawn_and_track(
+            [sys.executable, "-m", "batch.run_wrapper"], log_path, label="trends_batch"
+        )
 
         assert returncode == 0
         args, kwargs = popen_mock.call_args
@@ -71,9 +71,11 @@ class TestSpawnAndTrack:
         monkeypatch.setattr(batch_subprocess, "logger", mock_logger)
         log_path = tmp_path / "logs" / "metal" / "flaky_x.log"
 
-        await spawn_and_track(["flaky"], log_path)
+        await spawn_and_track(["flaky"], log_path, label="flaky")
 
-        mock_logger.warning.assert_called_once()
+        mock_logger.warning.assert_called_once_with(
+            "batch_subprocess: %s exited with code %s", "flaky", 1
+        )
 
     async def test_logs_zero_exit_code_at_info_level(self, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
@@ -84,9 +86,10 @@ class TestSpawnAndTrack:
         monkeypatch.setattr(batch_subprocess, "logger", mock_logger)
         log_path = tmp_path / "logs" / "metal" / "ok_x.log"
 
-        await spawn_and_track(["ok"], log_path)
+        await spawn_and_track(["ok"], log_path, label="ok")
 
         mock_logger.warning.assert_not_called()
+        mock_logger.info.assert_any_call("batch_subprocess: %s exited with code %s", "ok", 0)
 
 
 class TestWaitForProcess:
@@ -137,24 +140,40 @@ class TestFireAndForget:
 
         assert done.is_set()
 
-    async def test_holds_strong_reference_until_done_not_gced_early(self, monkeypatch):
-        # Regression guard: a bare asyncio.create_task with no strong reference kept
-        # anywhere can be garbage-collected before it ever runs. fire_and_forget must
-        # keep one until the task's own done-callback removes it.
-        started = asyncio.Event()
-        finished = asyncio.Event()
+    async def test_holds_task_in_in_flight_set_until_done(self):
+        # Direct test of the invariant fire_and_forget provides: it must keep a
+        # strong reference to the task (via the module-level _in_flight set) for as
+        # long as the task is pending, and release it once done.
+        #
+        # An earlier version of this test tried to prove that behaviorally, via
+        # gc.collect() timing (create the task, gc.collect(), then assert it still
+        # ran to completion). That doesn't actually distinguish a correct
+        # fire_and_forget from a buggy one with no tracking at all: empirically
+        # verified (temporarily removing the _in_flight.add call entirely) that the
+        # behavioral version of this test still passed without it, because asyncio's
+        # own scheduling machinery -- the loop's ready queue while a task is
+        # scheduled to run, and the loop's timer heap / done-callback chain while a
+        # task is suspended inside asyncio.sleep()/Event.wait()/etc. -- keeps a
+        # pending task reachable from a GC root on its own, independent of any
+        # external strong reference, for as long as it's actually pending. So
+        # gc.collect() never collects it either way, and the old test's pass/fail
+        # outcome said nothing about _in_flight specifically. Asserting against
+        # _in_flight directly instead tests the actual mechanism.
+        release = asyncio.Event()
 
         async def _work():
-            started.set()
-            await asyncio.sleep(0.1)
-            finished.set()
+            await release.wait()
 
+        before = set(batch_subprocess._in_flight)
         await fire_and_forget(_work())
-        gc.collect()  # a bug here would let this collect the task before it starts
-        await asyncio.sleep(0.2)
+        added = set(batch_subprocess._in_flight) - before
+        assert len(added) == 1, "fire_and_forget did not add the task to _in_flight"
+        pending_task = next(iter(added))
 
-        assert started.is_set()
-        assert finished.is_set()
+        release.set()
+        await asyncio.sleep(0.05)  # let the task run to completion and its done-callback fire
+
+        assert pending_task not in batch_subprocess._in_flight
 
     async def test_logs_exception_from_task_instead_of_swallowing_it(self, monkeypatch):
         mock_logger = MagicMock()
@@ -182,7 +201,7 @@ class TestSpawnAndTrackSurvivesRealShutdown:
         done_marker = tmp_path / "done.txt"
 
         task = asyncio.create_task(
-            spawn_and_track([sys.executable, "sleepy_job.py"], log_path)
+            spawn_and_track([sys.executable, "sleepy_job.py"], log_path, label="sleepy")
         )
         await asyncio.sleep(0.5)
         assert not task.done(), "spawn finished before we could cancel -- flaky timing"
@@ -227,7 +246,7 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
     try:
         async def _drive():
             task = asyncio.create_task(
-                spawn_and_track([sys.executable, "sleepy_job.py"], log_path)
+                spawn_and_track([sys.executable, "sleepy_job.py"], log_path, label="sleepy")
             )
             await asyncio.sleep(0.5)
             assert not task.done(), "spawn finished before we could tear down the loop"
@@ -238,6 +257,23 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
         with asyncio.Runner() as runner:
             runner.run(_drive())
         close_elapsed = time.monotonic() - close_started_at
+        # asyncio's subprocess transport participates in a reference cycle, so plain
+        # refcounting does not free it the instant Runner.close() drops the loop's own
+        # references -- only the cyclic GC does, and it isn't guaranteed to run on its
+        # own before the poll loop below starts checking done_marker. Without this
+        # explicit collect, a regression that reintroduces the killed-on-GC transport
+        # (asyncio.create_subprocess_exec in place of subprocess.Popen) can slip
+        # through: the transport would eventually be collected and its child killed,
+        # but only after this test already observed done_marker and declared success,
+        # or possibly never within this process's lifetime. Forcing collection here,
+        # right after Runner.close() and before the poll loop, makes the kill (if any)
+        # observable to the assertions below instead of racing it. Verified by
+        # temporarily reintroducing asyncio.create_subprocess_exec + a bare
+        # `await proc.wait()` into spawn_and_track: with this gc.collect() present,
+        # the test correctly fails; on the real subprocess.Popen-based spawn_and_track,
+        # it still passes -- see this task's report for the mutation-testing
+        # re-verification of that claim.
+        gc.collect()
     finally:
         os.chdir(old_cwd)
 
