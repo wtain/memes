@@ -6,6 +6,7 @@ package com.memebrowser.app.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 
 @Serializable
@@ -50,7 +51,7 @@ data class IngestionClusterEdge(
     @SerialName("image_id1") val image_id1: String,
     @SerialName("image_id2") val image_id2: String,
     @SerialName("distance") val distance: Float,
-    @SerialName("match_source") val match_source: Any
+    @SerialName("match_source") val match_source: String?
 )
 
 @Serializable
@@ -58,7 +59,7 @@ data class IngestionClusterMember(
     @SerialName("image_id") val image_id: String,
     @SerialName("filename") val filename: String,
     @SerialName("status") val status: String,
-    @SerialName("ocr_text") val ocr_text: Any
+    @SerialName("ocr_text") val ocr_text: String?
 )
 
 @Serializable
@@ -84,10 +85,10 @@ data class IngestionResolveResponse(
 data class IngestionRunStatus(
     @SerialName("run_id") val run_id: String,
     @SerialName("status") val status: String,
-    @SerialName("stage") val stage: Any,
-    @SerialName("stats") val stats: Any,
+    @SerialName("stage") val stage: String?,
+    @SerialName("stats") val stats: JsonObject?,
     @SerialName("created_at") val created_at: String,
-    @SerialName("completed_at") val completed_at: Any
+    @SerialName("completed_at") val completed_at: String?
 )
 
 @Serializable
@@ -111,8 +112,8 @@ data class RunStatusResponse(
     @SerialName("trigger") val trigger: String,
     @SerialName("status") val status: String,
     @SerialName("created_at") val created_at: String,
-    @SerialName("completed_at") val completed_at: Any,
-    @SerialName("error") val error: Any
+    @SerialName("completed_at") val completed_at: String?,
+    @SerialName("error") val error: String?
 )
 
 @Serializable

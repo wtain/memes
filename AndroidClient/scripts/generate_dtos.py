@@ -56,6 +56,18 @@ def resolve_kotlin_type(
 
     json_type = prop.get("type", "string")
 
+    # JSON Schema nullable union, e.g. { "type": ["string", "null"] } — used for
+    # fields that are always present (often "required") but whose value may be
+    # null. Strip "null" out and resolve the remaining single type normally,
+    # but remember that the field must still be Kotlin-nullable even if it's
+    # required, since kotlinx.serialization needs a concrete type for every
+    # property (no bare "Any" — see AndroidClient build failure history).
+    is_nullable_type = False
+    if isinstance(json_type, list):
+        remaining = [t for t in json_type if t != "null"]
+        is_nullable_type = "null" in json_type
+        json_type = remaining[0] if remaining else "string"
+
     if json_type == "string":
         kt = "String"
     elif json_type == "integer":
@@ -73,11 +85,19 @@ def resolve_kotlin_type(
             inner = "String" if inner_type == "string" else "Any"
         kt = f"List<{inner}>"
     elif json_type == "object":
-        kt = "Map<String, Any>"
+        # Free-form JSON object (e.g. additionalProperties: true). "Map<String,
+        # Any>" looks tempting but Any has no kotlinx.serialization serializer
+        # and fails to compile at build time (same class of bug as the bare
+        # "Any" fallback below) -- JsonObject is the concrete, serializable
+        # type for "arbitrary JSON object" in kotlinx.serialization.json.
+        kt = "JsonObject"
     else:
         kt = "Any"
 
-    return (kt, "") if is_required else (f"{kt}?", " = null")
+    is_nullable = is_nullable_type or not is_required
+    kt = f"{kt}?" if is_nullable else kt
+    default = "" if is_required else " = null"
+    return (kt, default)
 
 
 def generate_data_class(schema: dict, schemas_by_id: dict[str, dict]) -> str:
@@ -120,18 +140,23 @@ def main() -> None:
         key=dependency_count,
     )
 
+    classes = [generate_data_class(s, schemas_by_id) for s in ordered]
+
+    imports = [
+        "import kotlinx.serialization.SerialName",
+        "import kotlinx.serialization.Serializable",
+    ]
+    if any("JsonObject" in cls for cls in classes):
+        imports.append("import kotlinx.serialization.json.JsonObject")
+
     header = (
         "// GENERATED — do not edit by hand.\n"
         "// Source: shared/schemas/*.schema.json\n"
         "// Regenerate: python AndroidClient/scripts/generate_dtos.py\n"
         "\n"
         f"package {PACKAGE}\n"
-        "\n"
-        "import kotlinx.serialization.SerialName\n"
-        "import kotlinx.serialization.Serializable\n"
+        "\n" + "\n".join(imports) + "\n"
     )
-
-    classes = [generate_data_class(s, schemas_by_id) for s in ordered]
 
     output = header + "\n\n".join([""] + classes) + "\n"
     OUTPUT_FILE.write_text(output, encoding="utf-8")
