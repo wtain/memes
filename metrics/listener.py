@@ -31,3 +31,8 @@ class SimpleMetricsListener:
                 f"  {name}: n={n}, total={total}, "
                 f"avg={total/n:.1f}, min={min(values)}, max={max(values)}"
             )
+
+    def counters_dict(self) -> dict[str, int]:
+        """Snapshot of all counters as a plain dict, for persisting elsewhere (e.g.
+        batch_runs.stats) -- print() is the only other consumer today."""
+        return dict(self._counters)
