@@ -6,13 +6,18 @@ import uuid
 
 from sqlalchemy import select
 
+from batch import unregister_deleted_images
 from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
+from metrics.listener import SimpleMetricsListener
+from repository.batch_runs import BatchRunRepository
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image, ImageExtras
 
 
-async def run(session, base_path):
+async def run(session, base_path) -> SimpleMetricsListener:
+    metrics = SimpleMetricsListener()
+
     query = (
         select(
             Image.filename,
@@ -28,8 +33,18 @@ async def run(session, base_path):
     for (filename, ) in images:
         path_from = os.path.join(base_path, filename)
         path_to = os.path.join(flagged_path, filename)
-        print(f"Moving {filename} from {path_from} to {path_to}")
-        shutil.move(path_from, path_to)
+        try:
+            print(f"Moving {filename} from {path_from} to {path_to}")
+            shutil.move(path_from, path_to)
+            metrics.increment("moved")
+        except FileNotFoundError as e:
+            print(f"Skipping {filename}: not found ({e})")
+            metrics.increment("error.file_not_found")
+        except Exception as e:
+            print(f"Skipping {filename}: move failed ({e})")
+            metrics.increment("error.move_failed")
+
+    return metrics
 
 
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
@@ -37,12 +52,19 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None
         async with finish_existing_run(run_id):
             async with AsyncSessionLocal() as session:
                 base_path = os.path.abspath(settings.BASE_PATH)
-                await run(session, base_path)
+                metrics = await run(session, base_path)
+                await BatchRunRepository(session).update_stats(run_id, **metrics.counters_dict())
+                await session.commit()
     else:
-        async with tracked_run(kind="move_flagged", trigger=trigger):
+        async with tracked_run(kind="move_flagged", trigger=trigger) as run_id:
             async with AsyncSessionLocal() as session:
                 base_path = os.path.abspath(settings.BASE_PATH)
-                await run(session, base_path)
+                metrics = await run(session, base_path)
+                await BatchRunRepository(session).update_stats(run_id, **metrics.counters_dict())
+                await session.commit()
+
+    metrics.print()
+    await unregister_deleted_images.main(trigger=trigger)
 
 
 if __name__ == "__main__":
