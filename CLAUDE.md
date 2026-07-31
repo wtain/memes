@@ -195,6 +195,9 @@ build_concept_embeddings   → concept CLIP embeddings + mappings
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
 detect_entities_and_tag    tag_images_from_concepts  build_bow
 
+move_flagged                → also runs unregister_deleted_images automatically afterward,
+                               reconciling the DB with whatever was moved; --no-chain skips this.
+
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters
 

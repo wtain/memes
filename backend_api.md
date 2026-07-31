@@ -942,6 +942,11 @@ observed by polling `GET .../runs/{run_id}` or `GET .../runs`. Output is also wr
 { "run_id": "b3f1c2a4-...", "status": "running" }
 ```
 
+  Triggering `move_flagged` also chains an automatic `unregister_deleted_images` run afterward,
+  which produces its own second, independent `batch_runs` row (visible via `GET .../runs`).
+  There is no way to request the `--no-chain` opt-out through the API — that flag is
+  direct-CLI-only.
+
 #### Get Run Status
 
 - **URL**: `/api/admin/batches/runs/{run_id}`

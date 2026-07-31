@@ -10,7 +10,7 @@ from batch import unregister_deleted_images
 from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
-from repository.batch_runs import BatchRunRepository
+from repository.batch_runs import BatchAlreadyRunningError, BatchRunRepository
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image, ImageExtras
 
@@ -47,7 +47,7 @@ async def run(session, base_path) -> SimpleMetricsListener:
     return metrics
 
 
-async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, chain: bool = True) -> None:
     if run_id is not None:
         async with finish_existing_run(run_id):
             async with AsyncSessionLocal() as session:
@@ -64,12 +64,22 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None
                 await session.commit()
 
     metrics.print()
-    await unregister_deleted_images.main(trigger=trigger)
+
+    if chain:
+        try:
+            await unregister_deleted_images.main(trigger=trigger)
+        except BatchAlreadyRunningError as e:
+            print(f"Skipping chained unregister_deleted_images: {e}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
+    parser.add_argument(
+        "--no-chain",
+        action="store_true",
+        help="Skip the automatic unregister_deleted_images reconcile after moving flagged files.",
+    )
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior
+    asyncio.run(main(chain=not args.no_chain))  # trigger defaults to "manual" -- unchanged direct-CLI behavior
