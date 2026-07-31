@@ -1,6 +1,6 @@
 # Admin Batch Controller Web UI — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-07-31-admin-web-ui.md
 Originates from: docs/superpowers/specs/2026-07-28-admin-batch-controller-design.md
 
