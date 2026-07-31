@@ -92,7 +92,7 @@ pillow==12.0.0
 platformdirs==4.5.1
 pluggy==1.6.0
 polars==1.42.1
-polars-runtime-32==1.42.1
+polars-runtime-32==1.43.1
 prettytable==3.17.0
 propcache==0.5.2
 protobuf==3.20.2
