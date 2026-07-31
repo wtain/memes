@@ -32,23 +32,26 @@ function truncate(text: string | null, max: number): string {
 }
 
 function BatchRow({
-  name, latestRun, pendingConfirm, triggerError, onRunClick,
+  name, latestRun, pendingConfirm, triggering, triggerError, onRunClick,
 }: {
   name: string
   latestRun: RunStatusResponse | undefined
   pendingConfirm: boolean
+  triggering: boolean
   triggerError: string | undefined
   onRunClick: () => void
 }) {
+  const label = triggering ? "Triggering…" : pendingConfirm ? "Confirm?" : "Run"
   return (
     <div className="flex items-center gap-3 py-2 border-b last:border-0">
       <span className="font-medium w-56">{name}</span>
       {latestRun ? <StatusBadge status={latestRun.status} /> : <span className="text-xs text-gray-400">no recent run</span>}
       <button
-        className={`ml-auto text-xs rounded px-3 py-1 ${pendingConfirm ? "bg-amber-500 text-white" : "bg-blue-600 text-white"}`}
+        className={`ml-auto text-xs rounded px-3 py-1 disabled:opacity-50 ${pendingConfirm ? "bg-amber-500 text-white" : "bg-blue-600 text-white"}`}
         onClick={onRunClick}
+        disabled={triggering}
       >
-        {pendingConfirm ? "Confirm?" : "Run"}
+        {label}
       </button>
       {triggerError && <span className="text-xs text-red-500 ml-2">{triggerError}</span>}
     </div>
@@ -62,6 +65,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<string | null>(null)
+  const [triggeringBatch, setTriggeringBatch] = useState<string | null>(null)
   const [triggerErrors, setTriggerErrors] = useState<Record<string, string>>({})
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -71,6 +75,18 @@ export default function AdminBatchesPage({ memesApi }: Props) {
         setRuns(res.items)
         setTotal(res.total)
         setError(null)
+        // A stale trigger error (e.g. a 409 from double-firing Run) should not sit
+        // forever -- once a fresh load shows the batch actually running, whatever
+        // conflict caused the error is over, so clear it.
+        const runningBatches = res.items.filter((r) => r.status === "running").map((r) => r.batch_name)
+        if (runningBatches.length > 0) {
+          setTriggerErrors((prev) => {
+            if (!runningBatches.some((name) => prev[name])) return prev
+            const next = { ...prev }
+            for (const name of runningBatches) delete next[name]
+            return next
+          })
+        }
       })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : "Failed to load batch runs")
@@ -106,6 +122,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
     if (pendingConfirm === batchName) {
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
       setPendingConfirm(null)
+      setTriggeringBatch(batchName)
       memesApi.triggerBatchRun(batchName)
         .then(() => {
           setTriggerErrors((prev) => ({ ...prev, [batchName]: "" }))
@@ -117,6 +134,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
             [batchName]: e instanceof Error ? e.message : `Failed to trigger ${batchName}`,
           }))
         })
+        .finally(() => setTriggeringBatch(null))
       return
     }
 
@@ -156,6 +174,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
             name={name}
             latestRun={latestRunFor(name)}
             pendingConfirm={pendingConfirm === name}
+            triggering={triggeringBatch === name}
             triggerError={triggerErrors[name] || undefined}
             onRunClick={() => handleRunClick(name)}
           />

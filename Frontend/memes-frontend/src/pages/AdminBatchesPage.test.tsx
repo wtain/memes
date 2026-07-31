@@ -129,6 +129,60 @@ describe('AdminBatchesPage', () => {
     expect(listBatchRuns).toHaveBeenCalledTimes(2) // no more polling once status is completed
   })
 
+  it('disables the Run button and shows "Triggering…" while the trigger request is in flight', async () => {
+    let resolveTrigger: (value: { run_id: string; status: string }) => void = () => {}
+    const trigger = vi.fn().mockReturnValue(new Promise((resolve) => { resolveTrigger = resolve }))
+    const listBatchRuns = vi.fn().mockResolvedValue(makeList([]))
+    const api = makeMockApi({ listBatchRuns, triggerBatchRun: trigger })
+    const user = userEvent.setup()
+    render(<AdminBatchesPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('trends_batch')).toBeInTheDocument())
+    const runButtons = screen.getAllByText('Run')
+    await user.click(runButtons[0])
+    await user.click(screen.getByText('Confirm?'))
+
+    await waitFor(() => expect(trigger).toHaveBeenCalledWith('trends_batch'))
+    const triggeringButton = screen.getByText('Triggering…')
+    expect(triggeringButton).toBeInTheDocument()
+    expect(triggeringButton).toBeDisabled()
+    // Other rows remain untouched.
+    expect(screen.getAllByText('Run')).toHaveLength(2)
+
+    await act(async () => {
+      resolveTrigger({ run_id: 'run-2', status: 'running' })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(screen.queryByText('Triggering…')).not.toBeInTheDocument())
+    expect(screen.getAllByText('Run')).toHaveLength(3)
+  })
+
+  it('clears a stale trigger error once a fresh load shows the batch running', async () => {
+    const trigger = vi.fn().mockRejectedValue(new Error('trends_batch is already running'))
+    const listBatchRuns = vi.fn()
+      .mockResolvedValueOnce(makeList([], 25)) // initial load; total=25 enables Next
+      .mockResolvedValueOnce(makeList([makeRun({ status: 'running' })])) // reload triggered by paging
+    const api = makeMockApi({ listBatchRuns, triggerBatchRun: trigger })
+    const user = userEvent.setup()
+    render(<AdminBatchesPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('trends_batch')).toBeInTheDocument())
+    const runButtons = screen.getAllByText('Run')
+    await user.click(runButtons[0])
+    await user.click(screen.getByText('Confirm?'))
+
+    await waitFor(() => expect(screen.getByText('trends_batch is already running')).toBeInTheDocument())
+
+    // A later load (here: triggered by paging, standing in for "the poll picking up the
+    // run that actually started") sees the batch running and should clear the stale
+    // error automatically, without any new trigger attempt on that batch.
+    await user.click(screen.getByText('Next'))
+
+    await waitFor(() => expect(screen.queryByText('trends_batch is already running')).not.toBeInTheDocument())
+    expect(trigger).toHaveBeenCalledTimes(1) // error cleared by load(), not by re-triggering
+  })
+
   it('paginates using Prev/Next based on total', async () => {
     const listBatchRuns = vi.fn().mockResolvedValue(makeList([makeRun()], 25))
     const api = makeMockApi({ listBatchRuns })
