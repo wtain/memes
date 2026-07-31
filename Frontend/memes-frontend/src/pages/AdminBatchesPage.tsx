@@ -1,0 +1,212 @@
+import { useCallback, useEffect, useRef, useState } from "react"
+import type { MemesApi } from "../api/MemesApi"
+import type { RunStatusResponse } from "../types/generated/all"
+
+type Props = { memesApi: MemesApi }
+
+const ADMIN_BATCHES = ["trends_batch", "move_flagged", "unregister_deleted_images"] as const
+// Source of truth: environments/batch_registry.yaml. No endpoint enumerates these --
+// the backend deliberately keeps the trigger surface a fixed allow-list.
+
+const PAGE_SIZE = 20
+const POLL_INTERVAL_MS = 4000
+const CONFIRM_TIMEOUT_MS = 3000
+
+const STATUS_COLOR: Record<string, string> = {
+  running: "bg-blue-100 text-blue-800",
+  completed: "bg-green-100 text-green-800",
+  failed: "bg-red-100 text-red-800",
+}
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded ${STATUS_COLOR[status] ?? "bg-gray-100 text-gray-800"}`}>
+      {status}
+    </span>
+  )
+}
+
+function truncate(text: string | null, max: number): string {
+  if (!text) return ""
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+function BatchRow({
+  name, latestRun, pendingConfirm, triggerError, onRunClick,
+}: {
+  name: string
+  latestRun: RunStatusResponse | undefined
+  pendingConfirm: boolean
+  triggerError: string | undefined
+  onRunClick: () => void
+}) {
+  return (
+    <div className="flex items-center gap-3 py-2 border-b last:border-0">
+      <span className="font-medium w-56">{name}</span>
+      {latestRun ? <StatusBadge status={latestRun.status} /> : <span className="text-xs text-gray-400">no recent run</span>}
+      <button
+        className={`ml-auto text-xs rounded px-3 py-1 ${pendingConfirm ? "bg-amber-500 text-white" : "bg-blue-600 text-white"}`}
+        onClick={onRunClick}
+      >
+        {pendingConfirm ? "Confirm?" : "Run"}
+      </button>
+      {triggerError && <span className="text-xs text-red-500 ml-2">{triggerError}</span>}
+    </div>
+  )
+}
+
+export default function AdminBatchesPage({ memesApi }: Props) {
+  const [runs, setRuns] = useState<RunStatusResponse[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [pendingConfirm, setPendingConfirm] = useState<string | null>(null)
+  const [triggerErrors, setTriggerErrors] = useState<Record<string, string>>({})
+  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const load = useCallback(() => {
+    return memesApi.listBatchRuns(PAGE_SIZE, page * PAGE_SIZE)
+      .then((res) => {
+        setRuns(res.items)
+        setTotal(res.total)
+        setError(null)
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "Failed to load batch runs")
+      })
+      .finally(() => setLoading(false))
+  }, [memesApi, page])
+
+  useEffect(() => {
+    // `await Promise.resolve()` before the first setState defers it past the synchronous
+    // effect body, per the react-hooks/set-state-in-effect rule (same pattern used in
+    // TrendHistoryPage.tsx).
+    void (async () => {
+      await Promise.resolve()
+      setLoading(true)
+      load()
+    })()
+  }, [load])
+
+  const hasRunningRun = runs.some((r) => r.status === "running")
+  useEffect(() => {
+    if (!hasRunningRun) return
+    const id = setInterval(load, POLL_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [hasRunningRun, load])
+
+  useEffect(() => {
+    return () => {
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
+    }
+  }, [])
+
+  function handleRunClick(batchName: string) {
+    if (pendingConfirm === batchName) {
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
+      setPendingConfirm(null)
+      memesApi.triggerBatchRun(batchName)
+        .then(() => {
+          setTriggerErrors((prev) => ({ ...prev, [batchName]: "" }))
+          load()
+        })
+        .catch((e: unknown) => {
+          setTriggerErrors((prev) => ({
+            ...prev,
+            [batchName]: e instanceof Error ? e.message : `Failed to trigger ${batchName}`,
+          }))
+        })
+      return
+    }
+
+    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
+    setPendingConfirm(batchName)
+    confirmTimeoutRef.current = setTimeout(() => setPendingConfirm(null), CONFIRM_TIMEOUT_MS)
+  }
+
+  function latestRunFor(batchName: string): RunStatusResponse | undefined {
+    return runs.find((r) => r.batch_name === batchName)
+  }
+
+  if (loading) return (
+    <div>
+      <h1 className="text-2xl font-bold mb-4">Admin</h1>
+      <p className="text-sm text-gray-400">Loading…</p>
+    </div>
+  )
+
+  if (error) return (
+    <div>
+      <h1 className="text-2xl font-bold mb-4">Admin</h1>
+      <p className="text-sm text-red-500">{error}</p>
+    </div>
+  )
+
+  const maxPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1)
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-4">Admin</h1>
+
+      <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
+        {ADMIN_BATCHES.map((name) => (
+          <BatchRow
+            key={name}
+            name={name}
+            latestRun={latestRunFor(name)}
+            pendingConfirm={pendingConfirm === name}
+            triggerError={triggerErrors[name] || undefined}
+            onRunClick={() => handleRunClick(name)}
+          />
+        ))}
+      </div>
+
+      <div className="bg-white rounded-lg p-4 shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-gray-500 border-b">
+              <th className="py-1">Batch</th>
+              <th>Trigger</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Completed</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((run) => (
+              <tr key={run.run_id} className="border-b last:border-0">
+                <td className="py-1">{run.batch_name}</td>
+                <td>{run.trigger}</td>
+                <td><StatusBadge status={run.status} /></td>
+                <td>{run.created_at}</td>
+                <td>{run.completed_at ?? "—"}</td>
+                <td title={run.error ?? undefined}>{truncate(run.error, 40)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {runs.length === 0 && <p className="text-sm text-gray-400 mt-2">No runs yet.</p>}
+
+        <div className="flex items-center gap-3 mt-3">
+          <button
+            className="text-xs rounded bg-gray-100 px-3 py-1 disabled:opacity-40"
+            disabled={page === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            Prev
+          </button>
+          <span className="text-xs text-gray-500">Page {page + 1} of {maxPage + 1}</span>
+          <button
+            className="text-xs rounded bg-gray-100 px-3 py-1 disabled:opacity-40"
+            disabled={page >= maxPage}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
