@@ -1,6 +1,6 @@
 # move_flagged: Resilience, Stats, and Chained Unregister — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-07-31-move-flagged-resilience-and-chaining.md
 
 **Date:** 2026-07-31.

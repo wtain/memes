@@ -42,7 +42,7 @@ session/repository, real filesystem via `tmp_path` — matching `batch/tests/`'s
 - Produces: `SimpleMetricsListener.counters_dict() -> dict[str, int]`. Task 2 depends on this
   exact method name.
 
-- [ ] **Step 1: Add the method**
+- [x] **Step 1: Add the method**
 
 In `metrics/listener.py`, add this method to `SimpleMetricsListener` (after `print()`):
 
@@ -53,12 +53,12 @@ In `metrics/listener.py`, add this method to `SimpleMetricsListener` (after `pri
         return dict(self._counters)
 ```
 
-- [ ] **Step 2: Manual sanity check**
+- [x] **Step 2: Manual sanity check**
 
 Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -c "from metrics.listener import SimpleMetricsListener; m = SimpleMetricsListener(); m.increment('a'); m.increment('a'); m.increment('b'); print(m.counters_dict())"`
 Expected output: `{'a': 2, 'b': 1}`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add metrics/listener.py
@@ -82,7 +82,7 @@ git commit -m "feat: add SimpleMetricsListener.counters_dict()"
 - Produces: `run(session, base_path) -> SimpleMetricsListener` (changed return type — was `None`).
   `main(trigger, run_id)` unchanged signature.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `batch/tests/test_move_flagged.py`:
 
@@ -212,13 +212,13 @@ class TestMain:
         unregister_main.assert_awaited_once_with(trigger="manual")
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_move_flagged.py -v`
 Expected: FAIL — `run()` currently returns `None` (no `metrics` object), and `main()` doesn't call
 `update_stats` or `unregister_deleted_images.main()` yet.
 
-- [ ] **Step 3: Implement the new `batch/move_flagged.py`**
+- [x] **Step 3: Implement the new `batch/move_flagged.py`**
 
 Replace the full file with:
 
@@ -300,17 +300,17 @@ if __name__ == "__main__":
     asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_move_flagged.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Run the full `batch/tests/` root**
+- [x] **Step 5: Run the full `batch/tests/` root**
 
 Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/ -v`
 Expected: all PASS, no regressions in the other files in this root.
 
-- [ ] **Step 6: Fix the existing integration test file this change breaks**
+- [x] **Step 6: Fix the existing integration test file this change breaks**
 
 `tests/integration/test_move_flagged_tracking.py` predates this change. It monkeypatches
 `move_flagged.run` to a bare `AsyncMock()` and never touches `unregister_deleted_images`. Under
@@ -440,7 +440,7 @@ def _session_ctx(session):
     return _Ctx()
 ```
 
-- [ ] **Step 7: Run this file alone first, then the full `tests/integration/` root**
+- [x] **Step 7: Run this file alone first, then the full `tests/integration/` root**
 
 Run: `cd H:\workspace_sandbox\memes && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_move_flagged_tracking.py -v`
 Expected: all 4 PASS.
@@ -452,7 +452,7 @@ merging):
 Run: `cd H:\workspace_sandbox\memes && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/ -v`
 Expected: all PASS, no regressions elsewhere.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add batch/move_flagged.py batch/tests/test_move_flagged.py tests/integration/test_move_flagged_tracking.py
