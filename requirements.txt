@@ -161,7 +161,7 @@ typer-slim==0.24.0
 typing-inspection==0.4.2
 typing_extensions==4.16.0
 tzdata==2026.3
-ujson==5.11.0
+ujson==5.13.0
 ultralytics==8.4.50
 ultralytics-thop==2.0.19
 urllib3==2.6.3
