@@ -112,6 +112,15 @@ export default function AppLayout() {
           >
             Ingestion
           </NavLink>
+
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Admin
+          </NavLink>
         </div>
       </header>
 

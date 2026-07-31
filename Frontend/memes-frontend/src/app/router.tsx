@@ -18,6 +18,7 @@ import UploadPage from "../pages/UploadPage";
 import RecommendationsPage from "../pages/RecommendationsPage";
 import StatisticsPage from "../pages/StatisticsPage";
 import IngestionReviewPage from "../pages/IngestionReviewPage";
+import AdminBatchesPage from "../pages/AdminBatchesPage";
 
 
 // const baseUrl = "http://127.0.0.1:8081";
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
       { path: "/upload", element: <UploadPage memesApi={memesApi} /> },
       { path: "/statistics", element: <StatisticsPage memesApi={memesApi} /> },
       { path: "/ingestion", element: <IngestionReviewPage memesApi={memesApi} /> },
+      { path: "/admin", element: <AdminBatchesPage memesApi={memesApi} /> },
       {
         path: "/memes/:id",
         element: <MemePage memesApi={memesApi} />
