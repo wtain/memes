@@ -4,6 +4,7 @@ import type {
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
   IngestionRunStatus, IngestionPendingImage, IngestionCluster, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse,
+  RunTriggerResponse, RunListResponse,
 } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
@@ -363,6 +364,29 @@ export class HttpMemesApi implements MemesApi {
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`Failed to undo reject: ${res.status}`)
+    return res.json()
+  }
+
+  async triggerBatchRun(batchName: string): Promise<RunTriggerResponse> {
+    const res = await fetch(`${this.baseUrl}/api/admin/batches/${batchName}/run`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    })
+    if (res.status === 409) throw new Error(`${batchName} is already running`)
+    if (res.status === 404) throw new Error(`${batchName} is not a recognized batch`)
+    if (!res.ok) throw new Error(`Failed to trigger ${batchName}: ${res.status}`)
+    return res.json()
+  }
+
+  async listBatchRuns(limit?: number, offset?: number): Promise<RunListResponse> {
+    const params = new URLSearchParams()
+    if (limit !== undefined) params.set("limit", String(limit))
+    if (offset !== undefined) params.set("offset", String(offset))
+    const qs = params.toString()
+    const res = await fetch(`${this.baseUrl}/api/admin/batches/runs${qs ? `?${qs}` : ""}`, {
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`Failed to fetch batch runs: ${res.status}`)
     return res.json()
   }
 }
