@@ -449,3 +449,44 @@ export interface IngestionUndoRejectResponse {
   status: string;
   [k: string]: unknown;
 }
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RunTriggerResponse".
+ */
+export interface RunTriggerResponse {
+  run_id: string;
+  /**
+   * running
+   */
+  status: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RunStatusResponse".
+ */
+export interface RunStatusResponse {
+  run_id: string;
+  batch_name: string;
+  /**
+   * manual | scheduled | unknown
+   */
+  trigger: string;
+  /**
+   * running | completed | failed
+   */
+  status: string;
+  created_at: string;
+  completed_at: string | null;
+  error: string | null;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RunListResponse".
+ */
+export interface RunListResponse {
+  items: RunStatusResponse[];
+  total: number;
+  [k: string]: unknown;
+}

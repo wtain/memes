@@ -46,11 +46,79 @@ data class ImageDescription(
 )
 
 @Serializable
+data class IngestionClusterEdge(
+    @SerialName("image_id1") val image_id1: String,
+    @SerialName("image_id2") val image_id2: String,
+    @SerialName("distance") val distance: Float,
+    @SerialName("match_source") val match_source: Any
+)
+
+@Serializable
+data class IngestionClusterMember(
+    @SerialName("image_id") val image_id: String,
+    @SerialName("filename") val filename: String,
+    @SerialName("status") val status: String,
+    @SerialName("ocr_text") val ocr_text: Any
+)
+
+@Serializable
+data class IngestionDecision(
+    @SerialName("image_id") val image_id: String,
+    @SerialName("decision") val decision: String
+)
+
+@Serializable
+data class IngestionPendingImage(
+    @SerialName("image_id") val image_id: String,
+    @SerialName("filename") val filename: String,
+    @SerialName("created_at") val created_at: String
+)
+
+@Serializable
+data class IngestionResolveResponse(
+    @SerialName("rejected") val rejected: List<String>,
+    @SerialName("kept") val kept: List<String>
+)
+
+@Serializable
+data class IngestionRunStatus(
+    @SerialName("run_id") val run_id: String,
+    @SerialName("status") val status: String,
+    @SerialName("stage") val stage: Any,
+    @SerialName("stats") val stats: Any,
+    @SerialName("created_at") val created_at: String,
+    @SerialName("completed_at") val completed_at: Any
+)
+
+@Serializable
+data class IngestionUndoRejectResponse(
+    @SerialName("image_id") val image_id: String,
+    @SerialName("status") val status: String
+)
+
+@Serializable
 data class MemeTag(
     @SerialName("name") val name: String,
     @SerialName("category") val category: String? = null,
     @SerialName("score") val score: Float? = null,
     @SerialName("source") val source: String? = null
+)
+
+@Serializable
+data class RunStatusResponse(
+    @SerialName("run_id") val run_id: String,
+    @SerialName("batch_name") val batch_name: String,
+    @SerialName("trigger") val trigger: String,
+    @SerialName("status") val status: String,
+    @SerialName("created_at") val created_at: String,
+    @SerialName("completed_at") val completed_at: Any,
+    @SerialName("error") val error: Any
+)
+
+@Serializable
+data class RunTriggerResponse(
+    @SerialName("run_id") val run_id: String,
+    @SerialName("status") val status: String
 )
 
 @Serializable
@@ -76,6 +144,8 @@ data class StatisticsContentStats(
 @Serializable
 data class StatisticsMemeStats(
     @SerialName("total") val total: Int,
+    @SerialName("pending") val pending: Int,
+    @SerialName("rejected") val rejected: Int,
     @SerialName("with_embeddings") val with_embeddings: Int,
     @SerialName("with_ocr") val with_ocr: Int,
     @SerialName("with_tags") val with_tags: Int,
@@ -151,6 +221,12 @@ data class MemeSearchRequest(
 )
 
 @Serializable
+data class RunListResponse(
+    @SerialName("items") val items: List<RunStatusResponse>,
+    @SerialName("total") val total: Int
+)
+
+@Serializable
 data class SearchHistoryItem(
     @SerialName("id") val id: String,
     @SerialName("searchedAt") val searchedAt: String,
@@ -165,6 +241,12 @@ data class SearchHistoryResponse(
     @SerialName("items") val items: List<SearchHistoryItem>,
     @SerialName("nextCursor") val nextCursor: String? = null,
     @SerialName("hasNext") val hasNext: Boolean
+)
+
+@Serializable
+data class IngestionCluster(
+    @SerialName("members") val members: List<IngestionClusterMember>,
+    @SerialName("edges") val edges: List<IngestionClusterEdge>
 )
 
 @Serializable

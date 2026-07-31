@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "runtriggerresponse.schema.json",
+  "title": "RunTriggerResponse",
+  "type": "object",
+  "properties": {
+    "run_id": { "type": "string" },
+    "status": { "type": "string", "description": "running" }
+  },
+  "required": ["run_id", "status"]
+}

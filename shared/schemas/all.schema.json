@@ -31,6 +31,9 @@
     "IngestionCluster":           { "$ref": "ingestioncluster.schema.json" },
     "IngestionDecision":          { "$ref": "ingestiondecision.schema.json" },
     "IngestionResolveResponse":   { "$ref": "ingestionresolveresponse.schema.json" },
-    "IngestionUndoRejectResponse": { "$ref": "ingestionundorejectresponse.schema.json" }
+    "IngestionUndoRejectResponse": { "$ref": "ingestionundorejectresponse.schema.json" },
+    "RunTriggerResponse":      { "$ref": "runtriggerresponse.schema.json" },
+    "RunStatusResponse":       { "$ref": "runstatusresponse.schema.json" },
+    "RunListResponse":         { "$ref": "runlistresponse.schema.json" }
   }
 }
