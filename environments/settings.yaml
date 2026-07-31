@@ -71,7 +71,7 @@ scheduler:
   enabled: false
   jobs:
     - name: trends_batch
-      module: batch.trends_batch
+      script: trends_batch
       batch_run_kind: trends
       interval_minutes: 360
       max_runtime_minutes: 60

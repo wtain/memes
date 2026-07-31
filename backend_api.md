@@ -915,6 +915,87 @@ Reverts a `rejected` image back to `pending` and moves its file back out of
 
 ---
 
+### Admin
+
+Manual triggers for a small allow-listed set of maintenance batch jobs (currently
+`trends_batch`, `move_flagged`, `unregister_deleted_images` — see
+`environments/batch_registry.yaml` / `batch_registry.<environment>.yaml` for the live list and
+the module each name maps to), plus status lookup for runs triggered this way.
+`POST .../run` spawns the batch script as a detached subprocess and returns immediately with
+`status: "running"` — it does not wait for the batch to finish. Progress and completion are
+observed by polling `GET .../runs/{run_id}` or `GET .../runs`. Output is also written to
+`logs/<environment>/<batch_name>_<timestamp>.log` on the machine running the backend.
+
+#### Trigger Batch Run
+
+- **URL**: `/api/admin/batches/{batch_name}/run`
+- **Method**: `POST`
+- **Path params**: `batch_name` — one of the names registered in `batch_registry.yaml` (e.g.
+  `trends_batch`, `move_flagged`, `unregister_deleted_images`)
+- **Response**: `RunTriggerResponse`
+- **Errors**:
+  - `404` if `batch_name` isn't a registered batch
+  - `409` if a run of that batch is already in progress
+- **Example**: `POST /api/admin/batches/move_flagged/run`
+
+```json
+{ "run_id": "b3f1c2a4-...", "status": "running" }
+```
+
+#### Get Run Status
+
+- **URL**: `/api/admin/batches/runs/{run_id}`
+- **Method**: `GET`
+- **Response**: `RunStatusResponse`
+- **Errors**: `404` if `run_id` doesn't exist or isn't one of the admin-triggerable batch kinds
+  (e.g. it belongs to the scheduler or the ingestion pipeline instead)
+- **Example**: `GET /api/admin/batches/runs/b3f1c2a4-...`
+
+```json
+{
+  "run_id": "b3f1c2a4-...",
+  "batch_name": "move_flagged",
+  "trigger": "manual",
+  "status": "running",
+  "created_at": "2026-07-28T10:15:00Z",
+  "completed_at": null,
+  "error": null
+}
+```
+
+`status` is one of `running`, `completed`, `failed`. `error` is populated only when `status`
+is `failed`.
+
+#### List Batch Runs
+
+- **URL**: `/api/admin/batches/runs`
+- **Method**: `GET`
+- **Query params**: `limit` (default `50`), `offset` (default `0`)
+- **Response**: `RunListResponse`
+- **Example**: `GET /api/admin/batches/runs?limit=10&offset=0`
+
+```json
+{
+  "items": [
+    {
+      "run_id": "b3f1c2a4-...",
+      "batch_name": "move_flagged",
+      "trigger": "manual",
+      "status": "completed",
+      "created_at": "2026-07-28T10:15:00Z",
+      "completed_at": "2026-07-28T10:15:42Z",
+      "error": null
+    }
+  ],
+  "total": 1
+}
+```
+
+Only runs of the admin-triggerable kinds are included — scheduler and ingestion runs are
+excluded even though they share the same `batch_runs` table.
+
+---
+
 ## Running the API
 
 ### Development Mode

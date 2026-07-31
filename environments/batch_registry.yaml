@@ -1,0 +1,9 @@
+trends_batch:
+  module: batch.trends_batch
+  kind: trends
+move_flagged:
+  module: batch.move_flagged
+  kind: move_flagged
+unregister_deleted_images:
+  module: batch.unregister_deleted_images
+  kind: unregister_deleted_images

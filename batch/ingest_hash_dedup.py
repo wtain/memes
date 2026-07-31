@@ -153,7 +153,7 @@ async def main(env: str | None) -> None:
                 f"stage={active_run.stage}) -- finish or abandon it before starting a new one."
             )
 
-        batch_id = await runs_repo.create_run(kind="ingestion", stage="hash_dedup")
+        batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
         stats = None
         try:
             stats = await run(session, source_path, base_path, batch_id)

@@ -18,6 +18,7 @@ from Backend.app.api.trends import router as trends_router
 from Backend.app.api.uploads import router as uploads_router
 from Backend.app.api.bug_reports import router as bug_reports_router
 from Backend.app.api.ingestion import router as ingestion_router
+from Backend.app.api.admin import router as admin_router
 from Backend.app.scheduler import start_scheduler, stop_scheduler
 from config.settings import settings
 
@@ -106,6 +107,7 @@ app.include_router(trends_router, prefix="/api")
 app.include_router(uploads_router, prefix="/api")
 app.include_router(bug_reports_router, prefix="/api")
 app.include_router(ingestion_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 
 
 @app.get("/health")

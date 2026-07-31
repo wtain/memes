@@ -43,7 +43,7 @@ first — this plan's every `create_run()` call requires `trigger`, and relies o
 **Interfaces:**
 - Produces: `BatchRegistry(base_dir: Path = Path("environments"))` with `.get(script_name: str) -> dict | None`, `.all_names() -> list[str]`, `.name_for_kind(kind: str) -> str | None`. Every later task in this plan (and the admin controller spec after it) depends on exactly these three method signatures.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `environments/batch_registry.yaml` first (needed for the "real file" tests below):
 
@@ -140,12 +140,12 @@ class TestBatchRegistry:
         assert registry.all_names() == ["trends_batch"]
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_registry.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'batch.registry'`.
 
-- [ ] **Step 3: Implement `batch/registry.py`**
+- [x] **Step 3: Implement `batch/registry.py`**
 
 ```python
 import os
@@ -187,12 +187,12 @@ class BatchRegistry:
             return yaml.safe_load(f) or {}
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_registry.py -v`
 Expected: all 7 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add environments/batch_registry.yaml batch/registry.py batch/tests/test_registry.py
@@ -211,7 +211,7 @@ git commit -m "feat: add externalized, hot-reloadable BatchRegistry"
 - Consumes: `BatchRunRepository.create_run(kind, trigger, stage=None)`, `.commit(run_id, stats=None)`, `.fail(run_id, error=None)` (all from the trigger-tracking plan), `Storage.db.AsyncSessionLocal`.
 - Produces: `tracked_run(kind: str, trigger: str)` and `finish_existing_run(run_id: uuid.UUID)`, both async context managers yielding (`tracked_run` yields the new `run_id`; `finish_existing_run` yields nothing). Task 3/4/5 use both.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `batch/tests/test_run_tracking.py`:
 
@@ -296,12 +296,12 @@ def _ctx(session):
     return _Ctx()
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_run_tracking.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'batch.run_tracking'`.
 
-- [ ] **Step 3: Implement `batch/run_tracking.py`**
+- [x] **Step 3: Implement `batch/run_tracking.py`**
 
 ```python
 import uuid
@@ -350,12 +350,12 @@ async def finish_existing_run(run_id: uuid.UUID):
             await session.commit()
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_run_tracking.py -v`
 Expected: all 4 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add batch/run_tracking.py batch/tests/test_run_tracking.py
@@ -422,7 +422,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/integration/test_move_flagged_tracking.py`:
 
@@ -515,13 +515,13 @@ Create `tests/integration/test_unregister_deleted_images_tracking.py` with the i
 tests, `import batch.unregister_deleted_images as unregister_deleted_images` in place of
 `move_flagged`, and `kind="unregister_deleted_images"` in place of `kind="move_flagged"`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_move_flagged_tracking.py tests/integration/test_unregister_deleted_images_tracking.py -v`
 Expected: FAIL — `TypeError: main() got an unexpected keyword argument 'trigger'` (current `main()`
 takes no arguments).
 
-- [ ] **Step 3: Implement the `main()` change**
+- [x] **Step 3: Implement the `main()` change**
 
 In `batch/move_flagged.py`, replace `main()` and the `if __name__ == "__main__":` block:
 
@@ -557,17 +557,17 @@ and its own existing `base_path = os.path.abspath(os.getenv('BASE_PATH'))` line 
 change it to `settings.BASE_PATH` — that's a pre-existing inconsistency between the two scripts,
 out of scope for this change).
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_move_flagged_tracking.py tests/integration/test_unregister_deleted_images_tracking.py -v`
 Expected: all 8 PASS.
 
-- [ ] **Step 5: Run the full integration root**
+- [x] **Step 5: Run the full integration root**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/ -v`
 Expected: all PASS, no regressions.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add batch/move_flagged.py batch/unregister_deleted_images.py tests/integration/test_move_flagged_tracking.py tests/integration/test_unregister_deleted_images_tracking.py
@@ -633,7 +633,7 @@ if __name__ == "__main__":
 (Note: `trigger="unknown"` above reflects the *previous* plan's temporary call-site update — this
 task removes that call site entirely.)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/test_trends_batch_tracking.py`:
 
@@ -702,13 +702,13 @@ def _session_ctx(session):
     return _Ctx()
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_trends_batch_tracking.py -v`
 Expected: FAIL — `AttributeError: module 'batch.trends_batch' has no attribute 'run'` (no such
 function exists yet — the work is still inlined in `main()`).
 
-- [ ] **Step 3: Implement the `run()`/`main()` split**
+- [x] **Step 3: Implement the `run()`/`main()` split**
 
 In `batch/trends_batch.py`, replace `main()` and the `__main__` block with:
 
@@ -773,23 +773,23 @@ the `else` branch, it's the `run_id` yielded by `tracked_run(...)`). Update the 
 tests above do — they only check `run.assert_awaited_once()`-style calls or rely on
 `AsyncMock()`'s permissiveness, so no test changes needed for this fix, only the implementation).
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_trends_batch_tracking.py -v`
 Expected: all 3 PASS.
 
-- [ ] **Step 5: Confirm `process_source` and its own tests are untouched**
+- [x] **Step 5: Confirm `process_source` and its own tests are untouched**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/batch/test_trends_batch.py -v`
 Expected: unaffected, still PASS — this refactor moves `main()`'s body, it does not touch
 `process_source` (lines 1-31 of the original file).
 
-- [ ] **Step 6: Run the full integration root**
+- [x] **Step 6: Run the full integration root**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/ -v`
 Expected: all PASS, no regressions.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add batch/trends_batch.py tests/integration/test_trends_batch_tracking.py
@@ -811,7 +811,7 @@ git commit -m "refactor: split trends_batch.py's work from its tracking, matchin
   update spawns this as `python -m batch.run_wrapper --script ... --env ... --trigger scheduled`;
   the (not-yet-written) admin controller spawns it the same way with `--run-id` also set.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `batch/tests/test_run_wrapper.py`:
 
@@ -876,12 +876,12 @@ class TestRunWrapperMain:
                 await run_wrapper.main()
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_run_wrapper.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'batch.run_wrapper'`.
 
-- [ ] **Step 3: Implement `batch/run_wrapper.py`**
+- [x] **Step 3: Implement `batch/run_wrapper.py`**
 
 ```python
 import argparse
@@ -915,12 +915,12 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_run_wrapper.py -v`
 Expected: all 3 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add batch/run_wrapper.py batch/tests/test_run_wrapper.py
@@ -949,7 +949,7 @@ have drifted from what's quoted here) use `job["module"]` as a raw Python module
 (`"batch.trends_batch"`) invoked directly. This task changes that to a registry `script` name
 (`"trends_batch"`) invoked via the wrapper.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `Backend/tests/test_scheduler.py`:
 
@@ -988,13 +988,13 @@ In `Backend/tests/test_scheduler.py`:
    `asyncio.Runner`-based test, that shutdown still doesn't block — same assertions as today, just
    through one more layer.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/test_scheduler.py -v`
 Expected: FAIL — `KeyError: 'module'` (job dicts now carry `script`, not `module`) and/or assertion
 mismatches on the expected `Popen` argv, until Steps 3 below land.
 
-- [ ] **Step 3: Implement the `scheduler.py` change**
+- [x] **Step 3: Implement the `scheduler.py` change**
 
 In `Backend/app/scheduler.py`'s `_load_job_configs`, change:
 ```python
@@ -1034,17 +1034,17 @@ Check `environments/settings.metal.yaml`, `settings.general.yaml`, `settings.it.
 plan's writing, none override it, but verify against the actual current file contents rather than
 assuming).
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/test_scheduler.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Run the full Backend suite**
+- [x] **Step 5: Run the full Backend suite**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest -v`
 Expected: all PASS, no regressions.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Backend/app/scheduler.py Backend/tests/test_scheduler.py environments/settings.yaml

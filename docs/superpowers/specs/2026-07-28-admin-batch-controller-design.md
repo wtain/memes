@@ -1,6 +1,6 @@
 # Admin Batch Controller — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-07-28-admin-batch-controller.md
 Originates from: docs/superpowers/specs/2026-07-28-batch-run-wrapper-design.md
 
@@ -122,11 +122,12 @@ get the child killed on cancellation or block backend shutdown; see
 `scheduler.py` now imports from, rather than admin code reaching into scheduler internals:
 
 ```python
-async def spawn_and_track(args: list[str], log_path: Path) -> int:
+async def spawn_and_track(args: list[str], log_path: Path, label: str) -> int:
     """Spawn args via Popen, redirect stdout/stderr to log_path, await completion via a
-    daemon thread (survives cancellation and doesn't block shutdown), log the exit code,
-    return it. Caller decides whether to await this inline (scheduler) or fire-and-forget
-    it as a background task (admin endpoint)."""
+    daemon thread (survives cancellation and doesn't block shutdown), log the exit code
+    (attributed to `label`, a logging-only identifier -- e.g. job name or batch name --
+    never passed to Popen), return it. Caller decides whether to await this inline
+    (scheduler) or fire-and-forget it as a background task (admin endpoint)."""
 ```
 
 **Log path naming** — one file per invocation, nested by environment, replacing the scheduler's

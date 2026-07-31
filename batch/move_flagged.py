@@ -2,9 +2,11 @@ import argparse
 import asyncio
 import os
 import shutil
+import uuid
 
 from sqlalchemy import select
 
+from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image, ImageExtras
@@ -30,12 +32,17 @@ async def run(session, base_path):
         shutil.move(path_from, path_to)
 
 
-async def main():
-    async with AsyncSessionLocal() as session:
-        BASE_PATH = settings.BASE_PATH
-        print(f"BASE_PATH={BASE_PATH}")
-        base_path = os.path.abspath(BASE_PATH)
-        await run(session, base_path)
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            async with AsyncSessionLocal() as session:
+                base_path = os.path.abspath(settings.BASE_PATH)
+                await run(session, base_path)
+    else:
+        async with tracked_run(kind="move_flagged", trigger=trigger):
+            async with AsyncSessionLocal() as session:
+                base_path = os.path.abspath(settings.BASE_PATH)
+                await run(session, base_path)
 
 
 if __name__ == "__main__":
@@ -43,4 +50,4 @@ if __name__ == "__main__":
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main())
+    asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior

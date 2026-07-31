@@ -91,7 +91,7 @@ class BatchRun(Base):
         return f"<BatchRun run_id={self.run_id} kind={self.kind!r} created_at={self.created_at}>"
 ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/test_batch_run_schema.py`:
 
@@ -153,12 +153,12 @@ async def test_second_run_of_same_kind_is_fine_once_first_is_completed(db_sessio
     await db_session.flush()  # must not raise -- first is no longer 'started'
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_batch_run_schema.py -v`
 Expected: FAIL — `BatchRun(...)` raises `TypeError: 'trigger' is an invalid keyword argument for BatchRun` (the column doesn't exist on the model yet).
 
-- [ ] **Step 3: Update the model**
+- [x] **Step 3: Update the model**
 
 In `Storage/models.py`, replace the `RunStatus`/`BatchRun` block shown above with:
 
@@ -231,14 +231,14 @@ class BatchRun(Base):
 Check the top of `Storage/models.py` for an existing `import sqlalchemy as sa` — add it if not
 already present (needed for `sa.text(...)` in the index's `postgresql_where`).
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_batch_run_schema.py -v`
 Expected: all 4 PASS. (This exercises the model via `tests/integration/conftest.py`'s
 `Base.metadata.create_all` — no Alembic migration run yet, confirming the model-level index
 declaration alone is sufficient for the test DB's schema.)
 
-- [ ] **Step 5: Write the Alembic migration**
+- [x] **Step 5: Write the Alembic migration**
 
 From `Storage/`, generate the revision skeleton (this produces a real, fresh revision id — do not
 invent one):
@@ -288,7 +288,7 @@ def downgrade() -> None:
     op.drop_column('batch_runs', 'trigger')
 ```
 
-- [ ] **Step 6: Manually verify the migration runs cleanly against the real dev DB**
+- [x] **Step 6: Manually verify the migration runs cleanly against the real dev DB**
 
 This is a schema migration — not exercised by the pytest suite (which uses `create_all`, not
 Alembic). Verify it by hand against one real environment's dev database (pick one, e.g. metal):
@@ -306,7 +306,7 @@ Expected: all three commands succeed with no errors. Leave the DB at `head` afte
 (a real dev DB with existing `batch_runs` rows is exactly the case the cleanup-UPDATE step exists
 for; a failure here means the migration's SQL needs fixing, not that the DB is broken).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Storage/models.py Storage/alembic/versions/*_add_trigger_to_batch_runs.py tests/integration/test_batch_run_schema.py
@@ -342,7 +342,7 @@ async def create_run(self, kind: str, stage: str | None = None) -> uuid.UUID:
     return run.run_id
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `tests/integration/test_batch_runs_repository.py`, add `trigger="manual"` (or a variant, per
 below) to **every** existing `create_run(...)` call in the file — the signature change below makes
@@ -389,13 +389,13 @@ async def test_create_run_succeeds_once_prior_run_of_same_kind_is_completed(db_s
 
 Add `from repository.batch_runs import BatchAlreadyRunningError` to the file's imports.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_batch_runs_repository.py -v`
 Expected: FAIL — `TypeError: create_run() got an unexpected keyword argument 'trigger'` on every
 call site in the file, plus `ImportError` for `BatchAlreadyRunningError` (doesn't exist yet).
 
-- [ ] **Step 3: Implement the repository change**
+- [x] **Step 3: Implement the repository change**
 
 In `repository/batch_runs.py`, add near the top (after the existing imports):
 
@@ -421,12 +421,12 @@ async def create_run(self, kind: str, trigger: str, stage: str | None = None) ->
     return run.run_id
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_batch_runs_repository.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Update the two existing call sites**
+- [x] **Step 5: Update the two existing call sites**
 
 `batch/ingest_hash_dedup.py:156` — change:
 ```python
@@ -456,14 +456,14 @@ Add a one-line comment directly above the `trends_batch.py` call site:
 # docs/superpowers/specs/2026-07-28-batch-run-wrapper-design.md.
 ```
 
-- [ ] **Step 6: Run the full integration test root**
+- [x] **Step 6: Run the full integration test root**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/ -v`
 Expected: all PASS, including `test_ingest_hash_dedup.py` and `test_batch_run_schema.py` (Task 1)
 alongside this task's changes — the full root, not just this file, since `repository/batch_runs.py`
 is shared code per the "Running the right test scope" convention in `CLAUDE.md`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add repository/batch_runs.py batch/ingest_hash_dedup.py batch/trends_batch.py tests/integration/test_batch_runs_repository.py
