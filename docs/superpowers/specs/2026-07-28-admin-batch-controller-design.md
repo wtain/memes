@@ -1,6 +1,6 @@
 # Admin Batch Controller — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-07-28-admin-batch-controller.md
 Originates from: docs/superpowers/specs/2026-07-28-batch-run-wrapper-design.md
 

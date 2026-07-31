@@ -54,7 +54,7 @@ not `asyncio.create_subprocess_exec`, a manually-created daemon thread not `asyn
 Read those two docstrings in the actual current file before starting — they explain two real,
 previously-shipped-then-fixed bugs this code avoids reintroducing.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Backend/tests/test_batch_subprocess.py`. This migrates the subprocess-mechanism tests
 currently in `Backend/tests/test_scheduler.py`'s `TestSpawn`, `TestWaitForProcess`, and both
@@ -308,12 +308,12 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
     assert done_marker.exists(), "child was killed by asyncio.Runner.close()'s task cancellation"
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/test_batch_subprocess.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'Backend.app.batch_subprocess'`.
 
-- [ ] **Step 3: Implement `Backend/app/batch_subprocess.py`**
+- [x] **Step 3: Implement `Backend/app/batch_subprocess.py`**
 
 Read `Backend/app/scheduler.py`'s current `_wait_for_process` function and its docstring in full
 before writing this — move it into the new module **verbatim** (same docstring, same logic; only
@@ -404,12 +404,12 @@ async def fire_and_forget(coro) -> None:
     task.add_done_callback(_on_fire_and_forget_done)
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/test_batch_subprocess.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Simplify `scheduler.py`'s `_spawn` and remove the now-duplicated tests**
+- [x] **Step 5: Simplify `scheduler.py`'s `_spawn` and remove the now-duplicated tests**
 
 In `Backend/app/scheduler.py`:
 - Remove `_wait_for_process` entirely (moved to `batch_subprocess.py`).
@@ -462,7 +462,7 @@ class TestSpawn:
 (`sys` and `Path` must remain imported in the test file for this — re-add if the cleanup above
 removed them and nothing else needed them; this new test needs both.)
 
-- [ ] **Step 6: Run the full Backend suite**
+- [x] **Step 6: Run the full Backend suite**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest -v`
 Expected: all PASS — the moved tests now live in `test_batch_subprocess.py` (Step 4), and
@@ -470,7 +470,7 @@ Expected: all PASS — the moved tests now live in `test_batch_subprocess.py` (S
 `_safe_initial_delay`, `start_scheduler`/`stop_scheduler`) are all untouched by this extraction and
 should still pass exactly as before.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Backend/app/batch_subprocess.py Backend/tests/test_batch_subprocess.py Backend/app/scheduler.py Backend/tests/test_scheduler.py
@@ -501,7 +501,7 @@ git commit -m "refactor: extract subprocess spawn/wait mechanism into Backend/ap
   `/api/admin/batches` — `Backend/app/main.py` already adds the `/api` prefix via
   `app.include_router(admin_router, prefix="/api")`, matching every other router in that file).
 
-- [ ] **Step 1: Write the failing service tests**
+- [x] **Step 1: Write the failing service tests**
 
 Create `Backend/tests/test_admin_batch_service.py`:
 
@@ -650,12 +650,12 @@ class TestListRuns:
         )
 ```
 
-- [ ] **Step 2: Run the service tests to verify they fail**
+- [x] **Step 2: Run the service tests to verify they fail**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/test_admin_batch_service.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'Backend.app.services.admin_batch_service'`.
 
-- [ ] **Step 3: Add `BatchRunRepository.list_runs`**
+- [x] **Step 3: Add `BatchRunRepository.list_runs`**
 
 The service test above calls a repository method (`list_runs`) that doesn't exist yet. Add it to
 `repository/batch_runs.py`:
@@ -700,7 +700,7 @@ async def test_list_runs_filters_by_kind_and_paginates(db_session):
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_batch_runs_repository.py -v`
 Expected: all PASS including this new test, before continuing.
 
-- [ ] **Step 4: Implement `AdminBatchService`**
+- [x] **Step 4: Implement `AdminBatchService`**
 
 Create `Backend/app/services/admin_batch_service.py`:
 
@@ -788,12 +788,12 @@ into the repository's internals. Prefer that cleaner shape if it doesn't complic
 dependency-injection wiring in Step 6 below; if it does, document why the direct `_session` access
 was kept instead.
 
-- [ ] **Step 5: Run the service tests to verify they pass**
+- [x] **Step 5: Run the service tests to verify they pass**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/test_admin_batch_service.py -v`
 Expected: all PASS.
 
-- [ ] **Step 6: Write the failing endpoint tests**
+- [x] **Step 6: Write the failing endpoint tests**
 
 Create `Backend/tests/test_admin_batch_endpoints.py`, mirroring
 `Backend/tests/test_ingestion_endpoints.py`'s `TestClient` + `dependency_overrides` style:
@@ -886,12 +886,12 @@ class TestListRuns:
         mock_service.list_runs.assert_awaited_once_with(limit=10, offset=0)
 ```
 
-- [ ] **Step 7: Run the endpoint tests to verify they fail**
+- [x] **Step 7: Run the endpoint tests to verify they fail**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/test_admin_batch_endpoints.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'Backend.app.api.admin'`.
 
-- [ ] **Step 8: Implement `Backend/app/api/admin.py`**
+- [x] **Step 8: Implement `Backend/app/api/admin.py`**
 
 ```python
 from typing import AsyncGenerator
@@ -953,17 +953,17 @@ async def list_runs(
     return await service.list_runs(limit=limit, offset=offset)
 ```
 
-- [ ] **Step 9: Run the endpoint tests to verify they pass**
+- [x] **Step 9: Run the endpoint tests to verify they pass**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/test_admin_batch_endpoints.py -v`
 Expected: all PASS.
 
-- [ ] **Step 10: Run the full Backend suite**
+- [x] **Step 10: Run the full Backend suite**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest -v`
 Expected: all PASS, no regressions.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add Backend/app/services/admin_batch_service.py Backend/app/api/admin.py Backend/tests/test_admin_batch_service.py Backend/tests/test_admin_batch_endpoints.py repository/batch_runs.py tests/integration/test_batch_runs_repository.py
@@ -981,7 +981,7 @@ git commit -m "feat: add admin batch controller (trigger/status/list endpoints)"
 **Interfaces:**
 - Consumes: `Backend.app.api.admin.router` (Task 2).
 
-- [ ] **Step 1: Register the router**
+- [x] **Step 1: Register the router**
 
 In `Backend/app/main.py`, add the import near the other `Backend.app.api.*` imports:
 ```python
@@ -992,12 +992,12 @@ And register it alongside the others:
 app.include_router(admin_router, prefix="/api")
 ```
 
-- [ ] **Step 2: Run the full Backend suite**
+- [x] **Step 2: Run the full Backend suite**
 
 Run: `cd Backend && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest -v`
 Expected: all PASS, including `test_main.py`.
 
-- [ ] **Step 3: Update `backend_api.md`**
+- [x] **Step 3: Update `backend_api.md`**
 
 Add a section documenting the three new endpoints — method, path, request body (none for
 `POST .../run` beyond the path param), response shape (mirroring `RunTriggerResponse`/
@@ -1006,7 +1006,7 @@ out-of-scope `run_id`, `409` for an already-running batch). Follow the existing 
 convention already used in this file for the other routers (read a couple of existing entries in
 `backend_api.md` first to match heading level/style before writing the new section).
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Given this sandbox has no real `environments/.env.*` secrets (see this session's earlier scheduler
 work), full live verification (starting a real backend, hitting the endpoint, confirming a
@@ -1027,7 +1027,7 @@ the implementation:
 5. `curl -X POST http://localhost:8081/api/admin/batches/trends_batch/run` twice in quick succession
    — confirm the second returns `409`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Backend/app/main.py backend_api.md
