@@ -1,6 +1,6 @@
 # Safe Move Without Overwrite — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-08-01-safe-move-without-overwrite.md
 
 **Date:** 2026-08-01.

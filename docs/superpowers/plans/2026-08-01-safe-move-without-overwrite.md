@@ -43,7 +43,7 @@ mocking needed for pure filesystem logic).
   own tests additionally import the private `_SUFFIX_RESERVE` constant for exact assertions (white
   -box testing of an internal implementation detail, not part of the module's public contract).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `batch/tests/test_safe_move.py`:
 
@@ -151,12 +151,12 @@ def test_truncated_name_still_gets_a_suffix_on_collision(tmp_path, monkeypatch):
     assert (dest_dir / f"{truncated_stem}{ext}").read_bytes() == b"existing"
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_safe_move.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'batch.utils.safe_move'`.
 
-- [ ] **Step 3: Implement `batch/utils/safe_move.py`**
+- [x] **Step 3: Implement `batch/utils/safe_move.py`**
 
 ```python
 import os
@@ -193,12 +193,12 @@ def move_without_overwrite(src_path: str, dest_dir: str) -> str:
     return candidate
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_safe_move.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add batch/utils/safe_move.py batch/tests/test_safe_move.py
@@ -218,7 +218,7 @@ git commit -m "feat: add move_without_overwrite() collision-safe file-move utili
 - `run()`'s signature and return type (`SimpleMetricsListener`) are unchanged — only its internal
   move call changes.
 
-- [ ] **Step 1: Update `batch/move_flagged.py`**
+- [x] **Step 1: Update `batch/move_flagged.py`**
 
 Remove `import shutil` (line 4) — it becomes unused once this is the file's only `shutil.move`
 call site, and that call now lives inside `batch/utils/safe_move.py` instead. Add
@@ -248,7 +248,7 @@ Replace the per-file loop body in `run()`:
 (`path_to` is removed — `move_without_overwrite` computes the destination path itself from
 `flagged_path` and the source's basename.)
 
-- [ ] **Step 2: Rewrite the test that monkeypatches `shutil.move` directly**
+- [x] **Step 2: Rewrite the test that monkeypatches `shutil.move` directly**
 
 `test_other_move_error_is_counted_and_does_not_abort` currently does
 `monkeypatch.setattr(module.shutil, "move", fake_move)` against `batch.move_flagged`'s own
@@ -280,7 +280,7 @@ replace that test's body to patch `shutil.move` one level down, inside `batch.ut
         assert not (tmp_path / "excluded" / "a.jpg").exists()
 ```
 
-- [ ] **Step 3: Add a new test for the rename-on-collision path**
+- [x] **Step 3: Add a new test for the rename-on-collision path**
 
 Add to `TestRun` in `batch/tests/test_move_flagged.py`:
 
@@ -300,18 +300,18 @@ Add to `TestRun` in `batch/tests/test_move_flagged.py`:
         assert (excluded_dir / "a.jpg").read_bytes() == b"already-excluded-content"
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_move_flagged.py -v`
 Expected: all PASS (the rewritten test and the new test both green; the other pre-existing tests in
 this file untouched and still passing).
 
-- [ ] **Step 5: Run the full `batch/tests/` root**
+- [x] **Step 5: Run the full `batch/tests/` root**
 
 Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/ -v`
 Expected: all PASS, no regressions.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add batch/move_flagged.py batch/tests/test_move_flagged.py
@@ -332,7 +332,7 @@ git commit -m "feat: move_flagged renames instead of overwriting on filename col
   are unchanged — only its internal ordering (move before register, not after) and move call
   change.
 
-- [ ] **Step 1: Write the failing integration test**
+- [x] **Step 1: Write the failing integration test**
 
 `tests/integration/test_ingest_hash_dedup.py` needs a live PostgreSQL test DB — see this file's
 own module docstring and CLAUDE.md's integration-test gotchas (run with
@@ -366,13 +366,13 @@ async def test_register_and_move_renames_on_filename_collision(tmp_path, db_sess
     assert (base / "new.jpg").read_bytes() == b"different-existing-bytes"
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_ingest_hash_dedup.py::test_register_and_move_renames_on_filename_collision -v`
 Expected: FAIL — the current implementation overwrites `base/new.jpg` and registers the DB row with
 the original (unrenamed) `filename`, so `image.filename == "new_1.jpg"` fails.
 
-- [ ] **Step 3: Update `register_and_move_to_base_path()` in `batch/ingest_hash_dedup.py`**
+- [x] **Step 3: Update `register_and_move_to_base_path()` in `batch/ingest_hash_dedup.py`**
 
 Add `from batch.utils.safe_move import move_without_overwrite` after the existing
 `from batch.utils.file_hash import sha256_file` import (alphabetically before `config.settings`).
@@ -406,7 +406,7 @@ async def register_and_move_to_base_path(
 necessary since the final filename isn't known until after the move is attempted. The module's own
 docstring already documents that a crash between the two steps isn't rolled back either way.)
 
-- [ ] **Step 4: Run the new test to verify it passes**
+- [x] **Step 4: Run the new test to verify it passes**
 
 Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_ingest_hash_dedup.py -v`
 Expected: all PASS, including the new test and the pre-existing
@@ -414,7 +414,7 @@ Expected: all PASS, including the new test and the pre-existing
 (neither of those two creates a pre-existing colliding file, so their behavior/assertions are
 unaffected by the reordering).
 
-- [ ] **Step 5: Run the full `batch/tests/` root and the full `tests/integration/` root**
+- [x] **Step 5: Run the full `batch/tests/` root and the full `tests/integration/` root**
 
 Per this project's own testing gotcha (a change to a script with an existing dedicated integration
 test file needs the whole `tests/integration/` root run, not just that one file, before merging):
@@ -425,7 +425,7 @@ Expected: all PASS.
 Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/ -v`
 Expected: all PASS, no regressions elsewhere.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add batch/ingest_hash_dedup.py tests/integration/test_ingest_hash_dedup.py
