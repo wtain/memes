@@ -153,7 +153,7 @@ def test_truncated_name_still_gets_a_suffix_on_collision(tmp_path, monkeypatch):
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_safe_move.py -v`
+Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_safe_move.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'batch.utils.safe_move'`.
 
 - [ ] **Step 3: Implement `batch/utils/safe_move.py`**
@@ -195,7 +195,7 @@ def move_without_overwrite(src_path: str, dest_dir: str) -> str:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_safe_move.py -v`
+Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_safe_move.py -v`
 Expected: all PASS.
 
 - [ ] **Step 5: Commit**
@@ -302,13 +302,13 @@ Add to `TestRun` in `batch/tests/test_move_flagged.py`:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_move_flagged.py -v`
+Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_move_flagged.py -v`
 Expected: all PASS (the rewritten test and the new test both green; the other pre-existing tests in
 this file untouched and still passing).
 
 - [ ] **Step 5: Run the full `batch/tests/` root**
 
-Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/ -v`
+Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/ -v`
 Expected: all PASS, no regressions.
 
 - [ ] **Step 6: Commit**
@@ -368,7 +368,7 @@ async def test_register_and_move_renames_on_filename_collision(tmp_path, db_sess
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd H:\workspace_sandbox\memes && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_ingest_hash_dedup.py::test_register_and_move_renames_on_filename_collision -v`
+Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_ingest_hash_dedup.py::test_register_and_move_renames_on_filename_collision -v`
 Expected: FAIL — the current implementation overwrites `base/new.jpg` and registers the DB row with
 the original (unrenamed) `filename`, so `image.filename == "new_1.jpg"` fails.
 
@@ -408,7 +408,7 @@ docstring already documents that a crash between the two steps isn't rolled back
 
 - [ ] **Step 4: Run the new test to verify it passes**
 
-Run: `cd H:\workspace_sandbox\memes && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_ingest_hash_dedup.py -v`
+Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_ingest_hash_dedup.py -v`
 Expected: all PASS, including the new test and the pre-existing
 `test_register_and_move_creates_pending_images_in_base_path`/`test_run_end_to_end_stats_and_final_state`
 (neither of those two creates a pre-existing colliding file, so their behavior/assertions are
@@ -419,10 +419,10 @@ unaffected by the reordering).
 Per this project's own testing gotcha (a change to a script with an existing dedicated integration
 test file needs the whole `tests/integration/` root run, not just that one file, before merging):
 
-Run: `cd H:\workspace_sandbox\memes && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/ -v`
+Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/ -v`
 Expected: all PASS.
 
-Run: `cd H:\workspace_sandbox\memes && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/ -v`
+Run: `cd H:\workspace_sandbox\memes\.claude\worktrees\safe-move-without-overwrite && DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/ -v`
 Expected: all PASS, no regressions elsewhere.
 
 - [ ] **Step 6: Commit**
