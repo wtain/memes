@@ -62,6 +62,45 @@ class TestSpawnAndTrack:
         assert kwargs["stdout"].name == str(log_path)
         assert kwargs["stdout"] is kwargs["stderr"]
 
+    async def test_forces_utf8_output_encoding_in_child_env(self, monkeypatch, tmp_path):
+        """Regression guard: a batch script's stdout is redirected to a log file, not a
+        console -- on Windows, Python falls back to the system codepage (cp1252, aka
+        "charmap") for a non-console stdout unless PYTHONIOENCODING forces UTF-8, and
+        cp1252 can't encode most non-Latin1 text (e.g. Cyrillic article titles from
+        trends_batch's Russian-language sources), crashing the child with
+        UnicodeEncodeError. See test_real_subprocess_output_with_non_ascii_text_does_not_crash
+        for an end-to-end reproduction of the exact failure this guards against."""
+        monkeypatch.chdir(tmp_path)
+        fake_proc = MagicMock()
+        fake_proc.wait = MagicMock(return_value=0)
+        popen_mock = MagicMock(return_value=fake_proc)
+        monkeypatch.setattr(subprocess, "Popen", popen_mock)
+        log_path = tmp_path / "logs" / "metal" / "trends_batch_x.log"
+
+        await spawn_and_track([sys.executable, "-c", "pass"], log_path, label="trends_batch")
+
+        _args, kwargs = popen_mock.call_args
+        assert kwargs["env"]["PYTHONIOENCODING"] == "utf-8"
+        # The rest of the parent's environment must still reach the child -- this isn't a
+        # replacement env, just an addition.
+        for key, value in os.environ.items():
+            assert kwargs["env"].get(key) == value
+
+    async def test_real_subprocess_output_with_non_ascii_text_does_not_crash(self, tmp_path):
+        """End-to-end reproduction of the bug: without forcing UTF-8, a real child process
+        printing non-ASCII text to a log-file-redirected stdout crashes with
+        UnicodeEncodeError on Windows. This is the actual trends_batch failure mode --
+        Cyrillic article titles from Russian-language sources."""
+        log_path = tmp_path / "logs" / "metal" / "trends_batch_x.log"
+
+        returncode = await spawn_and_track(
+            [sys.executable, "-c", "print('\\u041f\\u0440\\u0438\\u0432\\u0435\\u0442 \\u043c\\u0438\\u0440')"],
+            log_path, label="trends_batch",
+        )
+
+        assert returncode == 0
+        assert log_path.read_text(encoding="utf-8").strip() == "Привет мир"
+
     async def test_logs_launch_and_nonzero_exit_code(self, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
         fake_proc = MagicMock()

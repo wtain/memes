@@ -7,6 +7,7 @@ and fixed there.
 """
 import asyncio
 import logging
+import os
 import subprocess
 import threading
 from datetime import datetime
@@ -115,8 +116,15 @@ async def spawn_and_track(args: list[str], log_path: Path, label: str) -> int:
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info("batch_subprocess: launching %s", args)
+    # PYTHONIOENCODING forces the child's stdout/stderr to UTF-8. Without it, a
+    # non-console stdout (redirected to this log file, as opposed to an interactive
+    # terminal) falls back to the OS codepage on Windows -- cp1252 ("charmap"), which
+    # can't encode most non-Latin1 text (e.g. Cyrillic article titles trends_batch
+    # scrapes from Russian-language sources) and crashes the child with
+    # UnicodeEncodeError.
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     with open(log_path, "ab") as log_file:
-        proc = subprocess.Popen(args, stdout=log_file, stderr=log_file)
+        proc = subprocess.Popen(args, stdout=log_file, stderr=log_file, env=env)
         returncode = await _wait_for_process(proc)
 
     if returncode == 0:
