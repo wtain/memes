@@ -1,6 +1,6 @@
 # Skip Already-Reviewed Duplicate Clusters — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-08-01-duplicate-cluster-skip-if-flagged.md
 
 **Date:** 2026-08-01.
@@ -84,7 +84,11 @@ def cluster_already_handled(cluster: list, flags: dict) -> bool:
     return any(flags.get(mid, False) for mid in cluster)
 ```
 
-Using a general-purpose flag (`ImageExtras.flagged`) rather than a duplicate-specific marker is appropriate here because `flagged` is transient and self-clearing: `move_flagged.py` chains into `unregister_deleted_images`, which physically removes flagged images and cascade-deletes their `image_extras` row shortly after, so a stale skip signal doesn't persist indefinitely — it's bounded by the operator's `move_flagged` cadence rather than permanent.
+Using a general-purpose flag (`ImageExtras.flagged`) rather than a duplicate-specific marker is
+appropriate here because `flagged` is transient and self-clearing: `move_flagged.py` chains into
+`unregister_deleted_images`, which physically removes flagged images and cascade-deletes their
+`image_extras` row shortly after, so a stale skip signal doesn't persist indefinitely — it's
+bounded by the operator's `move_flagged` cadence rather than permanent.
 
 Wiring into `main()`'s Phase 4: before the per-cluster loop, collect every image id across every
 cluster with 2+ members (the same clusters the loop already iterates), call `get_flags_bulk` once

@@ -42,7 +42,7 @@ the helper says so.
 - Produces: `ImageExtrasRepository.get_flags_bulk(image_ids: list) -> dict`. Task 2 depends on this
   exact method name and its "every requested id gets a key, defaulting to `False`" guarantee.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/integration/test_image_extras_repository.py`:
 
@@ -91,12 +91,12 @@ async def test_get_flags_bulk_empty_list_returns_empty_dict(db_session):
     assert flags == {}
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_image_extras_repository.py -v`
 Expected: FAIL — `AttributeError: 'ImageExtrasRepository' object has no attribute 'get_flags_bulk'`.
 
-- [ ] **Step 3: Implement `get_flags_bulk`**
+- [x] **Step 3: Implement `get_flags_bulk`**
 
 Replace `repository/image_extras.py`'s full content:
 
@@ -135,12 +135,12 @@ class ImageExtrasRepository:
         return {image_id: flags.get(image_id, False) for image_id in image_ids}
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_image_extras_repository.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add repository/image_extras.py tests/integration/test_image_extras_repository.py
@@ -160,7 +160,7 @@ git commit -m "feat: add ImageExtrasRepository.get_flags_bulk()"
 - Produces: `cluster_already_handled(cluster: list, flags: dict) -> bool` (new pure function, no
   DB/filesystem access).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `batch/tests/test_detect_file_duplicates.py`:
 
@@ -200,12 +200,12 @@ def test_missing_id_in_flags_defaults_to_not_flagged():
     assert cluster_already_handled(cluster, flags) is False
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_detect_file_duplicates.py -v`
 Expected: FAIL — `ImportError: cannot import name 'cluster_already_handled' from 'batch.detect_file_duplicates'`.
 
-- [ ] **Step 3: Add `cluster_already_handled` and wire it into `main()`**
+- [x] **Step 3: Add `cluster_already_handled` and wire it into `main()`**
 
 In `batch/detect_file_duplicates.py`, add this function before `main()` (after the imports):
 
@@ -268,17 +268,17 @@ as the loop's first branch. `if len(cluster) < 2: continue` from the original in
 the upfront list-comprehension filter `[c for c in clusters if len(c) >= 2]` instead — same effect,
 computed once.)
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/test_detect_file_duplicates.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Run the full `batch/tests/` root**
+- [x] **Step 5: Run the full `batch/tests/` root**
 
 Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tests/ -v`
 Expected: all PASS, no regressions.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add batch/detect_file_duplicates.py batch/tests/test_detect_file_duplicates.py
