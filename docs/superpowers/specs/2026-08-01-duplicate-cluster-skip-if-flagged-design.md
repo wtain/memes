@@ -20,6 +20,23 @@ un-flagged one of its members via the UI because it wasn't actually a duplicate 
 removed, or flagged a different member for a different reason — a later run of this script
 re-flags the rest of the cluster anyway, ignoring that prior human decision.
 
+### Known Limitation: Incomplete Cluster Reviews
+
+This feature protects only against clusters where some member remains flagged after human
+review. If an operator un-flags a cluster member (setting it back to `flagged=False` from
+`True`), or un-flags every member of a larger cluster, the next run of `detect_file_duplicates`
+will re-flag them, since the check is `any(currently flagged=True)` rather than "any member's
+flag was ever modified by a human." In the common 2-member cluster case, un-flagging the
+previously-flagged member means both members are now `False`, triggering a re-flag on the next
+run. This is a known, accepted trade-off: a "row exists at all" signal was considered as an
+alternative (treating any `image_extras` row, regardless of `flagged` value, as a sign of human
+attention), but rejected because `detect_file_duplicates.py` is itself the only other writer of
+`image_extras` rows in the application (besides the UI). Using "row exists" would make the skip
+signal near-permanent for any cluster this script has ever auto-flagged, not just genuinely
+human-reviewed ones — a bigger design problem than the incompleteness this feature is addressing
+today. A future refinement could track "last modified by" per row and check that condition
+separately, but that's a separate decision.
+
 ## Scope
 
 **In scope:** `ImageExtrasRepository.get_flags_bulk()`, and `detect_file_duplicates.py`'s
@@ -66,6 +83,8 @@ def cluster_already_handled(cluster: list, flags: dict) -> bool:
     cluster as already reviewed by a human, and skip flagging anything else in it."""
     return any(flags.get(mid, False) for mid in cluster)
 ```
+
+Using a general-purpose flag (`ImageExtras.flagged`) rather than a duplicate-specific marker is appropriate here because `flagged` is transient and self-clearing: `move_flagged.py` chains into `unregister_deleted_images`, which physically removes flagged images and cascade-deletes their `image_extras` row shortly after, so a stale skip signal doesn't persist indefinitely — it's bounded by the operator's `move_flagged` cadence rather than permanent.
 
 Wiring into `main()`'s Phase 4: before the per-cluster loop, collect every image id across every
 cluster with 2+ members (the same clusters the loop already iterates), call `get_flags_bulk` once

@@ -333,6 +333,7 @@ Optional data maintenance (run as needed):
     - Computes SHA-256 hash for every registered image (cached in `images.content_hash`)
     - Groups identical files into clusters using Union-Find
     - Confirms byte identity within each cluster before acting
+    - Skips a cluster entirely if any member is already flagged (treats cluster as previously reviewed)
     - Keeps the oldest image in each cluster; marks the rest as excluded
     - Idempotent: skips images with a cached hash; re-run safe
 
