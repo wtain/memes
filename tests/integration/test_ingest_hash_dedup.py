@@ -136,6 +136,31 @@ async def test_register_and_move_creates_pending_images_in_base_path(tmp_path, d
     assert not os.path.exists(source / "new.jpg")
 
 
+@pytest.mark.asyncio(loop_scope="session")
+async def test_register_and_move_renames_on_filename_collision(tmp_path, db_session):
+    source = tmp_path / "source"
+    base = tmp_path / "base"
+    source.mkdir()
+    base.mkdir()
+    _write(source, "new.jpg", b"new-bytes")
+    _write(base, "new.jpg", b"different-existing-bytes")  # collision: base already has this name
+
+    runs_repo = BatchRunRepository(db_session)
+    batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+
+    ids = await register_and_move_to_base_path(
+        db_session, str(source), str(base), {"new.jpg": "abc123"}, batch_id
+    )
+
+    assert len(ids) == 1
+    image = await db_session.get(Image, ids[0])
+    assert image.filename == "new_1.jpg"
+    assert os.path.exists(base / "new_1.jpg")
+    assert not os.path.exists(source / "new.jpg")
+    # the pre-existing file at base/new.jpg must be untouched, not overwritten
+    assert (base / "new.jpg").read_bytes() == b"different-existing-bytes"
+
+
 # --------------------------------------------------------------------------
 # run() end to end
 # --------------------------------------------------------------------------

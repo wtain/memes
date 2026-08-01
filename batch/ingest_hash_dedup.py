@@ -31,6 +31,7 @@ import shutil
 from sqlalchemy import select
 
 from batch.utils.file_hash import sha256_file
+from batch.utils.safe_move import move_without_overwrite
 from config.settings import load_env, settings
 from repository.batch_runs import BatchRunRepository
 from repository.images import ImagesRepository
@@ -98,17 +99,21 @@ async def dedupe_cross_corpus(
 async def register_and_move_to_base_path(
     session, source_path: str, base_path: str, survivors: dict[str, str], batch_id
 ) -> list:
-    """Register each survivor as a pending Image row and move its file into base_path
-    (same filename -- extract_text_from_memes.py later depends on that as its lookup
-    key). Returns the list of registered image ids."""
+    """Move each survivor's file into base_path (renaming on a filename collision --
+    the ingestion inbox and the active library can share a filename despite having
+    different content, since identical-content files were already caught by hash-based
+    dedup above) and register it as a pending Image row using whichever filename it
+    actually ended up with there."""
     images_repo = ImagesRepository(session)
     registered_ids = []
     os.makedirs(base_path, exist_ok=True)
     for filename, content_hash in survivors.items():
+        final_filename = move_without_overwrite(os.path.join(source_path, filename), base_path)
+        if final_filename != filename:
+            print(f"  renamed to avoid overwrite: {filename} -> {final_filename}")
         image = await images_repo.register_image(
-            filename, status="pending", content_hash=content_hash, ingestion_batch_id=batch_id,
+            final_filename, status="pending", content_hash=content_hash, ingestion_batch_id=batch_id,
         )
-        shutil.move(os.path.join(source_path, filename), os.path.join(base_path, filename))
         registered_ids.append(image.id)
     return registered_ids
 
