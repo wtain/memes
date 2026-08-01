@@ -47,21 +47,35 @@ class TestRun:
         (tmp_path / "b.jpg").write_bytes(b"x")
         session = _mock_session(["a.jpg", "b.jpg"])
 
-        import batch.move_flagged as module
-        real_move = module.shutil.move
+        import batch.utils.safe_move as safe_move_module
+        real_move = safe_move_module.shutil.move
 
         def fake_move(src, dst):
             if str(src).endswith("a.jpg"):
                 raise PermissionError("locked")
             return real_move(src, dst)
 
-        monkeypatch.setattr(module.shutil, "move", fake_move)
+        monkeypatch.setattr(safe_move_module.shutil, "move", fake_move)
 
         metrics = await run(session, str(tmp_path))
 
         assert metrics.counters_dict() == {"error.move_failed": 1, "moved": 1}
         assert (tmp_path / "excluded" / "b.jpg").exists()
         assert not (tmp_path / "excluded" / "a.jpg").exists()
+
+    @pytest.mark.asyncio
+    async def test_renames_on_overwrite_collision_and_counts_it(self, tmp_path):
+        (tmp_path / "a.jpg").write_bytes(b"new-content")
+        excluded_dir = tmp_path / "excluded"
+        excluded_dir.mkdir()
+        (excluded_dir / "a.jpg").write_bytes(b"already-excluded-content")
+        session = _mock_session(["a.jpg"])
+
+        metrics = await run(session, str(tmp_path))
+
+        assert metrics.counters_dict() == {"moved": 1, "renamed_to_avoid_overwrite": 1}
+        assert (excluded_dir / "a_1.jpg").read_bytes() == b"new-content"
+        assert (excluded_dir / "a.jpg").read_bytes() == b"already-excluded-content"
 
 
 class TestMain:

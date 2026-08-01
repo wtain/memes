@@ -1,13 +1,13 @@
 import argparse
 import asyncio
 import os
-import shutil
 import uuid
 
 from sqlalchemy import select
 
 from batch import unregister_deleted_images
 from batch.run_tracking import finish_existing_run, tracked_run
+from batch.utils.safe_move import move_without_overwrite
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from repository.batch_runs import BatchAlreadyRunningError, BatchRunRepository
@@ -32,10 +32,12 @@ async def run(session, base_path) -> SimpleMetricsListener:
 
     for (filename, ) in images:
         path_from = os.path.join(base_path, filename)
-        path_to = os.path.join(flagged_path, filename)
         try:
-            print(f"Moving {filename} from {path_from} to {path_to}")
-            shutil.move(path_from, path_to)
+            print(f"Moving {filename} from {path_from} to {flagged_path}")
+            final_filename = move_without_overwrite(path_from, flagged_path)
+            if final_filename != filename:
+                print(f"Renamed to avoid overwrite: {filename} -> {final_filename}")
+                metrics.increment("renamed_to_avoid_overwrite")
             metrics.increment("moved")
         except FileNotFoundError as e:
             print(f"Skipping {filename}: not found ({e})")
