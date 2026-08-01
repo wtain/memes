@@ -1,6 +1,7 @@
 # Skip Already-Reviewed Duplicate Clusters — Design
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-08-01-duplicate-cluster-skip-if-flagged.md
 
 **Date:** 2026-08-01.
 
