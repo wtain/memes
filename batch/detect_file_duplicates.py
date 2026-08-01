@@ -11,6 +11,12 @@ from repository.image_extras import ImageExtrasRepository
 from repository.images import ImagesRepository
 
 
+def cluster_already_handled(cluster: list, flags: dict) -> bool:
+    """True if any member of this cluster is already flagged -- treat the whole
+    cluster as already reviewed by a human, and skip flagging anything else in it."""
+    return any(flags.get(mid, False) for mid in cluster)
+
+
 async def main():
     BASE_PATH = settings.BASE_PATH
     print(f"BASE_PATH={BASE_PATH}")
@@ -77,9 +83,17 @@ async def main():
     async with AsyncSessionLocal() as session:
         extras_repo = ImageExtrasRepository(session)
 
-        for root in uf.list_clusters():
-            cluster = uf.get_cluster(root)
-            if len(cluster) < 2:
+        clusters = [uf.get_cluster(root) for root in uf.list_clusters()]
+        clusters = [c for c in clusters if len(c) >= 2]
+
+        all_member_ids = [mid for cluster in clusters for mid in cluster]
+        flags = await extras_repo.get_flags_bulk(all_member_ids)
+
+        for cluster in clusters:
+            if cluster_already_handled(cluster, flags):
+                names = [hashed[mid][0] for mid in cluster]
+                print(f"  cluster {len(cluster)}: already has a flagged member, skipping ({names})")
+                metrics.increment("clusters.skipped_already_flagged")
                 continue
 
             paths = [os.path.join(base_path, hashed[mid][0]) for mid in cluster]
