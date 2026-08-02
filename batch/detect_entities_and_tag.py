@@ -3,6 +3,7 @@ import asyncio
 import os
 
 from ai.yolo import YoloAnimalDetector
+from batch.utils.image_format_filter import has_unsupported_image_extension
 from config.settings import load_env
 from Storage.db import AsyncSessionLocal
 
@@ -30,7 +31,7 @@ async def main():
         async with TagsSaver(session) as tags_saver:
             async for (filename, image_id,) in img_repo.iterate_images():
                 path = os.path.join(base_path, filename)
-                if path.lower().endswith("webp"):
+                if has_unsupported_image_extension(path):
                     print(f"Skipping {path}")
                     continue
                 print(f"Running for {path}")

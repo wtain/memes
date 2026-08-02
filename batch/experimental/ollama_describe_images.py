@@ -5,6 +5,7 @@ import os
 from sqlalchemy import select
 
 from ai.yolo import YoloAnimalDetector
+from batch.utils.image_format_filter import has_unsupported_image_extension
 from config.settings import load_env
 from Storage.db import AsyncSessionLocal
 
@@ -30,7 +31,7 @@ async def main():
 
         for (filename, image_id,) in result:
             path = os.path.join(base_path, filename)
-            if path.lower().endswith("webp"):
+            if has_unsupported_image_extension(path):
                 print(f"Skipping {path}")
                 continue
             print(f"Running for {path}")
