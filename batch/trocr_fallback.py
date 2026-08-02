@@ -4,7 +4,10 @@ from PIL import Image as PILImage
 import torch
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
-MODEL_ID = "microsoft/trocr-base-scene"
+from config.settings import settings
+from rules.lang_plausibility import score as lang_plausibility_score
+
+MODEL_ID = "microsoft/trocr-base-str"
 CONFIDENCE_THRESHOLD = 0.5
 # Synthetic confidence assigned to text that TrOCR re-read (real score not exposed).
 TROCR_SYNTHETIC_CONFIDENCE = 0.55
@@ -17,6 +20,18 @@ class TrOCRFallback:
     Designed for stylized / script fonts (e.g. Lobster, Impact with heavy
     distortion) where EasyOCR detects the bounding box correctly but mis-reads
     the characters.  English-only — don't apply to ru/es readers.
+
+    Low confidence isn't only caused by font stylization -- it's also what a
+    wrong-language misread looks like (the "en" reader forced into Latin
+    glyphs on a Cyrillic image, see docs/superpowers/specs/2026-07-02-ocr-
+    language-plausibility-filtering.md). TrOCR can't recover those; tested
+    2026-08-02 against real low-confidence "en" detections and found it
+    re-reading garbled Cyrillic-as-Latin text into fluent-looking but
+    unrelated English words (e.g. "AMOXET HA TEBa" -> "AMORETRATECRACY"),
+    then stamping the result with TROCR_SYNTHETIC_CONFIDENCE as if it were
+    *more* trustworthy than the EasyOCR score it replaced. `rerecognize()`
+    gates on the same lang_plausibility.score() used by build_bow.py /
+    build_tags_from_ocr.py to skip those before ever cropping/running them.
     """
 
     def __init__(self, device: str = "cuda"):
@@ -34,8 +49,8 @@ class TrOCRFallback:
         low_indices: list[int] = []
         crops: list[PILImage.Image] = []
 
-        for i, (bbox, _, confidence) in enumerate(detections):
-            if confidence < CONFIDENCE_THRESHOLD:
+        for i, (bbox, text, confidence) in enumerate(detections):
+            if confidence < CONFIDENCE_THRESHOLD and self._is_plausibly_english(text):
                 crop = self._crop(img_bgr, bbox)
                 if crop is not None:
                     crops.append(crop)
@@ -60,6 +75,14 @@ class TrOCRFallback:
                 updated[idx][2] = TROCR_SYNTHETIC_CONFIDENCE
 
         return updated
+
+    @staticmethod
+    def _is_plausibly_english(text: str) -> bool:
+        lang_score = lang_plausibility_score(text, "en")
+        # None = too few tokens to judge (e.g. a single short word) -- exactly
+        # the case TrOCR is meant to help with, so pass it through rather than
+        # guessing garbage.
+        return lang_score is None or lang_score >= settings.OCR.LANG_SCORE_MIN
 
     def _crop(self, img_bgr: np.ndarray, bbox) -> PILImage.Image | None:
         pts = np.array(bbox, dtype=np.float32)
