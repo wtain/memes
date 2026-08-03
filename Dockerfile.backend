@@ -60,6 +60,9 @@ COPY environments ./environments
 # not code, and don't belong in the image at all.
 COPY batch/__init__.py ./batch/__init__.py
 COPY batch/clusterize.py ./batch/clusterize.py
+# Backend/app/services/admin_batch_service.py imports batch.registry.BatchRegistry
+# to read environments/batch_registry*.yaml (already copied above).
+COPY batch/registry.py ./batch/registry.py
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
