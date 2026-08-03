@@ -8,6 +8,9 @@ on:
       - 'Storage/**'
       - 'requirements.txt'
       - 'Dockerfile.backend'
+      - '.dockerignore'
+      - 'batch/registry.py'
+      - 'batch/clusterize.py'
       - '.github/workflows/release.yml'
     tags:
       - 'backend-v*'

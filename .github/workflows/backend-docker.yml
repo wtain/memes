@@ -9,6 +9,9 @@ on:
       - 'Storage/**'
       - 'requirements.txt'
       - 'Dockerfile.backend'
+      - '.dockerignore'
+      - 'batch/registry.py'
+      - 'batch/clusterize.py'
       - '.github/workflows/backend-docker.yml'
   pull_request:
     branches: [ main, develop ]
@@ -17,6 +20,9 @@ on:
       - 'Storage/**'
       - 'requirements.txt'
       - 'Dockerfile.backend'
+      - '.dockerignore'
+      - 'batch/registry.py'
+      - 'batch/clusterize.py'
   release:
     types: [ published ]
 
