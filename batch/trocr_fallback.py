@@ -4,13 +4,26 @@ from PIL import Image as PILImage
 import torch
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
-from config.settings import settings
 from rules.lang_plausibility import score as lang_plausibility_score
 
 MODEL_ID = "microsoft/trocr-base-str"
 CONFIDENCE_THRESHOLD = 0.5
 # Synthetic confidence assigned to text that TrOCR re-read (real score not exposed).
 TROCR_SYNTHETIC_CONFIDENCE = 0.55
+# Deliberately stricter than settings.OCR.LANG_SCORE_MIN (0.3, tuned for
+# build_bow.py/build_tags_from_ocr.py's golden-set eval -- see
+# docs/superpowers/specs/2026-07-02-ocr-language-plausibility-filtering.md).
+# That threshold is calibrated for "don't lose genuine minority-language OCR
+# rows"; this one is calibrated for "don't let TrOCR hallucinate fluent
+# English over real Cyrillic text". Short filler words ("a", "no", "ere",
+# "tak") coincidentally score as known English at a high rate, inflating a
+# short garbled phrase's ratio -- measured against real garbled-Cyrillic
+# detections 2026-08-02: 0.3 let everything through, 0.6 rejects the clear
+# majority (scores of 0.33-0.5) while two coincidental-heavy outliers (0.67,
+# 0.8) still slip through. A pure ratio threshold can't fully close that gap
+# without a real per-token-length weighting or language-ID model -- not
+# attempted here as disproportionate to a heuristic gate.
+TROCR_MIN_LANG_SCORE = 0.6
 
 
 class TrOCRFallback:
@@ -82,7 +95,7 @@ class TrOCRFallback:
         # None = too few tokens to judge (e.g. a single short word) -- exactly
         # the case TrOCR is meant to help with, so pass it through rather than
         # guessing garbage.
-        return lang_score is None or lang_score >= settings.OCR.LANG_SCORE_MIN
+        return lang_score is None or lang_score >= TROCR_MIN_LANG_SCORE
 
     def _crop(self, img_bgr: np.ndarray, bbox) -> PILImage.Image | None:
         pts = np.array(bbox, dtype=np.float32)
