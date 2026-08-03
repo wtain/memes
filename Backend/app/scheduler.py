@@ -97,8 +97,10 @@ async def _run_tick(job: dict, app_env: str) -> None:
 async def _safe_tick(job: dict, app_env: str) -> None:
     try:
         await _run_tick(job, app_env)
-    except Exception:
-        logger.exception("scheduler: job %s tick failed", job["name"])
+    except Exception as exc:
+        # See _safe_initial_delay: a DB hiccup here is the same anticipated,
+        # self-recovering race, not an unexpected failure -- no full traceback.
+        logger.warning("scheduler: job %s tick failed (%s)", job["name"], exc)
 
 
 async def _spawn(job: dict, app_env: str) -> None:
@@ -117,11 +119,14 @@ async def _safe_initial_delay(job: dict) -> float:
     try:
         async with AsyncSessionLocal() as session:
             return await _initial_delay(BatchRunRepository(session), job)
-    except Exception:
-        logger.exception(
-            "scheduler: job %s failed to compute initial delay -- falling back to an "
-            "immediate first tick",
-            job["name"],
+    except Exception as exc:
+        # A full traceback here is noise, not signal: this is an anticipated,
+        # self-recovering race (DB not reachable yet at startup, mid-restart, ...),
+        # not an unexpected failure -- log just the reason so it isn't silent.
+        logger.warning(
+            "scheduler: job %s failed to compute initial delay (%s) -- falling back to "
+            "an immediate first tick",
+            job["name"], exc,
         )
         return 0.0
 

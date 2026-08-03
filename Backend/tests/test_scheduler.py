@@ -264,6 +264,12 @@ class TestSafeInitialDelay:
         """I2: a startup-time DB hiccup computing the restart-safe delay must not
         kill the job-loop task before it ever enters its loop -- fall back to an
         immediate first tick instead, and log so the failure isn't silent.
+
+        Logged via .warning (not .exception): this is an anticipated,
+        self-recovering race (see docker image boot smoke-test, which asserts no
+        "Traceback" appears in a freshly-booted container's logs -- a DB not yet
+        reachable at startup is expected there, not a bug), so the reason is
+        logged without a full stack trace.
         """
         monkeypatch.setattr(scheduler_module, "AsyncSessionLocal", lambda: _FakeSession())
         monkeypatch.setattr(
@@ -275,8 +281,8 @@ class TestSafeInitialDelay:
         delay = await scheduler_module._safe_initial_delay(_job(name="flaky"))
 
         assert delay == 0.0
-        mock_logger.exception.assert_called_once()
-        args, kwargs = mock_logger.exception.call_args
+        mock_logger.warning.assert_called_once()
+        args, kwargs = mock_logger.warning.call_args
         assert args[1] == "flaky"
 
 
