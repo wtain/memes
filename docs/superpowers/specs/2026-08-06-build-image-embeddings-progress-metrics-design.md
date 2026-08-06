@@ -1,6 +1,7 @@
 # build_image_embeddings Progress and Metrics — Design
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-08-06-build-image-embeddings-progress-metrics.md
 
 **Date:** 2026-08-06.
 
