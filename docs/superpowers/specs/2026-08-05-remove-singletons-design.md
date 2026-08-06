@@ -1,6 +1,6 @@
 # remove_singletons Batch — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-08-05-remove-singletons.md
 
 **Date:** 2026-08-05.

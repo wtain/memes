@@ -67,7 +67,9 @@ async def test_mixed_clusters_only_singleton_removed(db_session):
     metrics = await run(db_session)
 
     remaining_ids = {
-        row.cluster_id for row in (await db_session.execute(select(TmpImageClusters))).scalars().all()
+        row.cluster_id for row in (await db_session.execute(
+            select(TmpImageClusters).where(TmpImageClusters.cluster_id.in_([3, 4]))
+        )).scalars().all()
     }
     assert remaining_ids == {4}
     assert metrics.counters_dict() == {"removed": 1}

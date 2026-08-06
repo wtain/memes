@@ -193,10 +193,13 @@ build_concept_embeddings   → concept CLIP embeddings + mappings
 
 # Maintenance (run as needed)
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
-detect_entities_and_tag    tag_images_from_concepts  build_bow
+detect_entities_and_tag    tag_images_from_concepts  build_bow          remove_singletons
 
 move_flagged                → also runs unregister_deleted_images automatically afterward,
                                reconciling the DB with whatever was moved; --no-chain skips this.
+unregister_deleted_images   → also runs remove_singletons automatically afterward, deleting
+                               tmp_clusters rows for clusters its cascade-deletes reduced to a
+                               single member; --no-chain skips this.
 
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters

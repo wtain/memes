@@ -39,7 +39,7 @@ the `move_flagged.py` → `unregister_deleted_images.py` chaining pattern alread
 - Produces: `run(session) -> SimpleMetricsListener`. Task 2 depends on this exact name/signature —
   called as `await remove_singletons.run(session)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/integration/test_remove_singletons.py`:
 
@@ -119,13 +119,13 @@ async def test_mixed_clusters_only_singleton_removed(db_session):
     assert metrics.counters_dict() == {"removed": 1}
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run (from this task's own working directory — no `cd` needed if already there):
 `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_remove_singletons.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'batch.remove_singletons'`.
 
-- [ ] **Step 3: Implement `batch/remove_singletons.py`**
+- [x] **Step 3: Implement `batch/remove_singletons.py`**
 
 ```python
 import argparse
@@ -169,12 +169,12 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_remove_singletons.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add batch/remove_singletons.py tests/integration/test_remove_singletons.py
@@ -195,7 +195,7 @@ git commit -m "feat: add remove_singletons batch script"
 - `main(trigger, run_id)`'s existing two parameters are unchanged; a new `chain: bool = True`
   parameter is added.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace `tests/integration/test_unregister_deleted_images_tracking.py`'s full content:
 
@@ -344,13 +344,13 @@ def _session_ctx(session):
     return _Ctx()
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_unregister_deleted_images_tracking.py -v`
 Expected: FAIL — `AttributeError: module 'batch.unregister_deleted_images' has no attribute
 'remove_singletons'` (or `main() got an unexpected keyword argument 'chain'` for the two new tests).
 
-- [ ] **Step 3: Implement the chaining in `batch/unregister_deleted_images.py`**
+- [x] **Step 3: Implement the chaining in `batch/unregister_deleted_images.py`**
 
 Replace the full file:
 
@@ -402,12 +402,12 @@ if __name__ == "__main__":
     asyncio.run(main(chain=not args.no_chain))
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest tests/integration/test_unregister_deleted_images_tracking.py -v`
 Expected: all PASS (6 tests: the 4 original plus the 2 new chain-behavior tests).
 
-- [ ] **Step 5: Run the full `tests/integration/` root and `batch/tests/` root**
+- [x] **Step 5: Run the full `tests/integration/` root and `batch/tests/` root**
 
 Per this project's own testing gotcha (a change to a script with an existing dedicated integration
 test file needs the whole `tests/integration/` root run, not just that one file, before merging):
@@ -419,7 +419,7 @@ Run: `H:\workspace_sandbox\memes\.venv311\Scripts\python.exe -m pytest batch/tes
 Expected: all PASS (this plan touches no files under `batch/tests/`'s own root directly, but
 `move_flagged.py`'s tests import `unregister_deleted_images` — confirm nothing there regresses).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add batch/unregister_deleted_images.py tests/integration/test_unregister_deleted_images_tracking.py
