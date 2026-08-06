@@ -6,8 +6,10 @@ from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count
 
 from ai.clip import ClipModel
+from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
 from embeddingutils.image import load_image
+from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
 from Storage.models import Embedding
 
@@ -31,6 +33,7 @@ async def main(incremental: bool, target_status: str = "active"):
         total_images = (await session.execute(
             select(count(Img.id)).where(*status_filter)
         )).scalar_one()
+        print(f"Total images (status={target_status}): {total_images}")
 
         if incremental:
             has_embedding = select(Embedding.image_id).distinct().scalar_subquery()
@@ -38,7 +41,8 @@ async def main(incremental: bool, target_status: str = "active"):
         else:
             stmt = select(Img.filename, Img.id).where(*status_filter)
 
-        result = await session.execute(stmt)
+        rows = (await session.execute(stmt)).all()
+        print(f"Found {len(rows)} image(s) needing embeddings")
 
         clip_model = ClipModel()
 
@@ -46,28 +50,39 @@ async def main(incremental: bool, target_status: str = "active"):
         print(f"BASE_PATH={BASE_PATH}")
         base_path = os.path.abspath(BASE_PATH)
 
+        batch_size = settings.GENERAL.BATCH_SIZE
+        metrics = SimpleMetricsListener()
+        tracker = ProgressTracker(total=len(rows), report_every=settings.GENERAL.PROGRESS_EVERY)
+
         print(f"Processing on {clip_model.device}")
-        for (filename, image_id,) in result:
+        for i, (filename, image_id) in enumerate(rows):
             path = os.path.join(base_path, filename)
             if os.path.isdir(path):
-                continue
-            if not os.path.exists(path):
-                continue
-            try:
-                image = load_image(path)
-                vector = clip_model.embed_image(image)
-                emb = Embedding(
-                    image_id=image_id,
-                    embedding=vector.tolist()
-                )
+                metrics.increment("skipped.directory")
+                tracker.skip()
+            elif not os.path.exists(path):
+                metrics.increment("skipped.missing_file")
+                tracker.skip()
+            else:
+                try:
+                    image = load_image(path)
+                    vector = clip_model.embed_image(image)
+                    session.add(Embedding(image_id=image_id, embedding=vector.tolist()))
+                    metrics.increment("embedded")
+                except Exception as e:
+                    print(f"Can't read {path}: {e}")
+                    metrics.increment("error.embed_failed")
+                tracker.mark_done()
 
-                session.add(emb)
-            except Exception as e:
-                print(f"Can't read {path}: {e}")
+            if (i + 1) % batch_size == 0:
+                await session.commit()
 
         print("Committing...")
         await session.commit()
         print("Done")
+
+        tracker.summary()
+        metrics.print()
 
 
 if __name__ == "__main__":
