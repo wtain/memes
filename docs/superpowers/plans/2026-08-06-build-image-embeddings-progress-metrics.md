@@ -30,11 +30,11 @@
 
 This task has no meaningful sub-steps to TDD against (no new logic, only wiring two existing, already-tested utilities plus a loop restructure) and the spec explicitly excludes automated tests for this script. The steps below are: make the exact change specified in the design spec, then manually verify it behaves as intended against a real environment.
 
-- [ ] **Step 1: Read the current file**
+- [x] **Step 1: Read the current file**
 
 Run: `cat batch/build_image_embeddings.py` (or open it in your editor) so you can see exactly what you're replacing. It should be 84 lines, ending with the `if __name__ == "__main__":` block that defines `--env`, `--incremental`, and `--status` arguments.
 
-- [ ] **Step 2: Replace the full file contents**
+- [x] **Step 2: Replace the full file contents**
 
 Replace the entire contents of `batch/build_image_embeddings.py` with:
 
@@ -141,12 +141,12 @@ if __name__ == "__main__":
 
 Note the two behavior-relevant differences from the original file: (1) `result = await session.execute(stmt)` (a lazy cursor, iterated directly) becomes `rows = (await session.execute(stmt)).all()` (materialized into a list first, so `len(rows)` is available); (2) the two early `continue` statements for the directory/missing-file cases become `if`/`elif`/`else` branches, so the periodic-commit check after the block is reached on every loop iteration — including skip-only stretches — not just on the `else` (embed-attempt) branch.
 
-- [ ] **Step 3: Confirm the module still imports cleanly**
+- [x] **Step 3: Confirm the module still imports cleanly**
 
 Run (from repo root, with the batch venv active): `python -c "import batch.build_image_embeddings"`
 Expected: no output, no traceback (a clean import confirms no syntax errors and that `batch.utils.progress` / `metrics.listener` resolve correctly).
 
-- [ ] **Step 4: Manually verify against the `general` environment (incremental — safe, no deletes)**
+- [x] **Step 4: Manually verify against the `general` environment (incremental — safe, no deletes)**
 
 Run: `python -m batch.build_image_embeddings --env general --incremental`
 
@@ -159,7 +159,7 @@ Expected, in order:
 
 If M is 0 for `general`, additionally run against `metal` or `it` (whichever environment's `.env` is available) with `--incremental` — at least one environment should have a non-zero `Found N image(s)...` count to actually exercise the loop, progress lines, and metrics output.
 
-- [ ] **Step 5: Manually verify the non-incremental `--status pending` delete-and-rebuild path (regression check)**
+- [x] **Step 5: Manually verify the non-incremental `--status pending` delete-and-rebuild path (regression check)**
 
 The delete-and-print block at the top of `main()` (`if not incremental: ... delete(Embedding)...`) is unchanged from the original file, so this step is confirming no regression, not new behavior — skip it only if no environment currently has any `pending` images to scope this against (check via the ingestion pipeline's state, or skip and note why in the task report).
 
@@ -167,7 +167,7 @@ Run: `python -m batch.build_image_embeddings --env <env> --status pending` (no `
 
 Expected: `Deleting embeddings (status=pending)...` / `Done`, then the same `Total images (status=pending): N` → `Found N image(s) needing embeddings` → progress/metrics output as Step 4, confirming the delete-then-rebuild path still works end to end with the new code.
 
-- [ ] **Step 6: Manually verify the periodic-commit / resume behavior**
+- [x] **Step 6: Manually verify the periodic-commit / resume behavior**
 
 Only if Step 4 found an environment with a `Found N image(s)...` count large enough (at least a few multiples of `general.batch_size: 100`, or use whatever environment has the largest gap) to meaningfully test this:
 
@@ -177,7 +177,7 @@ Only if Step 4 found an environment with a `Found N image(s)...` count large eno
 
 If no environment has enough unembedded images to make this a meaningful test (e.g. everything is already embedded, or the gap is under 100), skip this step and note it in the task report — the periodic-commit code path was still exercised in Step 4 as long as `Found N image(s)...` was ≥ 1 (any commit happens at least once at the final `await session.commit()` after the loop, which Step 4 already covers; only the *mid-run* commit is unverified in that case).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add batch/build_image_embeddings.py
