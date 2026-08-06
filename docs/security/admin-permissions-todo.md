@@ -46,3 +46,15 @@ Revisit this file: replace "interim mitigation" above with the actual model (rol
 whatever gets chosen), and check off / remove entries above as they get real guards. Until then,
 treat every endpoint under `/api/admin/*` as unauthenticated by default — don't assume a new
 `/api/admin/*` endpoint is safe just because it's "just for admins" in name.
+
+## Related: read-only DB credentials for agent/subagent use (2026-08-06)
+
+A separate but adjacent gap: coding-agent subagents given live database access for verification
+work had no restriction stopping them from running destructive statements — see CLAUDE.md's "Live
+database access for agents" section for the incident (`EXPLAIN ANALYZE` on a `DELETE` executed for
+real against the `general`/`it` databases) and the fix (a genuine `ocr_readonly` Postgres role,
+`DATABASE_URL_READONLY` in each `environments/.env.<environment>`). This is a different threat model
+than the endpoint list above — it's about what a coding assistant can do with credentials it's
+handed, not what an unauthenticated HTTP caller can reach — but the same underlying principle
+applies: don't assume a capability is safe to hand out just because the instructions say "read
+only."

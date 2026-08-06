@@ -373,6 +373,40 @@ status line:
 - `backend_api.md` must stay in sync with the actual routers.
 - Windows dev: `WATCHFILES_FORCE_POLLING=1` is required for uvicorn `--reload` to work.
 - AGP 8.5.2 requires Java 11+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
+- **Never give a subagent the main `DATABASE_URL`.** If a subagent needs to query a live
+  environment's database for any reason (verification, cost estimation, debugging), it gets
+  `DATABASE_URL_READONLY` only, explicitly labeled as such in the dispatch prompt — see "Live
+  database access for agents" below.
+
+### Live database access for agents
+
+Each `environments/.env.<environment>` file has a `DATABASE_URL_READONLY` alongside the normal
+`DATABASE_URL` — same host/port/database, but connects as `ocr_readonly`, a role granted `SELECT`
+only (`GRANT SELECT ON ALL TABLES IN SCHEMA public`, plus a matching `ALTER DEFAULT PRIVILEGES` so
+it stays readable after future migrations — no `INSERT`/`UPDATE`/`DELETE`/DDL rights at all,
+verified by a real rejected `DELETE` at role-creation time, 2026-08-06).
+
+**Rule:** a subagent must never be handed the main `DATABASE_URL` to run ad hoc queries against a
+live metal/general/IT database — only `DATABASE_URL_READONLY`, and the dispatch prompt must say so
+explicitly (don't just paste a DSN with no label; state "this connects with a read-only role,
+writes will be rejected" so the subagent doesn't attempt one and waste a turn on a permission
+error). Prefer having the **controller** run any live-DB verification query directly instead of
+delegating it to a subagent at all — the controller is a single, known execution context, whereas
+a subagent's read-only instruction is only as strong as the sentence enforcing it (this project's
+own gotchas already established the pattern of the controller re-verifying a subagent's claims
+independently — DB queries are the same principle).
+
+**Why this exists:** on 2026-08-05, a final-review subagent given `DATABASE_URL` to "measure query
+cost" ran `EXPLAIN ANALYZE DELETE FROM tmp_clusters WHERE ...` against the live `general` and `it`
+databases. **`EXPLAIN ANALYZE` executes the statement for real — it is not a dry run for DML.**
+The delete was blocked by the harness's own safety classifier before it reached the real
+connection (confirmed after the fact: `general`'s row/cluster counts exactly matched the
+pre-incident baseline), but the instruction "your review is read-only on this checkout" was scoped
+to the git working tree only and never said anything about the databases the checkout's own config
+could reach — a subagent with `DATABASE_URL` and a legitimate-sounding reason to query it had
+every ability to mutate live, shared, continuously-running databases with no explicit
+authorization for that specific action. Giving out only a role that physically cannot write closes
+this regardless of how a future dispatch prompt happens to be worded.
 
 ## Known gotchas (debugging notes)
 
