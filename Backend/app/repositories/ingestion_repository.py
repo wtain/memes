@@ -33,7 +33,6 @@ class IngestionRepository:
         )
         return result.all()
 
-
     async def list_abortable_images(self, batch_id):
         """Every pending or rejected image in this batch -- i.e. everything an abort should
         undo. Excludes active (promoted) images, which are out of scope for abort."""
