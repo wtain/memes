@@ -12,7 +12,16 @@ Flow, for every regular file directly in PATH_INGESTION_SOURCE:
      PATH_INGESTION_SOURCE/duplicates/.
   2. Cross-corpus: survivors whose hash matches an existing *active* image's content_hash
      also move to duplicates/ -- same tier as in-batch matches, both are exact-hash
-     decisions, just compared against a different set.
+     decisions, just compared against a different set. NOTE: this only checks *active*
+     images, not this batch's own already-registered *pending* ones from an earlier
+     invocation -- so re-running this script mid-batch does not catch a newly-dropped file
+     that's byte-identical to one this batch already registered. Bounded, not silent: Tier A
+     (ingest_find_duplicates.py's tight-threshold pass) does include same-batch pending
+     images in its corpus filter, so the pair still surfaces there, at distance 0 -- just as
+     a human review item instead of an automatic Stage-1 exclusion. Not fixed here: widening
+     this check would violate this change's own scope (see
+     docs/superpowers/specs/2026-08-08-ingestion-hash-dedup-incremental-design.md); a
+     follow-up would need its own spec.
   3. Remaining survivors are registered as `pending` Image rows (content_hash stored at
      registration time, so this check never needs to re-hash the existing corpus on a
      future run) and their files move into BASE_PATH, same filename, ready for Tier A.
@@ -20,12 +29,17 @@ Flow, for every regular file directly in PATH_INGESTION_SOURCE:
 Safe to re-run at any point while an ingestion run is active -- rather than refusing, this
 script joins the active run (reusing its batch_id, accumulating stats across invocations)
 so newly-dropped files can be added to an in-progress batch. Newly-added pending images
-need the rest of the pipeline re-run to get review coverage: extract_text_from_memes.py
---status pending, then ingest_find_duplicates.py for whichever tier(s) are relevant --
-both are already safe to re-run against the same batch (see CLAUDE.md's ingestion pipeline
-section). A Postgres advisory lock (acquire_run_lock) serializes concurrent invocations of
-this script against each other, so two operators re-joining the same run at once don't race
-on PATH_INGESTION_SOURCE's filesystem state.
+need the rest of the pipeline re-run to get review coverage: build_image_embeddings.py
+--status pending --incremental, then extract_text_from_memes.py --status pending, then
+ingest_find_duplicates.py for whichever tier(s) are relevant -- all three are already safe
+to re-run against the same batch (see CLAUDE.md's ingestion pipeline section). Skipping the
+embeddings step is not just incomplete: ingest_find_duplicates.py's probe is an inner join
+against embeddings, so an image with none is silently excluded from review entirely and
+could reach ingest_promote.py unreviewed. A Postgres advisory lock (acquire_run_lock)
+serializes concurrent invocations of *this* script against each other, so two operators
+re-joining the same run at once don't race on PATH_INGESTION_SOURCE's filesystem state --
+it does not serialize against ingest_promote.py/ingest_abort.py, so avoid running either of
+those concurrently with a re-join (see the runbook's Concurrency section).
 
 Known limitation: matches trends_batch.py's crash-safety posture, not a stricter one --
 the batch_runs row and whatever registrations/moves happened before a failure are

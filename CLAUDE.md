@@ -235,11 +235,17 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
                                run (same batch_id, stats accumulate across invocations) instead of
                                refusing, so newly-dropped files can be added to an in-progress
                                batch. A Postgres advisory lock serializes concurrent invocations of
-                               this script against each other (not the other ingestion scripts).
-                               Newly-added images need extract_text_from_memes --status pending and
+                               this script against each other (not the other ingestion scripts --
+                               don't run this concurrently with ingest_promote/ingest_abort either,
+                               see their own entries). Newly-added images need
+                               build_image_embeddings --status pending --incremental,
+                               extract_text_from_memes --status pending, and
                                ingest_find_duplicates.py (both tiers, as applicable) re-run
-                               afterward to get review coverage -- both are already safe to re-run
-                               against the same batch.
+                               afterward to get review coverage -- all three are already safe to
+                               re-run against the same batch. Skipping the embeddings step is not
+                               just incomplete -- ingest_find_duplicates.py's probe is an inner join
+                               against embeddings, so an image with none is silently excluded from
+                               review entirely and can reach ingest_promote unreviewed.
 build_image_embeddings --status pending --incremental
                              → embeds Stage 1's survivors (existing script/flag, no ingestion-
                                specific code)

@@ -186,17 +186,23 @@ runs, files just sit in `inbox\` untouched.
 
 ## Concurrency
 
-Only one ingestion run can be active at a time per environment, enforced by
-`ingest_hash_dedup.py`. Starting a second batch requires finishing (through promotion) or
-otherwise resolving the current one first — run `python -m batch.ingest_abort --env <env>`
-to abandon a stuck or unwanted run and free the lock.
+Only one ingestion run can be active at a time per environment, enforced by the database's
+one-active-run-per-kind partial unique index (not by any script itself). Starting a second
+batch requires finishing (through promotion) or otherwise resolving the current one first —
+run `python -m batch.ingest_abort --env <env>` to abandon a stuck or unwanted run and free
+the lock.
 
 `ingest_hash_dedup.py` can now be re-run at any point while a batch is active to pick up
 newly-dropped files, instead of being blocked — it joins the active run (same `batch_id`,
 stats accumulate across invocations) rather than refusing. After doing so, re-run
-`extract_text_from_memes --status pending` and `ingest_find_duplicates.py` (both tiers, as
-applicable) so the newly-added images get review coverage — both are already safe to
-re-run against the same batch. Concurrent *invocations of the same* `ingest_hash_dedup.py`
-script are serialized via a Postgres advisory lock, so a second operator's simultaneous
-re-run attempt gets a clear "try again shortly" error rather than racing on
-`PATH_INGESTION_SOURCE`'s filesystem state.
+`build_image_embeddings --status pending --incremental`, `extract_text_from_memes --status
+pending`, and `ingest_find_duplicates.py` (both tiers, as applicable) — steps 3-8 in
+"Running a batch" above — so the newly-added images get review coverage; all three are
+already safe to re-run against the same batch. **Don't skip the embeddings step**:
+`ingest_find_duplicates.py`'s probe is an inner join against `embeddings`, so an image with
+none is silently excluded from review entirely and could reach `ingest_promote.py`
+unreviewed. Concurrent *invocations of the same* `ingest_hash_dedup.py` script are
+serialized via a Postgres advisory lock, so a second operator's simultaneous re-run attempt
+gets a clear "try again shortly" error rather than racing on `PATH_INGESTION_SOURCE`'s
+filesystem state — but this lock doesn't cover `ingest_promote.py`/`ingest_abort.py`, so
+avoid running either of those concurrently with an `ingest_hash_dedup.py` re-join.

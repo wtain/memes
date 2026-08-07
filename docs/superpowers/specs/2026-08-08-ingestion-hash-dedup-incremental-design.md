@@ -38,12 +38,23 @@ and a Postgres advisory lock serializing concurrent invocations of this script a
 - No changes to `run()`, `hash_incoming_files()`, `dedupe_in_batch()`, `dedupe_cross_corpus()`, or
   `register_and_move_to_base_path()` — all already correct for this use case as-is.
 - No changes to `ingest_find_duplicates.py`, `ingest_promote.py`, or `ingest_abort.py` — the
-  operator is expected to re-run `extract_text_from_memes --status pending` and
-  `ingest_find_duplicates.py` (both tiers, as applicable) after adding files mid-review, to get
-  review coverage for the newly-added images. This is a documentation callout, not a code change.
-- **Concurrent invocation of the *other* ingestion scripts** (`ingest_promote.py`,
-  `ingest_find_duplicates.py`, `ingest_abort.py`) is a pre-existing property those scripts already
-  had before this change and is unaffected by it — not addressed here.
+  operator is expected to re-run `build_image_embeddings --status pending --incremental`,
+  `extract_text_from_memes --status pending`, and `ingest_find_duplicates.py` (both tiers, as
+  applicable) after adding files mid-review, to get review coverage for the newly-added images.
+  This is a documentation callout, not a code change. Skipping the embeddings step specifically is
+  not just incomplete — `ingest_find_duplicates.py`'s probe is an inner join against `embeddings`,
+  so an image with none is silently excluded from review entirely and could reach
+  `ingest_promote.py` unreviewed.
+- **Concurrent invocation of the *other* ingestion scripts against each other**
+  (`ingest_promote.py`, `ingest_find_duplicates.py`, `ingest_abort.py` racing one another) is a
+  pre-existing property those scripts already had before this change and is unaffected by it — not
+  addressed here. One pairing is *not* pre-existing, though: `ingest_hash_dedup.py` re-joining an
+  active run isn't itself serialized against a concurrent `ingest_promote.py` or `ingest_abort.py`
+  run (the advisory lock only covers concurrent invocations of `ingest_hash_dedup.py` against
+  itself) — before this change, `ingest_hash_dedup.py` simply refused to run at all whenever a
+  batch was active, so this specific race couldn't happen. Judged low-probability on a
+  single-operator manual workflow and addressed with a runbook callout rather than a second lock,
+  not a code fix — see `docs/runbooks/ingestion-pipeline.md`'s Concurrency section.
 - No new CLI flags — the new reuse-instead-of-refuse behavior is the script's new default, not
   opt-in (see rationale below).
 - No API endpoint or frontend change — this script has never been wired into the admin
@@ -189,9 +200,9 @@ Add to `tests/integration/test_ingest_hash_dedup.py`:
    behavior and the advisory-lock serialization).
 2. Update `CLAUDE.md`'s ingestion pipeline documentation to note `ingest_hash_dedup.py` is now
    safe and expected to be re-run at any point to add newly-dropped files to the active batch, and
-   that doing so requires re-running `extract_text_from_memes --status pending` and
-   `ingest_find_duplicates.py` (both tiers, as applicable) afterward for the new images to get
-   review coverage.
+   that doing so requires re-running `build_image_embeddings --status pending --incremental`,
+   `extract_text_from_memes --status pending`, and `ingest_find_duplicates.py` (both tiers, as
+   applicable) afterward for the new images to get review coverage.
 3. Update `docs/runbooks/ingestion-pipeline.md` (the operator-facing runbook) with the same
    callout, matching the diligence the `ingest_abort.py` branch's final review required for that
    file specifically (a `CLAUDE.md`-only update was found insufficient there).
