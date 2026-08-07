@@ -32,12 +32,12 @@
 - Produces: `acquire_run_lock(session) -> bool`, `resolve_batch(runs_repo: BatchRunRepository) -> tuple[uuid.UUID, dict, bool]` (returns `(batch_id, existing_stats, is_new_run)`), `accumulate_stats(existing: dict, new: dict) -> dict`. None of these are consumed by any other task — this is the only task in this plan.
 - Consumes: `BatchRunRepository.get_active_run(kind="ingestion")` / `.create_run(kind, trigger, stage)` / `.fail(run_id, error)` / `.update_stats(run_id, **kwargs)` (all pre-existing, unchanged), `run(session, source_path, base_path, batch_id) -> dict` (pre-existing, unchanged).
 
-- [ ] **Step 1: Read the current file**
+- [x] **Step 1: Read the current file**
 
 Run: `grep -n "^async def\|^def" batch/ingest_hash_dedup.py`
 Expected output confirms the current function list: `hash_incoming_files`, `dedupe_in_batch`, `dedupe_cross_corpus`, `register_and_move_to_base_path`, `run`, `main`. You'll be adding three new functions before `main` and rewriting `main` itself; everything before `run` stays untouched.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Add to `tests/integration/test_ingest_hash_dedup.py`. It already imports `pytest`, `BatchRunRepository`, and `Image` — extend the import from `batch.ingest_hash_dedup` to include the three new names, and add a new `from sqlalchemy.ext.asyncio import AsyncSession` import (needed for the lock test's independent second session — the test calls `acquire_run_lock()` itself rather than constructing raw SQL, so no `sqlalchemy.text` import is needed here):
 
@@ -124,12 +124,12 @@ async def test_acquire_run_lock_blocks_while_another_session_holds_it(db_engine,
 
 Note: `test_resolve_batch_reuses_active_run` calls `create_run` only once in its test body — this is safe from the one-active-run-per-kind unique index (no second `create_run` call in the same test), unlike some other tests in this file's neighbors that need the "commit the first run before creating a second" workaround.
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/test_ingest_hash_dedup.py -k "resolve_batch or accumulate_stats or acquire_run_lock" -v`
 Expected: FAIL with `ImportError: cannot import name 'accumulate_stats' from 'batch.ingest_hash_dedup'` (or similar for the other two names)
 
-- [ ] **Step 4: Update `batch/ingest_hash_dedup.py`**
+- [x] **Step 4: Update `batch/ingest_hash_dedup.py`**
 
 First, update the module docstring. Replace:
 
@@ -331,24 +331,24 @@ async def main(env: str | None) -> None:
     print(f"Ingestion run {batch_id}: {stats}")
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/test_ingest_hash_dedup.py -v`
 Expected: all pass (16 passed — the 11 pre-existing tests plus the 5 new ones)
 
-- [ ] **Step 6: Run the full `tests/integration/` root**
+- [x] **Step 6: Run the full `tests/integration/` root**
 
 This task touches a script other ingestion scripts and the review UI depend on transitively (via `batch_runs`/`Image` state) — run the full root as a regression check.
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/ -v`
 Expected: all pass, no new failures.
 
-- [ ] **Step 7: Also run `batch/tests/`**
+- [x] **Step 7: Also run `batch/tests/`**
 
 Run: `pytest batch/tests/`
 Expected: all pass (sanity check; this task doesn't touch anything under `batch/tests/`'s own scope, but this repo's `CLAUDE.md` gotcha about never combining `Backend/tests/`/`tests/integration/`/`batch/tests/` in one pytest invocation means running it as its own separate command).
 
-- [ ] **Step 8: Update `CLAUDE.md`'s ingestion pipeline documentation**
+- [x] **Step 8: Update `CLAUDE.md`'s ingestion pipeline documentation**
 
 Read `CLAUDE.md`'s "Batch pipeline (execution order)" section, the `# Ingestion` block. Find the line describing `ingest_hash_dedup`:
 
@@ -383,7 +383,7 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
 Match the exact indentation/wrapping style of the surrounding block rather than the snippet's own
 line breaks verbatim.
 
-- [ ] **Step 9: Update `docs/runbooks/ingestion-pipeline.md`**
+- [x] **Step 9: Update `docs/runbooks/ingestion-pipeline.md`**
 
 Read the file's `## Concurrency` section (currently ends with a sentence about starting a second
 batch requiring finishing or resolving the current one first) and add a short paragraph or bullet
@@ -396,7 +396,7 @@ branch), that concurrent *invocations of the same* `ingest_hash_dedup.py` script
 serialized via an advisory lock, so a second operator's simultaneous re-run attempt gets a clear
 "try again shortly" error rather than racing.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add batch/ingest_hash_dedup.py tests/integration/test_ingest_hash_dedup.py CLAUDE.md docs/runbooks/ingestion-pipeline.md
