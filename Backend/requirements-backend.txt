@@ -22,7 +22,7 @@ asyncpg==0.31.0
 click==8.4.2
 colorama==0.4.6
 DAWG2-Python==0.9.0
-dynaconf==3.3.3
+dynaconf==3.3.4
 fastapi==0.139.2
 greenlet==3.5.4
 gunicorn==26.0.0
