@@ -254,6 +254,14 @@ ingest_promote              → Stage 4 (final): promotes pending images with no
                                -- files are already in BASE_PATH from Stage 1). Marks the run
                                `completed` once every pending image in the batch is resolved
                                (promoted or rejected); safe to re-run as more images clear review.
+ingest_abort                → Abandons the currently active ingestion run instead of continuing
+                               it: undoes every pending/rejected image it registered (moves each
+                               file back to PATH_INGESTION_SOURCE, deletes its row -- FK cascades
+                               clean up embeddings/OCR/tmp_duplicates automatically) and marks the
+                               run `aborted`, freeing the one-active-run-per-kind lock. Never
+                               touches already-`active` (promoted) images in the batch. Can be run
+                               at any point before the run completes -- right after Stage 1, mid-
+                               review, etc.
 ```
 
 Most jobs are idempotent (clear and rebuild). `rebuild_duplicates` is also idempotent as of
