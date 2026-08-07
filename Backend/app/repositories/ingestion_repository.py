@@ -33,6 +33,17 @@ class IngestionRepository:
         )
         return result.all()
 
+
+    async def list_abortable_images(self, batch_id):
+        """Every pending or rejected image in this batch -- i.e. everything an abort should
+        undo. Excludes active (promoted) images, which are out of scope for abort."""
+        result = await self.session.execute(
+            select(Image.id, Image.filename, Image.status)
+            .where(Image.ingestion_batch_id == batch_id, Image.status.in_(["pending", "rejected"]))
+            .order_by(Image.created_at)
+        )
+        return result.all()
+
     async def get_tier_candidate_rows(self, batch_id, tier: str, distance_low: float, distance_high: float):
         """Rows still worth showing a reviewer: within this tier's distance band, not yet
         marked reviewed for this tier, and neither side already rejected (a rejected image's

@@ -297,3 +297,38 @@ async def test_promote_images_sets_status_active(db_session):
 async def test_promote_images_empty_list_is_noop(db_session):
     repo = IngestionRepository(db_session)
     assert await repo.promote_images([]) == 0
+
+# --------------------------------------------------------------------------
+# list_abortable_images
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_list_abortable_images_includes_pending_and_rejected(db_session):
+    batch_id = await _make_run(db_session)
+    pending = await _make_image(db_session, "pending", batch_id)
+    rejected = await _make_image(db_session, "rejected", batch_id)
+
+    repo = IngestionRepository(db_session)
+    rows = await repo.list_abortable_images(batch_id)
+
+    ids_and_statuses = {(row[0], row[2]) for row in rows}
+    assert ids_and_statuses == {(pending, "pending"), (rejected, "rejected")}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_list_abortable_images_excludes_active_and_other_batches(db_session):
+    batch_id = await _make_run(db_session)
+    pending = await _make_image(db_session, "pending", batch_id)
+    await _make_image(db_session, "active", batch_id)  # promoted -- must not be included
+
+    # Commit the first batch before creating another to avoid unique constraint
+    await BatchRunRepository(db_session).commit(batch_id)
+    other_batch_id = await _make_run(db_session)
+    await _make_image(db_session, "pending", other_batch_id)  # different batch -- must not be included
+
+    # Query the first batch (even though it's now committed, the images are still there)
+    repo = IngestionRepository(db_session)
+    rows = await repo.list_abortable_images(batch_id)
+
+    assert [row[0] for row in rows] == [pending]
+

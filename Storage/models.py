@@ -444,6 +444,7 @@ class RunStatus(enum.Enum):
     started = "started"
     completed = "completed"
     failed = "failed"
+    aborted = "aborted"
 
     def __str__(self) -> str:
         return self.value

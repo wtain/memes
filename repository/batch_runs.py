@@ -52,6 +52,14 @@ class BatchRunRepository:
             run.error = error
         await self._session.flush()
 
+    async def abort(self, run_id: uuid.UUID, note: str | None = None) -> None:
+        run = await self._get(run_id)
+        run.status = str(RunStatus.aborted)
+        run.completed_at = datetime.now(timezone.utc)
+        if note is not None:
+            run.error = note
+        await self._session.flush()
+
     async def get_run(self, run_id: uuid.UUID) -> BatchRun | None:
         return await self._get(run_id)
 

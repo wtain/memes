@@ -71,6 +71,19 @@ async def test_fail_marks_failed_with_error(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_abort_marks_status_aborted_with_note(db_session):
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+
+    await repo.abort(run_id, note="Aborted by user via ingest_abort.py")
+
+    run = await repo.get_run(run_id)
+    assert run.status == "aborted"
+    assert run.completed_at is not None
+    assert run.error == "Aborted by user via ingest_abort.py"
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_set_stage_updates_stage_only(db_session):
     repo = BatchRunRepository(db_session)
     run_id = await repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
