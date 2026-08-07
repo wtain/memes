@@ -230,9 +230,16 @@ trends_batch                → GLiNER NER over each configured trend source's f
 ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOURCE, dedupes
                                in-batch and against the active corpus's content_hash, registers
                                survivors as `pending` images (content_hash + ingestion_batch_id
-                               set at registration) and moves them into BASE_PATH. Refuses to
-                               start if another ingestion run (batch_runs, kind="ingestion") is
-                               already in progress.
+                               set at registration) and moves them into BASE_PATH. Safe to re-run
+                               at any point while an ingestion run is active -- joins the active
+                               run (same batch_id, stats accumulate across invocations) instead of
+                               refusing, so newly-dropped files can be added to an in-progress
+                               batch. A Postgres advisory lock serializes concurrent invocations of
+                               this script against each other (not the other ingestion scripts).
+                               Newly-added images need extract_text_from_memes --status pending and
+                               ingest_find_duplicates.py (both tiers, as applicable) re-run
+                               afterward to get review coverage -- both are already safe to re-run
+                               against the same batch.
 build_image_embeddings --status pending --incremental
                              → embeds Stage 1's survivors (existing script/flag, no ingestion-
                                specific code)

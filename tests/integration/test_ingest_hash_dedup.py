@@ -8,12 +8,16 @@ import hashlib
 import os
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from batch.ingest_hash_dedup import (
+    accumulate_stats,
+    acquire_run_lock,
     dedupe_cross_corpus,
     dedupe_in_batch,
     hash_incoming_files,
     register_and_move_to_base_path,
+    resolve_batch,
     run,
 )
 from repository.batch_runs import BatchRunRepository
@@ -223,3 +227,68 @@ async def test_get_active_run_none_once_completed(db_session):
     active = await runs_repo.get_active_run(kind="ingestion")
 
     assert active is None
+
+
+# --------------------------------------------------------------------------
+# resolve_batch
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_resolve_batch_creates_new_run_when_none_active(db_session):
+    runs_repo = BatchRunRepository(db_session)
+
+    batch_id, existing_stats, is_new_run = await resolve_batch(runs_repo)
+
+    assert is_new_run is True
+    assert existing_stats == {}
+    run_row = await runs_repo.get_run(batch_id)
+    assert run_row.status == "started"
+    assert run_row.stage == "hash_dedup"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_resolve_batch_reuses_active_run(db_session):
+    runs_repo = BatchRunRepository(db_session)
+    existing_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="tier_a_review")
+    await runs_repo.update_stats(existing_id, intake=3, registered=2)
+
+    batch_id, existing_stats, is_new_run = await resolve_batch(runs_repo)
+
+    assert is_new_run is False
+    assert batch_id == existing_id
+    assert existing_stats == {"intake": 3, "registered": 2}
+
+
+# --------------------------------------------------------------------------
+# accumulate_stats
+# --------------------------------------------------------------------------
+
+def test_accumulate_stats_sums_matching_keys():
+    result = accumulate_stats({"intake": 3, "registered": 2}, {"intake": 5, "registered": 1})
+
+    assert result == {"intake": 8, "registered": 3}
+
+
+def test_accumulate_stats_adds_new_keys_not_in_existing():
+    result = accumulate_stats({}, {"intake": 4, "registered": 4})
+
+    assert result == {"intake": 4, "registered": 4}
+
+
+# --------------------------------------------------------------------------
+# acquire_run_lock
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_acquire_run_lock_blocks_while_another_session_holds_it(db_engine, db_session):
+    async with AsyncSession(db_engine, expire_on_commit=False) as other_session:
+        held = await acquire_run_lock(other_session)
+        assert held is True  # sanity check: the other session actually got it
+
+        blocked = await acquire_run_lock(db_session)
+        assert blocked is False
+
+        await other_session.rollback()  # release
+
+    acquired_after_release = await acquire_run_lock(db_session)
+    assert acquired_after_release is True

@@ -1,9 +1,10 @@
 """
 Ingestion stage 1: hash-based dedup of a new image batch, before any embeddings exist.
 
-See docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md. This is Stage 0
-(intake) + Stage 1 (hash dedup) only -- Tier A/B near-duplicate review (embeddings, OCR,
-human review) are later phases, not implemented here.
+See docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md and
+docs/superpowers/specs/2026-08-08-ingestion-hash-dedup-incremental-design.md. This is
+Stage 0 (intake) + Stage 1 (hash dedup) only -- Tier A/B near-duplicate review
+(embeddings, OCR, human review) are later phases, not implemented here.
 
 Flow, for every regular file directly in PATH_INGESTION_SOURCE:
   1. In-batch: files with identical content hashes are deduped, keeping one (lexicographic
@@ -16,19 +17,32 @@ Flow, for every regular file directly in PATH_INGESTION_SOURCE:
      registration time, so this check never needs to re-hash the existing corpus on a
      future run) and their files move into BASE_PATH, same filename, ready for Tier A.
 
+Safe to re-run at any point while an ingestion run is active -- rather than refusing, this
+script joins the active run (reusing its batch_id, accumulating stats across invocations)
+so newly-dropped files can be added to an in-progress batch. Newly-added pending images
+need the rest of the pipeline re-run to get review coverage: extract_text_from_memes.py
+--status pending, then ingest_find_duplicates.py for whichever tier(s) are relevant --
+both are already safe to re-run against the same batch (see CLAUDE.md's ingestion pipeline
+section). A Postgres advisory lock (acquire_run_lock) serializes concurrent invocations of
+this script against each other, so two operators re-joining the same run at once don't race
+on PATH_INGESTION_SOURCE's filesystem state.
+
 Known limitation: matches trends_batch.py's crash-safety posture, not a stricter one --
 the batch_runs row and whatever registrations/moves happened before a failure are
-committed regardless (via a `finally: await session.commit()`), so the run is marked
-`failed` but any already-registered pending images survive as-is rather than being rolled
-back. Not addressed further here -- not worth over-engineering before this pipeline has
-run against real data.
+committed regardless (via a `finally: await session.commit()`). A failure while creating a
+brand-new run marks it `failed`; a failure while joining an already-active run leaves it
+`started` (not `failed`) so a possibly-partially-reviewed-or-promoted batch isn't destroyed
+by a Stage-1 re-run error -- see resolve_batch's `is_new_run` return value. Either way,
+already-registered pending images survive as-is rather than being rolled back. Not
+addressed further here -- not worth over-engineering before this pipeline has run against
+real data at volume.
 """
 import argparse
 import asyncio
 import os
 import shutil
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from batch.utils.file_hash import sha256_file
 from batch.utils.safe_move import move_without_overwrite
@@ -141,6 +155,37 @@ async def run(session, source_path: str, base_path: str, batch_id) -> dict:
     }
 
 
+async def acquire_run_lock(session) -> bool:
+    """Postgres advisory lock scoped to the current transaction, released automatically at
+    commit/rollback. Serializes concurrent ingest_hash_dedup.py invocations against each
+    other for this environment (each environment is a separate Postgres instance, so one
+    fixed key needs no environment-scoping) -- without it, two operators re-joining the
+    same active run at once could race on PATH_INGESTION_SOURCE's filesystem state."""
+    return (await session.execute(
+        text("SELECT pg_try_advisory_xact_lock(hashtext('ingest_hash_dedup')::bigint)")
+    )).scalar_one()
+
+
+async def resolve_batch(runs_repo: BatchRunRepository) -> tuple:
+    """Reuse the currently active ingestion run if one exists (letting newly-dropped files
+    join the same batch instead of being blocked), or start a new one. Returns
+    (batch_id, existing_stats, is_new_run)."""
+    active_run = await runs_repo.get_active_run(kind="ingestion")
+    if active_run is not None:
+        print(f"Joining active ingestion run {active_run.run_id} (stage={active_run.stage})")
+        return active_run.run_id, (active_run.stats or {}), False
+    batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    return batch_id, {}, True
+
+
+def accumulate_stats(existing: dict, new: dict) -> dict:
+    """Add this invocation's counts on top of whatever the batch has accumulated so far, so
+    re-running Stage 1 against an already-active run reports running totals instead of
+    silently overwriting earlier numbers -- BatchRunRepository.update_stats() itself merges
+    by overwrite, not by sum, so this has to happen before calling it."""
+    return {key: existing.get(key, 0) + value for key, value in new.items()}
+
+
 async def main(env: str | None) -> None:
     load_env(env)
     source_path = settings.get("PATH_INGESTION_SOURCE")
@@ -149,16 +194,15 @@ async def main(env: str | None) -> None:
     base_path = settings.BASE_PATH
 
     async with AsyncSessionLocal() as session:
-        runs_repo = BatchRunRepository(session)
-
-        active_run = await runs_repo.get_active_run(kind="ingestion")
-        if active_run is not None:
+        if not await acquire_run_lock(session):
             raise RuntimeError(
-                f"An ingestion run is already in progress (run_id={active_run.run_id}, "
-                f"stage={active_run.stage}) -- finish or abandon it before starting a new one."
+                "Another ingest_hash_dedup.py run is already in progress for this "
+                "environment -- try again shortly."
             )
 
-        batch_id = await runs_repo.create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+        runs_repo = BatchRunRepository(session)
+        batch_id, existing_stats, is_new_run = await resolve_batch(runs_repo)
+
         stats = None
         try:
             stats = await run(session, source_path, base_path, batch_id)
@@ -167,9 +211,10 @@ async def main(env: str | None) -> None:
             # multiple later script invocations and human review. The run stays
             # `started` (and so still blocks a second concurrent run, correctly) until
             # promotion -- not yet implemented -- finishes it.
-            await runs_repo.update_stats(batch_id, **stats)
+            await runs_repo.update_stats(batch_id, **accumulate_stats(existing_stats, stats))
         except Exception as e:
-            await runs_repo.fail(batch_id, error=str(e))
+            if is_new_run:
+                await runs_repo.fail(batch_id, error=str(e))
             raise
         finally:
             await session.commit()

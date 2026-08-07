@@ -190,3 +190,13 @@ Only one ingestion run can be active at a time per environment, enforced by
 `ingest_hash_dedup.py`. Starting a second batch requires finishing (through promotion) or
 otherwise resolving the current one first — run `python -m batch.ingest_abort --env <env>`
 to abandon a stuck or unwanted run and free the lock.
+
+`ingest_hash_dedup.py` can now be re-run at any point while a batch is active to pick up
+newly-dropped files, instead of being blocked — it joins the active run (same `batch_id`,
+stats accumulate across invocations) rather than refusing. After doing so, re-run
+`extract_text_from_memes --status pending` and `ingest_find_duplicates.py` (both tiers, as
+applicable) so the newly-added images get review coverage — both are already safe to
+re-run against the same batch. Concurrent *invocations of the same* `ingest_hash_dedup.py`
+script are serialized via a Postgres advisory lock, so a second operator's simultaneous
+re-run attempt gets a clear "try again shortly" error rather than racing on
+`PATH_INGESTION_SOURCE`'s filesystem state.
