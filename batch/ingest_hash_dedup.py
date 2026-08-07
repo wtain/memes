@@ -41,6 +41,7 @@ import argparse
 import asyncio
 import os
 import shutil
+import uuid
 
 from sqlalchemy import select, text
 
@@ -166,7 +167,7 @@ async def acquire_run_lock(session) -> bool:
     )).scalar_one()
 
 
-async def resolve_batch(runs_repo: BatchRunRepository) -> tuple:
+async def resolve_batch(runs_repo: BatchRunRepository) -> tuple[uuid.UUID, dict, bool]:
     """Reuse the currently active ingestion run if one exists (letting newly-dropped files
     join the same batch instead of being blocked), or start a new one. Returns
     (batch_id, existing_stats, is_new_run)."""

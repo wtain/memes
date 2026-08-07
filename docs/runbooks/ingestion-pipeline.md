@@ -111,8 +111,8 @@ runs, files just sit in `inbox\` untouched.
    Exact-hash duplicates (in-batch and cross-corpus) move to
    `<BASE_PATH>\inbox\duplicates\`. Survivors are registered as `pending` `Image` rows and
    moved into `BASE_PATH` itself — this is the step that actually leaves the inbox.
-   Refuses to start if an ingestion run is already active for this environment — finish or
-   promote the existing one first.
+   Safe to re-run at any point while a run is already active — joins the run instead of
+   refusing (see Concurrency below).
 
 3. **Embeddings for the new pending images:**
    ```powershell
