@@ -1,6 +1,7 @@
 # Ingestion Hash-Dedup Incremental Re-Runs — Design
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-08-08-ingestion-hash-dedup-incremental.md
 
 **Date:** 2026-08-08.
 
