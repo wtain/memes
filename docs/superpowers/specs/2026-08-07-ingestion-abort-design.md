@@ -1,6 +1,6 @@
 # Ingestion Abort — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-08-07-ingestion-abort.md
 
 **Date:** 2026-08-07.

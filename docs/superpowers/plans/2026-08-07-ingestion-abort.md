@@ -32,7 +32,7 @@
 - Produces: `RunStatus.aborted` (str value `"aborted"`, used via `str(RunStatus.aborted)` matching every other status write in this codebase). `BatchRunRepository.abort(run_id: uuid.UUID, note: str | None = None) -> None`. `IngestionRepository.list_abortable_images(batch_id) -> Sequence[Row]` yielding `(id, filename, status)` tuples, `status` always `"pending"` or `"rejected"`.
 - Consumes: nothing from other tasks — this task's additions are pure prerequisites Task 2 depends on.
 
-- [ ] **Step 1: Read the current `RunStatus` enum**
+- [x] **Step 1: Read the current `RunStatus` enum**
 
 Run: `grep -n "class RunStatus" -A 8 Storage/models.py`
 Expected output confirms the current enum:
@@ -46,7 +46,7 @@ class RunStatus(enum.Enum):
         return self.value
 ```
 
-- [ ] **Step 2: Add `aborted` to the enum**
+- [x] **Step 2: Add `aborted` to the enum**
 
 In `Storage/models.py`, change:
 ```python
@@ -70,7 +70,7 @@ class RunStatus(enum.Enum):
         return self.value
 ```
 
-- [ ] **Step 3: Write the failing test for `BatchRunRepository.abort()`**
+- [x] **Step 3: Write the failing test for `BatchRunRepository.abort()`**
 
 Add to `tests/integration/test_batch_runs_repository.py` (it already imports `pytest` and `BatchRunRepository` — no new imports needed):
 
@@ -88,12 +88,12 @@ async def test_abort_marks_status_aborted_with_note(db_session):
     assert run.error == "Aborted by user via ingest_abort.py"
 ```
 
-- [ ] **Step 4: Run the test to verify it fails**
+- [x] **Step 4: Run the test to verify it fails**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/test_batch_runs_repository.py::test_abort_marks_status_aborted_with_note -v`
 Expected: FAIL with `AttributeError: 'BatchRunRepository' object has no attribute 'abort'`
 
-- [ ] **Step 5: Add `BatchRunRepository.abort()`**
+- [x] **Step 5: Add `BatchRunRepository.abort()`**
 
 In `repository/batch_runs.py`, add this method immediately after `fail()` (currently ending at line 53, right before `async def get_run`):
 
@@ -107,12 +107,12 @@ In `repository/batch_runs.py`, add this method immediately after `fail()` (curre
         await self._session.flush()
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/test_batch_runs_repository.py::test_abort_marks_status_aborted_with_note -v`
 Expected: PASS
 
-- [ ] **Step 7: Write the failing tests for `IngestionRepository.list_abortable_images()`**
+- [x] **Step 7: Write the failing tests for `IngestionRepository.list_abortable_images()`**
 
 Add to `tests/integration/test_backend_ingestion_repository.py` (it already has `_make_run` and `_make_image` helpers at the top — reuse them, no new imports needed):
 
@@ -151,12 +151,12 @@ async def test_list_abortable_images_excludes_active_and_other_batches(db_sessio
 
 Note: `_make_run` calls `BatchRunRepository(session).create_run(kind="ingestion", ...)`, and this codebase's `batch_runs` table has a partial unique index allowing only one `status='started'` row per `kind` at a time (see `Storage/models.py`'s `ix_batch_runs_one_active_per_kind`). The second test above calls `_make_run` twice in the same test — this is safe because neither run is ever committed to `started`-conflicting state across tests (each test runs in its own rolled-back savepoint per `tests/integration/conftest.py`), and both calls happen within the same test's single transaction where two `started` `kind="ingestion"` rows *would* violate the constraint — so if this test fails with an `IntegrityError`, that confirms the fixture isolation assumption was wrong, not a bug in `list_abortable_images` itself; if that happens, `abort()` (or `commit()`/`fail()`) the first run before creating the second.
 
-- [ ] **Step 8: Run the tests to verify they fail**
+- [x] **Step 8: Run the tests to verify they fail**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/test_backend_ingestion_repository.py -k list_abortable_images -v`
 Expected: FAIL with `AttributeError: 'IngestionRepository' object has no attribute 'list_abortable_images'`
 
-- [ ] **Step 9: Add `IngestionRepository.list_abortable_images()`**
+- [x] **Step 9: Add `IngestionRepository.list_abortable_images()`**
 
 In `Backend/app/repositories/ingestion_repository.py`, add this method immediately after `list_pending_images()` (currently ending at line 34, right before `async def get_tier_candidate_rows`):
 
@@ -172,19 +172,19 @@ In `Backend/app/repositories/ingestion_repository.py`, add this method immediate
         return result.all()
 ```
 
-- [ ] **Step 10: Run the tests to verify they pass**
+- [x] **Step 10: Run the tests to verify they pass**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/test_backend_ingestion_repository.py -k list_abortable_images -v`
 Expected: PASS (2 passed)
 
-- [ ] **Step 11: Run the full `tests/integration/` root**
+- [x] **Step 11: Run the full `tests/integration/` root**
 
 This task touches `Storage/models.py` (a shared model file) and two repository files used across the ingestion pipeline — per this repo's own `CLAUDE.md` guidance ("Running the right test scope"), that warrants the full root, not just the two files touched above.
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/ -v`
 Expected: all pass, no new failures.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add Storage/models.py repository/batch_runs.py Backend/app/repositories/ingestion_repository.py tests/integration/test_batch_runs_repository.py tests/integration/test_backend_ingestion_repository.py
@@ -204,7 +204,7 @@ git commit -m "feat: add RunStatus.aborted, BatchRunRepository.abort, IngestionR
 - Consumes: `RunStatus.aborted` (via `BatchRunRepository.abort()`, not referenced directly), `BatchRunRepository.get_active_run(kind="ingestion")` / `.abort(run_id, note=None)` (Task 1), `IngestionRepository.list_abortable_images(batch_id)` (Task 1, returns `(id, filename, status)` rows), `batch.utils.safe_move.move_without_overwrite(src_path: str, dest_dir: str) -> str` (existing), `metrics.listener.SimpleMetricsListener` (existing: `.increment(name)`, `.add(name, value)`, `.print()`, `.counters_dict()`).
 - Produces: `run(session, source_path: str, base_path: str, batch_id) -> SimpleMetricsListener` and `main(env: str | None) -> None`, both importable by the test file — no other task depends on these.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/integration/test_ingest_abort.py`:
 
@@ -344,12 +344,12 @@ own beyond the no-active-run guard already established as out-of-scope-to-test a
 this codebase — matching that precedent here rather than introducing new `main()`-level test
 scaffolding (mocked `AsyncSessionLocal`/`load_env`) that doesn't exist for either sibling script.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/test_ingest_abort.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'batch.ingest_abort'`
 
-- [ ] **Step 3: Create `batch/ingest_abort.py`**
+- [x] **Step 3: Create `batch/ingest_abort.py`**
 
 ```python
 """
@@ -441,22 +441,22 @@ if __name__ == "__main__":
     asyncio.run(main(args.env))
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/test_ingest_abort.py -v`
 Expected: all pass (4 passed)
 
-- [ ] **Step 5: Run the full `tests/integration/` root**
+- [x] **Step 5: Run the full `tests/integration/` root**
 
 Run: `DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" pytest tests/integration/ -v`
 Expected: all pass, no new failures.
 
-- [ ] **Step 6: Also run `batch/tests/`**
+- [x] **Step 6: Also run `batch/tests/`**
 
 Run: `pytest batch/tests/`
 Expected: all pass (this task doesn't touch anything under `batch/tests/`'s own scope, but this repo's own `CLAUDE.md` gotcha about never combining `Backend/tests/`/`tests/integration/`/`batch/tests/` in one invocation means running it as its own separate command here, as a sanity check before merge).
 
-- [ ] **Step 7: Update `CLAUDE.md`'s ingestion pipeline documentation**
+- [x] **Step 7: Update `CLAUDE.md`'s ingestion pipeline documentation**
 
 Read `CLAUDE.md`'s "Batch pipeline (execution order)" section, specifically the `# Ingestion` block (the multi-line comment describing `ingest_hash_dedup` → `build_image_embeddings --status pending --incremental` → `extract_text_from_memes --status pending` → `ingest_find_duplicates --tier tier_a` → `ingest_find_duplicates --tier tier_b` → `ingest_promote`). Add one more entry after `ingest_promote`'s description, documenting `ingest_abort` as the "abandon this run instead of continuing it" alternative available at any point before promotion completes — for example:
 
@@ -473,7 +473,7 @@ ingest_abort                → Abandons the currently active ingestion run inst
 
 Match the exact indentation and wrapping style of the surrounding ingestion block (the run-order comment already in `CLAUDE.md`'s "Batch pipeline (execution order)" section) rather than the snippet's own line breaks verbatim.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add batch/ingest_abort.py tests/integration/test_ingest_abort.py CLAUDE.md
