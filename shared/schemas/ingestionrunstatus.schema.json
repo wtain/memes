@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "run_id": { "type": "string" },
-    "status": { "type": "string", "description": "started | completed | failed" },
+    "status": { "type": "string", "description": "started | completed | failed | aborted" },
     "stage": { "type": ["string", "null"], "description": "hash_dedup | tier_a_review | ocr_prepass | tier_b_review | promoted" },
     "stats": { "type": ["object", "null"], "additionalProperties": true },
     "created_at": { "type": "string", "format": "date-time" },

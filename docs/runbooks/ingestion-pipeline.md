@@ -176,8 +176,17 @@ runs, files just sit in `inbox\` untouched.
   image is still `rejected` — undoing a "Keep" decision that later got promoted to `active`
   is out of scope; there is no built-in path to demote a promoted image.
 
+- `python -m batch.ingest_abort --env <env>` abandons the entire currently active run
+  instead of continuing it: it undoes every `pending`/`rejected` image the run registered
+  (moves each file back to `PATH_INGESTION_SOURCE`, deletes its row — FK cascades clean up
+  embeddings/OCR/tmp_duplicates automatically) and marks the run `aborted`, freeing the
+  one-active-run-per-kind lock. Never touches already-`active` (promoted) images in the
+  batch. Can be run at any point before the run completes — right after Stage 1, mid-review,
+  etc.
+
 ## Concurrency
 
 Only one ingestion run can be active at a time per environment, enforced by
 `ingest_hash_dedup.py`. Starting a second batch requires finishing (through promotion) or
-otherwise resolving the current one first.
+otherwise resolving the current one first — run `python -m batch.ingest_abort --env <env>`
+to abandon a stuck or unwanted run and free the lock.

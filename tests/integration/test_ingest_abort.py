@@ -113,11 +113,16 @@ async def test_missing_file_does_not_abort_remaining_and_row_still_deleted(db_se
     source_path = tmp_path / "inbox"
     source_path.mkdir()
     # no file written for this image -- simulates a file already missing on disk
+    (base_path / "good.jpg").write_bytes(b"x")
 
     batch_id = await _make_run(db_session)
     image_id = await _make_image(db_session, "pending", batch_id, "missing.jpg")
+    good_image_id = await _make_image(db_session, "pending", batch_id, "good.jpg")
 
     metrics = await run(db_session, str(source_path), str(base_path), batch_id)
 
-    assert metrics.counters_dict() == {"error.move_failed": 1, "unregistered": 1}
+    assert metrics.counters_dict() == {"error.move_failed": 1, "moved_back": 1, "unregistered": 2}
     assert (await db_session.get(Image, image_id)) is None
+    assert (await db_session.get(Image, good_image_id)) is None
+    assert (source_path / "good.jpg").exists()
+    assert not (base_path / "good.jpg").exists()

@@ -14,7 +14,12 @@ staged inside main()'s single final commit. If the process dies after some files
 already moved back but before that commit, those images' rows still exist pointing at
 files no longer in BASE_PATH -- this self-heals on the next unregister_deleted_images run
 (which already deletes rows for images whose files don't exist), matching
-ingest_hash_dedup.py's own accepted crash-safety posture. Not addressed further here.
+ingest_hash_dedup.py's own accepted crash-safety posture. Similarly, if a file exists but
+the move itself fails (permission error, disk full, etc.), the row is still deleted --
+deliberately, so one bad file doesn't block the rest of the batch -- but the file itself is
+then silently orphaned in BASE_PATH: not in the inbox (so it's never re-ingested), and no
+longer referenced by any DB row (so it's invisible to the pipeline). Not addressed further
+here.
 """
 import argparse
 import asyncio
@@ -41,7 +46,6 @@ async def run(session, source_path: str, base_path: str, batch_id) -> SimpleMetr
     repo = IngestionRepository(session)
     rows = await repo.list_abortable_images(batch_id)
 
-    to_delete = []
     for image_id, filename, status in rows:
         src_dir = os.path.join(base_path, "rejected") if status == "rejected" else base_path
         src_path = os.path.join(src_dir, filename)
@@ -51,11 +55,17 @@ async def run(session, source_path: str, base_path: str, batch_id) -> SimpleMetr
         except Exception as e:
             print(f"Can't move {src_path} back to inbox: {e}")
             metrics.increment("error.move_failed")
-        to_delete.append(image_id)
 
-    if to_delete:
-        await session.execute(delete(Image).where(Image.id.in_(to_delete)))
-    metrics.add("unregistered", len(to_delete))
+    rowcount = 0
+    if rows:
+        result = await session.execute(
+            delete(Image).where(
+                Image.ingestion_batch_id == batch_id,
+                Image.status.in_(["pending", "rejected"]),
+            )
+        )
+        rowcount = result.rowcount
+    metrics.add("unregistered", rowcount)
     return metrics
 
 

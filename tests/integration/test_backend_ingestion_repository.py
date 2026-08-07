@@ -298,6 +298,7 @@ async def test_promote_images_empty_list_is_noop(db_session):
     repo = IngestionRepository(db_session)
     assert await repo.promote_images([]) == 0
 
+
 # --------------------------------------------------------------------------
 # list_abortable_images
 # --------------------------------------------------------------------------
@@ -331,4 +332,3 @@ async def test_list_abortable_images_excludes_active_and_other_batches(db_sessio
     rows = await repo.list_abortable_images(batch_id)
 
     assert [row[0] for row in rows] == [pending]
-

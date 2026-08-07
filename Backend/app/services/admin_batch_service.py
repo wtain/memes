@@ -66,7 +66,7 @@ class AdminBatchService:
             "run_id": str(run.run_id),
             "batch_name": self.registry.name_for_kind(run.kind),
             "trigger": run.trigger,
-            "status": _STATUS_MAP[run.status],
+            "status": _STATUS_MAP.get(run.status, run.status),
             "created_at": run.created_at,
             "completed_at": run.completed_at,
             "error": run.error,
