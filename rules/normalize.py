@@ -2,6 +2,7 @@ import re
 
 import pymorphy3
 
+from rules.canonical_forms import CONTRACTION_EXPANSIONS, SPELLING_VARIANTS
 from rules.english_stemming import is_latin_word, stem_english_word
 from rules.phonetic import is_cyrillic_word
 
@@ -68,6 +69,7 @@ def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer, language: str | No
     of time doesn't rely on this default — it simply never calls this function for
     non-lemmatizable content in the first place.
     """
+    word = SPELLING_VARIANTS.get(word.lower(), word)
     if language in STEMMABLE_LANGUAGES:
         return stem_english_word(word)
     if language is not None and language not in LEMMATIZABLE_LANGUAGES:
@@ -110,15 +112,19 @@ def lemmatize_word_autodetect(word: str, morph: pymorphy3.MorphAnalyzer) -> str:
 
 _TOKEN_RE = re.compile(r"[^\W_]+(?:['-][^\W_]+)*", re.UNICODE)
 
-_JOINER_NORMALIZE = str.maketrans({
+_CHAR_NORMALIZE = str.maketrans({
     "–": "-",   # en dash
     "—": "-",   # em dash
     "’": "'",   # right single quotation mark / smart apostrophe
+    "ё": "е",   # Cyrillic ё -> е -- casual typing overwhelmingly substitutes е for ё; not
+    "Ё": "Е",   # already covered by the phonetic-erratives fallback, which only fires for
+                # words pymorphy3 doesn't recognize (see rules/phonetic.py, and
+                # docs/superpowers/specs/2026-08-08-search-canonization-design.md's Motivation)
 })
 
 
-def _normalize_joiners(text: str) -> str:
-    return text.translate(_JOINER_NORMALIZE)
+def _normalize_chars(text: str) -> str:
+    return text.translate(_CHAR_NORMALIZE)
 
 
 def tokenize(text: str) -> list[str]:
@@ -127,10 +133,10 @@ def tokenize(text: str) -> list[str]:
     # A single '-' or "'" between two word-character runs stays part of the token
     # (compounds like "Санкт-Петербурга", contractions like "don't"); every other
     # occurrence of either character — with no word character immediately
-    # following — still splits/strips as before. Em/en dashes and the curly
-    # apostrophe are normalized to their ASCII counterparts first so there's one
-    # canonical joiner per type.
-    return _TOKEN_RE.findall(_normalize_joiners(text))
+    # following — still splits/strips as before. Em/en dashes, the curly
+    # apostrophe, and Cyrillic ё are normalized to their canonical counterparts
+    # first so there's one canonical form per character.
+    return _TOKEN_RE.findall(_normalize_chars(text))
 
 
 def normalize(
@@ -150,6 +156,13 @@ def normalize(
     """
     result: set[str] = set()
     for word in tokenize(text):
+        expansion = CONTRACTION_EXPANSIONS.get(word.lower().replace("'", ""))
+        if expansion is not None:
+            for part in expansion:
+                if len(part) >= min_length:
+                    result.add(lemmatize_word(part, morph, language))
+            continue
+
         if len(word) < min_length:
             continue
         if word.isdigit():

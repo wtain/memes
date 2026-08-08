@@ -51,6 +51,14 @@ class TestTokenizeUnderscoreStillSplits:
         assert tokenize("varg_vikernes") == ["varg", "vikernes"]
 
 
+class TestTokenizeCyrillicYoNormalization:
+    def test_lowercase_yo_normalized_to_ye(self):
+        assert tokenize("всё") == ["все"]
+
+    def test_uppercase_yo_normalized_to_ye(self):
+        assert tokenize("Ёж") == ["Еж"]
+
+
 from unittest.mock import Mock
 
 from rules.normalize import lemmatize_word, lemmatize_word_autodetect, make_morph, normalize
@@ -102,6 +110,35 @@ class TestLemmatizeWordStemmable:
         result = lemmatize_word("cats", wrapped, language="en")
         assert result == "cat"
         wrapped.parse.assert_not_called()
+
+
+class TestLemmatizeWordSpellingVariants:
+    def test_ise_ize_verb_pair_matches(self):
+        morph = make_morph()
+        assert lemmatize_word("categorise", morph) == lemmatize_word("categorize", morph)
+
+    def test_isation_ization_noun_pair_matches(self):
+        morph = make_morph()
+        assert lemmatize_word("initialisation", morph) == lemmatize_word("initialization", morph)
+
+    def test_our_or_pair_matches(self):
+        morph = make_morph()
+        assert lemmatize_word("colour", morph) == lemmatize_word("color", morph)
+
+    def test_re_er_pair_matches(self):
+        morph = make_morph()
+        assert lemmatize_word("centre", morph) == lemmatize_word("center", morph)
+
+    def test_unlisted_word_unaffected(self):
+        morph = make_morph()
+        assert lemmatize_word("surprise", morph, language="en") == "surpris"
+
+    def test_stemmable_language_path_also_canonicalizes(self):
+        morph = make_morph()
+        assert (
+            lemmatize_word("categorise", morph, language="en")
+            == lemmatize_word("categorize", morph, language="en")
+        )
 
 
 class TestLemmatizeWordUnknownWordsStayAsTyped:
@@ -165,6 +202,12 @@ class TestNormalizeLanguageGating:
         wrapped.parse.assert_not_called()
 
 
+class TestNormalizeCyrillicYoEquivalence:
+    def test_yo_and_ye_spellings_produce_overlapping_lemmas(self):
+        morph = make_morph()
+        assert normalize("всё", morph) & normalize("все", morph)
+
+
 from rules.normalize import lemmatize_phrase
 
 
@@ -189,6 +232,33 @@ class TestLemmatizePhrase:
         morph = make_morph()
         result = lemmatize_phrase("Владимира Путина", morph)
         assert result.split() == ["владимир", "путин"]
+
+
+class TestNormalizeContractionExpansion:
+    def test_apostrophe_form_and_bare_form_produce_same_lemmas(self):
+        morph = make_morph()
+        assert normalize("don't", morph) == normalize("dont", morph)
+
+    def test_contraction_and_full_phrase_overlap(self):
+        morph = make_morph()
+        assert normalize("dont", morph) & normalize("do not", morph)
+
+    def test_expansion_result_is_not_empty(self):
+        morph = make_morph()
+        assert normalize("dont", morph) == {"not"}
+
+    def test_short_expanded_part_dropped_like_any_other_short_word(self):
+        morph = make_morph()
+        # "is" (2 chars) drops below the default min_length=3, same as any other short word
+        assert normalize("isnt", morph) == {"not"}
+
+    def test_unlisted_word_flows_through_normal_path(self):
+        morph = make_morph()
+        # Cyrillic, not Latin -- can't possibly match a CONTRACTION_EXPANSIONS key (all
+        # apostrophe-stripped Latin forms), so this cleanly proves the normal path is
+        # untouched. Same word/expected-lemma pair as the existing
+        # TestNormalizeLanguageGating.test_language_none_reproduces_default_behavior test.
+        assert normalize("работе", morph) == {"работа"}
 
 
 class TestNormalizeKeepDigitTokens:
