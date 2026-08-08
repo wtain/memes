@@ -1,6 +1,7 @@
 # Search Canonization — Design
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-08-08-search-canonization.md
 
 **Date:** 2026-08-08.
 
