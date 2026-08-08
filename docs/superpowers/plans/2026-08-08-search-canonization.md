@@ -8,6 +8,19 @@
 
 **Tech Stack:** Python 3.11, no new dependencies. `tests/rules/` (existing dedicated unit-test root for this module — no DB, no I/O).
 
+## Post-implementation note (2026-08-08)
+
+This plan's steps were executed as written (including the ё→е canonicalization steps below), but
+the final whole-branch review found that piece was unnecessary and actively harmful — see
+`docs/superpowers/specs/2026-08-08-search-canonization-design.md`'s "Investigated and rejected:
+Cyrillic ё→е" section for the full finding (pymorphy3 already restores ё for known words, so the
+tokenize-time fold did nothing for its motivating case, while regressing 15 concept-vocabulary
+entries and 8 tag values in `general`). The ё/Ё entries and their two test classes
+(`TestTokenizeCyrillicYoNormalization`, `TestNormalizeCyrillicYoEquivalence`) were removed after
+the steps below were completed, as part of closing out the final review. The step-by-step history
+below is left as originally written for an accurate record of what was actually done at each
+point, rather than rewritten to pretend ё was never attempted.
+
 ## Global Constraints
 
 - Fixed, curated word lists only — no general suffix-transformation rule (rejected in the spec due to false-positive collision risk, e.g. a blanket `-ise`→`-ize` rule would incorrectly conflate "prise"/"prize", two distinct words).
@@ -34,7 +47,7 @@ tables themselves (they're plain data, not logic) — the steps below write the 
 then the three integration edits with their own failing/passing test cycle each, since those are
 where actual behavior changes.
 
-- [ ] **Step 1: Create `rules/canonical_forms.py`**
+- [x] **Step 1: Create `rules/canonical_forms.py`**
 
 ```python
 """
@@ -105,12 +118,12 @@ CONTRACTION_EXPANSIONS: dict[str, list[str]] = {
 }
 ```
 
-- [ ] **Step 2: Confirm the module imports cleanly**
+- [x] **Step 2: Confirm the module imports cleanly**
 
 Run: `python -c "from rules.canonical_forms import SPELLING_VARIANTS, CONTRACTION_EXPANSIONS; print(len(SPELLING_VARIANTS), len(CONTRACTION_EXPANSIONS))"`
 Expected: prints `54 15` (no import errors) — 54 entries in `SPELLING_VARIANTS` (26 `-ise/-ize` verbs + 14 `-isation/-ization` nouns + 9 `-our/-or` + 5 `-re/-er`), 15 entries in `CONTRACTION_EXPANSIONS`.
 
-- [ ] **Step 3: Write the failing tests for ё→е**
+- [x] **Step 3: Write the failing tests for ё→е**
 
 Add to `tests/rules/test_normalize.py`, inside (or near) the existing `TestTokenizeJoinerNormalization` class (which already tests the same `_CHAR_NORMALIZE`/`_normalize_chars` mechanism for dashes/quotes — this is the same class of test, just a new mapping in the same table):
 
@@ -132,12 +145,12 @@ class TestNormalizeCyrillicYoEquivalence:
         assert normalize("всё", morph) & normalize("все", morph)
 ```
 
-- [ ] **Step 4: Run the tests to verify they fail**
+- [x] **Step 4: Run the tests to verify they fail**
 
 Run: `pytest tests/rules/test_normalize.py -k CyrillicYo -v`
 Expected: FAIL — `tokenize("всё")` currently returns `["всё"]` (unchanged ё), not `["все"]`.
 
-- [ ] **Step 5: Rename `_JOINER_NORMALIZE`/`_normalize_joiners` and add the ё/Ё mapping**
+- [x] **Step 5: Rename `_JOINER_NORMALIZE`/`_normalize_joiners` and add the ё/Ё mapping**
 
 In `rules/normalize.py`, replace:
 
@@ -195,12 +208,12 @@ def tokenize(text: str) -> list[str]:
     return _TOKEN_RE.findall(_normalize_chars(text))
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `pytest tests/rules/test_normalize.py -k CyrillicYo -v`
 Expected: PASS (3 passed)
 
-- [ ] **Step 7: Write the failing tests for spelling variants**
+- [x] **Step 7: Write the failing tests for spelling variants**
 
 Add to `tests/rules/test_normalize.py`, near `TestLemmatizeWordStemmable` (which already tests the `STEMMABLE_LANGUAGES` path this needs to cover too):
 
@@ -239,7 +252,7 @@ against the real Snowball stemmer (`stem_english_word("surprise")`) while writin
 guessed. The point of the test is that "surprise" is *not* in `SPELLING_VARIANTS` and is therefore
 unaffected by this change — a regression guard, not something this task is expected to change.
 
-- [ ] **Step 8: Run the tests to verify they fail**
+- [x] **Step 8: Run the tests to verify they fail**
 
 Run: `pytest tests/rules/test_normalize.py -k SpellingVariants -v`
 Expected: `test_ise_ize_verb_pair_matches`, `test_isation_ization_noun_pair_matches`,
@@ -249,7 +262,7 @@ produce different lemmas/stems); `test_unlisted_word_unaffected` PASSes already 
 canonicalize for "surprise") — that's expected and fine, it's a regression guard, not something
 this change is supposed to newly satisfy.
 
-- [ ] **Step 9: Add the `SPELLING_VARIANTS` lookup to `lemmatize_word()`**
+- [x] **Step 9: Add the `SPELLING_VARIANTS` lookup to `lemmatize_word()`**
 
 In `rules/normalize.py`, add the import (alongside the existing `rules.english_stemming` /
 `rules.phonetic` imports near the top of the file):
@@ -284,12 +297,12 @@ def lemmatize_word(word: str, morph: pymorphy3.MorphAnalyzer, language: str | No
 (Only that one new line is added; everything else in the function — the
 `LEMMATIZABLE_LANGUAGES` branch, the `morph.parse()` call, the `is_known` check — is unchanged.)
 
-- [ ] **Step 10: Run the tests to verify they pass**
+- [x] **Step 10: Run the tests to verify they pass**
 
 Run: `pytest tests/rules/test_normalize.py -k SpellingVariants -v`
 Expected: PASS (6 passed)
 
-- [ ] **Step 11: Write the failing tests for contraction expansion**
+- [x] **Step 11: Write the failing tests for contraction expansion**
 
 Add to `tests/rules/test_normalize.py`, near `TestNormalizeKeepDigitTokens` (the other
 `normalize()`-level behavioral test class):
@@ -322,7 +335,7 @@ class TestNormalizeContractionExpansion:
         assert normalize("работе", morph) == {"работа"}
 ```
 
-- [ ] **Step 12: Run the tests to verify they fail**
+- [x] **Step 12: Run the tests to verify they fail**
 
 Run: `pytest tests/rules/test_normalize.py -k ContractionExpansion -v`
 Expected: `test_apostrophe_form_and_bare_form_produce_same_lemmas`,
@@ -331,7 +344,7 @@ Expected: `test_apostrophe_form_and_bare_form_produce_same_lemmas`,
 `test_short_expanded_part_dropped_like_any_other_short_word` also FAILs the same way;
 `test_unlisted_word_flows_through_normal_path` PASSes already (regression guard).
 
-- [ ] **Step 13: Add the `CONTRACTION_EXPANSIONS` handling to `normalize()`**
+- [x] **Step 13: Add the `CONTRACTION_EXPANSIONS` handling to `normalize()`**
 
 In `rules/normalize.py`, change the start of `normalize()`'s loop body from:
 
@@ -373,12 +386,12 @@ artifact handling, the trailing-doubled-letter handling, and the final `return r
 unchanged — those blocks still run for every word that *isn't* a contraction match, exactly as
 before.
 
-- [ ] **Step 14: Run the tests to verify they pass**
+- [x] **Step 14: Run the tests to verify they pass**
 
 Run: `pytest tests/rules/test_normalize.py -k ContractionExpansion -v`
 Expected: PASS (5 passed)
 
-- [ ] **Step 15: Run the full `tests/rules/` root**
+- [x] **Step 15: Run the full `tests/rules/` root**
 
 This task modifies two functions (`tokenize()`, `lemmatize_word()`, `normalize()`) that every
 other test file in this root exercises indirectly (`test_concept_tagger.py`, `test_engine.py`,
@@ -388,14 +401,14 @@ as a regression check, not just this one file.
 Run: `pytest tests/rules/ -v`
 Expected: all pass, no new failures.
 
-- [ ] **Step 16: Commit**
+- [x] **Step 16: Commit**
 
 ```bash
 git add rules/canonical_forms.py rules/normalize.py tests/rules/test_normalize.py
 git commit -m "feat: add search canonization (Cyrillic yo, spelling variants, contractions)"
 ```
 
-- [ ] **Step 17: Manual rollout note (not part of this commit)**
+- [x] **Step 17: Manual rollout note (not part of this commit)**
 
 This step is a reminder for whoever runs this against a real environment, not something to do as
 part of implementing this task: per the spec's Rollout section, `build_ocr_lemmas.py` needs a

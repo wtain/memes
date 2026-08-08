@@ -116,10 +116,6 @@ _CHAR_NORMALIZE = str.maketrans({
     "–": "-",   # en dash
     "—": "-",   # em dash
     "’": "'",   # right single quotation mark / smart apostrophe
-    "ё": "е",   # Cyrillic ё -> е -- casual typing overwhelmingly substitutes е for ё; not
-    "Ё": "Е",   # already covered by the phonetic-erratives fallback, which only fires for
-                # words pymorphy3 doesn't recognize (see rules/phonetic.py, and
-                # docs/superpowers/specs/2026-08-08-search-canonization-design.md's Motivation)
 })
 
 
@@ -133,9 +129,9 @@ def tokenize(text: str) -> list[str]:
     # A single '-' or "'" between two word-character runs stays part of the token
     # (compounds like "Санкт-Петербурга", contractions like "don't"); every other
     # occurrence of either character — with no word character immediately
-    # following — still splits/strips as before. Em/en dashes, the curly
-    # apostrophe, and Cyrillic ё are normalized to their canonical counterparts
-    # first so there's one canonical form per character.
+    # following — still splits/strips as before. Em/en dashes and the curly
+    # apostrophe are normalized to their ASCII counterparts first so there's one
+    # canonical joiner per type.
     return _TOKEN_RE.findall(_normalize_chars(text))
 
 

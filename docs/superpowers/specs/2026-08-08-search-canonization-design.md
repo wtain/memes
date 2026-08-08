@@ -1,49 +1,66 @@
 # Search Canonization — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-08-08-search-canonization.md
 
 **Date:** 2026-08-08.
 
-Adds three narrow, fixed-rule text canonizations to `rules/normalize.py` — Cyrillic ё→е,
-British/American English spelling variants, and negative-contraction expansion — so equivalent
-forms match each other across the rules engine, `build_bow.py`'s vocabulary extraction, and
-search. This is the last item from the earlier "disambiguate and draft specs" batch (alongside
-`remove_singletons`, `build_image_embeddings` progress/metrics, and the two ingestion specs, all
-already merged this session); the user chose "narrow, fixed rules" over a general
-phonetic/fuzzy-matching system when this was first triaged.
+Adds two narrow, fixed-rule text canonizations to `rules/normalize.py` — British/American
+English spelling variants and negative-contraction expansion — so equivalent forms match each
+other across the rules engine, `build_bow.py`'s vocabulary extraction, and search. This is the
+last item from the earlier "disambiguate and draft specs" batch (alongside `remove_singletons`,
+`build_image_embeddings` progress/metrics, and the two ingestion specs, all already merged this
+session); the user chose "narrow, fixed rules" over a general phonetic/fuzzy-matching system when
+this was first triaged.
+
+A third canonization, Cyrillic ё→е, was designed, implemented, and then **removed** after the
+final whole-branch review found it was both unnecessary and actively harmful — see "Investigated
+and rejected: Cyrillic ё→е" below. This spec was updated in place to reflect that outcome rather
+than being left describing a feature that no longer ships.
 
 ---
 
 ## Motivation
 
-Three concrete, currently-unaddressed match failures:
+Two concrete, currently-unaddressed match failures:
 
-1. **Cyrillic ё/е.** Casual Russian typing overwhelmingly substitutes е for ё (many keyboards
-   make ё inconvenient to type), so "всё" and "все" are extremely common variant spellings of
-   words that should match each other in search. This is *not* already solved by the existing
-   phonetic-erratives fallback (`rules/phonetic.py`'s `russian_metaphone`, wired into
-   `repository/ocr_lemmas.py`'s `_phonetic_lemma_ids`): that tier only fires when the query lemma
-   is *not* a pymorphy3-recognized dictionary word (`_is_known_word` is `False`) — "все" and "всё"
-   are both real, known dictionary words, so the phonetic fallback is explicitly skipped for
-   exactly this case.
-2. **British/American spelling.** `rules/english_stemming.py`'s Snowball stemmer recognizes
+1. **British/American spelling.** `rules/english_stemming.py`'s Snowball stemmer recognizes
    `-ize` as a suffix to strip but has no equivalent rule for `-ise` — the two spellings stem to
    different results, so e.g. "categorise" and "categorize" don't match today.
-3. **Contractions.** "don't", "dont" (OCR frequently drops apostrophes), and "do not" currently
+2. **Contractions.** "don't", "dont" (OCR frequently drops apostrophes), and "do not" currently
    produce three different, non-overlapping lemma results — none of the three forms matches any
    of the others.
 
 ## Scope
 
-**In scope:** `rules/normalize.py` (ё→е, integration points) and a new `rules/canonical_forms.py`
+**In scope:** `rules/normalize.py` (integration points) and a new `rules/canonical_forms.py`
 (the two fixed lookup tables: `SPELLING_VARIANTS`, `CONTRACTION_EXPANSIONS`).
 
 **Applies everywhere `rules/normalize.py` is used** — the rules engine (`rules/concept_tagger.py`,
 which calls `normalize()`), search (`batch/utils/ocr_lemmas.py` at index time and
 `repository/ocr_lemmas.py` at query time, both call `normalize()`), and, for the
-`lemmatize_word()`-level pieces only (ё→е, spelling variants — not contraction expansion, see
-below), `build_bow.py` (calls `tokenize()`/`lemmatize_word()` directly, not `normalize()`).
+`lemmatize_word()`-level piece only (spelling variants — not contraction expansion, see below),
+`build_bow.py` (calls `tokenize()`/`lemmatize_word()` directly, not `normalize()`).
+
+**Investigated and rejected: Cyrillic ё→е.** The original design canonicalized ё→е at
+tokenize-time on the premise that "всё" and "все" don't match today. The final whole-branch review
+found that premise false: pymorphy3 is ё-*restoring* — `morph.parse("все")[0].normal_form` is
+already `"всё"` for known words, verified directly against the real analyzer both before and
+after the change (identical output). The tokenize-time ё→е fold therefore did nothing for its own
+motivating case, and only changed behavior on paths where pymorphy3 does *not* restore ё —
+concept-vocabulary loading (`lemmatize_word_autodetect()`, which never calls `tokenize()`) and
+non-lemmatizable-language OCR rows — where it actively regressed real data: 15 ё-containing
+concept-vocabulary entries in the `general` environment's `concepts.general.yaml` would have
+silently stopped firing (OCR text and vocabulary would no longer agree on the ё-containing forms),
+8 existing `ImageTag.value` rows containing ё (stored verbatim, never normalized) would have
+become unsearchable, and a fresh index/query mismatch would have appeared for Cyrillic OCR rows
+tagged a non-Russian language. None of this is fixable by re-running `build_ocr_lemmas.py` — it
+lives in YAML vocabulary and stored tag values, outside what a lemma-index rebuild touches. Root
+cause: the change canonicalized toward `е` at *input* time, while the pipeline's dominant lemma
+authority (pymorphy3) already canonicalizes toward `ё` at *output* time — two opposing conventions
+in one pipeline. Not pursued further (e.g. canonicalizing toward pymorphy3's own convention
+instead, applied at lemma-output time and to `lemmatize_word_autodetect()` too, plus rewriting the
+8 affected tag values) since it wasn't closing a real gap to begin with.
 
 **Out of scope:**
 - **A general suffix-transformation rule** (e.g. "any word ending in `-ise`, try `-ize`") instead
@@ -63,44 +80,13 @@ below), `build_bow.py` (calls `tokenize()`/`lemmatize_word()` directly, not `nor
   `-isation/-ization`, `-our/-or`, and `-re/-er` — e.g. not `-ogue/-og` ("catalogue/catalog"),
   `-ce/-se` ("licence/license"), or single/double-consonant differences
   ("travelling/traveling"). Extensible later the same way.
-- **No new fallback tier in `repository/ocr_lemmas.py`.** All three canonizations run at
+- **No new fallback tier in `repository/ocr_lemmas.py`.** Both canonizations run at
   normalization time (shared by index-build and query-time paths), so they're matched via the
   *existing* exact-lemma tier — no new query-time special-casing.
 - **No DB schema change.** `ocr_lemmas` rows are already rebuilt by re-running
-  `build_ocr_lemmas.py`; this change takes effect the next time that runs (full or incremental —
-  a canonization applies at lemma-computation time regardless of mode).
+  `build_ocr_lemmas.py` — see Rollout below for why that rebuild must be full, not incremental.
 
 ## Design
-
-### Cyrillic ё→е — `rules/normalize.py`
-
-Extends the existing character-preprocessing translate table (currently normalizing en/em-dashes
-and the smart apostrophe), applied before tokenization:
-
-```python
-_CHAR_NORMALIZE = str.maketrans({
-    "–": "-",   # en dash
-    "—": "-",   # em dash
-    "’": "'",   # right single quotation mark / smart apostrophe
-    "ё": "е",   # Cyrillic ё -> е -- casual typing overwhelmingly substitutes е for ё; not
-    "Ё": "Е",   # already covered by the phonetic-erratives fallback, which only fires for
-                # words pymorphy3 doesn't recognize (see design doc's Motivation)
-})
-
-
-def _normalize_chars(text: str) -> str:
-    return text.translate(_CHAR_NORMALIZE)
-
-
-def tokenize(text: str) -> list[str]:
-    return _TOKEN_RE.findall(_normalize_chars(text))
-```
-
-(Renames `_JOINER_NORMALIZE`/`_normalize_joiners` to `_CHAR_NORMALIZE`/`_normalize_chars` since the
-table is no longer only about joiner characters — same mechanism, more accurate name.)
-
-Unconditional, whole-text substitution — no word-boundary or script gating needed, matching how
-the existing dash/quote normalization already works.
 
 ### `rules/canonical_forms.py` (new module)
 
@@ -241,9 +227,6 @@ def normalize(
 `tests/rules/` (existing dedicated unit-test root for `rules/normalize.py` and friends — no DB,
 no I/O, matching this repo's established pattern):
 
-- **ё→е**: `tokenize("всё")` and `tokenize("все")` produce the same token string; `normalize()`
-  on text containing "всё" and text containing "все" (same word otherwise) produce overlapping
-  lemma sets.
 - **Spelling variants**: `lemmatize_word("categorise", morph)` equals
   `lemmatize_word("categorize", morph)`; at least one entry from each of the four covered classes
   (-ise/-ize, -isation/-ization, -our/-or, -re/-er); an unlisted word (e.g. "surprise") is
@@ -263,9 +246,8 @@ no I/O, matching this repo's established pattern):
 ## Rollout
 
 1. Add `rules/canonical_forms.py`.
-2. Update `rules/normalize.py`: the `_CHAR_NORMALIZE`/`_normalize_chars` rename + ё/Ё entries,
-   the `SPELLING_VARIANTS` lookup in `lemmatize_word()`, and the `CONTRACTION_EXPANSIONS` handling
-   in `normalize()`.
+2. Update `rules/normalize.py`: the `SPELLING_VARIANTS` lookup in `lemmatize_word()`, and the
+   `CONTRACTION_EXPANSIONS` handling in `normalize()`.
 3. Re-run `build_ocr_lemmas.py` (full mode, not `--incremental` — canonization changes what lemma
    an *already-indexed* image's OCR text produces, so incremental mode's "skip images that
    already have rows" would miss the change for existing images) against each environment

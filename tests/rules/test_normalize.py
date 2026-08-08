@@ -51,14 +51,6 @@ class TestTokenizeUnderscoreStillSplits:
         assert tokenize("varg_vikernes") == ["varg", "vikernes"]
 
 
-class TestTokenizeCyrillicYoNormalization:
-    def test_lowercase_yo_normalized_to_ye(self):
-        assert tokenize("всё") == ["все"]
-
-    def test_uppercase_yo_normalized_to_ye(self):
-        assert tokenize("Ёж") == ["Еж"]
-
-
 from unittest.mock import Mock
 
 from rules.normalize import lemmatize_word, lemmatize_word_autodetect, make_morph, normalize
@@ -200,12 +192,6 @@ class TestNormalizeLanguageGating:
         result = normalize("RUNNING FAST", wrapped, language="en")
         assert result == {"run", "fast"}
         wrapped.parse.assert_not_called()
-
-
-class TestNormalizeCyrillicYoEquivalence:
-    def test_yo_and_ye_spellings_produce_overlapping_lemmas(self):
-        morph = make_morph()
-        assert normalize("всё", morph) & normalize("все", morph)
 
 
 from rules.normalize import lemmatize_phrase
