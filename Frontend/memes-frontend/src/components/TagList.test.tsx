@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { TagList } from './TagList'
 import type { MemeTag } from '../types/generated/all'
 
@@ -40,5 +41,67 @@ describe('TagList', () => {
     render(<TagList tags={tags} />)
     expect(screen.getByText('#cats (ai)')).toBeInTheDocument()
     expect(screen.getByText('#dogs (ai)')).toBeInTheDocument()
+  })
+
+  it('shows all tags with no toggle button when there are 3 or fewer qualifying tags', () => {
+    const tags: MemeTag[] = [
+      { name: 'one', source: 'ai', score: 0.8 },
+      { name: 'two', source: 'ai', score: 0.7 },
+      { name: 'three', source: 'ai', score: 0.6 },
+    ]
+    render(<TagList tags={tags} />)
+    expect(screen.getByText('#one (ai)')).toBeInTheDocument()
+    expect(screen.getByText('#two (ai)')).toBeInTheDocument()
+    expect(screen.getByText('#three (ai)')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('shows only the first 3 qualifying tags plus a toggle when there are more than 3', () => {
+    const tags: MemeTag[] = [
+      { name: 'one', source: 'ai', score: 0.8 },
+      { name: 'two', source: 'ai', score: 0.7 },
+      { name: 'three', source: 'ai', score: 0.6 },
+      { name: 'four', source: 'ai', score: 0.5 },
+      { name: 'five', source: 'ai', score: 0.4 },
+    ]
+    render(<TagList tags={tags} />)
+    expect(screen.getByText('#one (ai)')).toBeInTheDocument()
+    expect(screen.getByText('#two (ai)')).toBeInTheDocument()
+    expect(screen.getByText('#three (ai)')).toBeInTheDocument()
+    expect(screen.queryByText('#four (ai)')).not.toBeInTheDocument()
+    expect(screen.queryByText('#five (ai)')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+2 more' })).toBeInTheDocument()
+  })
+
+  it('reveals the remaining tags when the toggle is clicked', async () => {
+    const user = userEvent.setup()
+    const tags: MemeTag[] = [
+      { name: 'one', source: 'ai', score: 0.8 },
+      { name: 'two', source: 'ai', score: 0.7 },
+      { name: 'three', source: 'ai', score: 0.6 },
+      { name: 'four', source: 'ai', score: 0.5 },
+      { name: 'five', source: 'ai', score: 0.4 },
+    ]
+    render(<TagList tags={tags} />)
+    await user.click(screen.getByRole('button', { name: '+2 more' }))
+    expect(screen.getByText('#four (ai)')).toBeInTheDocument()
+    expect(screen.getByText('#five (ai)')).toBeInTheDocument()
+  })
+
+  it('collapses back to 3 tags when the toggle is clicked again', async () => {
+    const user = userEvent.setup()
+    const tags: MemeTag[] = [
+      { name: 'one', source: 'ai', score: 0.8 },
+      { name: 'two', source: 'ai', score: 0.7 },
+      { name: 'three', source: 'ai', score: 0.6 },
+      { name: 'four', source: 'ai', score: 0.5 },
+      { name: 'five', source: 'ai', score: 0.4 },
+    ]
+    render(<TagList tags={tags} />)
+    await user.click(screen.getByRole('button', { name: '+2 more' }))
+    await user.click(screen.getByRole('button', { name: 'show less' }))
+    expect(screen.queryByText('#four (ai)')).not.toBeInTheDocument()
+    expect(screen.queryByText('#five (ai)')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+2 more' })).toBeInTheDocument()
   })
 })
