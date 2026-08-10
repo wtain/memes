@@ -521,9 +521,11 @@ Find duplicate or near-duplicate images using clustering.
   - `limit` (optional): Number of results (1-100, default: 20)
   - `threshold` (optional): Similarity threshold (0.0-1.0, default: 0.05)
   - `cursor` (optional): Pagination cursor for next page
-- **Response**: `MemeSearchResponse`
+  - `direction` (optional): `forward` or `backward` (default: `forward`). `backward` walks to clusters before `cursor` instead of after — used for cold backward loading (e.g. resuming a scroll position after browser Back navigation). With `direction=backward` and no `cursor`, the response is empty (there's no anchor to page backward from).
+- **Response**: `MemeSearchResponse` — `previousCursor` (opaque string, nullable) is set when there are more clusters before the current page (`direction=backward` pages only; forward pages always return `previousCursor: null`). Pass it as `cursor` with `direction=backward` to continue paging backward.
 - **Cache**: no-cache
 - **Example**: `GET /api/images/duplicates?threshold=0.1&limit=50`
+- **Example (backward)**: `GET /api/images/duplicates?cursor=<cursor>&direction=backward`
 
 #### Get Image File
 
