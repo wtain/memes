@@ -67,16 +67,36 @@ documented `firstItemIndex` mechanism (built for exactly this "chat scrollback" 
 and provides `startReached`/`endReached` callbacks that map directly onto "need an earlier/later
 page."
 
-Two virtuoso components are used, split by page shape:
+**Revised during implementation (Task 6):** the original design here specified `VirtuosoGrid` for
+the five flat listings. Implementation found that `VirtuosoGridProps` in the installed
+`react-virtuoso@4.18.11` has no `firstItemIndex` field at all (confirmed against the library's own
+`.d.ts` — it's list/table-only, on `VirtuosoProps`/`TableVirtuosoProps`, not the grid variant), and
+no equivalent prop provides the same jump-free-prepend guarantee. Since jump-free backward loading
+is the entire point of this feature, all six consumers use plain **`Virtuoso`** (single column),
+never `VirtuosoGrid`:
 
-- **`VirtuosoGrid`** for the five flat listings (Search, Untagged, Flagged, No-OCR,
-  Recommendations) — one `MemeCard` per cell, replacing today's
-  `grid grid-cols-1 md:grid-cols-6 gap-4` CSS grid with virtuoso's `listClassName`/`itemClassName`
-  props carrying the same Tailwind classes, so the visual layout is unchanged.
-- **`Virtuoso`** (plain single-column) for the duplicates page — one whole **cluster** per
-  virtualized row, each row rendering its existing internal `flex-wrap` of member `MemeCard`s
-  unchanged. Virtuoso's dynamic height measurement handles clusters of varying member counts fine;
-  no fixed row height is required.
+- **The five flat listings** (Search, Untagged, Flagged, No-OCR, Recommendations) — each virtualized
+  row is a *chunk* of up to 6 `MemeCard`s (matching the existing `md:grid-cols-6` column count),
+  rendered via the same `grid grid-cols-1 md:grid-cols-6 gap-4` Tailwind classes applied to each
+  row's wrapper `div`. Chunk boundaries are **aligned to the item's absolute position in the true
+  (unbounded) sequence**, not recomputed relative to whatever's currently in the window — see
+  "Row chunking" below. This keeps row boundaries stable and page-boundary-agnostic (matching
+  today's seamless grid flow) rather than visibly breaking at every ~21-40-item page edge.
+- **The duplicates page** — one whole **cluster** per virtualized row, each row rendering its
+  existing internal `flex-wrap` of member `MemeCard`s unchanged, exactly as originally designed.
+  Virtuoso's dynamic height measurement handles clusters of varying member counts fine; no fixed
+  row height is required.
+
+### Row chunking (five flat listings)
+
+Because `useWindowedPagination`'s `firstItemIndex` already tracks the absolute position of
+`items[0]` in the true sequence (that's its whole purpose), row boundaries for the fixed 6-column
+chunking can be derived **statelessly** from `firstItemIndex` alone — no page-diffing or effect-based
+tracking needed (unlike the cluster-row case below, where variable cluster sizes make a simple
+modulo impossible): the first row contains `6 - (firstItemIndex mod 6)` items (a full row if already
+aligned), subsequent rows are full 6-item chunks, and the row-level `firstItemIndex` passed to
+`Virtuoso` is simply `Math.floor(firstItemIndex / 6)`. Recomputed via `useMemo` on every render from
+`items`/`firstItemIndex` directly.
 
 ### `useWindowedPagination` hook
 

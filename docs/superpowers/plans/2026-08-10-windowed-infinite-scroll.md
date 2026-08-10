@@ -895,9 +895,14 @@ git commit -m "feat: add useWindowedPagination hook for bidirectional page windo
 
 ---
 
-### Task 6: Rewrite `MemesList` to use `VirtuosoGrid` + the hook
+### Task 6: Rewrite `MemesList` to use `Virtuoso` (row-chunked grid) + the hook
 
 Drops all duplicates-specific props (`listDuplicates`, `groupByCluster`, `initialCursor`, `onCursorChange` move to the new `MemesDuplicatesList` in Task 7). The five callers that don't use those props (`SearchPage`, `ExploreUntaggedPage`, `ExploreFlaggedPage`, `ExploreNoOcrPage`, `RecommendationsPage`) need no changes.
+
+**Revised from the original design**: uses plain `Virtuoso` with items chunked into rows of up to 6
+(not `VirtuosoGrid`) — see the design spec's "Row chunking" section for why (`VirtuosoGridProps` in
+the installed `react-virtuoso@4.18.11` has no `firstItemIndex`, confirmed against its `.d.ts`, so it
+can't support jump-free backward loading, which this task needs to wire up too).
 
 **Files:**
 - Modify: `Frontend/memes-frontend/src/components/MemesList.tsx` (full rewrite)
@@ -917,7 +922,7 @@ import { MemesList } from './MemesList'
 import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
 
 vi.mock('react-virtuoso', () => ({
-  VirtuosoGrid: (props: { data: unknown[]; itemContent: (index: number, item: unknown) => React.ReactNode; endReached?: (index: number) => void }) => (
+  Virtuoso: (props: { data: unknown[]; itemContent: (index: number, item: unknown) => React.ReactNode; endReached?: (index: number) => void; startReached?: (index: number) => void }) => (
     <div>
       {props.data.map((item, i) => (
         <div key={i}>{props.itemContent(i, item)}</div>
@@ -1023,25 +1028,39 @@ describe('MemesList', () => {
     rerender(<MemesList memesApi={api} filter="second query" />)
     await waitFor(() => expect(api.searchMemes).toHaveBeenCalledWith(expect.objectContaining({ query: 'second query' })))
   })
+
+  it('chunks items into rows of up to 6 for the grid layout', async () => {
+    const items = Array.from({ length: 8 }, (_, i) => ({ ...DEFAULT_MOCK_MEME, id: `m${i}` }))
+    const api = makeMockApi({
+      searchMemes: vi.fn().mockResolvedValue({ items, facets: [], hasNext: false }),
+    })
+    const { container } = render(<MemesList memesApi={api} />)
+    await waitFor(() => {
+      expect(screen.getAllByRole('img')).toHaveLength(8)
+    })
+    // 8 items at 6 columns -> one full row of 6, one partial row of 2.
+    const rowWrappers = container.querySelectorAll('.grid.grid-cols-1.md\\:grid-cols-6')
+    expect(rowWrappers).toHaveLength(2)
+  })
 })
 ```
 
-(Dropped the `listDuplicates`/`groupByCluster` test — that behavior moves to `MemesDuplicatesList.test.tsx` in Task 7. Added an explicit `listFlagged` case and a filter-change re-fetch case, both real `MemesList` behaviors that weren't directly tested before.)
+(Dropped the `listDuplicates`/`groupByCluster` test — that behavior moves to `MemesDuplicatesList.test.tsx` in Task 7. Added an explicit `listFlagged` case, a filter-change re-fetch case, and a row-chunking case, all real `MemesList` behaviors that weren't directly tested before.)
 
 - [ ] **Step 2: Run to verify it fails**
 
 ```
 vitest run src/components/MemesList.test.tsx
 ```
-Expected: FAIL (component still has the old `IntersectionObserver`-based implementation and `listDuplicates`/`groupByCluster` props the test no longer references — some tests may pass by coincidence, but the `react-virtuoso` mock target doesn't exist in the real import graph yet, and `listFlagged`/filter-change assertions are new).
+Expected: FAIL (component still has the old `IntersectionObserver`-based implementation and `listDuplicates`/`groupByCluster` props the test no longer references — some tests may pass by coincidence, but the `react-virtuoso` mock target doesn't exist in the real import graph yet, and `listFlagged`/filter-change/chunking assertions are new).
 
 - [ ] **Step 3: Implement the rewrite**
 
 Replace `Frontend/memes-frontend/src/components/MemesList.tsx` in full:
 
 ```typescript
-import { useCallback, useState } from "react"
-import { VirtuosoGrid } from "react-virtuoso"
+import { useCallback, useMemo, useState } from "react"
+import { Virtuoso } from "react-virtuoso"
 import MemeCard from "./MemeCard"
 import { MemeDetailsModal } from "./MemeDetailsModal"
 import { useWindowedPagination, type FetchPageFn } from "../hooks/useWindowedPagination"
@@ -1059,11 +1078,22 @@ type MemesListProps = {
   listRecommendations?: boolean
 }
 
-const gridComponents = {
-  List: (props: React.HTMLAttributes<HTMLDivElement>) => (
-    <div {...props} className="grid grid-cols-1 md:grid-cols-6 gap-4" />
-  ),
-  Item: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} />,
+const COLUMNS = 6
+
+// Chunks `items` into rows of up to COLUMNS, aligning the first row to the item's absolute
+// position in the true (unbounded) sequence -- so row boundaries stay stable and page-boundary-
+// agnostic as pages are evicted from the front, matching today's seamless grid flow instead of
+// visibly breaking at every page edge.
+function chunkIntoAlignedRows(items: Meme[], globalStart: number): Meme[][] {
+  const rows: Meme[][] = []
+  if (items.length === 0) return rows
+  const offset = ((globalStart % COLUMNS) + COLUMNS) % COLUMNS
+  const firstRowSize = Math.min(COLUMNS - offset, items.length)
+  rows.push(items.slice(0, firstRowSize))
+  for (let i = firstRowSize; i < items.length; i += COLUMNS) {
+    rows.push(items.slice(i, i + COLUMNS))
+  }
+  return rows
 }
 
 export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listFlagged, listNoOcr, listRecommendations }: MemesListProps) {
@@ -1104,21 +1134,28 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
 
   const resetKey = `${filter ?? ""}:${JSON.stringify(tagFilters ?? {})}:${listUntagged}:${listFlagged}:${listNoOcr}:${listRecommendations}`
 
-  const { items, firstItemIndex, hasMoreForward, loading, loadForward } = useWindowedPagination({
+  const { items, firstItemIndex, hasMoreForward, hasMoreBackward, loading, loadForward, loadBackward } = useWindowedPagination({
     fetchPage,
     resetKey,
   })
 
+  const rows = useMemo(() => chunkIntoAlignedRows(items, firstItemIndex), [items, firstItemIndex])
+  const rowFirstItemIndex = Math.floor(firstItemIndex / COLUMNS)
+
   return (
     <div>
-      <VirtuosoGrid
+      <Virtuoso
         useWindowScroll
-        firstItemIndex={firstItemIndex}
-        data={items}
-        components={gridComponents}
+        firstItemIndex={rowFirstItemIndex}
+        data={rows}
+        startReached={() => { if (hasMoreBackward) loadBackward() }}
         endReached={() => { if (hasMoreForward) loadForward() }}
-        itemContent={(_index, meme) => (
-          <MemeCard meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
+        itemContent={(_index, row) => (
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            {row.map(meme => (
+              <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
+            ))}
+          </div>
         )}
       />
 
@@ -1168,7 +1205,7 @@ Expected: all PASS, 0 eslint warnings. (`ExploreDuplicatesPage.tsx` will still f
 
 ```bash
 git add Frontend/memes-frontend/src/components/MemesList.tsx Frontend/memes-frontend/src/components/MemesList.test.tsx
-git commit -m "feat: rewrite MemesList on VirtuosoGrid + useWindowedPagination"
+git commit -m "feat: rewrite MemesList on Virtuoso (row-chunked grid) + useWindowedPagination"
 ```
 
 ---
