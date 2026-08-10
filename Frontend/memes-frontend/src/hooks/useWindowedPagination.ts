@@ -138,7 +138,19 @@ export function useWindowedPagination({
       setFirstItemIndex(idx => idx - newPage.items.length)
 
       if (nextPages.length > maxPages) {
+        const evictedBack = nextPages[nextPages.length - 1]
         nextPages = nextPages.slice(0, -1)
+        // Keep the replay log and forward frontier in sync with the evicted page: pop its
+        // visited-cursor entry (so a later loadBackward replay doesn't desync from windowStartRef
+        // and fetch a stale page), and rewind nextForwardCursorRef to the cursor that originally
+        // fetched it (so the next loadForward() re-fetches that same content instead of silently
+        // skipping past it). hasMoreForward is forced back to true because we've just proven
+        // there's more forward content available -- the page we evicted -- regardless of what an
+        // earlier fetch's hasNext said.
+        visitedCursorsRef.current.pop()
+        nextForwardCursorRef.current = evictedBack.cursor
+        hasMoreForwardRef.current = true
+        setHasMoreForward(true)
       }
 
       pagesRef.current = nextPages

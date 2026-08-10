@@ -58,6 +58,42 @@ describe('useWindowedPagination', () => {
     expect(result.current.firstItemIndex).toBe(firstItemIndexBefore - 2)
   })
 
+  it('rewinds the forward frontier when loadBackward evicts the newest page, so a later loadForward re-fetches it instead of skipping it', async () => {
+    const fetchPage = vi.fn<FetchPageFn>()
+      .mockResolvedValueOnce({ items: makeMemes('p0', 2), nextCursor: 'c1', hasNext: true }) // auto-load p0
+      .mockResolvedValueOnce({ items: makeMemes('p1', 2), nextCursor: 'c2', hasNext: true }) // p1
+      .mockResolvedValueOnce({ items: makeMemes('p2', 2), nextCursor: 'c3', hasNext: true }) // p2 -- evicts p0 from the front
+    const { result } = renderHook(() => useWindowedPagination({ fetchPage, resetKey: 'k', maxPages: 2 }))
+
+    await waitFor(() => expect(result.current.items.map(m => m.id)).toEqual(['p0-0', 'p0-1'])) // auto-loaded
+    await act(async () => { await result.current.loadForward() }) // p1, cursor c1
+    const stateAfterP1 = {
+      items: result.current.items.map(m => m.id),
+      firstItemIndex: result.current.firstItemIndex,
+    }
+    await act(async () => { await result.current.loadForward() }) // p2, cursor c2 -- evicts p0 from the front
+    expect(result.current.hasMoreForward).toBe(true)
+
+    // Replaying p0 on loadBackward pushes the window back over maxPages, evicting p2 from the back.
+    fetchPage.mockResolvedValueOnce({ items: makeMemes('p0', 2), nextCursor: 'c1', hasNext: true })
+    await act(async () => { await result.current.loadBackward() })
+
+    // The window after this round-trip must be byte-for-byte identical to the state right before
+    // the eviction (right after the p1 forward load) -- no skipped content, no stale replay.
+    expect(result.current.items.map(m => m.id)).toEqual(stateAfterP1.items)
+    expect(result.current.firstItemIndex).toBe(stateAfterP1.firstItemIndex)
+    expect(result.current.hasMoreForward).toBe(true)
+
+    // loadForward again must re-fetch the evicted p2 page using ITS OWN cursor (c2, the cursor
+    // that originally fetched it) -- not silently skip past it using some later/stale cursor.
+    fetchPage.mockResolvedValueOnce({ items: makeMemes('p2', 2), nextCursor: 'c3', hasNext: true })
+    await act(async () => { await result.current.loadForward() })
+
+    expect(fetchPage).toHaveBeenLastCalledWith('c2', 'forward')
+    expect(result.current.items.map(m => m.id)).toEqual(['p1-0', 'p1-1', 'p2-0', 'p2-1'])
+    expect(result.current.hasMoreForward).toBe(true)
+  })
+
   it('does not attempt loadBackward with no history and supportsColdBackward unset', async () => {
     const fetchPage = vi.fn<FetchPageFn>().mockResolvedValue({ items: makeMemes('p0', 2), nextCursor: 'c1', hasNext: true })
     const { result } = renderHook(() => useWindowedPagination({ fetchPage, resetKey: 'k' }))
