@@ -16,7 +16,18 @@ import asyncio
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
+
+# Sentinel used to replicate the old "cluster_id > after_cluster_id" boundary
+# filter against ImageRepository.get_duplicates_clustered's newer compound
+# (cluster_id, image_id) keyset cursor: pairing a cluster_id with the
+# maximum possible UUID means the tuple comparison can only be satisfied by
+# a strictly greater cluster_id, never a same-cluster row with a "greater"
+# image_id — i.e. it degrades to the old whole-cluster-boundary semantics
+# this tool actually wants (it always consumes an entire cluster per call,
+# never a partial page of one).
+_MAX_UUID = uuid.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
 
 
 def _load_env(env: str):
@@ -68,12 +79,12 @@ async def main(env: str, cluster_id_arg: int | None, reset: bool):
         if cluster_id_arg is not None:
             # Fetch starting just before the requested cluster so it's included.
             rows = await repo.get_duplicates_clustered(
-                after_cluster_id=cluster_id_arg - 1, limit=200
+                cursor_cluster_id=cluster_id_arg - 1, cursor_image_id=_MAX_UUID, limit=200
             )
             cluster_id = cluster_id_arg
         else:
             rows = await repo.get_duplicates_clustered(
-                after_cluster_id=last, limit=200
+                cursor_cluster_id=last, cursor_image_id=_MAX_UUID, limit=200
             )
             if not rows:
                 print(json.dumps({"done": True, "message": "All clusters processed"}))

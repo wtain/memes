@@ -289,10 +289,11 @@ class ImageService:
             limit: int,
             threshold: float
     ) -> MemeSearchResponse:
-        after_cluster_id = int(cursor) if cursor else None
+        cursor_cluster_id, cursor_image_id = self._decode_cluster_cursor(cursor)
 
         images = await self.repo.get_duplicates_clustered(
-            after_cluster_id=after_cluster_id,
+            cursor_cluster_id=cursor_cluster_id,
+            cursor_image_id=cursor_image_id,
             limit=limit,
         )
 
@@ -300,8 +301,8 @@ class ImageService:
         images = images[:limit]
 
         if has_next and images:
-            last_cluster_id = images[-1][3]
-            next_cursor = str(last_cluster_id)
+            last_id, _, _, last_cluster_id, _ = images[-1]
+            next_cursor = self._encode_cluster_cursor(last_cluster_id, last_id)
         else:
             next_cursor = None
 
@@ -395,3 +396,23 @@ class ImageService:
     def _encode_cursor1(created_at, id):
         payload = json.dumps({"id": str(id), "created_at": created_at.isoformat()})
         return base64.urlsafe_b64encode(payload.encode()).decode()
+
+    @staticmethod
+    def _decode_cluster_cursor(cursor: Optional[str]):
+        # Cursor is an opaque string end-to-end (router and frontend never
+        # parse it), so a plain delimited "cluster_id:image_id" pair is
+        # enough here - doesn't need to match the base64-JSON scheme used
+        # for the created_at/id cursors above. Any malformed/missing cursor
+        # soft-fails to "no cursor", mirroring the old `int(cursor) if
+        # cursor else None` behavior.
+        if not cursor:
+            return None, None
+        try:
+            cluster_id_str, image_id_str = cursor.split(":", 1)
+            return int(cluster_id_str), uuid.UUID(image_id_str)
+        except (ValueError, AttributeError):
+            return None, None
+
+    @staticmethod
+    def _encode_cluster_cursor(cluster_id, image_id) -> str:
+        return f"{cluster_id}:{image_id}"

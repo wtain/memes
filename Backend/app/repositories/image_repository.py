@@ -414,7 +414,8 @@ class ImageRepository:
         return [(id, image_id1, filename1, image_id2, filename2, created_at, distance,) for (id, image_id1, filename1, image_id2, filename2, created_at, distance,) in images]
 
     async def get_duplicates_clustered(self,
-                             after_cluster_id: Optional[int],
+                             cursor_cluster_id: Optional[int],
+                             cursor_image_id: Optional[uuid.UUID],
                              limit: int,):
         img = aliased(Image)
         cluster = aliased(TmpImageClusters)
@@ -433,8 +434,13 @@ class ImageRepository:
             .where(img.status == "active")
         )
 
-        if after_cluster_id is not None:
-            query = query.where(cluster.cluster_id > after_cluster_id)
+        if cursor_cluster_id is not None and cursor_image_id is not None:
+            # Compound keyset cursor: a cluster's members can straddle the
+            # `limit` row cutoff, so cursoring on cluster_id alone would skip
+            # the remaining members of a split cluster on the next page.
+            query = query.where(
+                tuple_(cluster.cluster_id, img.id) > tuple_(cursor_cluster_id, cursor_image_id)
+            )
 
         images = await self.session.execute(
             query.order_by(

@@ -181,7 +181,7 @@ async def test_get_duplicates_clustered_excludes_pending(db_session, seeded_imag
     active, pending = seeded_images
     repo = ImageRepository(db_session)
 
-    rows = await repo.get_duplicates_clustered(after_cluster_id=None, limit=50)
+    rows = await repo.get_duplicates_clustered(cursor_cluster_id=None, cursor_image_id=None, limit=50)
     ids = {r[0] for r in rows}
 
     assert active.id in ids

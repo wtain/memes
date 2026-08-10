@@ -524,7 +524,7 @@ async def test_get_duplicates_clustered_reads_tmp_clusters_with_flagged(db_sessi
     await db_session.flush()
 
     repo = ImageRepository(db_session)
-    rows = await repo.get_duplicates_clustered(after_cluster_id=None, limit=50)
+    rows = await repo.get_duplicates_clustered(cursor_cluster_id=None, cursor_image_id=None, limit=50)
 
     by_id = {r[0]: r for r in rows}
     assert by_id[a.id][3] == 1

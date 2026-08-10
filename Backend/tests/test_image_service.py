@@ -7,6 +7,7 @@ file, no test exercised ImageService.get_similar's actual branching logic
 404s) - test_images_endpoints.py mocks ImageService wholesale, and the
 integration tests call ImageRepository directly, never through the service.
 """
+import uuid
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -200,3 +201,81 @@ class TestRejectDescriptionFeedback:
 
         mock_repo.set_description_feedback.assert_awaited_once_with("desc-uuid-1", False)
         assert result == "rejected"
+
+
+class TestGetDuplicatesClusteredPagination:
+    """
+    Regression coverage for the compound-cursor fix: pagination for
+    /api/images/duplicates used to cursor on cluster_id alone. When a
+    cluster's members straddled the page's `limit` row cutoff, the
+    remaining members were permanently skipped - the next page's filter
+    (cluster_id > last_seen_cluster_id) excludes same-cluster rows outright.
+
+    Here cluster 1 has 3 members (A, B, C) and cluster 2 has 1 member (D),
+    with limit=2 so cluster 1 alone straddles the boundary. The fake repo
+    below mirrors the real ImageRepository.get_duplicates_clustered's
+    keyset filter (`tuple_(cluster_id, image_id) > cursor`) so the test
+    exercises the same cursor semantics the service now relies on.
+    """
+
+    IMAGE_A = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    IMAGE_B = uuid.UUID("00000000-0000-0000-0000-000000000002")
+    IMAGE_C = uuid.UUID("00000000-0000-0000-0000-000000000003")
+    IMAGE_D = uuid.UUID("00000000-0000-0000-0000-000000000004")
+
+    @staticmethod
+    def _make_fake_rows():
+        now = datetime(2026, 8, 10, 12, 0, 0)
+        return [
+            (TestGetDuplicatesClusteredPagination.IMAGE_A, "a.jpg", now, 1, False),
+            (TestGetDuplicatesClusteredPagination.IMAGE_B, "b.jpg", now, 1, False),
+            (TestGetDuplicatesClusteredPagination.IMAGE_C, "c.jpg", now, 1, False),
+            (TestGetDuplicatesClusteredPagination.IMAGE_D, "d.jpg", now, 2, False),
+        ]
+
+    def _wire_fake_repo(self, mock_repo):
+        full_rows = self._make_fake_rows()
+
+        async def fake_get_duplicates_clustered(cursor_cluster_id, cursor_image_id, limit):
+            if cursor_cluster_id is not None and cursor_image_id is not None:
+                cursor = (cursor_cluster_id, cursor_image_id)
+                rows = [r for r in full_rows if (r[3], r[0]) > cursor]
+            else:
+                rows = list(full_rows)
+            return rows[: limit + 1]
+
+        mock_repo.get_duplicates_clustered.side_effect = fake_get_duplicates_clustered
+        mock_repo.get_texts.return_value = []
+        mock_repo.get_tags.return_value = []
+
+    async def test_split_cluster_members_all_appear_exactly_once_across_pages(self, service, mock_repo):
+        self._wire_fake_repo(mock_repo)
+
+        page1 = await service.get_duplicates_clustered(cursor=None, limit=2, threshold=0.2)
+        assert [item.id for item in page1.items] == [str(self.IMAGE_A), str(self.IMAGE_B)]
+        assert page1.hasNext is True
+        assert page1.nextCursor is not None
+
+        page2 = await service.get_duplicates_clustered(cursor=page1.nextCursor, limit=2, threshold=0.2)
+
+        all_ids = [item.id for item in page1.items] + [item.id for item in page2.items]
+
+        # Nothing dropped, nothing duplicated: cluster 1's 3 members (A, B, C)
+        # plus cluster 2's 1 member (D), each exactly once.
+        assert sorted(all_ids) == sorted(
+            [str(self.IMAGE_A), str(self.IMAGE_B), str(self.IMAGE_C), str(self.IMAGE_D)]
+        )
+        assert len(all_ids) == len(set(all_ids))
+
+        # Specifically: C (the tail of the split cluster) must not have been
+        # skipped - this is the exact row the old cluster_id-only cursor lost.
+        assert str(self.IMAGE_C) in all_ids
+        assert page2.hasNext is False
+
+    async def test_no_cursor_and_malformed_cursor_both_start_from_beginning(self, service, mock_repo):
+        self._wire_fake_repo(mock_repo)
+
+        result_no_cursor = await service.get_duplicates_clustered(cursor=None, limit=2, threshold=0.2)
+        result_bad_cursor = await service.get_duplicates_clustered(cursor="not-a-valid-cursor", limit=2, threshold=0.2)
+
+        assert [item.id for item in result_no_cursor.items] == [item.id for item in result_bad_cursor.items]
