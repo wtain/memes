@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react"
-import { VirtuosoGrid } from "react-virtuoso"
+import { useCallback, useMemo, useState } from "react"
+import { Virtuoso } from "react-virtuoso"
 import MemeCard from "./MemeCard"
 import { MemeDetailsModal } from "./MemeDetailsModal"
 import { useWindowedPagination, type FetchPageFn } from "../hooks/useWindowedPagination"
@@ -17,11 +17,22 @@ type MemesListProps = {
   listRecommendations?: boolean
 }
 
-const gridComponents = {
-  List: (props: React.HTMLAttributes<HTMLDivElement>) => (
-    <div {...props} className="grid grid-cols-1 md:grid-cols-6 gap-4" />
-  ),
-  Item: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} />,
+const COLUMNS = 6
+
+// Chunks `items` into rows of up to COLUMNS, aligning the first row to the item's absolute
+// position in the true (unbounded) sequence -- so row boundaries stay stable and page-boundary-
+// agnostic as pages are evicted from the front, matching today's seamless grid flow instead of
+// visibly breaking at every page edge.
+function chunkIntoAlignedRows(items: Meme[], globalStart: number): Meme[][] {
+  const rows: Meme[][] = []
+  if (items.length === 0) return rows
+  const offset = ((globalStart % COLUMNS) + COLUMNS) % COLUMNS
+  const firstRowSize = Math.min(COLUMNS - offset, items.length)
+  rows.push(items.slice(0, firstRowSize))
+  for (let i = firstRowSize; i < items.length; i += COLUMNS) {
+    rows.push(items.slice(i, i + COLUMNS))
+  }
+  return rows
 }
 
 export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listFlagged, listNoOcr, listRecommendations }: MemesListProps) {
@@ -62,20 +73,28 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
 
   const resetKey = `${filter ?? ""}:${JSON.stringify(tagFilters ?? {})}:${listUntagged}:${listFlagged}:${listNoOcr}:${listRecommendations}`
 
-  const { items, hasMoreForward, loading, loadForward } = useWindowedPagination({
+  const { items, firstItemIndex, hasMoreForward, hasMoreBackward, loading, loadForward, loadBackward } = useWindowedPagination({
     fetchPage,
     resetKey,
   })
 
+  const rows = useMemo(() => chunkIntoAlignedRows(items, firstItemIndex), [items, firstItemIndex])
+  const rowFirstItemIndex = Math.floor(firstItemIndex / COLUMNS)
+
   return (
     <div>
-      <VirtuosoGrid
+      <Virtuoso
         useWindowScroll
-        data={items}
-        components={gridComponents}
+        firstItemIndex={rowFirstItemIndex}
+        data={rows}
+        startReached={() => { if (hasMoreBackward) loadBackward() }}
         endReached={() => { if (hasMoreForward) loadForward() }}
-        itemContent={(_index, meme) => (
-          <MemeCard meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
+        itemContent={(_index, row) => (
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            {row.map(meme => (
+              <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
+            ))}
+          </div>
         )}
       />
 

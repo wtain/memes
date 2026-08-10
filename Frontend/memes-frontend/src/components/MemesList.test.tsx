@@ -3,7 +3,7 @@ import { MemesList } from './MemesList'
 import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
 
 vi.mock('react-virtuoso', () => ({
-  VirtuosoGrid: (props: { data: unknown[]; itemContent: (index: number, item: unknown) => React.ReactNode; endReached?: (index: number) => void }) => (
+  Virtuoso: (props: { data: unknown[]; itemContent: (index: number, item: unknown) => React.ReactNode; endReached?: (index: number) => void; startReached?: (index: number) => void }) => (
     <div>
       {props.data.map((item, i) => (
         <div key={i}>{props.itemContent(i, item)}</div>
@@ -108,5 +108,19 @@ describe('MemesList', () => {
 
     rerender(<MemesList memesApi={api} filter="second query" />)
     await waitFor(() => expect(api.searchMemes).toHaveBeenCalledWith(expect.objectContaining({ query: 'second query' })))
+  })
+
+  it('chunks items into rows of up to 6 for the grid layout', async () => {
+    const items = Array.from({ length: 8 }, (_, i) => ({ ...DEFAULT_MOCK_MEME, id: `m${i}` }))
+    const api = makeMockApi({
+      searchMemes: vi.fn().mockResolvedValue({ items, facets: [], hasNext: false }),
+    })
+    const { container } = render(<MemesList memesApi={api} />)
+    await waitFor(() => {
+      expect(screen.getAllByRole('img')).toHaveLength(8)
+    })
+    // 8 items at 6 columns -> one full row of 6, one partial row of 2.
+    const rowWrappers = container.querySelectorAll('.grid.grid-cols-1.md\\:grid-cols-6')
+    expect(rowWrappers).toHaveLength(2)
   })
 })
