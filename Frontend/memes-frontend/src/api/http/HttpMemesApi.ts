@@ -89,19 +89,14 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
-  async iterateDuplicates(limit?: number, cursor?: string, threshold?: number): Promise<MemeSearchResponse> {
-    let paramsString = ""
-    if (limit) {
-      paramsString += `limit=${limit}&`
-    }
-    if (cursor) {
-      paramsString += `cursor=${cursor}&`
-    }
-    if (threshold) {
-      paramsString += `threshold=${threshold}`
-    }
+  async iterateDuplicates(limit?: number, cursor?: string, threshold?: number, direction?: "forward" | "backward"): Promise<MemeSearchResponse> {
+    const params = new URLSearchParams()
+    if (limit) params.set("limit", String(limit))
+    if (cursor) params.set("cursor", cursor)
+    if (threshold) params.set("threshold", String(threshold))
+    if (direction) params.set("direction", direction)
     const response = await fetch(
-      `${this.baseUrl}/api/images/duplicates?${paramsString}`,
+      `${this.baseUrl}/api/images/duplicates?${params.toString()}`,
       {
         headers: {
           "Accept": "application/json",

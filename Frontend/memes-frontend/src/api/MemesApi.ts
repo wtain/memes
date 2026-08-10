@@ -15,7 +15,7 @@ export interface MemesApi {
 
   iterateNoOcrMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>
 
-  iterateDuplicates(limit?: number, cursor?: string, threshold?: number): Promise<MemeSearchResponse>;
+  iterateDuplicates(limit?: number, cursor?: string, threshold?: number, direction?: "forward" | "backward"): Promise<MemeSearchResponse>;
 
   iterateFlaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>;
 
