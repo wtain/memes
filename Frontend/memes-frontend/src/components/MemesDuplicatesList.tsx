@@ -55,7 +55,13 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
   // adjacent page briefly renders with fewer members than it truly has --
   // accepted, self-heals as soon as that page loads (same characteristic
   // the pre-existing unwindowed implementation already had).
-  const clusterRows: ClusterRow[] = useMemo(() => {
+  //
+  // `rowStartItemOffsets[i]` is the item-space offset (relative to the start of `items`) of
+  // row i's first member -- needed because Virtuoso's `rangeChanged` reports `startIndex` in
+  // row-space (this instance is fed `data={clusterRows}`), but `cursorForVirtualIndex` requires
+  // an index in the same item-space as the hook's `firstItemIndex`. Built in the same pass as
+  // the grouping so it can't drift from `clusterRows`.
+  const { clusterRows, rowStartItemOffsets } = useMemo(() => {
     const map = new Map<number | string, Meme[]>()
     const order: (number | string)[] = []
     for (const meme of items) {
@@ -63,7 +69,14 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
       if (!map.has(key)) { map.set(key, []); order.push(key) }
       map.get(key)!.push(meme)
     }
-    return order.map(clusterId => ({ clusterId, members: map.get(clusterId)! }))
+    const rows: ClusterRow[] = order.map(clusterId => ({ clusterId, members: map.get(clusterId)! }))
+    const offsets: number[] = []
+    let cumulative = 0
+    for (const row of rows) {
+      offsets.push(cumulative)
+      cumulative += row.members.length
+    }
+    return { clusterRows: rows, rowStartItemOffsets: offsets }
   }, [items])
 
   const prevPagesRef = useRef<Page[]>([])
@@ -89,10 +102,21 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     if (!onCursorChangeRef.current) return
     if (cursorChangeTimerRef.current) clearTimeout(cursorChangeTimerRef.current)
     cursorChangeTimerRef.current = setTimeout(() => {
-      const cursor = cursorForVirtualIndex(pages, firstItemIndex, range.startIndex)
+      // Convert `range.startIndex` from row-space to item-space before handing it to
+      // `cursorForVirtualIndex`, which requires an index in the same item-space as `firstItemIndex`.
+      const rowIndex = range.startIndex - rowFirstItemIndex
+      const clampedRowIndex = Math.max(0, Math.min(rowIndex, rowStartItemOffsets.length - 1))
+      const itemOffset = rowStartItemOffsets[clampedRowIndex] ?? 0
+      const cursor = cursorForVirtualIndex(pages, firstItemIndex, firstItemIndex + itemOffset)
       onCursorChangeRef.current?.(cursor)
     }, CURSOR_DEBOUNCE_MS)
-  }, [pages, firstItemIndex])
+  }, [pages, firstItemIndex, rowFirstItemIndex, rowStartItemOffsets])
+
+  useEffect(() => {
+    return () => {
+      if (cursorChangeTimerRef.current) clearTimeout(cursorChangeTimerRef.current)
+    }
+  }, [])
 
   return (
     <div>
