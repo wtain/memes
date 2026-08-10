@@ -17,6 +17,7 @@
       }
     },
     "nextCursor": { "type": "string" },
-    "hasNext": { "type": "boolean" }
+    "hasNext": { "type": "boolean" },
+    "previousCursor": { "type": "string" }
   }
 }

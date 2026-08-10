@@ -81,6 +81,7 @@ export interface MemeSearchResponse {
   facets?: Facet[];
   nextCursor?: string;
   hasNext?: boolean;
+  previousCursor?: string;
   [k: string]: unknown;
 }
 /**
@@ -358,7 +359,7 @@ export interface UploadResponse {
 export interface IngestionRunStatus {
   run_id: string;
   /**
-   * started | completed | failed
+   * started | completed | failed | aborted
    */
   status: string;
   /**
