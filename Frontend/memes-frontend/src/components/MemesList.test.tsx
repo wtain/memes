@@ -2,15 +2,15 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemesList } from './MemesList'
 import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
 
-beforeEach(() => {
-  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-  const mockObserver = { observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() }
-  global.IntersectionObserver = vi.fn(() => mockObserver) as unknown as typeof IntersectionObserver
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
+vi.mock('react-virtuoso', () => ({
+  VirtuosoGrid: (props: { data: unknown[]; itemContent: (index: number, item: unknown) => React.ReactNode; endReached?: (index: number) => void }) => (
+    <div>
+      {props.data.map((item, i) => (
+        <div key={i}>{props.itemContent(i, item)}</div>
+      ))}
+    </div>
+  ),
+}))
 
 describe('MemesList', () => {
   it('calls searchMemes on mount', async () => {
@@ -56,20 +56,20 @@ describe('MemesList', () => {
     })
   })
 
-  it('calls iterateDuplicates instead of searchMemes when listDuplicates is true', async () => {
-    const api = makeMockApi()
-    render(<MemesList memesApi={api} listDuplicates />)
-    await waitFor(() => {
-      expect(api.iterateDuplicates).toHaveBeenCalled()
-      expect(api.searchMemes).not.toHaveBeenCalled()
-    })
-  })
-
   it('calls iterateNoOcrMemes instead of searchMemes when listNoOcr is true', async () => {
     const api = makeMockApi()
     render(<MemesList memesApi={api} listNoOcr />)
     await waitFor(() => {
       expect(api.iterateNoOcrMemes).toHaveBeenCalled()
+      expect(api.searchMemes).not.toHaveBeenCalled()
+    })
+  })
+
+  it('calls iterateFlaggedMemes instead of searchMemes when listFlagged is true', async () => {
+    const api = makeMockApi()
+    render(<MemesList memesApi={api} listFlagged />)
+    await waitFor(() => {
+      expect(api.iterateFlaggedMemes).toHaveBeenCalled()
       expect(api.searchMemes).not.toHaveBeenCalled()
     })
   })
@@ -99,5 +99,14 @@ describe('MemesList', () => {
         })
       )
     })
+  })
+
+  it('re-fetches from scratch when the filter changes', async () => {
+    const api = makeMockApi()
+    const { rerender } = render(<MemesList memesApi={api} filter="first query" />)
+    await waitFor(() => expect(api.searchMemes).toHaveBeenCalledWith(expect.objectContaining({ query: 'first query' })))
+
+    rerender(<MemesList memesApi={api} filter="second query" />)
+    await waitFor(() => expect(api.searchMemes).toHaveBeenCalledWith(expect.objectContaining({ query: 'second query' })))
   })
 })
