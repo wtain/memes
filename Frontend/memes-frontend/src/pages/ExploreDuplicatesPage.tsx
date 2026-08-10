@@ -1,5 +1,5 @@
 import { useSearchParams } from "react-router-dom"
-import { MemesList } from "../components/MemesList"
+import { MemesDuplicatesList } from "../components/MemesDuplicatesList"
 import type { MemesApi } from "../api/MemesApi"
 
 type ExploreDuplicatesPageProps = {
@@ -18,10 +18,8 @@ export default function ExploreDuplicatesPage({ memesApi }: ExploreDuplicatesPag
     <div>
       <h1 className="text-2xl font-bold mb-4">Explore</h1>
 
-      <MemesList
+      <MemesDuplicatesList
         memesApi={memesApi}
-        listDuplicates={true}
-        groupByCluster={true}
         initialCursor={initialCursor}
         onCursorChange={handleCursorChange}
       />
