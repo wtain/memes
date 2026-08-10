@@ -120,10 +120,14 @@ New capability on the duplicates endpoint (`GET /api/images/duplicates`), mirror
   reversed back to ascending order in Python before returning (so the response's item order is
   always ascending regardless of fetch direction — the frontend never needs to know which direction
   produced a given page).
-- Response shape unchanged (`MemeSearchResponse`); for a backward fetch, `hasNext` continues to mean
-  "is there a next page in the *forward* sense from this page's last item" (unaffected), and a new
-  `hasPrevious`-equivalent is unnecessary — the frontend already knows whether to keep offering
-  scroll-up by whether the backward fetch it just made returned zero items.
+- `MemeSearchResponse` gains a new optional `previousCursor: string | undefined` field (added to
+  `shared/schemas/memesearchresponse.schema.json`, regenerated into both Backend and Frontend
+  types) rather than overloading `nextCursor` with direction-dependent meaning — `nextCursor`/
+  `hasNext` keep meaning "forward from here" everywhere, including on a backward-fetched page
+  (where they simply resolve to the cursor that was passed in, since that's by construction the
+  boundary immediately after this page's last item). `previousCursor` is set only when a backward
+  fetch finds more items beyond what it returned; `null`/absent means this page reached the true
+  beginning. Every other endpoint leaves `previousCursor` unset.
 - `Frontend/memes-frontend/src/api/MemesApi.ts` / `HttpMemesApi.ts`: `iterateDuplicates` gains a
   `direction?: "forward" | "backward"` param, passed through as the query string param above.
 
@@ -137,23 +141,28 @@ history, it calls the fetch function with `direction="backward"` and the current
 cursor instead of no-op'ing — this is the one branch point in the hook that's aware duplicates has
 a real backward query; every other page type simply has the flag unset and falls back to the no-op.
 
-### Cluster-eviction boundary (duplicates page only)
+### Cluster-row assembly (duplicates page only)
 
-`useWindowedPagination`'s pages are fetched at raw-image granularity (40 images/page, same as
-today), but `Virtuoso` rows are whole clusters assembled by grouping the currently-windowed items
-by `clusterId` (same grouping `MemesList` already does today, just scoped to the window instead of
-the full accumulated array). Evicting the oldest raw-image page verbatim could tear a cluster in
-half if that cluster's remaining members live in the next-oldest still-loaded page. To avoid ever
-rendering (or silently dropping) a torn cluster: eviction on the duplicates page rounds *down* to
-the last complete cluster boundary — i.e., if evicting the nominal oldest page would leave a
-partial cluster stranded, the eviction point moves forward just enough to keep that cluster's
-members together (all evicted, or all kept, never split). This only affects the eviction
-boundary, not the fetch boundary — fetching still fills up to `MAX_PAGES` by raw page, only the
-trim-back-down step rounds to a cluster edge. In the rare case a single cluster's membership
-exceeds `MAX_PAGES` worth of raw items on its own (large duplicate cluster), that cluster is simply
-kept in full and the window temporarily exceeds the nominal cap for it — an accepted, self-resolving
-edge case (it shrinks back to normal once the user scrolls past that cluster), not worth adding
-complexity to prevent.
+`useWindowedPagination`'s pages are fetched and evicted at raw-image granularity (40 images/page,
+plain whole-page FIFO eviction — no cluster-awareness in the hook itself, keeping it generic for
+all six consumers). `Virtuoso` rows are whole clusters assembled by grouping the currently-windowed
+items by `clusterId` (same grouping the old implementation already did, just scoped to the window
+instead of an ever-growing array). A cluster whose remaining members haven't loaded yet (still on
+an adjacent, not-yet-fetched page) briefly renders with fewer members than it truly has; this
+self-heals as soon as that page loads, and never *permanently* loses a member — that guarantee
+comes entirely from the compound-cursor pagination fix (already shipped), not from anything in the
+windowing layer. This is an accepted characteristic carried forward unchanged from the pre-windowing
+implementation, which had the exact same transient behavior; the duplicates page is browsing-only
+(no keep/reject decisions happen here — that's `IngestionReviewPage`, a separate, non-infinite
+feature), so a momentarily-incomplete cluster during active scrolling is low-stakes.
+
+Because cluster rows have different cardinality than the hook's item-level window, the rendering
+layer tracks its own row-level `firstItemIndex` for `Virtuoso`'s prepend-without-jump mechanism,
+derived by diffing the hook's `pages` (identified by cursor) between renders and adjusting by the
+number of distinct clusters each added/evicted page contributed. This slightly over/under-counts
+when a cluster straddles a page boundary (counted once per page instead of once overall) — accepted
+given clusters are typically small relative to the 40-item page size; the failure mode is a one-row
+scroll adjustment, self-corrected on the next load, not a correctness issue.
 
 ### URL cursor tracking (`ExploreDuplicatesPage`)
 
@@ -191,9 +200,9 @@ vi.mock('react-virtuoso', () => ({
 ```
 
 `useWindowedPagination` itself gets direct hook tests (`@testing-library/react`'s `renderHook`) independent
-of any virtuoso mock: page eviction at `MAX_PAGES`, cursor history replay on `loadBackward`, and the
-cluster-eviction-boundary rounding behavior, using a mock fetch function rather than a real
-`MemesApi`.
+of any virtuoso mock: page eviction at `MAX_PAGES`, cursor history replay on `loadBackward`, and
+cold-backward behavior (including exhaustion once a backward fetch returns no items), using a mock
+fetch function rather than a real `MemesApi`.
 
 New/changed test files:
 - `Frontend/memes-frontend/src/hooks/useWindowedPagination.test.ts` (new)
@@ -209,10 +218,13 @@ New/changed test files:
 2. Backend: add `get_duplicates_clustered_before` to `ImageRepository`, wire `direction` through
    `ImageService.get_duplicates_clustered` and the `/duplicates` router, add tests.
 3. Frontend API layer: `iterateDuplicates(..., direction?)` in `MemesApi`/`HttpMemesApi`.
-4. Extract `useWindowedPagination` hook (page deque, eviction, cursor history, cluster-boundary
-   rounding) with its own unit tests, no UI wiring yet.
-5. Rewrite `MemesList` to use the hook + `VirtuosoGrid`/`Virtuoso` (chosen by `groupByCluster`
-   prop, matching today's branch), removing the old `IntersectionObserver` sentinel code.
+4. Extract `useWindowedPagination` hook (page deque, whole-page eviction, cursor history replay,
+   cold-backward support) with its own unit tests, no UI wiring yet.
+5. Rewrite `MemesList` to use the hook + `VirtuosoGrid` for the five flat listings; add a new,
+   separate `MemesDuplicatesList` component using the hook + `Virtuoso` with cluster-row assembly
+   for the duplicates page (kept as its own file rather than a branch inside `MemesList`, since it's
+   the only consumer needing cluster-row assembly, cold backward loading, and cursor tracking),
+   removing the old `IntersectionObserver` sentinel code from both.
 6. `ExploreDuplicatesPage`: switch `onCursorChange` to the `rangeChanged`-based topmost-page cursor;
    wire `loadBackward` to use `direction=backward` specifically for this page (the hook needs a way
    to know it can go backward past session history for this one page type — a `supportsColdBackward`
