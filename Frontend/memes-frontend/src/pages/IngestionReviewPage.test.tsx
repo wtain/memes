@@ -103,6 +103,35 @@ describe('IngestionReviewPage', () => {
     expect(screen.getByText('“original template text”')).toBeInTheDocument()
   })
 
+  it('opens a lightbox with the full image when a thumbnail is clicked, and closes it', async () => {
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+      getIngestionClusters: vi.fn().mockResolvedValue([mockCluster]),
+    })
+    const user = userEvent.setup()
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+
+    // Only the thumbnail exists before the lightbox is opened.
+    expect(screen.getAllByAltText('new.jpg')).toHaveLength(1)
+
+    await user.click(screen.getAllByAltText('new.jpg')[0])
+
+    // Opening it adds a second image with the same alt text -- the enlarged one.
+    const images = await waitFor(() => {
+      const found = screen.getAllByAltText('new.jpg')
+      expect(found).toHaveLength(2)
+      return found
+    })
+    const enlargedImage = images[1]
+    expect(enlargedImage).toHaveAttribute('src', api.getImageUrlById('pending-1'))
+
+    await user.click(screen.getByText('✕'))
+
+    await waitFor(() => expect(screen.getAllByAltText('new.jpg')).toHaveLength(1))
+  })
+
   it('shows a waiting message during the OCR pre-pass stage, without fetching clusters', async () => {
     const getIngestionClusters = vi.fn()
     const api = makeMockApi({

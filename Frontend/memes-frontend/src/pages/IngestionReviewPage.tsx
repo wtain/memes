@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { MemesApi, IngestionTier } from "../api/MemesApi"
 import type { IngestionCluster, IngestionRunStatus } from "../types/generated/all"
+import { Modal } from "../components/Modal"
 
 type Props = { memesApi: MemesApi }
 
@@ -41,7 +42,7 @@ function StatusBanner({ status }: { status: IngestionRunStatus | null }) {
 }
 
 function MemberTile({
-  memesApi, memberId, filename, memberStatus, ocrText, edgeLabels, decision, onDecide,
+  memesApi, memberId, filename, memberStatus, ocrText, edgeLabels, decision, onDecide, onOpenImage,
 }: {
   memesApi: MemesApi
   memberId: string
@@ -51,6 +52,7 @@ function MemberTile({
   edgeLabels: string[]
   decision: Decision | undefined
   onDecide: (decision: Decision) => void
+  onOpenImage: () => void
 }) {
   const isPending = memberStatus === "pending"
   return (
@@ -58,7 +60,8 @@ function MemberTile({
       <img
         src={memesApi.getImageUrlById(memberId)}
         alt={filename}
-        className="w-full h-32 object-cover rounded"
+        className="w-full h-32 object-cover rounded cursor-pointer"
+        onClick={onOpenImage}
       />
       <div className="text-xs mt-1 truncate" title={filename}>{filename}</div>
       <div className="text-xs">
@@ -99,6 +102,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState<number | null>(null)
+  const [enlargedMember, setEnlargedMember] = useState<{ memberId: string; filename: string } | null>(null)
   const tier = status ? tierForStage(status.stage) : null
 
   const load = useCallback(() => {
@@ -214,6 +218,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
                       edgeLabels={edgeLabels}
                       decision={decisions[member.image_id]}
                       onDecide={(d) => setDecision(member.image_id, d)}
+                      onOpenImage={() => setEnlargedMember({ memberId: member.image_id, filename: member.filename })}
                     />
                   )
                 })}
@@ -229,6 +234,16 @@ export default function IngestionReviewPage({ memesApi }: Props) {
           )
         })}
       </div>
+
+      {enlargedMember && (
+        <Modal onClose={() => setEnlargedMember(null)} title={enlargedMember.filename}>
+          <img
+            src={memesApi.getImageUrlById(enlargedMember.memberId)}
+            alt={enlargedMember.filename}
+            className="max-w-full max-h-[80vh] object-contain"
+          />
+        </Modal>
+      )}
     </div>
   )
 }
