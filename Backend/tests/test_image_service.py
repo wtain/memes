@@ -279,3 +279,52 @@ class TestGetDuplicatesClusteredPagination:
         result_bad_cursor = await service.get_duplicates_clustered(cursor="not-a-valid-cursor", limit=2, threshold=0.2)
 
         assert [item.id for item in result_no_cursor.items] == [item.id for item in result_bad_cursor.items]
+
+    def _wire_fake_repo_backward(self, mock_repo):
+        full_rows = self._make_fake_rows()  # A,B,C in cluster 1; D in cluster 2
+
+        async def fake_get_duplicates_clustered_before(cursor_cluster_id, cursor_image_id, limit):
+            if cursor_cluster_id is not None and cursor_image_id is not None:
+                cursor = (cursor_cluster_id, cursor_image_id)
+                rows = [r for r in full_rows if (r[3], r[0]) < cursor]
+            else:
+                rows = list(full_rows)
+            rows_desc = sorted(rows, key=lambda r: (r[3], r[0]), reverse=True)
+            return rows_desc[: limit + 1]
+
+        mock_repo.get_duplicates_clustered_before.side_effect = fake_get_duplicates_clustered_before
+        mock_repo.get_texts.return_value = []
+        mock_repo.get_tags.return_value = []
+
+    async def test_backward_fetch_returns_items_before_cursor_in_ascending_order(self, service, mock_repo):
+        self._wire_fake_repo_backward(mock_repo)
+        cursor = service._encode_cluster_cursor(2, self.IMAGE_D)  # anchor: right after D
+
+        page = await service.get_duplicates_clustered(cursor=cursor, limit=2, threshold=0.2, direction="backward")
+
+        # limit=2 takes the 2 rows immediately before D in descending order (C, B),
+        # reversed back to ascending for the response.
+        assert [item.id for item in page.items] == [str(self.IMAGE_B), str(self.IMAGE_C)]
+        # Forward continuation from this backward page must be the cursor we anchored on.
+        assert page.nextCursor == cursor
+        assert page.hasNext is True
+        # One more row (A) exists before this page, so previousCursor must be set.
+        assert page.previousCursor is not None
+
+    async def test_backward_fetch_at_true_beginning_has_no_previous_cursor(self, service, mock_repo):
+        self._wire_fake_repo_backward(mock_repo)
+        cursor = service._encode_cluster_cursor(1, self.IMAGE_B)  # anchor: right after B
+
+        page = await service.get_duplicates_clustered(cursor=cursor, limit=5, threshold=0.2, direction="backward")
+
+        assert [item.id for item in page.items] == [str(self.IMAGE_A)]
+        assert page.previousCursor is None  # nothing before A
+
+    async def test_backward_fetch_with_no_earlier_items_returns_empty(self, service, mock_repo):
+        self._wire_fake_repo_backward(mock_repo)
+        cursor = service._encode_cluster_cursor(1, self.IMAGE_A)  # anchor: right before A, nothing earlier
+
+        page = await service.get_duplicates_clustered(cursor=cursor, limit=5, threshold=0.2, direction="backward")
+
+        assert page.items == []
+        assert page.previousCursor is None

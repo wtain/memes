@@ -1013,6 +1013,34 @@ class TestGetDuplicateImages:
         assert len(data["items"]) == 0
         assert data["hasNext"] is False
 
+    def test_get_duplicates_with_backward_direction(self, client, mock_image_service):
+        """Test that direction=backward is passed through to the service."""
+        mock_response = MemeSearchResponse(
+            items=[], nextCursor="dup-cursor", hasNext=True, previousCursor=None, facets=[]
+        )
+        mock_image_service.get_duplicates_clustered.return_value = mock_response
+
+        response = client.get("/api/images/duplicates", params={"cursor": "dup-cursor", "direction": "backward"})
+
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_duplicates_clustered.call_args.kwargs
+        assert call_kwargs["direction"] == "backward"
+        assert call_kwargs["cursor"] == "dup-cursor"
+
+    def test_get_duplicates_direction_defaults_to_forward(self, client, mock_image_service):
+        mock_response = MemeSearchResponse(items=[], nextCursor=None, hasNext=False, facets=[])
+        mock_image_service.get_duplicates_clustered.return_value = mock_response
+
+        response = client.get("/api/images/duplicates")
+
+        assert response.status_code == 200
+        call_kwargs = mock_image_service.get_duplicates_clustered.call_args.kwargs
+        assert call_kwargs["direction"] == "forward"
+
+    def test_get_duplicates_invalid_direction_rejected(self, client, mock_image_service):
+        response = client.get("/api/images/duplicates", params={"direction": "sideways"})
+        assert response.status_code == 422
+
 
 class TestGetImage:
     """Tests for GET /api/images/{image_id} endpoint (file download)."""

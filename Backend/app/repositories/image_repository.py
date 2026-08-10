@@ -451,6 +451,41 @@ class ImageRepository:
 
         return [(id, filename, created_at, cluster_id, flagged, ) for (id, filename, created_at, cluster_id, flagged,) in images]
 
+    async def get_duplicates_clustered_before(self,
+                             cursor_cluster_id: Optional[int],
+                             cursor_image_id: Optional[uuid.UUID],
+                             limit: int,):
+        img = aliased(Image)
+        cluster = aliased(TmpImageClusters)
+        extras = aliased(ImageExtras)
+
+        query = (
+            select(
+                img.id,
+                img.filename,
+                img.created_at,
+                cluster.cluster_id,
+                extras.flagged,
+            )
+            .join(cluster, cluster.image_id == img.id)
+            .outerjoin(extras, img.id == extras.image_id)
+            .where(img.status == "active")
+        )
+
+        if cursor_cluster_id is not None and cursor_image_id is not None:
+            query = query.where(
+                tuple_(cluster.cluster_id, img.id) < tuple_(cursor_cluster_id, cursor_image_id)
+            )
+
+        images = await self.session.execute(
+            query.order_by(
+                cluster.cluster_id.desc(),
+                img.id.desc(),
+           ).limit(limit + 1)
+        )
+
+        return [(id, filename, created_at, cluster_id, flagged, ) for (id, filename, created_at, cluster_id, flagged,) in images]
+
 
     async def get_flagged(
             self,

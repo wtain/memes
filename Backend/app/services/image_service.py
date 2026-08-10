@@ -3,7 +3,7 @@ import json
 import uuid
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 from fastapi import HTTPException
 
@@ -287,24 +287,46 @@ class ImageService:
             self,
             cursor: Optional[str],
             limit: int,
-            threshold: float
+            threshold: float,
+            direction: Literal["forward", "backward"] = "forward",
     ) -> MemeSearchResponse:
         cursor_cluster_id, cursor_image_id = self._decode_cluster_cursor(cursor)
 
-        images = await self.repo.get_duplicates_clustered(
-            cursor_cluster_id=cursor_cluster_id,
-            cursor_image_id=cursor_image_id,
-            limit=limit,
-        )
+        if direction == "backward":
+            rows = await self.repo.get_duplicates_clustered_before(
+                cursor_cluster_id=cursor_cluster_id,
+                cursor_image_id=cursor_image_id,
+                limit=limit,
+            )
+            has_more_before = len(rows) > limit
+            rows = rows[:limit]
+            images = list(reversed(rows))
 
-        has_next = len(images) > limit
-        images = images[:limit]
+            previous_cursor = None
+            if has_more_before and images:
+                first_id, _, _, first_cluster_id, _ = images[0]
+                previous_cursor = self._encode_cluster_cursor(first_cluster_id, first_id)
 
-        if has_next and images:
-            last_id, _, _, last_cluster_id, _ = images[-1]
-            next_cursor = self._encode_cluster_cursor(last_cluster_id, last_id)
+            # A backward fetch is always anchored on a cursor that came from a
+            # real forward position, so resuming forward from here always
+            # means "go back to where we started."
+            next_cursor = cursor
+            has_next = True
         else:
-            next_cursor = None
+            images = await self.repo.get_duplicates_clustered(
+                cursor_cluster_id=cursor_cluster_id,
+                cursor_image_id=cursor_image_id,
+                limit=limit,
+            )
+            has_next = len(images) > limit
+            images = images[:limit]
+
+            if has_next and images:
+                last_id, _, _, last_cluster_id, _ = images[-1]
+                next_cursor = self._encode_cluster_cursor(last_cluster_id, last_id)
+            else:
+                next_cursor = None
+            previous_cursor = None
 
         items = [
             Meme(
@@ -322,7 +344,10 @@ class ImageService:
         # safe on any length
         await self._fill_texts_and_tags(items)
 
-        return MemeSearchResponse(items=items, nextCursor=next_cursor, hasNext=has_next, facets=[])
+        return MemeSearchResponse(
+            items=items, nextCursor=next_cursor, hasNext=has_next,
+            previousCursor=previous_cursor, facets=[],
+        )
 
     async def get_flagged(
             self,

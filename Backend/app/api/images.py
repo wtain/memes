@@ -178,10 +178,11 @@ async def get_duplicate_images(
     limit: int = Query(20, ge=1, le=100),
     threshold: float = Query(0.05, ge=0.0, le=1.0),
     cursor: Optional[str] = None,
+    direction: Literal["forward", "backward"] = "forward",
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    return await service.get_duplicates_clustered(cursor=cursor, limit=limit, threshold=threshold)
+    return await service.get_duplicates_clustered(cursor=cursor, limit=limit, threshold=threshold, direction=direction)
 
 
 def content_disposition(filename: str) -> str:
