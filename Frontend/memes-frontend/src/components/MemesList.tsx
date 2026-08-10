@@ -78,8 +78,20 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
     resetKey,
   })
 
-  const rows = useMemo(() => chunkIntoAlignedRows(items, firstItemIndex), [items, firstItemIndex])
-  const rowFirstItemIndex = Math.floor(firstItemIndex / COLUMNS)
+  // The hook always resets `firstItemIndex` back to the same starting constant on every
+  // `resetKey` change, so a value captured once here on the component's first render stays valid
+  // across all future resets -- useState's initializer argument is only consulted on the initial
+  // render, so this is a one-time capture despite being called on every render. Chunking relative
+  // to this baseline (rather than the raw absolute index) makes the delta start at exactly 0 on a
+  // fresh mount -- always producing a full first row of COLUMNS -- regardless of what that
+  // starting constant happens to be mod COLUMNS.
+  const [baselineFirstItemIndex] = useState(firstItemIndex)
+
+  const rows = useMemo(
+    () => chunkIntoAlignedRows(items, firstItemIndex - baselineFirstItemIndex),
+    [items, firstItemIndex, baselineFirstItemIndex]
+  )
+  const rowFirstItemIndex = Math.floor((firstItemIndex - baselineFirstItemIndex) / COLUMNS)
 
   return (
     <div>

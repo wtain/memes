@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { MemesList } from './MemesList'
 import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
 
@@ -122,5 +122,7 @@ describe('MemesList', () => {
     // 8 items at 6 columns -> one full row of 6, one partial row of 2.
     const rowWrappers = container.querySelectorAll('.grid.grid-cols-1.md\\:grid-cols-6')
     expect(rowWrappers).toHaveLength(2)
+    expect(within(rowWrappers[0] as HTMLElement).getAllByRole('img')).toHaveLength(6)
+    expect(within(rowWrappers[1] as HTMLElement).getAllByRole('img')).toHaveLength(2)
   })
 })
