@@ -307,11 +307,20 @@ class ImageService:
                 first_id, _, _, first_cluster_id, _ = images[0]
                 previous_cursor = self._encode_cluster_cursor(first_cluster_id, first_id)
 
-            # A backward fetch is always anchored on a cursor that came from a
-            # real forward position, so resuming forward from here always
-            # means "go back to where we started."
-            next_cursor = cursor
-            has_next = True
+            if cursor_cluster_id is None:
+                # No real anchor to page backward from (cursor=None), so
+                # there's no meaningful "go back to where we started"
+                # position to resume forward from either - claiming
+                # hasNext=True with nextCursor=None would let a caller loop
+                # on the same page forever.
+                next_cursor = None
+                has_next = False
+            else:
+                # A backward fetch is always anchored on a cursor that came from a
+                # real forward position, so resuming forward from here always
+                # means "go back to where we started."
+                next_cursor = cursor
+                has_next = True
         else:
             images = await self.repo.get_duplicates_clustered(
                 cursor_cluster_id=cursor_cluster_id,

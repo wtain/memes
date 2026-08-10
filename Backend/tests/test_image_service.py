@@ -328,3 +328,14 @@ class TestGetDuplicatesClusteredPagination:
 
         assert page.items == []
         assert page.previousCursor is None
+
+    async def test_backward_fetch_with_no_cursor_has_no_next_cursor(self, service, mock_repo):
+        # direction="backward" with cursor=None has no real anchor to resume
+        # forward from - hasNext=True with nextCursor=None would let a caller
+        # that trusts hasNext loop on the same page forever.
+        self._wire_fake_repo_backward(mock_repo)
+
+        page = await service.get_duplicates_clustered(cursor=None, limit=5, threshold=0.2, direction="backward")
+
+        assert page.hasNext is False
+        assert page.nextCursor is None
