@@ -11,7 +11,7 @@ import pytest
 from PIL import Image as PILImage
 from sqlalchemy import select
 
-from batch.ingest_validate_formats import run
+from batch.ingest_validate_formats import run, should_advance_stage
 from repository.batch_runs import BatchRunRepository
 from repository.image_extras import ImageExtrasRepository
 from Storage.models import Image, ImageExtras
@@ -19,6 +19,18 @@ from Storage.models import Image, ImageExtras
 
 def _save(base_path, filename: str, pillow_format: str) -> None:
     PILImage.new("RGB", (4, 4), (255, 0, 0)).save(os.path.join(str(base_path), filename), pillow_format)
+
+
+def test_should_advance_stage_only_from_hash_dedup():
+    """main() must not rewind a later stage back to format_validation when an operator
+    re-runs ingest_hash_dedup.py mid-review and then re-runs this script per the runbook --
+    the frontend's tierForStage() would drop the review queue until
+    ingest_find_duplicates re-runs. No DB needed; this is a pure predicate."""
+    assert should_advance_stage("hash_dedup") is True
+    assert should_advance_stage("tier_a_review") is False
+    assert should_advance_stage("tier_b_review") is False
+    assert should_advance_stage("format_validation") is False
+    assert should_advance_stage(None) is False
 
 
 @pytest.mark.asyncio(loop_scope="session")

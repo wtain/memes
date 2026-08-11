@@ -50,6 +50,14 @@ async def run(session, base_path: str, batch_id) -> SimpleMetricsListener:
     return metrics
 
 
+def should_advance_stage(current_stage: str | None) -> bool:
+    """The stage must only ever advance, never rewind -- a mid-review re-join (operator
+    re-runs ingest_hash_dedup.py, then this script, per the runbook) must not stomp a
+    later stage like tier_b_review back to format_validation, which would make the
+    frontend's tierForStage() drop the review queue until ingest_find_duplicates re-runs."""
+    return current_stage == "hash_dedup"
+
+
 async def main(env: str | None) -> None:
     load_env(env)
     base_path = settings.BASE_PATH
@@ -65,7 +73,8 @@ async def main(env: str | None) -> None:
         metrics = await run(session, base_path, active_run.run_id)
         existing_stats = active_run.stats or {}
         await runs_repo.update_stats(active_run.run_id, **accumulate_stats(existing_stats, metrics.counters_dict()))
-        await runs_repo.set_stage(active_run.run_id, STAGE)
+        if should_advance_stage(active_run.stage):
+            await runs_repo.set_stage(active_run.run_id, STAGE)
         await session.commit()
 
     metrics.print()
