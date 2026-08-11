@@ -17,7 +17,7 @@ import asyncio
 from sqlalchemy import select
 
 from batch.ingest_hash_dedup import accumulate_stats
-from batch.utils.image_format_fix import fix_image_file
+from batch.utils.image_format_apply import apply_format_fix
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from repository.batch_runs import BatchRunRepository
@@ -45,21 +45,7 @@ async def run(session, base_path: str, batch_id) -> SimpleMetricsListener:
     extras_repo = ImageExtrasRepository(session)
 
     for image_id, filename in await get_pending_batch_images(session, batch_id):
-        outcome = fix_image_file(base_path, filename)
-
-        if outcome.unreadable:
-            await extras_repo.set_flagged(image_id, True, remarks="unreadable during format validation")
-            metrics.increment("unreadable")
-            continue
-
-        if not outcome.changed:
-            metrics.increment("no_op")
-            continue
-
-        await images_repo.update_filename_and_hash(
-            image_id, outcome.new_filename, content_hash=outcome.new_content_hash,
-        )
-        metrics.increment("converted" if outcome.new_content_hash else "renamed")
+        await apply_format_fix(images_repo, extras_repo, metrics, base_path, image_id, filename)
 
     return metrics
 
