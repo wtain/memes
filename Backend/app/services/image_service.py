@@ -293,29 +293,30 @@ class ImageService:
         cursor_cluster_id, cursor_image_id = self._decode_cluster_cursor(cursor)
 
         if direction == "backward":
-            rows = await self.repo.get_duplicates_clustered_before(
-                cursor_cluster_id=cursor_cluster_id,
-                cursor_image_id=cursor_image_id,
-                limit=limit,
-            )
-            has_more_before = len(rows) > limit
-            rows = rows[:limit]
-            images = list(reversed(rows))
-
-            previous_cursor = None
-            if has_more_before and images:
-                first_id, _, _, first_cluster_id, _ = images[0]
-                previous_cursor = self._encode_cluster_cursor(first_cluster_id, first_id)
-
             if cursor_cluster_id is None:
-                # No real anchor to page backward from (cursor=None), so
-                # there's no meaningful "go back to where we started"
-                # position to resume forward from either - claiming
-                # hasNext=True with nextCursor=None would let a caller loop
-                # on the same page forever.
+                # No real anchor to page backward from -- nothing exists "before the start."
+                # Matches backend_api.md: "With direction=backward and no cursor, the response
+                # is empty." Previously the query below still ran with no cursor filter and
+                # returned the tail of the corpus, which is wrong content, not just a cursor bug.
+                images = []
+                previous_cursor = None
                 next_cursor = None
                 has_next = False
             else:
+                rows = await self.repo.get_duplicates_clustered_before(
+                    cursor_cluster_id=cursor_cluster_id,
+                    cursor_image_id=cursor_image_id,
+                    limit=limit,
+                )
+                has_more_before = len(rows) > limit
+                rows = rows[:limit]
+                images = list(reversed(rows))
+
+                previous_cursor = None
+                if has_more_before and images:
+                    first_id, _, _, first_cluster_id, _ = images[0]
+                    previous_cursor = self._encode_cluster_cursor(first_cluster_id, first_id)
+
                 # A backward fetch is always anchored on a cursor that came from a
                 # real forward position, so resuming forward from here always
                 # means "go back to where we started."

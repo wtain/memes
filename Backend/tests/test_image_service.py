@@ -339,3 +339,9 @@ class TestGetDuplicatesClusteredPagination:
 
         assert page.hasNext is False
         assert page.nextCursor is None
+        # With no real anchor, there's nothing that exists "before the start" -- the response
+        # must be empty, matching backend_api.md's documented contract. The fake repo above
+        # would happily return the tail of the corpus if the service still queried it with no
+        # cursor filter, so this also guards against that regression.
+        assert page.items == []
+        mock_repo.get_duplicates_clustered_before.assert_not_called()
