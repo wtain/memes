@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Virtuoso } from "react-virtuoso"
 import MemeCard from "./MemeCard"
 import { MemeDetailsModal } from "./MemeDetailsModal"
@@ -77,6 +77,13 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
     fetchPage,
     resetKey,
   })
+
+  // MemesList never has an initialCursor to resume from (only MemesDuplicatesList does), so
+  // every fresh, uncursored fetch -- i.e. every resetKey change (filter/tag/list-type switch) --
+  // should scroll back to the top, matching the pre-rewrite behavior.
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [resetKey])
 
   // The hook always resets `firstItemIndex` back to the same starting constant on every
   // `resetKey` change, so a value captured once here on the component's first render stays valid

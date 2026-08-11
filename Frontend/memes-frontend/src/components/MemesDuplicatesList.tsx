@@ -43,7 +43,7 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     }
   }, [memesApi])
 
-  const { pages, items, firstItemIndex, hasMoreForward, hasMoreBackward, loadForward, loadBackward } = useWindowedPagination({
+  const { pages, items, firstItemIndex, loading, hasMoreForward, hasMoreBackward, loadForward, loadBackward } = useWindowedPagination({
     fetchPage,
     initialCursor,
     resetKey: "duplicates",
@@ -79,24 +79,37 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     return { clusterRows: rows, rowStartItemOffsets: offsets }
   }, [items])
 
-  const prevPagesRef = useRef<Page[]>([])
   const [rowFirstItemIndex, setRowFirstItemIndex] = useState(ROW_FIRST_ITEM_INDEX_START)
 
-  useEffect(() => {
-    const prevPages = prevPagesRef.current
-    prevPagesRef.current = pages
-
-    if (prevPages.length === 0 || pages.length === 0) return
-    if (pages[0].cursor === prevPages[0].cursor) return
-
-    const prevFirstStillPresentAt = pages.findIndex(p => p.cursor === prevPages[0].cursor)
-    if (prevFirstStillPresentAt > 0) {
-      const prependedRowCount = pages.slice(0, prevFirstStillPresentAt).reduce((sum, p) => sum + distinctClusterCount(p), 0)
-      setRowFirstItemIndex(idx => idx - prependedRowCount)
-    } else {
-      setRowFirstItemIndex(idx => idx + distinctClusterCount(prevPages[0]))
+  // Computed synchronously during render (not in a useEffect) so `rowFirstItemIndex` never gets
+  // out of sync with `clusterRows` for even one render. An effect-based version would react to
+  // `pages` changing on render N, but by then `clusterRows` (derived from `items`, which is
+  // derived from `pages`) has ALREADY reflected the new pages in that same render N -- the
+  // effect wouldn't run and update `rowFirstItemIndex` until render N+1, so Virtuoso would
+  // briefly receive the new `clusterRows` paired with the stale `rowFirstItemIndex`, which it
+  // misreads as a change at the wrong end of the list and defeats the jump-free-prepend
+  // mechanism this whole feature exists to provide. Calling the setter here, during render, is
+  // React's documented "adjusting state when a prop changes" pattern: React discards this
+  // render's output and re-renders immediately with the new state, before anything is painted,
+  // so `rowFirstItemIndex` and `clusterRows` are always consistent within the same commit. This
+  // deliberately uses `useState` (not `useRef`) to track the previous `pages` value -- this
+  // repo's `react-hooks/refs` lint rule forbids reading/writing a ref's `.current` during render
+  // (refs are meant for effects/handlers only), but reading and setting *state* mid-render is the
+  // sanctioned mechanism per React's own docs for exactly this "adjust state when a prop changes"
+  // case, so it isn't flagged.
+  const [prevPagesForRowIndex, setPrevPagesForRowIndex] = useState<Page[] | null>(null)
+  if (prevPagesForRowIndex !== pages) {
+    if (prevPagesForRowIndex !== null && pages.length > 0 && prevPagesForRowIndex.length > 0 && pages[0].cursor !== prevPagesForRowIndex[0].cursor) {
+      const prevFirstStillPresentAt = pages.findIndex(p => p.cursor === prevPagesForRowIndex[0].cursor)
+      if (prevFirstStillPresentAt > 0) {
+        const prependedRows = pages.slice(0, prevFirstStillPresentAt).reduce((sum, p) => sum + distinctClusterCount(p), 0)
+        setRowFirstItemIndex(idx => idx - prependedRows)
+      } else if (prevFirstStillPresentAt === -1) {
+        setRowFirstItemIndex(idx => idx + distinctClusterCount(prevPagesForRowIndex[0]))
+      }
     }
-  }, [pages])
+    setPrevPagesForRowIndex(pages)
+  }
 
   const handleRangeChanged = useCallback((range: { startIndex: number }) => {
     if (!onCursorChangeRef.current) return
@@ -143,7 +156,11 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
         <MemeDetailsModal meme={selectedMeme} onClose={() => setSelectedMeme(null)} memesApi={memesApi} />
       )}
 
-      {clusterRows.length === 0 && (
+      {loading && clusterRows.length > 0 && (
+        <div className="h-10 flex items-center justify-center"><span>Loading...</span></div>
+      )}
+
+      {clusterRows.length === 0 && !loading && (
         <div className="h-10 flex items-center justify-center">
           <span>Nothing to show</span>
         </div>
