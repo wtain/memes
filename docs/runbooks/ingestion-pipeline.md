@@ -205,10 +205,11 @@ the lock.
 `ingest_hash_dedup.py` can now be re-run at any point while a batch is active to pick up
 newly-dropped files, instead of being blocked — it joins the active run (same `batch_id`,
 stats accumulate across invocations) rather than refusing. After doing so, re-run
-`build_image_embeddings --status pending --incremental`, `extract_text_from_memes --status
-pending`, and `ingest_find_duplicates.py` (both tiers, as applicable) — steps 4-9 in
-"Running a batch" above — so the newly-added images get review coverage; all three are
-already safe to re-run against the same batch. **Don't skip the embeddings step**:
+`ingest_validate_formats.py --env <env>`, `build_image_embeddings --status pending
+--incremental`, `extract_text_from_memes --status pending`, and `ingest_find_duplicates.py`
+(both tiers, as applicable) — steps 4-9 in "Running a batch" above — so the newly-added
+images get review coverage; all four are already safe to re-run against the same batch.
+**Don't skip the embeddings step**:
 `ingest_find_duplicates.py`'s probe is an inner join against `embeddings`, so an image with
 none is silently excluded from review entirely and could reach `ingest_promote.py`
 unreviewed. Concurrent *invocations of the same* `ingest_hash_dedup.py` script are
