@@ -9,13 +9,18 @@ class ImageExtrasRepository:
     def __init__(self, session):
         self.session = session
 
-    async def set_flagged(self, image_id, flagged: bool) -> None:
+    async def set_flagged(self, image_id, flagged: bool, remarks: str | None = None) -> None:
+        values = {"image_id": image_id, "flagged": flagged}
+        update_set = {"flagged": flagged}
+        if remarks is not None:
+            values["remarks"] = remarks
+            update_set["remarks"] = remarks
         stmt = (
             insert(ImageExtras)
-            .values(image_id=image_id, flagged=flagged)
+            .values(**values)
             .on_conflict_do_update(
                 index_elements=["image_id"],
-                set_={"flagged": flagged},
+                set_=update_set,
             )
         )
         await self.session.execute(stmt)

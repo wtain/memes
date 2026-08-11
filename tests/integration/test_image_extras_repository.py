@@ -6,9 +6,10 @@ Requires a live PostgreSQL instance -- see tests/integration/conftest.py.
 import uuid
 
 import pytest
+from sqlalchemy import select
 
 from repository.image_extras import ImageExtrasRepository
-from Storage.models import Image
+from Storage.models import Image, ImageExtras
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -40,3 +41,36 @@ async def test_get_flags_bulk_empty_list_returns_empty_dict(db_session):
     flags = await repo.get_flags_bulk([])
 
     assert flags == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_flagged_with_remarks_stores_both(db_session):
+    image = Image(filename=f"remarked-{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageExtrasRepository(db_session)
+    await repo.set_flagged(image.id, True, remarks="unreadable during format validation")
+
+    row = (await db_session.execute(
+        select(ImageExtras).where(ImageExtras.image_id == image.id)
+    )).scalar_one()
+    assert row.flagged is True
+    assert row.remarks == "unreadable during format validation"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_flagged_without_remarks_leaves_remarks_untouched(db_session):
+    image = Image(filename=f"norm-{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageExtrasRepository(db_session)
+    await repo.set_flagged(image.id, True, remarks="first note")
+    await repo.set_flagged(image.id, False)  # no remarks passed this time
+
+    row = (await db_session.execute(
+        select(ImageExtras).where(ImageExtras.image_id == image.id)
+    )).scalar_one()
+    assert row.flagged is False
+    assert row.remarks == "first note"  # untouched by the remarks-less call
