@@ -68,14 +68,14 @@ and provides `startReached`/`endReached` callbacks that map directly onto "need 
 page."
 
 **Revised during implementation (Task 6):** the original design here specified `VirtuosoGrid` for
-the five flat listings. Implementation found that `VirtuosoGridProps` in the installed
+the six flat listings. Implementation found that `VirtuosoGridProps` in the installed
 `react-virtuoso@4.18.11` has no `firstItemIndex` field at all (confirmed against the library's own
 `.d.ts` — it's list/table-only, on `VirtuosoProps`/`TableVirtuosoProps`, not the grid variant), and
 no equivalent prop provides the same jump-free-prepend guarantee. Since jump-free backward loading
-is the entire point of this feature, all six consumers use plain **`Virtuoso`** (single column),
+is the entire point of this feature, all seven consumers use plain **`Virtuoso`** (single column),
 never `VirtuosoGrid`:
 
-- **The five flat listings** (Search, Untagged, Flagged, No-OCR, Recommendations) — each virtualized
+- **The six flat listings** (Search, Explore, Untagged, Flagged, No-OCR, Recommendations) — each virtualized
   row is a *chunk* of up to 6 `MemeCard`s (matching the existing `md:grid-cols-6` column count),
   rendered via the same `grid grid-cols-1 md:grid-cols-6 gap-4` Tailwind classes applied to each
   row's wrapper `div`. Chunk boundaries are **aligned to the item's absolute position in the true
@@ -87,7 +87,7 @@ never `VirtuosoGrid`:
   Virtuoso's dynamic height measurement handles clusters of varying member counts fine; no fixed
   row height is required.
 
-### Row chunking (five flat listings)
+### Row chunking (six flat listings)
 
 Because `useWindowedPagination`'s `firstItemIndex` already tracks the absolute position of
 `items[0]` in the true sequence (that's its whole purpose), row boundaries for the fixed 6-column
@@ -212,8 +212,10 @@ as directly-callable props, so a test can do:
 
 ```tsx
 vi.mock('react-virtuoso', () => ({
+  // Both the flat listings (MemesList) and the duplicates page (MemesDuplicatesList) use plain
+  // Virtuoso -- see "Revised during implementation (Task 6)" above for why VirtuosoGrid was
+  // dropped. One mock target covers both.
   Virtuoso: (props) => <div>{props.data.map((item, i) => props.itemContent(i, item))}</div>,
-  VirtuosoGrid: (props) => <div>{props.data.map((item, i) => props.itemContent(i, item))}</div>,
 }))
 // then: fireEvent triggers aren't real scroll -- call the captured `startReached`/`endReached`
 // props directly to simulate reaching an edge.
@@ -240,15 +242,17 @@ New/changed test files:
 3. Frontend API layer: `iterateDuplicates(..., direction?)` in `MemesApi`/`HttpMemesApi`.
 4. Extract `useWindowedPagination` hook (page deque, whole-page eviction, cursor history replay,
    cold-backward support) with its own unit tests, no UI wiring yet.
-5. Rewrite `MemesList` to use the hook + `VirtuosoGrid` for the five flat listings; add a new,
-   separate `MemesDuplicatesList` component using the hook + `Virtuoso` with cluster-row assembly
-   for the duplicates page (kept as its own file rather than a branch inside `MemesList`, since it's
-   the only consumer needing cluster-row assembly, cold backward loading, and cursor tracking),
+5. Rewrite `MemesList` to use the hook + `Virtuoso` with row-chunking for the six flat listings
+   (Search, Explore, Untagged, Flagged, No-OCR, Recommendations); add a new, separate
+   `MemesDuplicatesList` component using the hook + `Virtuoso` with cluster-row assembly for the
+   duplicates page (kept as its own file rather than a branch inside `MemesList`, since it's the
+   only consumer needing cluster-row assembly, cold backward loading, and cursor tracking),
    removing the old `IntersectionObserver` sentinel code from both.
 6. `ExploreDuplicatesPage`: switch `onCursorChange` to the `rangeChanged`-based topmost-page cursor;
-   wire `loadBackward` to use `direction=backward` specifically for this page (the hook needs a way
-   to know it can go backward past session history for this one page type — a `supportsColdBackward`
-   flag passed alongside `listDuplicates`).
+   wire `loadBackward` to use `direction=backward` specifically for this page. This is the
+   `MemesDuplicatesList` component from step 5 (a dedicated component, not a `listDuplicates` prop
+   on `MemesList`), which passes `supportsColdBackward: true` to `useWindowedPagination` so the hook
+   knows it can go backward past session history for this one page type.
 7. `tsc -b && eslint src/ && vitest run` from `Frontend/memes-frontend/`; `cd Backend && pytest`.
 8. Manual check per `run` skill: scroll through Search far enough to confirm old pages actually
    unmount (DevTools element count stays bounded), scroll back up and confirm earlier items

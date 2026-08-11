@@ -4,7 +4,7 @@
 
 **Goal:** Bound `MemesList`'s unbounded DOM/memory growth by rendering through `react-virtuoso`, add scroll-up ("load earlier") support symmetric to today's scroll-down loading, and fix `ExploreDuplicatesPage` losing the user's place on return navigation.
 
-**Architecture:** A new `useWindowedPagination` hook owns a capped deque of fetched pages plus cursor-replay bookkeeping, decoupled from rendering. Two rendering components consume it: `MemesList` (rewritten, `VirtuosoGrid`, for the five flat listings) and a new `MemesDuplicatesList` (`Virtuoso`, one cluster per row, for the duplicates page only — its own component because it's the only page needing cluster-boundary-aware rendering and cold backward loading). The duplicates backend gains a real "page before cursor" query so a cold deep link (`?cursor=X`) can load earlier than `X`, not just resume forward from it.
+**Architecture:** A new `useWindowedPagination` hook owns a capped deque of fetched pages plus cursor-replay bookkeeping, decoupled from rendering. Two rendering components consume it: `MemesList` (rewritten, plain `Virtuoso` with row-chunking, for the six flat listings — Search, Explore, Untagged, Flagged, No-OCR, Recommendations) and a new `MemesDuplicatesList` (`Virtuoso`, one cluster per row, for the duplicates page only — its own component because it's the only page needing cluster-boundary-aware rendering and cold backward loading). `VirtuosoGrid` was the original plan but was dropped during implementation (Task 6) since it has no `firstItemIndex`-equivalent prop, so it can't provide the jump-free-prepend guarantee this feature depends on — see the design spec's "Row chunking" section. The duplicates backend gains a real "page before cursor" query so a cold deep link (`?cursor=X`) can load earlier than `X`, not just resume forward from it.
 
 **Tech Stack:** React 19, TypeScript, `react-virtuoso` (new dependency), Vitest + `@testing-library/react`, FastAPI, SQLAlchemy async, pytest.
 
@@ -897,7 +897,7 @@ git commit -m "feat: add useWindowedPagination hook for bidirectional page windo
 
 ### Task 6: Rewrite `MemesList` to use `Virtuoso` (row-chunked grid) + the hook
 
-Drops all duplicates-specific props (`listDuplicates`, `groupByCluster`, `initialCursor`, `onCursorChange` move to the new `MemesDuplicatesList` in Task 7). The five callers that don't use those props (`SearchPage`, `ExploreUntaggedPage`, `ExploreFlaggedPage`, `ExploreNoOcrPage`, `RecommendationsPage`) need no changes.
+Drops all duplicates-specific props (`listDuplicates`, `groupByCluster`, `initialCursor`, `onCursorChange` move to the new `MemesDuplicatesList` in Task 7). The six callers that don't use those props (`SearchPage`, `ExplorePage`, `ExploreUntaggedPage`, `ExploreFlaggedPage`, `ExploreNoOcrPage`, `RecommendationsPage`) need no changes.
 
 **Revised from the original design**: uses plain `Virtuoso` with items chunked into rows of up to 6
 (not `VirtuosoGrid`) — see the design spec's "Row chunking" section for why (`VirtuosoGridProps` in
@@ -1184,13 +1184,13 @@ vitest run src/components/MemesList.test.tsx
 ```
 Expected: all PASS.
 
-- [ ] **Step 5: Update the five callers**
+- [ ] **Step 5: Update the six callers**
 
-None of `SearchPage.tsx`, `ExploreUntaggedPage.tsx`, `ExploreFlaggedPage.tsx`, `ExploreNoOcrPage.tsx`, `RecommendationsPage.tsx` pass `listDuplicates`, `groupByCluster`, `initialCursor`, or `onCursorChange` today (confirmed by grep — only `ExploreDuplicatesPage` did, and that page moves to `MemesDuplicatesList` in Task 7). No changes needed to these five files. Confirm with:
+None of `SearchPage.tsx`, `ExplorePage.tsx`, `ExploreUntaggedPage.tsx`, `ExploreFlaggedPage.tsx`, `ExploreNoOcrPage.tsx`, `RecommendationsPage.tsx` pass `listDuplicates`, `groupByCluster`, `initialCursor`, or `onCursorChange` today (confirmed by grep — only `ExploreDuplicatesPage` did, and that page moves to `MemesDuplicatesList` in Task 7). No changes needed to these six files. Confirm with:
 ```
 tsc -b
 ```
-Expected: PASS (would fail here if any of the five passed a now-removed prop).
+Expected: PASS (would fail here if any of the six passed a now-removed prop).
 
 - [ ] **Step 6: Full frontend check**
 
