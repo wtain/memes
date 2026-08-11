@@ -17,6 +17,7 @@ Drop new images into `<BASE_PATH>\inbox\` for the target environment (see
 
 ```powershell
 python -m batch.ingest_hash_dedup --env <env>
+python -m batch.ingest_validate_formats --env <env>
 python -m batch.build_image_embeddings --env <env> --status pending --incremental
 python -m batch.extract_text_from_memes --env <env> --status pending
 python -m batch.ingest_find_duplicates --env <env> --tier tier_a
@@ -114,52 +115,61 @@ runs, files just sit in `inbox\` untouched.
    Safe to re-run at any point while a run is already active — joins the run instead of
    refusing (see Concurrency below).
 
-3. **Embeddings for the new pending images:**
+3. **Validate/fix image formats:**
+   ```powershell
+   python -m batch.ingest_validate_formats --env <env>
+   ```
+   Fixes any file whose extension doesn't match its real content (renamed in place) and
+   converts any WebP content to JPEG regardless of its current extension (original moved
+   to `<BASE_PATH>\converted_originals\` for audit). An unreadable file is flagged via
+   `ImageExtras` for human review instead of being touched. Safe to re-run.
+
+4. **Embeddings for the new pending images:**
    ```powershell
    python -m batch.build_image_embeddings --env <env> --status pending --incremental
    ```
 
-4. **OCR pre-pass** — run this *before* Tier A, not between the tiers (empirical finding:
+5. **OCR pre-pass** — run this *before* Tier A, not between the tiers (empirical finding:
    Tier A's "thumbnails alone are decisive" assumption doesn't hold for all memes, so both
    tiers need OCR text available for review — see Decision #10 in the design spec):
    ```powershell
    python -m batch.extract_text_from_memes --env <env> --status pending
    ```
 
-5. **Tier A — tight-threshold candidates:**
+6. **Tier A — tight-threshold candidates:**
    ```powershell
    python -m batch.ingest_find_duplicates --env <env> --tier tier_a
    ```
 
-6. **Review Tier A** in the browser at `/ingestion` (use whichever origin is CORS-allowed
+7. **Review Tier A** in the browser at `/ingestion` (use whichever origin is CORS-allowed
    for this environment's frontend — see `environments/Environments.md`; e.g. metal's LAN
    origin, not `127.0.0.1`, if that's what `.env.metal` declares). Keep/reject each pending
    member; submissions can be partial (not every cluster needs a decision in one pass).
 
-7. **Tier B — loose-threshold candidates:**
+8. **Tier B — loose-threshold candidates:**
    ```powershell
    python -m batch.ingest_find_duplicates --env <env> --tier tier_b
    ```
 
-8. **Review Tier B** on the same `/ingestion` page — it switches queues automatically based
+9. **Review Tier B** on the same `/ingestion` page — it switches queues automatically based
    on the run's current stage.
 
-9. **Promote:**
-   ```powershell
-   python -m batch.ingest_promote --env <env>
-   ```
-   Promotes every pending image with no remaining unresolved duplicate candidate in either
-   tier's band. Marks the whole run `completed` only once zero pending images remain in the
-   batch — otherwise it's safe and expected to re-run this later, after more review, as a
-   no-op for anything already resolved.
+10. **Promote:**
+    ```powershell
+    python -m batch.ingest_promote --env <env>
+    ```
+    Promotes every pending image with no remaining unresolved duplicate candidate in either
+    tier's band. Marks the whole run `completed` only once zero pending images remain in the
+    batch — otherwise it's safe and expected to re-run this later, after more review, as a
+    no-op for anything already resolved.
 
-10. **(Optional)** if you want the promoted images' duplicate relationships to appear in
+11. **(Optional)** if you want the promoted images' duplicate relationships to appear in
     Explore → Duplicates right away:
     ```powershell
     python -m batch.clusterize --env <env>
     ```
 
-11. **Run the rest of the enrichment pipeline** (see "Does NOT cover" above and CLAUDE.md's
+12. **Run the rest of the enrichment pipeline** (see "Does NOT cover" above and CLAUDE.md's
     Batch pipeline section for the full order) to tag, index, and describe the
     newly-active images.
 
@@ -196,7 +206,7 @@ the lock.
 newly-dropped files, instead of being blocked — it joins the active run (same `batch_id`,
 stats accumulate across invocations) rather than refusing. After doing so, re-run
 `build_image_embeddings --status pending --incremental`, `extract_text_from_memes --status
-pending`, and `ingest_find_duplicates.py` (both tiers, as applicable) — steps 3-8 in
+pending`, and `ingest_find_duplicates.py` (both tiers, as applicable) — steps 4-9 in
 "Running a batch" above — so the newly-added images get review coverage; all three are
 already safe to re-run against the same batch. **Don't skip the embeddings step**:
 `ingest_find_duplicates.py`'s probe is an inner join against `embeddings`, so an image with

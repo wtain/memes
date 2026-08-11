@@ -200,6 +200,9 @@ move_flagged                → also runs unregister_deleted_images automaticall
 unregister_deleted_images   → also runs remove_singletons automatically afterward, deleting
                                tmp_clusters rows for clusters its cascade-deletes reduced to a
                                single member; --no-chain skips this.
+fix_image_formats           → retroactively applies ingest_validate_formats' fix logic to
+                               the existing corpus (default --status active); safe to
+                               re-run, already-fixed images are no-ops.
 
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters
@@ -216,6 +219,7 @@ trends_batch                → GLiNER NER over each configured trend source's f
 #
 # Run order:
 #   ingest_hash_dedup
+#   ingest_validate_formats
 #   build_image_embeddings --status pending --incremental
 #   extract_text_from_memes --status pending   <-- before Tier A, not between the tiers (see
 #                                                   Decision #10 in the design spec: empirical
@@ -238,14 +242,22 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
                                this script against each other (not the other ingestion scripts --
                                don't run this concurrently with ingest_promote/ingest_abort either,
                                see their own entries). Newly-added images need
-                               build_image_embeddings --status pending --incremental,
-                               extract_text_from_memes --status pending, and
-                               ingest_find_duplicates.py (both tiers, as applicable) re-run
-                               afterward to get review coverage -- all three are already safe to
+                               ingest_validate_formats.py, build_image_embeddings --status
+                               pending --incremental, extract_text_from_memes --status pending,
+                               and ingest_find_duplicates.py (both tiers, as applicable) re-run
+                               afterward to get review coverage -- all four are already safe to
                                re-run against the same batch. Skipping the embeddings step is not
                                just incomplete -- ingest_find_duplicates.py's probe is an inner join
                                against embeddings, so an image with none is silently excluded from
                                review entirely and can reach ingest_promote unreviewed.
+ingest_validate_formats     → Stage 1.5: renames files whose extension doesn't match their
+                               real content, and converts any WebP content to JPEG
+                               (original moved to converted_originals/ for audit) --
+                               several downstream libraries (e.g. Ollama's vision backend)
+                               can't consume WebP. Updates the same Image row's
+                               filename/content_hash in place; unreadable files are flagged
+                               via ImageExtras instead of touched. See
+                               docs/superpowers/specs/2026-08-11-ingestion-image-format-validation-design.md.
 build_image_embeddings --status pending --incremental
                              → embeds Stage 1's survivors (existing script/flag, no ingestion-
                                specific code)
