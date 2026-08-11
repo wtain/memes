@@ -1,6 +1,7 @@
 # Ingestion Image Format Validation Design
 
-Status: approved
+Status: done
+Plan: docs/superpowers/plans/2026-08-11-ingestion-image-format-validation.md
 Originates from: docs/runbooks/ingestion-pipeline.md (known WebP-mislabeled-as-.jpg gotcha, also
 documented in CLAUDE.md's "Known gotchas" section)
 
@@ -38,7 +39,7 @@ This design adds validation + automatic remediation for both problems, in two pl
 
 ## Detection
 
-`detect_actual_format(path) -> str | None` (new, in `batch/utils/image_format.py`) opens the file
+`detect_actual_format(path) -> str | None` (new, in `batch/utils/image_format_fix.py`) opens the file
 with Pillow and reads its real format via `Image.open(path).format`, mapping it to a canonical
 extension:
 
@@ -91,7 +92,7 @@ is derived from the source's own basename. This design extracts that suffix-loop
 `available_filename(dest_dir, filename) -> str` helper in the same module, so:
 
 - `move_without_overwrite` calls it internally (no behavior change for existing callers).
-- `image_format.py` calls it directly for both the in-place rename case (target dir == source dir,
+- `image_format_fix.py` calls it directly for both the in-place rename case (target dir == source dir,
   different desired filename) and the convert case (new `.jpg` in `base_path`, moved original in
   `converted_originals/`).
 
@@ -171,7 +172,7 @@ Listed under CLAUDE.md's "Maintenance (run as needed)" batch scripts.
 
 ## Testing
 
-- Unit tests for `batch/utils/image_format.py` (no DB): tiny real fixture images covering WebP
+- Unit tests for `batch/utils/image_format_fix.py` (no DB): tiny real fixture images covering WebP
   with alpha, WebP without alpha, a mislabeled PNG-as-`.jpg`, a correctly-labeled file (no-op), and
   a truncated/corrupt file. Assert correct detection, correct `FixOutcome`, and correct collision
   handling when the target name is already taken.
