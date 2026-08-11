@@ -160,6 +160,14 @@ class ImagesRepository:
             update(Image).where(Image.id == image_id).values(content_hash=content_hash)
         )
 
+    async def update_filename_and_hash(self, image_id, filename: str, content_hash: str | None = None) -> None:
+        values = {"filename": filename}
+        if content_hash is not None:
+            values["content_hash"] = content_hash
+        await self.session.execute(
+            update(Image).where(Image.id == image_id).values(**values)
+        )
+
     async def get_all_images(self, status: str = "active"):
         query = (
             select(

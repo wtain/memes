@@ -155,3 +155,33 @@ async def test_get_images_and_ocr_texts_without_lemmas_excludes_lemma_less_but_d
     matched_ids = {img_id for _filename, img_id, _text, _confidence, _language, _lang_score in rows}
 
     assert done_but_lemma_less.id not in matched_ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_update_filename_and_hash_updates_filename_only_when_hash_omitted(db_session):
+    image = Image(filename="a.jpg", content_hash="original-hash")
+    db_session.add(image)
+    await db_session.flush()
+
+    images_repo = ImagesRepository(db_session)
+    await images_repo.update_filename_and_hash(image.id, "a.png")
+    await db_session.flush()
+
+    refreshed = await db_session.get(Image, image.id)
+    assert refreshed.filename == "a.png"
+    assert refreshed.content_hash == "original-hash"  # untouched
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_update_filename_and_hash_updates_both_when_hash_given(db_session):
+    image = Image(filename="a.webp", content_hash="original-hash")
+    db_session.add(image)
+    await db_session.flush()
+
+    images_repo = ImagesRepository(db_session)
+    await images_repo.update_filename_and_hash(image.id, "a.jpg", content_hash="new-hash")
+    await db_session.flush()
+
+    refreshed = await db_session.get(Image, image.id)
+    assert refreshed.filename == "a.jpg"
+    assert refreshed.content_hash == "new-hash"
