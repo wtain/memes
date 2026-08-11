@@ -94,6 +94,10 @@ export function useWindowedPagination({
         nextPages = nextPages.slice(1)
         windowStartRef.current += 1
         setFirstItemIndex(idx => idx + evicted.items.length)
+        // We've just evicted a page from the front, which means session-replay backward
+        // (re-fetching that page via visitedCursorsRef) is now genuinely available -- mirrors
+        // the symmetric `setHasMoreForward(true)` in loadBackward's own eviction branch below.
+        setHasMoreBackward(true)
       }
       pagesRef.current = nextPages
       setPages(nextPages)
@@ -122,11 +126,23 @@ export function useWindowedPagination({
         windowStartRef.current -= 1
       } else {
         const anchor = pagesRef.current[0]?.cursor ?? initialCursorRef.current
+        if (anchor === undefined) {
+          // No real anchor to page backward from -- we're already at the true beginning
+          // (either this is the very first page ever fetched, or initialCursor was never set).
+          coldBackwardExhaustedRef.current = true
+          setHasMoreBackward(false)
+          return
+        }
         const result = await fetchPageRef.current(anchor, "backward")
         if (result.items.length === 0) {
           coldBackwardExhaustedRef.current = true
           setHasMoreBackward(false)
           return
+        }
+        if (result.previousCursor === undefined) {
+          // This page itself reached the true beginning -- prepend it, but there's
+          // nothing further back after this.
+          coldBackwardExhaustedRef.current = true
         }
         cursor = result.previousCursor
         items = result.items

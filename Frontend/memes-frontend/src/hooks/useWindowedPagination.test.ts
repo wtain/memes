@@ -38,6 +38,28 @@ describe('useWindowedPagination', () => {
     expect(result.current.firstItemIndex).toBe(indexBeforeEviction + 2)
   })
 
+  it('raises hasMoreBackward once loadForward evicts a page from the front, even without supportsColdBackward', async () => {
+    const fetchPage = vi.fn<FetchPageFn>()
+      .mockResolvedValueOnce({ items: makeMemes('p0', 2), nextCursor: 'c1', hasNext: true })
+      .mockResolvedValueOnce({ items: makeMemes('p1', 2), nextCursor: 'c2', hasNext: true })
+      .mockResolvedValueOnce({ items: makeMemes('p2', 2), nextCursor: 'c3', hasNext: true })
+    const { result } = renderHook(() => useWindowedPagination({ fetchPage, resetKey: 'k', maxPages: 2 }))
+
+    await waitFor(() => expect(result.current.items.map(m => m.id)).toEqual(['p0-0', 'p0-1'])) // auto-loaded
+    expect(result.current.hasMoreBackward).toBe(false) // no supportsColdBackward, no replay history yet
+
+    await act(async () => { await result.current.loadForward() }) // p1 -- still within maxPages, no eviction yet
+    expect(result.current.hasMoreBackward).toBe(false)
+
+    await act(async () => { await result.current.loadForward() }) // p2 -- evicts p0 from the front
+
+    // p0 was just evicted, so a session-replay backward load is now genuinely available --
+    // this is the exact state that used to stay stuck at `false`, leaving backward-scroll
+    // loading dead because MemesList's `startReached={() => { if (hasMoreBackward) loadBackward() }}`
+    // gate never fired.
+    expect(result.current.hasMoreBackward).toBe(true)
+  })
+
   it('replays a remembered cursor on loadBackward after eviction', async () => {
     const fetchPage = vi.fn<FetchPageFn>()
       .mockResolvedValueOnce({ items: makeMemes('p0', 2), nextCursor: 'c1', hasNext: true })
@@ -119,6 +141,26 @@ describe('useWindowedPagination', () => {
 
     expect(fetchPage).toHaveBeenLastCalledWith('deep-link-cursor', 'backward')
     expect(result.current.items.map(m => m.id)).toEqual(['before-0', 'before-1'])
+  })
+
+  it('does not call fetchPage for a cold-backward load when there is no real anchor (no initialCursor, no prior pages)', async () => {
+    // The very first page ever fetched has cursor `undefined` (no initialCursor was given), so
+    // once it loads, pagesRef.current[0]?.cursor ?? initialCursorRef.current is also `undefined`
+    // -- there's no real anchor to page backward from, i.e. we're already at the true beginning.
+    // Previously this still issued a backward fetch with anchor=undefined, which the real backend
+    // (and the mock repo in the backend test) would interpret as "no cursor filter" and return
+    // the tail of the corpus instead of nothing.
+    const fetchPage = vi.fn<FetchPageFn>().mockResolvedValue({ items: makeMemes('p0', 2), nextCursor: 'c1', hasNext: true })
+    const { result } = renderHook(() =>
+      useWindowedPagination({ fetchPage, resetKey: 'k', supportsColdBackward: true })
+    )
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(1)) // the auto forward load on mount
+    expect(result.current.hasMoreBackward).toBe(true) // optimistic, per supportsColdBackward
+
+    await act(async () => { await result.current.loadBackward() })
+
+    expect(fetchPage).toHaveBeenCalledTimes(1) // no additional (backward) call was made
+    expect(result.current.hasMoreBackward).toBe(false)
   })
 
   it('marks coldBackward exhausted once a backward fetch returns no items', async () => {
