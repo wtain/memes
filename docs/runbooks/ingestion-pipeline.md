@@ -194,6 +194,12 @@ runs, files just sit in `inbox\` untouched.
   batch. Can be run at any point before the run completes — right after Stage 1, mid-review,
   etc.
 
+- **Abort doesn't undo a WebP conversion.** An image whose format step 3 fixed is restored
+  under its *current* `filename` — for a converted WebP that's the new JPEG, not the
+  original bytes. The original WebP stays in `<BASE_PATH>\converted_originals\` with no
+  database record pointing at it, so an aborted, format-fixed image isn't returned to its
+  exact original state; recover the original by hand from that directory if you need it.
+
 ## Concurrency
 
 Only one ingestion run can be active at a time per environment, enforced by the database's
