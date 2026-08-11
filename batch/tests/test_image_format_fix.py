@@ -29,19 +29,19 @@ def _save(base_path, filename: str, pillow_format: str, mode: str = "RGB", color
 def test_detects_real_jpeg(tmp_path):
     _save(tmp_path, "a.jpg", "JPEG")
 
-    assert detect_actual_format(str(tmp_path / "a.jpg")) == ".jpg"
+    assert detect_actual_format(str(tmp_path / "a.jpg")) == "JPEG"
 
 
 def test_detects_png_mislabeled_as_jpg(tmp_path):
     _save(tmp_path, "a.jpg", "PNG")
 
-    assert detect_actual_format(str(tmp_path / "a.jpg")) == ".png"
+    assert detect_actual_format(str(tmp_path / "a.jpg")) == "PNG"
 
 
 def test_detects_webp(tmp_path):
     _save(tmp_path, "a.webp", "WEBP")
 
-    assert detect_actual_format(str(tmp_path / "a.webp")) == ".webp"
+    assert detect_actual_format(str(tmp_path / "a.webp")) == "WEBP"
 
 
 def test_returns_none_for_unreadable_file(tmp_path):
@@ -51,12 +51,69 @@ def test_returns_none_for_unreadable_file(tmp_path):
     assert detect_actual_format(str(path)) is None
 
 
+def test_reports_raw_pillow_format_for_unmapped_formats(tmp_path):
+    """A format this module has no canonical-extension mapping for is still identified --
+    it must not be conflated with "Pillow couldn't read this at all" (which returns None)."""
+    _save(tmp_path, "a.ppm", "PPM")
+
+    assert detect_actual_format(str(tmp_path / "a.ppm")) == "PPM"
+
+
 # --------------------------------------------------------------------------
 # fix_image_file -- no-op / rename
 # --------------------------------------------------------------------------
 
 def test_noop_when_extension_already_matches(tmp_path):
     _save(tmp_path, "a.jpg", "JPEG")
+
+    outcome = fix_image_file(str(tmp_path), "a.jpg")
+
+    assert outcome.changed is False
+    assert outcome.unreadable is False
+    assert (tmp_path / "a.jpg").exists()
+
+
+def test_noop_for_jpeg_saved_as_jpeg_extension(tmp_path):
+    """'.jpeg' is a perfectly valid extension for JPEG content -- renaming it to '.jpg'
+    would be a gratuitous change this feature was never meant to make."""
+    _save(tmp_path, "a.jpeg", "JPEG")
+
+    outcome = fix_image_file(str(tmp_path), "a.jpeg")
+
+    assert outcome.changed is False
+    assert outcome.unreadable is False
+    assert (tmp_path / "a.jpeg").exists()
+
+
+def test_noop_for_tiff_saved_as_tif_extension(tmp_path):
+    """Same for '.tif' vs '.tiff'."""
+    _save(tmp_path, "b.tif", "TIFF")
+
+    outcome = fix_image_file(str(tmp_path), "b.tif")
+
+    assert outcome.changed is False
+    assert outcome.unreadable is False
+    assert (tmp_path / "b.tif").exists()
+
+
+def test_leaves_unmapped_but_readable_format_untouched(tmp_path):
+    """PPM opens fine in Pillow but has no entry in FORMAT_ACCEPTABLE_EXTENSIONS -- it must
+    be left alone, not flagged unreadable (which would feed the move_flagged ->
+    unregister_deleted_images eviction chain and drop a valid image from the corpus)."""
+    _save(tmp_path, "a.ppm", "PPM")
+
+    outcome = fix_image_file(str(tmp_path), "a.ppm")
+
+    assert outcome.changed is False
+    assert outcome.unreadable is False
+    assert (tmp_path / "a.ppm").exists()
+
+
+def test_unmapped_format_under_a_wrong_extension_is_still_untouched(tmp_path):
+    """Even when the extension disagrees with the real (unmapped) format, guessing a
+    canonical extension for a format this module doesn't handle is worse than doing
+    nothing."""
+    _save(tmp_path, "a.jpg", "PPM")
 
     outcome = fix_image_file(str(tmp_path), "a.jpg")
 
@@ -141,6 +198,36 @@ def test_flattens_transparent_webp_onto_white_background(tmp_path):
     assert outcome.changed is True
     with PILImage.open(tmp_path / "a.jpg") as img:
         assert img.mode == "RGB"  # JPEG has no alpha channel
+
+
+def test_single_frame_webp_conversion_is_not_reported_as_animated(tmp_path):
+    _save(tmp_path, "a.webp", "WEBP")
+
+    outcome = fix_image_file(str(tmp_path), "a.webp")
+
+    assert outcome.changed is True
+    assert outcome.animated is False
+
+
+def test_animated_webp_conversion_reports_animated(tmp_path):
+    """JPEG can't hold more than one frame, so conversion silently drops the animation --
+    the outcome must surface that so the caller can count it separately."""
+    frame_1 = PILImage.new("RGB", (4, 4), (255, 0, 0))
+    frame_2 = PILImage.new("RGB", (4, 4), (0, 0, 255))
+    frame_1.save(
+        os.path.join(str(tmp_path), "anim.webp"), "WEBP", save_all=True, append_images=[frame_2],
+    )
+
+    outcome = fix_image_file(str(tmp_path), "anim.webp")
+
+    assert outcome.changed is True
+    assert outcome.animated is True
+    assert outcome.new_filename == "anim.jpg"
+    with PILImage.open(tmp_path / "anim.jpg") as img:
+        assert img.format == "JPEG"
+        assert getattr(img, "n_frames", 1) == 1
+    # the animated original is still recoverable
+    assert (tmp_path / CONVERTED_ORIGINALS_DIRNAME / "anim.webp").exists()
 
 
 def test_convert_avoids_collision_in_both_target_directories(tmp_path):
