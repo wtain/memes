@@ -11,12 +11,32 @@ already a fairly deep path, so a genuinely long filename risks failing at file-c
 time in the test itself (unrelated to the truncation logic under test) rather than
 exercising it.
 """
-from batch.utils.safe_move import MAX_FILENAME_LENGTH, move_without_overwrite
+from batch.utils.safe_move import MAX_FILENAME_LENGTH, available_filename, move_without_overwrite
 
 
 def _write(path, content: bytes = b"x") -> str:
     path.write_bytes(content)
     return str(path)
+
+
+def test_available_filename_returns_as_is_when_no_collision(tmp_path):
+    result = available_filename(str(tmp_path), "a.jpg")
+
+    assert result == "a.jpg"
+
+
+def test_available_filename_adds_suffix_on_collision(tmp_path):
+    _write(tmp_path / "a.jpg", b"existing")
+
+    result = available_filename(str(tmp_path), "a.jpg")
+
+    assert result == "a_1.jpg"
+
+
+def test_available_filename_does_not_touch_the_filesystem(tmp_path):
+    available_filename(str(tmp_path), "a.jpg")
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_moves_as_is_when_no_collision(tmp_path):
