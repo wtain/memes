@@ -27,7 +27,7 @@ export default function TrendsPage({ memesApi }: Props) {
     <div className="space-y-8">
       <section>
         <h1 className="text-2xl font-bold mb-1">Trends</h1>
-        {latestDate && <p className="text-sm text-gray-500 mb-4">Latest run: {latestDate}</p>}
+        {latestDate && <p className="text-sm text-gray-500 mb-4">Latest successful run: {latestDate}</p>}
 
         {trendsState.status === "loading" && <p className="text-sm text-gray-400">Loading…</p>}
         {trendsState.status === "no-data" && <p className="text-sm text-gray-500">No trend data available.</p>}

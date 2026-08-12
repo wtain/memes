@@ -4,7 +4,7 @@ from datetime import date
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from Storage.models import BatchRun, TrendsRunResult
+from Storage.models import BatchRun, RunStatus, TrendsRunResult
 
 
 class TrendsRepository:
@@ -17,7 +17,12 @@ class TrendsRepository:
         name: str | None = None,
     ) -> list[date]:
         date_expr = cast(BatchRun.created_at, Date)
-        query = select(date_expr).select_from(BatchRun).where(BatchRun.kind == "trends").distinct()
+        query = (
+            select(date_expr)
+            .select_from(BatchRun)
+            .where(BatchRun.kind == "trends", BatchRun.status == str(RunStatus.completed))
+            .distinct()
+        )
         if label or name:
             query = query.join(TrendsRunResult, BatchRun.run_id == TrendsRunResult.run_id)
             if label:
@@ -39,7 +44,11 @@ class TrendsRepository:
     async def get_latest_run_for_date(self, run_date: date) -> BatchRun | None:
         result = await self._session.execute(
             select(BatchRun)
-            .where(BatchRun.kind == "trends", cast(BatchRun.created_at, Date) == run_date)
+            .where(
+                BatchRun.kind == "trends",
+                BatchRun.status == str(RunStatus.completed),
+                cast(BatchRun.created_at, Date) == run_date,
+            )
             .order_by(BatchRun.created_at.desc())
             .limit(1)
         )

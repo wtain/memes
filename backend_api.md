@@ -643,7 +643,9 @@ Retrieve details of a specific concept.
 
 #### Get Available Dates
 
-List distinct dates for which trend runs exist.
+List distinct dates that have at least one *completed* trend run. Runs that are still in
+progress, failed, or were aborted are excluded — they have no usable trend data, so their date
+must not shadow the actual last successful run's date.
 
 - **URL**: `/api/trends/dates`
 - **Method**: `GET`
@@ -655,7 +657,9 @@ List distinct dates for which trend runs exist.
 
 #### Get Runs for Date
 
-List all runs that occurred on a given date.
+List all runs that occurred on a given date, regardless of status (started/completed/failed/
+aborted) — unlike Get Available Dates and Get Latest Run for Date, this endpoint is not filtered
+to completed runs, since it's meant for inspecting a date's full run history including failures.
 
 - **URL**: `/api/trends/dates/{run_date}/runs`
 - **Method**: `GET`
@@ -666,7 +670,8 @@ List all runs that occurred on a given date.
 
 #### Get Latest Run for Date
 
-Return only the most recent run for a given date.
+Return the most recent *completed* run for a given date (404 if none — e.g. if every run on
+that date is still in progress, failed, or was aborted).
 
 - **URL**: `/api/trends/dates/{run_date}/runs/latest`
 - **Method**: `GET`

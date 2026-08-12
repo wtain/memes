@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from Backend.app.repositories.trends_repository import TrendsRepository
+from repository.batch_runs import BatchRunRepository
 from Storage.models import TrendSource, BatchRun, TrendsRunResult
 
 
@@ -33,6 +34,7 @@ async def _make_run(db_session, created_at=None) -> BatchRun:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_available_dates_includes_run_date(db_session):
     run = await _make_run(db_session)
+    await BatchRunRepository(db_session).commit(run.run_id)
     run_date = run.created_at.date()
 
     repo = TrendsRepository(db_session)
@@ -42,9 +44,23 @@ async def test_get_available_dates_includes_run_date(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_get_available_dates_excludes_non_completed_run(db_session):
+    # A run that started but never finished (still running, failed, or aborted) has no
+    # usable trend data -- its date must not shadow the actual last successful run's date.
+    run = await _make_run(db_session)
+    run_date = run.created_at.date()
+
+    repo = TrendsRepository(db_session)
+    dates = await repo.get_available_dates()
+
+    assert run_date not in dates
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_get_available_dates_filters_by_label(db_session):
     source = await _make_source(db_session)
     run = await _make_run(db_session)
+    await BatchRunRepository(db_session).commit(run.run_id)
     db_session.add(TrendsRunResult(run_id=run.run_id, source_id=source.id, label="tech", name="ai", value=10))
     await db_session.flush()
 
@@ -71,13 +87,12 @@ async def test_get_runs_for_date_returns_runs_on_that_date(db_session):
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_latest_run_for_date_returns_most_recent(db_session):
-    from repository.batch_runs import BatchRunRepository
-
     base = datetime.now(timezone.utc)
     earlier = await _make_run(db_session, created_at=base)
     # Complete earlier run before creating another to satisfy the unique index constraint
     await BatchRunRepository(db_session).commit(earlier.run_id)
     later = await _make_run(db_session, created_at=base + timedelta(minutes=5))
+    await BatchRunRepository(db_session).commit(later.run_id)
 
     repo = TrendsRepository(db_session)
     latest = await repo.get_latest_run_for_date(base.date())
@@ -90,6 +105,35 @@ async def test_get_latest_run_for_date_returns_most_recent(db_session):
 async def test_get_latest_run_for_date_returns_none_when_no_runs(db_session):
     repo = TrendsRepository(db_session)
     result = await repo.get_latest_run_for_date(datetime(2000, 1, 1).date())
+    assert result is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_latest_run_for_date_ignores_a_more_recent_non_completed_run(db_session):
+    # Reproduces the real-world bug: the most recent run of the day is still running (or
+    # failed), but an earlier run that day did complete successfully -- the completed one
+    # must win, not the merely-most-recent one.
+    base = datetime.now(timezone.utc)
+    completed = await _make_run(db_session, created_at=base)
+    await BatchRunRepository(db_session).commit(completed.run_id)
+    still_running = await _make_run(db_session, created_at=base + timedelta(minutes=5))
+
+    repo = TrendsRepository(db_session)
+    latest = await repo.get_latest_run_for_date(base.date())
+
+    assert latest is not None
+    assert latest.run_id == completed.run_id
+    assert latest.run_id != still_running.run_id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_latest_run_for_date_returns_none_when_only_non_completed_runs(db_session):
+    run = await _make_run(db_session)
+    run_date = run.created_at.date()
+
+    repo = TrendsRepository(db_session)
+    result = await repo.get_latest_run_for_date(run_date)
+
     assert result is None
 
 
