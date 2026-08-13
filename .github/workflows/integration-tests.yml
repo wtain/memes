@@ -82,7 +82,14 @@ jobs:
           # tests/integration/test_trends_batch_tracking.py, which only exercises DB
           # tracking logic and never actually scrapes — not part of the heavy ML stack,
           # safe to install standalone here.
-          pip install wordfreq==3.1.1 pymorphy3==2.0.6 pymorphy3-dicts-ru==2.4.417150.4580142 PyYAML==6.0.2 numpy==2.2.6 ollama==0.6.1 requests==2.32.5 cloudscraper==1.2.71 feedparser==6.0.12 beautifulsoup4==4.14.3 bs4==0.0.2
+          #
+          # pillow is batch/utils/image_format_fix.py's (used by batch/fix_image_formats.py
+          # and batch/ingest_validate_formats.py) module-level PIL import, needed to collect
+          # tests/integration/test_fix_image_formats.py and
+          # tests/integration/test_ingest_validate_formats.py, which also use PIL directly to
+          # build test fixture images — not part of the heavy ML stack, safe to install
+          # standalone here. Version matches the pin in the root requirements.txt.
+          pip install wordfreq==3.1.1 pymorphy3==2.0.6 pymorphy3-dicts-ru==2.4.417150.4580142 PyYAML==6.0.2 numpy==2.2.6 ollama==0.6.1 requests==2.32.5 cloudscraper==1.2.71 feedparser==6.0.12 beautifulsoup4==4.14.3 bs4==0.0.2 pillow==12.0.0
 
       - name: Enable pgvector extension
         run: |
