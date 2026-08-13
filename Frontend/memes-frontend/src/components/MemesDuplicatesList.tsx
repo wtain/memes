@@ -160,6 +160,16 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
         startReached={() => { if (hasMoreBackward) loadBackward() }}
         endReached={() => { if (hasMoreForward) loadForward() }}
         rangeChanged={handleRangeChanged}
+        // Cluster rows vary wildly in height (2 members vs. dozens), and Virtuoso estimates
+        // not-yet-rendered rows using a rolling default -- when a huge row is far outside that
+        // estimate, measuring it forces a scroll-position correction, which is what's visible as
+        // a jump. Rendering further ahead in both directions gives Virtuoso more lead time to
+        // measure an outlier row's real height before the user's scroll position depends on it.
+        // minOverscanItemCount is row-count-based (not pixel-based) specifically because a single
+        // huge row can itself exceed a pixel-based buffer -- see react-virtuoso's own docs for
+        // that prop, which calls out exactly this "dynamic or very tall content" case.
+        increaseViewportBy={{ top: 600, bottom: 1200 }}
+        minOverscanItemCount={{ top: 2, bottom: 4 }}
         itemContent={(_index, row) => (
           <div>
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
