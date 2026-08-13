@@ -10,6 +10,8 @@ const CURSOR_DEBOUNCE_MS = 300
 const capturedProps: {
   rangeChanged?: (range: { startIndex: number }) => void
   endReached?: () => void
+  startReached?: () => void
+  firstItemIndex?: number
 } = {}
 
 vi.mock('react-virtuoso', () => ({
@@ -18,9 +20,13 @@ vi.mock('react-virtuoso', () => ({
     itemContent: (index: number, item: unknown) => React.ReactNode
     rangeChanged?: (range: { startIndex: number }) => void
     endReached?: () => void
+    startReached?: () => void
+    firstItemIndex?: number
   }) => {
     capturedProps.rangeChanged = props.rangeChanged
     capturedProps.endReached = props.endReached
+    capturedProps.startReached = props.startReached
+    capturedProps.firstItemIndex = props.firstItemIndex
     return (
       <div>
         {props.data.map((item, i) => (
@@ -72,6 +78,52 @@ describe('MemesDuplicatesList', () => {
     await waitFor(() => {
       expect(screen.getByText('Nothing to show')).toBeInTheDocument()
     })
+  })
+
+  it('does not over-count a cluster that straddles an evicted page boundary (regression)', async () => {
+    // Cluster 2 straddles pages 1 and 2 (member 'b' in page 1, member 'c' in page 2). When page 1
+    // is evicted (on the 5th page load, with the default maxPages=4), cluster 2's row survives --
+    // it just loses member 'b' -- because 'c' keeps it alive in the window. Only cluster 1's row
+    // actually disappears. The row-index shift must therefore be 1, not 2 (the raw count of
+    // distinct clusters page 1 happened to touch, which over-counts the surviving straddler).
+    const iterateDuplicates = vi.fn()
+      .mockResolvedValueOnce({ items: [clusterMeme('a', 1), clusterMeme('b', 2)], nextCursor: 'c1', hasNext: true })
+      .mockResolvedValueOnce({ items: [clusterMeme('c', 2), clusterMeme('d', 3)], nextCursor: 'c2', hasNext: true })
+      .mockResolvedValueOnce({ items: [clusterMeme('e', 4), clusterMeme('f', 5)], nextCursor: 'c3', hasNext: true })
+      .mockResolvedValueOnce({ items: [clusterMeme('g', 6), clusterMeme('h', 7)], nextCursor: 'c4', hasNext: true })
+      .mockResolvedValueOnce({ items: [clusterMeme('i', 8), clusterMeme('j', 9)], hasNext: false }) // evicts page 1
+    const api = makeMockApi({ iterateDuplicates })
+
+    render(<MemesDuplicatesList memesApi={api} />)
+    await waitFor(() => expect(screen.getByRole('img', { name: 'b' })).toBeInTheDocument()) // mount
+
+    for (const id of ['d', 'f', 'h', 'j']) {
+      await act(async () => { capturedProps.endReached?.() })
+      await waitFor(() => expect(screen.getByRole('img', { name: id })).toBeInTheDocument())
+    }
+    expect(iterateDuplicates).toHaveBeenCalledTimes(5)
+
+    expect(capturedProps.firstItemIndex).toBe(10_001)
+  })
+
+  it('does not over-count a cluster that straddles a cold-backward prepend boundary (regression)', async () => {
+    // Mirror of the eviction case above, for the opposite direction: cluster 2 straddles the
+    // mount page (member 'c') and the cold-backward-prepended page before it (member 'b'). The
+    // prepend should only count cluster 1's row as newly added -- cluster 2 already had a row
+    // before the prepend, just with fewer members.
+    const iterateDuplicates = vi.fn()
+      .mockResolvedValueOnce({ items: [clusterMeme('c', 2), clusterMeme('d', 3)], hasNext: false }) // mount, cursor 'mid'
+      .mockResolvedValueOnce({ items: [clusterMeme('x', 1), clusterMeme('b', 2)], hasNext: false }) // cold-backward prepend
+    const api = makeMockApi({ iterateDuplicates })
+
+    render(<MemesDuplicatesList memesApi={api} initialCursor="mid" />)
+    await waitFor(() => expect(screen.getByRole('img', { name: 'd' })).toBeInTheDocument()) // mount
+
+    await act(async () => { capturedProps.startReached?.() })
+    await waitFor(() => expect(screen.getByRole('img', { name: 'x' })).toBeInTheDocument())
+    expect(iterateDuplicates).toHaveBeenCalledTimes(2)
+
+    expect(capturedProps.firstItemIndex).toBe(9_999)
   })
 
   describe('onCursorChange row-to-cursor mapping', () => {

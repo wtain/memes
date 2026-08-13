@@ -17,8 +17,8 @@ type ClusterRow = { clusterId: number | string; members: Meme[] }
 const CURSOR_DEBOUNCE_MS = 300
 const ROW_FIRST_ITEM_INDEX_START = 10_000
 
-function distinctClusterCount(page: Page): number {
-  return new Set(page.items.map(m => m.clusterId ?? "unknown")).size
+function clusterIdsIn(pages: Page[]): Set<number | string> {
+  return new Set(pages.flatMap(p => p.items).map(m => m.clusterId ?? "unknown"))
 }
 
 export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }: Props) {
@@ -97,15 +97,35 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
   // (refs are meant for effects/handlers only), but reading and setting *state* mid-render is the
   // sanctioned mechanism per React's own docs for exactly this "adjust state when a prop changes"
   // case, so it isn't flagged.
+  //
+  // The row-count delta is computed as a *set difference* of cluster IDs across the whole
+  // previous/current window, not by summing `distinctClusterCount` over just the added/evicted
+  // page(s). A cluster that straddles a page boundary (e.g. its first member lands in the page
+  // being evicted, its second in the page right after) still has a surviving row after the
+  // eviction -- only its *other* member disappeared, not the row itself. Counting that page's
+  // "distinct clusters touched" as if each one lost a whole row over-counts by one for every
+  // straddling cluster, which -- given typical 2-3 member clusters against a 40-item page size --
+  // is the common case, not an edge case: it produced a real, frequent scroll jump (regression,
+  // see MemesDuplicatesList.test.tsx).
   const [prevPagesForRowIndex, setPrevPagesForRowIndex] = useState<Page[] | null>(null)
   if (prevPagesForRowIndex !== pages) {
     if (prevPagesForRowIndex !== null && pages.length > 0 && prevPagesForRowIndex.length > 0 && pages[0].cursor !== prevPagesForRowIndex[0].cursor) {
       const prevFirstStillPresentAt = pages.findIndex(p => p.cursor === prevPagesForRowIndex[0].cursor)
       if (prevFirstStillPresentAt > 0) {
-        const prependedRows = pages.slice(0, prevFirstStillPresentAt).reduce((sum, p) => sum + distinctClusterCount(p), 0)
-        setRowFirstItemIndex(idx => idx - prependedRows)
+        // Prepend: rows that are newly present now but weren't anywhere in the old window.
+        const prevClusterIds = clusterIdsIn(prevPagesForRowIndex)
+        const newClusterIds = clusterIdsIn(pages)
+        let addedRows = 0
+        for (const id of newClusterIds) if (!prevClusterIds.has(id)) addedRows++
+        setRowFirstItemIndex(idx => idx - addedRows)
       } else if (prevFirstStillPresentAt === -1) {
-        setRowFirstItemIndex(idx => idx + distinctClusterCount(prevPagesForRowIndex[0]))
+        // Eviction: rows that were in the old window but are gone from the new one entirely
+        // (a straddling cluster whose other member survives is correctly excluded here).
+        const prevClusterIds = clusterIdsIn(prevPagesForRowIndex)
+        const newClusterIds = clusterIdsIn(pages)
+        let removedRows = 0
+        for (const id of prevClusterIds) if (!newClusterIds.has(id)) removedRows++
+        setRowFirstItemIndex(idx => idx + removedRows)
       }
     }
     setPrevPagesForRowIndex(pages)
