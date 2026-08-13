@@ -15,7 +15,7 @@
 # Dockerfile.backend builds wheels with --no-deps, so this list must be the
 # full closure (direct + transitive) — regenerate via a clean-venv `pip freeze`
 # after changing any pin here, don't hand-edit individual versions.
-annotated-doc==0.0.4
+annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.14.2
 asyncpg==0.31.0
