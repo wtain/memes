@@ -76,49 +76,8 @@ scheduler:
       interval_minutes: 360
       max_runtime_minutes: 60
       enabled: true
-    - name: ingest_auto_prep
-      script: ingest_auto_prep
-      batch_run_kind: ingestion_auto_prep
-      interval_minutes: 15
-      max_runtime_minutes: 30
-      enabled: true
-    - name: build_tags_from_ocr
-      script: build_tags_from_ocr
-      batch_run_kind: build_tags_from_ocr
-      interval_minutes: 60
-      max_runtime_minutes: 30
-      enabled: true
-    - name: build_ocr_lemmas
-      script: build_ocr_lemmas
-      batch_run_kind: build_ocr_lemmas
-      interval_minutes: 60
-      max_runtime_minutes: 30
-      enabled: true
-    - name: build_tags_from_descriptions
-      script: build_tags_from_descriptions
-      batch_run_kind: build_tags_from_descriptions
-      interval_minutes: 60
-      max_runtime_minutes: 30
-      enabled: true
-    - name: build_concept_embeddings
-      script: build_concept_embeddings
-      batch_run_kind: build_concept_embeddings
-      interval_minutes: 120
-      max_runtime_minutes: 60
-      enabled: true
-    # Disabled: no incremental mode yet -- a full-corpus YOLO rebuild risks exceeding
-    # max_runtime_minutes and spawning a duplicate concurrent run. Enable once
-    # detect_entities_and_tag.py supports --incremental, or after confirming its
-    # real-world runtime fits comfortably under a much larger max_runtime_minutes.
-    - name: detect_entities_and_tag
-      script: detect_entities_and_tag
-      batch_run_kind: detect_entities_and_tag
-      interval_minutes: 120
-      max_runtime_minutes: 30
-      enabled: false
-    - name: build_bow
-      script: build_bow
-      batch_run_kind: build_bow
-      interval_minutes: 120
-      max_runtime_minutes: 30
-      enabled: true
+    # ingest_auto_prep, build_tags_from_ocr, build_ocr_lemmas, build_tags_from_descriptions,
+    # build_concept_embeddings, detect_entities_and_tag, and build_bow are deliberately NOT
+    # scheduled -- manual trigger only, via the /admin/batches UI (each still has a
+    # batch_registry.yaml entry). See
+    # docs/superpowers/specs/2026-08-14-batch-scheduling-rollout-design.md.

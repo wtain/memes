@@ -5,6 +5,14 @@ Plan: docs/superpowers/plans/2026-08-14-batch-scheduling-rollout.md
 
 **Date:** 2026-08-14.
 
+**Amendment (2026-08-14, post-implementation):** the `scheduler.jobs` entries for
+`ingest_auto_prep` and the 6 refactored downstream scripts described below were removed after
+review — all 7 are manual-trigger-only via `/admin/batches` (each still has its
+`batch_registry.yaml` entry), not on an automatic schedule. Only `trends_batch` (pre-existing,
+unrelated to this spec) remains scheduled. The design and code below are otherwise unchanged;
+read `interval_minutes`/`max_runtime_minutes` mentions as the values used *if* a job is
+scheduled, not as currently-active schedules.
+
 ---
 
 ## Motivation
