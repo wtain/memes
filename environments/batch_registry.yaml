@@ -13,3 +13,6 @@ build_tags_from_ocr:
 build_ocr_lemmas:
   module: batch.build_ocr_lemmas
   kind: build_ocr_lemmas
+build_tags_from_descriptions:
+  module: batch.build_tags_from_descriptions
+  kind: build_tags_from_descriptions

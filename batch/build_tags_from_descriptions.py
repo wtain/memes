@@ -1,6 +1,8 @@
 import argparse
 import asyncio
+import uuid
 
+from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import settings, load_env
 from Storage.db import AsyncSessionLocal
 from repository.images import ImagesRepository
@@ -8,7 +10,7 @@ from repository.tags import TagsRepository, TagsSaver
 from rules.engine import RulesEngine
 
 
-async def main(incremental: bool):
+async def _process(incremental: bool) -> None:
     rules_engine = RulesEngine(settings.get("RULES.FILE"))
 
     async with AsyncSessionLocal() as session:
@@ -34,6 +36,15 @@ async def main(incremental: bool):
                     tags_saver.add_tag(image_id, tag_name, value, "Ollama")
 
 
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, incremental: bool = True) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process(incremental=incremental)
+    else:
+        async with tracked_run(kind="build_tags_from_descriptions", trigger=trigger):
+            await _process(incremental=incremental)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
@@ -42,4 +53,4 @@ if __name__ == "__main__":
                         help="Only process images that have no Ollama tags yet (default: clear all and reprocess)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(args.incremental))
+    asyncio.run(main(incremental=args.incremental))
