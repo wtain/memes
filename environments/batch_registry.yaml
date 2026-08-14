@@ -10,3 +10,6 @@ unregister_deleted_images:
 build_tags_from_ocr:
   module: batch.build_tags_from_ocr
   kind: build_tags_from_ocr
+build_ocr_lemmas:
+  module: batch.build_ocr_lemmas
+  kind: build_ocr_lemmas

@@ -1,6 +1,8 @@
 import argparse
 import asyncio
+import uuid
 
+from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.ocr_lemmas import group_lemmas_by_image
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
@@ -58,7 +60,7 @@ async def run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_
     tracker.summary()
 
 
-async def main(incremental: bool):
+async def _process(incremental: bool) -> None:
     ocr_confidence_min = settings.OCR.CONFIDENCE_MIN
     ocr_lang_score_min = settings.OCR.LANG_SCORE_MIN
     min_word_length = settings.BOW.MIN_WORD_LENGTH
@@ -73,6 +75,15 @@ async def main(incremental: bool):
     metrics.print()
 
 
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, incremental: bool = True) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process(incremental=incremental)
+    else:
+        async with tracked_run(kind="build_ocr_lemmas", trigger=trigger):
+            await _process(incremental=incremental)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
@@ -81,4 +92,4 @@ if __name__ == "__main__":
                              "pipeline (default: clear all and reprocess)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(args.incremental))
+    asyncio.run(main(incremental=args.incremental))
