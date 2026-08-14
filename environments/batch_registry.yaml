@@ -19,3 +19,6 @@ build_tags_from_descriptions:
 build_concept_embeddings:
   module: batch.build_concept_embeddings
   kind: build_concept_embeddings
+detect_entities_and_tag:
+  module: batch.detect_entities_and_tag
+  kind: detect_entities_and_tag

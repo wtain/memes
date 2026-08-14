@@ -1,8 +1,10 @@
 import argparse
 import asyncio
 import os
+import uuid
 
 from ai.yolo import YoloAnimalDetector
+from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.image_format_filter import has_unsupported_image_extension
 from config.settings import load_env
 from Storage.db import AsyncSessionLocal
@@ -11,7 +13,7 @@ from repository.images import ImagesRepository
 from repository.tags import TagsRepository, TagsSaver
 
 
-async def main():
+async def _process():
 
     async with AsyncSessionLocal() as session:
 
@@ -49,6 +51,14 @@ async def main():
                 except Exception as e:
                     print(f"Model failed: {e}")
 
+
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process()
+    else:
+        async with tracked_run(kind="detect_entities_and_tag", trigger=trigger):
+            await _process()
 
 
 if __name__ == "__main__":
