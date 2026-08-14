@@ -34,6 +34,20 @@ from Storage.db import AsyncSessionLocal
 
 TIER_STAGE = {"tier_a": "tier_a_review", "tier_b": "tier_b_review"}
 
+_STAGE_ORDER = ["hash_dedup", "format_validation", "tier_a_review", "tier_b_review"]
+
+
+def should_advance_stage(current_stage: str | None, target_stage: str) -> bool:
+    """The stage must only ever advance, never rewind -- mirrors
+    ingest_validate_formats.should_advance_stage's reasoning, generalized to two arbitrary
+    stages instead of one fixed pair. A re-run of an earlier tier must not stomp a later
+    stage back, which would make the frontend's tierForStage() drop the review queue until
+    the later tier's find-duplicates call re-runs."""
+    if current_stage not in _STAGE_ORDER:
+        return False
+    return _STAGE_ORDER.index(target_stage) > _STAGE_ORDER.index(current_stage)
+
+
 # Probe = this batch's pending images. Corpus = the active library plus this image's own
 # batch siblings -- a single filter covering both "cross-corpus" and "in-batch" matches in
 # one KNN pass, tagged via match_source. See the duplicate-clustering prereq's scoping table.
@@ -72,7 +86,9 @@ async def main(env: str | None, tier: str, k: int | None) -> None:
             raise RuntimeError("No ingestion run is currently in progress -- run ingest_hash_dedup.py first.")
 
         inserted = await find_batch_duplicates(session, active_run.run_id, k=resolved_k, threshold=threshold)
-        await runs_repo.set_stage(active_run.run_id, TIER_STAGE[tier])
+        target_stage = TIER_STAGE[tier]
+        if should_advance_stage(active_run.stage, target_stage):
+            await runs_repo.set_stage(active_run.run_id, target_stage)
         await session.commit()
 
     print(f"Ingestion run {active_run.run_id} [{tier}]: {inserted} candidate pair(s) "

@@ -90,3 +90,26 @@ async def test_respects_threshold(db_session):
     inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)
 
     assert inserted == 0
+
+
+def test_should_advance_stage_tier_a_only_before_tier_a_review():
+    """A re-run of --tier tier_a (operator re-joins a batch mid-review per the runbook's
+    Concurrency section, or the scheduled ingest_auto_prep driver re-running every tick) must
+    not stomp a later stage like tier_b_review back to tier_a_review."""
+    from batch.ingest_find_duplicates import should_advance_stage
+
+    assert should_advance_stage("hash_dedup", "tier_a_review") is True
+    assert should_advance_stage("format_validation", "tier_a_review") is True
+    assert should_advance_stage("tier_a_review", "tier_a_review") is False
+    assert should_advance_stage("tier_b_review", "tier_a_review") is False
+    assert should_advance_stage(None, "tier_a_review") is False
+
+
+def test_should_advance_stage_tier_b_from_anything_before_it():
+    """Tier B can advance from any earlier stage, but not stay at or rewind from tier_b_review."""
+    from batch.ingest_find_duplicates import should_advance_stage
+
+    assert should_advance_stage("hash_dedup", "tier_b_review") is True
+    assert should_advance_stage("format_validation", "tier_b_review") is True
+    assert should_advance_stage("tier_a_review", "tier_b_review") is True
+    assert should_advance_stage("tier_b_review", "tier_b_review") is False
