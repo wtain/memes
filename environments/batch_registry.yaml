@@ -22,3 +22,6 @@ build_concept_embeddings:
 detect_entities_and_tag:
   module: batch.detect_entities_and_tag
   kind: detect_entities_and_tag
+tag_images_from_concepts:
+  module: batch.tag_images_from_concepts
+  kind: tag_images_from_concepts

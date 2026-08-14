@@ -1,7 +1,9 @@
 import argparse
 import asyncio
 import json
+import uuid
 
+from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import settings, load_env
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
@@ -9,7 +11,7 @@ from repository.concepts import ConceptsRepository
 from repository.tags import TagsRepository, TagsSaver
 
 
-async def main():
+async def _process() -> None:
     TAG_KIND = "CONCEPT"
 
     mapping_file = settings.get("CONCEPTS.MAPPING_FILE")
@@ -57,6 +59,15 @@ async def main():
                 metrics.increment("processed.concepts")
 
     metrics.print()
+
+
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process()
+    else:
+        async with tracked_run(kind="tag_images_from_concepts", trigger=trigger):
+            await _process()
 
 
 if __name__ == "__main__":
