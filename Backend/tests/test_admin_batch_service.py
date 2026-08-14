@@ -144,5 +144,11 @@ class TestListRuns:
         assert len(result["items"]) == 1
         assert result["items"][0]["run_id"] == str(run_id)
         mock_repo.list_runs.assert_awaited_once_with(
-            kinds=["trends", "move_flagged", "unregister_deleted_images"], limit=50, offset=0,
+            kinds=[
+                "trends", "move_flagged", "unregister_deleted_images",
+                "ingestion_auto_prep", "build_tags_from_ocr", "build_ocr_lemmas",
+                "build_tags_from_descriptions", "build_concept_embeddings",
+                "detect_entities_and_tag", "tag_images_from_concepts", "build_bow",
+            ],
+            limit=50, offset=0,
         )

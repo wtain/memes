@@ -4,9 +4,16 @@ import type { RunStatusResponse } from "../types/generated/all"
 
 type Props = { memesApi: MemesApi }
 
-const ADMIN_BATCHES = ["trends_batch", "move_flagged", "unregister_deleted_images"] as const
+const ADMIN_BATCHES = [
+  "trends_batch", "move_flagged", "unregister_deleted_images",
+  "ingest_auto_prep", "build_tags_from_ocr", "build_ocr_lemmas",
+  "build_tags_from_descriptions", "build_concept_embeddings",
+  "detect_entities_and_tag", "tag_images_from_concepts", "build_bow",
+] as const
 // Source of truth: environments/batch_registry.yaml. No endpoint enumerates these --
-// the backend deliberately keeps the trigger surface a fixed allow-list.
+// the backend deliberately keeps the trigger surface a fixed allow-list. Must also stay
+// in sync with Backend/app/services/admin_batch_service.py's _ADMIN_KINDS (kinds, not
+// names -- see that file's registry.yaml comment for the name/kind distinction).
 
 const PAGE_SIZE = 20
 const POLL_INTERVAL_MS = 4000

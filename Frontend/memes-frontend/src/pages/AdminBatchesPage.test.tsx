@@ -71,7 +71,7 @@ describe('AdminBatchesPage', () => {
     await user.click(runButtons[0]) // trends_batch -> Confirm?
     await user.click(runButtons[1]) // move_flagged -> Confirm?, cancels trends_batch's
 
-    expect(screen.getAllByText('Run')).toHaveLength(2) // trends_batch reverted, unregister still "Run"
+    expect(screen.getAllByText('Run')).toHaveLength(10) // trends_batch reverted, all others still "Run"
     expect(screen.getAllByText('Confirm?')).toHaveLength(1)
 
     await user.click(screen.getByText('Confirm?'))
@@ -90,7 +90,7 @@ describe('AdminBatchesPage', () => {
 
     await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
     expect(screen.queryByText('Confirm?')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Run')).toHaveLength(3)
+    expect(screen.getAllByText('Run')).toHaveLength(11)
   })
 
   it('shows an inline error for a 409 without affecting other rows', async () => {
@@ -108,7 +108,7 @@ describe('AdminBatchesPage', () => {
     await user.click(screen.getByText('Confirm?'))
 
     await waitFor(() => expect(screen.getByText('trends_batch is already running')).toBeInTheDocument())
-    expect(screen.getAllByText('Run')).toHaveLength(3) // move_flagged/unregister rows unaffected
+    expect(screen.getAllByText('Run')).toHaveLength(11) // other rows unaffected
   })
 
   it('polls the run list while a run is active, and stops once nothing is running', async () => {
@@ -147,7 +147,7 @@ describe('AdminBatchesPage', () => {
     expect(triggeringButton).toBeInTheDocument()
     expect(triggeringButton).toBeDisabled()
     // Other rows remain untouched.
-    expect(screen.getAllByText('Run')).toHaveLength(2)
+    expect(screen.getAllByText('Run')).toHaveLength(10)
 
     await act(async () => {
       resolveTrigger({ run_id: 'run-2', status: 'running' })
@@ -155,7 +155,7 @@ describe('AdminBatchesPage', () => {
     })
 
     await waitFor(() => expect(screen.queryByText('Triggering…')).not.toBeInTheDocument())
-    expect(screen.getAllByText('Run')).toHaveLength(3)
+    expect(screen.getAllByText('Run')).toHaveLength(11)
   })
 
   it('clears a stale trigger error once a fresh load shows the batch running', async () => {

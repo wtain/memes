@@ -9,7 +9,12 @@ from Backend.app.batch_subprocess import build_log_path, fire_and_forget, spawn_
 from repository.batch_runs import BatchAlreadyRunningError, BatchRunRepository
 from batch.registry import BatchRegistry
 
-_ADMIN_KINDS = ["trends", "move_flagged", "unregister_deleted_images"]
+_ADMIN_KINDS = [
+    "trends", "move_flagged", "unregister_deleted_images",
+    "ingestion_auto_prep", "build_tags_from_ocr", "build_ocr_lemmas",
+    "build_tags_from_descriptions", "build_concept_embeddings",
+    "detect_entities_and_tag", "tag_images_from_concepts", "build_bow",
+]
 
 _STATUS_MAP = {"started": "running", "completed": "completed", "failed": "failed"}
 
