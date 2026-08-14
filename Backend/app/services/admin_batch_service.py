@@ -9,13 +9,6 @@ from Backend.app.batch_subprocess import build_log_path, fire_and_forget, spawn_
 from repository.batch_runs import BatchAlreadyRunningError, BatchRunRepository
 from batch.registry import BatchRegistry
 
-_ADMIN_KINDS = [
-    "trends", "move_flagged", "unregister_deleted_images",
-    "ingestion_auto_prep", "build_tags_from_ocr", "build_ocr_lemmas",
-    "build_tags_from_descriptions", "build_concept_embeddings",
-    "detect_entities_and_tag", "tag_images_from_concepts", "build_bow",
-]
-
 _STATUS_MAP = {"started": "running", "completed": "completed", "failed": "failed"}
 
 
@@ -58,13 +51,22 @@ class AdminBatchService:
 
     async def get_run(self, run_id: uuid.UUID) -> dict:
         run = await self.repo.get_run(run_id)
-        if run is None or run.kind not in _ADMIN_KINDS:
+        if run is None or run.kind not in self._admin_kinds():
             raise HTTPException(status_code=404, detail="Run not found")
         return self._to_response(run)
 
     async def list_runs(self, limit: int, offset: int) -> dict:
-        items, total = await self.repo.list_runs(kinds=_ADMIN_KINDS, limit=limit, offset=offset)
+        items, total = await self.repo.list_runs(kinds=self._admin_kinds(), limit=limit, offset=offset)
         return {"items": [self._to_response(run) for run in items], "total": total}
+
+    async def list_batch_names(self) -> dict:
+        return {"names": self.registry.all_names()}
+
+    def _admin_kinds(self) -> list[str]:
+        """Every registered batch's kind, in one place -- the registry (fresh-read on
+        every call, see BatchRegistry) is the single source of truth for which batches
+        are admin-triggerable, so this needs no separate hardcoded list to stay in sync."""
+        return [self.registry.get(name)["kind"] for name in self.registry.all_names()]
 
     def _to_response(self, run) -> dict:
         return {

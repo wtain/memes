@@ -924,21 +924,33 @@ Reverts a `rejected` image back to `pending` and moves its file back out of
 
 ### Admin
 
-Manual triggers for a small allow-listed set of maintenance batch jobs (currently
-`trends_batch`, `move_flagged`, `unregister_deleted_images` — see
-`environments/batch_registry.yaml` / `batch_registry.<environment>.yaml` for the live list and
-the module each name maps to), plus status lookup for runs triggered this way.
+Manual triggers for every batch job registered in `environments/batch_registry.yaml` /
+`batch_registry.<environment>.yaml` (module + `kind` per name — `GET .../names` returns the
+live list, fresh-read from that file on every call, so an edit there takes effect immediately
+with no backend restart), plus status lookup for runs triggered this way. Which kinds count as
+"admin" is derived from the same registry, not a separate hardcoded list — anything registered
+is automatically admin-triggerable and shows up in run history.
 `POST .../run` spawns the batch script as a detached subprocess and returns immediately with
 `status: "running"` — it does not wait for the batch to finish. Progress and completion are
 observed by polling `GET .../runs/{run_id}` or `GET .../runs`. Output is also written to
 `logs/<environment>/<batch_name>_<timestamp>.log` on the machine running the backend.
 
+#### List Batch Names
+
+- **URL**: `/api/admin/batches/names`
+- **Method**: `GET`
+- **Response**: `BatchNamesResponse`
+- **Example**: `GET /api/admin/batches/names`
+
+```json
+{ "names": ["trends_batch", "move_flagged", "unregister_deleted_images", "build_bow", "..."] }
+```
+
 #### Trigger Batch Run
 
 - **URL**: `/api/admin/batches/{batch_name}/run`
 - **Method**: `POST`
-- **Path params**: `batch_name` — one of the names registered in `batch_registry.yaml` (e.g.
-  `trends_batch`, `move_flagged`, `unregister_deleted_images`)
+- **Path params**: `batch_name` — one of the names from `GET .../names`
 - **Response**: `RunTriggerResponse`
 - **Errors**:
   - `404` if `batch_name` isn't a registered batch
@@ -950,9 +962,9 @@ observed by polling `GET .../runs/{run_id}` or `GET .../runs`. Output is also wr
 ```
 
   Triggering `move_flagged` also chains an automatic `unregister_deleted_images` run afterward,
-  which produces its own second, independent `batch_runs` row (visible via `GET .../runs`).
-  There is no way to request the `--no-chain` opt-out through the API — that flag is
-  direct-CLI-only.
+  and triggering `build_concept_embeddings` similarly chains `tag_images_from_concepts` — each
+  produces its own second, independent `batch_runs` row (visible via `GET .../runs`). There is
+  no way to request the `--no-chain` opt-out through the API — that flag is direct-CLI-only.
 
 #### Get Run Status
 

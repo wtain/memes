@@ -33,10 +33,19 @@ class RunListResponse(BaseModel):
     total: int
 
 
+class BatchNamesResponse(BaseModel):
+    names: list[str]
+
+
 async def get_admin_batch_service(
     db=Depends(get_async_db),
 ) -> AsyncGenerator[AdminBatchService, None]:
     yield AdminBatchService(BatchRunRepository(db), db)
+
+
+@router.get("/names", response_model=BatchNamesResponse)
+async def list_batch_names(service: AdminBatchService = Depends(get_admin_batch_service)):
+    return await service.list_batch_names()
 
 
 @router.post("/{batch_name}/run", response_model=RunTriggerResponse)

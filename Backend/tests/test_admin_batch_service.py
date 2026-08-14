@@ -34,6 +34,7 @@ def mock_session():
 @pytest.fixture
 def mock_registry():
     registry = MagicMock()
+    registry.all_names.return_value = ["trends_batch"]
     registry.get.return_value = {"module": "batch.trends_batch", "kind": "trends"}
     registry.name_for_kind.return_value = "trends_batch"
     return registry
@@ -143,12 +144,27 @@ class TestListRuns:
         assert result["total"] == 1
         assert len(result["items"]) == 1
         assert result["items"][0]["run_id"] == str(run_id)
-        mock_repo.list_runs.assert_awaited_once_with(
-            kinds=[
-                "trends", "move_flagged", "unregister_deleted_images",
-                "ingestion_auto_prep", "build_tags_from_ocr", "build_ocr_lemmas",
-                "build_tags_from_descriptions", "build_concept_embeddings",
-                "detect_entities_and_tag", "tag_images_from_concepts", "build_bow",
-            ],
-            limit=50, offset=0,
-        )
+        mock_repo.list_runs.assert_awaited_once_with(kinds=["trends"], limit=50, offset=0)
+
+    async def test_derives_kinds_from_every_registered_name(self, service, mock_repo, mock_registry):
+        """_admin_kinds must not be a separate hardcoded list -- it has to reflect
+        whatever the registry currently returns, for every name, not just the first."""
+        mock_registry.all_names.return_value = ["trends_batch", "build_bow"]
+        mock_registry.get.side_effect = lambda name: {
+            "trends_batch": {"module": "batch.trends_batch", "kind": "trends"},
+            "build_bow": {"module": "batch.build_bow", "kind": "build_bow"},
+        }[name]
+        mock_repo.list_runs.return_value = ([], 0)
+
+        await service.list_runs(limit=50, offset=0)
+
+        mock_repo.list_runs.assert_awaited_once_with(kinds=["trends", "build_bow"], limit=50, offset=0)
+
+
+class TestListBatchNames:
+    async def test_returns_registry_names(self, service, mock_registry):
+        mock_registry.all_names.return_value = ["trends_batch", "build_bow"]
+
+        result = await service.list_batch_names()
+
+        assert result == {"names": ["trends_batch", "build_bow"]}

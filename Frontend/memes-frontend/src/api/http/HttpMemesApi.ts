@@ -4,7 +4,7 @@ import type {
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
   IngestionRunStatus, IngestionPendingImage, IngestionCluster, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse,
-  RunTriggerResponse, RunListResponse,
+  RunTriggerResponse, RunListResponse, BatchNamesResponse,
 } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
@@ -359,6 +359,14 @@ export class HttpMemesApi implements MemesApi {
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`Failed to undo reject: ${res.status}`)
+    return res.json()
+  }
+
+  async listBatchNames(): Promise<BatchNamesResponse> {
+    const res = await fetch(`${this.baseUrl}/api/admin/batches/names`, {
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`Failed to fetch batch names: ${res.status}`)
     return res.json()
   }
 

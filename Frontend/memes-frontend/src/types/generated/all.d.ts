@@ -491,3 +491,11 @@ export interface RunListResponse {
   total: number;
   [k: string]: unknown;
 }
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "BatchNamesResponse".
+ */
+export interface BatchNamesResponse {
+  names: string[];
+  [k: string]: unknown;
+}

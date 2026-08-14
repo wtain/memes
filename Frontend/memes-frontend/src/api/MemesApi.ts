@@ -3,7 +3,7 @@ import type {
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
   IngestionRunStatus, IngestionPendingImage, IngestionCluster, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse,
-  RunTriggerResponse, RunListResponse,
+  RunTriggerResponse, RunListResponse, BatchNamesResponse,
 } from "../types/generated/all";
 
 export type IngestionTier = "tier_a" | "tier_b"
@@ -63,6 +63,7 @@ export interface MemesApi {
   resolveIngestionCluster(tier: IngestionTier, decisions: IngestionDecision[]): Promise<IngestionResolveResponse>;
   undoIngestionReject(imageId: string): Promise<IngestionUndoRejectResponse>;
 
+  listBatchNames(): Promise<BatchNamesResponse>;
   triggerBatchRun(batchName: string): Promise<RunTriggerResponse>;
   listBatchRuns(limit?: number, offset?: number): Promise<RunListResponse>;
 }

@@ -32,6 +32,16 @@ def client(mock_service):
     app.dependency_overrides.clear()
 
 
+class TestListBatchNames:
+    def test_returns_names(self, client, mock_service):
+        mock_service.list_batch_names.return_value = {"names": ["trends_batch", "build_bow"]}
+
+        response = client.get("/api/admin/batches/names")
+
+        assert response.status_code == 200
+        assert response.json() == {"names": ["trends_batch", "build_bow"]}
+
+
 class TestTriggerRun:
     def test_returns_run_id_and_running_status(self, client, mock_service):
         mock_service.trigger_run.return_value = {"run_id": "abc-123", "status": "running"}

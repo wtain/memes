@@ -4,17 +4,6 @@ import type { RunStatusResponse } from "../types/generated/all"
 
 type Props = { memesApi: MemesApi }
 
-const ADMIN_BATCHES = [
-  "trends_batch", "move_flagged", "unregister_deleted_images",
-  "ingest_auto_prep", "build_tags_from_ocr", "build_ocr_lemmas",
-  "build_tags_from_descriptions", "build_concept_embeddings",
-  "detect_entities_and_tag", "tag_images_from_concepts", "build_bow",
-] as const
-// Source of truth: environments/batch_registry.yaml. No endpoint enumerates these --
-// the backend deliberately keeps the trigger surface a fixed allow-list. Must also stay
-// in sync with Backend/app/services/admin_batch_service.py's _ADMIN_KINDS (kinds, not
-// names -- see that file's registry.yaml comment for the name/kind distinction).
-
 const PAGE_SIZE = 20
 const POLL_INTERVAL_MS = 4000
 const CONFIRM_TIMEOUT_MS = 3000
@@ -66,6 +55,8 @@ function BatchRow({
 }
 
 export default function AdminBatchesPage({ memesApi }: Props) {
+  const [batchNames, setBatchNames] = useState<string[]>([])
+  const [namesLoading, setNamesLoading] = useState(true)
   const [runs, setRuns] = useState<RunStatusResponse[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
@@ -101,6 +92,15 @@ export default function AdminBatchesPage({ memesApi }: Props) {
       .finally(() => setLoading(false))
   }, [memesApi, page])
 
+  const loadNames = useCallback(() => {
+    return memesApi.listBatchNames()
+      .then((res) => setBatchNames(res.names))
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "Failed to load batch names")
+      })
+      .finally(() => setNamesLoading(false))
+  }, [memesApi])
+
   useEffect(() => {
     // `await Promise.resolve()` before the first setState defers it past the synchronous
     // effect body, per the react-hooks/set-state-in-effect rule (same pattern used in
@@ -111,6 +111,14 @@ export default function AdminBatchesPage({ memesApi }: Props) {
       load()
     })()
   }, [load])
+
+  useEffect(() => {
+    void (async () => {
+      await Promise.resolve()
+      setNamesLoading(true)
+      loadNames()
+    })()
+  }, [loadNames])
 
   const hasRunningRun = runs.some((r) => r.status === "running")
   useEffect(() => {
@@ -154,7 +162,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
     return runs.find((r) => r.batch_name === batchName)
   }
 
-  if (loading) return (
+  if (loading || namesLoading) return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Admin</h1>
       <p className="text-sm text-gray-400">Loading…</p>
@@ -175,7 +183,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
       <h1 className="text-2xl font-bold mb-4">Admin</h1>
 
       <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
-        {ADMIN_BATCHES.map((name) => (
+        {batchNames.map((name) => (
           <BatchRow
             key={name}
             name={name}
