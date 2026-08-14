@@ -1,6 +1,7 @@
 # Batch Scheduling Rollout — Design
 
-Status: approved
+Status: done
+Plan: docs/superpowers/plans/2026-08-14-batch-scheduling-rollout.md
 
 **Date:** 2026-08-14.
 
@@ -263,13 +264,17 @@ to be the actual bottleneck in practice.
 ### Known limitation (inherited, not introduced)
 
 If new files land in the inbox after an active run has already progressed past `tier_a_review`
-(i.e. into `tier_b_review`), the driver's Tier A step becomes a no-op for that run (per the stage
-guard in section 2) — those new images still get hash-deduped/format-fixed/embedded/OCR'd
-automatically, but won't get Tier A candidate search until either the current run completes and a
-fresh one starts, or an operator manually re-runs `ingest_find_duplicates.py` per the runbook. This
-is the same gap the manual workflow already has today (the runbook's "Concurrency" section already
-documents needing to manually re-run both tiers after a mid-review re-join) — this spec doesn't
-introduce it, just inherits it into the automated path.
+(i.e. into `tier_b_review`), `should_advance_stage` only guards the `set_stage` call in
+`ingest_find_duplicates.py` — not the candidate-pair search itself (`find_batch_duplicates`). So
+the driver's Tier A step still runs its probe for those new images on every tick and still writes
+fresh candidate pairs into `tmp_duplicates`; the stage just doesn't rewind back to
+`tier_a_review`. The actual gap is narrower: the `/ingestion` frontend's queue selection is driven
+entirely by the run's `stage` field (via `tierForStage()`), so those newly-found Tier A candidates
+exist in the database but never surface in the review UI until either the current run completes
+and a fresh one starts, or an operator manually intervenes. This is the same gap the manual
+workflow already has today (the runbook's "Concurrency" section already documents needing to
+manually re-run both tiers after a mid-review re-join) — this spec doesn't introduce it, just
+inherits it into the automated path.
 
 ## Testing
 

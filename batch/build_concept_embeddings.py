@@ -14,11 +14,13 @@ from typing import Protocol
 import numpy as np
 
 from ai.clip import ClipModel
+from batch import tag_images_from_concepts
 from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import settings, load_env
 from embeddingutils.image import load_image
 from Storage.db import AsyncSessionLocal
 from Storage.models import Concept, ConceptImageSet, ConceptImage
+from repository.batch_runs import BatchAlreadyRunningError
 from repository.concepts import ConceptsRepository
 
 
@@ -273,7 +275,7 @@ async def _process() -> None:
     await builder.build()
 
 
-async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, chain: bool = True) -> None:
     if run_id is not None:
         async with finish_existing_run(run_id):
             await _process()
@@ -281,11 +283,22 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None
         async with tracked_run(kind="build_concept_embeddings", trigger=trigger):
             await _process()
 
+    if chain:
+        try:
+            await tag_images_from_concepts.main(trigger=trigger)
+        except BatchAlreadyRunningError as e:
+            print(f"Skipping chained tag_images_from_concepts: {e}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
                         help="Environment to load config/secrets for (falls back to APP_ENV)")
+    parser.add_argument(
+        "--no-chain",
+        action="store_true",
+        help="Skip the automatic tag_images_from_concepts run after rebuilding concept embeddings.",
+    )
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior
+    asyncio.run(main(chain=not args.no_chain))  # trigger defaults to "manual" -- unchanged direct-CLI behavior

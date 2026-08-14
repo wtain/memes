@@ -104,20 +104,18 @@ scheduler:
       script: build_concept_embeddings
       batch_run_kind: build_concept_embeddings
       interval_minutes: 120
-      max_runtime_minutes: 30
+      max_runtime_minutes: 60
       enabled: true
+    # Disabled: no incremental mode yet -- a full-corpus YOLO rebuild risks exceeding
+    # max_runtime_minutes and spawning a duplicate concurrent run. Enable once
+    # detect_entities_and_tag.py supports --incremental, or after confirming its
+    # real-world runtime fits comfortably under a much larger max_runtime_minutes.
     - name: detect_entities_and_tag
       script: detect_entities_and_tag
       batch_run_kind: detect_entities_and_tag
       interval_minutes: 120
       max_runtime_minutes: 30
-      enabled: true
-    - name: tag_images_from_concepts
-      script: tag_images_from_concepts
-      batch_run_kind: tag_images_from_concepts
-      interval_minutes: 120
-      max_runtime_minutes: 30
-      enabled: true
+      enabled: false
     - name: build_bow
       script: build_bow
       batch_run_kind: build_bow

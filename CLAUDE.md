@@ -290,6 +290,15 @@ ingest_abort                → Abandons the currently active ingestion run inst
                                review, etc.
 ```
 
+`ingest_auto_prep` is a scheduled alternative to running Stage 1 through the Tier A step by
+hand: it chains `ingest_hash_dedup` → `ingest_validate_formats` → `build_image_embeddings
+--status pending --incremental` → `extract_text_from_memes --status pending` →
+`ingest_find_duplicates --tier tier_a` as one job (see `environments/settings.yaml`'s
+`scheduler.jobs`), self-tracked under `kind="ingestion_auto_prep"` — deliberately distinct
+from the long-lived `kind="ingestion"` review-run row, since that row can stay open for days
+during human review and must not be mistaken for an orphaned/crashed job. Tier B and
+promotion remain manual either way.
+
 Most jobs are idempotent (clear and rebuild). `rebuild_duplicates` is also idempotent as of
 2026-07-25 — it inserts incrementally into a persistent, migration-managed `tmp_duplicates` table
 (`ON CONFLICT DO NOTHING`) rather than dropping and recreating it every run.

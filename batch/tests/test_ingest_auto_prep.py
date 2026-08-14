@@ -78,6 +78,25 @@ class TestRunPrepChain:
         steps["build_image_embeddings"].assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_unrelated_runtime_error_from_a_later_step_propagates(self):
+        """A RuntimeError with a different message than the expected 'no ingestion run' one
+        (e.g. a CUDA/torch failure from build_image_embeddings) must NOT be swallowed as a
+        false 'nothing to do this tick' success -- it has to propagate and fail the run."""
+        import batch.ingest_auto_prep as module
+
+        steps = _patched_steps(
+            module,
+            build_image_embeddings=AsyncMock(side_effect=RuntimeError("CUDA out of memory")),
+        )
+
+        with patch.object(module.settings, "BASE_PATH", "/fake/base"):
+            with pytest.raises(RuntimeError, match="CUDA out of memory"):
+                await module._run_prep_chain()
+
+        steps["ingest_validate_formats"].assert_awaited_once()
+        steps["extract_text_from_memes"].assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_runtime_error_from_hash_dedup_propagates(self):
         """Step 1 failing (e.g. PATH_INGESTION_SOURCE misconfigured) must fail the whole tick,
         not be swallowed like steps 2-5's expected 'nothing to do' error."""

@@ -13,7 +13,7 @@ from repository.images import ImagesRepository
 from repository.tags import TagsRepository, TagsSaver
 
 
-async def _process():
+async def _process() -> None:
 
     async with AsyncSessionLocal() as session:
 

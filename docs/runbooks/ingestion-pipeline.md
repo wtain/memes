@@ -31,6 +31,13 @@ Then, separately, run the normal enrichment pipeline (tags, lemmas, descriptions
 concepts) — see [Does NOT cover](#does-not-cover). Full detail on each step, plus
 prerequisites and status-checking, is below.
 
+Steps 1-6 above (hash dedup through Tier A find-duplicates) can also run automatically
+instead of by hand, via the scheduled `ingest_auto_prep` job
+(`environments/settings.yaml`'s `scheduler.jobs`, `interval_minutes: 15`) — an operator
+only needs to drop files into the inbox and wait for the next tick, or still run the manual
+commands above for an on-demand pass. Tier B review and promotion (steps 8-10) always
+remain manual either way.
+
 ## Scope
 
 ### Covers

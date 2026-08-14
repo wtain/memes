@@ -49,6 +49,8 @@ async def _run_prep_chain() -> None:
         try:
             await step()
         except RuntimeError as e:
+            if "No ingestion run is currently in progress" not in str(e):
+                raise
             print(f"ingest_auto_prep: nothing to do this tick, stopping at {name} ({e})")
             return
 
