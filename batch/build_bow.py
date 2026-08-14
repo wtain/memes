@@ -2,11 +2,13 @@ import argparse
 import asyncio
 import json
 import os
+import uuid
 from collections import Counter, defaultdict
 from pathlib import Path
 
 import yaml
 
+from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from rules.normalize import lemmatize_word, lemmatize_word_autodetect, make_morph, tokenize
@@ -87,7 +89,7 @@ def _write_output(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-async def main():
+async def _process() -> None:
     text_source = settings.BOW.TEXT_SOURCE
     ocr_confidence_min = settings.OCR.CONFIDENCE_MIN
     ocr_lang_score_min = settings.OCR.LANG_SCORE_MIN
@@ -150,6 +152,15 @@ async def main():
     metrics.print()
 
 
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process()
+    else:
+        async with tracked_run(kind="build_bow", trigger=trigger):
+            await _process()
+
+
 async def _build_ocr_bow(session, morph, confidence_min, lang_score_min, min_word_length, min_frequency, metrics):
     repo = OCRTextRepository(session)
     rows = await repo.get_all_texts_with_language()
@@ -205,4 +216,4 @@ if __name__ == "__main__":
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main())
+    asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior
