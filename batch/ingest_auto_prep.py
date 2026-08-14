@@ -35,11 +35,6 @@ from batch import (
 from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
 
-_NOTHING_PENDING_STEPS = (
-    "ingest_validate_formats", "build_image_embeddings", "extract_text_from_memes",
-    "ingest_find_duplicates",
-)
-
 
 async def _run_prep_chain() -> None:
     await ingest_hash_dedup.main(env=None)
