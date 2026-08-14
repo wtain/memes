@@ -7,3 +7,6 @@ move_flagged:
 unregister_deleted_images:
   module: batch.unregister_deleted_images
   kind: unregister_deleted_images
+build_tags_from_ocr:
+  module: batch.build_tags_from_ocr
+  kind: build_tags_from_ocr

@@ -1,7 +1,9 @@
 import argparse
 import asyncio
+import uuid
 from pathlib import Path
 
+from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
@@ -14,7 +16,7 @@ from repository.tags import TagsRepository, TagsSaver
 _SCRIPT_DIR = Path(__file__).parent
 
 
-async def main(incremental: bool):
+async def _process(incremental: bool) -> None:
     data_dir = settings.get("RULES.TAGGING_DATA_DIR") or str(_SCRIPT_DIR / "data" / "tagging")
     profile = settings.get("GENERAL.TAGGING_PROFILE")
     ocr_confidence_min = settings.OCR.CONFIDENCE_MIN
@@ -66,6 +68,15 @@ async def main(incremental: bool):
     metrics.print()
 
 
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, incremental: bool = True) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process(incremental=incremental)
+    else:
+        async with tracked_run(kind="build_tags_from_ocr", trigger=trigger):
+            await _process(incremental=incremental)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
@@ -73,4 +84,4 @@ if __name__ == "__main__":
                         help="Only process images that have no OCR tags yet (default: clear all and reprocess)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(args.incremental))
+    asyncio.run(main(incremental=args.incremental))
