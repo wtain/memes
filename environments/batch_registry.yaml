@@ -16,3 +16,6 @@ build_ocr_lemmas:
 build_tags_from_descriptions:
   module: batch.build_tags_from_descriptions
   kind: build_tags_from_descriptions
+build_concept_embeddings:
+  module: batch.build_concept_embeddings
+  kind: build_concept_embeddings

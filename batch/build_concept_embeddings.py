@@ -4,6 +4,7 @@ import csv
 import json
 import os
 import pathlib
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,6 +14,7 @@ from typing import Protocol
 import numpy as np
 
 from ai.clip import ClipModel
+from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import settings, load_env
 from embeddingutils.image import load_image
 from Storage.db import AsyncSessionLocal
@@ -251,7 +253,7 @@ def load_json(path: str) -> dict | list:
         return json.load(f)
 
 
-async def main():
+async def _process() -> None:
     text_concepts_file = settings.get("CONCEPTS.TEXT_CONCEPTS_FILE")
     templates_file = settings.get("CONCEPTS.TEXT_CONCEPTS_TEMPLATES_FILE")
     images_dir = settings.get("CONCEPTS.IMAGES_DIR")
@@ -271,10 +273,19 @@ async def main():
     await builder.build()
 
 
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process()
+    else:
+        async with tracked_run(kind="build_concept_embeddings", trigger=trigger):
+            await _process()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None,
                         help="Environment to load config/secrets for (falls back to APP_ENV)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main())
+    asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior
