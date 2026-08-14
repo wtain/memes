@@ -28,7 +28,7 @@ greenlet==3.5.4
 gunicorn==26.0.0
 h11==0.16.0
 idna==3.18
-packaging==26.2
+packaging==26.3
 pgvector==0.5.0
 psycopg2-binary==2.9.12
 pydantic==2.13.4
