@@ -1,6 +1,7 @@
 # Ingestion Review — Submit All Decisions — Design
 
-Status: draft
+Status: done
+Plan: docs/superpowers/plans/2026-08-15-ingestion-submit-all-decisions.md
 
 **Date:** 2026-08-15.
 
