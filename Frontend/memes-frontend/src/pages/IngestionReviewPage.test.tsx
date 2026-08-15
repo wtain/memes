@@ -209,7 +209,8 @@ describe('IngestionReviewPage', () => {
       expect(screen.getByText('Submit all decisions (2 clusters, 2 images)')).toBeInTheDocument()
 
       await user.click(screen.getByText(/Submit all decisions/))
-      await user.click(screen.getByText('Confirm?'))
+      expect(screen.getByText('Confirm? (2 clusters, 2 images)')).toBeInTheDocument()
+      await user.click(screen.getByText(/Confirm\?/))
 
       await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
       const [calledTier, calledDecisions] = resolve.mock.calls[0]
@@ -237,9 +238,65 @@ describe('IngestionReviewPage', () => {
       // "Submit decisions" button would otherwise now be enabled.
 
       await user.click(screen.getByText(/Submit all decisions/))
-      await user.click(screen.getByText('Confirm?'))
+      await user.click(screen.getByText(/Confirm\?/))
 
       await waitFor(() => expect(screen.getAllByText('Submit decisions')[0]).toBeDisabled())
+    })
+
+    it('clears submitted decisions from state so a re-appearing image is not resubmitted', async () => {
+      // Regression test: `decisions` must not survive a successful submission. Otherwise a
+      // stale decision for an image_id can leak into a later submission for a different
+      // cluster (e.g. across a tier switch, where the same image_id can reappear in a new
+      // cluster) and get submitted without the reviewer ever deciding on it there.
+      const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: [] })
+      const getIngestionClusters = vi.fn()
+        .mockResolvedValueOnce([mockCluster]) // initial load
+        .mockResolvedValueOnce([mockCluster]) // reload after submit -- same cluster reappears
+      const api = makeMockApi({
+        getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+        getIngestionClusters,
+        resolveIngestionCluster: resolve,
+      })
+      const user = userEvent.setup()
+      render(<IngestionReviewPage memesApi={api} />)
+
+      await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+
+      await user.click(screen.getByText('Reject'))
+      await user.click(screen.getByText('Submit decisions'))
+
+      await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
+      // Cluster reappeared identically after reload (as if the backend still returned it, or
+      // an equivalent cluster in a new tier reused the same image_id) -- since `decisions` was
+      // cleared for pending-1 on submit, this fresh render must be undecided again: the
+      // per-cluster submit button is disabled and the Reject button is not shown as active.
+      await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+      expect(screen.getByText('Submit decisions')).toBeDisabled()
+      expect(screen.getByText('Reject')).not.toHaveClass('bg-red-600')
+    })
+  })
+
+  describe('error recovery', () => {
+    it('shows a Retry button on load failure, and recovers when clicked', async () => {
+      const getIngestionRunStatus = vi.fn()
+        .mockRejectedValueOnce(new Error('network down'))
+        .mockResolvedValueOnce(mockStatus)
+      const api = makeMockApi({
+        getIngestionRunStatus,
+        getIngestionClusters: vi.fn().mockResolvedValue([mockCluster]),
+      })
+      const user = userEvent.setup()
+      render(<IngestionReviewPage memesApi={api} />)
+
+      await waitFor(() => expect(screen.getByText('network down')).toBeInTheDocument())
+      const retryButton = screen.getByText('Retry')
+      expect(retryButton).toBeInTheDocument()
+
+      await user.click(retryButton)
+
+      await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+      expect(screen.queryByText('network down')).not.toBeInTheDocument()
+      expect(getIngestionRunStatus).toHaveBeenCalledTimes(2)
     })
   })
 })

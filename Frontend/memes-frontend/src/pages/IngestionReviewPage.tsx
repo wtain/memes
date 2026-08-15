@@ -156,6 +156,11 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     setSubmitting(clusterIndex)
     try {
       await memesApi.resolveIngestionCluster(tier, clusterDecisions)
+      setDecisions((prev) => {
+        const next = { ...prev }
+        for (const { image_id } of clusterDecisions) delete next[image_id]
+        return next
+      })
       load()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to submit decisions")
@@ -180,6 +185,11 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     setSubmitting("all")
     try {
       await memesApi.resolveIngestionCluster(tier, allPendingDecisions)
+      setDecisions((prev) => {
+        const next = { ...prev }
+        for (const { image_id } of allPendingDecisions) delete next[image_id]
+        return next
+      })
       load()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to submit all decisions")
@@ -209,7 +219,13 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   if (error) return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Ingestion Review</h1>
-      <p className="text-sm text-red-500">{error}</p>
+      <p className="text-sm text-red-500 mb-3">{error}</p>
+      <button
+        className="text-sm rounded bg-blue-600 text-white px-3 py-1"
+        onClick={() => { setLoading(true); load() }}
+      >
+        Retry
+      </button>
     </div>
   )
 
@@ -236,7 +252,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
           {submitting === "all"
             ? "Submitting…"
             : confirmingAll
-              ? "Confirm?"
+              ? `Confirm? (${clustersWithPendingCount} cluster${clustersWithPendingCount === 1 ? "" : "s"}, ${allPendingDecisions.length} image${allPendingDecisions.length === 1 ? "" : "s"})`
               : `Submit all decisions (${clustersWithPendingCount} cluster${clustersWithPendingCount === 1 ? "" : "s"}, ${allPendingDecisions.length} image${allPendingDecisions.length === 1 ? "" : "s"})`}
         </button>
       )}

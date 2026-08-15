@@ -150,7 +150,9 @@ runs, files just sit in `inbox\` untouched.
 7. **Review Tier A** in the browser at `/ingestion` (use whichever origin is CORS-allowed
    for this environment's frontend — see `environments/Environments.md`; e.g. metal's LAN
    origin, not `127.0.0.1`, if that's what `.env.metal` declares). Keep/reject each pending
-   member; submissions can be partial (not every cluster needs a decision in one pass).
+   member; submissions can be partial (not every cluster needs a decision in one pass). A
+   "Submit all decisions" button submits every cluster with at least one decision in one
+   request, instead of clicking each cluster's own Submit button individually.
 
 8. **Tier B — loose-threshold candidates:**
    ```powershell
