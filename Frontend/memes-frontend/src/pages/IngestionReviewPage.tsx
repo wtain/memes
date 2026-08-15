@@ -20,6 +20,7 @@ function tierForStage(stage: string | null): IngestionTier | null {
 }
 
 const TIER_LABEL: Record<IngestionTier, string> = { tier_a: "Tier A", tier_b: "Tier B" }
+const CONFIRM_ALL_TIMEOUT_MS = 3000
 
 function StatusBanner({ status }: { status: IngestionRunStatus | null }) {
   if (!status) return null
@@ -69,7 +70,7 @@ function MemberTile({
       </div>
       {ocrText && (
         <div className="text-[11px] text-gray-700 mt-1 line-clamp-3" title={ocrText}>
-          “{ocrText}”
+          "{ocrText}"
         </div>
       )}
       {edgeLabels.map((label) => (
@@ -101,8 +102,10 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   const [decisions, setDecisions] = useState<Record<string, Decision | undefined>>({})
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState<number | null>(null)
+  const [submitting, setSubmitting] = useState<number | "all" | null>(null)
   const [enlargedMember, setEnlargedMember] = useState<{ memberId: string; filename: string } | null>(null)
+  const [confirmingAll, setConfirmingAll] = useState(false)
+  const confirmAllTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tier = status ? tierForStage(status.stage) : null
 
   const load = useCallback(() => {
@@ -129,6 +132,12 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     load()
   }, [load])
 
+  useEffect(() => {
+    return () => {
+      if (confirmAllTimeoutRef.current) clearTimeout(confirmAllTimeoutRef.current)
+    }
+  }, [])
+
   function setDecision(memberId: string, decision: Decision) {
     setDecisions((prev) => ({ ...prev, [memberId]: prev[memberId] === decision ? undefined : decision }))
   }
@@ -153,6 +162,41 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     } finally {
       setSubmitting(null)
     }
+  }
+
+  const allPendingDecisions: { image_id: string; decision: Decision }[] = []
+  let clustersWithPendingCount = 0
+  for (const cluster of clusters) {
+    const before = allPendingDecisions.length
+    for (const member of cluster.members) {
+      const decision = decisions[member.image_id]
+      if (decision !== undefined) allPendingDecisions.push({ image_id: member.image_id, decision })
+    }
+    if (allPendingDecisions.length > before) clustersWithPendingCount++
+  }
+
+  async function submitAll() {
+    if (!tier || allPendingDecisions.length === 0) return
+    setSubmitting("all")
+    try {
+      await memesApi.resolveIngestionCluster(tier, allPendingDecisions)
+      load()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to submit all decisions")
+    } finally {
+      setSubmitting(null)
+    }
+  }
+
+  function handleSubmitAllClick() {
+    if (confirmingAll) {
+      if (confirmAllTimeoutRef.current) clearTimeout(confirmAllTimeoutRef.current)
+      setConfirmingAll(false)
+      submitAll()
+      return
+    }
+    setConfirmingAll(true)
+    confirmAllTimeoutRef.current = setTimeout(() => setConfirmingAll(false), CONFIRM_ALL_TIMEOUT_MS)
   }
 
   if (loading) return (
@@ -182,6 +226,20 @@ export default function IngestionReviewPage({ memesApi }: Props) {
         Ingestion Review{tier ? ` — ${TIER_LABEL[tier]}` : ""}
       </h1>
       <StatusBanner status={status} />
+
+      {tier && clustersWithPendingCount > 0 && (
+        <button
+          className={`mb-4 text-sm rounded px-3 py-1 text-white disabled:opacity-40 ${confirmingAll ? "bg-amber-500" : "bg-blue-600"}`}
+          disabled={submitting !== null}
+          onClick={handleSubmitAllClick}
+        >
+          {submitting === "all"
+            ? "Submitting…"
+            : confirmingAll
+              ? "Confirm?"
+              : `Submit all decisions (${clustersWithPendingCount} cluster${clustersWithPendingCount === 1 ? "" : "s"}, ${allPendingDecisions.length} image${allPendingDecisions.length === 1 ? "" : "s"})`}
+        </button>
+      )}
 
       {!tier && (
         <p className="text-sm text-gray-400">
@@ -225,7 +283,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
               </div>
               <button
                 className="mt-3 text-sm rounded bg-blue-600 text-white px-3 py-1 disabled:opacity-40"
-                disabled={!hasPendingDecision || submitting === i}
+                disabled={!hasPendingDecision || submitting === i || submitting === "all"}
                 onClick={() => submitCluster(i, cluster)}
               >
                 {submitting === i ? "Submitting…" : "Submit decisions"}

@@ -23,6 +23,20 @@ const mockCluster: IngestionCluster = {
   ],
 }
 
+const mockClusterTwo: IngestionCluster = {
+  members: [
+    { image_id: 'pending-2', filename: 'second.jpg', status: 'pending', ocr_text: null },
+  ],
+  edges: [],
+}
+
+const mockClusterThree: IngestionCluster = {
+  members: [
+    { image_id: 'pending-3', filename: 'third.jpg', status: 'pending', ocr_text: null },
+  ],
+  edges: [],
+}
+
 describe('IngestionReviewPage', () => {
   it('shows a message when there is no active ingestion run', async () => {
     const api = makeMockApi()
@@ -99,8 +113,8 @@ describe('IngestionReviewPage', () => {
 
     await waitFor(() => expect(screen.getByText('Ingestion Review — Tier B')).toBeInTheDocument())
     expect(getIngestionClusters).toHaveBeenCalledWith('tier_b')
-    expect(screen.getByText('“nice meme bro”')).toBeInTheDocument()
-    expect(screen.getByText('“original template text”')).toBeInTheDocument()
+    expect(screen.getByText('"nice meme bro"')).toBeInTheDocument()
+    expect(screen.getByText('"original template text"')).toBeInTheDocument()
   })
 
   it('opens a lightbox with the full image when a thumbnail is clicked, and closes it', async () => {
@@ -144,5 +158,88 @@ describe('IngestionReviewPage', () => {
       expect(screen.getByText(/OCR is running/)).toBeInTheDocument()
     )
     expect(getIngestionClusters).not.toHaveBeenCalled()
+  })
+
+  describe('submit all decisions', () => {
+    it('does not show "Submit all decisions" until at least one decision is made', async () => {
+      const api = makeMockApi({
+        getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+        getIngestionClusters: vi.fn().mockResolvedValue([mockCluster, mockClusterTwo]),
+      })
+      render(<IngestionReviewPage memesApi={api} />)
+
+      await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+      expect(screen.queryByText(/Submit all decisions/)).not.toBeInTheDocument()
+    })
+
+    it('shows the correct cluster/image counts across clusters with mixed decided and undecided members', async () => {
+      const api = makeMockApi({
+        getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+        getIngestionClusters: vi.fn().mockResolvedValue([mockCluster, mockClusterTwo]),
+      })
+      const user = userEvent.setup()
+      render(<IngestionReviewPage memesApi={api} />)
+
+      await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+
+      // Decides pending-1 (in mockCluster) only -- mockClusterTwo's pending-2 stays undecided.
+      await user.click(screen.getAllByText('Reject')[0])
+
+      expect(screen.getByText('Submit all decisions (1 cluster, 1 image)')).toBeInTheDocument()
+    })
+
+    it('submits decisions for all clusters with a decision, after confirming, excluding undecided members and clusters entirely', async () => {
+      const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: ['pending-3'] })
+      const api = makeMockApi({
+        getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+        getIngestionClusters: vi.fn().mockResolvedValue([mockCluster, mockClusterTwo, mockClusterThree]),
+        resolveIngestionCluster: resolve,
+      })
+      const user = userEvent.setup()
+      render(<IngestionReviewPage memesApi={api} />)
+
+      await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+
+      // Keep buttons render in cluster order: pending-1 (index 0), pending-2 (index 1),
+      // pending-3 (index 2) -- same for Reject. Decide pending-1 (reject) and pending-3 (keep);
+      // leave mockClusterTwo's pending-2 undecided.
+      await user.click(screen.getAllByText('Reject')[0])
+      await user.click(screen.getAllByText('Keep')[2])
+
+      expect(screen.getByText('Submit all decisions (2 clusters, 2 images)')).toBeInTheDocument()
+
+      await user.click(screen.getByText(/Submit all decisions/))
+      await user.click(screen.getByText('Confirm?'))
+
+      await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
+      const [calledTier, calledDecisions] = resolve.mock.calls[0]
+      expect(calledTier).toBe('tier_a')
+      expect(calledDecisions).toHaveLength(2) // excludes pending-2 (undecided) entirely
+      expect(calledDecisions).toEqual(expect.arrayContaining([
+        { image_id: 'pending-1', decision: 'reject' },
+        { image_id: 'pending-3', decision: 'keep' },
+      ]))
+    })
+
+    it('disables per-cluster submit buttons while "submit all" is in flight', async () => {
+      const resolve = vi.fn().mockImplementation(() => new Promise(() => {})) // never resolves
+      const api = makeMockApi({
+        getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+        getIngestionClusters: vi.fn().mockResolvedValue([mockCluster, mockClusterTwo]),
+        resolveIngestionCluster: resolve,
+      })
+      const user = userEvent.setup()
+      render(<IngestionReviewPage memesApi={api} />)
+
+      await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+
+      await user.click(screen.getAllByText('Reject')[0]) // decide pending-1 -- mockCluster's own
+      // "Submit decisions" button would otherwise now be enabled.
+
+      await user.click(screen.getByText(/Submit all decisions/))
+      await user.click(screen.getByText('Confirm?'))
+
+      await waitFor(() => expect(screen.getAllByText('Submit decisions')[0]).toBeDisabled())
+    })
   })
 })
