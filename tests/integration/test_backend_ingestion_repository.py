@@ -152,6 +152,32 @@ async def test_reject_image_returns_none_for_unknown_id(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_reject_image_returns_none_for_non_pending_status(db_session):
+    batch_id = await _make_run(db_session)
+    active_id = await _make_image(db_session, "active", batch_id)
+
+    repo = IngestionRepository(db_session)
+    result = await repo.reject_image(active_id)
+
+    assert result is None
+    image = await db_session.get(Image, active_id)
+    assert image.status == "active"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_reject_image_returns_none_for_already_rejected_status(db_session):
+    batch_id = await _make_run(db_session)
+    rejected_id = await _make_image(db_session, "rejected", batch_id)
+
+    repo = IngestionRepository(db_session)
+    result = await repo.reject_image(rejected_id)
+
+    assert result is None
+    image = await db_session.get(Image, rejected_id)
+    assert image.status == "rejected"
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_undo_reject_reverts_to_pending(db_session):
     batch_id = await _make_run(db_session)
     image_id = await _make_image(db_session, "rejected", batch_id)

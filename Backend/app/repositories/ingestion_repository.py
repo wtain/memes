@@ -127,8 +127,12 @@ class IngestionRepository:
 
     async def reject_image(self, image_id) -> Optional[str]:
         """Flip status to rejected. Returns the filename (for the caller to move the file),
-        or None if the image doesn't exist."""
-        result = await self.session.execute(select(Image).where(Image.id == image_id))
+        or None if the image doesn't exist or isn't currently pending (already resolved
+        elsewhere -- see
+        docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md)."""
+        result = await self.session.execute(
+            select(Image).where(Image.id == image_id, Image.status == "pending")
+        )
         image = result.scalar_one_or_none()
         if image is None:
             return None
