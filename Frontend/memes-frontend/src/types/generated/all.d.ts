@@ -434,22 +434,32 @@ export interface IngestionDecision {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionFailedDecision".
+ */
+export interface IngestionFailedDecision {
+  image_id: string;
+  decision: string;
+  error: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionMoveFailure".
+ */
+export interface IngestionMoveFailure {
+  image_id: string;
+  error: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "IngestionResolveResponse".
  */
 export interface IngestionResolveResponse {
   rejected: string[];
   kept: string[];
-  failed: {
-    image_id: string;
-    decision: string;
-    error: string;
-    [k: string]: unknown;
-  }[];
-  move_failed: {
-    image_id: string;
-    error: string;
-    [k: string]: unknown;
-  }[];
+  failed: IngestionFailedDecision[];
+  move_failed: IngestionMoveFailure[];
   [k: string]: unknown;
 }
 /**

@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestionfaileddecision.schema.json",
+  "title": "IngestionFailedDecision",
+  "type": "object",
+  "properties": {
+    "image_id": { "type": "string" },
+    "decision": { "type": "string" },
+    "error": { "type": "string" }
+  },
+  "required": ["image_id", "decision", "error"]
+}

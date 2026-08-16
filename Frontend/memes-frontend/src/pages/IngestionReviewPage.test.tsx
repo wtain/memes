@@ -125,6 +125,79 @@ describe('IngestionReviewPage', () => {
     expect(screen.getByText('Reject')).not.toHaveClass('bg-red-600')
   })
 
+  it('prunes a silently-skipped decision so it does not resurrect if its member becomes pending again', async () => {
+    // Regression test: resolve() can silently skip a decision (present in none of
+    // rejected/kept/failed/move_failed) when its target is no longer pending at submit time
+    // (e.g. reject_image's own pending guard, see
+    // docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md).
+    // Clearing-by-response alone leaves that decision stuck in local state forever; if the
+    // member's status later returns to "pending" (e.g. undone elsewhere), the stale decision
+    // must not resurface as if the reviewer just decided it there. See
+    // docs/superpowers/specs/2026-08-16-ingestion-resolve-atomicity-design.md.
+    const activeOneCluster: IngestionCluster = {
+      members: [{ image_id: 'pending-1', filename: 'new.jpg', status: 'active', ocr_text: null }],
+      edges: [],
+    }
+    const resolve = vi.fn()
+      .mockResolvedValueOnce({ rejected: ['pending-2'], kept: [], failed: [], move_failed: [] })
+      .mockResolvedValueOnce({ rejected: ['pending-3'], kept: [], failed: [], move_failed: [] })
+    const getIngestionClusters = vi.fn()
+      .mockResolvedValueOnce([mockCluster, mockClusterTwo]) // pending-1, pending-2 both pending
+      .mockResolvedValueOnce([activeOneCluster, mockClusterThree]) // pending-1 silently skipped, now active; pending-3 pending
+      .mockResolvedValueOnce([mockCluster]) // pending-1 pending again
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+      getIngestionClusters,
+      resolveIngestionCluster: resolve,
+    })
+    const user = userEvent.setup()
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+    // Decide pending-1 (will be silently skipped by the backend) and pending-2 (submitted normally).
+    await user.click(screen.getAllByText('Reject')[0])
+    await user.click(screen.getAllByText('Reject')[1])
+    await user.click(screen.getAllByText('Submit decisions')[1]) // mockClusterTwo's own submit
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByText('third.jpg')).toBeInTheDocument())
+
+    // Decide and submit pending-3 to drive a second reload. Two clusters are on screen here
+    // (activeOneCluster and mockClusterThree), so "Submit decisions" is ambiguous by plain
+    // getByText -- disambiguate to mockClusterThree's own button (index 1), same pattern used
+    // above for mockClusterTwo's submit.
+    await user.click(screen.getByText('Reject'))
+    await user.click(screen.getAllByText('Submit decisions')[1])
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledTimes(2))
+    // pending-1 reappears as pending again. If its stale decision from the first round had
+    // survived (never pruned, only ever hidden while non-pending), it would show as
+    // already-decided here.
+    await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+    expect(screen.getByText('Submit decisions')).toBeDisabled()
+    expect(screen.getByText('Reject')).not.toHaveClass('bg-red-600')
+  })
+
+  it('shows submit failures inline rather than replacing the whole page', async () => {
+    const resolve = vi.fn().mockRejectedValue(new Error('network down'))
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+      getIngestionClusters: vi.fn().mockResolvedValue([mockCluster]),
+      resolveIngestionCluster: resolve,
+    })
+    const user = userEvent.setup()
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+    await user.click(screen.getByText('Reject'))
+    await user.click(screen.getByText('Submit decisions'))
+
+    await waitFor(() => expect(screen.getByText('network down')).toBeInTheDocument())
+    // A submit failure must not replace the whole page -- the cluster and its decision stay visible.
+    expect(screen.getByText('new.jpg')).toBeInTheDocument()
+    expect(screen.getByText('Reject')).toHaveClass('bg-red-600')
+  })
+
   it('excludes a decided member from submission once its status is no longer pending', async () => {
     // Regression test: a decision set while a member was pending must not be submitted if a
     // reload shows it's since been resolved by a concurrent reviewer in the same tier (no tier
@@ -429,7 +502,7 @@ describe('IngestionReviewPage', () => {
 
     await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
     await waitFor(() =>
-      expect(screen.getByText(/were recorded but their file move failed/)).toBeInTheDocument()
+      expect(screen.getByText(/were recorded as rejected even though their file move failed/)).toBeInTheDocument()
     )
     // A move failure is not a hard error -- the page still shows the (now-empty) cluster list,
     // not the full-page error screen.

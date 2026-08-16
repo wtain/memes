@@ -69,16 +69,23 @@ data class IngestionDecision(
 )
 
 @Serializable
+data class IngestionFailedDecision(
+    @SerialName("image_id") val image_id: String,
+    @SerialName("decision") val decision: String,
+    @SerialName("error") val error: String
+)
+
+@Serializable
+data class IngestionMoveFailure(
+    @SerialName("image_id") val image_id: String,
+    @SerialName("error") val error: String
+)
+
+@Serializable
 data class IngestionPendingImage(
     @SerialName("image_id") val image_id: String,
     @SerialName("filename") val filename: String,
     @SerialName("created_at") val created_at: String
-)
-
-@Serializable
-data class IngestionResolveResponse(
-    @SerialName("rejected") val rejected: List<String>,
-    @SerialName("kept") val kept: List<String>
 )
 
 @Serializable
@@ -248,6 +255,14 @@ data class SearchHistoryResponse(
 data class IngestionCluster(
     @SerialName("members") val members: List<IngestionClusterMember>,
     @SerialName("edges") val edges: List<IngestionClusterEdge>
+)
+
+@Serializable
+data class IngestionResolveResponse(
+    @SerialName("rejected") val rejected: List<String>,
+    @SerialName("kept") val kept: List<String>,
+    @SerialName("failed") val failed: List<IngestionFailedDecision>,
+    @SerialName("move_failed") val move_failed: List<IngestionMoveFailure>
 )
 
 @Serializable

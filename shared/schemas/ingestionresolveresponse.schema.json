@@ -6,29 +6,8 @@
   "properties": {
     "rejected": { "type": "array", "items": { "type": "string" } },
     "kept": { "type": "array", "items": { "type": "string" } },
-    "failed": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "image_id": { "type": "string" },
-          "decision": { "type": "string" },
-          "error": { "type": "string" }
-        },
-        "required": ["image_id", "decision", "error"]
-      }
-    },
-    "move_failed": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "image_id": { "type": "string" },
-          "error": { "type": "string" }
-        },
-        "required": ["image_id", "error"]
-      }
-    }
+    "failed": { "type": "array", "items": { "$ref": "./ingestionfaileddecision.schema.json" } },
+    "move_failed": { "type": "array", "items": { "$ref": "./ingestionmovefailure.schema.json" } }
   },
   "required": ["rejected", "kept", "failed", "move_failed"]
 }

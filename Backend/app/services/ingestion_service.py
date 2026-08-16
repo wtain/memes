@@ -102,7 +102,12 @@ class IngestionService:
         filesystem) does not affect any other decision in the same call. `decisions` is a list
         of {"image_id": UUID, "decision": "reject" | "keep"}. Partial resolution is expected --
         callers don't have to decide every member of a cluster in one call, and a partially
-        successful batch is a normal outcome, not an error response."""
+        successful batch is a normal outcome, not an error response.
+
+        An image_id appearing in `move_failed` also appears in `rejected` -- the database write
+        succeeded (the image IS durably rejected); only its physical file move failed. Callers
+        must not treat `rejected` and `move_failed` as mutually exclusive.
+        """
         rejected, kept, failed, move_failed = [], [], [], []
         for entry in decisions:
             image_id = entry["image_id"]

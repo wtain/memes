@@ -30,6 +30,8 @@
     "IngestionClusterEdge":       { "$ref": "ingestionclusteredge.schema.json" },
     "IngestionCluster":           { "$ref": "ingestioncluster.schema.json" },
     "IngestionDecision":          { "$ref": "ingestiondecision.schema.json" },
+    "IngestionFailedDecision":    { "$ref": "ingestionfaileddecision.schema.json" },
+    "IngestionMoveFailure":       { "$ref": "ingestionmovefailure.schema.json" },
     "IngestionResolveResponse":   { "$ref": "ingestionresolveresponse.schema.json" },
     "IngestionUndoRejectResponse": { "$ref": "ingestionundorejectresponse.schema.json" },
     "RunTriggerResponse":      { "$ref": "runtriggerresponse.schema.json" },

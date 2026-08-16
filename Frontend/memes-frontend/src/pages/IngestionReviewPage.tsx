@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { MemesApi, IngestionTier } from "../api/MemesApi"
-import type { IngestionCluster, IngestionRunStatus } from "../types/generated/all"
+import type { IngestionCluster, IngestionResolveResponse, IngestionRunStatus } from "../types/generated/all"
 import { Modal } from "../components/Modal"
 
 type Props = { memesApi: MemesApi }
@@ -17,6 +17,23 @@ function tierForStage(stage: string | null): IngestionTier | null {
   return null // hash_dedup, or ocr_prepass (transient; OCR now runs before Tier A review,
   // not between the tiers -- see Decision #10 in
   // docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md)
+}
+
+// The message shown after a submit whose response includes failed/move_failed entries. Built
+// from only the non-empty parts so a pure move-failure batch doesn't read "0 decision(s)
+// failed to apply" -- see docs/superpowers/specs/2026-08-16-ingestion-resolve-atomicity-design.md.
+function formatResolveSummary(response: IngestionResolveResponse): string | null {
+  const parts: string[] = []
+  if (response.failed.length > 0) {
+    parts.push(`${response.failed.length} decision(s) failed to apply and remain marked for retry`)
+  }
+  if (response.move_failed.length > 0) {
+    parts.push(
+      `${response.move_failed.length} were recorded as rejected even though their file move failed` +
+      ` (safe -- no data was lost; reversing it requires the backend's undo-reject API, not available in this page yet)`
+    )
+  }
+  return parts.length > 0 ? parts.join("; ") : null
 }
 
 const TIER_LABEL: Record<IngestionTier, string> = { tier_a: "Tier A", tier_b: "Tier B" }
@@ -152,6 +169,32 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     })()
   }, [tier])
 
+  useEffect(() => {
+    // Prunes any decision whose target member is no longer present-and-pending in the latest
+    // cluster snapshot. Closes the gap where resolve() silently skips a decision (appears in
+    // none of rejected/kept/failed/move_failed -- e.g. reject_image's own pending guard, see
+    // docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md) --
+    // without this, that decision would sit in local state forever, and could resurface as
+    // already-decided if its target later becomes pending again. Deliberately independent of
+    // the [tier]-keyed effect above: that effect always clears everything on a tier change
+    // (even if a stale image_id happens to still be pending in the new tier -- Task 2's own
+    // test relies on that unconditional clear), while this effect only prunes ids that have
+    // genuinely dropped out of the pending set, on every cluster reload regardless of tier.
+    void (async () => {
+      await Promise.resolve()
+      const pendingIds = new Set(
+        clusters.flatMap((c) => c.members.filter((m) => m.status === "pending").map((m) => m.image_id))
+      )
+      setDecisions((prev) => {
+        const next: Record<string, Decision | undefined> = {}
+        for (const [id, decision] of Object.entries(prev)) {
+          if (pendingIds.has(id)) next[id] = decision
+        }
+        return next
+      })
+    })()
+  }, [clusters])
+
   function setDecision(memberId: string, decision: Decision) {
     setDecisions((prev) => ({ ...prev, [memberId]: prev[memberId] === decision ? undefined : decision }))
   }
@@ -183,14 +226,8 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       // have the reload's setError(null) immediately overwrite it, making the summary flash
       // and vanish before a user (or test) could ever see it.
       await load()
-      if (response.failed.length > 0 || response.move_failed.length > 0) {
-        setError(
-          `${response.failed.length} decision(s) failed to apply and remain marked for retry` +
-          (response.move_failed.length > 0
-            ? `; ${response.move_failed.length} were recorded but their file move failed (safe to retry via undo/re-decide)`
-            : "")
-        )
-      }
+      const summary = formatResolveSummary(response)
+      if (summary) setError(summary)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to submit decisions")
     } finally {
@@ -223,14 +260,8 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       // See the matching comment in submitCluster -- load() must be awaited before the summary
       // is set, or its own success path's setError(null) immediately overwrites it.
       await load()
-      if (response.failed.length > 0 || response.move_failed.length > 0) {
-        setError(
-          `${response.failed.length} decision(s) failed to apply and remain marked for retry` +
-          (response.move_failed.length > 0
-            ? `; ${response.move_failed.length} were recorded but their file move failed (safe to retry via undo/re-decide)`
-            : "")
-        )
-      }
+      const summary = formatResolveSummary(response)
+      if (summary) setError(summary)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to submit all decisions")
     } finally {
