@@ -125,6 +125,57 @@ describe('IngestionReviewPage', () => {
     expect(screen.getByText('Reject')).not.toHaveClass('bg-red-600')
   })
 
+  it('excludes a decided member from submission once its status is no longer pending', async () => {
+    // Regression test: a decision set while a member was pending must not be submitted if a
+    // reload shows it's since been resolved by a concurrent reviewer in the same tier (no tier
+    // change involved -- that case is covered by Task 2's test) -- see
+    // docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md.
+    const clusterTwoAfterConcurrentResolve: IngestionCluster = {
+      members: [
+        { image_id: 'pending-2', filename: 'second.jpg', status: 'active', ocr_text: null },
+      ],
+      edges: [],
+    }
+    const resolve = vi.fn()
+      .mockResolvedValueOnce({ rejected: ['pending-1'], kept: [] }) // pending-1's own submit
+      .mockResolvedValueOnce({ rejected: ['pending-3'], kept: [] }) // submit-all afterward
+    const getIngestionClusters = vi.fn()
+      // Initial load: pending-1, pending-2, pending-3 all pending, each its own cluster.
+      .mockResolvedValueOnce([mockCluster, mockClusterTwo, mockClusterThree])
+      // Reload after pending-1's submit: pending-2 has since gone "active" (concurrent
+      // reviewer); pending-3 is still pending and still undecided in this mock.
+      .mockResolvedValueOnce([clusterTwoAfterConcurrentResolve, mockClusterThree])
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus), // tier never changes
+      getIngestionClusters,
+      resolveIngestionCluster: resolve,
+    })
+    const user = userEvent.setup()
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+    // Decide all three while all are pending. Cluster/button order: pending-1 (index 0),
+    // pending-2 (index 1), pending-3 (index 2).
+    await user.click(screen.getAllByText('Reject')[0])
+    await user.click(screen.getAllByText('Reject')[1])
+    await user.click(screen.getAllByText('Reject')[2])
+
+    // Submit only pending-1's own cluster -- triggers the reload where pending-2 goes active.
+    await user.click(screen.getAllByText('Submit decisions')[0])
+    await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByText('second.jpg')).toBeInTheDocument())
+
+    // pending-2's decision is still in local state (never submitted; no tier change happened,
+    // so Task 2's guard doesn't apply here). Submit-all must exclude it now that its status is
+    // "active", sending only pending-3.
+    await user.click(screen.getByText(/Submit all decisions/))
+    await user.click(screen.getByText(/Confirm\?/))
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledTimes(2))
+    const [, sentDecisions] = resolve.mock.calls[1]
+    expect(sentDecisions).toEqual([{ image_id: 'pending-3', decision: 'reject' }])
+  })
+
   it('disables submit until a decision is made', async () => {
     const api = makeMockApi({
       getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),

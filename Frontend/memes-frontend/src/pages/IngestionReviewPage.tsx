@@ -139,6 +139,9 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   }, [])
 
   useEffect(() => {
+    // Clearing decisions on tier change is intentional -- we need to reset the local
+    // decision state whenever the tier switches, so users start fresh with the new queue.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDecisions({})
   }, [tier])
 
@@ -147,10 +150,12 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   }
 
   async function submitCluster(clusterIndex: number, cluster: IngestionCluster) {
-    const memberIds = new Set(cluster.members.map((m) => m.image_id))
+    const pendingMemberIds = new Set(
+      cluster.members.filter((m) => m.status === "pending").map((m) => m.image_id)
+    )
     const clusterDecisions: { image_id: string; decision: Decision }[] = []
     for (const [image_id, decision] of Object.entries(decisions)) {
-      if (memberIds.has(image_id) && decision !== undefined) {
+      if (pendingMemberIds.has(image_id) && decision !== undefined) {
         clusterDecisions.push({ image_id, decision })
       }
     }
@@ -178,6 +183,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   for (const cluster of clusters) {
     const before = allPendingDecisions.length
     for (const member of cluster.members) {
+      if (member.status !== "pending") continue
       const decision = decisions[member.image_id]
       if (decision !== undefined) allPendingDecisions.push({ image_id: member.image_id, decision })
     }
