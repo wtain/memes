@@ -1,6 +1,7 @@
 # Ingestion Review — Stale Decision Guard — Design
 
-Status: draft
+Status: done
+Plan: docs/superpowers/plans/2026-08-16-ingestion-decision-staleness-guard.md
 Originates from: docs/superpowers/specs/2026-08-15-ingestion-submit-all-decisions-design.md
 
 **Date:** 2026-08-16.
