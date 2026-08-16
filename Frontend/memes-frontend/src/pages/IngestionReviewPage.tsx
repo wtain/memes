@@ -171,13 +171,26 @@ export default function IngestionReviewPage({ memesApi }: Props) {
 
     setSubmitting(clusterIndex)
     try {
-      await memesApi.resolveIngestionCluster(tier, clusterDecisions)
+      const response = await memesApi.resolveIngestionCluster(tier, clusterDecisions)
       setDecisions((prev) => {
         const next = { ...prev }
-        for (const { image_id } of clusterDecisions) delete next[image_id]
+        for (const image_id of [...response.rejected, ...response.kept]) delete next[image_id]
         return next
       })
-      load()
+      // Reload before surfacing the summary -- load()'s own success path unconditionally
+      // clears `error` (it's how a genuine load failure's message gets dismissed on the next
+      // successful load), so setting the summary first and then firing load() unawaited would
+      // have the reload's setError(null) immediately overwrite it, making the summary flash
+      // and vanish before a user (or test) could ever see it.
+      await load()
+      if (response.failed.length > 0 || response.move_failed.length > 0) {
+        setError(
+          `${response.failed.length} decision(s) failed to apply and remain marked for retry` +
+          (response.move_failed.length > 0
+            ? `; ${response.move_failed.length} were recorded but their file move failed (safe to retry via undo/re-decide)`
+            : "")
+        )
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to submit decisions")
     } finally {
@@ -201,13 +214,23 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     if (!tier || allPendingDecisions.length === 0) return
     setSubmitting("all")
     try {
-      await memesApi.resolveIngestionCluster(tier, allPendingDecisions)
+      const response = await memesApi.resolveIngestionCluster(tier, allPendingDecisions)
       setDecisions((prev) => {
         const next = { ...prev }
-        for (const { image_id } of allPendingDecisions) delete next[image_id]
+        for (const image_id of [...response.rejected, ...response.kept]) delete next[image_id]
         return next
       })
-      load()
+      // See the matching comment in submitCluster -- load() must be awaited before the summary
+      // is set, or its own success path's setError(null) immediately overwrites it.
+      await load()
+      if (response.failed.length > 0 || response.move_failed.length > 0) {
+        setError(
+          `${response.failed.length} decision(s) failed to apply and remain marked for retry` +
+          (response.move_failed.length > 0
+            ? `; ${response.move_failed.length} were recorded but their file move failed (safe to retry via undo/re-decide)`
+            : "")
+        )
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to submit all decisions")
     } finally {
@@ -233,7 +256,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     </div>
   )
 
-  if (error) return (
+  if (error && !status) return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Ingestion Review</h1>
       <p className="text-sm text-red-500 mb-3">{error}</p>
@@ -259,6 +282,10 @@ export default function IngestionReviewPage({ memesApi }: Props) {
         Ingestion Review{tier ? ` — ${TIER_LABEL[tier]}` : ""}
       </h1>
       <StatusBanner status={status} />
+
+      {error && (
+        <p className="text-sm text-red-500 mb-3">{error}</p>
+      )}
 
       {tier && clustersWithPendingCount > 0 && (
         <button

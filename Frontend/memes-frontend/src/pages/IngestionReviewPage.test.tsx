@@ -62,7 +62,7 @@ describe('IngestionReviewPage', () => {
   })
 
   it('submits a reject decision for the pending member and reloads', async () => {
-    const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: [] })
+    const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: [], failed: [], move_failed: [] })
     const getIngestionClusters = vi.fn().mockResolvedValue([mockCluster])
     const api = makeMockApi({
       getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
@@ -96,7 +96,7 @@ describe('IngestionReviewPage', () => {
       ],
       edges: [],
     }
-    const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: [] })
+    const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: [], failed: [], move_failed: [] })
     const getIngestionClusters = vi.fn()
       .mockResolvedValueOnce([mockCluster, mockClusterTwo]) // initial tier_a load
       .mockResolvedValueOnce([tierBClusterReusingSameId]) // reload after submit, now tier_b
@@ -137,8 +137,8 @@ describe('IngestionReviewPage', () => {
       edges: [],
     }
     const resolve = vi.fn()
-      .mockResolvedValueOnce({ rejected: ['pending-1'], kept: [] }) // pending-1's own submit
-      .mockResolvedValueOnce({ rejected: ['pending-3'], kept: [] }) // submit-all afterward
+      .mockResolvedValueOnce({ rejected: ['pending-1'], kept: [], failed: [], move_failed: [] }) // pending-1's own submit
+      .mockResolvedValueOnce({ rejected: ['pending-3'], kept: [], failed: [], move_failed: [] }) // submit-all afterward
     const getIngestionClusters = vi.fn()
       // Initial load: pending-1, pending-2, pending-3 all pending, each its own cluster.
       .mockResolvedValueOnce([mockCluster, mockClusterTwo, mockClusterThree])
@@ -285,7 +285,7 @@ describe('IngestionReviewPage', () => {
     })
 
     it('submits decisions for all clusters with a decision, after confirming, excluding undecided members and clusters entirely', async () => {
-      const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: ['pending-3'] })
+      const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: ['pending-3'], failed: [], move_failed: [] })
       const api = makeMockApi({
         getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
         getIngestionClusters: vi.fn().mockResolvedValue([mockCluster, mockClusterTwo, mockClusterThree]),
@@ -344,7 +344,7 @@ describe('IngestionReviewPage', () => {
       // stale decision for an image_id can leak into a later submission for a different
       // cluster (e.g. across a tier switch, where the same image_id can reappear in a new
       // cluster) and get submitted without the reviewer ever deciding on it there.
-      const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: [] })
+      const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: [], failed: [], move_failed: [] })
       const getIngestionClusters = vi.fn()
         .mockResolvedValueOnce([mockCluster]) // initial load
         .mockResolvedValueOnce([mockCluster]) // reload after submit -- same cluster reappears
@@ -370,6 +370,70 @@ describe('IngestionReviewPage', () => {
       expect(screen.getByText('Submit decisions')).toBeDisabled()
       expect(screen.getByText('Reject')).not.toHaveClass('bg-red-600')
     })
+  })
+
+  it('leaves a failed decision in local state for retry, and shows an error summary', async () => {
+    // Regression test: once resolve() can partially succeed with a 200 response (see
+    // docs/superpowers/specs/2026-08-16-ingestion-resolve-atomicity-design.md), clearing
+    // decisions based on what was *sent* would silently discard ones that didn't actually
+    // apply. Only ids present in the response's rejected/kept arrays should be cleared.
+    const resolve = vi.fn().mockResolvedValue({
+      rejected: [],
+      kept: [],
+      failed: [{ image_id: 'pending-1', decision: 'reject', error: 'db down' }],
+      move_failed: [],
+    })
+    const getIngestionClusters = vi.fn()
+      .mockResolvedValueOnce([mockCluster])
+      .mockResolvedValueOnce([mockCluster]) // reload after submit -- cluster unchanged
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+      getIngestionClusters,
+      resolveIngestionCluster: resolve,
+    })
+    const user = userEvent.setup()
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+    await user.click(screen.getByText('Reject'))
+    await user.click(screen.getByText('Submit decisions'))
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
+    // The decision failed to apply -- it must still be selected after reload, ready to retry,
+    // and the page must surface that something needs attention.
+    await waitFor(() => expect(screen.getByText('Reject')).toHaveClass('bg-red-600'))
+    expect(screen.getByText(/1 decision\(s\) failed to apply/)).toBeInTheDocument()
+  })
+
+  it('shows a move-failed summary without treating it as a hard error', async () => {
+    const resolve = vi.fn().mockResolvedValue({
+      rejected: ['pending-1'],
+      kept: [],
+      failed: [],
+      move_failed: [{ image_id: 'pending-1', error: 'file locked' }],
+    })
+    const getIngestionClusters = vi.fn()
+      .mockResolvedValueOnce([mockCluster])
+      .mockResolvedValueOnce([]) // resolved, drops out of the queue
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
+      getIngestionClusters,
+      resolveIngestionCluster: resolve,
+    })
+    const user = userEvent.setup()
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+    await user.click(screen.getByText('Reject'))
+    await user.click(screen.getByText('Submit decisions'))
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(screen.getByText(/were recorded but their file move failed/)).toBeInTheDocument()
+    )
+    // A move failure is not a hard error -- the page still shows the (now-empty) cluster list,
+    // not the full-page error screen.
+    expect(screen.getByText('No Tier A clusters need review right now.')).toBeInTheDocument()
   })
 
   describe('error recovery', () => {

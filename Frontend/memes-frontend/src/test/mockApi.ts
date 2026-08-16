@@ -32,7 +32,7 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     getIngestionRunStatus: vi.fn().mockResolvedValue(null),
     getIngestionPending: vi.fn().mockResolvedValue([]),
     getIngestionClusters: vi.fn().mockResolvedValue([]),
-    resolveIngestionCluster: vi.fn().mockResolvedValue({ rejected: [], kept: [] }),
+    resolveIngestionCluster: vi.fn().mockResolvedValue({ rejected: [], kept: [], failed: [], move_failed: [] }),
     undoIngestionReject: vi.fn().mockResolvedValue({ image_id: '', status: 'pending' }),
     listBatchNames: vi.fn().mockResolvedValue({
       names: ['trends_batch', 'move_flagged', 'unregister_deleted_images'],
