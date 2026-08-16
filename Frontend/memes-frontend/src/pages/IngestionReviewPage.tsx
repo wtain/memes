@@ -138,6 +138,10 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     }
   }, [])
 
+  useEffect(() => {
+    setDecisions({})
+  }, [tier])
+
   function setDecision(memberId: string, decision: Decision) {
     setDecisions((prev) => ({ ...prev, [memberId]: prev[memberId] === decision ? undefined : decision }))
   }

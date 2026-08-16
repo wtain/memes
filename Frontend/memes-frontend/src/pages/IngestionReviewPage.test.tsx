@@ -83,6 +83,48 @@ describe('IngestionReviewPage', () => {
     expect(getIngestionClusters).toHaveBeenCalledTimes(2) // initial load + reload after submit
   })
 
+  it('clears local decisions when the review tier changes', async () => {
+    // Regression test: a decision set but never submitted must not survive into a later tier's
+    // review, even if the same image_id reappears there in a new cluster -- see
+    // docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md.
+    const getIngestionRunStatus = vi.fn()
+      .mockResolvedValueOnce(mockStatus) // tier_a_review
+      .mockResolvedValueOnce({ ...mockStatus, stage: 'tier_b_review' }) // advances after submit's reload
+    const tierBClusterReusingSameId: IngestionCluster = {
+      members: [
+        { image_id: 'pending-2', filename: 'second.jpg', status: 'pending', ocr_text: null },
+      ],
+      edges: [],
+    }
+    const resolve = vi.fn().mockResolvedValue({ rejected: ['pending-1'], kept: [] })
+    const getIngestionClusters = vi.fn()
+      .mockResolvedValueOnce([mockCluster, mockClusterTwo]) // initial tier_a load
+      .mockResolvedValueOnce([tierBClusterReusingSameId]) // reload after submit, now tier_b
+    const api = makeMockApi({
+      getIngestionRunStatus, getIngestionClusters, resolveIngestionCluster: resolve,
+    })
+    const user = userEvent.setup()
+    render(<IngestionReviewPage memesApi={api} />)
+
+    await waitFor(() => expect(screen.getByText('new.jpg')).toBeInTheDocument())
+    // Decide pending-1 (mockCluster, will be submitted) and pending-2 (mockClusterTwo, left
+    // un-submitted -- this is the stale decision that must not survive the tier flip triggered
+    // by pending-1's submit below).
+    await user.click(screen.getAllByText('Reject')[0])
+    await user.click(screen.getAllByText('Reject')[1])
+    await user.click(screen.getAllByText('Submit decisions')[0]) // mockCluster's own submit
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1))
+    expect(resolve).toHaveBeenCalledWith('tier_a', [{ image_id: 'pending-1', decision: 'reject' }])
+
+    // Reload landed on tier_b, reusing pending-2's id in a new cluster.
+    await waitFor(() => expect(screen.getByText('Ingestion Review — Tier B')).toBeInTheDocument())
+    expect(screen.getByText('second.jpg')).toBeInTheDocument()
+    // pending-2's stale tier_a Reject must not have survived the tier change.
+    expect(screen.getByText('Submit decisions')).toBeDisabled()
+    expect(screen.getByText('Reject')).not.toHaveClass('bg-red-600')
+  })
+
   it('disables submit until a decision is made', async () => {
     const api = makeMockApi({
       getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus),
