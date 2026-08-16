@@ -99,7 +99,9 @@ class TestResolveCluster:
     def test_applies_reject_and_keep_decisions(self, client, mock_service):
         reject_id = str(uuid.uuid4())
         keep_id = str(uuid.uuid4())
-        mock_service.resolve.return_value = {"rejected": [reject_id], "kept": [keep_id]}
+        mock_service.resolve.return_value = {
+            "rejected": [reject_id], "kept": [keep_id], "failed": [], "move_failed": [],
+        }
 
         response = client.post(
             "/api/ingestion/clusters/tier_a/resolve",
@@ -113,6 +115,31 @@ class TestResolveCluster:
         data = response.json()
         assert data["rejected"] == [reject_id]
         assert data["kept"] == [keep_id]
+        assert data["failed"] == []
+        assert data["move_failed"] == []
+
+    def test_returns_failed_and_move_failed_entries(self, client, mock_service):
+        failed_id = str(uuid.uuid4())
+        move_failed_id = str(uuid.uuid4())
+        mock_service.resolve.return_value = {
+            "rejected": [move_failed_id],
+            "kept": [],
+            "failed": [{"image_id": failed_id, "decision": "keep", "error": "db down"}],
+            "move_failed": [{"image_id": move_failed_id, "error": "file locked"}],
+        }
+
+        response = client.post(
+            "/api/ingestion/clusters/tier_a/resolve",
+            json={"decisions": [
+                {"image_id": failed_id, "decision": "keep"},
+                {"image_id": move_failed_id, "decision": "reject"},
+            ]},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["failed"] == [{"image_id": failed_id, "decision": "keep", "error": "db down"}]
+        assert data["move_failed"] == [{"image_id": move_failed_id, "error": "file locked"}]
 
     def test_rejects_unknown_decision_value(self, client, mock_service):
         response = client.post(

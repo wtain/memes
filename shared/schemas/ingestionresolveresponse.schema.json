@@ -5,7 +5,30 @@
   "type": "object",
   "properties": {
     "rejected": { "type": "array", "items": { "type": "string" } },
-    "kept": { "type": "array", "items": { "type": "string" } }
+    "kept": { "type": "array", "items": { "type": "string" } },
+    "failed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "image_id": { "type": "string" },
+          "decision": { "type": "string" },
+          "error": { "type": "string" }
+        },
+        "required": ["image_id", "decision", "error"]
+      }
+    },
+    "move_failed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "image_id": { "type": "string" },
+          "error": { "type": "string" }
+        },
+        "required": ["image_id", "error"]
+      }
+    }
   },
-  "required": ["rejected", "kept"]
+  "required": ["rejected", "kept", "failed", "move_failed"]
 }

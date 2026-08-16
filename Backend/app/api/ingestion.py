@@ -57,9 +57,22 @@ class ResolveRequest(BaseModel):
     decisions: list[Decision]
 
 
+class FailedDecision(BaseModel):
+    image_id: str
+    decision: str
+    error: str
+
+
+class MoveFailure(BaseModel):
+    image_id: str
+    error: str
+
+
 class ResolveResponse(BaseModel):
     rejected: list[str]
     kept: list[str]
+    failed: list[FailedDecision]
+    move_failed: list[MoveFailure]
 
 
 class UndoRejectResponse(BaseModel):

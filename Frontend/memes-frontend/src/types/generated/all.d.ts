@@ -439,6 +439,17 @@ export interface IngestionDecision {
 export interface IngestionResolveResponse {
   rejected: string[];
   kept: string[];
+  failed: {
+    image_id: string;
+    decision: string;
+    error: string;
+    [k: string]: unknown;
+  }[];
+  move_failed: {
+    image_id: string;
+    error: string;
+    [k: string]: unknown;
+  }[];
   [k: string]: unknown;
 }
 /**

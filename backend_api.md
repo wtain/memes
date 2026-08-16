@@ -887,6 +887,11 @@ Applies per-image `reject`/`keep` decisions. `reject` flips the image's `status`
 `rejected` and moves its file to `BASE_PATH/rejected/`; `keep` marks every candidate pair
 touching that image as reviewed for this tier, so it won't resurface in this tier's queue.
 Partial resolution is allowed — omit members you're not ready to decide yet.
+Each decision is applied independently -- one decision's failure (database or filesystem) never
+discards others in the same call. `failed` lists decisions whose database write didn't apply
+(safe to retry as-is); `move_failed` lists rejects whose database write committed but whose file
+move failed (the image is correctly `rejected` in the database -- `undo_reject` on it is safe and
+will simply find nothing to move back).
 
 - **URL**: `/api/ingestion/clusters/{tier}/resolve`
 - **Method**: `POST`
@@ -902,7 +907,12 @@ Partial resolution is allowed — omit members you're not ready to decide yet.
 ] }
 
 // Response
-{ "rejected": ["a1b2..."], "kept": ["c3d4..."] }
+{
+  "rejected": ["a1b2..."],
+  "kept": ["c3d4..."],
+  "failed": [],
+  "move_failed": []
+}
 ```
 
 #### Undo Reject
