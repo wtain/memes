@@ -168,3 +168,17 @@ class IngestionRepository:
         for row in result.scalars().all():
             setattr(row, reviewed_col, now)
         await self.session.flush()
+
+    async def commit(self) -> None:
+        """Commits the current transaction. Repositories otherwise never commit --
+        get_async_db owns that boundary -- but IngestionService.resolve() needs each decision
+        durably applied before its associated file move runs, so a later decision's failure
+        can't roll back an earlier decision whose file has already been physically moved. See
+        docs/superpowers/specs/2026-08-16-ingestion-resolve-atomicity-design.md. Not for use
+        outside resolve()."""
+        await self.session.commit()
+
+    async def rollback(self) -> None:
+        """Rolls back the current transaction -- paired with commit() above, same scope and
+        same caveat."""
+        await self.session.rollback()

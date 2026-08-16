@@ -98,24 +98,43 @@ class IngestionService:
         return clusters
 
     async def resolve(self, tier: str, decisions: list[dict]) -> dict:
-        """Apply per-image reject/keep decisions. `decisions` is a list of
-        {"image_id": UUID, "decision": "reject" | "keep"}. Partial resolution is expected --
-        callers don't have to decide every member of a cluster in one call."""
-        rejected, kept = [], []
+        """Apply per-image reject/keep decisions independently -- one decision's failure (DB or
+        filesystem) does not affect any other decision in the same call. `decisions` is a list
+        of {"image_id": UUID, "decision": "reject" | "keep"}. Partial resolution is expected --
+        callers don't have to decide every member of a cluster in one call, and a partially
+        successful batch is a normal outcome, not an error response."""
+        rejected, kept, failed, move_failed = [], [], [], []
         for entry in decisions:
             image_id = entry["image_id"]
             decision = entry["decision"]
-            if decision == "reject":
-                filename = await self.repo.reject_image(image_id)
-                if filename is not None:
-                    image_store.move_to_rejected(filename)
+            try:
+                if decision == "reject":
+                    filename = await self.repo.reject_image(image_id)
+                    if filename is None:
+                        continue
+                    await self.repo.commit()
+                    try:
+                        image_store.move_to_rejected(filename)
+                    except Exception as move_error:
+                        # Broad on purpose: shutil.move can raise shutil.Error (not an OSError
+                        # subclass) as well as OSError. Anything from this call must land here,
+                        # not fall through to the except below -- the DB commit already
+                        # happened, so misclassifying this as `failed` would claim nothing was
+                        # applied when the image is, in fact, durably rejected.
+                        move_failed.append({"image_id": str(image_id), "error": str(move_error)})
                     rejected.append(str(image_id))
-            elif decision == "keep":
-                await self.repo.mark_reviewed(image_id, tier)
-                kept.append(str(image_id))
-            else:
-                raise HTTPException(status_code=422, detail=f"Unknown decision: {decision!r}")
-        return {"rejected": rejected, "kept": kept}
+                elif decision == "keep":
+                    await self.repo.mark_reviewed(image_id, tier)
+                    await self.repo.commit()
+                    kept.append(str(image_id))
+                else:
+                    raise HTTPException(status_code=422, detail=f"Unknown decision: {decision!r}")
+            except HTTPException:
+                raise
+            except Exception as e:
+                await self.repo.rollback()
+                failed.append({"image_id": str(image_id), "decision": decision, "error": str(e)})
+        return {"rejected": rejected, "kept": kept, "failed": failed, "move_failed": move_failed}
 
     async def undo_reject(self, image_id: UUID) -> dict:
         filename = await self.repo.undo_reject(image_id)
