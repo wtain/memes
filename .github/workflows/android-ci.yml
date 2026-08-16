@@ -16,6 +16,30 @@ on:
   workflow_dispatch:
 
 jobs:
+  dto-drift-check:
+    name: DTO Drift Check
+    runs-on: ubuntu-latest
+    # Pure-Python regeneration, no JDK/Gradle needed -- catches the class of bug where
+    # shared/schemas/ changes without Models.kt being regenerated to match (e.g. a schema
+    # gaining a field whose Kotlin type the generator can't safely infer, like a bare `Any`
+    # for an un-$ref'd nested object -- see
+    # docs/superpowers/specs/2026-08-16-ingestion-resolve-atomicity-design.md's final review,
+    # which found Models.kt already silently stale from two earlier, unrelated schema changes).
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Regenerate Android DTOs and check for drift
+        run: |
+          python AndroidClient/scripts/generate_dtos.py
+          git diff --exit-code AndroidClient/app/src/main/java/com/memebrowser/app/data/model/Models.kt
+
   build-apk:
     name: Build APK
     runs-on: ubuntu-latest
