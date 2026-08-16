@@ -10,6 +10,11 @@ import kotlinx.serialization.json.JsonObject
 
 
 @Serializable
+data class BatchNamesResponse(
+    @SerialName("names") val names: List<String>
+)
+
+@Serializable
 data class Concept(
     @SerialName("id") val id: Int,
     @SerialName("name") val name: String
@@ -270,7 +275,8 @@ data class MemeSearchResponse(
     @SerialName("items") val items: List<Meme>? = null,
     @SerialName("facets") val facets: List<Facet>? = null,
     @SerialName("nextCursor") val nextCursor: String? = null,
-    @SerialName("hasNext") val hasNext: Boolean? = null
+    @SerialName("hasNext") val hasNext: Boolean? = null,
+    @SerialName("previousCursor") val previousCursor: String? = null
 )
 
 @Serializable
