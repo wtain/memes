@@ -139,6 +139,13 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   }, [])
 
   useEffect(() => {
+    // A tier change means the review queue was rebuilt server-side -- start local decisions
+    // fresh (see docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md).
+    // Guarded on `tier` being truthy so a transient load failure (which sets tier to null via
+    // status becoming null) doesn't wipe un-submitted decisions on a Retry.
+    // `await Promise.resolve()` before the setState defers it past the synchronous effect body,
+    // per the react-hooks/set-state-in-effect rule (same pattern used in AdminBatchesPage.tsx).
+    if (!tier) return
     void (async () => {
       await Promise.resolve()
       setDecisions({})
@@ -281,8 +288,9 @@ export default function IngestionReviewPage({ memesApi }: Props) {
 
       <div className="space-y-4">
         {clusters.map((cluster, i) => {
-          const memberIds = cluster.members.map((m) => m.image_id)
-          const hasPendingDecision = memberIds.some((id) => decisions[id] !== undefined)
+          const hasPendingDecision = cluster.members.some(
+            (m) => m.status === "pending" && decisions[m.image_id] !== undefined
+          )
 
           return (
             <div key={i} className="bg-white rounded-lg p-4 shadow-sm">

@@ -145,6 +145,9 @@ describe('IngestionReviewPage', () => {
       // Reload after pending-1's submit: pending-2 has since gone "active" (concurrent
       // reviewer); pending-3 is still pending and still undecided in this mock.
       .mockResolvedValueOnce([clusterTwoAfterConcurrentResolve, mockClusterThree])
+      // Any subsequent reload (e.g. after submit-all) -- durable fallback so the mock never
+      // runs out and returns undefined, which would throw in the page's collection loop.
+      .mockResolvedValue([mockClusterThree])
     const api = makeMockApi({
       getIngestionRunStatus: vi.fn().mockResolvedValue(mockStatus), // tier never changes
       getIngestionClusters,
