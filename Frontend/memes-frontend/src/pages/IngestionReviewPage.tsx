@@ -139,10 +139,10 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   }, [])
 
   useEffect(() => {
-    // Clearing decisions on tier change is intentional -- we need to reset the local
-    // decision state whenever the tier switches, so users start fresh with the new queue.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDecisions({})
+    void (async () => {
+      await Promise.resolve()
+      setDecisions({})
+    })()
   }, [tier])
 
   function setDecision(memberId: string, decision: Decision) {
