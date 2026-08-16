@@ -2,6 +2,8 @@
 
 Status: done
 Plan: docs/superpowers/plans/2026-08-15-ingestion-submit-all-decisions.md
+Follow-ups: docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md,
+docs/superpowers/specs/2026-08-16-ingestion-resolve-atomicity-design.md
 
 **Date:** 2026-08-15.
 
