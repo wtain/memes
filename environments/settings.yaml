@@ -59,6 +59,30 @@ duplicates:
   # results, only add a small uniform per-probe-image traversal cost.
   k: 50
 
+clustering:
+  splitting:
+    # Governs clusterize.py's post-union-find shaping of tmp_clusters: clusters bigger
+    # than max_cluster_size are recursively re-clustered at progressively tighter
+    # thresholds (starting from clusterize.py's own PROXIMITY_THRESHOLD = 0.05) until
+    # every resulting group is small enough or the threshold hits floor, whichever comes
+    # first; any member that ends up with no surviving edge at a given threshold is
+    # dropped as an implicit singleton rather than written out as a size-1 cluster. Kept
+    # as its own group rather than folded into `duplicates` above since it governs a
+    # different pipeline stage (confirmed-cluster shaping, not candidate-pair discovery).
+    #
+    # Set enabled: false to fall back to clusterize.py's original behavior -- every
+    # union-find cluster is written out exactly as found, however large, and singleton
+    # clusters can't occur (today's algorithm only creates clusters via a connected pair).
+    enabled: true
+    max_cluster_size: 12
+    # Subtracted from the current threshold on each recursive split attempt.
+    decrement: 0.01
+    # Once the next attempted threshold would drop below this floor, stop splitting and
+    # accept the cluster oversized as-is -- these are genuinely near-identical images;
+    # forcing a further split would be arbitrary rather than meaningful. With
+    # decrement=0.01 off the 0.05 base, that's at most 4 attempts (0.04, 0.03, 0.02, 0.01).
+    floor: 0.01
+
 scheduler:
   # Opt-in per environment (see settings.metal.yaml / settings.general.yaml /
   # settings.it.yaml, which each set this true) rather than a global default here.

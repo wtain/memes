@@ -179,7 +179,20 @@ rebuild_duplicates         → near-duplicate candidate pairs, incremental by de
                               independently admin-triggerable from /admin/batches, manual-trigger
                               only (not scheduled).
 clusterize                 → optimize cluster index; admin-triggerable from /admin/batches,
-                              manual-trigger only
+                              manual-trigger only. Union-find over tmp_duplicates pairs below
+                              PROXIMITY_THRESHOLD (0.05), then shapes the result: clusters bigger
+                              than settings.CLUSTERING.SPLITTING.MAX_CLUSTER_SIZE are recursively
+                              re-clustered at progressively tighter thresholds (stepping down by
+                              .DECREMENT until a group is small enough or the next threshold would
+                              drop below .FLOOR, whichever comes first — at that point the cluster
+                              is accepted oversized rather than split further); any member left
+                              with no surviving edge at a given threshold is dropped as an implicit
+                              singleton instead of being written out as a size-1 cluster.
+                              settings.CLUSTERING.SPLITTING.ENABLED: false restores the original
+                              behavior (every union-find cluster written out as-is, however large;
+                              singletons can't occur since the algorithm only creates clusters from
+                              a connected pair). See environments/settings.yaml's `clustering`
+                              block for defaults.
 
 build_tags_from_ocr        → rule-based tags from OCR text
 build_ocr_lemmas           → per-image lemma index for smart search (see
