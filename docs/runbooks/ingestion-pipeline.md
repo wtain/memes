@@ -34,8 +34,12 @@ prerequisites and status-checking, is below.
 Steps 1-6 above (hash dedup through Tier A find-duplicates) can also run as one job,
 `ingest_auto_prep`, instead of by hand — triggered manually from the `/admin/batches` UI
 (it is not on an automatic schedule; `environments/settings.yaml`'s `scheduler.jobs`
-deliberately excludes it). Tier B review and promotion (steps 8-10) always remain manual
-either way.
+deliberately excludes it). Tier B find-duplicates and promotion (steps 8, 10) are also
+individually triggerable from `/admin/batches` — as `ingest_find_duplicates_tier_b` and
+`ingest_promote` respectively — instead of the direct CLI commands, if you'd rather not
+open a terminal. Both remain manual either way (not on any schedule): Tier B needs Tier A
+review finished first, and promotion needs Tier B review finished first, so auto-running
+either risks acting on an unreviewed queue.
 
 ## Scope
 
@@ -174,8 +178,12 @@ runs, files just sit in `inbox\` untouched.
 11. **(Optional)** if you want the promoted images' duplicate relationships to appear in
     Explore → Duplicates right away:
     ```powershell
-    python -m batch.clusterize --env <env>
+    python -m batch.rebuild_duplicates --env <env>
     ```
+    `rebuild_duplicates` chains straight into `clusterize` when it finishes (matching the
+    `move_flagged`→`unregister_deleted_images` chaining pattern) — pass `--no-chain` to run
+    only the duplicate-candidate rebuild. Both are also independently admin-triggerable from
+    `/admin/batches` as `rebuild_duplicates` and `clusterize`.
 
 12. **Run the rest of the enrichment pipeline** (see "Does NOT cover" above and CLAUDE.md's
     Batch pipeline section for the full order) to tag, index, and describe the

@@ -31,3 +31,15 @@ build_bow:
 ingest_auto_prep:
   module: batch.ingest_auto_prep
   kind: ingestion_auto_prep
+ingest_find_duplicates_tier_b:
+  module: batch.ingest_find_duplicates_tier_b
+  kind: ingest_find_duplicates_tier_b
+ingest_promote:
+  module: batch.ingest_promote
+  kind: ingest_promote
+rebuild_duplicates:
+  module: batch.rebuild_duplicates
+  kind: rebuild_duplicates
+clusterize:
+  module: batch.clusterize
+  kind: clusterize

@@ -1,9 +1,13 @@
 import argparse
 import asyncio
+import uuid
 
 from sqlalchemy import text
 
+from batch import clusterize
+from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
+from repository.batch_runs import BatchAlreadyRunningError
 from Storage.db import AsyncSessionLocal
 
 # Scoping fragments for the active-library rebuild -- see
@@ -90,11 +94,36 @@ async def rebuild_active_library(session, k: int, threshold: float, full: bool =
     return await find_duplicates(session, probe_sql, _ACTIVE_CORPUS_FILTER, k, threshold)
 
 
-async def main(k: int, threshold: float, full: bool) -> None:
+async def _process(k: int, threshold: float, full: bool) -> None:
     async with AsyncSessionLocal() as session:
         inserted = await rebuild_active_library(session, k=k, threshold=threshold, full=full)
         await session.commit()
         print(f"Inserted {inserted} candidate duplicate pair(s) (k={k}, threshold={threshold}).")
+
+
+async def main(
+    trigger: str = "manual",
+    run_id: uuid.UUID | None = None,
+    k: int | None = None,
+    threshold: float | None = None,
+    full: bool = False,
+    chain: bool = True,
+) -> None:
+    resolved_k = k if k is not None else settings.DUPLICATES.K
+    resolved_threshold = threshold if threshold is not None else settings.DUPLICATES.THRESHOLD
+
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process(resolved_k, resolved_threshold, full)
+    else:
+        async with tracked_run(kind="rebuild_duplicates", trigger=trigger):
+            await _process(resolved_k, resolved_threshold, full)
+
+    if chain:
+        try:
+            await clusterize.main(trigger=trigger)
+        except BatchAlreadyRunningError as e:
+            print(f"Skipping chained clusterize: {e}")
 
 
 if __name__ == "__main__":
@@ -108,8 +137,9 @@ if __name__ == "__main__":
                         help="Neighbors considered per probe image (default: settings.DUPLICATES.K)")
     parser.add_argument("--threshold", type=float, default=None,
                         help="Candidate distance cutoff (default: settings.DUPLICATES.THRESHOLD)")
+    parser.add_argument("--no-chain", action="store_true",
+                        help="Skip the automatic clusterize run after rebuilding duplicates.")
     args = parser.parse_args()
     load_env(args.env)
-    k = args.k if args.k is not None else settings.DUPLICATES.K
-    threshold = args.threshold if args.threshold is not None else settings.DUPLICATES.THRESHOLD
-    asyncio.run(main(k, threshold, args.full))
+    asyncio.run(main(k=args.k, threshold=args.threshold, full=args.full, chain=not args.no_chain))
+    # trigger defaults to "manual" -- unchanged direct-CLI behavior

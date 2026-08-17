@@ -77,7 +77,8 @@ scheduler:
       max_runtime_minutes: 60
       enabled: true
     # ingest_auto_prep, build_tags_from_ocr, build_ocr_lemmas, build_tags_from_descriptions,
-    # build_concept_embeddings, detect_entities_and_tag, and build_bow are deliberately NOT
-    # scheduled -- manual trigger only, via the /admin/batches UI (each still has a
-    # batch_registry.yaml entry). See
+    # build_concept_embeddings, detect_entities_and_tag, build_bow,
+    # ingest_find_duplicates_tier_b, ingest_promote, rebuild_duplicates, and clusterize are
+    # deliberately NOT scheduled -- manual trigger only, via the /admin/batches UI (each
+    # still has a batch_registry.yaml entry). See
     # docs/superpowers/specs/2026-08-14-batch-scheduling-rollout-design.md.

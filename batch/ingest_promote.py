@@ -24,10 +24,12 @@ pre-pass already ran it with --status pending before this image ever reached thi
 """
 import argparse
 import asyncio
+import uuid
 
 from sqlalchemy import func, select
 
 from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
+from batch.run_tracking import finish_existing_run, tracked_run
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from config.settings import load_env, settings
 from repository.batch_runs import BatchRunRepository
@@ -62,8 +64,7 @@ async def maybe_complete_run(session, runs_repo: BatchRunRepository, batch_id) -
     return remaining
 
 
-async def main(env: str | None) -> None:
-    load_env(env)
+async def _process() -> None:
     tier_b_threshold = settings.DUPLICATES.THRESHOLD
 
     async with AsyncSessionLocal() as session:
@@ -79,8 +80,18 @@ async def main(env: str | None) -> None:
     print(f"Promoted {len(promoted)} image(s); {remaining} still pending review.")
 
 
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process()
+    else:
+        async with tracked_run(kind="ingest_promote", trigger=trigger):
+            await _process()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     args = parser.parse_args()
-    asyncio.run(main(args.env))
+    load_env(args.env)
+    asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior

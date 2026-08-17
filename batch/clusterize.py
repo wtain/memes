@@ -1,7 +1,9 @@
 import asyncio
+import uuid
 
 from sqlalchemy import select, delete
 
+from batch.run_tracking import finish_existing_run, tracked_run
 from graph.uf import UnionFind
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image, TmpDuplicates, TmpImageClusters
@@ -9,7 +11,7 @@ from Storage.models import Image, TmpDuplicates, TmpImageClusters
 PROXIMITY_THRESHOLD = 0.05
 
 
-async def main():
+async def _process() -> None:
 
     async with AsyncSessionLocal() as session:
 
@@ -39,6 +41,14 @@ async def main():
         # Save changes to the database
         await session.commit()
 
+
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process()
+    else:
+        async with tracked_run(kind="clusterize", trigger=trigger):
+            await _process()
 
 
 async def get_images_ids(session):
@@ -83,4 +93,4 @@ async def get_duplicates(session, mapping, threshold):
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main())  # trigger defaults to "manual" -- unchanged direct-CLI behavior

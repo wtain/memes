@@ -174,8 +174,12 @@ rebuild_duplicates         → near-duplicate candidate pairs, incremental by de
                               KNN, not a full cross join — see
                               docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
                               --full clears active-library pairs and re-probes everything;
-                              --k/--threshold override settings.DUPLICATES.K/THRESHOLD.
-clusterize                 → optimize cluster index
+                              --k/--threshold override settings.DUPLICATES.K/THRESHOLD. Chains
+                              into clusterize when it finishes (--no-chain to skip); both are
+                              independently admin-triggerable from /admin/batches, manual-trigger
+                              only (not scheduled).
+clusterize                 → optimize cluster index; admin-triggerable from /admin/batches,
+                              manual-trigger only
 
 build_tags_from_ocr        → rule-based tags from OCR text
 build_ocr_lemmas           → per-image lemma index for smart search (see
@@ -280,6 +284,10 @@ ingest_promote              → Stage 4 (final): promotes pending images with no
                                -- files are already in BASE_PATH from Stage 1). Marks the run
                                `completed` once every pending image in the batch is resolved
                                (promoted or rejected); safe to re-run as more images clear review.
+                               Admin-triggerable from /admin/batches (kind="ingest_promote"),
+                               manual-trigger only; a click with no active ingestion run surfaces
+                               as a failed run rather than being silently swallowed, since it's an
+                               explicit human action, not a scheduler tick.
 ingest_abort                → Abandons the currently active ingestion run instead of continuing
                                it: undoes every pending/rejected image it registered (moves each
                                file back to PATH_INGESTION_SOURCE, deletes its row -- FK cascades
@@ -297,7 +305,11 @@ hand: it chains `ingest_hash_dedup` → `ingest_validate_formats` → `build_ima
 deliberately distinct from the long-lived `kind="ingestion"` review-run row, since that row
 can stay open for days during human review and must not be mistaken for an orphaned/crashed
 job. It's manual-trigger-only (via `/admin/batches`, not `scheduler.jobs`) — no automatic
-schedule. Tier B and promotion remain manual either way.
+schedule. Tier B and promotion remain manual either way, but are individually
+admin-triggerable too: `ingest_find_duplicates_tier_b` (a thin driver around
+`ingest_find_duplicates.main(tier="tier_b")` — needed because the admin-trigger contract
+calls `module.main(trigger=, run_id=)` with no way to pass `tier` through) and
+`ingest_promote` itself.
 
 Most jobs are idempotent (clear and rebuild). `rebuild_duplicates` is also idempotent as of
 2026-07-25 — it inserts incrementally into a persistent, migration-managed `tmp_duplicates` table
