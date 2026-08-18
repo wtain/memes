@@ -151,6 +151,26 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     }
   }, [])
 
+  useEffect(() => {
+    // This page deliberately preserves scroll position across a genuine return-to-this-page
+    // navigation (initialCursor carries the resume point via the URL) -- but on a truly fresh
+    // open (no cursor), the browser's leftover window scroll position from wherever the user
+    // was before navigating here is still in effect. Virtuoso's useWindowScroll mode
+    // reconciles its freshly-loaded, still-short content against that leftover offset, which
+    // is what shows up as rapid scroll-jumping right after mount and a wrong cursor getting
+    // written to the URL almost immediately, instead of starting from the beginning. Mirrors
+    // MemesList.tsx's unconditional window.scrollTo-on-reset (MemesList never has a cursor to
+    // resume from, so its version doesn't need this guard).
+    if (initialCursor === undefined) {
+      window.scrollTo({ top: 0 })
+    }
+    // Deliberately run once, using only the mount-time value of initialCursor -- must not
+    // react to initialCursor changing later from this component's own scroll-driven URL sync
+    // in the parent (ExploreDuplicatesPage), which would otherwise re-trigger this on every
+    // debounced cursor update once it round-trips back down as a changed prop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div>
       <Virtuoso

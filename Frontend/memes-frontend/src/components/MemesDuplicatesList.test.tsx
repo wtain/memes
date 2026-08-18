@@ -41,6 +41,17 @@ function clusterMeme(id: string, clusterId: number): Meme {
   return { id, imageUrl: `/images/${id}.jpg`, text: [], tags: [], clusterId }
 }
 
+beforeEach(() => {
+  // A fresh (no initialCursor) mount scrolls to top -- see the effect in
+  // MemesDuplicatesList.tsx. jsdom doesn't implement window.scrollTo, so this avoids noisy
+  // "Not implemented" stderr output, matching the existing pattern in MemesList.test.tsx.
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('MemesDuplicatesList', () => {
   it('calls iterateDuplicates on mount with no cursor by default', async () => {
     const api = makeMockApi()
@@ -56,6 +67,27 @@ describe('MemesDuplicatesList', () => {
     await waitFor(() => {
       expect(api.iterateDuplicates).toHaveBeenCalledWith(40, "deep-link", 0.2)
     })
+  })
+
+  it('scrolls to top on a fresh open with no cursor (regression)', async () => {
+    // Regression test: without this, a fresh open of this page (e.g. after navigating away
+    // and back) left the browser's window scroll position wherever it was on the previous
+    // page. Virtuoso's useWindowScroll mode reconciled its freshly-loaded content against that
+    // leftover offset, which showed up as rapid scroll-jumping and a wrong cursor getting
+    // written to the URL almost immediately instead of starting from the beginning.
+    const api = makeMockApi()
+    render(<MemesDuplicatesList memesApi={api} />)
+    await waitFor(() => expect(api.iterateDuplicates).toHaveBeenCalled())
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0 })
+  })
+
+  it('does not force-scroll to top when resuming from a URL cursor', async () => {
+    // The whole point of initialCursor is to preserve scroll position across a genuine
+    // return-to-this-page navigation -- resuming must not snap back to the top.
+    const api = makeMockApi()
+    render(<MemesDuplicatesList memesApi={api} initialCursor="deep-link" />)
+    await waitFor(() => expect(api.iterateDuplicates).toHaveBeenCalled())
+    expect(window.scrollTo).not.toHaveBeenCalled()
   })
 
   it('groups same-cluster members into one row and renders them together', async () => {
