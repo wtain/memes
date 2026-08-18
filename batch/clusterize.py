@@ -127,9 +127,18 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None
 
 
 async def get_images_ids(session):
+    # active only -- matches rebuild_duplicates.py's active-library scoping
+    # (_ACTIVE_PROBE_INCREMENTAL/_ACTIVE_CORPUS_FILTER) and the review API's own
+    # status == 'active' filter (Backend/app/repositories/image_repository.py's
+    # get_duplicates_clustered). Without this, a pending/rejected image left over
+    # from an ingestion probe still gets clustered here, and since the review API
+    # then filters it back out, a real 2+-member cluster can collapse to what looks
+    # like a singleton in the UI even though tmp_clusters itself has >1 row.
     query = (
         select(
             Image.id
+        ).where(
+            Image.status == "active",
         )
     )
     images = await session.execute(query)
@@ -156,7 +165,13 @@ async def get_duplicate_pairs(session, mapping, threshold) -> list[tuple[int, in
         )
     )
     duplicates = await session.execute(query)
-    return [(mapping[id1], mapping[id2], distance) for id1, id2, distance in duplicates]
+    # mapping is active-only (see get_images_ids) -- drop any pair touching a
+    # pending/rejected image rather than KeyError on it.
+    return [
+        (mapping[id1], mapping[id2], distance)
+        for id1, id2, distance in duplicates
+        if id1 in mapping and id2 in mapping
+    ]
 
 
 if __name__ == "__main__":
