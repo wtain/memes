@@ -5,6 +5,7 @@ import type {
   IngestionRunStatus, IngestionPendingImage, IngestionCluster, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
+  DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse,
 } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
@@ -359,6 +360,33 @@ export class HttpMemesApi implements MemesApi {
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`Failed to undo reject: ${res.status}`)
+    return res.json()
+  }
+
+  async dismissDuplicateCluster(clusterId: number): Promise<DuplicateDismissResponse> {
+    const res = await fetch(`${this.baseUrl}/api/images/duplicates/clusters/${clusterId}/dismiss`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`Failed to dismiss cluster ${clusterId}: ${res.status}`)
+    return res.json()
+  }
+
+  async undoDismissDuplicates(pairs: DuplicatePair[]): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/images/duplicates/pairs/undo-dismiss`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ pairs }),
+    })
+    if (!res.ok) throw new Error(`Failed to undo dismiss: ${res.status}`)
+  }
+
+  async listDuplicateDecisions(limit = 20, offset = 0): Promise<DuplicateDecisionListResponse> {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+    const res = await fetch(`${this.baseUrl}/api/images/duplicates/decisions?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`Failed to list duplicate decisions: ${res.status}`)
     return res.json()
   }
 

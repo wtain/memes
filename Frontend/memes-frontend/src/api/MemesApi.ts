@@ -4,6 +4,7 @@ import type {
   IngestionRunStatus, IngestionPendingImage, IngestionCluster, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
+  DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse,
 } from "../types/generated/all";
 
 export type IngestionTier = "tier_a" | "tier_b"
@@ -16,6 +17,12 @@ export interface MemesApi {
   iterateNoOcrMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>
 
   iterateDuplicates(limit?: number, cursor?: string, threshold?: number, direction?: "forward" | "backward"): Promise<MemeSearchResponse>;
+
+  dismissDuplicateCluster(clusterId: number): Promise<DuplicateDismissResponse>;
+
+  undoDismissDuplicates(pairs: DuplicatePair[]): Promise<void>;
+
+  listDuplicateDecisions(limit?: number, offset?: number): Promise<DuplicateDecisionListResponse>;
 
   iterateFlaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>;
 
