@@ -486,6 +486,17 @@ class ImageRepository:
 
         return [(id, filename, created_at, cluster_id, flagged, ) for (id, filename, created_at, cluster_id, flagged,) in images]
 
+    async def get_cluster_member_ids(self, cluster_id: int) -> list[uuid.UUID]:
+        img = aliased(Image)
+        cluster = aliased(TmpImageClusters)
+        query = (
+            select(img.id)
+            .select_from(cluster)
+            .join(img, img.id == cluster.image_id)
+            .where(cluster.cluster_id == cluster_id, img.status == "active")
+        )
+        rows = await self.session.execute(query)
+        return [row[0] for row in rows]
 
     async def get_flagged(
             self,

@@ -7,6 +7,7 @@ from typing import Optional, Literal
 
 from fastapi import HTTPException
 
+from Backend.app.repositories.duplicate_decisions_repository import DuplicateDecisionsRepository
 from Backend.app.repositories.history_repository import HistoryRepository
 from Backend.app.repositories.image_repository import ImageRepository
 from Storage.db import AsyncSessionLocal
@@ -26,8 +27,9 @@ def _feedback_label(approved: Optional[bool]) -> Optional[str]:
 
 
 class ImageService:
-    def __init__(self, repo: ImageRepository):
+    def __init__(self, repo: ImageRepository, decision_repo: DuplicateDecisionsRepository):
         self.repo = repo
+        self.decision_repo = decision_repo
 
     async def search(
         self,
@@ -358,6 +360,24 @@ class ImageService:
             items=items, nextCursor=next_cursor, hasNext=has_next,
             previousCursor=previous_cursor, facets=[],
         )
+
+    async def dismiss_cluster(self, cluster_id: int) -> list[tuple[uuid.UUID, uuid.UUID]]:
+        member_ids = await self.repo.get_cluster_member_ids(cluster_id)
+        if not member_ids:
+            raise HTTPException(status_code=404, detail=f"Cluster {cluster_id} not found")
+        pairs = [
+            (member_ids[i], member_ids[j])
+            for i in range(len(member_ids))
+            for j in range(i + 1, len(member_ids))
+        ]
+        await self.decision_repo.record_decisions_bulk(pairs)
+        return pairs
+
+    async def undo_dismiss(self, pairs: list[tuple[uuid.UUID, uuid.UUID]]) -> None:
+        await self.decision_repo.delete_decisions(pairs)
+
+    async def list_duplicate_decisions(self, limit: int, offset: int) -> tuple[list[tuple], int]:
+        return await self.decision_repo.list_recent(limit, offset)
 
     async def get_flagged(
             self,

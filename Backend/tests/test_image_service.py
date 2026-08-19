@@ -22,8 +22,13 @@ def mock_repo():
 
 
 @pytest.fixture
-def service(mock_repo):
-    return ImageService(mock_repo)
+def mock_decision_repo():
+    return AsyncMock()
+
+
+@pytest.fixture
+def service(mock_repo, mock_decision_repo):
+    return ImageService(mock_repo, mock_decision_repo)
 
 
 class TestGetSimilarImageMode:
@@ -345,3 +350,44 @@ class TestGetDuplicatesClusteredPagination:
         # cursor filter, so this also guards against that regression.
         assert page.items == []
         mock_repo.get_duplicates_clustered_before.assert_not_called()
+
+
+class TestDismissCluster:
+    async def test_dismiss_generates_all_pairs_for_current_members(self, service, mock_repo, mock_decision_repo):
+        a, b, c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        mock_repo.get_cluster_member_ids.return_value = [a, b, c]
+
+        pairs = await service.dismiss_cluster(141)
+
+        mock_repo.get_cluster_member_ids.assert_awaited_once_with(141)
+        assert sorted(pairs) == sorted([(a, b), (a, c), (b, c)])
+        mock_decision_repo.record_decisions_bulk.assert_awaited_once()
+        recorded = mock_decision_repo.record_decisions_bulk.call_args.args[0]
+        assert sorted(recorded) == sorted(pairs)
+
+    async def test_dismiss_raises_404_for_unknown_cluster(self, service, mock_repo):
+        mock_repo.get_cluster_member_ids.return_value = []
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.dismiss_cluster(999)
+
+        assert exc_info.value.status_code == 404
+
+
+class TestUndoDismiss:
+    async def test_undo_delegates_to_repository(self, service, mock_decision_repo):
+        pairs = [(uuid.uuid4(), uuid.uuid4())]
+
+        await service.undo_dismiss(pairs)
+
+        mock_decision_repo.delete_decisions.assert_awaited_once_with(pairs)
+
+
+class TestListDuplicateDecisions:
+    async def test_list_delegates_to_repository(self, service, mock_decision_repo):
+        mock_decision_repo.list_recent.return_value = ([], 0)
+
+        result = await service.list_duplicate_decisions(limit=10, offset=5)
+
+        mock_decision_repo.list_recent.assert_awaited_once_with(10, 5)
+        assert result == ([], 0)

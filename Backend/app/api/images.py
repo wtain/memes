@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.db import get_async_db, AsyncSessionLocal
+from Backend.app.repositories.duplicate_decisions_repository import DuplicateDecisionsRepository
 from Backend.app.repositories.image_repository import ImageRepository
 from Backend.app.services.cache import image_cache_headers, no_cache_headers
 from Backend.app.services.image_service import ImageService
@@ -28,7 +29,8 @@ async def get_image_service(
     db: AsyncSessionLocal = Depends(get_async_db)
 ) -> AsyncGenerator[ImageService, None]:
     repository = ImageRepository(db)
-    service = ImageService(repository)
+    decision_repository = DuplicateDecisionsRepository(db)
+    service = ImageService(repository, decision_repository)
     try:
         yield service
     finally:
