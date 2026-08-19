@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "duplicatedecisionlistresponse.schema.json",
+  "title": "DuplicateDecisionListResponse",
+  "type": "object",
+  "properties": {
+    "items": { "type": "array", "items": { "$ref": "./duplicatedecisionitem.schema.json" } },
+    "total": { "type": "integer" }
+  },
+  "required": ["items", "total"]
+}

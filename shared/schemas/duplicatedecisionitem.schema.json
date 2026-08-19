@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "duplicatedecisionitem.schema.json",
+  "title": "DuplicateDecisionItem",
+  "type": "object",
+  "properties": {
+    "image_id1": { "type": "string" },
+    "filename1": { "type": "string" },
+    "image_id2": { "type": "string" },
+    "filename2": { "type": "string" },
+    "decided_at": { "type": "string" }
+  },
+  "required": ["image_id1", "filename1", "image_id2", "filename2", "decided_at"]
+}

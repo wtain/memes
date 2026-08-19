@@ -26,6 +26,21 @@ data class DescriptionFeedbackResponse(
 )
 
 @Serializable
+data class DuplicateDecisionItem(
+    @SerialName("image_id1") val image_id1: String,
+    @SerialName("filename1") val filename1: String,
+    @SerialName("image_id2") val image_id2: String,
+    @SerialName("filename2") val filename2: String,
+    @SerialName("decided_at") val decided_at: String
+)
+
+@Serializable
+data class DuplicatePair(
+    @SerialName("image_id1") val image_id1: String,
+    @SerialName("image_id2") val image_id2: String
+)
+
+@Serializable
 data class FacetBucket(
     @SerialName("value") val value: String,
     @SerialName("count") val count: Float
@@ -205,6 +220,22 @@ data class UploadedFile(
     @SerialName("size_bytes") val size_bytes: Int,
     @SerialName("content_type") val content_type: String,
     @SerialName("status") val status: String
+)
+
+@Serializable
+data class DuplicateDecisionListResponse(
+    @SerialName("items") val items: List<DuplicateDecisionItem>,
+    @SerialName("total") val total: Int
+)
+
+@Serializable
+data class DuplicateDismissResponse(
+    @SerialName("pairs") val pairs: List<DuplicatePair>
+)
+
+@Serializable
+data class DuplicateUndoDismissRequest(
+    @SerialName("pairs") val pairs: List<DuplicatePair>
 )
 
 @Serializable

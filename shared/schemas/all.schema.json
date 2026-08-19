@@ -37,6 +37,11 @@
     "RunTriggerResponse":      { "$ref": "runtriggerresponse.schema.json" },
     "RunStatusResponse":       { "$ref": "runstatusresponse.schema.json" },
     "RunListResponse":         { "$ref": "runlistresponse.schema.json" },
-    "BatchNamesResponse":      { "$ref": "batchnamesresponse.schema.json" }
+    "BatchNamesResponse":      { "$ref": "batchnamesresponse.schema.json" },
+    "DuplicatePair":                 { "$ref": "duplicatepair.schema.json" },
+    "DuplicateDismissResponse":       { "$ref": "duplicatedismissresponse.schema.json" },
+    "DuplicateUndoDismissRequest":    { "$ref": "duplicateundodismissrequest.schema.json" },
+    "DuplicateDecisionItem":          { "$ref": "duplicatedecisionitem.schema.json" },
+    "DuplicateDecisionListResponse":  { "$ref": "duplicatedecisionlistresponse.schema.json" }
   }
 }

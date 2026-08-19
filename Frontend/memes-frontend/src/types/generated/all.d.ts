@@ -520,3 +520,49 @@ export interface BatchNamesResponse {
   names: string[];
   [k: string]: unknown;
 }
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DuplicatePair".
+ */
+export interface DuplicatePair {
+  image_id1: string;
+  image_id2: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DuplicateDismissResponse".
+ */
+export interface DuplicateDismissResponse {
+  pairs: DuplicatePair[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DuplicateUndoDismissRequest".
+ */
+export interface DuplicateUndoDismissRequest {
+  pairs: DuplicatePair[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DuplicateDecisionItem".
+ */
+export interface DuplicateDecisionItem {
+  image_id1: string;
+  filename1: string;
+  image_id2: string;
+  filename2: string;
+  decided_at: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DuplicateDecisionListResponse".
+ */
+export interface DuplicateDecisionListResponse {
+  items: DuplicateDecisionItem[];
+  total: number;
+  [k: string]: unknown;
+}

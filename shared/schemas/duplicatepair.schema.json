@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "duplicatepair.schema.json",
+  "title": "DuplicatePair",
+  "type": "object",
+  "properties": {
+    "image_id1": { "type": "string" },
+    "image_id2": { "type": "string" }
+  },
+  "required": ["image_id1", "image_id2"]
+}
