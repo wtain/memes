@@ -4,7 +4,7 @@ import MemeCard from "./MemeCard"
 import { MemeDetailsModal } from "./MemeDetailsModal"
 import { useWindowedPagination, cursorForVirtualIndex, type FetchPageFn, type Page } from "../hooks/useWindowedPagination"
 import type { MemesApi } from "../api/MemesApi"
-import type { Meme } from "../types/generated/all"
+import type { Meme, DuplicatePair } from "../types/generated/all"
 
 type Props = {
   memesApi: MemesApi
@@ -23,6 +23,8 @@ function clusterIdsIn(pages: Page[]): Set<number | string> {
 
 export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }: Props) {
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null)
+  const [dismissedClusterIds, setDismissedClusterIds] = useState<Set<number>>(new Set())
+  const [toast, setToast] = useState<{ clusterId: number; pairs: DuplicatePair[]; message: string } | null>(null)
   const cursorChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onCursorChangeRef = useRef(onCursorChange)
   useEffect(() => { onCursorChangeRef.current = onCursorChange })
@@ -145,6 +147,33 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     }, CURSOR_DEBOUNCE_MS)
   }, [pages, firstItemIndex, rowFirstItemIndex, rowStartItemOffsets])
 
+  const handleDismiss = useCallback(async (clusterId: number, memberCount: number) => {
+    try {
+      const response = await memesApi.dismissDuplicateCluster(clusterId)
+      setDismissedClusterIds(prev => new Set(prev).add(clusterId))
+      setToast({
+        clusterId,
+        pairs: response.pairs,
+        message: `Marked ${memberCount} images as not duplicates`,
+      })
+    } catch {
+      // Left silent -- a failed dismiss just leaves the row showing as before, no
+      // separate error UI for this first version.
+    }
+  }, [memesApi])
+
+  const handleUndo = useCallback(async () => {
+    if (!toast) return
+    const { clusterId, pairs } = toast
+    await memesApi.undoDismissDuplicates(pairs)
+    setDismissedClusterIds(prev => {
+      const next = new Set(prev)
+      next.delete(clusterId)
+      return next
+    })
+    setToast(null)
+  }, [memesApi, toast])
+
   useEffect(() => {
     return () => {
       if (cursorChangeTimerRef.current) clearTimeout(cursorChangeTimerRef.current)
@@ -190,16 +219,35 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
         // that prop, which calls out exactly this "dynamic or very tall content" case.
         increaseViewportBy={{ top: 600, bottom: 1200 }}
         minOverscanItemCount={{ top: 2, bottom: 4 }}
-        itemContent={(_index, row) => (
-          <div>
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-              {row.members.map(meme => (
-                <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
-              ))}
+        itemContent={(_index, row) => {
+          const isDismissed = typeof row.clusterId === "number" && dismissedClusterIds.has(row.clusterId)
+          if (isDismissed) {
+            return (
+              <div>
+                <p className="py-4 text-sm text-gray-400 italic">Marked as not duplicates</p>
+                <hr className="my-4 border-gray-300" />
+              </div>
+            )
+          }
+          return (
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                {row.members.map(meme => (
+                  <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
+                ))}
+              </div>
+              {typeof row.clusterId === "number" && (
+                <button
+                  className="mt-2 text-xs rounded bg-gray-100 px-3 py-1 hover:bg-gray-200"
+                  onClick={() => handleDismiss(row.clusterId as number, row.members.length)}
+                >
+                  Not duplicates
+                </button>
+              )}
+              <hr className="my-4 border-gray-300" />
             </div>
-            <hr className="my-4 border-gray-300" />
-          </div>
-        )}
+          )
+        }}
       />
 
       {selectedMeme && (
@@ -213,6 +261,13 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
       {clusterRows.length === 0 && !loading && (
         <div className="h-10 flex items-center justify-center">
           <span>Nothing to show</span>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm rounded px-4 py-2 shadow-lg flex items-center gap-3 z-50">
+          <span>{toast.message}</span>
+          <button className="underline" onClick={handleUndo}>Undo</button>
         </div>
       )}
     </div>

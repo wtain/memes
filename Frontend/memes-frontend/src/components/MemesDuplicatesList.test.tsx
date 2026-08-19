@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemesDuplicatesList } from './MemesDuplicatesList'
 import { makeMockApi } from '../test/mockApi'
 import type { Meme } from '../types/generated/all'
@@ -226,5 +226,53 @@ describe('MemesDuplicatesList', () => {
 
       expect(onCursorChange).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('MemesDuplicatesList dismiss/undo', () => {
+  it('dismisses a cluster and shows an undo toast', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [clusterMeme('a', 1), clusterMeme('b', 1)],
+        facets: [], hasNext: false,
+      }),
+      dismissDuplicateCluster: vi.fn().mockResolvedValue({
+        pairs: [{ image_id1: 'a', image_id2: 'b' }],
+      }),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    const button = await screen.findByRole('button', { name: 'Not duplicates' })
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1)
+    })
+    expect(await screen.findByText('Marked as not duplicates')).toBeInTheDocument()
+    expect(screen.getByText(/Marked 2 images as not duplicates/)).toBeInTheDocument()
+  })
+
+  it('undoes a dismissal and restores the row', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [clusterMeme('a', 1), clusterMeme('b', 1)],
+        facets: [], hasNext: false,
+      }),
+      dismissDuplicateCluster: vi.fn().mockResolvedValue({
+        pairs: [{ image_id1: 'a', image_id2: 'b' }],
+      }),
+      undoDismissDuplicates: vi.fn().mockResolvedValue(undefined),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Not duplicates' }))
+    await screen.findByText('Marked as not duplicates')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+    await waitFor(() => {
+      expect(api.undoDismissDuplicates).toHaveBeenCalledWith([{ image_id1: 'a', image_id2: 'b' }])
+    })
+    expect(await screen.findByRole('button', { name: 'Not duplicates' })).toBeInTheDocument()
   })
 })
