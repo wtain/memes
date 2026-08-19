@@ -223,6 +223,29 @@ class TmpImageClusters(Base):
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), index=True)
 
 
+class DuplicateDecision(Base):
+    """A human-confirmed "these two images are not duplicates" decision. Durable source
+    data -- unlike tmp_duplicates/tmp_clusters, this table is never dropped or wiped by
+    any batch script, including rebuild_duplicates.py's --full mode. clusterize.py
+    excludes any pair present here from its union-find. See
+    docs/superpowers/specs/2026-08-19-duplicate-dismissal-decisions-design.md.
+
+    image_id1/image_id2 are always stored as (LEAST(a, b), GREATEST(a, b)), mirroring
+    TmpDuplicates' own convention, so a pair is only ever represented once."""
+
+    __tablename__ = "duplicate_decisions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+                server_default=text("gen_random_uuid()"), index=True)
+    image_id1 = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), nullable=False, index=True)
+    image_id2 = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    decided_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("image_id1", "image_id2", name="uq_duplicate_decisions_pair"),
+    )
+
 
 class ImageTag(Base):
     __tablename__ = "tags"
