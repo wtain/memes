@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import type { RunStatusResponse } from "../types/generated/all"
+import DuplicateDecisionsPanel from "../components/DuplicateDecisionsPanel"
 
 type Props = { memesApi: MemesApi }
 
@@ -195,6 +196,8 @@ export default function AdminBatchesPage({ memesApi }: Props) {
           />
         ))}
       </div>
+
+      <DuplicateDecisionsPanel memesApi={memesApi} />
 
       <div className="bg-white rounded-lg p-4 shadow-sm">
         <table className="w-full text-sm">
