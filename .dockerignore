@@ -15,7 +15,7 @@ __pycache__
 
 # Dockerfile.backend only ever COPYs Backend/, Storage/, shared/, ai/,
 # embeddingutils/, repository/, rules/, graph/, metrics/, config/,
-# environments/, and two specific files from batch/. Everything below is
+# environments/, and specific files from batch/. Everything below is
 # irrelevant to that build but was still being sent as build context on
 # every build (batch/images/ alone made the context 500MB+ and climbing --
 # it's the actual meme image corpus, tens of thousands of files).
@@ -30,6 +30,7 @@ tests
 batch/*
 !batch/__init__.py
 !batch/clusterize.py
+!batch/run_tracking.py
 !batch/registry.py
 
 # Storage/backups/ is local Postgres dump storage (gitignored, see

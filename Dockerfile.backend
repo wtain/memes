@@ -60,6 +60,10 @@ COPY environments ./environments
 # not code, and don't belong in the image at all.
 COPY batch/__init__.py ./batch/__init__.py
 COPY batch/clusterize.py ./batch/clusterize.py
+# batch/clusterize.py imports tracked_run/finish_existing_run from batch/run_tracking.py
+# for its own self-tracking -- run_tracking.py itself only depends on repository/ and
+# Storage/, both already copied above, so no further batch/ files are pulled in by this.
+COPY batch/run_tracking.py ./batch/run_tracking.py
 # Backend/app/services/admin_batch_service.py imports batch.registry.BatchRegistry
 # to read environments/batch_registry*.yaml (already copied above).
 COPY batch/registry.py ./batch/registry.py
