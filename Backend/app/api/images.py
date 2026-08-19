@@ -1,10 +1,13 @@
 import logging
 import mimetypes
+import uuid
+from datetime import datetime
 from typing import Optional, AsyncGenerator, Literal
 from urllib.parse import quote
 
 import unicodedata
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 from fastapi.responses import FileResponse
@@ -22,6 +25,32 @@ from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchR
 from Backend.app.types.generated.descriptionfeedbackresponse import Schema as DescriptionFeedbackResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
+
+
+class DuplicatePairModel(BaseModel):
+    image_id1: str
+    image_id2: str
+
+
+class DuplicateDismissResponseModel(BaseModel):
+    pairs: list[DuplicatePairModel]
+
+
+class DuplicateUndoDismissRequest(BaseModel):
+    pairs: list[DuplicatePairModel]
+
+
+class DuplicateDecisionItemModel(BaseModel):
+    image_id1: str
+    filename1: str
+    image_id2: str
+    filename2: str
+    decided_at: datetime
+
+
+class DuplicateDecisionListResponseModel(BaseModel):
+    items: list[DuplicateDecisionItemModel]
+    total: int
 
 
 # dependencies.py
@@ -185,6 +214,52 @@ async def get_duplicate_images(
 ):
     response.headers.update(no_cache_headers())
     return await service.get_duplicates_clustered(cursor=cursor, limit=limit, threshold=threshold, direction=direction)
+
+
+@router.post("/duplicates/clusters/{cluster_id}/dismiss", response_model=DuplicateDismissResponseModel)
+async def dismiss_duplicate_cluster(
+    cluster_id: int,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    pairs = await service.dismiss_cluster(cluster_id)
+    return DuplicateDismissResponseModel(
+        pairs=[DuplicatePairModel(image_id1=str(a), image_id2=str(b)) for a, b in pairs]
+    )
+
+
+@router.post("/duplicates/pairs/undo-dismiss")
+async def undo_dismiss_duplicates(
+    body: DuplicateUndoDismissRequest,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    pairs = [(uuid.UUID(p.image_id1), uuid.UUID(p.image_id2)) for p in body.pairs]
+    await service.undo_dismiss(pairs)
+
+
+@router.get("/duplicates/decisions", response_model=DuplicateDecisionListResponseModel)
+async def get_duplicate_decisions(
+    response: Response,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    items, total = await service.list_duplicate_decisions(limit=limit, offset=offset)
+    return DuplicateDecisionListResponseModel(
+        items=[
+            DuplicateDecisionItemModel(
+                image_id1=str(row[0]), filename1=row[1],
+                image_id2=str(row[2]), filename2=row[3],
+                decided_at=row[4],
+            )
+            for row in items
+        ],
+        total=total,
+    )
 
 
 def content_disposition(filename: str) -> str:

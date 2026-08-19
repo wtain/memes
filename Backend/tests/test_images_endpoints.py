@@ -8,8 +8,14 @@ Endpoints tested:
 - get_untagged_images
 - get_no_ocr_images
 - get_duplicate_images
+- dismiss_duplicate_cluster
+- undo_dismiss_duplicates
+- get_duplicate_decisions
 - get_image (file download)
 """
+import uuid
+from datetime import datetime, timezone
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
@@ -1353,3 +1359,84 @@ class TestRejectDescription:
         response = client.put("/api/images/123/descriptions/unknown_prompt/reject")
 
         assert response.status_code == 404
+
+
+class TestDismissDuplicateCluster:
+    """Tests for POST /api/images/duplicates/clusters/{cluster_id}/dismiss."""
+
+    def test_dismiss_success(self, client, mock_image_service):
+        mock_image_service.dismiss_cluster.return_value = [
+            (uuid.UUID("11111111-1111-1111-1111-111111111111"),
+             uuid.UUID("22222222-2222-2222-2222-222222222222")),
+        ]
+
+        response = client.post("/api/images/duplicates/clusters/141/dismiss")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pairs"] == [{
+            "image_id1": "11111111-1111-1111-1111-111111111111",
+            "image_id2": "22222222-2222-2222-2222-222222222222",
+        }]
+        mock_image_service.dismiss_cluster.assert_called_once_with(141)
+
+    def test_dismiss_not_found(self, client, mock_image_service):
+        from fastapi import HTTPException
+        mock_image_service.dismiss_cluster.side_effect = HTTPException(
+            status_code=404, detail="Cluster 999 not found"
+        )
+
+        response = client.post("/api/images/duplicates/clusters/999/dismiss")
+
+        assert response.status_code == 404
+
+
+class TestUndoDismissDuplicates:
+    """Tests for POST /api/images/duplicates/pairs/undo-dismiss."""
+
+    def test_undo_success(self, client, mock_image_service):
+        mock_image_service.undo_dismiss.return_value = None
+
+        response = client.post(
+            "/api/images/duplicates/pairs/undo-dismiss",
+            json={"pairs": [{
+                "image_id1": "11111111-1111-1111-1111-111111111111",
+                "image_id2": "22222222-2222-2222-2222-222222222222",
+            }]},
+        )
+
+        assert response.status_code == 200
+        mock_image_service.undo_dismiss.assert_called_once()
+        called_pairs = mock_image_service.undo_dismiss.call_args.args[0]
+        assert called_pairs == [(
+            uuid.UUID("11111111-1111-1111-1111-111111111111"),
+            uuid.UUID("22222222-2222-2222-2222-222222222222"),
+        )]
+
+
+class TestListDuplicateDecisions:
+    """Tests for GET /api/images/duplicates/decisions."""
+
+    def test_list_success(self, client, mock_image_service):
+        mock_image_service.list_duplicate_decisions.return_value = (
+            [(uuid.UUID("11111111-1111-1111-1111-111111111111"), "a.jpg",
+              uuid.UUID("22222222-2222-2222-2222-222222222222"), "b.jpg",
+              datetime(2026, 8, 19, tzinfo=timezone.utc))],
+            1,
+        )
+
+        response = client.get("/api/images/duplicates/decisions")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["items"][0]["filename1"] == "a.jpg"
+        mock_image_service.list_duplicate_decisions.assert_called_once_with(limit=20, offset=0)
+
+    def test_list_with_pagination_params(self, client, mock_image_service):
+        mock_image_service.list_duplicate_decisions.return_value = ([], 0)
+
+        response = client.get("/api/images/duplicates/decisions", params={"limit": 5, "offset": 10})
+
+        assert response.status_code == 200
+        mock_image_service.list_duplicate_decisions.assert_called_once_with(limit=5, offset=10)

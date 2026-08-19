@@ -527,6 +527,48 @@ Find duplicate or near-duplicate images using clustering.
 - **Example**: `GET /api/images/duplicates?threshold=0.1&limit=50`
 - **Example (backward)**: `GET /api/images/duplicates?cursor=<cursor>&direction=backward`
 
+#### Dismiss Duplicate Cluster
+
+Record that every pair of images in a duplicate cluster is confirmed **not** a duplicate. Looks
+up the cluster's current members server-side (never client-supplied) and records all `C(N, 2)`
+pairs. Does not trigger a `clusterize` rerun — the effect is visible the next time `clusterize`
+runs (manually, via `/admin/batches`). See
+`docs/superpowers/specs/2026-08-19-duplicate-dismissal-decisions-design.md`.
+
+- **URL**: `/api/images/duplicates/clusters/{cluster_id}/dismiss`
+- **Method**: `POST`
+- **Path Parameters**:
+  - `cluster_id`: The cluster's `clusterId` as returned by `GET /api/images/duplicates`
+- **Response**: `{"pairs": [{"image_id1": "...", "image_id2": "..."}, ...]}` — every pair recorded
+- **Errors**: `404` if `cluster_id` doesn't currently exist in `tmp_clusters`
+- **Cache**: no-cache
+- **Example**: `POST /api/images/duplicates/clusters/141/dismiss`
+
+#### Undo Dismiss Duplicates
+
+Delete previously-recorded not-duplicate decisions for the given pairs, so they can be
+re-clustered again on the next `clusterize` run.
+
+- **URL**: `/api/images/duplicates/pairs/undo-dismiss`
+- **Method**: `POST`
+- **Body**: `{"pairs": [{"image_id1": "...", "image_id2": "..."}, ...]}`
+- **Response**: Success (no content)
+- **Cache**: no-cache
+- **Example**: `POST /api/images/duplicates/pairs/undo-dismiss` with body `{"pairs": [{"image_id1": "abc", "image_id2": "def"}]}`
+
+#### List Duplicate Decisions
+
+Recent not-duplicate decisions, newest first — for undoing a decision from a past session.
+
+- **URL**: `/api/images/duplicates/decisions`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `limit` (optional): Number of results (1-100, default: 20)
+  - `offset` (optional): Number of results to skip (default: 0)
+- **Response**: `{"items": [{"image_id1", "filename1", "image_id2", "filename2", "decided_at"}, ...], "total": N}`
+- **Cache**: no-cache
+- **Example**: `GET /api/images/duplicates/decisions?limit=10`
+
 #### Get Image File
 
 Retrieve the actual image file.
