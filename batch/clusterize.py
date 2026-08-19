@@ -8,7 +8,7 @@ from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import settings
 from graph.uf import UnionFind
 from Storage.db import AsyncSessionLocal
-from Storage.models import Image, TmpDuplicates, TmpImageClusters
+from Storage.models import DuplicateDecision, Image, TmpDuplicates, TmpImageClusters
 
 PROXIMITY_THRESHOLD = 0.05
 
@@ -58,62 +58,64 @@ def resolve_cluster(
     return results
 
 
+async def cluster_active_library(session) -> None:
+
+    print("Cleaning up clusters...")
+    query = (
+        delete(TmpImageClusters)
+    )
+    await session.execute(query)
+
+    print("Reading images...")
+    # Select all images and build image_id -> int id dictionary (and reverse)
+    img_id_to_int_id, mapping_reverse = await get_images_ids(session)
+    print(f"Total images: {len(img_id_to_int_id)}")
+
+    print("Reading duplicates...")
+    # Select all duplicate pairs with distance < PROXIMITY_THRESHOLD, int-id mapped
+    pairs = await get_duplicate_pairs(session, img_id_to_int_id, PROXIMITY_THRESHOLD)
+    print(f"Total connections: {len(pairs)}")
+
+    uf = UnionFind()
+    pairs_by_member: dict[int, list[tuple[int, float]]] = defaultdict(list)
+    for id1, id2, distance in pairs:
+        uf.connect(id1, id2)
+        pairs_by_member[id1].append((id2, distance))
+        pairs_by_member[id2].append((id1, distance))
+
+    splitting = settings.CLUSTERING.SPLITTING
+
+    print("Building graph...")
+    # Traverse UnionFind, splitting oversized clusters and dropping singletons, and
+    # mark the resulting clusters
+    for root in uf.list_clusters():
+        members = uf.get_cluster(root)
+        if splitting.ENABLED:
+            groups = resolve_cluster(
+                members,
+                pairs_by_member,
+                PROXIMITY_THRESHOLD,
+                splitting.DECREMENT,
+                splitting.FLOOR,
+                splitting.MAX_CLUSTER_SIZE,
+            )
+        else:
+            groups = [members]
+
+        for group in groups:
+            # min() is unique across the whole run -- finalized groups always
+            # partition disjoint member sets, so no two groups can share it.
+            cluster_id = min(group)
+            for member in group:
+                img_id = mapping_reverse[member]
+                session.add(TmpImageClusters(cluster_id=cluster_id, image_id=img_id))
+
+    print("Saving results...")
+
+
 async def _process() -> None:
-
     async with AsyncSessionLocal() as session:
-
-        print("Cleaning up clusters...")
-        query = (
-            delete(TmpImageClusters)
-        )
-        await session.execute(query)
-
-        print("Reading images...")
-        # Select all images and build image_id -> int id dictionary (and reverse)
-        img_id_to_int_id, mapping_reverse = await get_images_ids(session)
-        print(f"Total images: {len(img_id_to_int_id)}")
-
-        print("Reading duplicates...")
-        # Select all duplicate pairs with distance < PROXIMITY_THRESHOLD, int-id mapped
-        pairs = await get_duplicate_pairs(session, img_id_to_int_id, PROXIMITY_THRESHOLD)
-        print(f"Total connections: {len(pairs)}")
-
-        uf = UnionFind()
-        pairs_by_member: dict[int, list[tuple[int, float]]] = defaultdict(list)
-        for id1, id2, distance in pairs:
-            uf.connect(id1, id2)
-            pairs_by_member[id1].append((id2, distance))
-            pairs_by_member[id2].append((id1, distance))
-
-        splitting = settings.CLUSTERING.SPLITTING
-
-        print("Building graph...")
-        # Traverse UnionFind, splitting oversized clusters and dropping singletons, and
-        # mark the resulting clusters
-        for root in uf.list_clusters():
-            members = uf.get_cluster(root)
-            if splitting.ENABLED:
-                groups = resolve_cluster(
-                    members,
-                    pairs_by_member,
-                    PROXIMITY_THRESHOLD,
-                    splitting.DECREMENT,
-                    splitting.FLOOR,
-                    splitting.MAX_CLUSTER_SIZE,
-                )
-            else:
-                groups = [members]
-
-            for group in groups:
-                # min() is unique across the whole run -- finalized groups always
-                # partition disjoint member sets, so no two groups can share it.
-                cluster_id = min(group)
-                for member in group:
-                    img_id = mapping_reverse[member]
-                    session.add(TmpImageClusters(cluster_id=cluster_id, image_id=img_id))
-
-        print("Saving results...")
-        # Save changes to the database
+        await cluster_active_library(session)
         await session.commit()
 
 
@@ -154,6 +156,14 @@ async def get_images_ids(session):
 
 
 async def get_duplicate_pairs(session, mapping, threshold) -> list[tuple[int, int, float]]:
+    decided_pair_exists = (
+        select(DuplicateDecision.id)
+        .where(
+            DuplicateDecision.image_id1 == TmpDuplicates.image_id1,
+            DuplicateDecision.image_id2 == TmpDuplicates.image_id2,
+        )
+        .exists()
+    )
     query = (
         select(
             TmpDuplicates.image_id1,
@@ -162,6 +172,7 @@ async def get_duplicate_pairs(session, mapping, threshold) -> list[tuple[int, in
         ).where(
             TmpDuplicates.distance < threshold,
             TmpDuplicates.image_id1 != TmpDuplicates.image_id2,
+            ~decided_pair_exists,
         )
     )
     duplicates = await session.execute(query)
