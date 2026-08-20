@@ -52,6 +52,16 @@ now scopes its union-find to `status = 'active'` images only (see the two most r
   empirically (`general`, current data) only a handful of clusters ever exceed 3–4 members, and a
   reviewer sees all members before clicking. Not solved here — solving it precisely is exactly what
   reintroduces per-pair UI complexity this spec deliberately avoids.
+- **Transitive reunification via a bridge node.** Confirmed empirically (see
+  `tests/integration/test_clusterize.py::test_bridge_node_transitively_reunites_a_decided_pair`):
+  a `duplicate_decisions` row only excludes the *specific* decided edge from
+  `clusterize.py`'s union-find — it does not mean "these two images may never share a cluster."
+  If image C later arrives and is a near-duplicate of *both* A and B (an already-decided pair),
+  the undecided A–C and B–C edges transitively reunite A and B into one cluster on the next
+  `clusterize` run, silently undoing the original decision. Accepted limitation, not fixed here:
+  truly preventing this requires propagating a must-not-link constraint through the whole
+  clustering pass (constrained clustering) — a materially larger feature than the plain per-edge
+  filter this spec ships. Flagged for awareness; revisit only if it proves disruptive in practice.
 
 ## Data model
 

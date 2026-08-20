@@ -18,6 +18,8 @@ describe('DuplicateDecisionsPanel', () => {
     render(<DuplicateDecisionsPanel memesApi={api} />)
 
     expect(await screen.findByText('a.jpg')).toBeInTheDocument()
+    expect(screen.getByAltText('a.jpg')).toHaveAttribute('src', api.getImageUrlById('a'))
+    expect(screen.getByAltText('b.jpg')).toHaveAttribute('src', api.getImageUrlById('b'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
 

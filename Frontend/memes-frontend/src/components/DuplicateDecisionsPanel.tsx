@@ -57,8 +57,28 @@ export default function DuplicateDecisionsPanel({ memesApi }: Props) {
               const key = `${item.image_id1}:${item.image_id2}`
               return (
                 <tr key={key} className="border-b last:border-0">
-                  <td className="py-1">{item.filename1}</td>
-                  <td>{item.filename2}</td>
+                  <td className="py-1">
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={memesApi.getImageUrlById(item.image_id1)}
+                        alt={item.filename1}
+                        className="w-10 h-10 object-cover rounded"
+                        loading="lazy"
+                      />
+                      <span>{item.filename1}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={memesApi.getImageUrlById(item.image_id2)}
+                        alt={item.filename2}
+                        className="w-10 h-10 object-cover rounded"
+                        loading="lazy"
+                      />
+                      <span>{item.filename2}</span>
+                    </div>
+                  </td>
                   <td>{item.decided_at}</td>
                   <td>
                     <button

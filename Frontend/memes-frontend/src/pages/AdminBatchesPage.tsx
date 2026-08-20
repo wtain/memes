@@ -197,9 +197,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
         ))}
       </div>
 
-      <DuplicateDecisionsPanel memesApi={memesApi} />
-
-      <div className="bg-white rounded-lg p-4 shadow-sm">
+      <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500 border-b">
@@ -244,6 +242,8 @@ export default function AdminBatchesPage({ memesApi }: Props) {
           </button>
         </div>
       </div>
+
+      <DuplicateDecisionsPanel memesApi={memesApi} />
     </div>
   )
 }
