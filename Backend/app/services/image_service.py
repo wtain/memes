@@ -108,6 +108,7 @@ class ImageService:
     async def get_meme(self, image_id: str) -> Meme:
         filename, texts, tags = await self.repo.get_meme_data(image_id)
         is_flagged = await self.repo.get_is_flagged(image_id)
+        note_text = await self.repo.get_description_note(image_id)
         return Meme(
             id=image_id,
             imageUrl=f"/api/images/{image_id}",
@@ -115,6 +116,7 @@ class ImageService:
             tags=[MemeTag(name=value, category=key) for key, value in tags],
             originalFileName=filename,
             flagged=is_flagged,
+            descriptionNote=note_text,
         )
 
     async def get_descriptions(self, image_id: str) -> list[ImageDescription]:
@@ -150,6 +152,16 @@ class ImageService:
 
         await self.repo.set_description_feedback(description_id, target_approved)
         return _feedback_label(target_approved)
+
+    async def set_description_note(self, image_id: str, text: str) -> None:
+        text = text.strip()
+        if not text:
+            await self.repo.clear_description_note(image_id)
+            return
+        await self.repo.set_description_note(image_id, text)
+
+    async def clear_description_note(self, image_id: str) -> None:
+        await self.repo.clear_description_note(image_id)
 
     async def get_similar(self, image_id: str, limit: int = 10, source: str = "image") -> MemeSearchResponse:
         if source == "description":

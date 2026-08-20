@@ -6,9 +6,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from . import duplicatepair
+
 
 class Schema(BaseModel):
-    name: str
-    category: str | None = None
-    score: float | None = None
-    source: str | None = None
+    pairs: list[duplicatepair.Schema]

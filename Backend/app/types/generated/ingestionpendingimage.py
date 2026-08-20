@@ -4,11 +4,10 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 
 class Schema(BaseModel):
-    name: str
-    category: str | None = None
-    score: float | None = None
-    source: str | None = None
+    image_id: str
+    filename: str
+    created_at: AwareDatetime

@@ -6,9 +6,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from . import failedfile, uploadedfile
+
 
 class Schema(BaseModel):
-    name: str
-    category: str | None = None
-    score: float | None = None
-    source: str | None = None
+    uploaded: list[uploadedfile.Schema]
+    failed: list[failedfile.Schema]
+    total_accepted: int
+    total_failed: int

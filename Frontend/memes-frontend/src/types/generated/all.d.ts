@@ -30,6 +30,10 @@ export interface Meme {
    * Cosine distance to the query image, populated only in the similar images endpoint
    */
   cosineDistance?: number;
+  /**
+   * Human-written free-text note about the image, if one has been set
+   */
+  descriptionNote?: string;
   [k: string]: unknown;
 }
 /**

@@ -581,6 +581,32 @@ class TestGetImageDescriptions:
         assert response.json() == []
 
 
+class TestDescriptionNoteEndpoints:
+    """Tests for PUT/DELETE /api/images/{image_id}/description-note."""
+
+    def test_put_description_note_success(self, client, mock_image_service):
+        mock_image_service.set_description_note.return_value = None
+
+        response = client.put("/api/images/123/description-note", json={"text": "a cat wearing a hat"})
+
+        assert response.status_code == 200
+        mock_image_service.set_description_note.assert_called_once_with("123", "a cat wearing a hat")
+
+    def test_put_description_note_requires_text_field(self, client, mock_image_service):
+        response = client.put("/api/images/123/description-note", json={})
+
+        assert response.status_code == 422
+        mock_image_service.set_description_note.assert_not_called()
+
+    def test_delete_description_note_success(self, client, mock_image_service):
+        mock_image_service.clear_description_note.return_value = None
+
+        response = client.delete("/api/images/123/description-note")
+
+        assert response.status_code == 200
+        mock_image_service.clear_description_note.assert_called_once_with("123")
+
+
 class TestGetMeme:
     """Tests for GET /api/images/meme/{image_id} endpoint."""
 

@@ -8,7 +8,8 @@ from pydantic import BaseModel
 
 
 class Schema(BaseModel):
-    name: str
-    category: str | None = None
-    score: float | None = None
-    source: str | None = None
+    original_filename: str
+    saved_as: str
+    size_bytes: int
+    content_type: str
+    status: str

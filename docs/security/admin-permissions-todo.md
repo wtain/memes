@@ -37,6 +37,8 @@ them. This is accepted as a known gap for now, not resolved.
   the three (arbitrary triggering of jobs against production data).
 - `GET /api/admin/batches/runs/{run_id}` — read access to run status/error detail.
 - `GET /api/admin/batches/runs` — read access to run history.
+- `PUT /api/images/{id}/description-note` — anyone can currently overwrite any image's note.
+- `DELETE /api/images/{id}/description-note` — anyone can currently clear any image's note.
 
 (Extend this list as future admin-only functionality ships without its own permission model.)
 

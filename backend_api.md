@@ -40,7 +40,8 @@ Represents a meme image with metadata and tags.
   "tags": [MemeTag] | null,
   "flagged": "boolean | null",
   "clusterId": "integer | null",
-  "cosineDistance": "number | null"
+  "cosineDistance": "number | null",
+  "descriptionNote": "string | null"
 }
 ```
 
@@ -436,8 +437,40 @@ Retrieve detailed information about a specific meme.
 - **Method**: `GET`
 - **Path Parameters**:
   - `image_id`: Unique identifier of the image
-- **Response**: `Meme`
+- **Response**: `Meme` — includes `descriptionNote` (string, optional — the image's
+  human-written note, absent if none set)
 - **Example**: `GET /api/images/meme/abc123`
+
+#### Set Description Note
+
+Set (or overwrite) a human-written free-text note on an image. No authentication today --
+see docs/security/admin-permissions-todo.md.
+
+- **URL**: `/api/images/{image_id}/description-note`
+- **Method**: `PUT`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image
+- **Body**: `{"text": "..."}`
+- **Response**: Success (no content). An empty/whitespace-only `text` clears the note
+  (equivalent to `DELETE`) rather than storing an empty string.
+- **Cache**: no-cache
+- **Example**: `PUT /api/images/abc123/description-note` with body `{"text": "a cat wearing a hat"}`
+
+#### Delete Description Note
+
+Clear an image's description note. Also removes its embedding row (`ON DELETE CASCADE`)
+and lemma index rows (deleted explicitly by the repository -- that table's FK cascades off
+the image, not the note), synchronously -- no batch run required for a cleared note to stop
+appearing in search/similarity results. No authentication today -- see
+docs/security/admin-permissions-todo.md.
+
+- **URL**: `/api/images/{image_id}/description-note`
+- **Method**: `DELETE`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image
+- **Response**: Success (no content). Safe to call when no note is currently set.
+- **Cache**: no-cache
+- **Example**: `DELETE /api/images/abc123/description-note`
 
 #### Mark Meme as Flagged
 

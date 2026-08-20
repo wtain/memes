@@ -4,11 +4,16 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from pydantic import BaseModel
 
 
+class Decision(StrEnum):
+    reject = 'reject'
+    keep = 'keep'
+
+
 class Schema(BaseModel):
-    name: str
-    category: str | None = None
-    score: float | None = None
-    source: str | None = None
+    image_id: str
+    decision: Decision

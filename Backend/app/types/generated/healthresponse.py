@@ -8,7 +8,4 @@ from pydantic import BaseModel
 
 
 class Schema(BaseModel):
-    name: str
-    category: str | None = None
-    score: float | None = None
-    source: str | None = None
+    status: str

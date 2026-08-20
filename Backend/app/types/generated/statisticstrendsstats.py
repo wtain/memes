@@ -8,7 +8,11 @@ from pydantic import BaseModel
 
 
 class Schema(BaseModel):
-    name: str
-    category: str | None = None
-    score: float | None = None
-    source: str | None = None
+    runs: int
+    """
+    Total trends runs recorded
+    """
+    trend_sources: int
+    """
+    Configured trend sources
+    """

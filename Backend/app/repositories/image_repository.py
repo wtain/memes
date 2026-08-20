@@ -12,6 +12,7 @@ from sqlalchemy.orm import aliased
 from Storage.models import (
     Image, OCRText, Embedding, ImageTag, ImageExtras, TmpDuplicates, TmpImageClusters,
     ImageDescription, ImageDescriptionEmbedding, ImageDescriptionFeedback,
+    DescriptionNote, DescriptionNoteEmbedding, DescriptionNoteLemma,
 )
 from graph.uf import UnionFind
 from repository.ocr_lemmas import matching_image_ids
@@ -220,6 +221,38 @@ class ImageRepository:
         await self.session.execute(
             delete(ImageDescriptionFeedback)
             .where(ImageDescriptionFeedback.image_description_id == description_id)
+        )
+
+    async def get_description_note(self, image_id: str) -> Optional[str]:
+        result = await self.session.execute(
+            select(DescriptionNote.text).where(DescriptionNote.image_id == image_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def set_description_note(self, image_id: str, text: str) -> None:
+        stmt = (
+            insert(DescriptionNote)
+            .values(image_id=image_id, text=text, updated_at=func.now())
+            .on_conflict_do_update(
+                index_elements=["image_id"],
+                set_={"text": text, "updated_at": func.now()},
+            )
+        )
+        await self.session.execute(stmt)
+
+    async def clear_description_note(self, image_id: str) -> None:
+        """Deletes the note row; ON DELETE CASCADE removes any
+        description_note_embeddings row for it automatically (that FK
+        references description_notes.image_id). description_note_lemmas rows
+        are deleted explicitly here instead -- that table's FK cascades off
+        images.id (mirroring OCRLemma), not description_notes.image_id, so
+        the database would not otherwise clean it up when just the note
+        (not the whole image) is cleared."""
+        await self.session.execute(
+            delete(DescriptionNoteLemma).where(DescriptionNoteLemma.image_id == image_id)
+        )
+        await self.session.execute(
+            delete(DescriptionNote).where(DescriptionNote.image_id == image_id)
         )
 
     async def get_meme_data(self, image_id: str):

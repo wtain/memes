@@ -40,6 +40,10 @@ class DuplicateUndoDismissRequest(BaseModel):
     pairs: list[DuplicatePairModel]
 
 
+class DescriptionNoteRequest(BaseModel):
+    text: str
+
+
 class DuplicateDecisionItemModel(BaseModel):
     image_id1: str
     filename1: str
@@ -127,6 +131,27 @@ async def reject_description(
     response.headers.update(no_cache_headers())
     feedback = await service.reject_description_feedback(image_id, prompt_key)
     return DescriptionFeedbackResponse(feedback=feedback)
+
+
+@router.put("/{image_id}/description-note")
+async def set_description_note(
+    image_id: str,
+    body: DescriptionNoteRequest,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    await service.set_description_note(image_id, body.text)
+
+
+@router.delete("/{image_id}/description-note")
+async def delete_description_note(
+    image_id: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    await service.clear_description_note(image_id)
 
 
 @router.get("/meme/{image_id}", response_model=Meme)

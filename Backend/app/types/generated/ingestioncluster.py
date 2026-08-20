@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from . import ingestionclusteredge, ingestionclustermember
+
 
 class Schema(BaseModel):
-    name: str
-    category: str | None = None
-    score: float | None = None
-    source: str | None = None
+    members: list[ingestionclustermember.Schema]
+    edges: list[ingestionclusteredge.Schema]

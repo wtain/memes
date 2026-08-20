@@ -395,3 +395,40 @@ class TestListDuplicateDecisions:
 
         mock_decision_repo.list_recent.assert_awaited_once_with(10, 5)
         assert result == ([], 0)
+
+
+class TestDescriptionNoteService:
+    async def test_set_description_note_saves_stripped_text(self, service, mock_repo):
+        await service.set_description_note("image-1", "  a cat wearing a hat  ")
+
+        mock_repo.set_description_note.assert_awaited_once_with("image-1", "a cat wearing a hat")
+        mock_repo.clear_description_note.assert_not_called()
+
+    async def test_set_description_note_with_empty_text_clears_instead(self, service, mock_repo):
+        await service.set_description_note("image-1", "   ")
+
+        mock_repo.clear_description_note.assert_awaited_once_with("image-1")
+        mock_repo.set_description_note.assert_not_called()
+
+    async def test_clear_description_note_delegates_to_repo(self, service, mock_repo):
+        await service.clear_description_note("image-1")
+
+        mock_repo.clear_description_note.assert_awaited_once_with("image-1")
+
+    async def test_get_meme_includes_description_note(self, service, mock_repo):
+        mock_repo.get_meme_data.return_value = ("file.jpg", [], [])
+        mock_repo.get_is_flagged.return_value = False
+        mock_repo.get_description_note.return_value = "a cat wearing a hat"
+
+        result = await service.get_meme("image-1")
+
+        assert result.descriptionNote == "a cat wearing a hat"
+
+    async def test_get_meme_with_no_note_leaves_field_none(self, service, mock_repo):
+        mock_repo.get_meme_data.return_value = ("file.jpg", [], [])
+        mock_repo.get_is_flagged.return_value = False
+        mock_repo.get_description_note.return_value = None
+
+        result = await service.get_meme("image-1")
+
+        assert result.descriptionNote is None

@@ -30,6 +30,10 @@
     "cosineDistance": {
       "type": "number",
       "description": "Cosine distance to the query image, populated only in the similar images endpoint"
+    },
+    "descriptionNote": {
+      "type": "string",
+      "description": "Human-written free-text note about the image, if one has been set"
     }
   },
   "required": ["id", "imageUrl"]
