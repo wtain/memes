@@ -56,6 +56,12 @@ class Image(Base):
     tags = relationship("ImageTag", back_populates="image", cascade="all, delete-orphan")
     ocr_lemmas = relationship("OCRLemma", back_populates="image", cascade="all, delete-orphan")
     image_extras = relationship("ImageExtras", back_populates="image", cascade="all, delete-orphan")
+    description_note = relationship(
+        "DescriptionNote", uselist=False, back_populates="image", cascade="all, delete-orphan"
+    )
+    description_note_lemmas = relationship(
+        "DescriptionNoteLemma", back_populates="image", cascade="all, delete-orphan"
+    )
 
 
 class ImageMetrics(Base):
@@ -411,6 +417,74 @@ class ImageExtras(Base):
     remarks = Column(Text)
 
     image = relationship("Image", back_populates="image_extras")
+
+
+class DescriptionNote(Base):
+    __tablename__ = "description_notes"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    text = Column(Text, nullable=False)
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+    # Staleness markers for the two batch jobs (build_description_note_lemmas /
+    # build_description_note_embeddings): a note can be edited repeatedly after
+    # creation (unlike ImageDescription, which is never edited), so "row exists"
+    # alone isn't enough to know a lemma/embedding is up to date -- each job
+    # reindexes when its built_at is NULL or older than updated_at.
+    lemmas_built_at = Column(DateTime, nullable=True)
+    embedding_built_at = Column(DateTime, nullable=True)
+
+    image = relationship("Image", back_populates="description_note")
+    embedding = relationship(
+        "DescriptionNoteEmbedding", uselist=False,
+        back_populates="note", cascade="all, delete-orphan",
+    )
+
+
+class DescriptionNoteEmbedding(Base):
+    __tablename__ = "description_note_embeddings"
+
+    description_note_id = Column(
+        UUID(as_uuid=True), ForeignKey("description_notes.image_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    embedding = Column(Vector(TEXT_EMBEDDING_DIM))
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "ix_description_note_embeddings_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+    note = relationship("DescriptionNote", back_populates="embedding")
+
+
+class DescriptionNoteLemma(Base):
+    __tablename__ = "description_note_lemmas"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    lemma = Column(String, primary_key=True)
+    # Populated for schema symmetry with OCRLemma, but never queried by the
+    # phonetic-erratives search fallback -- a human-typed note is deliberate
+    # text, same rationale as ImageTag already being excluded from that
+    # fallback. See docs/superpowers/specs/2026-08-20-description-notes-design.md.
+    phonetic_code = Column(String, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_description_note_lemmas_lemma", "lemma"),
+        Index(
+            "ix_description_note_lemmas_lemma_trgm",
+            "lemma",
+            postgresql_using="gin",
+            postgresql_ops={"lemma": "gin_trgm_ops"},
+        ),
+    )
+
+    image = relationship("Image", back_populates="description_note_lemmas")
 
 
 class SearchHistory(Base):
