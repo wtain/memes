@@ -282,6 +282,26 @@ describe('MemeDetails', () => {
       await act(async () => {})
       expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('')
     })
+
+    it('disables the textarea and Save/Clear buttons until the note has loaded', async () => {
+      let resolveGetMeme: (meme: typeof DEFAULT_MOCK_MEME) => void = () => {}
+      const getMemePromise = new Promise<typeof DEFAULT_MOCK_MEME>(resolve => { resolveGetMeme = resolve })
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getMeme: vi.fn().mockReturnValue(getMemePromise),
+      })
+
+      expect(screen.getByRole('textbox', { name: 'Description note' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Save note' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Clear note' })).toBeDisabled()
+
+      await act(async () => {
+        resolveGetMeme({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' })
+      })
+
+      expect(screen.getByRole('textbox', { name: 'Description note' })).not.toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Save note' })).not.toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Clear note' })).not.toBeDisabled()
+    })
   })
 
   describe('similarity mode toggle', () => {

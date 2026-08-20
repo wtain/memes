@@ -28,7 +28,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [descriptions, setDescriptions] = useState<ImageDescription[]>([])
   const [isFlagged, setIsFlagged] = useState<boolean | null>(null)
-  const [noteText, setNoteText] = useState("")
+  const [noteText, setNoteText] = useState<string | null>(null)
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [controlsActive, setControlsActive] = useState(false)
@@ -67,6 +67,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
   }
 
   function saveNote() {
+    if (noteText === null) return  // guards the disabled-while-loading window
     memesApi.setDescriptionNote(meme.id, noteText)
   }
 
@@ -253,23 +254,26 @@ export function MemeDetails({ meme, memesApi }: Props) {
           <textarea
             id="description-note"
             aria-label="Description note"
-            value={noteText}
+            value={noteText ?? ""}
+            disabled={noteText === null}
             onChange={e => setNoteText(e.target.value)}
-            className="w-full border rounded p-2 text-sm"
+            className="w-full border rounded p-2 text-sm disabled:opacity-50"
             rows={3}
           />
           <div className="flex gap-2 mt-1">
             <button
               onClick={saveNote}
               aria-label="Save note"
-              className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100"
+              disabled={noteText === null}
+              className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save note
             </button>
             <button
               onClick={clearNote}
               aria-label="Clear note"
-              className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100"
+              disabled={noteText === null}
+              className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Clear note
             </button>
