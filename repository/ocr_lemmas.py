@@ -9,7 +9,7 @@ from config.settings import settings
 from rules.english_stemming import is_latin_word, stem_english_word
 from rules.normalize import make_morph, normalize
 from rules.phonetic import is_cyrillic_word, russian_metaphone
-from Storage.models import ImageTag, OCRLemma
+from Storage.models import DescriptionNoteLemma, ImageTag, OCRLemma
 
 
 @lru_cache(maxsize=1)
@@ -20,14 +20,16 @@ def _get_morph():
 async def _exact_lemma_ids(session: AsyncSession, lemma: str) -> set:
     ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma == lemma)
     tag_subq = select(distinct(ImageTag.image_id)).where(func.upper(ImageTag.value) == lemma.upper())
-    result = await session.execute(union(ocr_subq, tag_subq))
+    note_subq = select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma == lemma)
+    result = await session.execute(union(ocr_subq, tag_subq, note_subq))
     return {row[0] for row in result.all()}
 
 
 async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
     """
     Trigram-similarity fallback, written to use the pg_trgm GIN index
-    (ix_ocr_lemmas_lemma_trgm) rather than a sequential scan.
+    (ix_ocr_lemmas_lemma_trgm, and now also ix_description_note_lemmas_lemma_trgm)
+    rather than a sequential scan.
 
     This is deliberately NOT `func.similarity(col, lemma) >= threshold`,
     which looks equivalent but is not: pg_trgm's GIN opclass only
@@ -56,7 +58,8 @@ async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
     await session.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
     ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma.op("%")(lemma))
     tag_subq = select(distinct(ImageTag.image_id)).where(ImageTag.value.op("%")(lemma))
-    result = await session.execute(union(ocr_subq, tag_subq))
+    note_subq = select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma.op("%")(lemma))
+    result = await session.execute(union(ocr_subq, tag_subq, note_subq))
     return {row[0] for row in result.all()}
 
 
@@ -103,6 +106,16 @@ async def _stem_lemma_ids(session: AsyncSession, lemma: str) -> set:
 
     OCRLemma only, not ImageTag -- same scope reduction as the phonetic
     fallback (tags are a controlled vocabulary, not raw OCR text).
+
+    Not extended to DescriptionNoteLemma: this fallback only works because
+    OCR indexing pre-stems "en"-tagged rows at index time (see
+    OCRLemmasSaver/lemmatize_word's STEMMABLE_LANGUAGES branch). Description
+    notes have no per-note language tag, so build_description_note_lemmas.py
+    indexes with language=None (unstemmed) -- the note-lemma index never
+    contains a pre-stemmed form for this tier to find, so adding it here
+    would be dead code. Notes still get exact-match and trigram-fuzzy
+    fallback coverage; trigram similarity catches most word-form variation
+    in practice.
     """
     stem = stem_english_word(lemma)
     result = await session.execute(
@@ -115,8 +128,8 @@ async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optiona
     """
     None means "apply no filter" (q is falsy, or every token normalizes
     away to nothing). Otherwise returns the set of image IDs whose
-    OCR-lemma index or tags contain every query lemma (AND); an empty set
-    means no image matches.
+    OCR-lemma index, description-note-lemma index, or tags contain every
+    query lemma (AND); an empty set means no image matches.
 
     Each query lemma is matched exactly first. If that finds nothing,
     every applicable fallback tier below is unioned together (not tried
