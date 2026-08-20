@@ -1232,7 +1232,7 @@ git commit -m "feat: add source=description_note to similar-images endpoint"
 
 **Interfaces:**
 - Consumes: `DescriptionNote`, `DescriptionNoteLemma` (Task 1).
-- Produces: `DescriptionNoteLemmasRepository.get_notes_needing_lemmas() -> list[tuple[UUID, str]]`, `.mark_lemmas_built(image_id) -> None`; `DescriptionNoteLemmasSaver` (async context manager) with `.replace_lemmas(image_id, lemmas: set[str]) -> None`; `batch.build_description_note_lemmas.main(trigger="manual", run_id=None) -> None`.
+- Produces: `DescriptionNoteLemmasRepository.get_notes_needing_lemmas() -> list[tuple[UUID, str]]`, `.mark_lemmas_built(image_id) -> None`; `DescriptionNoteLemmasSaver` (async context manager) with `.replace_lemmas(image_id, lemmas: set[str]) -> None`; `batch.build_description_note_lemmas.run(session, morph, min_word_length) -> None` (session-injected, directly testable — mirrors `build_ocr_lemmas.run`); `.main(trigger="manual", run_id=None) -> None`.
 
 - [ ] **Step 1: Write the failing repository test**
 
@@ -1420,11 +1420,13 @@ Expected: PASS (all 5 tests).
 
 - [ ] **Step 5: Write the failing batch-script test**
 
-Create `tests/integration/test_build_description_note_lemmas.py`:
+Create `tests/integration/test_build_description_note_lemmas.py`. This calls `run(session, ...)` directly with the `db_session` fixture — **not** `_process()`/`main()`, which open their own separate `AsyncSessionLocal()` connection. `db_session` (`tests/integration/conftest.py`) wraps its work in an outer transaction that is always rolled back at test end, joined via `join_transaction_mode="create_savepoint"` — a `session.commit()` inside the test only commits an inner SAVEPOINT, invisible to any other connection. A separate `AsyncSessionLocal()` session opened by `_process()` would therefore see zero rows no matter what the test commits first. `run(session, ...)` sidesteps this by working on the exact same session/connection the test already holds — the same split `batch/build_ocr_lemmas.py` uses (`run(session, ...)` vs. its `_process()` wrapper), verified against `tests/integration/test_build_ocr_lemmas.py`, which calls `run(db_session, ...)` directly for this exact reason.
 
 ```python
 """
-Integration test for batch/build_description_note_lemmas.py's end-to-end run.
+Integration test for batch/build_description_note_lemmas.py's run() -- the full
+staleness-selection -> lemma-building -> saving -> mark-built pipeline, exercised
+end-to-end against a real database. Mirrors tests/integration/test_build_ocr_lemmas.py.
 
 Requires a live PostgreSQL instance -- see tests/integration/conftest.py.
 """
@@ -1433,23 +1435,22 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from batch.build_description_note_lemmas import _process
+from batch.build_description_note_lemmas import run
+from rules.normalize import make_morph
 from Storage.models import DescriptionNote, DescriptionNoteLemma, Image
+
+_MORPH = make_morph()
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_process_indexes_notes_needing_lemmas(db_session, monkeypatch):
-    """_process() opens its own AsyncSessionLocal() rather than accepting
-    db_session directly (matching build_ocr_lemmas.py's shape) -- flush the
-    fixture's data first so the batch job's own session can see it."""
+async def test_run_indexes_notes_needing_lemmas_and_marks_built(db_session):
     image = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add(image)
     await db_session.flush()
     db_session.add(DescriptionNote(image_id=image.id, text="a funny cat meme"))
     await db_session.flush()
-    await db_session.commit()
 
-    await _process()
+    await run(db_session, morph=_MORPH, min_word_length=3)
 
     rows = (await db_session.execute(
         select(DescriptionNoteLemma.lemma).where(DescriptionNoteLemma.image_id == image.id)
@@ -1470,7 +1471,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'batch.build_descriptio
 
 - [ ] **Step 7: Implement the batch script**
 
-Create `batch/build_description_note_lemmas.py`:
+Create `batch/build_description_note_lemmas.py`. Note the `run(session, morph, min_word_length)` / `_process()` split — `run` takes an injected session (directly testable, matching `build_ocr_lemmas.run`), `_process` is the thin wrapper that owns the real session lifecycle for `main()`:
 
 ```python
 import argparse
@@ -1485,32 +1486,35 @@ from rules.normalize import make_morph, normalize
 from Storage.db import AsyncSessionLocal
 
 
+async def run(session, morph, min_word_length: int) -> None:
+    lemmas_repo = DescriptionNoteLemmasRepository(session)
+    rows = await lemmas_repo.get_notes_needing_lemmas()
+    print(f"Found {len(rows)} description note(s) needing lemma indexing")
+
+    tracker = ProgressTracker(len(rows), report_every=100, report_interval_secs=10)
+
+    async with DescriptionNoteLemmasSaver(session) as saver:
+        for image_id, text in rows:
+            # language=None: no per-note language tag exists, so this
+            # matches matching_image_ids' own query-time convention
+            # (script-based pymorphy3 fallback). Means the note-lemma
+            # index is never pre-stemmed for English -- see the comment
+            # above _stem_lemma_ids in repository/ocr_lemmas.py.
+            lemma_set = normalize(
+                text, morph, min_length=min_word_length, language=None, keep_digit_tokens=True
+            )
+            await saver.replace_lemmas(image_id, lemma_set)
+            await lemmas_repo.mark_lemmas_built(image_id)
+            tracker.mark_done()
+
+    tracker.summary()
+
+
 async def _process() -> None:
     morph = make_morph()
     min_word_length = settings.BOW.MIN_WORD_LENGTH
-
     async with AsyncSessionLocal() as session:
-        lemmas_repo = DescriptionNoteLemmasRepository(session)
-        rows = await lemmas_repo.get_notes_needing_lemmas()
-        print(f"Found {len(rows)} description note(s) needing lemma indexing")
-
-        tracker = ProgressTracker(len(rows), report_every=100, report_interval_secs=10)
-
-        async with DescriptionNoteLemmasSaver(session) as saver:
-            for image_id, text in rows:
-                # language=None: no per-note language tag exists, so this
-                # matches matching_image_ids' own query-time convention
-                # (script-based pymorphy3 fallback). Means the note-lemma
-                # index is never pre-stemmed for English -- see the comment
-                # above _stem_lemma_ids in repository/ocr_lemmas.py.
-                lemma_set = normalize(
-                    text, morph, min_length=min_word_length, language=None, keep_digit_tokens=True
-                )
-                await saver.replace_lemmas(image_id, lemma_set)
-                await lemmas_repo.mark_lemmas_built(image_id)
-                tracker.mark_done()
-
-        tracker.summary()
+        await run(session, morph, min_word_length)
 
 
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None:
