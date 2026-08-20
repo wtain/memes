@@ -198,6 +198,10 @@ build_tags_from_ocr        → rule-based tags from OCR text
 build_ocr_lemmas           → per-image lemma index for smart search (see
                               docs/superpowers/specs/2026-07-21-smart-search-design.md);
                               --incremental skips images already indexed
+build_description_note_lemmas → per-image lemma index for human description notes (see
+                              docs/superpowers/specs/2026-08-20-description-notes-design.md);
+                              admin-triggerable from /admin/batches, manual-trigger only, not
+                              scheduled
 build_image_descriptions   → multi-prompt Ollama LLM descriptions (optional), one row per
                               (image, prompt) pair; configurable prompts/models/context size
                               per environment; incremental with its own commit interval;
