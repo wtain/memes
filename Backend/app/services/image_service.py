@@ -160,7 +160,7 @@ class ImageService:
             embedding = await self.repo.get_embedding(image_id)
             if embedding is None:
                 raise HTTPException(status_code=404, detail="No embedding found for this image")
-            rows = await self.repo.get_similar(image_id, embedding.tolist(), limit=limit)
+            rows = await self.repo.get_similar(image_id, embedding, limit=limit)
 
         items = [
             Meme(

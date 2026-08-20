@@ -10,7 +10,7 @@ integration tests call ImageRepository directly, never through the service.
 import uuid
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from fastapi import HTTPException
 
 from Backend.app.services.image_service import ImageService
@@ -44,8 +44,12 @@ class TestGetSimilarImageMode:
         mock_repo.get_similar_by_description.assert_not_called()
 
     async def test_happy_path_calls_repo_get_similar(self, service, mock_repo):
-        embedding = MagicMock()
-        embedding.tolist.return_value = [0.1, 0.2, 0.3]
+        # A real list[float], not a MagicMock -- pgvector's SQLAlchemy VECTOR type
+        # (result_processor in pgvector/sqlalchemy/vector.py) returns embeddings as
+        # plain list[float] as of pgvector 0.5.0, not a numpy array. A MagicMock with
+        # a stubbed .tolist() previously masked a real AttributeError here (repo
+        # get_embedding() -- no .tolist() attribute on a plain list).
+        embedding = [0.1, 0.2, 0.3]
         mock_repo.get_embedding.return_value = embedding
         mock_repo.get_similar.return_value = [
             ("image-2", 0.05, "second.png", False),
