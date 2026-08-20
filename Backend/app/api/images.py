@@ -92,7 +92,7 @@ async def get_similar_images(
     image_id: str,
     response: Response,
     limit: int = Query(10, ge=1, le=100),
-    source: Literal["image", "description"] = "image",
+    source: Literal["image", "description", "description_note"] = "image",
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())

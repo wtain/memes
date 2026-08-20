@@ -136,6 +136,27 @@ class ImageRepository:
         )
         return result.all()
 
+    async def get_description_note_embedding(self, image_id: str):
+        result = await self.session.execute(
+            select(DescriptionNoteEmbedding.embedding)
+            .where(DescriptionNoteEmbedding.description_note_id == image_id)
+        )
+        return result.scalars().first()
+
+    async def get_similar_by_note(self, image_id: str, embedding, limit: int = 10):
+        img = aliased(Image)
+        embed = aliased(DescriptionNoteEmbedding)
+        extras = aliased(ImageExtras)
+        result = await self.session.execute(
+            select(embed.description_note_id, embed.embedding.cosine_distance(embedding), img.filename, extras.flagged)
+            .join(img, img.id == embed.description_note_id)
+            .outerjoin(extras, img.id == extras.image_id)
+            .filter(embed.description_note_id != image_id, img.status == "active")
+            .order_by(embed.embedding.cosine_distance(embedding))
+            .limit(limit)
+        )
+        return result.all()
+
     async def get_similar_by_description(self, image_id: str, limit: int = 10):
         source_desc, source_emb = aliased(ImageDescription), aliased(ImageDescriptionEmbedding)
         cand_desc, cand_emb = aliased(ImageDescription), aliased(ImageDescriptionEmbedding)

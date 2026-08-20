@@ -14,13 +14,20 @@ import uuid
 import pytest
 
 from Backend.app.repositories.image_repository import ImageRepository
-from Storage.models import DuplicateDecision, Embedding, Image
+from Storage.models import DescriptionNote, DescriptionNoteEmbedding, DuplicateDecision, Embedding, Image
 
 _DIM = 512
+_NOTE_DIM = 1024
 
 
 def _unit_vector(index: int) -> list[float]:
     vec = [0.0] * _DIM
+    vec[index] = 1.0
+    return vec
+
+
+def _unit_note_vector(index: int) -> list[float]:
+    vec = [0.0] * _NOTE_DIM
     vec[index] = 1.0
     return vec
 
@@ -31,6 +38,17 @@ async def _insert_image_with_embedding(session, embedding_values: list[float], s
     await session.flush()
     embedding = Embedding(image_id=image.id, embedding=embedding_values)
     session.add(embedding)
+    await session.flush()
+    return image.id
+
+
+async def _insert_image_with_note_embedding(session, embedding_values: list[float], status: str = "active") -> uuid.UUID:
+    image = Image(filename=f"{uuid.uuid4()}.jpg", status=status)
+    session.add(image)
+    await session.flush()
+    session.add(DescriptionNote(image_id=image.id, text="a note"))
+    await session.flush()
+    session.add(DescriptionNoteEmbedding(description_note_id=image.id, embedding=embedding_values))
     await session.flush()
     return image.id
 
@@ -54,3 +72,27 @@ async def test_decided_not_duplicate_pair_still_appears_in_similar_images(db_ses
 
     similar_ids = {row[0] for row in rows}
     assert b in similar_ids  # decision has zero effect on this query
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_similar_by_note_finds_close_embedding(db_session):
+    a = await _insert_image_with_note_embedding(db_session, _unit_note_vector(0))
+    b = await _insert_image_with_note_embedding(db_session, _unit_note_vector(0))  # identical
+
+    repo = ImageRepository(db_session)
+    embedding = await repo.get_description_note_embedding(str(a))
+    rows = await repo.get_similar_by_note(str(a), embedding, limit=10)
+
+    similar_ids = {row[0] for row in rows}
+    assert b in similar_ids
+    assert a not in similar_ids  # excludes itself
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_description_note_embedding_returns_none_when_absent(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    assert await repo.get_description_note_embedding(str(image.id)) is None

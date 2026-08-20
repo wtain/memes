@@ -531,6 +531,14 @@ class TestGetSimilarImages:
         assert response.status_code == 200
         mock_image_service.get_similar.assert_called_once_with("123", limit=10, source="description")
 
+    def test_get_similar_images_with_description_note_source(self, client, mock_image_service):
+        mock_image_service.get_similar.return_value = MemeSearchResponse(items=[], facets=[], hasNext=False)
+
+        response = client.get("/api/images/123/similar?source=description_note")
+
+        assert response.status_code == 200
+        mock_image_service.get_similar.assert_called_once_with("123", limit=10, source="description_note")
+
 
 class TestGetImageDescriptions:
     """Tests for GET /api/images/{image_id}/descriptions endpoint."""
