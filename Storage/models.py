@@ -424,14 +424,14 @@ class DescriptionNote(Base):
 
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
     text = Column(Text, nullable=False)
-    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
     # Staleness markers for the two batch jobs (build_description_note_lemmas /
     # build_description_note_embeddings): a note can be edited repeatedly after
     # creation (unlike ImageDescription, which is never edited), so "row exists"
     # alone isn't enough to know a lemma/embedding is up to date -- each job
     # reindexes when its built_at is NULL or older than updated_at.
-    lemmas_built_at = Column(DateTime(timezone=True), nullable=True)
-    embedding_built_at = Column(DateTime(timezone=True), nullable=True)
+    lemmas_built_at = Column(DateTime, nullable=True)
+    embedding_built_at = Column(DateTime, nullable=True)
 
     image = relationship("Image", back_populates="description_note")
     embedding = relationship(

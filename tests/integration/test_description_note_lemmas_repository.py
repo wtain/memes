@@ -4,7 +4,7 @@ Integration tests for repository/description_note_lemmas.py.
 Requires a live PostgreSQL instance -- see tests/integration/conftest.py.
 """
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -57,7 +57,7 @@ async def test_edited_note_becomes_stale_again_after_being_built(db_session):
         select(DescriptionNote).where(DescriptionNote.image_id == image_id)
     )).scalar_one()
     note.text = "edited text"
-    note.updated_at = datetime.now(timezone.utc) + timedelta(seconds=5)
+    note.updated_at = datetime.now() + timedelta(seconds=5)
     await db_session.flush()
 
     rows = await repo.get_notes_needing_lemmas()
