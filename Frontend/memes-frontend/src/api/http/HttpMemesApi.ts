@@ -172,6 +172,29 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
+  async setDescriptionNote(imageId: string, text: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/images/${imageId}/description-note`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ text }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to set description note: ${response.status}`)
+    }
+  }
+
+  async deleteDescriptionNote(imageId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/images/${imageId}/description-note`, {
+      method: "DELETE",
+      headers: { "Accept": "application/json" },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete description note: ${response.status}`)
+    }
+  }
+
   getImageUrl(meme: Meme): string {
     return this.baseUrl + meme.imageUrl;
   }

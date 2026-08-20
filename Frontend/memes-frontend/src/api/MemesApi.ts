@@ -32,6 +32,10 @@ export interface MemesApi {
 
   setDescriptionFeedback(imageId: string, promptKey: string, action: "approve" | "reject"): Promise<{ feedback?: string }>
 
+  setDescriptionNote(imageId: string, text: string): Promise<void>
+
+  deleteDescriptionNote(imageId: string): Promise<void>
+
   getImageUrl(meme: Meme): string;
 
   getImageUrlById(imageId: string): string;

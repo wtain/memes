@@ -1,4 +1,4 @@
-import { render, screen, act, waitFor } from '@testing-library/react'
+import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { MemeDetails } from './MemeDetails'
@@ -211,6 +211,49 @@ describe('MemeDetails', () => {
 
       expect(screen.getByLabelText('Approve General description')).toHaveClass('bg-green-600')
       expect(screen.getByLabelText('Approve Humor explanation')).not.toHaveClass('bg-green-600')
+    })
+  })
+
+  describe('description note', () => {
+    it('renders the existing note text in a textarea', async () => {
+      renderMemeDetails({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' })
+      await act(async () => {})
+
+      expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('a cat wearing a hat')
+    })
+
+    it('renders an empty textarea when no note is set', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME)
+      await act(async () => {})
+
+      expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('')
+    })
+
+    it('clicking Save calls setDescriptionNote with the current textarea value', async () => {
+      const { api } = renderMemeDetails(DEFAULT_MOCK_MEME)
+      await act(async () => {})
+
+      const textarea = screen.getByRole('textbox', { name: 'Description note' })
+      await act(async () => {
+        fireEvent.change(textarea, { target: { value: 'a dog in sunglasses' } })
+      })
+      await act(async () => {
+        screen.getByRole('button', { name: 'Save note' }).click()
+      })
+
+      expect(api.setDescriptionNote).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id, 'a dog in sunglasses')
+    })
+
+    it('clicking Clear calls deleteDescriptionNote and empties the textarea', async () => {
+      const { api } = renderMemeDetails({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' })
+      await act(async () => {})
+
+      await act(async () => {
+        screen.getByRole('button', { name: 'Clear note' }).click()
+      })
+
+      expect(api.deleteDescriptionNote).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
+      expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('')
     })
   })
 

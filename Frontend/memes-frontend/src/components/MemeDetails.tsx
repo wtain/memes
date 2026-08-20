@@ -28,6 +28,12 @@ export function MemeDetails({ meme, memesApi }: Props) {
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [descriptions, setDescriptions] = useState<ImageDescription[]>([])
   const [isFlagged, setIsFlagged] = useState<boolean | null>(null)
+  const [noteText, setNoteText] = useState(meme.descriptionNote ?? "")
+  // Tracks which meme's note is currently reflected in `noteText`, so we can reset it
+  // when `meme` changes without calling setState synchronously inside a useEffect
+  // (flagged by react-hooks/set-state-in-effect) -- this is React's documented
+  // "adjusting state when a prop changes" render-phase pattern instead.
+  const [syncedNoteKey, setSyncedNoteKey] = useState(`${meme.id}:${meme.descriptionNote ?? ""}`)
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [controlsActive, setControlsActive] = useState(false)
@@ -50,6 +56,12 @@ export function MemeDetails({ meme, memesApi }: Props) {
   useFetchById(meme.id, id => memesApi.getDescriptions(id), setDescriptions)
   useFetchById(meme.id, id => memesApi.getImageIsFlagged(id), setIsFlagged)
 
+  const noteKey = `${meme.id}:${meme.descriptionNote ?? ""}`
+  if (syncedNoteKey !== noteKey) {
+    setSyncedNoteKey(noteKey)
+    setNoteText(meme.descriptionNote ?? "")
+  }
+
   function toggleFlagged() {
     const next = !isFlagged
     const call = next ? memesApi.markImageIsFlagged(meme.id) : memesApi.unmarkImageIsFlagged(meme.id)
@@ -62,6 +74,14 @@ export function MemeDetails({ meme, memesApi }: Props) {
         d.promptKey === promptKey ? { ...d, feedback: resp.feedback } : d
       ))
     })
+  }
+
+  function saveNote() {
+    memesApi.setDescriptionNote(meme.id, noteText)
+  }
+
+  function clearNote() {
+    memesApi.deleteDescriptionNote(meme.id).then(() => setNoteText(""))
   }
 
   function bumpControls() {
@@ -233,6 +253,37 @@ export function MemeDetails({ meme, memesApi }: Props) {
         <div>
           <strong>Tags:</strong>
           <TagList tags={meme.tags!} />
+        </div>
+
+        {/* No permission gating yet -- see docs/security/admin-permissions-todo.md */}
+        <div>
+          <label htmlFor="description-note" className="block mb-1">
+            <strong>Description note:</strong>
+          </label>
+          <textarea
+            id="description-note"
+            aria-label="Description note"
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+            className="w-full border rounded p-2 text-sm"
+            rows={3}
+          />
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={saveNote}
+              aria-label="Save note"
+              className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100"
+            >
+              Save note
+            </button>
+            <button
+              onClick={clearNote}
+              aria-label="Clear note"
+              className="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100"
+            >
+              Clear note
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

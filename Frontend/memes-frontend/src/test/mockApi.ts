@@ -28,6 +28,8 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     unmarkImageIsFlagged: vi.fn().mockResolvedValue(undefined),
     getImageIsFlagged: vi.fn().mockResolvedValue(false),
     setDescriptionFeedback: vi.fn().mockResolvedValue({ feedback: undefined }),
+    setDescriptionNote: vi.fn().mockResolvedValue(undefined),
+    deleteDescriptionNote: vi.fn().mockResolvedValue(undefined),
     getImageUrlById: vi.fn().mockImplementation((id: string) => `http://example.com/api/images/${id}`),
     getIngestionRunStatus: vi.fn().mockResolvedValue(null),
     getIngestionPending: vi.fn().mockResolvedValue([]),
