@@ -202,6 +202,9 @@ build_description_note_lemmas → per-image lemma index for human description no
                               docs/superpowers/specs/2026-08-20-description-notes-design.md);
                               admin-triggerable from /admin/batches, manual-trigger only, not
                               scheduled
+build_description_note_embeddings → SBERT embeddings (bge-large-en-v1.5, 1024-dim) for
+                              non-empty description notes; admin-triggerable from
+                              /admin/batches, manual-trigger only, not scheduled
 build_image_descriptions   → multi-prompt Ollama LLM descriptions (optional), one row per
                               (image, prompt) pair; configurable prompts/models/context size
                               per environment; incremental with its own commit interval;

@@ -16,6 +16,9 @@ build_ocr_lemmas:
 build_description_note_lemmas:
   module: batch.build_description_note_lemmas
   kind: build_description_note_lemmas
+build_description_note_embeddings:
+  module: batch.build_description_note_embeddings
+  kind: build_description_note_embeddings
 build_tags_from_descriptions:
   module: batch.build_tags_from_descriptions
   kind: build_tags_from_descriptions
