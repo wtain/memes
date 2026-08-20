@@ -9,7 +9,6 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import text
 from pgvector.sqlalchemy import Vector
 
 # revision identifiers, used by Alembic.
@@ -75,11 +74,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Drop in reverse order of creation. Use IF EXISTS to handle cases where
-    # conftest or other cleanup has already dropped tables.
-    op.execute(text('DROP INDEX IF EXISTS ix_description_note_lemmas_lemma_trgm'))
-    op.execute(text('DROP INDEX IF EXISTS ix_description_note_lemmas_lemma'))
-    op.execute(text('DROP TABLE IF EXISTS description_note_lemmas'))
-    op.execute(text('DROP INDEX IF EXISTS ix_description_note_embeddings_embedding'))
-    op.execute(text('DROP TABLE IF EXISTS description_note_embeddings'))
-    op.execute(text('DROP TABLE IF EXISTS description_notes'))
+    op.drop_table('description_note_lemmas')
+    op.drop_index('ix_description_note_embeddings_embedding', table_name='description_note_embeddings')
+    op.drop_table('description_note_embeddings')
+    op.drop_table('description_notes')
