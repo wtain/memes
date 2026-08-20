@@ -21,9 +21,9 @@ async def _process() -> None:
         embedder = SbertModel(model_name=EMBEDDING_MODEL)
         tracker = ProgressTracker(total=len(rows), report_every=settings.GENERAL.PROGRESS_EVERY)
 
-        for i, (image_id, text) in enumerate(rows):
+        for i, (image_id, text, updated_at) in enumerate(rows):
             vector = embedder.embed_text(text)
-            await repo.save(image_id, vector.tolist())
+            await repo.save(image_id, vector.tolist(), updated_at)
             tracker.mark_done()
             if (i + 1) % settings.GENERAL.BATCH_SIZE == 0:
                 await session.commit()

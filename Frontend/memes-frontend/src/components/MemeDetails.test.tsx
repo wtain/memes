@@ -216,9 +216,12 @@ describe('MemeDetails', () => {
 
   describe('description note', () => {
     it('renders the existing note text in a textarea', async () => {
-      renderMemeDetails({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' })
+      const { api } = renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getMeme: vi.fn().mockResolvedValue({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' }),
+      })
       await act(async () => {})
 
+      expect(api.getMeme).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
       expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('a cat wearing a hat')
     })
 
@@ -245,7 +248,9 @@ describe('MemeDetails', () => {
     })
 
     it('clicking Clear calls deleteDescriptionNote and empties the textarea', async () => {
-      const { api } = renderMemeDetails({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' })
+      const { api } = renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getMeme: vi.fn().mockResolvedValue({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' }),
+      })
       await act(async () => {})
 
       await act(async () => {
@@ -253,6 +258,28 @@ describe('MemeDetails', () => {
       })
 
       expect(api.deleteDescriptionNote).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
+      expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('')
+    })
+
+    it('shows a blank textarea for an image with a note when opened from a list view, not the stale value from a prior meme', async () => {
+      // Regression test for the exact bug this fix addresses: MemeDetails must never trust
+      // meme.descriptionNote from the prop (which search()/list endpoints never populate) --
+      // it must always fetch the authoritative value via getMeme.
+      const api = makeMockApi({
+        getMeme: vi.fn()
+          .mockResolvedValueOnce({ ...DEFAULT_MOCK_MEME, id: 'meme-A', descriptionNote: 'note for A' })
+          .mockResolvedValueOnce({ ...DEFAULT_MOCK_MEME, id: 'meme-B', descriptionNote: undefined }),
+      })
+      const memeAFromList = { ...DEFAULT_MOCK_MEME, id: 'meme-A' } // as returned by search(): no descriptionNote field
+      const memeBFromList = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+      const { rerender } = render(
+        <MemoryRouter><MemeDetails meme={memeAFromList} memesApi={api} /></MemoryRouter>
+      )
+      await act(async () => {})
+      expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('note for A')
+
+      rerender(<MemoryRouter><MemeDetails meme={memeBFromList} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
       expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('')
     })
   })

@@ -1,7 +1,6 @@
 from sqlalchemy import delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import func
 
 from rules.phonetic import is_cyrillic_word, russian_metaphone
 from Storage.models import DescriptionNote, DescriptionNoteLemma
@@ -13,7 +12,7 @@ class DescriptionNoteLemmasRepository:
 
     async def get_notes_needing_lemmas(self):
         result = await self.session.execute(
-            select(DescriptionNote.image_id, DescriptionNote.text)
+            select(DescriptionNote.image_id, DescriptionNote.text, DescriptionNote.updated_at)
             .where(or_(
                 DescriptionNote.lemmas_built_at.is_(None),
                 DescriptionNote.lemmas_built_at < DescriptionNote.updated_at,
@@ -21,11 +20,20 @@ class DescriptionNoteLemmasRepository:
         )
         return result.all()
 
-    async def mark_lemmas_built(self, image_id) -> None:
+    async def mark_lemmas_built(self, image_id, observed_updated_at) -> None:
+        """observed_updated_at is the note's updated_at value AS READ, captured by the
+        caller from get_notes_needing_lemmas() -- not func.now(). Stamping with the
+        observed value (rather than the commit-time now()) keeps the staleness predicate
+        honest if this job's caller ever moves to chunked/batched commits: if the note is
+        edited again between when this row was read and when this stamp actually commits,
+        the note's real updated_at will be newer than what we stamp here, so it correctly
+        stays flagged stale for the next run instead of silently dropping the concurrent
+        edit. See repository/description_note_embeddings.py's save() for the analogous fix
+        (that one hit the race for real, since it commits in chunks)."""
         await self.session.execute(
             update(DescriptionNote)
             .where(DescriptionNote.image_id == image_id)
-            .values(lemmas_built_at=func.now())
+            .values(lemmas_built_at=observed_updated_at)
         )
 
 

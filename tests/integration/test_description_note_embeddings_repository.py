@@ -24,13 +24,20 @@ async def _insert_note(session, text: str) -> uuid.UUID:
     return image.id
 
 
+async def _updated_at(session, image_id):
+    note = (await session.execute(
+        select(DescriptionNote).where(DescriptionNote.image_id == image_id)
+    )).scalar_one()
+    return note.updated_at
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_new_note_is_returned_as_needing_embedding(db_session):
     image_id = await _insert_note(db_session, "a cat wearing a hat")
 
     rows = await DescriptionNoteEmbeddingsRepository(db_session).get_notes_needing_embedding()
 
-    assert (image_id, "a cat wearing a hat") in rows
+    assert (image_id, "a cat wearing a hat") in {(r[0], r[1]) for r in rows}
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -38,7 +45,7 @@ async def test_save_creates_embedding_and_marks_built(db_session):
     image_id = await _insert_note(db_session, "a dog in sunglasses")
     repo = DescriptionNoteEmbeddingsRepository(db_session)
 
-    await repo.save(image_id, [0.0] * _DIM)
+    await repo.save(image_id, [0.0] * _DIM, await _updated_at(db_session, image_id))
     await db_session.flush()
 
     embedding_row = (await db_session.execute(
@@ -59,11 +66,11 @@ async def test_save_creates_embedding_and_marks_built(db_session):
 async def test_save_twice_overwrites_existing_embedding(db_session):
     image_id = await _insert_note(db_session, "overwrite me")
     repo = DescriptionNoteEmbeddingsRepository(db_session)
-    await repo.save(image_id, [0.0] * _DIM)
+    await repo.save(image_id, [0.0] * _DIM, await _updated_at(db_session, image_id))
     await db_session.flush()
 
     second_vector = [1.0] * _DIM
-    await repo.save(image_id, second_vector)
+    await repo.save(image_id, second_vector, await _updated_at(db_session, image_id))
     await db_session.flush()
 
     rows = (await db_session.execute(select(DescriptionNoteEmbedding))).scalars().all()
@@ -74,7 +81,7 @@ async def test_save_twice_overwrites_existing_embedding(db_session):
 async def test_edited_note_becomes_stale_again_after_being_embedded(db_session):
     image_id = await _insert_note(db_session, "original text")
     repo = DescriptionNoteEmbeddingsRepository(db_session)
-    await repo.save(image_id, [0.0] * _DIM)
+    await repo.save(image_id, [0.0] * _DIM, await _updated_at(db_session, image_id))
     await db_session.flush()
     assert image_id not in {row[0] for row in await repo.get_notes_needing_embedding()}
 

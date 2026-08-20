@@ -22,13 +22,20 @@ async def _insert_note(session, text: str) -> uuid.UUID:
     return image.id
 
 
+async def _updated_at(session, image_id):
+    note = (await session.execute(
+        select(DescriptionNote).where(DescriptionNote.image_id == image_id)
+    )).scalar_one()
+    return note.updated_at
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_new_note_is_returned_as_needing_lemmas(db_session):
     image_id = await _insert_note(db_session, "a cat wearing a hat")
 
     rows = await DescriptionNoteLemmasRepository(db_session).get_notes_needing_lemmas()
 
-    assert (image_id, "a cat wearing a hat") in rows
+    assert (image_id, "a cat wearing a hat") in {(r[0], r[1]) for r in rows}
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -36,7 +43,7 @@ async def test_mark_lemmas_built_excludes_note_from_next_query(db_session):
     image_id = await _insert_note(db_session, "a dog in sunglasses")
     repo = DescriptionNoteLemmasRepository(db_session)
 
-    await repo.mark_lemmas_built(image_id)
+    await repo.mark_lemmas_built(image_id, await _updated_at(db_session, image_id))
     await db_session.flush()
 
     rows = await repo.get_notes_needing_lemmas()
@@ -49,7 +56,7 @@ async def test_edited_note_becomes_stale_again_after_being_built(db_session):
     already indexed must make it eligible for re-indexing again."""
     image_id = await _insert_note(db_session, "original text")
     repo = DescriptionNoteLemmasRepository(db_session)
-    await repo.mark_lemmas_built(image_id)
+    await repo.mark_lemmas_built(image_id, await _updated_at(db_session, image_id))
     await db_session.flush()
     assert image_id not in {row[0] for row in await repo.get_notes_needing_lemmas()}
 

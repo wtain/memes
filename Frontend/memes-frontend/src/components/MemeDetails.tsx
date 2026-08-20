@@ -28,12 +28,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [descriptions, setDescriptions] = useState<ImageDescription[]>([])
   const [isFlagged, setIsFlagged] = useState<boolean | null>(null)
-  const [noteText, setNoteText] = useState(meme.descriptionNote ?? "")
-  // Tracks which meme's note is currently reflected in `noteText`, so we can reset it
-  // when `meme` changes without calling setState synchronously inside a useEffect
-  // (flagged by react-hooks/set-state-in-effect) -- this is React's documented
-  // "adjusting state when a prop changes" render-phase pattern instead.
-  const [syncedNoteKey, setSyncedNoteKey] = useState(`${meme.id}:${meme.descriptionNote ?? ""}`)
+  const [noteText, setNoteText] = useState("")
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [controlsActive, setControlsActive] = useState(false)
@@ -55,12 +50,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
   useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
   useFetchById(meme.id, id => memesApi.getDescriptions(id), setDescriptions)
   useFetchById(meme.id, id => memesApi.getImageIsFlagged(id), setIsFlagged)
-
-  const noteKey = `${meme.id}:${meme.descriptionNote ?? ""}`
-  if (syncedNoteKey !== noteKey) {
-    setSyncedNoteKey(noteKey)
-    setNoteText(meme.descriptionNote ?? "")
-  }
+  useFetchById(meme.id, id => memesApi.getMeme(id), m => setNoteText(m.descriptionNote ?? ""))
 
   function toggleFlagged() {
     const next = !isFlagged

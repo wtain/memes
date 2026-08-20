@@ -1,6 +1,7 @@
 # Human Description Notes on Images — Design
 
-Status: approved
+Status: done
+Plan: docs/superpowers/plans/2026-08-20-description-notes.md
 
 ## Motivation
 
@@ -99,12 +100,14 @@ has (text extracted instantly, lemma index built by a separate batch step).
 - `PUT /api/images/{id}/description-note` — body `{ "text": str }`. Upserts `description_notes`,
   sets `updated_at = now()`. If `text` is empty/whitespace-only, treat as a clear: delete the row
   (see below) rather than storing an empty string.
-- `DELETE /api/images/{id}/description-note` — deletes the note row, and synchronously deletes its
-  `description_note_embeddings` and `description_note_lemmas` rows in the same transaction (FK
-  cascade handles this automatically via `ON DELETE CASCADE`, so this is just "delete the note row
-  and let cascades do the rest," not application-level cleanup code). This must be synchronous, not
-  wait for the next batch run — otherwise a cleared note keeps producing stale search/similarity
-  hits until someone thinks to re-run the batch jobs.
+- `DELETE /api/images/{id}/description-note` — deletes the note row, and synchronously cleans up
+  both `description_note_embeddings` and `description_note_lemmas` rows in the same transaction.
+  `description_note_embeddings`'s FK is to `description_notes.image_id`, so it genuinely cascades
+  via `ON DELETE CASCADE`. `description_note_lemmas`'s FK is to `images.id` (mirroring `OCRLemma`'s
+  shape), so it does *not* cascade when only the note is cleared — the repository deletes those rows
+  explicitly instead. This must be synchronous either way, not wait for the next batch run —
+  otherwise a cleared note keeps producing stale search/similarity hits until someone thinks to
+  re-run the batch jobs.
 - Note text is included in the existing single-image response (the same endpoint that already
   returns OCR text, tags, etc.) rather than requiring a separate `GET`. No auth on read (per your
   answer, everyone can already see it).
@@ -259,3 +262,7 @@ starts empty, notes are added going forward.
   search yet" report isn't mistaken for a bug.
 - Until a permission model exists, the note is fully open read/write to anyone who can reach the
   backend — same accepted-gap status as everything else in `admin-permissions-todo.md`.
+- `source=description_note` (the similar-images embedding-similarity mode) has no frontend entry
+  point today — it's reachable only via the API directly. The main UI only exposes the note-editing
+  textarea, not a third similarity-mode toggle button. This is intentional scope (the spec's Frontend
+  section never required a UI for it), not dead code — a future spec can add the toggle if wanted.

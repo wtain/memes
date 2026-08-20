@@ -17,10 +17,14 @@ function renderMemePage(overrides: Parameters<typeof makeMockApi>[0] = {}) {
 }
 
 describe('MemePage', () => {
-  it('calls getMeme once per mount (production behaviour)', async () => {
+  it('calls getMeme once per mount, plus once more from MemeDetails\' own note fetch', async () => {
+    // MemePage fetches the meme itself; MemeDetails independently fetches getMeme again
+    // to obtain the authoritative descriptionNote (it never trusts the meme prop for that
+    // field -- see MemeDetails.tsx). Two calls to the same id is the expected, accepted
+    // cost of that design, not a regression.
     const { api } = renderMemePage()
     await act(async () => {})
-    expect(api.getMeme).toHaveBeenCalledTimes(1)
+    expect(api.getMeme).toHaveBeenCalledTimes(2)
     expect(api.getMeme).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
   })
 

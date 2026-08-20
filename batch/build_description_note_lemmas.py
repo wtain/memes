@@ -18,7 +18,7 @@ async def run(session, morph, min_word_length: int) -> None:
     tracker = ProgressTracker(len(rows), report_every=100, report_interval_secs=10)
 
     async with DescriptionNoteLemmasSaver(session) as saver:
-        for image_id, text in rows:
+        for image_id, text, updated_at in rows:
             # language=None: no per-note language tag exists, so this
             # matches matching_image_ids' own query-time convention
             # (script-based pymorphy3 fallback). Means the note-lemma
@@ -28,7 +28,7 @@ async def run(session, morph, min_word_length: int) -> None:
                 text, morph, min_length=min_word_length, language=None, keep_digit_tokens=True
             )
             await saver.replace_lemmas(image_id, lemma_set)
-            await lemmas_repo.mark_lemmas_built(image_id)
+            await lemmas_repo.mark_lemmas_built(image_id, updated_at)
             tracker.mark_done()
 
     tracker.summary()
