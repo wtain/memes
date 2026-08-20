@@ -230,7 +230,7 @@ describe('MemesDuplicatesList', () => {
 })
 
 describe('MemesDuplicatesList dismiss/undo', () => {
-  it('dismisses a cluster and shows an undo toast', async () => {
+  it('dismisses a cluster in place, showing member thumbnails and an inline undo button', async () => {
     const api = makeMockApi({
       iterateDuplicates: vi.fn().mockResolvedValue({
         items: [clusterMeme('a', 1), clusterMeme('b', 1)],
@@ -249,10 +249,14 @@ describe('MemesDuplicatesList dismiss/undo', () => {
       expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1)
     })
     expect(await screen.findByText('Marked as not duplicates')).toBeInTheDocument()
-    expect(screen.getByText(/Marked 2 images as not duplicates/)).toBeInTheDocument()
+    // Member thumbnails stay visible on the dismissed row so distinct clusters remain
+    // visually distinguishable, rather than collapsing to identical placeholder text.
+    expect(screen.getByAltText('a')).toBeInTheDocument()
+    expect(screen.getByAltText('b')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
   })
 
-  it('undoes a dismissal and restores the row', async () => {
+  it('undoes a dismissal in place and restores the row', async () => {
     const api = makeMockApi({
       iterateDuplicates: vi.fn().mockResolvedValue({
         items: [clusterMeme('a', 1), clusterMeme('b', 1)],
@@ -274,5 +278,49 @@ describe('MemesDuplicatesList dismiss/undo', () => {
       expect(api.undoDismissDuplicates).toHaveBeenCalledWith([{ image_id1: 'a', image_id2: 'b' }])
     })
     expect(await screen.findByRole('button', { name: 'Not duplicates' })).toBeInTheDocument()
+  })
+
+  it('keeps each dismissed cluster independently undoable, not just the most recent', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [
+          clusterMeme('a', 1), clusterMeme('b', 1),
+          clusterMeme('c', 2), clusterMeme('d', 2),
+        ],
+        facets: [], hasNext: false,
+      }),
+      dismissDuplicateCluster: vi.fn().mockImplementation((clusterId: number) =>
+        Promise.resolve({
+          pairs: clusterId === 1
+            ? [{ image_id1: 'a', image_id2: 'b' }]
+            : [{ image_id1: 'c', image_id2: 'd' }],
+        })
+      ),
+      undoDismissDuplicates: vi.fn().mockResolvedValue(undefined),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    const dismissButtons = await screen.findAllByRole('button', { name: 'Not duplicates' })
+    expect(dismissButtons).toHaveLength(2)
+
+    fireEvent.click(dismissButtons[0])
+    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1))
+    fireEvent.click(await screen.findByRole('button', { name: 'Not duplicates' })) // cluster 2's, now the only one left
+    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(2))
+
+    // Both rows dismissed, each with its own working Undo -- not just the last one.
+    expect(screen.getAllByText('Marked as not duplicates')).toHaveLength(2)
+    const undoButtons = screen.getAllByRole('button', { name: 'Undo' })
+    expect(undoButtons).toHaveLength(2)
+
+    fireEvent.click(undoButtons[0]) // undo cluster 1 specifically
+    await waitFor(() => {
+      expect(api.undoDismissDuplicates).toHaveBeenCalledWith([{ image_id1: 'a', image_id2: 'b' }])
+    })
+
+    // Cluster 1's row is back to normal; cluster 2's stays dismissed with its own Undo intact.
+    expect(await screen.findByRole('button', { name: 'Not duplicates' })).toBeInTheDocument()
+    expect(screen.getAllByText('Marked as not duplicates')).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Undo' })).toHaveLength(1)
   })
 })
