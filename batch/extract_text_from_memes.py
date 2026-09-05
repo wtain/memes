@@ -38,11 +38,9 @@ async def io_producer(path, io_queue, pipeline, metrics_listener, tracker: Progr
             fullFilePath = os.path.join(path, file)
             if os.path.isdir(fullFilePath):
                 metrics_listener.increment("skipped.directory")
-                tracker.skip()
                 continue
             if file.lower().endswith(".mp4"):
                 metrics_listener.increment("skipped.file")
-                tracker.skip()
                 continue
 
             image = await image_repo.find_image_by_filename(file)
@@ -55,18 +53,15 @@ async def io_producer(path, io_queue, pipeline, metrics_listener, tracker: Progr
                 # docs/superpowers/specs/2026-07-25-image-visibility-status-design.md.
                 if target_status not in ("active", "all"):
                     metrics_listener.increment("skipped.not_registered")
-                    tracker.skip()
                     continue
                 image = await image_repo.register_image(file)
                 metrics_listener.increment("new.registered")
             elif target_status != "all" and image.status != target_status:
                 metrics_listener.increment("skipped.status_mismatch")
-                tracker.skip()
                 continue
 
             if not await status_repo.should_process(image.id):
                 metrics_listener.increment("skipped.existing")
-                tracker.skip()
                 continue
 
             await status_repo.mark_started(image)
@@ -208,7 +203,15 @@ async def gpu_consumer(
 
 
 async def run(path: str, batch_size: int = 100, progress_every: int = 10, target_status: str = "active") -> None:
-    total = len([f for f in os.listdir(path) if not os.path.isdir(os.path.join(path, f))])
+    # Seed the tracker with the number of images that actually need OCR for this run's
+    # --status scope, not a raw file count of BASE_PATH (which spans every status and
+    # every already-processed image -- see the progress denominator being ~4x the real
+    # work in --status pending runs).
+    async with AsyncSessionLocal() as session:
+        status_repo = ImageProcessingStatusRepository(session, PIPELINE)
+        total = await status_repo.count_unprocessed(
+            None if target_status == "all" else target_status
+        )
     tracker = ProgressTracker(total=total, report_every=progress_every)
 
     io_queue = asyncio.Queue(maxsize=200)

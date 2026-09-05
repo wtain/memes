@@ -13,8 +13,8 @@ from repository.images import OCR_LEMMAS_PIPELINE
 from Storage.models import Image, ImageProcessingStatus
 
 
-async def _insert_image(session) -> Image:
-    image = Image(filename=f"{uuid.uuid4()}.jpg")
+async def _insert_image(session, status: str = "active") -> Image:
+    image = Image(filename=f"{uuid.uuid4()}.jpg", status=status)
     session.add(image)
     await session.flush()
     return image
@@ -118,6 +118,28 @@ async def test_get_image_ids_with_status_filters_by_pipeline_and_status(db_sessi
 
     failed_for_other_status = await repo_a.get_image_ids_with_status("done")
     assert failed_for_other_status == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_count_unprocessed_excludes_done_and_filters_by_registration_status(db_session):
+    pipeline = "easyocr:en"
+    repo = ImageProcessingStatusRepository(db_session, pipeline)
+
+    pending_todo = await _insert_image(db_session, status="pending")
+    pending_done = await _insert_image(db_session, status="pending")
+    active_todo = await _insert_image(db_session, status="active")
+
+    # A done row for this pipeline takes pending_done out of the count...
+    await repo.mark_done_by_id(pending_done.id)
+    # ...but a non-done row (interrupted run) still counts as work to do.
+    db_session.add(ImageProcessingStatus(image_id=pending_todo.id, pipeline=pipeline, status="processing"))
+    # A done row for a *different* pipeline must not exempt active_todo.
+    db_session.add(ImageProcessingStatus(image_id=active_todo.id, pipeline="other", status="done"))
+    await db_session.flush()
+
+    assert await repo.count_unprocessed("pending") == 1
+    assert await repo.count_unprocessed("active") == 1
+    assert await repo.count_unprocessed(None) == 2
 
 
 @pytest.mark.asyncio(loop_scope="session")

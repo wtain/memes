@@ -3,8 +3,9 @@ from datetime import datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.sql.functions import count
 
-from Storage.models import ImageProcessingStatus
+from Storage.models import Image, ImageProcessingStatus
 
 
 class ImageProcessingStatusRepository:
@@ -56,6 +57,30 @@ class ImageProcessingStatusRepository:
         status.error_message = str(error)
         status.finished_at = datetime.utcnow()
         await self.session.commit()
+
+    async def count_unprocessed(self, image_status: str | None = None) -> int:
+        """Number of images still to be processed for this pipeline: rows without a
+        ``done`` status entry. ``image_status`` restricts the count to one registration
+        status (``pending``/``active``/…); ``None`` counts every registration status.
+
+        Used to seed progress trackers -- an approximation, since it can't see files on
+        disk not yet registered (auto-registered mid-run in ``active`` mode) or in-run
+        decode failures.
+        """
+        query = (
+            select(count(Image.id))
+            .select_from(Image)
+            .outerjoin(
+                ImageProcessingStatus,
+                (ImageProcessingStatus.image_id == Image.id)
+                & (ImageProcessingStatus.pipeline == self.pipeline)
+                & (ImageProcessingStatus.status == "done"),
+            )
+            .where(ImageProcessingStatus.image_id.is_(None))
+        )
+        if image_status is not None:
+            query = query.where(Image.status == image_status)
+        return (await self.session.execute(query)).scalar_one()
 
     async def should_process(self, image_id: str) -> bool:
         existing = await self.get_image_status(image_id)
