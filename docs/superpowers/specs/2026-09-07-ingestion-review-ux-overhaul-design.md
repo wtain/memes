@@ -143,10 +143,15 @@ select(OCRText.image_id, OCRText.text, OCRText.confidence).where(OCRText.image_i
 
 Change it to:
 
-- **Also select `OCRText.lang_score` and `OCRText.language`.**
-- **`ORDER BY lang_score DESC NULLS LAST, confidence DESC`** in the query, so the most
-  language-plausible block leads the concatenated text regardless of which OCR run inserted
-  it. (RU rows average `lang_score` 0.87; the EN/ES transliteration rows average 0.36.)
+- **Also select `OCRText.lang_score`.** (Implementation note: `OCRText.language` turned out
+  not to be needed — nothing consumes the language label — so it is not selected.)
+- **Order the surviving blocks most-language-plausible first**, so the RU text leads the
+  concatenated string regardless of which OCR run inserted it (RU rows average `lang_score`
+  0.87; the EN/ES transliteration rows average 0.36). Implementation note: ordering is done
+  **in Python** on the fetched rows, not via SQL `ORDER BY` — one source of truth, unit-
+  testable with a mocked session, and it sidesteps a SQLAlchemy-version `nullslast` question.
+  Sort key: non-null `lang_score` before null then `lang_score` desc; then non-null
+  `confidence` before null then `confidence` desc.
 - **Gate on `lang_score`** in addition to confidence. `get_ocr_texts` gains two parameters —
   `confidence_min: float` and `lang_score_min: float` — and drops a row when
   `confidence is not None and confidence < confidence_min` **or**
@@ -266,13 +271,21 @@ per-cluster "Submit decisions" button stays on each card.
    submit). Clear their entries from `decisions`. Stash the removed clusters keyed by a temp
    id.
 3. Fire the `resolveIngestionCluster` call.
-4. On success: if the response has `failed` / `move_failed` entries, **re-insert** the
-   affected clusters at their original position and surface the existing
-   `formatResolveSummary` message. Otherwise drop the stash. Do **not** call the full
-   `load()` on the happy path — the list already reflects reality; a background
-   silent refetch of page 1 is acceptable only if we later find drift, but the default is no
-   refetch, no scroll jump.
-5. On throw: re-insert everything, show the error.
+4. On success: re-insert only the clusters that contain a **`failed`** member, at their
+   original position, and surface the existing `formatResolveSummary` message.
+   Implementation note: `move_failed` entries are **not** rolled back — a `move_failed` image
+   is durably rejected in the DB (only its file move failed), so re-inserting it would show a
+   resolved image as pending. `move_failed ⊆ rejected` is backend-guaranteed. The message
+   still tells the reviewer about the move failure. Also prune decisions at response time:
+   drop every submitted `image_id` that is **not** in `response.failed` (covers
+   `rejected ∪ kept` and any id the backend silently skipped), and flip the local `status` of
+   each `rejected ∪ kept` member still shown in a surviving (partially-resolved) cluster to
+   `active` so its Keep/Reject controls disappear without a refetch. Do **not** call `load()`
+   on the happy path **except** when the visible `clusters` list is now empty — then `load()`
+   (page 1 + run status) both surfaces the next unreviewed page and picks up a Tier A→B stage
+   transition.
+5. On throw: re-insert everything, show the error. Decisions were never cleared on the way
+   out, so nothing to restore there.
 
 This also sidesteps the "clusters linger until refresh" bug regardless of its root cause
 (likely: `load()`'s promise chain replacing `clusters` wholesale interacts badly with an
@@ -314,9 +327,11 @@ click Keep/Reject
 click "Submit all"  (2-step confirm)
   → remove fully-resolved clusters from `clusters` NOW
   → resolveIngestionCluster(tier, decisions)
-        ok, no failures   → drop stash
-        ok, with failures → re-insert failed clusters + summary msg
-        throw             → re-insert all + error msg
+        ok               → prune decisions (submitted ids not in `failed`);
+                           flip resolved members in surviving clusters to `active`;
+                           if `failed` present: re-insert those clusters + summary msg;
+                           if `clusters` now empty: load()  (next page + stage check)
+        throw            → re-insert all + error msg
 ```
 
 ## Testing
@@ -329,7 +344,8 @@ click "Submit all"  (2-step confirm)
 - **Frontend:** `IngestionReviewPage.test.tsx` rewritten for: paginated load + `endReached`
   append; hybrid layout (whole image, full OCR present, no `line-clamp`); docked pane on
   hover reuses the tile URL; sticky bar present; optimistic removal on submit + re-insert on
-  `failed`/`move_failed`/throw; button press/disabled states.
+  `failed`/throw; resolved members in a partially-resolved cluster lose their controls without
+  a refetch; reload when the visible queue empties; button press/disabled states.
 - `tsc -b`, `eslint src/` (0 warnings), `vitest run`.
 - Regenerate types: `bash Frontend/generate-types.sh` then
   `git diff --exit-code Frontend/memes-frontend/src/types/generated/`.
