@@ -181,6 +181,7 @@ class TestListClustersPagination:
         assert [e["distance"] for c in page1["items"] for e in c["edges"]] == [0.05, 0.20]
         assert page1["has_next"] is True
         assert page1["next_cursor"] is not None
+        assert "_sort_key" not in page1["items"][0]
 
         page2 = await service.list_clusters("tier_b", cursor=page1["next_cursor"], limit=2)
         assert [e["distance"] for c in page2["items"] for e in c["edges"]] == [0.30]
@@ -193,6 +194,44 @@ class TestListClustersPagination:
         for bad in ("", "   ", "not-a-cursor", "abc|def", "0.1|"):
             page = await service.list_clusters("tier_b", cursor=bad, limit=10)
             assert len(page["items"]) == 1
+
+    async def test_cursor_preserves_distances_beyond_six_decimals(self, service, mock_repo):
+        # Two clusters whose min_distance differ only ~9th decimal. A fixed-precision cursor
+        # would collapse them and the strict ">" filter would drop the second one forever.
+        a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
+        b1, b2 = "00000000-0000-0000-0000-0000000000b1", "00000000-0000-0000-0000-0000000000b2"
+        rows = [
+            self._row(a1, a2, 0.12345678),
+            self._row(b1, b2, 0.12345679),
+        ]
+        await self._setup(service, mock_repo, rows)
+
+        page1 = await service.list_clusters("tier_b", limit=1)
+        assert [e["distance"] for c in page1["items"] for e in c["edges"]] == [0.12345678]
+        assert page1["has_next"] is True
+
+        page2 = await service.list_clusters("tier_b", cursor=page1["next_cursor"], limit=1)
+        assert [e["distance"] for c in page2["items"] for e in c["edges"]] == [0.12345679]
+        assert page2["has_next"] is False
+        assert page2["next_cursor"] is None
+
+    async def test_exactly_limit_remaining_has_no_next(self, service, mock_repo):
+        a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
+        b1, b2 = "00000000-0000-0000-0000-0000000000b1", "00000000-0000-0000-0000-0000000000b2"
+        c1, c2 = "00000000-0000-0000-0000-0000000000c1", "00000000-0000-0000-0000-0000000000c2"
+        rows = [
+            self._row(a1, a2, 0.05),
+            self._row(b1, b2, 0.20),
+            self._row(c1, c2, 0.30),
+        ]
+        await self._setup(service, mock_repo, rows)
+
+        # First page consumes one cluster; exactly `limit` (2) remain after the cursor filter.
+        page1 = await service.list_clusters("tier_b", limit=1)
+        page2 = await service.list_clusters("tier_b", cursor=page1["next_cursor"], limit=2)
+        assert [e["distance"] for c in page2["items"] for e in c["edges"]] == [0.20, 0.30]
+        assert page2["has_next"] is False
+        assert page2["next_cursor"] is None
 
     async def test_empty_queue(self, service, mock_repo):
         await self._setup(service, mock_repo, [])

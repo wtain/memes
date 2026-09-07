@@ -27,10 +27,14 @@ CURSOR_SEP = "|"
 
 
 def _encode_cursor(min_distance: float, min_image_id: str) -> str:
-    return f"{min_distance:.6f}{CURSOR_SEP}{min_image_id}"
+    # repr() of a float round-trips exactly through float(); a fixed-precision format (e.g.
+    # ":.6f") could collapse two distances that differ beyond the 6th decimal onto the same
+    # cursor value, and the strict ">" page filter would then drop the later cluster from
+    # every subsequent page -- an unreviewable candidate pair.
+    return f"{min_distance!r}{CURSOR_SEP}{min_image_id}"
 
 
-def _decode_cursor(cursor):
+def _decode_cursor(cursor: str | None) -> tuple[float, str] | None:
     """(min_distance, min_image_id) or None for anything unparseable -- a stale bookmark just
     restarts the queue, never an error."""
     if not cursor or CURSOR_SEP not in cursor:
