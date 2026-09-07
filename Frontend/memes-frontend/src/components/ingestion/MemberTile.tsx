@@ -20,22 +20,30 @@ export function MemberTile({
 }: Props) {
   const isPending = member.status === "pending"
   return (
-    <div
-      className={`shrink-0 w-[22rem] max-w-[80vw] border rounded-lg p-2 ${decision === "reject" ? "opacity-40" : ""}`}
-      tabIndex={0}
-      onMouseEnter={onHoverPreview}
-      onMouseLeave={onLeavePreview}
-      onFocus={onHoverPreview}
-      onBlur={onLeavePreview}
-      onKeyDown={(e) => { if (e.key === "Enter") onPeek() }}
-    >
+    <div className={`shrink-0 w-[22rem] max-w-[80vw] border rounded-lg p-2 ${decision === "reject" ? "opacity-40" : ""}`}>
+      {/*
+        Preview open/close and the Enter-to-peek shortcut live on the image itself, not the tile
+        container. On the container they misfired: pointer/focus events bubble up from the inner
+        Keep/Reject buttons (React synthesizes onMouseEnter/onFocus for every ancestor with the
+        handler), so hovering or clicking a button, or tabbing between the two, flapped the docked
+        preview open/closed and Enter on a button fired both onDecide and onPeek. Scoped to the
+        <img>, each interaction only happens when the image is the thing being pointed at/focused.
+      */}
       <img
         src={memesApi.getImageUrlById(member.image_id)}
         alt={member.filename}
         loading="lazy"
         decoding="async"
+        tabIndex={0}
+        role="button"
+        aria-label={`Open ${member.filename} full size`}
         className="w-full max-h-[55vh] object-contain rounded bg-gray-50 cursor-zoom-in"
         onClick={onPeek}
+        onKeyDown={(e) => { if (e.key === "Enter") onPeek() }}
+        onMouseEnter={onHoverPreview}
+        onMouseLeave={onLeavePreview}
+        onFocus={onHoverPreview}
+        onBlur={onLeavePreview}
       />
       <div className="text-xs mt-1 truncate" title={member.filename}>{member.filename}</div>
       <div className="text-xs">

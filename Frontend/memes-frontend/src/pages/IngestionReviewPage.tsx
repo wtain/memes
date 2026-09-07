@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Virtuoso } from "react-virtuoso"
 import type { MemesApi, IngestionTier } from "../api/MemesApi"
-import type { IngestionCluster, IngestionResolveResponse, IngestionRunStatus } from "../types/generated/all"
+import type {
+  IngestionCluster, IngestionClusterMember, IngestionResolveResponse, IngestionRunStatus,
+} from "../types/generated/all"
 import { Modal } from "../components/Modal"
+import { ClusterRow } from "../components/ingestion/ClusterRow"
+import { DockedPreview } from "../components/ingestion/DockedPreview"
+import type { Decision } from "../components/ingestion/types"
 
 type Props = { memesApi: MemesApi }
-
-type Decision = "reject" | "keep"
 
 // Which tier's queue to show, driven by the run's current stage. "promoted" falls back to
 // tier_b's (empty, by then) queue rather than a dedicated "done" view -- once a run
@@ -59,278 +63,238 @@ function StatusBanner({ status }: { status: IngestionRunStatus | null }) {
   )
 }
 
-function MemberTile({
-  memesApi, memberId, filename, memberStatus, ocrText, edgeLabels, decision, onDecide, onOpenImage,
-}: {
-  memesApi: MemesApi
-  memberId: string
-  filename: string
-  memberStatus: string
-  ocrText: string | null
-  edgeLabels: string[]
-  decision: Decision | undefined
-  onDecide: (decision: Decision) => void
-  onOpenImage: () => void
-}) {
-  const isPending = memberStatus === "pending"
-  return (
-    <div className={`border rounded-lg p-2 w-48 ${decision === "reject" ? "opacity-40" : ""}`}>
-      <img
-        src={memesApi.getImageUrlById(memberId)}
-        alt={filename}
-        className="w-full h-32 object-cover rounded cursor-pointer"
-        onClick={onOpenImage}
-      />
-      <div className="text-xs mt-1 truncate" title={filename}>{filename}</div>
-      <div className="text-xs">
-        <span className={isPending ? "text-blue-600" : "text-gray-400"}>{memberStatus}</span>
-      </div>
-      {ocrText && (
-        <div className="text-[11px] text-gray-700 mt-1 line-clamp-3" title={ocrText}>
-          "{ocrText}"
-        </div>
-      )}
-      {edgeLabels.map((label) => (
-        <div key={label} className="text-[11px] text-gray-500">{label}</div>
-      ))}
-      {isPending && (
-        <div className="flex gap-1 mt-2">
-          <button
-            className={`flex-1 text-xs rounded px-1 py-1 ${decision === "keep" ? "bg-green-600 text-white" : "bg-gray-100"}`}
-            onClick={() => onDecide("keep")}
-          >
-            Keep
-          </button>
-          <button
-            className={`flex-1 text-xs rounded px-1 py-1 ${decision === "reject" ? "bg-red-600 text-white" : "bg-gray-100"}`}
-            onClick={() => onDecide("reject")}
-          >
-            Reject
-          </button>
-        </div>
-      )}
-    </div>
-  )
+function Shell({ children }: { children: React.ReactNode }) {
+  return <div><h1 className="text-2xl font-bold mb-4">Ingestion Review</h1>{children}</div>
 }
+
+const EMPTY_PAGE = { items: [] as IngestionCluster[], next_cursor: null as string | null, has_next: false }
 
 export default function IngestionReviewPage({ memesApi }: Props) {
   const [status, setStatus] = useState<IngestionRunStatus | null>(null)
   const [clusters, setClusters] = useState<IngestionCluster[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [decisions, setDecisions] = useState<Record<string, Decision | undefined>>({})
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState<number | "all" | null>(null)
-  const [enlargedMember, setEnlargedMember] = useState<{ memberId: string; filename: string } | null>(null)
+  const [preview, setPreview] = useState<IngestionClusterMember | null>(null)
+  const [peek, setPeek] = useState<IngestionClusterMember | null>(null)
   const [confirmingAll, setConfirmingAll] = useState(false)
   const confirmAllTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const preloadedRef = useRef<Set<string>>(new Set())
+
   const tier = status ? tierForStage(status.stage) : null
 
   const load = useCallback(() => {
+    setLoading(true)
     return memesApi.getIngestionRunStatus()
       .then((s) => {
         setStatus(s)
         setError(null)
-        const tier = s ? tierForStage(s.stage) : null
-        return tier ? memesApi.getIngestionClusters(tier) : []
+        const t = s ? tierForStage(s.stage) : null
+        return t ? memesApi.getIngestionClusters(t, undefined) : EMPTY_PAGE
       })
-      .then(setClusters)
+      .then((pageResult) => {
+        setClusters(pageResult.items)
+        setNextCursor(pageResult.next_cursor)
+        setHasNext(pageResult.has_next)
+        // A server reload is authoritative: drop any local decision whose target is no longer a
+        // pending member of the fresh queue (covers a decision resolve() silently skipped -- one
+        // that came back in none of rejected/kept/failed/move_failed).
+        const pendingIds = new Set(
+          pageResult.items.flatMap((c) => c.members.filter((m) => m.status === "pending").map((m) => m.image_id))
+        )
+        setDecisions((prev) => {
+          const next: Record<string, Decision | undefined> = {}
+          for (const [id, d] of Object.entries(prev)) if (pendingIds.has(id)) next[id] = d
+          return next
+        })
+      })
       .catch((e: unknown) => {
-        setStatus(null)
-        setClusters([])
+        setStatus(null); setClusters([]); setNextCursor(null); setHasNext(false)
         setError(e instanceof Error ? e.message : "Failed to load ingestion review")
       })
       .finally(() => setLoading(false))
   }, [memesApi])
 
   const loadedRef = useRef(false)
-  useEffect(() => {
-    if (loadedRef.current) return
-    loadedRef.current = true
-    load()
-  }, [load])
+  useEffect(() => { if (loadedRef.current) return; loadedRef.current = true; void load() }, [load])
 
-  useEffect(() => {
-    return () => {
-      if (confirmAllTimeoutRef.current) clearTimeout(confirmAllTimeoutRef.current)
-    }
+  useEffect(() => () => {
+    if (confirmAllTimeoutRef.current) clearTimeout(confirmAllTimeoutRef.current)
+    if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
   }, [])
 
+  // A tier change means the review queue was rebuilt server-side -- start local decisions fresh
+  // (see docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md). Guarded
+  // on `tier` being truthy so a transient load failure (which nulls status/tier) doesn't wipe
+  // un-submitted decisions on a Retry. `await Promise.resolve()` defers the setState past the
+  // synchronous effect body, per react-hooks/set-state-in-effect (same pattern as AdminBatchesPage).
   useEffect(() => {
-    // A tier change means the review queue was rebuilt server-side -- start local decisions
-    // fresh (see docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md).
-    // Guarded on `tier` being truthy so a transient load failure (which sets tier to null via
-    // status becoming null) doesn't wipe un-submitted decisions on a Retry.
-    // `await Promise.resolve()` before the setState defers it past the synchronous effect body,
-    // per the react-hooks/set-state-in-effect rule (same pattern used in AdminBatchesPage.tsx).
     if (!tier) return
-    void (async () => {
-      await Promise.resolve()
-      setDecisions({})
-    })()
+    void (async () => { await Promise.resolve(); setDecisions({}) })()
   }, [tier])
 
-  useEffect(() => {
-    // Prunes any decision whose target member is no longer present-and-pending in the latest
-    // cluster snapshot. Closes the gap where resolve() silently skips a decision (appears in
-    // none of rejected/kept/failed/move_failed -- e.g. reject_image's own pending guard, see
-    // docs/superpowers/specs/2026-08-16-ingestion-decision-staleness-guard-design.md) --
-    // without this, that decision would sit in local state forever, and could resurface as
-    // already-decided if its target later becomes pending again. Deliberately independent of
-    // the [tier]-keyed effect above: that effect always clears everything on a tier change
-    // (even if a stale image_id happens to still be pending in the new tier -- Task 2's own
-    // test relies on that unconditional clear), while this effect only prunes ids that have
-    // genuinely dropped out of the pending set, on every cluster reload regardless of tier.
-    void (async () => {
-      await Promise.resolve()
-      const pendingIds = new Set(
-        clusters.flatMap((c) => c.members.filter((m) => m.status === "pending").map((m) => m.image_id))
-      )
-      setDecisions((prev) => {
-        const next: Record<string, Decision | undefined> = {}
-        for (const [id, decision] of Object.entries(prev)) {
-          if (pendingIds.has(id)) next[id] = decision
-        }
-        return next
-      })
-    })()
-  }, [clusters])
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasNext || !nextCursor || !tier) return
+    setLoadingMore(true)
+    try {
+      const pageResult = await memesApi.getIngestionClusters(tier, nextCursor)
+      setClusters((prev) => [...prev, ...pageResult.items])
+      setNextCursor(pageResult.next_cursor)
+      setHasNext(pageResult.has_next)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load more clusters")
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [memesApi, tier, nextCursor, hasNext, loadingMore])
 
   function setDecision(memberId: string, decision: Decision) {
     setDecisions((prev) => ({ ...prev, [memberId]: prev[memberId] === decision ? undefined : decision }))
   }
 
-  async function submitCluster(clusterIndex: number, cluster: IngestionCluster) {
-    const pendingMemberIds = new Set(
-      cluster.members.filter((m) => m.status === "pending").map((m) => m.image_id)
-    )
-    const clusterDecisions: { image_id: string; decision: Decision }[] = []
-    for (const [image_id, decision] of Object.entries(decisions)) {
-      if (pendingMemberIds.has(image_id) && decision !== undefined) {
-        clusterDecisions.push({ image_id, decision })
-      }
+  function openPreview(member: IngestionClusterMember) {
+    if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
+    setPreview(member)
+    const url = memesApi.getImageUrlById(member.image_id)
+    if (!preloadedRef.current.has(url)) {
+      preloadedRef.current.add(url)
+      const img = new Image()
+      img.src = url
     }
+  }
+  function closePreviewSoon() {
+    if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
+    previewCloseRef.current = setTimeout(() => setPreview(null), 120)
+  }
 
-    if (clusterDecisions.length === 0 || !tier) return
+  // ---- submit paths (optimistic) ----
 
-    setSubmitting(clusterIndex)
+  function decidedPendingIn(cluster: IngestionCluster): { image_id: string; decision: Decision }[] {
+    const out: { image_id: string; decision: Decision }[] = []
+    for (const m of cluster.members) {
+      if (m.status !== "pending") continue
+      const d = decisions[m.image_id]
+      if (d !== undefined) out.push({ image_id: m.image_id, decision: d })
+    }
+    return out
+  }
+  function isFullyResolved(cluster: IngestionCluster): boolean {
+    const pending = cluster.members.filter((m) => m.status === "pending")
+    return pending.length > 0 && pending.every((m) => decisions[m.image_id] !== undefined)
+  }
+
+  async function runSubmit(which: number | "all", toSubmit: { cluster: IngestionCluster; index: number }[]) {
+    if (!tier) return
+    const payload = toSubmit.flatMap(({ cluster }) => decidedPendingIn(cluster))
+    if (payload.length === 0) return
+    // Clusters we optimistically pull out of the list now, with their original position for rollback.
+    const removed = toSubmit.filter(({ cluster }) => isFullyResolved(cluster))
+    const removedSet = new Set(removed.map(({ cluster }) => cluster))
+    setSubmitting(which)
+    // The docked preview is a transient hover aid -- drop it on submit so it can't linger
+    // pointing at a member of a cluster we're about to pull out of the list.
+    setPreview(null)
+    if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
+    setClusters((prev) => prev.filter((c) => !removedSet.has(c)))
     try {
-      const response = await memesApi.resolveIngestionCluster(tier, clusterDecisions)
-      setDecisions((prev) => {
-        const next = { ...prev }
-        for (const image_id of [...response.rejected, ...response.kept]) delete next[image_id]
-        return next
-      })
-      // Reload before surfacing the summary -- load()'s own success path unconditionally
-      // clears `error` (it's how a genuine load failure's message gets dismissed on the next
-      // successful load), so setting the summary first and then firing load() unawaited would
-      // have the reload's setError(null) immediately overwrite it, making the summary flash
-      // and vanish before a user (or test) could ever see it.
-      await load()
-      const summary = formatResolveSummary(response)
-      if (summary) setError(summary)
+      const response: IngestionResolveResponse = await memesApi.resolveIngestionCluster(tier, payload)
+      // Clear only decisions the server actually applied. Ones it reports as `failed` stay
+      // selected so the reviewer can retry them; ones it silently skipped are cleared on the
+      // next authoritative reload (see load()).
+      const applied = new Set([...response.rejected, ...response.kept])
+      if (applied.size > 0) {
+        setDecisions((prev) => {
+          const next = { ...prev }
+          for (const id of applied) delete next[id]
+          return next
+        })
+      }
+      const failedIds = new Set(response.failed.map((f) => f.image_id))
+      const reinsert = failedIds.size > 0
+        ? removed
+            .filter(({ cluster }) => cluster.members.some((m) => failedIds.has(m.image_id)))
+            .slice()
+            .sort((a, b) => a.index - b.index)
+        : []
+      if (reinsert.length > 0) {
+        setClusters((prev) => {
+          const copy = [...prev]
+          for (const { cluster, index } of reinsert) copy.splice(Math.min(index, copy.length), 0, cluster)
+          return copy
+        })
+      }
+      // Ruling 3: only reload when the visible queue has emptied and there are no more pages --
+      // this restores the old auto-advance from Tier A -> Tier B once the reviewer clears the
+      // queue. Every other submit stays purely optimistic (no reload, no scroll jump).
+      const remainingCount = clusters.filter((c) => !removedSet.has(c)).length + reinsert.length
+      if (remainingCount === 0 && !hasNext) {
+        await load()
+      }
+      // Set the summary after any reload -- load()'s success path clears `error`, so setting it
+      // first would have the reload immediately wipe a move-failed / partial-failure summary.
+      setError(formatResolveSummary(response))
     } catch (e: unknown) {
+      // Roll the optimistically-removed clusters back into place. Decisions were never touched
+      // on the way out, so they're still selected -- nothing to restore there.
+      setClusters((prev) => {
+        const copy = [...prev]
+        for (const { cluster, index } of removed.slice().sort((a, b) => a.index - b.index)) {
+          copy.splice(Math.min(index, copy.length), 0, cluster)
+        }
+        return copy
+      })
       setError(e instanceof Error ? e.message : "Failed to submit decisions")
     } finally {
       setSubmitting(null)
     }
   }
 
-  const allPendingDecisions: { image_id: string; decision: Decision }[] = []
-  let clustersWithPendingCount = 0
-  for (const cluster of clusters) {
-    const before = allPendingDecisions.length
-    for (const member of cluster.members) {
-      if (member.status !== "pending") continue
-      const decision = decisions[member.image_id]
-      if (decision !== undefined) allPendingDecisions.push({ image_id: member.image_id, decision })
-    }
-    if (allPendingDecisions.length > before) clustersWithPendingCount++
-  }
-
-  async function submitAll() {
-    if (!tier || allPendingDecisions.length === 0) return
-    setSubmitting("all")
-    try {
-      const response = await memesApi.resolveIngestionCluster(tier, allPendingDecisions)
-      setDecisions((prev) => {
-        const next = { ...prev }
-        for (const image_id of [...response.rejected, ...response.kept]) delete next[image_id]
-        return next
-      })
-      // See the matching comment in submitCluster -- load() must be awaited before the summary
-      // is set, or its own success path's setError(null) immediately overwrites it.
-      await load()
-      const summary = formatResolveSummary(response)
-      if (summary) setError(summary)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to submit all decisions")
-    } finally {
-      setSubmitting(null)
-    }
-  }
+  const submitCluster = (index: number) => runSubmit(index, [{ cluster: clusters[index], index }])
+  const submitAll = () => runSubmit("all", clusters.map((cluster, index) => ({ cluster, index })))
 
   function handleSubmitAllClick() {
     if (confirmingAll) {
       if (confirmAllTimeoutRef.current) clearTimeout(confirmAllTimeoutRef.current)
       setConfirmingAll(false)
-      submitAll()
+      void submitAll()
       return
     }
     setConfirmingAll(true)
     confirmAllTimeoutRef.current = setTimeout(() => setConfirmingAll(false), CONFIRM_ALL_TIMEOUT_MS)
   }
 
-  if (loading) return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Ingestion Review</h1>
-      <p className="text-sm text-gray-400">Loading…</p>
-    </div>
-  )
+  const { clustersWithPendingCount, allPendingCount } = useMemo(() => {
+    let c = 0, i = 0
+    for (const cluster of clusters) {
+      const n = decidedPendingIn(cluster).length
+      if (n > 0) { c++; i += n }
+    }
+    return { clustersWithPendingCount: c, allPendingCount: i }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clusters, decisions])
 
+  // ---- render ----
+  if (loading) return <Shell><p className="text-sm text-gray-400">Loading…</p></Shell>
   if (error && !status) return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Ingestion Review</h1>
+    <Shell>
       <p className="text-sm text-red-500 mb-3">{error}</p>
-      <button
-        className="text-sm rounded bg-blue-600 text-white px-3 py-1"
-        onClick={() => { setLoading(true); load() }}
-      >
-        Retry
-      </button>
-    </div>
+      <button className="text-sm rounded bg-blue-600 text-white px-3 py-1" onClick={() => void load()}>Retry</button>
+    </Shell>
   )
+  if (!status) return <Shell><p className="text-sm text-gray-400">No ingestion run is currently in progress.</p></Shell>
 
-  if (!status) return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Ingestion Review</h1>
-      <p className="text-sm text-gray-400">No ingestion run is currently in progress.</p>
-    </div>
-  )
+  const previewDecision = preview ? decisions[preview.image_id] : undefined
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">
-        Ingestion Review{tier ? ` — ${TIER_LABEL[tier]}` : ""}
-      </h1>
+    <div className={preview ? "lg:pr-[42vw]" : ""}>
+      <h1 className="text-2xl font-bold mb-4">Ingestion Review{tier ? ` — ${TIER_LABEL[tier]}` : ""}</h1>
       <StatusBanner status={status} />
-
-      {error && (
-        <p className="text-sm text-red-500 mb-3">{error}</p>
-      )}
-
-      {tier && clustersWithPendingCount > 0 && (
-        <button
-          className={`mb-4 text-sm rounded px-3 py-1 text-white disabled:opacity-40 ${confirmingAll ? "bg-amber-500" : "bg-blue-600"}`}
-          disabled={submitting !== null}
-          onClick={handleSubmitAllClick}
-        >
-          {submitting === "all"
-            ? "Submitting…"
-            : confirmingAll
-              ? `Confirm? (${clustersWithPendingCount} cluster${clustersWithPendingCount === 1 ? "" : "s"}, ${allPendingDecisions.length} image${allPendingDecisions.length === 1 ? "" : "s"})`
-              : `Submit all decisions (${clustersWithPendingCount} cluster${clustersWithPendingCount === 1 ? "" : "s"}, ${allPendingDecisions.length} image${allPendingDecisions.length === 1 ? "" : "s"})`}
-        </button>
-      )}
+      {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
 
       {!tier && (
         <p className="text-sm text-gray-400">
@@ -339,59 +303,74 @@ export default function IngestionReviewPage({ memesApi }: Props) {
             : "Candidates haven't been computed for this run yet."}
         </p>
       )}
-
-      {tier && clusters.length === 0 && (
+      {tier && clusters.length === 0 && !hasNext && (
         <p className="text-sm text-gray-400">No {TIER_LABEL[tier]} clusters need review right now.</p>
       )}
 
-      <div className="space-y-4">
-        {clusters.map((cluster, i) => {
-          const hasPendingDecision = cluster.members.some(
-            (m) => m.status === "pending" && decisions[m.image_id] !== undefined
-          )
+      {tier && clusters.length > 0 && (
+        <Virtuoso
+          useWindowScroll
+          data={clusters}
+          endReached={() => { void loadMore() }}
+          increaseViewportBy={{ top: 400, bottom: 1200 }}
+          initialItemCount={clusters.length}
+          itemContent={(index, cluster) => (
+            <ClusterRow
+              memesApi={memesApi}
+              cluster={cluster}
+              decisions={decisions}
+              onDecide={setDecision}
+              onSubmit={() => void submitCluster(index)}
+              submitting={submitting === index || submitting === "all"}
+              onHoverPreview={openPreview}
+              onLeavePreview={closePreviewSoon}
+              onPeek={setPeek}
+            />
+          )}
+        />
+      )}
 
-          return (
-            <div key={i} className="bg-white rounded-lg p-4 shadow-sm">
-              <div className="flex flex-wrap gap-3">
-                {cluster.members.map((member) => {
-                  const edgeLabels = cluster.edges
-                    .filter((e) => e.image_id1 === member.image_id || e.image_id2 === member.image_id)
-                    .map((e) => `${e.distance.toFixed(3)} (${e.match_source ?? "?"})`)
-                  return (
-                    <MemberTile
-                      key={member.image_id}
-                      memesApi={memesApi}
-                      memberId={member.image_id}
-                      filename={member.filename}
-                      memberStatus={member.status}
-                      ocrText={member.ocr_text}
-                      edgeLabels={edgeLabels}
-                      decision={decisions[member.image_id]}
-                      onDecide={(d) => setDecision(member.image_id, d)}
-                      onOpenImage={() => setEnlargedMember({ memberId: member.image_id, filename: member.filename })}
-                    />
-                  )
-                })}
-              </div>
-              <button
-                className="mt-3 text-sm rounded bg-blue-600 text-white px-3 py-1 disabled:opacity-40"
-                disabled={!hasPendingDecision || submitting === i || submitting === "all"}
-                onClick={() => submitCluster(i, cluster)}
-              >
-                {submitting === i ? "Submitting…" : "Submit decisions"}
-              </button>
-            </div>
-          )
-        })}
-      </div>
+      {tier && hasNext && (
+        <div className="py-4 text-center">
+          <button
+            className="text-sm rounded bg-gray-100 hover:bg-gray-200 px-4 py-2 disabled:opacity-40"
+            disabled={loadingMore}
+            onClick={() => void loadMore()}
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
+        </div>
+      )}
 
-      {enlargedMember && (
-        <Modal onClose={() => setEnlargedMember(null)} title={enlargedMember.filename}>
-          <img
-            src={memesApi.getImageUrlById(enlargedMember.memberId)}
-            alt={enlargedMember.filename}
-            className="max-w-full max-h-[80vh] object-contain"
-          />
+      {clustersWithPendingCount > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-full bg-white shadow-2xl border px-5 py-2">
+          <span className="text-xs text-gray-500">{status.stage}</span>
+          <button
+            className={`text-sm rounded-full px-4 py-1.5 text-white transition-colors active:scale-[.97] disabled:opacity-40 ${confirmingAll ? "bg-amber-500" : "bg-blue-600"}`}
+            disabled={submitting !== null}
+            onClick={handleSubmitAllClick}
+          >
+            {submitting === "all"
+              ? "Submitting…"
+              : confirmingAll
+                ? `Confirm? (${clustersWithPendingCount} cluster${clustersWithPendingCount === 1 ? "" : "s"}, ${allPendingCount} image${allPendingCount === 1 ? "" : "s"})`
+                : `Submit all decisions (${clustersWithPendingCount} cluster${clustersWithPendingCount === 1 ? "" : "s"}, ${allPendingCount} image${allPendingCount === 1 ? "" : "s"})`}
+          </button>
+        </div>
+      )}
+
+      <DockedPreview
+        memesApi={memesApi}
+        member={preview}
+        decision={previewDecision}
+        onDecide={(d) => { if (preview) setDecision(preview.image_id, d) }}
+        onMouseEnter={() => { if (previewCloseRef.current) clearTimeout(previewCloseRef.current) }}
+        onMouseLeave={closePreviewSoon}
+      />
+
+      {peek && (
+        <Modal onClose={() => setPeek(null)} title={peek.filename}>
+          <img src={memesApi.getImageUrlById(peek.image_id)} alt={peek.filename} className="max-w-full max-h-[80vh] object-contain" />
         </Modal>
       )}
     </div>

@@ -18,7 +18,9 @@ describe('ClusterRow', () => {
     render(<ClusterRow memesApi={makeMockApi()} cluster={cluster} decisions={{}}
       onDecide={vi.fn()} onSubmit={vi.fn()} submitting={false}
       onHoverPreview={vi.fn()} onLeavePreview={vi.fn()} onPeek={vi.fn()} />)
-    const imgs = screen.getAllByRole('img')
+    // MemberTile's thumbnail carries role="button" (it opens the peek modal) + an aria-label,
+    // so it's queried by alt text rather than the img role.
+    const imgs = screen.getAllByAltText(/\.jpg$/)
     expect(imgs).toHaveLength(2)
     imgs.forEach(img => {
       expect(img.className).toContain('object-contain')
@@ -45,7 +47,7 @@ describe('ClusterRow', () => {
     render(<ClusterRow memesApi={makeMockApi()} cluster={cluster} decisions={{}}
       onDecide={vi.fn()} onSubmit={vi.fn()} submitting={false}
       onHoverPreview={onHoverPreview} onLeavePreview={vi.fn()} onPeek={vi.fn()} />)
-    await userEvent.hover(screen.getAllByRole('img')[0])
+    await userEvent.hover(screen.getAllByAltText(/\.jpg$/)[0])
     expect(onHoverPreview).toHaveBeenCalledWith(cluster.members[0])
   })
 
