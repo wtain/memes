@@ -83,22 +83,48 @@ class IngestionRepository:
         result = await self.session.execute(query)
         return result.all()
 
-    async def get_ocr_texts(self, image_ids) -> dict:
-        """Concatenated OCR text per image id, low-confidence blocks dropped -- Tier B's
-        primary review signal (same OCR-text-first priority the review-duplicates skill
-        already used). Pending members may have none yet if OCR hasn't reached them;
-        active members always do, since they're already fully enriched."""
+    async def get_ocr_texts(
+        self, image_ids, confidence_min: float = 0.4, lang_score_min: float = 0.3
+    ) -> dict:
+        """Concatenated OCR text per image id for the review UI. Drops blocks below either
+        threshold, orders the survivors most-language-plausible first (so e.g. Russian text
+        leads instead of the EN/ES EasyOCR readers' Latin transliteration noise), and dedupes
+        identical block text. Thresholds are passed in by the service -- this layer stays
+        config-agnostic (mirrors get_blocked_pending_ids); the literal defaults match the
+        documented project OCR thresholds. Pending members may have no OCR yet if it hasn't
+        reached them; active members always do, since they're already fully enriched."""
         if not image_ids:
             return {}
         result = await self.session.execute(
-            select(OCRText.image_id, OCRText.text, OCRText.confidence)
+            select(OCRText.image_id, OCRText.text, OCRText.confidence, OCRText.lang_score)
             .where(OCRText.image_id.in_(image_ids))
         )
+
+        def _order_key(row):
+            _, _, confidence, lang_score = row
+            return (
+                lang_score is None,                       # False (0) sorts before True (1)
+                -(lang_score if lang_score is not None else 0.0),
+                confidence is None,
+                -(confidence if confidence is not None else 0.0),
+            )
+
+        rows = sorted(result.all(), key=_order_key)
         by_image: dict = {}
-        for image_id, text, confidence in result.all():
-            if confidence is not None and confidence < 0.3:
+        seen: dict = {}
+        for image_id, text, confidence, lang_score in rows:
+            if confidence is not None and confidence < confidence_min:
                 continue
-            by_image.setdefault(image_id, []).append(text)
+            if lang_score is not None and lang_score < lang_score_min:
+                continue
+            block = (text or "").strip()
+            if not block:
+                continue
+            seen_for_image = seen.setdefault(image_id, set())
+            if block in seen_for_image:
+                continue
+            seen_for_image.add(block)
+            by_image.setdefault(image_id, []).append(block)
         return {image_id: " ".join(parts) for image_id, parts in by_image.items()}
 
     async def get_blocked_pending_ids(self, batch_id, tier_a_high: float, tier_b_high: float) -> set:
