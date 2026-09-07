@@ -33,7 +33,7 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     getImageUrlById: vi.fn().mockImplementation((id: string) => `http://example.com/api/images/${id}`),
     getIngestionRunStatus: vi.fn().mockResolvedValue(null),
     getIngestionPending: vi.fn().mockResolvedValue([]),
-    getIngestionClusters: vi.fn().mockResolvedValue([]),
+    getIngestionClusters: vi.fn().mockResolvedValue({ items: [], next_cursor: null, has_next: false }),
     resolveIngestionCluster: vi.fn().mockResolvedValue({ rejected: [], kept: [], failed: [], move_failed: [] }),
     undoIngestionReject: vi.fn().mockResolvedValue({ image_id: '', status: 'pending' }),
     dismissDuplicateCluster: vi.fn().mockResolvedValue({ pairs: [] }),

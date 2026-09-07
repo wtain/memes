@@ -2,7 +2,7 @@ import type { MemesApi, IngestionTier } from "../MemesApi"
 import type {
   Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse,
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
-  IngestionRunStatus, IngestionPendingImage, IngestionCluster, IngestionDecision,
+  IngestionRunStatus, IngestionPendingImage, IngestionClusterPage, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse,
@@ -361,8 +361,12 @@ export class HttpMemesApi implements MemesApi {
     return res.json()
   }
 
-  async getIngestionClusters(tier: IngestionTier): Promise<IngestionCluster[]> {
-    const res = await fetch(`${this.baseUrl}/api/ingestion/clusters/${tier}`, { headers: { Accept: "application/json" } })
+  async getIngestionClusters(tier: IngestionTier, cursor?: string): Promise<IngestionClusterPage> {
+    const params = new URLSearchParams({ limit: "40" })
+    if (cursor) params.set("cursor", cursor)
+    const res = await fetch(`${this.baseUrl}/api/ingestion/clusters/${tier}?${params}`, {
+      headers: { Accept: "application/json" },
+    })
     if (!res.ok) throw new Error(`Failed to fetch ${tier} clusters: ${res.status}`)
     return res.json()
   }
