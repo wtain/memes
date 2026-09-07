@@ -240,7 +240,7 @@ async def test_get_ocr_texts_concatenates_blocks_and_drops_low_confidence(db_ses
     await db_session.flush()
 
     repo = IngestionRepository(db_session)
-    texts = await repo.get_ocr_texts({image_id, no_ocr_id})
+    texts = await repo.get_ocr_texts({image_id, no_ocr_id}, 0.4, 0.3)
 
     assert texts[image_id] == "hello world"
     assert no_ocr_id not in texts
@@ -249,7 +249,27 @@ async def test_get_ocr_texts_concatenates_blocks_and_drops_low_confidence(db_ses
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_ocr_texts_empty_input_returns_empty_dict(db_session):
     repo = IngestionRepository(db_session)
-    assert await repo.get_ocr_texts(set()) == {}
+    assert await repo.get_ocr_texts(set(), 0.4, 0.3) == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_ocr_texts_gates_by_lang_score_and_dedupes(db_session):
+    batch_id = await _make_run(db_session)
+    image_id = await _make_image(db_session, "pending", batch_id)
+    db_session.add_all([
+        # plausible Russian read
+        OCRText(image_id=image_id, text="привет мир", confidence=0.85, lang_score=0.9),
+        # Latin transliteration noise -- gated out by lang_score < 0.3
+        OCRText(image_id=image_id, text="privet mir", confidence=0.6, lang_score=0.2),
+        # duplicate of the ru block -- deduped
+        OCRText(image_id=image_id, text="привет мир", confidence=0.8, lang_score=0.88),
+    ])
+    await db_session.flush()
+
+    repo = IngestionRepository(db_session)
+    texts = await repo.get_ocr_texts({image_id}, 0.4, 0.3)
+
+    assert texts[image_id] == "привет мир"
 
 
 # --------------------------------------------------------------------------

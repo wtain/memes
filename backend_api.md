@@ -951,7 +951,8 @@ still-undecided member are returned — resolved rows drop out automatically.
   "items": [
     {
       "members": [
-        { "image_id": "1a2b...", "filename": "meme_01.jpg", "status": "pending", "ocr_text": "Не смешно" }
+        { "image_id": "1a2b...", "filename": "meme_01.jpg", "status": "pending", "ocr_text": "Не смешно" },
+        { "image_id": "3c4d...", "filename": "meme_02.jpg", "status": "active", "ocr_text": "Не смешно, совсем" }
       ],
       "edges": [
         { "image_id1": "1a2b...", "image_id2": "3c4d...", "distance": 0.041, "match_source": "cross_corpus" }

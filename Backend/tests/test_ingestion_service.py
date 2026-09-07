@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from config.settings import settings
 from Backend.app.services.ingestion_service import IngestionService
 
 
@@ -242,10 +243,13 @@ class TestListClustersPagination:
         a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
         await self._setup(service, mock_repo, [self._row(a1, a2, 0.05)])
         await service.list_clusters("tier_b", limit=10)
-        _, kwargs = mock_repo.get_ocr_texts.call_args
+        kwargs = mock_repo.get_ocr_texts.call_args.kwargs
         args = mock_repo.get_ocr_texts.call_args.args
-        # confidence_min, lang_score_min passed positionally after image_ids
-        assert args[1:] == (0.4, 0.3) or (kwargs.get("confidence_min"), kwargs.get("lang_score_min")) == (0.4, 0.3)
+        expected = (settings.OCR.CONFIDENCE_MIN, settings.OCR.LANG_SCORE_MIN)
+        # confidence_min, lang_score_min passed positionally after image_ids (or by keyword)
+        assert args[1:] == expected or (
+            kwargs.get("confidence_min"), kwargs.get("lang_score_min")
+        ) == expected
 
 
 class TestUndoRejectAfterMoveFailure:

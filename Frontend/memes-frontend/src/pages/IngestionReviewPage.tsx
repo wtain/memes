@@ -88,10 +88,6 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   const previewCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const preloadedRef = useRef<Set<string>>(new Set())
   const loadingMoreRef = useRef(false)
-  // Latest committed clusters / hasNext, for decisions that must not read a stale render closure
-  // (a loadMore can resolve while a submit is in flight -- see the Ruling 3 gate in runSubmit).
-  const clustersRef = useRef<IngestionCluster[]>([])
-  const hasNextRef = useRef(false)
 
   const tier = status ? tierForStage(status.stage) : null
 
@@ -126,8 +122,6 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       })
       .finally(() => setLoading(false))
   }, [memesApi])
-
-  useEffect(() => { clustersRef.current = clusters; hasNextRef.current = hasNext }, [clusters, hasNext])
 
   const loadedRef = useRef(false)
   useEffect(() => { if (loadedRef.current) return; loadedRef.current = true; void load() }, [load])
@@ -213,7 +207,14 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     // pointing at a member of a cluster we're about to pull out of the list.
     setPreview(null)
     if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
-    setClusters((prev) => prev.filter((c) => !removedSet.has(c)))
+    // Compute the post-removal visible count inside the updater -- reading it back from a ref
+    // after the await races the passive effect that would sync the ref.
+    let survivingCount = 0
+    setClusters((prev) => {
+      const next = prev.filter((c) => !removedSet.has(c))
+      survivingCount = next.length
+      return next
+    })
     try {
       const response: IngestionResolveResponse = await memesApi.resolveIngestionCluster(tier, payload)
       const failedIds = new Set(response.failed.map((f) => f.image_id))
@@ -234,20 +235,38 @@ export default function IngestionReviewPage({ memesApi }: Props) {
             .slice()
             .sort((a, b) => a.index - b.index)
         : []
-      if (reinsert.length > 0) {
+      // Members the server actually resolved (not failed) that are still sitting in a *surviving*
+      // cluster (a partially-resolved one `isFullyResolved` kept): flip their local status to
+      // "active" so MemberTile stops offering Keep/Reject -- otherwise, with the decision
+      // highlight just pruned, the tile reads as "my submit didn't take".
+      const resolvedIds = new Set(
+        [...response.rejected, ...response.kept].filter((id) => !failedIds.has(id))
+      )
+      if (reinsert.length > 0 || resolvedIds.size > 0) {
         setClusters((prev) => {
-          const copy = [...prev]
+          let copy = [...prev]
           for (const { cluster, index } of reinsert) copy.splice(Math.min(index, copy.length), 0, cluster)
+          if (resolvedIds.size > 0) {
+            copy = copy.map((c) =>
+              c.members.some((m) => m.status === "pending" && resolvedIds.has(m.image_id))
+                ? {
+                    ...c,
+                    members: c.members.map((m) =>
+                      m.status === "pending" && resolvedIds.has(m.image_id) ? { ...m, status: "active" } : m
+                    ),
+                  }
+                : c
+            )
+          }
           return copy
         })
       }
-      // Ruling 3: only reload when the visible queue has emptied and there are no more pages --
-      // this restores the old auto-advance from Tier A -> Tier B once the reviewer clears the
-      // queue. Every other submit stays purely optimistic (no reload, no scroll jump). Read the
-      // *latest* clusters/hasNext (refs), not this render's closure -- a loadMore may have
-      // appended a page while this request was in flight.
-      const remaining = clustersRef.current.length + reinsert.length
-      if (remaining === 0 && !hasNextRef.current) {
+      // Ruling 3: reload only when the on-screen queue has fully emptied -- restores the old
+      // auto-advance (Tier A -> Tier B, via load() also refetching run status) and, when more
+      // pages exist, pulls the next unreviewed page-1 work in place of a bare "Load more" button.
+      // Every submit that leaves clusters visible stays purely optimistic (no reload/scroll jump).
+      const remaining = survivingCount + reinsert.length
+      if (remaining === 0) {
         await load()
       }
       // Set the summary after any reload -- load()'s success path clears `error`, so setting it
@@ -306,7 +325,9 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   const previewDecision = preview ? decisions[preview.image_id] : undefined
 
   return (
-    <div className={preview ? "lg:pr-[42vw]" : ""}>
+    // Permanent lg gutter for the desktop-only docked pane -- toggling it with `preview` made
+    // the list (and <Virtuoso useWindowScroll>) reflow/re-measure on every hover.
+    <div className="lg:pr-[42vw]">
       <h1 className="text-2xl font-bold mb-4">Ingestion Review{tier ? ` — ${TIER_LABEL[tier]}` : ""}</h1>
       <StatusBanner status={status} />
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
@@ -328,7 +349,6 @@ export default function IngestionReviewPage({ memesApi }: Props) {
           data={clusters}
           endReached={() => { void loadMore() }}
           increaseViewportBy={{ top: 400, bottom: 1200 }}
-          initialItemCount={clusters.length}
           itemContent={(index, cluster) => (
             <ClusterRow
               memesApi={memesApi}
@@ -358,7 +378,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       )}
 
       {clustersWithPendingCount > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-full bg-white shadow-2xl border px-5 py-2">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full bg-white shadow-2xl border px-5 py-2">
           <span className="text-xs text-gray-500">{status.stage}</span>
           <button
             className={`text-sm rounded-full px-4 py-1.5 text-white transition-colors active:scale-[.97] disabled:opacity-40 ${confirmingAll ? "bg-amber-500" : "bg-blue-600"}`}

@@ -138,6 +138,11 @@ class IngestionService:
 
         decoded = _decode_cursor(cursor)
         if decoded is not None:
+            # A partial resolve between page fetches can reshape a cluster so its new
+            # min_distance sorts *before* the current cursor -- it then won't reappear until
+            # the next page-1 reload. Intentional and lossless: ingest_promote never promotes
+            # an image that still has an unresolved candidate pair, so a briefly-skipped
+            # cluster is picked back up on the reload the frontend does once the queue drains.
             clusters = [c for c in clusters if c["_sort_key"] > decoded]
 
         page = clusters[:limit]

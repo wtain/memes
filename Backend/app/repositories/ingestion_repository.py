@@ -84,15 +84,16 @@ class IngestionRepository:
         return result.all()
 
     async def get_ocr_texts(
-        self, image_ids, confidence_min: float = 0.4, lang_score_min: float = 0.3
+        self, image_ids, confidence_min: float, lang_score_min: float
     ) -> dict:
         """Concatenated OCR text per image id for the review UI. Drops blocks below either
         threshold, orders the survivors most-language-plausible first (so e.g. Russian text
         leads instead of the EN/ES EasyOCR readers' Latin transliteration noise), and dedupes
-        identical block text. Thresholds are passed in by the service -- this layer stays
-        config-agnostic (mirrors get_blocked_pending_ids); the literal defaults match the
-        documented project OCR thresholds. Pending members may have no OCR yet if it hasn't
-        reached them; active members always do, since they're already fully enriched."""
+        identical block text. Thresholds are required, passed in by the service from
+        settings.OCR.* -- this layer stays config-agnostic (mirrors get_blocked_pending_ids)
+        and carries no literal defaults that could drift from environments/settings.yaml.
+        Pending members may have no OCR yet if it hasn't reached them; active members always
+        do, since they're already fully enriched."""
         if not image_ids:
             return {}
         result = await self.session.execute(

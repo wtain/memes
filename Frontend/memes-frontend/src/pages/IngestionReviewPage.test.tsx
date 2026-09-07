@@ -236,6 +236,61 @@ describe('IngestionReviewPage', () => {
     expect(await screen.findByText('Ingestion Review — Tier B')).toBeInTheDocument()
   })
 
+  it('reloads (page 1) when "Submit all" clears the loaded page but more pages remain', async () => {
+    // Regression: without the reload, clusters.length === 0 unmounts <Virtuoso> (endReached dead),
+    // the "no clusters" message needs !hasNext, and the old reload gate needed !hasNext too --
+    // leaving just a bare "Load more" button. The reload pulls the next page-1 work instead.
+    const getIngestionClusters = vi.fn()
+      .mockResolvedValueOnce(page([cl('a'), cl('b')], 'CURSOR1')) // has_next: true
+      .mockResolvedValueOnce(page([cl('c')]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['a-1', 'b-1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
+      getIngestionClusters, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('a-1.jpg')
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0])
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[1])
+    await userEvent.click(screen.getByRole('button', { name: /submit all decisions/i }))
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => expect(getIngestionClusters).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('c-1.jpg')).toBeInTheDocument()
+    expect(screen.queryByText('a-1.jpg')).toBeNull()
+  })
+
+  it('flips just-resolved members of a surviving cluster to read-only context', async () => {
+    // A partially-resolved cluster stays in the list; its resolved members must stop offering
+    // Keep/Reject (else, with the decision highlight pruned, the tile reads as "submit failed").
+    const cl3: IngestionCluster = {
+      members: [
+        { image_id: 'q-1', filename: 'q-1.jpg', status: 'pending', ocr_text: null },
+        { image_id: 'q-2', filename: 'q-2.jpg', status: 'pending', ocr_text: null },
+        { image_id: 'q-3', filename: 'q-3.jpg', status: 'pending', ocr_text: null },
+      ],
+      edges: [],
+    }
+    const getIngestionClusters = vi.fn().mockResolvedValue(page([cl3]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['q-1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
+      getIngestionClusters, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('q-1.jpg')
+
+    expect(screen.getAllByRole('button', { name: /^reject$/i })).toHaveLength(3)
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0]) // q-1
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
+
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledTimes(1))
+    // q-1 lost its controls; q-2 and q-3 keep theirs; the cluster stays in the list.
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /^reject$/i })).toHaveLength(2))
+    expect(screen.getByText('q-1.jpg')).toBeInTheDocument()
+    expect(getIngestionClusters).toHaveBeenCalledTimes(1) // no reload -- cluster still visible
+  })
+
   it('re-inserts the cluster and shows a message when the server reports a failed decision', async () => {
     const getIngestionClusters = vi.fn().mockResolvedValue(page([cl('a')]))
     const resolveIngestionCluster = vi.fn().mockResolvedValue({
