@@ -20,7 +20,7 @@
 - **Generated files must not drift** — CI diffs `Frontend/memes-frontend/src/types/generated/` and the Android DTOs. Regenerate and commit in the same task as the schema change.
 - **Repositories must not call `session.commit()`** — `get_async_db` owns that (exception: the existing `IngestionRepository.commit()` used only by `resolve()`).
 - Frontend pre-commit gate: `tsc -b`, `eslint src/` (0 warnings), `vitest run` — all three must pass.
-- Cursor format: `f"{min_distance:.6f}|{min_image_id}"`. Cluster sort key: `(min_distance, str(min_image_id))` ascending. Malformed/blank cursor ⇒ start from beginning, never 4xx.
+- Cursor format: `f"{min_distance!r}|{min_image_id}"` (exact float round-trip via `repr()`/`float()` — a `:.6f` truncation can silently skip a page-boundary cluster). Cluster sort key: `(min_distance, str(min_image_id))` ascending. Malformed/blank cursor ⇒ start from beginning, never 4xx.
 - `limit` default `40`, `Query(40, ge=1, le=200)`.
 
 ---
@@ -302,10 +302,12 @@ CURSOR_SEP = "|"
 
 
 def _encode_cursor(min_distance: float, min_image_id: str) -> str:
-    return f"{min_distance:.6f}{CURSOR_SEP}{min_image_id}"
+    # repr() of a float round-trips exactly through float() — a :.Nf truncation could make two
+    # near-equal cluster distances collide and silently drop the later cluster from every page.
+    return f"{min_distance!r}{CURSOR_SEP}{min_image_id}"
 
 
-def _decode_cursor(cursor):
+def _decode_cursor(cursor: str | None) -> tuple[float, str] | None:
     """(min_distance, min_image_id) or None for anything unparseable — a stale bookmark just
     restarts the queue, never an error."""
     if not cursor or CURSOR_SEP not in cursor:
@@ -418,14 +420,14 @@ class TestListClusters:
                 ],
                 "edges": [],
             }],
-            "next_cursor": "0.050000|11111111-1111-1111-1111-111111111111",
+            "next_cursor": "0.05|11111111-1111-1111-1111-111111111111",
             "has_next": True,
         }
         response = client.get("/api/ingestion/clusters/tier_a")
         assert response.status_code == 200
         body = response.json()
         assert body["has_next"] is True
-        assert body["next_cursor"].startswith("0.050000|")
+        assert body["next_cursor"] == "0.05|11111111-1111-1111-1111-111111111111"
         assert body["items"][0]["members"][0]["ocr_text"] == "Не смешно"
         mock_service.list_clusters.assert_awaited_once_with("tier_a", cursor=None, limit=40)
 
@@ -537,7 +539,7 @@ In the "List Clusters" section (~line 938), change:
       ]
     }
   ],
-  "next_cursor": "0.041000|1a2b...",
+  "next_cursor": "0.041|1a2b...",
   "has_next": true
 }
 ```

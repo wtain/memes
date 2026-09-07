@@ -92,10 +92,14 @@ max `200`).
   min member image_id)` ascending. Tightest matches — the most likely true duplicates —
   surface first, and the tiebreak on `image_id` makes the order total and stable.
 - **Cursor** encodes the last-returned cluster's sort key `(min_distance, min_image_id)` as
-  `f"{min_distance:.6f}|{min_image_id}"` — same field order as the sort so the comparison is a
-  plain tuple `>`. Decoding is tolerant: an unparseable/blank cursor is treated as "from the
-  start" (no 400 — a stale bookmark just restarts the queue). Slice is "first `limit` clusters
-  whose `(min_distance, min_image_id)` is strictly greater than the decoded cursor tuple".
+  `f"{min_distance!r}|{min_image_id}"` — `repr()` of the float round-trips exactly through
+  `float()`, so the tuple comparison stays exact and no boundary cluster is skipped or
+  repeated (a `:.6f`-style truncation can drop a cluster whose distance agrees with its
+  neighbour's to 6 decimals but differs beyond). Same field order as the sort so the
+  comparison is a plain tuple `>`. Decoding is tolerant: an unparseable/blank cursor is
+  treated as "from the start" (no 400 — a stale bookmark just restarts the queue). Slice is
+  "first `limit` clusters whose `(min_distance, min_image_id)` is strictly greater than the
+  decoded cursor tuple".
 - `has_next` = there is at least one cluster after the slice.
 - No change to `edges` / `members` payload per cluster, and no new columns selected —
   `distance` is already in the rows `get_tier_candidate_rows` returns.
