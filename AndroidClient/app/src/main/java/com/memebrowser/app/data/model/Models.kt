@@ -245,6 +245,13 @@ data class Facet(
 )
 
 @Serializable
+data class IngestionClusterPage(
+    @SerialName("items") val items: List<IngestionCluster>,
+    @SerialName("next_cursor") val next_cursor: String?,
+    @SerialName("has_next") val has_next: Boolean
+)
+
+@Serializable
 data class Meme(
     @SerialName("id") val id: String,
     @SerialName("imageUrl") val imageUrl: String,

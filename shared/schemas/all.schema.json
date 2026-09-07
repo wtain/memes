@@ -29,6 +29,7 @@
     "IngestionClusterMember":     { "$ref": "ingestionclustermember.schema.json" },
     "IngestionClusterEdge":       { "$ref": "ingestionclusteredge.schema.json" },
     "IngestionCluster":           { "$ref": "ingestioncluster.schema.json" },
+    "IngestionClusterPage":       { "$ref": "ingestionclusterpage.schema.json" },
     "IngestionDecision":          { "$ref": "ingestiondecision.schema.json" },
     "IngestionFailedDecision":    { "$ref": "ingestionfaileddecision.schema.json" },
     "IngestionMoveFailure":       { "$ref": "ingestionmovefailure.schema.json" },

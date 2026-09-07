@@ -66,33 +66,38 @@ class TestListPending:
 
 
 class TestListClusters:
-    def test_returns_clusters_for_tier(self, client, mock_service):
-        a, b = str(uuid.uuid4()), str(uuid.uuid4())
-        mock_service.list_clusters.return_value = [
-            {
+    def test_returns_cluster_page_for_tier(self, client, mock_service):
+        mock_service.list_clusters.return_value = {
+            "items": [{
                 "members": [
-                    {"image_id": a, "filename": "a.jpg", "status": "pending", "ocr_text": None},
-                    {"image_id": b, "filename": "b.jpg", "status": "active", "ocr_text": "existing meme text"},
+                    {"image_id": "11111111-1111-1111-1111-111111111111", "filename": "a.jpg",
+                     "status": "pending", "ocr_text": "Не смешно"},
                 ],
-                "edges": [
-                    {"image_id1": a, "image_id2": b, "distance": 0.02, "match_source": "cross_corpus"},
-                ],
-            }
-        ]
-
+                "edges": [],
+            }],
+            "next_cursor": "0.05|11111111-1111-1111-1111-111111111111",
+            "has_next": True,
+        }
         response = client.get("/api/ingestion/clusters/tier_a")
-
         assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert len(data[0]["members"]) == 2
-        assert data[0]["edges"][0]["match_source"] == "cross_corpus"
-        mock_service.list_clusters.assert_awaited_once_with("tier_a")
+        body = response.json()
+        assert body["has_next"] is True
+        assert body["next_cursor"] == "0.05|11111111-1111-1111-1111-111111111111"
+        assert body["items"][0]["members"][0]["ocr_text"] == "Не смешно"
+        mock_service.list_clusters.assert_awaited_once_with("tier_a", cursor=None, limit=40)
+
+    def test_forwards_cursor_and_limit(self, client, mock_service):
+        mock_service.list_clusters.return_value = {"items": [], "next_cursor": None, "has_next": False}
+        response = client.get("/api/ingestion/clusters/tier_b?cursor=0.1%7Cabc&limit=10")
+        assert response.status_code == 200
+        mock_service.list_clusters.assert_awaited_once_with("tier_b", cursor="0.1|abc", limit=10)
+
+    def test_rejects_out_of_range_limit(self, client, mock_service):
+        assert client.get("/api/ingestion/clusters/tier_a?limit=0").status_code == 422
+        assert client.get("/api/ingestion/clusters/tier_a?limit=999").status_code == 422
 
     def test_rejects_unknown_tier(self, client, mock_service):
-        response = client.get("/api/ingestion/clusters/tier_z")
-
-        assert response.status_code == 422
+        assert client.get("/api/ingestion/clusters/tier_z").status_code == 422
 
 
 class TestResolveCluster:

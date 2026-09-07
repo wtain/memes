@@ -429,6 +429,16 @@ export interface IngestionCluster {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionClusterPage".
+ */
+export interface IngestionClusterPage {
+  items: IngestionCluster[];
+  next_cursor: string | null;
+  has_next: boolean;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "IngestionDecision".
  */
 export interface IngestionDecision {

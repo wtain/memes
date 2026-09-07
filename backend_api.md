@@ -940,22 +940,30 @@ still-undecided member are returned — resolved rows drop out automatically.
 - **URL**: `/api/ingestion/clusters/{tier}`
 - **Method**: `GET`
 - **Path params**: `tier` — `tier_a` (pre-OCR, tight threshold) or `tier_b` (post-OCR-prepass, loose threshold)
-- **Response**: `Cluster[]`
+- **Query params**:
+  - `cursor` — optional, opaque pagination token. Omit for the first page.
+  - `limit` — optional, default `40`, must be between `1` and `200`.
+- **Response**: `ClusterPage`
 - **Example**: `GET /api/ingestion/clusters/tier_a`
 
 ```json
-[
-  {
-    "members": [
-      { "image_id": "a1b2...", "filename": "new.jpg", "status": "pending" },
-      { "image_id": "c3d4...", "filename": "existing.jpg", "status": "active" }
-    ],
-    "edges": [
-      { "image_id1": "a1b2...", "image_id2": "c3d4...", "distance": 0.021, "match_source": "cross_corpus" }
-    ]
-  }
-]
+{
+  "items": [
+    {
+      "members": [
+        { "image_id": "1a2b...", "filename": "meme_01.jpg", "status": "pending", "ocr_text": "Не смешно" }
+      ],
+      "edges": [
+        { "image_id1": "1a2b...", "image_id2": "3c4d...", "distance": 0.041, "match_source": "clip" }
+      ]
+    }
+  ],
+  "next_cursor": "0.041|1a2b...",
+  "has_next": true
+}
 ```
+
+Clusters are ordered by their tightest edge (closest match first). `next_cursor` is `null` on the last page; pass it back verbatim as `?cursor=` for the next page. A stale/invalid cursor restarts from the first page rather than erroring.
 
 #### Resolve Cluster
 

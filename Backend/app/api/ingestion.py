@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import AsyncGenerator, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from Storage.db import AsyncSessionLocal, get_async_db
@@ -46,6 +46,12 @@ class ClusterEdge(BaseModel):
 class Cluster(BaseModel):
     members: list[ClusterMember]
     edges: list[ClusterEdge]
+
+
+class ClusterPage(BaseModel):
+    items: list[Cluster]
+    next_cursor: Optional[str]
+    has_next: bool
 
 
 class Decision(BaseModel):
@@ -96,9 +102,14 @@ async def list_pending(service: IngestionService = Depends(get_ingestion_service
     return await service.list_pending()
 
 
-@router.get("/clusters/{tier}", response_model=list[Cluster])
-async def list_clusters(tier: Tier, service: IngestionService = Depends(get_ingestion_service)):
-    return await service.list_clusters(tier)
+@router.get("/clusters/{tier}", response_model=ClusterPage)
+async def list_clusters(
+    tier: Tier,
+    cursor: Optional[str] = None,
+    limit: int = Query(40, ge=1, le=200),
+    service: IngestionService = Depends(get_ingestion_service),
+):
+    return await service.list_clusters(tier, cursor=cursor, limit=limit)
 
 
 @router.post("/clusters/{tier}/resolve", response_model=ResolveResponse)
