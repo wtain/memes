@@ -142,20 +142,22 @@ Change it to:
 - **`ORDER BY lang_score DESC NULLS LAST, confidence DESC`** in the query, so the most
   language-plausible block leads the concatenated text regardless of which OCR run inserted
   it. (RU rows average `lang_score` 0.87; the EN/ES transliteration rows average 0.36.)
-- **Gate on `lang_score`** in addition to confidence: keep the existing inline
-  `confidence < CONFIDENCE_MIN` check but add
-  `lang_score is not None and lang_score < LANG_SCORE_MIN`. Thresholds from
-  `settings.OCR.CONFIDENCE_MIN` (0.4) and `settings.OCR.LANG_SCORE_MIN` (0.3) — the same keys
-  `build_bow` / `build_tags_from_ocr` already use, read via `config.settings.settings`.
+- **Gate on `lang_score`** in addition to confidence. `get_ocr_texts` gains two parameters —
+  `confidence_min: float` and `lang_score_min: float` — and drops a row when
+  `confidence is not None and confidence < confidence_min` **or**
+  `lang_score is not None and lang_score < lang_score_min`. The **service** (`list_clusters`)
+  passes `settings.OCR.CONFIDENCE_MIN` (0.4) and `settings.OCR.LANG_SCORE_MIN` (0.3) — the
+  same keys `build_bow` / `build_tags_from_ocr` use — keeping the repository config-agnostic,
+  exactly as `get_blocked_pending_ids` already does with its threshold args.
   **Do not** import `rules.lang_plausibility.passes_language_filter` — that module imports
-  `wordfreq`, which is not a backend dependency and must not become one. The check is two
-  inline `if ...: continue` lines, matching the style already there. `lang_score` is a stored
-  column (computed at batch time); no scoring happens at request time.
+  `wordfreq`, which is not a backend dependency and must not become one. Inline the two
+  comparisons. `lang_score` is a stored column (computed at batch time); no scoring at request
+  time.
 - **De-dupe** exact-duplicate block texts before joining (a `seen: set[str]` per image) — the
   same line often lands in multiple language rows.
-- The `confidence < 0.3` literal becomes `settings.OCR.CONFIDENCE_MIN`; if that shifts the
-  Tier B "kept OCR" set materially the service tests will catch it — acceptable, it's the
-  documented threshold.
+- The old hardcoded `confidence < 0.3` cut is replaced by the passed `confidence_min` (0.4).
+  If that shifts the "kept OCR" set materially the service/repository tests will catch it —
+  acceptable, 0.4 is the documented project threshold.
 
 Behaviour for `metal` / `IT` (English corpora) is unchanged in practice — English rows there
 already score high on both axes.
