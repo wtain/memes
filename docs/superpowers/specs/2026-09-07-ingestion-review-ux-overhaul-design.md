@@ -1,6 +1,7 @@
 # Ingestion Review UX Overhaul
 
-status: approved
+status: done
+Plan: docs/superpowers/plans/2026-09-07-ingestion-review-ux-overhaul.md
 Originates from: developer workstation notes (`scratch_50-notes-and-work-tracker.txt`, "Ingestion UI/UX" list, 2026-09-07)
 
 ## Problem
