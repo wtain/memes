@@ -22,29 +22,32 @@ export function MemberTile({
   return (
     <div className={`shrink-0 w-[22rem] max-w-[80vw] border rounded-lg p-2 ${decision === "reject" ? "opacity-40" : ""}`}>
       {/*
-        Preview open/close and the Enter-to-peek shortcut live on the image itself, not the tile
-        container. On the container they misfired: pointer/focus events bubble up from the inner
-        Keep/Reject buttons (React synthesizes onMouseEnter/onFocus for every ancestor with the
-        handler), so hovering or clicking a button, or tabbing between the two, flapped the docked
-        preview open/closed and Enter on a button fired both onDecide and onPeek. Scoped to the
-        <img>, each interaction only happens when the image is the thing being pointed at/focused.
+        Preview open/close and the peek shortcut live on this button, not the tile container. On
+        the container they misfired: pointer/focus events bubble up from the inner Keep/Reject
+        buttons (React synthesizes onMouseEnter/onFocus for every ancestor with the handler), so
+        hovering or clicking a button, or tabbing between the two, flapped the docked preview
+        open/closed and Enter on a button fired both onDecide and onPeek. A real <button> also
+        gives correct keyboard semantics (Enter + Space) for free and keeps the <img> a plain
+        image (its alt is the accessible name).
       */}
-      <img
-        src={memesApi.getImageUrlById(member.image_id)}
-        alt={member.filename}
-        loading="lazy"
-        decoding="async"
-        tabIndex={0}
-        role="button"
+      <button
+        type="button"
         aria-label={`Open ${member.filename} full size`}
-        className="w-full max-h-[55vh] object-contain rounded bg-gray-50 cursor-zoom-in"
+        className="block w-full cursor-zoom-in"
         onClick={onPeek}
-        onKeyDown={(e) => { if (e.key === "Enter") onPeek() }}
         onMouseEnter={onHoverPreview}
         onMouseLeave={onLeavePreview}
         onFocus={onHoverPreview}
         onBlur={onLeavePreview}
-      />
+      >
+        <img
+          src={memesApi.getImageUrlById(member.image_id)}
+          alt={member.filename}
+          loading="lazy"
+          decoding="async"
+          className="w-full max-h-[55vh] object-contain rounded bg-gray-50"
+        />
+      </button>
       <div className="text-xs mt-1 truncate" title={member.filename}>{member.filename}</div>
       <div className="text-xs">
         <span className={isPending ? "text-blue-600" : "text-gray-400"}>{member.status}</span>

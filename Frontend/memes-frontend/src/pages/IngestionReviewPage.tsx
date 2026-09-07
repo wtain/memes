@@ -78,13 +78,20 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   const [decisions, setDecisions] = useState<Record<string, Decision | undefined>>({})
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState<number | "all" | null>(null)
+  // Keyed by the cluster object, never a list index -- optimistic removal reshuffles indices
+  // mid-request, so an index key would move "Submitting…" onto whatever cluster slid into that slot.
+  const [submitting, setSubmitting] = useState<IngestionCluster | "all" | null>(null)
   const [preview, setPreview] = useState<IngestionClusterMember | null>(null)
   const [peek, setPeek] = useState<IngestionClusterMember | null>(null)
   const [confirmingAll, setConfirmingAll] = useState(false)
   const confirmAllTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previewCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const preloadedRef = useRef<Set<string>>(new Set())
+  const loadingMoreRef = useRef(false)
+  // Latest committed clusters / hasNext, for decisions that must not read a stale render closure
+  // (a loadMore can resolve while a submit is in flight -- see the Ruling 3 gate in runSubmit).
+  const clustersRef = useRef<IngestionCluster[]>([])
+  const hasNextRef = useRef(false)
 
   const tier = status ? tierForStage(status.stage) : null
 
@@ -120,6 +127,8 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       .finally(() => setLoading(false))
   }, [memesApi])
 
+  useEffect(() => { clustersRef.current = clusters; hasNextRef.current = hasNext }, [clusters, hasNext])
+
   const loadedRef = useRef(false)
   useEffect(() => { if (loadedRef.current) return; loadedRef.current = true; void load() }, [load])
 
@@ -139,7 +148,10 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   }, [tier])
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasNext || !nextCursor || !tier) return
+    // Ref latch, checked before the state guard: a Virtuoso `endReached` and a "Load more" click
+    // can both fire in the same tick, before `loadingMore` has re-rendered.
+    if (loadingMoreRef.current || loadingMore || !hasNext || !nextCursor || !tier) return
+    loadingMoreRef.current = true
     setLoadingMore(true)
     try {
       const pageResult = await memesApi.getIngestionClusters(tier, nextCursor)
@@ -149,6 +161,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load more clusters")
     } finally {
+      loadingMoreRef.current = false
       setLoadingMore(false)
     }
   }, [memesApi, tier, nextCursor, hasNext, loadingMore])
@@ -188,7 +201,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     return pending.length > 0 && pending.every((m) => decisions[m.image_id] !== undefined)
   }
 
-  async function runSubmit(which: number | "all", toSubmit: { cluster: IngestionCluster; index: number }[]) {
+  async function runSubmit(which: IngestionCluster | "all", toSubmit: { cluster: IngestionCluster; index: number }[]) {
     if (!tier) return
     const payload = toSubmit.flatMap(({ cluster }) => decidedPendingIn(cluster))
     if (payload.length === 0) return
@@ -203,18 +216,18 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     setClusters((prev) => prev.filter((c) => !removedSet.has(c)))
     try {
       const response: IngestionResolveResponse = await memesApi.resolveIngestionCluster(tier, payload)
-      // Clear only decisions the server actually applied. Ones it reports as `failed` stay
-      // selected so the reviewer can retry them; ones it silently skipped are cleared on the
-      // next authoritative reload (see load()).
-      const applied = new Set([...response.rejected, ...response.kept])
-      if (applied.size > 0) {
-        setDecisions((prev) => {
-          const next = { ...prev }
-          for (const id of applied) delete next[id]
-          return next
-        })
-      }
       const failedIds = new Set(response.failed.map((f) => f.image_id))
+      // Payload-scoped, response-time prune: clear every id in THIS submit's payload except the
+      // ones the server reports as `failed` (those stay selected for retry). Race-free -- it
+      // never touches a failed id, so it can't fight the re-insert below -- and strictly stronger
+      // than the old always-on [clusters] effect: it also clears a decision the backend silently
+      // skipped (id in none of rejected/kept/failed/move_failed). move_failed is a subset of
+      // rejected, so no special case.
+      setDecisions((prev) => {
+        const next = { ...prev }
+        for (const { image_id } of payload) if (!failedIds.has(image_id)) delete next[image_id]
+        return next
+      })
       const reinsert = failedIds.size > 0
         ? removed
             .filter(({ cluster }) => cluster.members.some((m) => failedIds.has(m.image_id)))
@@ -230,9 +243,11 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       }
       // Ruling 3: only reload when the visible queue has emptied and there are no more pages --
       // this restores the old auto-advance from Tier A -> Tier B once the reviewer clears the
-      // queue. Every other submit stays purely optimistic (no reload, no scroll jump).
-      const remainingCount = clusters.filter((c) => !removedSet.has(c)).length + reinsert.length
-      if (remainingCount === 0 && !hasNext) {
+      // queue. Every other submit stays purely optimistic (no reload, no scroll jump). Read the
+      // *latest* clusters/hasNext (refs), not this render's closure -- a loadMore may have
+      // appended a page while this request was in flight.
+      const remaining = clustersRef.current.length + reinsert.length
+      if (remaining === 0 && !hasNextRef.current) {
         await load()
       }
       // Set the summary after any reload -- load()'s success path clears `error`, so setting it
@@ -254,7 +269,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     }
   }
 
-  const submitCluster = (index: number) => runSubmit(index, [{ cluster: clusters[index], index }])
+  const submitCluster = (cluster: IngestionCluster, index: number) => runSubmit(cluster, [{ cluster, index }])
   const submitAll = () => runSubmit("all", clusters.map((cluster, index) => ({ cluster, index })))
 
   function handleSubmitAllClick() {
@@ -320,8 +335,8 @@ export default function IngestionReviewPage({ memesApi }: Props) {
               cluster={cluster}
               decisions={decisions}
               onDecide={setDecision}
-              onSubmit={() => void submitCluster(index)}
-              submitting={submitting === index || submitting === "all"}
+              onSubmit={() => void submitCluster(cluster, index)}
+              submitting={submitting === cluster || submitting === "all"}
               onHoverPreview={openPreview}
               onLeavePreview={closePreviewSoon}
               onPeek={setPeek}

@@ -120,6 +120,103 @@ describe('IngestionReviewPage', () => {
     expect(getIngestionClusters).toHaveBeenCalledTimes(1) // no reload on the happy path
   })
 
+  it('keeps "Submitting…" on the submitted cluster, not whatever slides into its list slot', async () => {
+    // Regression: `submitting` must be keyed by the cluster object. With an index key, removing
+    // cluster a mid-request shifts cluster b into index 0 and b's button wrongly shows "Submitting…".
+    const getIngestionClusters = vi.fn().mockResolvedValue(page([cl('a'), cl('b')]))
+    const resolveIngestionCluster = vi.fn().mockImplementation(() => new Promise(() => {})) // never resolves
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
+      getIngestionClusters, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('a-1.jpg')
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0]) // a-1
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[1]) // b-1
+    await userEvent.click(screen.getAllByRole('button', { name: /^submit decisions$/i })[0]) // submit cluster a
+
+    await waitFor(() => expect(screen.queryByText('a-1.jpg')).toBeNull()) // a optimistically removed
+    const bSubmit = screen.getByRole('button', { name: /^submit decisions$/i }) // only cluster b's remains
+    expect(bSubmit).toBeEnabled()
+    expect(bSubmit).toHaveTextContent(/^submit decisions$/i) // not "Submitting…"
+  })
+
+  it('prunes a decision the server silently skipped so it cannot be resubmitted', async () => {
+    // The backend can resolve a submitted decision to a no-op (target no longer pending -- e.g.
+    // reject_image's own guard returns None): the id comes back in none of
+    // rejected/kept/failed/move_failed. The payload-scoped prune must still clear it.
+    const clMixed: IngestionCluster = {
+      members: [
+        { image_id: 'm-1', filename: 'm-1.jpg', status: 'pending', ocr_text: null },
+        { image_id: 'm-2', filename: 'm-2.jpg', status: 'pending', ocr_text: null },
+        { image_id: 'm-3', filename: 'm-3.jpg', status: 'active', ocr_text: null },
+      ],
+      edges: [],
+    }
+    const getIngestionClusters = vi.fn().mockResolvedValue(page([clMixed]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: [], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
+      getIngestionClusters, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('m-1.jpg')
+
+    // decide only m-1 -> cluster is not fully resolved -> not optimistically removed -> stays visible
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0])
+    expect(screen.getAllByRole('button', { name: /^reject$/i })[0].className).toContain('bg-red-600')
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
+
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /^reject$/i })[0].className).not.toContain('bg-red-600')
+    )
+    expect(getIngestionClusters).toHaveBeenCalledTimes(1) // no reload
+    expect(screen.queryByText(/Submit all decisions/i)).toBeNull() // no decision left anywhere
+  })
+
+  it('does not offer decisions for a member a reload shows is already resolved', async () => {
+    // Regression (decision-staleness guard): after a member is resolved, a reload that returns it
+    // as read-only `active` context must not carry a prior decision forward or show Keep/Reject.
+    const clA: IngestionCluster = {
+      members: [{ image_id: 'p-1', filename: 'p-1.jpg', status: 'pending', ocr_text: null }], edges: [],
+    }
+    const clB: IngestionCluster = {
+      members: [{ image_id: 'p-2', filename: 'p-2.jpg', status: 'pending', ocr_text: null }], edges: [],
+    }
+    const clAfter: IngestionCluster = {
+      members: [
+        { image_id: 'p-2', filename: 'p-2.jpg', status: 'active', ocr_text: null },
+        { image_id: 'p-3', filename: 'p-3.jpg', status: 'pending', ocr_text: null },
+      ],
+      edges: [],
+    }
+    const getIngestionClusters = vi.fn()
+      .mockResolvedValueOnce(page([clA, clB]))
+      .mockResolvedValueOnce(page([clAfter]))
+    const resolveIngestionCluster = vi.fn()
+      .mockResolvedValueOnce({ rejected: ['p-1'], kept: [], failed: [], move_failed: [] })
+      .mockResolvedValueOnce({ rejected: ['p-2'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
+      getIngestionClusters, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('p-1.jpg')
+
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0]) // p-1
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[1]) // p-2 (left un-submitted for now)
+    await userEvent.click(screen.getAllByRole('button', { name: /^submit decisions$/i })[0]) // submit clA
+    await waitFor(() => expect(screen.queryByText('p-1.jpg')).toBeNull())
+
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i })) // submit clB -> empties queue -> reload
+    await waitFor(() => expect(getIngestionClusters).toHaveBeenCalledTimes(2))
+    await screen.findByText('p-3.jpg')
+
+    expect(screen.getAllByRole('button', { name: /^reject$/i })).toHaveLength(1) // only p-3 is actionable
+    expect(screen.queryByText(/Submit all decisions/i)).toBeNull()
+  })
+
   it('reloads the queue when the last visible cluster is resolved and no more pages remain', async () => {
     const getIngestionRunStatus = vi.fn()
       .mockResolvedValueOnce(runStatus)
