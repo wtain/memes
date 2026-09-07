@@ -2,6 +2,7 @@
 Unit tests for IngestionService.resolve(), mocking IngestionRepository directly.
 """
 import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -149,6 +150,63 @@ class TestResolvePartialBatch:
         assert result["failed"] == []
         assert mock_repo.commit.await_count == 3
         assert mock_repo.rollback.await_count == 0
+
+
+class TestListClustersPagination:
+    """list_clusters builds the full union-find, sorts clusters by tightest edge, and returns
+    one cursor-delimited page. mock_repo returns raw tmp_duplicates rows."""
+
+    def _row(self, id1, id2, distance, status1="pending", status2="pending"):
+        # matches get_tier_candidate_rows' tuple shape:
+        # (image_id1, filename1, status1, image_id2, filename2, status2, distance, match_source)
+        return (id1, f"{id1}.jpg", status1, id2, f"{id2}.jpg", status2, distance, "clip")
+
+    async def _setup(self, service, mock_repo, rows):
+        mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
+        mock_repo.get_tier_candidate_rows.return_value = rows
+        mock_repo.get_ocr_texts.return_value = {}
+
+    async def test_orders_clusters_by_tightest_edge_and_paginates(self, service, mock_repo):
+        a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
+        b1, b2 = "00000000-0000-0000-0000-0000000000b1", "00000000-0000-0000-0000-0000000000b2"
+        c1, c2 = "00000000-0000-0000-0000-0000000000c1", "00000000-0000-0000-0000-0000000000c2"
+        rows = [
+            self._row(b1, b2, 0.20),
+            self._row(a1, a2, 0.05),   # tightest -> first
+            self._row(c1, c2, 0.30),
+        ]
+        await self._setup(service, mock_repo, rows)
+
+        page1 = await service.list_clusters("tier_b", limit=2)
+        assert [e["distance"] for c in page1["items"] for e in c["edges"]] == [0.05, 0.20]
+        assert page1["has_next"] is True
+        assert page1["next_cursor"] is not None
+
+        page2 = await service.list_clusters("tier_b", cursor=page1["next_cursor"], limit=2)
+        assert [e["distance"] for c in page2["items"] for e in c["edges"]] == [0.30]
+        assert page2["has_next"] is False
+        assert page2["next_cursor"] is None
+
+    async def test_blank_and_malformed_cursor_start_from_beginning(self, service, mock_repo):
+        a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
+        await self._setup(service, mock_repo, [self._row(a1, a2, 0.05)])
+        for bad in ("", "   ", "not-a-cursor", "abc|def", "0.1|"):
+            page = await service.list_clusters("tier_b", cursor=bad, limit=10)
+            assert len(page["items"]) == 1
+
+    async def test_empty_queue(self, service, mock_repo):
+        await self._setup(service, mock_repo, [])
+        page = await service.list_clusters("tier_b", limit=10)
+        assert page == {"items": [], "next_cursor": None, "has_next": False}
+
+    async def test_passes_ocr_thresholds_from_settings(self, service, mock_repo):
+        a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
+        await self._setup(service, mock_repo, [self._row(a1, a2, 0.05)])
+        await service.list_clusters("tier_b", limit=10)
+        _, kwargs = mock_repo.get_ocr_texts.call_args
+        args = mock_repo.get_ocr_texts.call_args.args
+        # confidence_min, lang_score_min passed positionally after image_ids
+        assert args[1:] == (0.4, 0.3) or (kwargs.get("confidence_min"), kwargs.get("lang_score_min")) == (0.4, 0.3)
 
 
 class TestUndoRejectAfterMoveFailure:

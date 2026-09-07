@@ -23,6 +23,28 @@ def _tier_band(tier: str) -> tuple[float, float]:
     return low, (high if high is not None else settings.DUPLICATES.THRESHOLD)
 
 
+CURSOR_SEP = "|"
+
+
+def _encode_cursor(min_distance: float, min_image_id: str) -> str:
+    return f"{min_distance:.6f}{CURSOR_SEP}{min_image_id}"
+
+
+def _decode_cursor(cursor):
+    """(min_distance, min_image_id) or None for anything unparseable -- a stale bookmark just
+    restarts the queue, never an error."""
+    if not cursor or CURSOR_SEP not in cursor:
+        return None
+    head, _, tail = cursor.partition(CURSOR_SEP)
+    tail = tail.strip()
+    if not tail:
+        return None
+    try:
+        return (float(head), tail)
+    except ValueError:
+        return None
+
+
 class IngestionService:
     def __init__(self, repo: IngestionRepository):
         self.repo = repo
@@ -57,7 +79,10 @@ class IngestionService:
             for image_id, filename, created_at in rows
         ]
 
-    async def list_clusters(self, tier: str, batch_id: Optional[UUID] = None) -> list[dict]:
+    async def list_clusters(
+        self, tier: str, batch_id: Optional[UUID] = None,
+        cursor: Optional[str] = None, limit: int = 40,
+    ) -> dict:
         resolved_id = await self._resolve_batch_id(batch_id)
         low, high = _tier_band(tier)
         rows = await self.repo.get_tier_candidate_rows(resolved_id, tier, low, high)
@@ -83,7 +108,9 @@ class IngestionService:
         # (e.g. visually-similar-format-but-different-text meme cards), so the operational
         # order now runs OCR before Tier A review, not just before Tier B's. This method
         # doesn't need to know or care which tier it's serving -- it always fetches OCR text.
-        ocr_texts = await self.repo.get_ocr_texts(member_uuids)
+        ocr_texts = await self.repo.get_ocr_texts(
+            member_uuids, settings.OCR.CONFIDENCE_MIN, settings.OCR.LANG_SCORE_MIN,
+        )
         for uid, info in member_info.items():
             info["ocr_text"] = ocr_texts.get(uid)
 
@@ -91,11 +118,31 @@ class IngestionService:
         for root in uf.list_clusters():
             cluster_members = uf.get_cluster(root)
             member_ids = {str(m) for m in cluster_members}
+            cluster_edges = [
+                e for e in edges
+                if e["image_id1"] in member_ids and e["image_id2"] in member_ids
+            ]
+            min_distance = min((e["distance"] for e in cluster_edges), default=1.0)
+            min_image_id = min(member_ids)
             clusters.append({
                 "members": [member_info[m] for m in cluster_members],
-                "edges": [e for e in edges if e["image_id1"] in member_ids and e["image_id2"] in member_ids],
+                "edges": cluster_edges,
+                "_sort_key": (min_distance, min_image_id),
             })
-        return clusters
+
+        clusters.sort(key=lambda c: c["_sort_key"])
+
+        decoded = _decode_cursor(cursor)
+        if decoded is not None:
+            clusters = [c for c in clusters if c["_sort_key"] > decoded]
+
+        page = clusters[:limit]
+        has_next = len(clusters) > limit
+        next_cursor = _encode_cursor(*page[-1]["_sort_key"]) if (page and has_next) else None
+
+        for c in page:
+            c.pop("_sort_key", None)
+        return {"items": page, "next_cursor": next_cursor, "has_next": has_next}
 
     async def resolve(self, tier: str, decisions: list[dict]) -> dict:
         """Apply per-image reject/keep decisions independently -- one decision's failure (DB or
