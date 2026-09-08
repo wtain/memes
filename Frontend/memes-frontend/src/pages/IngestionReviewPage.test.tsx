@@ -260,6 +260,69 @@ describe('IngestionReviewPage', () => {
     expect(screen.queryByText('a-1.jpg')).toBeNull()
   })
 
+  it('submits only the decided members of a cluster, not the ones left unchanged', async () => {
+    const cl3: IngestionCluster = {
+      members: [
+        { image_id: 'q-1', filename: 'q-1.jpg', status: 'pending', ocr_text: null },
+        { image_id: 'q-2', filename: 'q-2.jpg', status: 'pending', ocr_text: null },
+        { image_id: 'q-3', filename: 'q-3.jpg', status: 'pending', ocr_text: null },
+      ],
+      edges: [],
+    }
+    const getIngestionClusters = vi.fn().mockResolvedValue(page([cl3]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['q-1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
+      getIngestionClusters, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('q-1.jpg')
+
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0]) // q-1 only
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
+
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledTimes(1))
+    // exactly the one decided member -- q-2 and q-3 (left unchanged) are not in the payload
+    expect(resolveIngestionCluster).toHaveBeenCalledWith('tier_a', [{ image_id: 'q-1', decision: 'reject' }])
+  })
+
+  it('"Submit all" resolves a partial cluster and a full one together, keeping the partial visible', async () => {
+    const partial: IngestionCluster = {
+      members: [
+        { image_id: 'p-1', filename: 'p-1.jpg', status: 'pending', ocr_text: null },
+        { image_id: 'p-2', filename: 'p-2.jpg', status: 'pending', ocr_text: null },
+      ],
+      edges: [],
+    }
+    const getIngestionClusters = vi.fn().mockResolvedValue(page([partial, cl('f')]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['p-1', 'f-1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
+      getIngestionClusters, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('p-1.jpg')
+
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0]) // p-1 (partial: p-2 left)
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[2]) // f-1 (fully resolves cl('f'))
+    await userEvent.click(screen.getByRole('button', { name: /submit all decisions/i })) // arm confirm
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledTimes(1))
+    const [, payload] = resolveIngestionCluster.mock.calls[0]
+    expect(payload).toEqual(expect.arrayContaining([
+      { image_id: 'p-1', decision: 'reject' }, { image_id: 'f-1', decision: 'reject' },
+    ]))
+    expect(payload).toHaveLength(2) // p-2, left unchanged, is not submitted
+
+    // the fully-resolved cluster is gone; the partial one stays with its undecided member actionable
+    await waitFor(() => expect(screen.queryByText('f-1.jpg')).toBeNull())
+    expect(screen.getByText('p-1.jpg')).toBeInTheDocument()
+    expect(screen.getByText('p-1.jpg').parentElement).toHaveTextContent('rejected') // decided -> read-only
+    expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument() // p-2 still decidable
+    expect(getIngestionClusters).toHaveBeenCalledTimes(1) // partial cluster still visible -> no reload
+  })
+
   it('flips just-resolved members of a surviving cluster to read-only context', async () => {
     // A partially-resolved cluster stays in the list; its resolved members must stop offering
     // Keep/Reject (else, with the decision highlight pruned, the tile reads as "submit failed").
