@@ -28,7 +28,9 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
       <header className="border-b bg-white sticky top-0 z-50">
-        <div className="mx-auto max-w-6xl px-4 py-3 flex gap-6">
+        {/* flex-wrap so the ~13 links drop to a second row on a narrow window instead of
+            overflowing the viewport and forcing a horizontal page scroll. */}
+        <div className="mx-auto max-w-6xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-2">
           <NavLink
             to="/explore"
             onClick={handleListNavClick("/explore")}
