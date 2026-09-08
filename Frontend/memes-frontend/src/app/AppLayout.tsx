@@ -155,7 +155,9 @@ export default function AppLayout() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      {/* The ingestion review page is a side-by-side image comparison tool -- it breaks out of
+          the app's reading-width cap to use the whole viewport. */}
+      <main className={location.pathname === "/ingestion" ? "px-4 py-6" : "mx-auto max-w-6xl px-4 py-6"}>
         {/* location.search is deliberately excluded from this key -- the duplicates page updates
             its ?cursor= URL param on every debounced scroll tick, and including search here would
             remount the page (destroying the very scroll state we're tracking) on every one of

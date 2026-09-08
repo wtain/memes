@@ -6,7 +6,6 @@ import type {
 } from "../types/generated/all"
 import { Modal } from "../components/Modal"
 import { ClusterRow } from "../components/ingestion/ClusterRow"
-import { DockedPreview } from "../components/ingestion/DockedPreview"
 import type { Decision } from "../components/ingestion/types"
 
 type Props = { memesApi: MemesApi }
@@ -81,12 +80,12 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   // Keyed by the cluster object, never a list index -- optimistic removal reshuffles indices
   // mid-request, so an index key would move "Submitting…" onto whatever cluster slid into that slot.
   const [submitting, setSubmitting] = useState<IngestionCluster | "all" | null>(null)
-  const [preview, setPreview] = useState<IngestionClusterMember | null>(null)
   const [peek, setPeek] = useState<IngestionClusterMember | null>(null)
+  // Big clusters render collapsed; expansion is keyed by cluster identity (like `submitting`),
+  // so a server reload -- which installs fresh cluster objects -- naturally resets it.
+  const [expandedClusters, setExpandedClusters] = useState<Set<IngestionCluster>>(new Set())
   const [confirmingAll, setConfirmingAll] = useState(false)
   const confirmAllTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const previewCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const preloadedRef = useRef<Set<string>>(new Set())
   const loadingMoreRef = useRef(false)
 
   const tier = status ? tierForStage(status.stage) : null
@@ -128,7 +127,6 @@ export default function IngestionReviewPage({ memesApi }: Props) {
 
   useEffect(() => () => {
     if (confirmAllTimeoutRef.current) clearTimeout(confirmAllTimeoutRef.current)
-    if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
   }, [])
 
   // A tier change means the review queue was rebuilt server-side -- start local decisions fresh
@@ -164,19 +162,13 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     setDecisions((prev) => ({ ...prev, [memberId]: prev[memberId] === decision ? undefined : decision }))
   }
 
-  function openPreview(member: IngestionClusterMember) {
-    if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
-    setPreview(member)
-    const url = memesApi.getImageUrlById(member.image_id)
-    if (!preloadedRef.current.has(url)) {
-      preloadedRef.current.add(url)
-      const img = new Image()
-      img.src = url
-    }
-  }
-  function closePreviewSoon() {
-    if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
-    previewCloseRef.current = setTimeout(() => setPreview(null), 120)
+  function toggleExpand(cluster: IngestionCluster) {
+    setExpandedClusters((prev) => {
+      const next = new Set(prev)
+      if (next.has(cluster)) next.delete(cluster)
+      else next.add(cluster)
+      return next
+    })
   }
 
   // ---- submit paths (optimistic) ----
@@ -203,10 +195,6 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     const removed = toSubmit.filter(({ cluster }) => isFullyResolved(cluster))
     const removedSet = new Set(removed.map(({ cluster }) => cluster))
     setSubmitting(which)
-    // The docked preview is a transient hover aid -- drop it on submit so it can't linger
-    // pointing at a member of a cluster we're about to pull out of the list.
-    setPreview(null)
-    if (previewCloseRef.current) clearTimeout(previewCloseRef.current)
     // Compute the post-removal visible count inside the updater -- reading it back from a ref
     // after the await races the passive effect that would sync the ref.
     let survivingCount = 0
@@ -326,12 +314,8 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   )
   if (!status) return <Shell><p className="text-sm text-gray-400">No ingestion run is currently in progress.</p></Shell>
 
-  const previewDecision = preview ? decisions[preview.image_id] : undefined
-
   return (
-    // Permanent lg gutter for the desktop-only docked pane -- toggling it with `preview` made
-    // the list (and <Virtuoso useWindowScroll>) reflow/re-measure on every hover.
-    <div className="lg:pr-[42vw]">
+    <div>
       <h1 className="text-2xl font-bold mb-4">Ingestion Review{tier ? ` — ${TIER_LABEL[tier]}` : ""}</h1>
       <StatusBanner status={status} />
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
@@ -352,7 +336,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
           useWindowScroll
           data={clusters}
           endReached={() => { void loadMore() }}
-          increaseViewportBy={{ top: 400, bottom: 1200 }}
+          increaseViewportBy={{ top: 600, bottom: 1600 }}
           itemContent={(index, cluster) => (
             <ClusterRow
               memesApi={memesApi}
@@ -361,8 +345,8 @@ export default function IngestionReviewPage({ memesApi }: Props) {
               onDecide={setDecision}
               onSubmit={() => void submitCluster(cluster, index)}
               submitting={submitting === cluster || submitting === "all"}
-              onHoverPreview={openPreview}
-              onLeavePreview={closePreviewSoon}
+              expanded={expandedClusters.has(cluster)}
+              onToggleExpand={() => toggleExpand(cluster)}
               onPeek={setPeek}
             />
           )}
@@ -397,15 +381,6 @@ export default function IngestionReviewPage({ memesApi }: Props) {
           </button>
         </div>
       )}
-
-      <DockedPreview
-        memesApi={memesApi}
-        member={preview}
-        decision={previewDecision}
-        onDecide={(d) => { if (preview) setDecision(preview.image_id, d) }}
-        onMouseEnter={() => { if (previewCloseRef.current) clearTimeout(previewCloseRef.current) }}
-        onMouseLeave={closePreviewSoon}
-      />
 
       {peek && (
         <Modal onClose={() => setPeek(null)} title={peek.filename}>
