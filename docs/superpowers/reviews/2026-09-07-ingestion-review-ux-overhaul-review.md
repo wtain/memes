@@ -100,9 +100,35 @@ the resolved ids into rejected/kept sets and flip each accordingly.
 
 ## Manual smoke
 
-Not performed — no active `general` ingestion run was available in this environment. The two
-things automated tests structurally cannot cover are the docked-pane hover latency (the whole
-justification for rejecting a server-side thumbnail endpoint rests on the tile image already
-being in browser cache) and the hover/reflow interaction. Recommend a manual pass against the
-running `general` dev servers (`:5174` / `:8082`, never binding the always-occupied env ports)
-before merge.
+Not performed during the branch review — no active `general` ingestion run was available in
+that environment. Done afterward on branch `ingestion-review-followups` (see below).
+
+## Post-merge follow-ups (branch `ingestion-review-followups`)
+
+**Ruling 6 fix (`9328bcb`):** the blanket `status: "active"` flip was split by server outcome —
+`response.rejected` ids flip to `"rejected"`, `response.kept` to `"active"`. Label is now
+truthful; controls hide the same way.
+
+**Layout rework (`30f094a`) — from a real browser smoke on `general`:** the fix-wave's
+permanent `lg:pr-[42vw]` gutter (added to stop the docked pane reflowing the list on hover)
+reserved ~42% of the viewport as dead space on a wide monitor, crushing content into a narrow
+column where every cluster card needed its own horizontal scrollbar for one image; the
+`vw`-based padding also re-laid-out the page on every resize frame. Reworked after a
+brainstorm with the user:
+
+- **Docked preview pane dropped entirely** (component + tests deleted). The click-to-zoom
+  `Modal` covers the pixel-peek case and the grid tiles are near-full-size. This supersedes
+  spec §5's "hybrid inline + docked pane" — the docked pane never survived contact with real
+  cluster sizes.
+- `/ingestion` breaks out of `AppLayout`'s `max-w-6xl` to full viewport width.
+- Cluster members render in a responsive wrap grid (`auto-fill, minmax(300px, 1fr)`) —
+  vertical window scroll only, no horizontal strip. Supersedes spec §5's `overflow-x-auto`
+  member strip.
+- Large clusters (the live queue has a 225-member one) collapse to the first 8 behind a
+  "show N more" toggle, keyed by cluster identity.
+- Tile edge distances condensed to one line (`0.044 nearest · 8 pairs`).
+
+Verified in Chrome on `general` at 1100/1300/1568/1896px: grid reflows cleanly, no horizontal
+page scroll from the content, click-to-zoom modal works, giant-cluster collapse works. One
+**pre-existing, out-of-scope** issue noticed: the top nav bar (`flex gap-6`, ~13 links, no
+wrap) overflows horizontally below ~1200px — unchanged by this work, affects every page.
