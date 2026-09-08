@@ -272,7 +272,7 @@ describe('IngestionReviewPage', () => {
       edges: [],
     }
     const getIngestionClusters = vi.fn().mockResolvedValue(page([cl3]))
-    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['q-1'], kept: [], failed: [], move_failed: [] })
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['q-1'], kept: ['q-2'], failed: [], move_failed: [] })
     const api = makeMockApi({
       getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
       getIngestionClusters, resolveIngestionCluster,
@@ -282,12 +282,16 @@ describe('IngestionReviewPage', () => {
 
     expect(screen.getAllByRole('button', { name: /^reject$/i })).toHaveLength(3)
     await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0]) // q-1
+    await userEvent.click(screen.getAllByRole('button', { name: /^keep$/i })[1]) // q-2
     await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
 
     await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledTimes(1))
-    // q-1 lost its controls; q-2 and q-3 keep theirs; the cluster stays in the list.
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /^reject$/i })).toHaveLength(2))
+    // q-1 and q-2 lose their controls; q-3 keeps its; the cluster stays in the list.
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /^reject$/i })).toHaveLength(1))
     expect(screen.getByText('q-1.jpg')).toBeInTheDocument()
+    // status label stays truthful per the server outcome, not a blanket "active"
+    expect(screen.getByText('q-1.jpg').parentElement).toHaveTextContent('rejected')
+    expect(screen.getByText('q-2.jpg').parentElement).toHaveTextContent('active')
     expect(getIngestionClusters).toHaveBeenCalledTimes(1) // no reload -- cluster still visible
   })
 

@@ -236,24 +236,28 @@ export default function IngestionReviewPage({ memesApi }: Props) {
             .sort((a, b) => a.index - b.index)
         : []
       // Members the server actually resolved (not failed) that are still sitting in a *surviving*
-      // cluster (a partially-resolved one `isFullyResolved` kept): flip their local status to
-      // "active" so MemberTile stops offering Keep/Reject -- otherwise, with the decision
-      // highlight just pruned, the tile reads as "my submit didn't take".
-      const resolvedIds = new Set(
-        [...response.rejected, ...response.kept].filter((id) => !failedIds.has(id))
-      )
-      if (reinsert.length > 0 || resolvedIds.size > 0) {
+      // cluster (a partially-resolved one `isFullyResolved` kept): flip their local status so
+      // MemberTile stops offering Keep/Reject -- otherwise, with the decision highlight just
+      // pruned, the tile reads as "my submit didn't take". Use the per-id server outcome so the
+      // status *label* stays truthful: a rejected member reads "rejected", a kept one "active".
+      const rejectedIds = new Set(response.rejected.filter((id) => !failedIds.has(id)))
+      const keptIds = new Set(response.kept.filter((id) => !failedIds.has(id)))
+      const resolvedCount = rejectedIds.size + keptIds.size
+      const resolvedStatus = (imageId: string): string | null =>
+        rejectedIds.has(imageId) ? "rejected" : keptIds.has(imageId) ? "active" : null
+      if (reinsert.length > 0 || resolvedCount > 0) {
         setClusters((prev) => {
           let copy = [...prev]
           for (const { cluster, index } of reinsert) copy.splice(Math.min(index, copy.length), 0, cluster)
-          if (resolvedIds.size > 0) {
+          if (resolvedCount > 0) {
             copy = copy.map((c) =>
-              c.members.some((m) => m.status === "pending" && resolvedIds.has(m.image_id))
+              c.members.some((m) => m.status === "pending" && resolvedStatus(m.image_id) !== null)
                 ? {
                     ...c,
-                    members: c.members.map((m) =>
-                      m.status === "pending" && resolvedIds.has(m.image_id) ? { ...m, status: "active" } : m
-                    ),
+                    members: c.members.map((m) => {
+                      const next = m.status === "pending" ? resolvedStatus(m.image_id) : null
+                      return next ? { ...m, status: next } : m
+                    }),
                   }
                 : c
             )
