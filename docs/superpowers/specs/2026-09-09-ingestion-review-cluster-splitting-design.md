@@ -1,6 +1,7 @@
 # Ingestion Review — Cluster Splitting
 
-status: approved
+status: done
+Plan: `docs/superpowers/plans/2026-09-09-ingestion-review-cluster-splitting.md`
 Originates from: `docs/superpowers/specs/2026-09-07-ingestion-review-ux-overhaul-design.md` (the layout rework surfaced 200+-member review clusters); user request 2026-09-09.
 
 ## Problem

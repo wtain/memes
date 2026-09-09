@@ -260,6 +260,37 @@ describe('IngestionReviewPage', () => {
     expect(screen.queryByText('a-1.jpg')).toBeNull()
   })
 
+  it('renders and submits across several small clusters split from one blob', async () => {
+    // three subgroups the server split out of one union-find component
+    const subgroups: IngestionCluster[] = [1, 2, 3].map((n) => ({
+      members: [{ image_id: `s${n}-1`, filename: `s${n}-1.jpg`, status: 'pending', ocr_text: null }],
+      edges: [],
+    }))
+    const getIngestionClusters = vi.fn().mockResolvedValue(page(subgroups))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({
+      rejected: ['s1-1', 's2-1', 's3-1'], kept: [], failed: [], move_failed: [],
+    })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
+      getIngestionClusters, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1-1.jpg')
+    expect(screen.getByText('s2-1.jpg')).toBeInTheDocument()
+    expect(screen.getByText('s3-1.jpg')).toBeInTheDocument()
+
+    for (const btn of screen.getAllByRole('button', { name: /^reject$/i })) {
+      await userEvent.click(btn)
+    }
+    await userEvent.click(screen.getByRole('button', { name: /submit all decisions/i }))
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => {
+      const [, payload] = resolveIngestionCluster.mock.calls[0]
+      expect(payload).toHaveLength(3)
+    })
+  })
+
   it('submits only the decided members of a cluster, not the ones left unchanged', async () => {
     const cl3: IngestionCluster = {
       members: [

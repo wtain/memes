@@ -35,12 +35,13 @@ async def _make_pair(session, id1, id2, distance) -> None:
     await session.flush()
 
 
-async def _chain(session, batch_id, n, loose_at):
-    """n pending images in a chain; links are 0.02 except indices in `loose_at` (0-based edge
-    index) which are 0.045 -> one union-find blob, splits at the loose links."""
+async def _chain(session, batch_id, n, loose_at, tight=0.02, loose=0.045):
+    """n pending images in a chain; links are `tight` except indices in `loose_at` (0-based
+    edge index) which are `loose` -> one union-find blob, splits at the loose links.
+    Defaults are a Tier A band; pass tight=0.08/loose=0.22 for a Tier B chain."""
     ids = [await _make_image(session, "pending", batch_id) for _ in range(n)]
     for i in range(n - 1):
-        await _make_pair(session, ids[i], ids[i + 1], 0.045 if i in loose_at else 0.02)
+        await _make_pair(session, ids[i], ids[i + 1], loose if i in loose_at else tight)
     return ids
 
 
@@ -50,6 +51,15 @@ def force_split(monkeypatch):
     monkeypatch.setattr(
         "Backend.app.services.ingestion_service._split_params",
         lambda tier: {"start": 0.05, "decrement": 0.01, "floor": 0.01, "max_size": 3},
+    )
+
+
+@pytest.fixture
+def force_split_tier_b(monkeypatch):
+    """Tier B ladder with a small max_size so a modest Tier B chain splits."""
+    monkeypatch.setattr(
+        "Backend.app.services.ingestion_service._split_params",
+        lambda tier: {"start": 0.30, "decrement": 0.05, "floor": 0.05, "max_size": 3},
     )
 
 
@@ -102,3 +112,36 @@ async def test_decision_on_a_split_member_still_settles_its_cross_subgroup_pair(
     assert (str(min(ids[2], ids[3])), str(max(ids[2], ids[3]))) not in remaining_pairs
     blocked = await service.repo.get_blocked_pending_ids(batch_id, tier_a_high=0.05, tier_b_high=0.3)
     assert ids[2] not in blocked
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_tier_b_blob_splits_with_the_tier_b_ladder(db_session, force_split_tier_b):
+    batch_id = await _make_run(db_session)
+    # Tier B band: tight links 0.08, loose links 0.22 -> one union-find blob, splits at the
+    # loose links into {0,1,2} {3,4,5} {6,7}.
+    ids = await _chain(db_session, batch_id, n=8, loose_at={2, 5}, tight=0.08, loose=0.22)
+    service = IngestionService(IngestionRepository(db_session))
+
+    page = await service.list_clusters("tier_b", batch_id=batch_id)
+
+    assert page["has_next"] is False
+    assert len(page["items"]) >= 2
+    returned = [str(m["image_id"]) for c in page["items"] for m in c["members"]]
+    assert sorted(returned) == sorted(str(i) for i in ids)   # partition: nothing dropped/dupd
+    assert len(returned) == len(set(returned))
+    assert all(len(c["members"]) <= 3 for c in page["items"])
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_tier_b_splitting_disabled_returns_one_cluster_per_blob(db_session, monkeypatch):
+    monkeypatch.setattr(
+        "Backend.app.services.ingestion_service._split_params", lambda tier: None,
+    )
+    batch_id = await _make_run(db_session)
+    ids = await _chain(db_session, batch_id, n=8, loose_at={2, 5}, tight=0.08, loose=0.22)
+    service = IngestionService(IngestionRepository(db_session))
+
+    page = await service.list_clusters("tier_b", batch_id=batch_id)
+
+    assert len(page["items"]) == 1
+    assert len(page["items"][0]["members"]) == 8

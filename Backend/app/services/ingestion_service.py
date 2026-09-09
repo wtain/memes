@@ -106,6 +106,8 @@ class IngestionService:
         low, high = _tier_band(tier)
         rows = await self.repo.get_tier_candidate_rows(resolved_id, tier, low, high)
 
+        split_cfg = _split_params(tier)  # None when splitting is disabled
+
         uf = UnionFind()
         member_info: dict[str, dict] = {}
         edges: list[dict] = []
@@ -117,8 +119,9 @@ class IngestionService:
             member_info[id1] = {"image_id": str(id1), "filename": filename1, "status": status1}
             member_info[id2] = {"image_id": str(id2), "filename": filename2, "status": status2}
             member_uuids.update((id1, id2))
-            pairs_by_member[id1].append((id2, distance))
-            pairs_by_member[id2].append((id1, distance))
+            if split_cfg is not None:
+                pairs_by_member[id1].append((id2, distance))
+                pairs_by_member[id2].append((id1, distance))
             edges.append({
                 "image_id1": str(id1), "image_id2": str(id2),
                 "distance": distance, "match_source": match_source,
@@ -136,7 +139,6 @@ class IngestionService:
         for uid, info in member_info.items():
             info["ocr_text"] = ocr_texts.get(uid)
 
-        split_cfg = _split_params(tier)
         clusters = []
         for root in uf.list_clusters():
             blob = uf.get_cluster(root)
