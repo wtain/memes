@@ -12,6 +12,7 @@ from Backend.app.services.ingestion_service import _split_params, _tier_band
 FULL_BLOCK = {
     "enabled": True,
     "max_group_size": 12,
+    "start": 99.0,  # must be ignored -- _split_params always derives start from the tier band
     "tier_a": {"decrement": 0.01, "floor": 0.01},
     "tier_b": {"decrement": 0.05, "floor": 0.05},
 }

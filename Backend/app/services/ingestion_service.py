@@ -133,6 +133,14 @@ class IngestionService:
                 "distance": distance, "match_source": match_source,
             })
 
+        if split_cfg is not None:
+            # get_tier_candidate_rows returns rows in unspecified order, so a loose member
+            # with two exactly-equal-distance edges into different subgroups would otherwise
+            # attach to whichever neighbour came first in row order -- non-deterministic
+            # across identical requests. Sorting by (distance, str(id)) makes it stable.
+            for adj in pairs_by_member.values():
+                adj.sort(key=lambda p: (p[1], str(p[0])))
+
         # OCR text is the primary review signal for both tiers (same OCR-first priority the
         # review-duplicates skill already used) -- empirical validation (2026-07-25) found
         # Tier A's original "thumbnails alone are decisive" premise doesn't hold universally
