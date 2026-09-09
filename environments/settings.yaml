@@ -82,6 +82,19 @@ clustering:
     # forcing a further split would be arbitrary rather than meaningful. With
     # decrement=0.01 off the 0.05 base, that's at most 4 attempts (0.04, 0.03, 0.02, 0.01).
     floor: 0.01
+  ingestion_review_splitting:
+    # Splits oversized IngestionService.list_clusters review cards into tight subgroups on
+    # the fly -- presentational only, see
+    # docs/superpowers/specs/2026-09-09-ingestion-review-cluster-splitting-design.md.
+    # Reuses clusterize.resolve_cluster for the tight cores; a wrapper re-attaches loose
+    # members so no candidate pair ever leaves the review queue.
+    enabled: true
+    max_group_size: 12
+    # Tier A candidate pairs are all < 0.05; Tier B's are 0.05-0.30. Each tier's ladder
+    # starts at its band top and tightens by `decrement` until a group is small enough or
+    # the next step would fall below `floor`.
+    tier_a: { start: 0.05, decrement: 0.01, floor: 0.01 }
+    tier_b: { start: 0.30, decrement: 0.05, floor: 0.05 }
 
 scheduler:
   # Opt-in per environment (see settings.metal.yaml / settings.general.yaml /

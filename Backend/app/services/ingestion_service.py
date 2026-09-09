@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Optional
 from uuid import UUID
 
@@ -5,6 +6,7 @@ from fastapi import HTTPException
 
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services import image_store
+from Backend.app.services.cluster_splitting import split_for_review
 # Reuses clusterize.py's existing constant rather than a second "confirmed duplicate"
 # threshold living in two places -- see
 # docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
@@ -21,6 +23,19 @@ TIER_BANDS = {
 def _tier_band(tier: str) -> tuple[float, float]:
     low, high = TIER_BANDS[tier]
     return low, (high if high is not None else settings.DUPLICATES.THRESHOLD)
+
+
+def _split_params(tier: str):
+    """Threshold ladder + max size for `tier`, or None when splitting is disabled or the
+    config block is absent (a stale/omitted overlay disables cleanly rather than raising)."""
+    cfg = settings.get("CLUSTERING.INGESTION_REVIEW_SPLITTING")
+    if not cfg or not cfg.get("enabled"):
+        return None
+    t = cfg[tier]
+    return {
+        "start": t["start"], "decrement": t["decrement"], "floor": t["floor"],
+        "max_size": cfg["max_group_size"],
+    }
 
 
 CURSOR_SEP = "|"
@@ -95,12 +110,15 @@ class IngestionService:
         member_info: dict[str, dict] = {}
         edges: list[dict] = []
         member_uuids: set = set()
+        pairs_by_member: dict = defaultdict(list)
 
         for id1, filename1, status1, id2, filename2, status2, distance, match_source in rows:
             uf.connect(id1, id2)
             member_info[id1] = {"image_id": str(id1), "filename": filename1, "status": status1}
             member_info[id2] = {"image_id": str(id2), "filename": filename2, "status": status2}
             member_uuids.update((id1, id2))
+            pairs_by_member[id1].append((id2, distance))
+            pairs_by_member[id2].append((id1, distance))
             edges.append({
                 "image_id1": str(id1), "image_id2": str(id2),
                 "distance": distance, "match_source": match_source,
@@ -118,21 +136,27 @@ class IngestionService:
         for uid, info in member_info.items():
             info["ocr_text"] = ocr_texts.get(uid)
 
+        split_cfg = _split_params(tier)
         clusters = []
         for root in uf.list_clusters():
-            cluster_members = uf.get_cluster(root)
-            member_ids = {str(m) for m in cluster_members}
-            cluster_edges = [
-                e for e in edges
-                if e["image_id1"] in member_ids and e["image_id2"] in member_ids
-            ]
-            min_distance = min((e["distance"] for e in cluster_edges), default=1.0)
-            min_image_id = min(member_ids)
-            clusters.append({
-                "members": [member_info[m] for m in cluster_members],
-                "edges": cluster_edges,
-                "_sort_key": (min_distance, min_image_id),
-            })
+            blob = uf.get_cluster(root)
+            groups = (
+                split_for_review(blob, pairs_by_member, **split_cfg)
+                if split_cfg is not None
+                else [blob]
+            )
+            for group in groups:
+                member_ids = {str(m) for m in group}
+                group_edges = [
+                    e for e in edges
+                    if e["image_id1"] in member_ids and e["image_id2"] in member_ids
+                ]
+                min_distance = min((e["distance"] for e in group_edges), default=1.0)
+                clusters.append({
+                    "members": [member_info[m] for m in group],
+                    "edges": group_edges,
+                    "_sort_key": (min_distance, min(member_ids)),
+                })
 
         clusters.sort(key=lambda c: c["_sort_key"])
 
