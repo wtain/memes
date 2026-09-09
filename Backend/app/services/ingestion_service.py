@@ -31,9 +31,15 @@ def _split_params(tier: str):
     cfg = settings.get("CLUSTERING.INGESTION_REVIEW_SPLITTING")
     if not cfg or not cfg.get("enabled"):
         return None
-    t = cfg[tier]
+    t = cfg.get(tier)
+    if not t:
+        # Block enabled but this tier's ladder omitted -- fail open, same as an absent block.
+        return None
     return {
-        "start": t["start"], "decrement": t["decrement"], "floor": t["floor"],
+        # `start` is the tier's band top, derived -- not a duplicated literal. If
+        # duplicates.threshold is raised, tier B's ladder widens with it.
+        "start": _tier_band(tier)[1],
+        "decrement": t["decrement"], "floor": t["floor"],
         "max_size": cfg["max_group_size"],
     }
 
@@ -147,12 +153,18 @@ class IngestionService:
                 if split_cfg is not None
                 else [blob]
             )
-            for group in groups:
+            # Bucket this blob's edges by group in one pass (O(E)) rather than re-scanning
+            # the full edge list per group -- splitting multiplies the group count ~10-20x.
+            group_of = {str(m): gi for gi, g in enumerate(groups) for m in g}
+            buckets: list[list[dict]] = [[] for _ in groups]
+            for e in edges:
+                gi = group_of.get(e["image_id1"])
+                if gi is not None and gi == group_of.get(e["image_id2"]):
+                    buckets[gi].append(e)
+
+            for gi, group in enumerate(groups):
                 member_ids = {str(m) for m in group}
-                group_edges = [
-                    e for e in edges
-                    if e["image_id1"] in member_ids and e["image_id2"] in member_ids
-                ]
+                group_edges = buckets[gi]
                 min_distance = min((e["distance"] for e in group_edges), default=1.0)
                 clusters.append({
                     "members": [member_info[m] for m in group],

@@ -50,7 +50,11 @@ def split_for_review(members, pairs_by_member, *, start, decrement, floor, max_s
         best = None  # (distance, loose_id, core_index)
         for m in loose:
             for neighbor, distance in pairs_by_member.get(m, ()):
-                if neighbor in assigned and (best is None or distance < best[0]):
+                # Tie-break on str(id) so an equidistant loose member joins the same
+                # subgroup on every run, regardless of `loose` set-iteration order.
+                if neighbor in assigned and (
+                    best is None or (distance, str(m)) < (best[0], str(best[1]))
+                ):
                     best = (distance, m, assigned[neighbor])
         if best is None:
             break  # the remaining loose ids reach no core

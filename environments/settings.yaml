@@ -91,10 +91,11 @@ clustering:
     enabled: true
     max_group_size: 12
     # Tier A candidate pairs are all < 0.05; Tier B's are 0.05-0.30. Each tier's ladder
-    # starts at its band top and tightens by `decrement` until a group is small enough or
-    # the next step would fall below `floor`.
-    tier_a: { start: 0.05, decrement: 0.01, floor: 0.01 }
-    tier_b: { start: 0.30, decrement: 0.05, floor: 0.05 }
+    # starts at its band top -- derived by _split_params (0.05 for tier_a, and
+    # settings.DUPLICATES.THRESHOLD for tier_b), not configured here -- and tightens by
+    # `decrement` until a group is small enough or the next step would fall below `floor`.
+    tier_a: { decrement: 0.01, floor: 0.01 }
+    tier_b: { decrement: 0.05, floor: 0.05 }
 
 scheduler:
   # Opt-in per environment (see settings.metal.yaml / settings.general.yaml /

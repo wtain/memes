@@ -202,6 +202,11 @@ No code change required — `IngestionCluster` is identical and the page already
 clusters. The `ClusterRow` "show 8 / Show N more" collapse stays as the display safety net for
 a subgroup that came back oversized. One test is added (§6).
 
+After a split, `cluster.edges` — and so `ClusterRow`'s `edgeSummaryFor` "N pairs" count — is
+card-scoped: a member's edges that cross into another subgroup are not counted in its card. This
+is intended (the deferred "linked to a larger candidate group" hint below would surface them);
+the `backend_api.md` sentence already covers the decision semantics.
+
 Deferred nice-to-have (not in this spec): a muted "linked to a larger candidate group" hint on
 a card whose members have `tmp_duplicates` edges to images outside the card. Needs the API to
 expose cross-group edge counts; skip for now.
