@@ -5,7 +5,6 @@ import uuid
 import pytest
 
 from Backend.app.repositories.ingestion_repository import IngestionRepository
-from Backend.app.services import ingestion_service as S
 from Backend.app.services.ingestion_service import IngestionService, CLUSTER_MEMBER_CAP
 from repository.batch_runs import BatchRunRepository
 from Storage.models import Image, TmpDuplicates
@@ -32,24 +31,36 @@ def no_split(monkeypatch):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_oversized_cluster_is_capped_and_reports_total(db_session, no_split):
+async def test_oversized_cluster_is_capped_and_reports_total(db_session, no_split, monkeypatch):
     batch_id = await _make_run(db_session)
     hub = await _make_image(db_session, "pending", batch_id)
     spokes = [await _make_image(db_session, "pending", batch_id) for _ in range(CLUSTER_MEMBER_CAP + 20)]
     for i, s in enumerate(spokes):
         await _make_pair(db_session, hub, s, 0.10 + i * 0.0001)  # all in Tier B band, distinct
 
+    # a second, disjoint small cluster -- used to prove ordering/cursor are cap-independent
+    x = await _make_image(db_session, "pending", batch_id)
+    y = await _make_image(db_session, "pending", batch_id)
+    await _make_pair(db_session, x, y, 0.20)
+
     service = IngestionService(IngestionRepository(db_session))
     page = await service.list_clusters("tier_b", batch_id=batch_id)
 
-    assert len(page["items"]) == 1
-    c = page["items"][0]
+    assert len(page["items"]) == 2
+    c = next(item for item in page["items"] if item["total_members"] > 2)
     assert c["total_members"] == CLUSTER_MEMBER_CAP + 21
     assert len(c["members"]) == CLUSTER_MEMBER_CAP
     kept = {m["image_id"] for m in c["members"]}
     assert all(e["image_id1"] in kept and e["image_id2"] in kept for e in c["edges"])
     # the hub sits on every edge (tightest) -> always kept
     assert str(hub) in kept
+
+    # ordering and cursor are computed from the uncapped group, so an uncapped run must
+    # return the clusters in the same order with the same paging boundary.
+    monkeypatch.setattr("Backend.app.services.ingestion_service.CLUSTER_MEMBER_CAP", 10_000)
+    uncapped = await service.list_clusters("tier_b", batch_id=batch_id)
+    assert [it["total_members"] for it in page["items"]] == [it["total_members"] for it in uncapped["items"]]
+    assert page["next_cursor"] == uncapped["next_cursor"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
