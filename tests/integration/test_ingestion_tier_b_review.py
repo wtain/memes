@@ -31,20 +31,20 @@ async def test_lists_pending_subjects_with_candidates_ordered_by_tightest(db_ses
     p2 = await _img(db_session, "pending", bid)
     p3 = await _img(db_session, "pending", bid)          # no tier-b pair -> not a subject
     active = await _img(db_session, "active", bid)
-    await _pair(db_session, p1, active, 0.20)
-    await _pair(db_session, p1, p2, 0.08)                 # p1's tightest
-    await _pair(db_session, p2, active, 0.15)
+    await _pair(db_session, p1, active, 0.06)             # p1's tightest, keeps p1 strictly ahead of p2
+    await _pair(db_session, p1, p2, 0.08)
+    await _pair(db_session, p2, active, 0.15)             # p2's min is 0.08 (the symmetric p1<->p2 edge)
     _ = p3
 
     repo = IngestionRepository(db_session)
     subjects, candidates = await repo.list_tier_b_review_page(bid, LOW, HIGH, cursor=None, limit=40)
 
     sids = [s.subject_id for s in subjects]
-    assert sids == [p1, p2]                               # p1 (min 0.08) before p2 (min 0.15)
-    assert subjects[0].min_distance == pytest.approx(0.08)
+    assert sids == [p1, p2]                               # p1 (min 0.06) strictly before p2 (min 0.08)
+    assert subjects[0].min_distance == pytest.approx(0.06)
     assert subjects[0].total_candidates == 2
     p1_cands = sorted((c for c in candidates if c.subject_id == p1), key=lambda c: c.distance)
-    assert [c.cand_id for c in p1_cands] == [p2, active]  # tightest first
+    assert [c.cand_id for c in p1_cands] == [active, p2]  # tightest first
     assert all(c.subject_id in {p1, p2} for c in candidates)   # only page subjects
 
 

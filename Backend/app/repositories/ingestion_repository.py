@@ -183,7 +183,7 @@ class IngestionRepository:
         FROM pair p JOIN images i ON i.id = p.subject_id
         GROUP BY p.subject_id, i.filename, i.status
         {having}
-        ORDER BY MIN(p.distance), p.subject_id
+        ORDER BY MIN(p.distance), p.subject_id::text
         LIMIT :limit
         """)
         subjects = (await self.session.execute(subjects_sql, params)).all()
