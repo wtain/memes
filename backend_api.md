@@ -956,7 +956,8 @@ still-undecided member are returned — resolved rows drop out automatically.
       ],
       "edges": [
         { "image_id1": "1a2b...", "image_id2": "3c4d...", "distance": 0.041, "match_source": "cross_corpus" }
-      ]
+      ],
+      "total_members": 2
     }
   ],
   "next_cursor": "0.041|1a2b...",
@@ -967,6 +968,8 @@ still-undecided member are returned — resolved rows drop out automatically.
 Clusters are ordered by their tightest edge (closest match first). `next_cursor` is `null` on the last page; pass it back verbatim as `?cursor=` for the next page. A stale/invalid cursor restarts from the first page rather than erroring.
 
 A large union-find component is split into tight subgroups for review — each subgroup is a separate item in `items`. Decisions are per-image and settle every candidate pair regardless of which subgroup an image is shown in.
+
+Each cluster carries `total_members` — the subgroup's full member count before capping. `members` is capped (currently 60) per cluster — the tightest by minimum incident edge distance, returned tightest-first — and `edges` is filtered to those members. A cluster with `total_members > len(members)` is shown **read-only** in the review UI: its shown members are context only, with no Keep/Reject controls. Decisions on it are deferred to per-image tier B review (the follow-up), because keeping/rejecting a shown member would settle its candidate pairs against the members not returned (`keep` marks every pair touching the image as reviewed), potentially promoting unreviewed near-duplicates. The whole oversized group keeps its unresolved pairs and stays promote-blocked meanwhile.
 
 #### Resolve Cluster
 

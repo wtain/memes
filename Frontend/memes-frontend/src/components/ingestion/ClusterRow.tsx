@@ -36,6 +36,11 @@ export function ClusterRow({
   )
   const hidden = cluster.members.length - COLLAPSED_COUNT
   const shown = expanded ? cluster.members : cluster.members.slice(0, COLLAPSED_COUNT)
+  // A capped cluster only returns its tightest CLUSTER_MEMBER_CAP members. Deciding a shown
+  // member would settle its pairs against the ~thousands of capped-off members nobody saw
+  // (mark_reviewed touches every pair on the image), so the whole group is context-only until
+  // per-image tier B review ships.
+  const capped = cluster.total_members > cluster.members.length
 
   return (
     <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
@@ -49,9 +54,16 @@ export function ClusterRow({
             decision={decisions[member.image_id]}
             onDecide={(d) => onDecide(member.image_id, d)}
             onPeek={() => onPeek(member)}
+            readOnly={capped}
           />
         ))}
       </div>
+      {cluster.total_members > cluster.members.length && (
+        <p className="mt-2 text-xs text-gray-500">
+          Showing {cluster.members.length} of {cluster.total_members} — this candidate group is
+          too large to review as a cluster; per-image review is coming.
+        </p>
+      )}
       <div className="mt-3 flex items-center gap-3">
         <button
           className="text-sm rounded bg-blue-600 text-white px-3 py-1 transition-colors active:scale-[.97] disabled:opacity-40"

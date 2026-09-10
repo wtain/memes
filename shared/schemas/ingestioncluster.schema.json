@@ -5,7 +5,8 @@
   "type": "object",
   "properties": {
     "members": { "type": "array", "items": { "$ref": "./ingestionclustermember.schema.json" } },
-    "edges": { "type": "array", "items": { "$ref": "./ingestionclusteredge.schema.json" } }
+    "edges": { "type": "array", "items": { "$ref": "./ingestionclusteredge.schema.json" } },
+    "total_members": { "type": "integer" }
   },
-  "required": ["members", "edges"]
+  "required": ["members", "edges", "total_members"]
 }

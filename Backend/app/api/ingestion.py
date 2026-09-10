@@ -46,6 +46,7 @@ class ClusterEdge(BaseModel):
 class Cluster(BaseModel):
     members: list[ClusterMember]
     edges: list[ClusterEdge]
+    total_members: int
 
 
 class ClusterPage(BaseModel):

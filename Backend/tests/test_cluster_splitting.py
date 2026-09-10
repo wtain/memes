@@ -2,6 +2,7 @@
 import time
 
 from Backend.app.services.cluster_splitting import split_for_review
+from Backend.app.services.ingestion_service import _members_by_tightest_edge
 
 
 def _symmetric(pairs):
@@ -95,3 +96,21 @@ class TestSplitForReview:
         # every one of the 5998 loose members reaches the {0,1} core, so it's one big group
         assert len(groups) == 1 and len(groups[0]) == n
         assert elapsed < 3.0, f"re-attach took {elapsed:.1f}s -- O(loose^2) regression"
+
+
+class TestMembersByTightestEdge:
+    def _edges(self, *triples):
+        return [{"image_id1": str(min(a, b)), "image_id2": str(max(a, b)), "distance": d,
+                 "match_source": "in_batch"} for a, b, d in triples]
+
+    def test_orders_by_min_incident_distance_then_id(self):
+        group = [1, 2, 3, 4]
+        edges = self._edges((1, 2, 0.30), (2, 3, 0.10), (3, 4, 0.20))
+        # incident mins: 1->0.30, 2->0.10, 3->0.10, 4->0.20
+        assert _members_by_tightest_edge(group, edges) == ["2", "3", "4", "1"]
+
+    def test_edgeless_members_sort_last_by_id(self):
+        group = [1, 2, 5, 9]
+        edges = self._edges((1, 2, 0.10))
+        # 5 and 9 have no incident edge -> last, ordered by id string
+        assert _members_by_tightest_edge(group, edges) == ["1", "2", "5", "9"]

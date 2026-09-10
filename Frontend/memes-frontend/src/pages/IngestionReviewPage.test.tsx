@@ -31,6 +31,7 @@ function cl(id: string, dist = 0.05): IngestionCluster {
       { image_id: `${id}-2`, filename: `${id}-2.jpg`, status: 'active', ocr_text: 'текст' },
     ],
     edges: [{ image_id1: `${id}-1`, image_id2: `${id}-2`, distance: dist, match_source: 'clip' }],
+    total_members: 2,
   }
 }
 const page = (items: IngestionCluster[], next: string | null = null): IngestionClusterPage =>
@@ -58,6 +59,7 @@ describe('IngestionReviewPage', () => {
     const clWithOcr: IngestionCluster = {
       members: [{ image_id: 'x-1', filename: 'x-1.jpg', status: 'pending', ocr_text: longOcr }],
       edges: [],
+      total_members: 1,
     }
     const api = makeMockApi({
       getIngestionRunStatus: vi.fn().mockResolvedValue(runStatus),
@@ -152,6 +154,7 @@ describe('IngestionReviewPage', () => {
         { image_id: 'm-3', filename: 'm-3.jpg', status: 'active', ocr_text: null },
       ],
       edges: [],
+      total_members: 3,
     }
     const getIngestionClusters = vi.fn().mockResolvedValue(page([clMixed]))
     const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: [], kept: [], failed: [], move_failed: [] })
@@ -179,10 +182,10 @@ describe('IngestionReviewPage', () => {
     // Regression (decision-staleness guard): after a member is resolved, a reload that returns it
     // as read-only `active` context must not carry a prior decision forward or show Keep/Reject.
     const clA: IngestionCluster = {
-      members: [{ image_id: 'p-1', filename: 'p-1.jpg', status: 'pending', ocr_text: null }], edges: [],
+      members: [{ image_id: 'p-1', filename: 'p-1.jpg', status: 'pending', ocr_text: null }], edges: [], total_members: 1,
     }
     const clB: IngestionCluster = {
-      members: [{ image_id: 'p-2', filename: 'p-2.jpg', status: 'pending', ocr_text: null }], edges: [],
+      members: [{ image_id: 'p-2', filename: 'p-2.jpg', status: 'pending', ocr_text: null }], edges: [], total_members: 1,
     }
     const clAfter: IngestionCluster = {
       members: [
@@ -190,6 +193,7 @@ describe('IngestionReviewPage', () => {
         { image_id: 'p-3', filename: 'p-3.jpg', status: 'pending', ocr_text: null },
       ],
       edges: [],
+      total_members: 2,
     }
     const getIngestionClusters = vi.fn()
       .mockResolvedValueOnce(page([clA, clB]))
@@ -265,6 +269,7 @@ describe('IngestionReviewPage', () => {
     const subgroups: IngestionCluster[] = [1, 2, 3].map((n) => ({
       members: [{ image_id: `s${n}-1`, filename: `s${n}-1.jpg`, status: 'pending', ocr_text: null }],
       edges: [],
+      total_members: 1,
     }))
     const getIngestionClusters = vi.fn().mockResolvedValue(page(subgroups))
     const resolveIngestionCluster = vi.fn().mockResolvedValue({
@@ -299,6 +304,7 @@ describe('IngestionReviewPage', () => {
         { image_id: 'q-3', filename: 'q-3.jpg', status: 'pending', ocr_text: null },
       ],
       edges: [],
+      total_members: 3,
     }
     const getIngestionClusters = vi.fn().mockResolvedValue(page([cl3]))
     const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['q-1'], kept: [], failed: [], move_failed: [] })
@@ -324,6 +330,7 @@ describe('IngestionReviewPage', () => {
         { image_id: 'p-2', filename: 'p-2.jpg', status: 'pending', ocr_text: null },
       ],
       edges: [],
+      total_members: 2,
     }
     const getIngestionClusters = vi.fn().mockResolvedValue(page([partial, cl('f')]))
     const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['p-1', 'f-1'], kept: [], failed: [], move_failed: [] })
@@ -364,6 +371,7 @@ describe('IngestionReviewPage', () => {
         { image_id: 'q-3', filename: 'q-3.jpg', status: 'pending', ocr_text: null },
       ],
       edges: [],
+      total_members: 3,
     }
     const getIngestionClusters = vi.fn().mockResolvedValue(page([cl3]))
     const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['q-1'], kept: ['q-2'], failed: [], move_failed: [] })
