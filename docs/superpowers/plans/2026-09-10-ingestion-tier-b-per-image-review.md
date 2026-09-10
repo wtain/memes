@@ -30,6 +30,7 @@
 **Backend — create:** `tests/integration/test_ingestion_tier_b_review.py`
 **Backend — modify:** `Backend/app/repositories/ingestion_repository.py` (new method), `Backend/app/services/ingestion_service.py` (new method + `CANDIDATE_CAP`), `Backend/app/api/ingestion.py` (models + endpoint), `Backend/tests/test_ingestion_service.py` (new class), `Backend/tests/test_ingestion_endpoints.py` (new class), `backend_api.md`.
 **Shared — create:** `shared/schemas/ingestiontierbcandidate.schema.json`, `ingestiontierbreviewitem.schema.json`, `ingestiontierbreviewpage.schema.json`. **Modify:** `shared/schemas/all.schema.json`.
+**Generated (regenerated, not hand-edited) — all THREE trees off `all.schema.json`:** `Frontend/memes-frontend/src/types/generated/all.d.ts`, `AndroidClient/**/Models.kt`, **and** `Backend/app/types/generated/` (`datamodel-codegen`, per `documents/generation.md` — the stopgap and 2026-09-07 branches forgot this one; do NOT skip it).
 **Frontend — create:** `src/components/ingestion/TierBReviewCard.tsx`, `TierBReviewCard.test.tsx`.
 **Frontend — modify:** `src/api/MemesApi.ts`, `src/api/http/HttpMemesApi.ts`, `src/test/mockApi.ts`, `src/pages/IngestionReviewPage.tsx`, `src/pages/IngestionReviewPage.test.tsx`, `src/types/generated/all.d.ts` (regen), `AndroidClient/**` (regen).
 **Docs — modify:** the spec's status line (final task).
@@ -558,13 +559,21 @@ async def tier_b_review(
 Run: `cd Backend && pytest tests/test_ingestion_endpoints.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Regenerate types**
+- [ ] **Step 6: Regenerate types — all THREE generators off `all.schema.json`**
 
 ```bash
 cd Frontend && bash generate-types.sh && cd ..
 python AndroidClient/scripts/generate_dtos.py
 grep -n "IngestionTierBReviewPage" Frontend/memes-frontend/src/types/generated/all.d.ts   # exists, snake_case fields
 ```
+
+Then the **Python DTO tree** (`Backend/app/types/generated/`, via `datamodel-codegen` — see
+`documents/generation.md` for the exact command; earlier stopgap/UX branches forgot this one
+and it drifted). Run the documented command from `Backend/`; expect new
+`ingestiontierbcandidate.py` / `ingestiontierbreviewitem.py` / `ingestiontierbreviewpage.py`
+and an updated `__init__.py`. `cd Backend && pytest -q` + `python -c "import Backend.app.main"`
+must still pass. If `datamodel-codegen` isn't installed, note it in the report — do not
+hand-edit the generated files.
 
 - [ ] **Step 7: `backend_api.md`**
 
@@ -580,7 +589,8 @@ Run: `cd Backend && python -c "import Backend.app.main"` — no import errors.
 
 ```bash
 git add Backend/app/api/ingestion.py shared/schemas/ Backend/tests/test_ingestion_endpoints.py \
-        backend_api.md Frontend/memes-frontend/src/types/generated/all.d.ts AndroidClient/
+        backend_api.md Frontend/memes-frontend/src/types/generated/all.d.ts \
+        Backend/app/types/generated/ AndroidClient/
 git commit -m "feat: GET /api/ingestion/review/tier_b endpoint + schemas
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
