@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -141,6 +141,66 @@ class IngestionRepository:
             blocked.add(id1)
             blocked.add(id2)
         return blocked
+
+    async def list_tier_b_review_page(self, batch_id, low: float, high: float, cursor, limit: int):
+        """See docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md.
+        `cursor` is (min_distance, subject_id_str) or None. Returns (subjects, candidates):
+        subjects is up to limit+1 rows ordered by (min_distance, subject_id); candidates is
+        every candidate row for those subjects."""
+        # Each unreviewed in-band tmp_duplicates row contributes (subject_id, distance) for the
+        # side that is a pending image of this batch, when the other side is not rejected.
+        pair_cte = """
+        WITH pair AS (
+            SELECT td.image_id1 AS subject_id, td.image_id2 AS cand_id, td.distance, td.match_source
+            FROM tmp_duplicates td
+            JOIN images s ON s.id = td.image_id1
+            JOIN images o ON o.id = td.image_id2
+            WHERE td.tier_b_reviewed_at IS NULL
+              AND td.distance >= :low AND td.distance < :high
+              AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
+              AND o.status <> 'rejected'
+            UNION ALL
+            SELECT td.image_id2 AS subject_id, td.image_id1 AS cand_id, td.distance, td.match_source
+            FROM tmp_duplicates td
+            JOIN images s ON s.id = td.image_id2
+            JOIN images o ON o.id = td.image_id1
+            WHERE td.tier_b_reviewed_at IS NULL
+              AND td.distance >= :low AND td.distance < :high
+              AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
+              AND o.status <> 'rejected'
+        )
+        """
+        having = ""
+        params = {"low": low, "high": high, "batch_id": batch_id, "limit": limit + 1}
+        if cursor is not None:
+            having = "HAVING (MIN(p.distance), p.subject_id::text) > (:cur_d, :cur_s)"
+            params["cur_d"] = cursor[0]
+            params["cur_s"] = cursor[1]
+
+        subjects_sql = text(pair_cte + f"""
+        SELECT p.subject_id, i.filename, i.status,
+               MIN(p.distance) AS min_distance, COUNT(*) AS total_candidates
+        FROM pair p JOIN images i ON i.id = p.subject_id
+        GROUP BY p.subject_id, i.filename, i.status
+        {having}
+        ORDER BY MIN(p.distance), p.subject_id
+        LIMIT :limit
+        """)
+        subjects = (await self.session.execute(subjects_sql, params)).all()
+        if not subjects:
+            return [], []
+
+        page_ids = [r.subject_id for r in subjects[:limit]]
+        cand_sql = text(pair_cte + """
+        SELECT p.subject_id, p.cand_id, c.filename AS cand_filename, c.status AS cand_status,
+               p.distance, p.match_source
+        FROM pair p JOIN images c ON c.id = p.cand_id
+        WHERE p.subject_id = ANY(:page_ids)
+        ORDER BY p.subject_id, p.distance, p.cand_id
+        """)
+        candidates = (await self.session.execute(
+            cand_sql, {**params, "page_ids": page_ids})).all()
+        return subjects, candidates
 
     async def promote_images(self, image_ids) -> int:
         """Flip status to active for the given image ids (already validated by the caller as
