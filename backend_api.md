@@ -971,6 +971,41 @@ A large union-find component is split into tight subgroups for review — each s
 
 Each cluster carries `total_members` — the subgroup's full member count before capping. `members` is capped (currently 60) per cluster — the tightest by minimum incident edge distance, returned tightest-first — and `edges` is filtered to those members. A cluster with `total_members > len(members)` is shown **read-only** in the review UI: its shown members are context only, with no Keep/Reject controls. Decisions on it are deferred to per-image tier B review (the follow-up), because keeping/rejecting a shown member would settle its candidate pairs against the members not returned (`keep` marks every pair touching the image as reviewed), potentially promoting unreviewed near-duplicates. The whole oversized group keeps its unresolved pairs and stays promote-blocked meanwhile.
 
+#### Tier B Review
+
+One item per pending image with an unresolved Tier B candidate pair, ordered by the image's
+tightest candidate distance. Candidates are capped at 30 (tightest); `total_candidates` is the
+uncapped count. Decisions go to `/api/ingestion/clusters/tier_b/resolve` as usual and settle
+every pair touching the decided image.
+
+- **URL**: `/api/ingestion/review/tier_b`
+- **Method**: `GET`
+- **Query params**:
+  - `cursor` — optional, opaque pagination token. Omit for the first page.
+  - `limit` — optional, default `40`, must be between `1` and `200`.
+- **Response**: `TierBReviewPage` — `items[]` of `{ image, candidates: [{ member, distance, match_source }], total_candidates }`, plus `next_cursor` (opaque string, `null` on the last page) and `has_next`.
+- **Example**: `GET /api/ingestion/review/tier_b`
+
+```json
+{
+  "items": [
+    {
+      "image": { "image_id": "1a2b...", "filename": "new_01.jpg", "status": "pending", "ocr_text": "Не смешно" },
+      "candidates": [
+        {
+          "member": { "image_id": "3c4d...", "filename": "meme_02.jpg", "status": "active", "ocr_text": "Не смешно, совсем" },
+          "distance": 0.08,
+          "match_source": "cross_corpus"
+        }
+      ],
+      "total_candidates": 5
+    }
+  ],
+  "next_cursor": "0.08|1a2b...",
+  "has_next": true
+}
+```
+
 #### Resolve Cluster
 
 Applies per-image `reject`/`keep` decisions. `reject` flips the image's `status` to

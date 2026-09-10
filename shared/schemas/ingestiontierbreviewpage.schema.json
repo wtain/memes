@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestiontierbreviewpage.schema.json",
+  "title": "IngestionTierBReviewPage",
+  "type": "object",
+  "properties": {
+    "items": { "type": "array", "items": { "$ref": "./ingestiontierbreviewitem.schema.json" } },
+    "next_cursor": { "type": ["string", "null"] },
+    "has_next": { "type": "boolean" }
+  },
+  "required": ["items", "next_cursor", "has_next"]
+}

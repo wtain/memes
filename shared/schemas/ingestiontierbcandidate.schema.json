@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestiontierbcandidate.schema.json",
+  "title": "IngestionTierBCandidate",
+  "type": "object",
+  "properties": {
+    "member": { "$ref": "./ingestionclustermember.schema.json" },
+    "distance": { "type": "number" },
+    "match_source": { "type": ["string", "null"] }
+  },
+  "required": ["member", "distance", "match_source"]
+}
