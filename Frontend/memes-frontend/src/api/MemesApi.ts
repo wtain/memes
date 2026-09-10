@@ -2,7 +2,7 @@ import type {
   Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse,
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
   IngestionRunStatus, IngestionPendingImage, IngestionClusterPage, IngestionDecision,
-  IngestionResolveResponse, IngestionUndoRejectResponse,
+  IngestionResolveResponse, IngestionUndoRejectResponse, IngestionTierBReviewPage,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse,
 } from "../types/generated/all";
@@ -71,6 +71,7 @@ export interface MemesApi {
   getIngestionRunStatus(): Promise<IngestionRunStatus | null>;
   getIngestionPending(): Promise<IngestionPendingImage[]>;
   getIngestionClusters(tier: IngestionTier, cursor?: string): Promise<IngestionClusterPage>;
+  getIngestionTierBReview(cursor?: string): Promise<IngestionTierBReviewPage>;
   resolveIngestionCluster(tier: IngestionTier, decisions: IngestionDecision[]): Promise<IngestionResolveResponse>;
   undoIngestionReject(imageId: string): Promise<IngestionUndoRejectResponse>;
 
