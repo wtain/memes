@@ -474,22 +474,29 @@ export default function IngestionReviewPage({ memesApi }: Props) {
         </div>
       )}
 
-      {groupsWithPendingCount > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full bg-white shadow-2xl border px-5 py-2">
-          <span className="text-xs text-gray-500">{status.stage}</span>
-          <button
-            className={`text-sm rounded-full px-4 py-1.5 text-white transition-colors active:scale-[.97] disabled:opacity-40 ${confirmingAll ? "bg-amber-500" : "bg-blue-600"}`}
-            disabled={submitting !== null}
-            onClick={handleSubmitAllClick}
-          >
-            {submitting === "all"
-              ? "Submitting…"
-              : confirmingAll
-                ? `Confirm? (${groupsWithPendingCount} group${groupsWithPendingCount === 1 ? "" : "s"}, ${allPendingCount} image${allPendingCount === 1 ? "" : "s"})`
-                : `Submit all decisions (${groupsWithPendingCount} group${groupsWithPendingCount === 1 ? "" : "s"}, ${allPendingCount} image${allPendingCount === 1 ? "" : "s"})`}
-          </button>
-        </div>
-      )}
+      {groupsWithPendingCount > 0 && (() => {
+        // Tier A is the established path -- its bar stays worded "cluster(s)". Tier B's per-image
+        // cards aren't clusters, so that queue says "group(s)".
+        const unitNoun = tier === "tier_b" ? "group" : "cluster"
+        const units = `${groupsWithPendingCount} ${unitNoun}${groupsWithPendingCount === 1 ? "" : "s"}`
+        const images = `${allPendingCount} image${allPendingCount === 1 ? "" : "s"}`
+        return (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full bg-white shadow-2xl border px-5 py-2">
+            <span className="text-xs text-gray-500">{status.stage}</span>
+            <button
+              className={`text-sm rounded-full px-4 py-1.5 text-white transition-colors active:scale-[.97] disabled:opacity-40 ${confirmingAll ? "bg-amber-500" : "bg-blue-600"}`}
+              disabled={submitting !== null}
+              onClick={handleSubmitAllClick}
+            >
+              {submitting === "all"
+                ? "Submitting…"
+                : confirmingAll
+                  ? `Confirm? (${units}, ${images})`
+                  : `Submit all decisions (${units}, ${images})`}
+            </button>
+          </div>
+        )
+      })()}
 
       {peek && (
         <Modal onClose={() => setPeek(null)} title={peek.filename}>
