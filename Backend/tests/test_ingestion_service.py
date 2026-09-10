@@ -86,8 +86,7 @@ class TestListTierBReview:
         mock_repo.get_ocr_texts.return_value = {}
         for bad in ("", "   ", "nope", "0.1|"):
             await service.list_tier_b_review(cursor=bad)  # must not raise
-            _, kwargs = mock_repo.list_tier_b_review_page.call_args
-            assert kwargs.get("cursor") is None or mock_repo.list_tier_b_review_page.call_args.args[-2] is None
+            assert mock_repo.list_tier_b_review_page.call_args.args[3] is None
 
 
 class TestResolveRejectSkipsNonPending:
