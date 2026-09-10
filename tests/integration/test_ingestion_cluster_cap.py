@@ -56,11 +56,15 @@ async def test_oversized_cluster_is_capped_and_reports_total(db_session, no_spli
     assert str(hub) in kept
 
     # ordering and cursor are computed from the uncapped group, so an uncapped run must
-    # return the clusters in the same order with the same paging boundary.
+    # return the clusters in the same order with the same paging boundary. limit=1 forces a
+    # real (non-None) cursor so the comparison is not vacuous.
+    capped_p1 = await service.list_clusters("tier_b", batch_id=batch_id, limit=1)
     monkeypatch.setattr("Backend.app.services.ingestion_service.CLUSTER_MEMBER_CAP", 10_000)
-    uncapped = await service.list_clusters("tier_b", batch_id=batch_id)
-    assert [it["total_members"] for it in page["items"]] == [it["total_members"] for it in uncapped["items"]]
-    assert page["next_cursor"] == uncapped["next_cursor"]
+    uncapped_p1 = await service.list_clusters("tier_b", batch_id=batch_id, limit=1)
+
+    assert [it["total_members"] for it in capped_p1["items"]] == [it["total_members"] for it in uncapped_p1["items"]]
+    assert capped_p1["next_cursor"] is not None
+    assert capped_p1["next_cursor"] == uncapped_p1["next_cursor"]
 
 
 @pytest.mark.asyncio(loop_scope="session")

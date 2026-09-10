@@ -119,8 +119,17 @@ describe('ClusterRow', () => {
     expect(screen.getByText(/per-image review is coming/i)).toBeInTheDocument()
   })
 
-  it('shows no cap notice for a normal cluster', () => {
-    renderRow() // default cluster: total_members === members.length
+  it('shows no cap notice for a collapsed-but-not-capped cluster', () => {
+    // 12 members collapse to 8 shown, but total_members === members.length -> nothing is
+    // capped, so the notice must not gate on shown.length.
+    const collapsed: IngestionCluster = {
+      members: Array.from({ length: 12 }, (_, i): IngestionClusterMember => ({
+        image_id: `n${i}`, filename: `n${i}.jpg`, status: 'pending', ocr_text: null,
+      })),
+      edges: [],
+      total_members: 12,
+    }
+    renderRow({ cluster: collapsed })
     expect(screen.queryByText(/showing .* of /i)).toBeNull()
   })
 
