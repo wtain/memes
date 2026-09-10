@@ -12,6 +12,8 @@ unreviewable candidate pair that silently blocks ingest_promote.
 
 See docs/superpowers/specs/2026-09-09-ingestion-review-cluster-splitting-design.md.
 """
+import heapq
+
 from batch.clusterize import resolve_cluster
 from graph.uf import UnionFind
 
@@ -42,26 +44,33 @@ def split_for_review(members, pairs_by_member, *, start, decrement, floor, max_s
         members, pairs_by_member, start, decrement, floor, max_size,
     )]
 
-    # 2. Re-attach every omitted member to the core holding its single tightest edge, globally
+    # 2. Re-attach every omitted member to the core holding its tightest edge, globally
     #    tightest first, so a chain of loose members drains toward the core it hangs off.
+    #    Prim-style frontier: the heap holds, per loose member reachable from an assigned
+    #    member, that member's tightest such edge. Pop the global tightest, attach it, then
+    #    push its still-loose neighbours (now reachable). O(E log E). The naive
+    #    rescan-all-loose-each-round version is O(loose^2 * degree), which never returns on a
+    #    Tier B blob where `loose` is tens of thousands (23k-member component on `general`).
+    #    Heap key: (distance, str(id), core_index) -- str(id) makes an equidistant loose
+    #    member's choice order-independent, core_index breaks a same-member same-distance tie
+    #    deterministically; the trailing id keeps the tuple comparable without ever mattering.
     assigned = {m: i for i, core in enumerate(cores) for m in core}
     loose = member_set - assigned.keys()
-    while loose:
-        best = None  # (distance, loose_id, core_index)
-        for m in loose:
-            for neighbor, distance in pairs_by_member.get(m, ()):
-                # Tie-break on str(id) so an equidistant loose member joins the same
-                # subgroup on every run, regardless of `loose` set-iteration order.
-                if neighbor in assigned and (
-                    best is None or (distance, str(m)) < (best[0], str(best[1]))
-                ):
-                    best = (distance, m, assigned[neighbor])
-        if best is None:
-            break  # the remaining loose ids reach no core
-        _, m, core_index = best
+    frontier = []
+    for m in loose:
+        for neighbor, distance in pairs_by_member.get(m, ()):
+            if neighbor in assigned:
+                heapq.heappush(frontier, (distance, str(m), assigned[neighbor], m))
+    while frontier and loose:
+        distance, _, core_index, m = heapq.heappop(frontier)
+        if m not in loose:
+            continue  # already attached via a tighter edge
         cores[core_index].append(m)
         assigned[m] = core_index
         loose.discard(m)
+        for neighbor, nd in pairs_by_member.get(m, ()):
+            if neighbor in loose:
+                heapq.heappush(frontier, (nd, str(neighbor), core_index, neighbor))
 
     # 3. Residual: loose ids that reach no core. They were all in one blob, so they're
     #    connected among themselves at the tier's outer threshold -- union-find their mutual

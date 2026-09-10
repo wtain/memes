@@ -1,4 +1,6 @@
 """Unit tests for split_for_review -- pure, no DB. Ids are ints here; production uses UUIDs."""
+import time
+
 from Backend.app.services.cluster_splitting import split_for_review
 
 
@@ -74,3 +76,22 @@ class TestSplitForReview:
         groups = split_for_review(members, pairs, start=0.02, decrement=0.01, floor=0.01, max_size=3)
         _assert_partition(groups, members)
         assert len(groups) == 1 and sorted(groups[0]) == [1, 2, 3, 4]
+
+    def test_huge_loose_set_stays_fast(self):
+        # Regression: Tier B on `general` is one ~23k-member union-find component; resolve_cluster
+        # carves out small tight cores and leaves ~21k members loose. The old rescan-all-loose-
+        # each-round re-attach was O(loose^2 * degree) and never returned. One tight core {0,1};
+        # 6000 members each hang off member 1 by an edge just above the tightening threshold, so
+        # they all end up loose. Prim-style re-attach is O(E log E) -> well under a second.
+        n = 6000
+        pairs = _symmetric(
+            [(0, 1, 0.005)] + [(1, k, 0.045) for k in range(2, n)]
+        )
+        members = list(range(n))
+        start = time.perf_counter()
+        groups = split_for_review(members, pairs, start=0.05, decrement=0.01, floor=0.01, max_size=12)
+        elapsed = time.perf_counter() - start
+        _assert_partition(groups, members)
+        # every one of the 5998 loose members reaches the {0,1} core, so it's one big group
+        assert len(groups) == 1 and len(groups[0]) == n
+        assert elapsed < 3.0, f"re-attach took {elapsed:.1f}s -- O(loose^2) regression"
