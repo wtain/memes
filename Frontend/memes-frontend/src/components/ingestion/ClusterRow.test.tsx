@@ -119,6 +119,24 @@ describe('ClusterRow', () => {
     expect(screen.getByText(/per-image review is coming/i)).toBeInTheDocument()
   })
 
+  it('renders a capped cluster read-only: no Keep/Reject buttons, submit stays disabled', () => {
+    const capped: IngestionCluster = {
+      members: Array.from({ length: 8 }, (_, i): IngestionClusterMember => ({
+        image_id: `c${i}`, filename: `c${i}.jpg`, status: 'pending', ocr_text: null,
+      })),
+      edges: [],
+      total_members: 512,
+    }
+    renderRow({ cluster: capped })
+    expect(screen.queryAllByRole('button', { name: /^(keep|reject)$/i })).toHaveLength(0)
+    expect(screen.getByRole('button', { name: /submit decisions/i })).toBeDisabled()
+  })
+
+  it('still renders Keep/Reject for a normal (uncapped) cluster', () => {
+    renderRow()
+    expect(screen.queryAllByRole('button', { name: /^(keep|reject)$/i }).length).toBeGreaterThan(0)
+  })
+
   it('shows no cap notice for a collapsed-but-not-capped cluster', () => {
     // 12 members collapse to 8 shown, but total_members === members.length -> nothing is
     // capped, so the notice must not gate on shown.length.

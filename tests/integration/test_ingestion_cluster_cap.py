@@ -67,6 +67,34 @@ async def test_oversized_cluster_is_capped_and_reports_total(db_session, no_spli
     assert capped_p1["next_cursor"] == uncapped_p1["next_cursor"]
 
 
+@pytest.fixture
+def split_gives_up(monkeypatch):
+    """Splitting ON (production's norm), but a floor so close to start that resolve_cluster
+    can't tighten -- it returns the whole blob as one oversized group, exactly the shape the
+    cap must still handle."""
+    monkeypatch.setattr(
+        "Backend.app.services.ingestion_service._split_params",
+        lambda tier: {"start": 0.30, "decrement": 0.01, "floor": 0.29, "max_size": 3},
+    )
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_oversized_group_capped_with_splitting_enabled(db_session, split_gives_up):
+    batch_id = await _make_run(db_session)
+    hub = await _make_image(db_session, "pending", batch_id)
+    spokes = [await _make_image(db_session, "pending", batch_id) for _ in range(CLUSTER_MEMBER_CAP + 15)]
+    for i, s in enumerate(spokes):
+        await _make_pair(db_session, hub, s, 0.10 + i * 0.001)  # all in Tier B band, < 0.30
+
+    service = IngestionService(IngestionRepository(db_session))
+    page = await service.list_clusters("tier_b", batch_id=batch_id)
+
+    assert len(page["items"]) == 1
+    c = page["items"][0]
+    assert len(c["members"]) == CLUSTER_MEMBER_CAP
+    assert c["total_members"] == CLUSTER_MEMBER_CAP + 16  # hub + (cap + 15) spokes
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_small_clusters_untouched(db_session, no_split):
     batch_id = await _make_run(db_session)

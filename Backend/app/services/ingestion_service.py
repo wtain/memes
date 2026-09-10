@@ -44,6 +44,9 @@ def _split_params(tier: str):
     }
 
 
+# Deliberately a plain module constant, not a Dynaconf key: it's a browser-payload / reviewer-
+# attention bound, and this whole cap is a short-lived stopgap removed once per-image tier B
+# review ships (see docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md).
 CLUSTER_MEMBER_CAP = 60
 
 
@@ -196,8 +199,12 @@ class IngestionService:
                 total_members = len(group)
                 members = [member_info[m] for m in group]
                 if total_members > CLUSTER_MEMBER_CAP:
-                    keep = set(_members_by_tightest_edge(group, group_edges)[:CLUSTER_MEMBER_CAP])
-                    members = [mi for mi in members if mi["image_id"] in keep]
+                    # Cap fires: keep the CLUSTER_MEMBER_CAP tightest members and return them
+                    # tightest-first, so ClusterRow's 8-tile collapse shows the 8 most-relevant.
+                    ranked = _members_by_tightest_edge(group, group_edges)
+                    keep = set(ranked[:CLUSTER_MEMBER_CAP])
+                    info_by_str = {str(m): member_info[m] for m in group}
+                    members = [info_by_str[i] for i in ranked if i in keep]
                     group_edges = [e for e in group_edges
                                    if e["image_id1"] in keep and e["image_id2"] in keep]
 

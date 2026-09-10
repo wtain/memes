@@ -9,11 +9,15 @@ type Props = {
   decision: Decision | undefined
   onDecide: (d: Decision) => void
   onPeek: () => void
+  // A capped cluster is context-only: a Keep/Reject on a shown member would settle its
+  // candidate pairs against the capped-off members nobody saw (via mark_reviewed), so the
+  // decision controls are withheld until per-image tier B review ships.
+  readOnly?: boolean
 }
 
 const BTN = "flex-1 text-xs rounded px-2 py-1 transition-colors active:scale-[.97] active:brightness-95"
 
-export function MemberTile({ memesApi, member, edgeSummary, decision, onDecide, onPeek }: Props) {
+export function MemberTile({ memesApi, member, edgeSummary, decision, onDecide, onPeek, readOnly }: Props) {
   const isPending = member.status === "pending"
   return (
     <div className={`border rounded-lg p-2 ${decision === "reject" ? "opacity-40" : ""}`}>
@@ -43,7 +47,7 @@ export function MemberTile({ memesApi, member, edgeSummary, decision, onDecide, 
         </div>
       )}
       {edgeSummary && <div className="text-[11px] text-gray-500 mt-0.5">{edgeSummary}</div>}
-      {isPending && (
+      {isPending && !readOnly && (
         <div className="flex gap-1 mt-2">
           <button
             className={`${BTN} ${decision === "keep" ? "bg-green-600 text-white" : "bg-gray-100 hover:bg-gray-200"}`}

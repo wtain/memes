@@ -6,10 +6,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from . import ingestionclusteredge, ingestionclustermember
+from . import ingestioncluster
 
 
 class Schema(BaseModel):
-    members: list[ingestionclustermember.Schema]
-    edges: list[ingestionclusteredge.Schema]
-    total_members: int
+    items: list[ingestioncluster.Schema]
+    next_cursor: str | None
+    has_next: bool

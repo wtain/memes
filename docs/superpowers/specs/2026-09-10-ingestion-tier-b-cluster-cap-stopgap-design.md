@@ -2,6 +2,7 @@
 
 status: done
 Plan: docs/superpowers/plans/2026-09-10-ingestion-tier-b-cluster-cap-stopgap.md
+Follow-ups: docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md
 Originates from: debugging `/ingestion` tier B hanging on `general` (2026-09-10). Superseded by
 `docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md` once that ships —
 this is a short-lived bridge.
@@ -11,11 +12,14 @@ this is a short-lived bridge.
 Tier B on `general` is one union-find component of ~23,700 pending images (232k candidate
 pairs, band 0.05–0.30). After the `split_for_review` O(E log E) fix, `list_clusters("tier_b")`
 *returns*, but its output still contains one "cluster" of ~12,000 members — a ~tens-of-MB
-response the browser can't render, ~20–40s to build. The page is unusable.
+response the browser can't render.
 
-The real fix is per-image tier B review (separate spec). This stopgap just makes the endpoint
-return a bounded payload so the small tier-B components (there are 62, all < 400 members) and
-tier A stay reviewable while that's built.
+The real fix is per-image tier B review (separate spec). This stopgap bounds the payload so
+the page renders — the small tier-B components (there are 62, all < 400 members) and tier A
+stay reviewable while that's built. It does **not** make the endpoint fast: the ~30s
+per-request build cost (232k-row query + union-find + split + OCR fetch, measured
+`GET /clusters/tier_b?limit=40` on `general` = 200, 212 KB, ~30.7 s) is inherent to
+`list_clusters` and is what the per-image review follow-up replaces.
 
 ## Goal
 
@@ -25,17 +29,21 @@ capped. No new endpoint, no schema restructure, ~15 lines.
 ## Non-goals
 
 - Making the giant pseudo-cluster reviewable — that's the per-image spec.
-- Preserving the promote-blocking invariant for the capped-off members (see Accepted cost).
 - Any change to `resolve`, `split_for_review`, the cursor, or tier A behavior.
 
 ## Accepted cost
 
-For a group that exceeds the cap, only the cap-many tightest members are ever returned. The
-rest of that group's pending images keep their unresolved tier-B pairs, so `ingest_promote`
-continues to block them and the run cannot complete. This is deliberate and short-lived: the
-per-image review spec, landing right after, reviews those images and unblocks the run. On
-`general` this affects the ~11,900 members of the one oversized group; every other tier-B
-group and all of tier A are unaffected (none approaches the cap).
+For a group that exceeds the cap, the entire oversized group — the cap-many shown members
+**and** the capped-off remainder — is **not reviewable in the cluster view**. The shown 60
+members render read-only (image, OCR, edges, status, but no Keep/Reject controls): they are
+context only. This is deliberate — `mark_reviewed(image_id, "tier_b")` settles
+`tier_b_reviewed_at` on *every* `tmp_duplicates` row touching that image, so a keep/reject on
+a shown member would silently settle its pairs against the ~11,900 capped-off members nobody
+saw, potentially promoting unreviewed near-duplicates. Withholding the controls keeps the
+whole group's unresolved tier-B pairs intact, so `ingest_promote` continues to block every
+member and the run cannot complete until per-image tier B review ships (landing right after)
+and reviews those images. On `general` this affects the ~11,900 members of the one oversized
+group; every other tier-B group and all of tier A are unaffected (none approaches the cap).
 
 ## Design
 
@@ -96,6 +104,10 @@ When `cluster.total_members > cluster.members.length`, the expanded view can onl
 - When `total_members > members.length`, render a muted line under the grid:
   `Showing {members.length} of {total_members} — this candidate group is too large to review
   as a cluster; per-image review is coming.`
+- When `total_members > members.length`, also pass `readOnly` to every `<MemberTile>` so the
+  Keep/Reject controls are withheld — a decision on a shown member would cascade onto the
+  capped-off members via `mark_reviewed` (see Accepted cost). The per-cluster "Submit
+  decisions" button stays disabled on its own (no pending decision is possible).
 - `edgeSummaryFor` is unchanged (operates on the capped `edges`, which is fine).
 
 No other frontend change — `IngestionCluster` keeps its shape plus the one new field.
@@ -109,9 +121,10 @@ No other frontend change — `IngestionCluster` keeps its shape plus the one new
   that stays one 80-member group) → `list_clusters` returns that cluster with
   `len(members) == 60`, `total_members == 80`, `edges` only among the 60; `_sort_key` /
   ordering identical to the uncapped run (assert the cursor/`next_cursor` unchanged).
-- **Frontend** (`ClusterRow.test.tsx`): a cluster with `total_members: 500`, `members` length
-  60 → the "Showing 60 of 500" line renders; a normal cluster (`total_members` == members
-  length) → no such line.
+- **Frontend** (`ClusterRow.test.tsx`): a capped cluster (`total_members` > members length) →
+  the "Showing N of M" line renders, **zero** Keep/Reject buttons, "Submit decisions"
+  disabled; a normal cluster (`total_members` == members length) → no line, Keep/Reject
+  present.
 - Regenerated-type drift check (`git diff --exit-code` on generated dirs).
 
 ## Rollout
