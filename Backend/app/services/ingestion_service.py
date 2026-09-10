@@ -44,6 +44,23 @@ def _split_params(tier: str):
     }
 
 
+CLUSTER_MEMBER_CAP = 60
+
+
+def _members_by_tightest_edge(group, group_edges) -> list[str]:
+    """The group's member ids (as strings) ordered by the tightest edge each sits on --
+    used to keep the `CLUSTER_MEMBER_CAP` most-relevant members when a group is oversized.
+    Members with no incident edge sort last, by id string."""
+    ids = [str(m) for m in group]
+    best: dict[str, float] = {i: float("inf") for i in ids}
+    for e in group_edges:
+        d = e["distance"]
+        for side in (e["image_id1"], e["image_id2"]):
+            if side in best and d < best[side]:
+                best[side] = d
+    return sorted(ids, key=lambda i: (best[i], i))
+
+
 CURSOR_SEP = "|"
 
 
@@ -174,10 +191,21 @@ class IngestionService:
                 member_ids = {str(m) for m in group}
                 group_edges = buckets[gi]
                 min_distance = min((e["distance"] for e in group_edges), default=1.0)
+                sort_key = (min_distance, min(member_ids))
+
+                total_members = len(group)
+                members = [member_info[m] for m in group]
+                if total_members > CLUSTER_MEMBER_CAP:
+                    keep = set(_members_by_tightest_edge(group, group_edges)[:CLUSTER_MEMBER_CAP])
+                    members = [mi for mi in members if mi["image_id"] in keep]
+                    group_edges = [e for e in group_edges
+                                   if e["image_id1"] in keep and e["image_id2"] in keep]
+
                 clusters.append({
-                    "members": [member_info[m] for m in group],
+                    "members": members,
                     "edges": group_edges,
-                    "_sort_key": (min_distance, min(member_ids)),
+                    "total_members": total_members,
+                    "_sort_key": sort_key,
                 })
 
         clusters.sort(key=lambda c: c["_sort_key"])

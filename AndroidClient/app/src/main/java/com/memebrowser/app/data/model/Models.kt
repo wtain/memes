@@ -298,7 +298,8 @@ data class SearchHistoryResponse(
 @Serializable
 data class IngestionCluster(
     @SerialName("members") val members: List<IngestionClusterMember>,
-    @SerialName("edges") val edges: List<IngestionClusterEdge>
+    @SerialName("edges") val edges: List<IngestionClusterEdge>,
+    @SerialName("total_members") val total_members: Int
 )
 
 @Serializable

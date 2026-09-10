@@ -74,6 +74,7 @@ class TestListClusters:
                      "status": "pending", "ocr_text": "Не смешно"},
                 ],
                 "edges": [],
+                "total_members": 1,
             }],
             "next_cursor": "0.05|11111111-1111-1111-1111-111111111111",
             "has_next": True,

@@ -425,6 +425,7 @@ export interface IngestionClusterEdge {
 export interface IngestionCluster {
   members: IngestionClusterMember[];
   edges: IngestionClusterEdge[];
+  total_members: number;
   [k: string]: unknown;
 }
 /**
