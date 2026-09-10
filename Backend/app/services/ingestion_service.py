@@ -49,6 +49,8 @@ def _split_params(tier: str):
 # review ships (see docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md).
 CLUSTER_MEMBER_CAP = 60
 
+CANDIDATE_CAP = 30
+
 
 def _members_by_tightest_edge(group, group_edges) -> list[str]:
     """The group's member ids (as strings) ordered by the tightest edge each sits on --
@@ -233,6 +235,49 @@ class IngestionService:
         for c in page:
             c.pop("_sort_key", None)
         return {"items": page, "next_cursor": next_cursor, "has_next": has_next}
+
+    async def list_tier_b_review(self, batch_id: Optional[UUID] = None,
+                                 cursor: Optional[str] = None, limit: int = 40) -> dict:
+        resolved_id = await self._resolve_batch_id(batch_id)
+        low, high = _tier_band("tier_b")
+        decoded = _decode_cursor(cursor)
+        subjects, candidates = await self.repo.list_tier_b_review_page(
+            resolved_id, low, high, decoded, limit)
+
+        has_next = len(subjects) > limit
+        page = subjects[:limit]
+
+        cands_by_subject: dict = {}
+        for c in candidates:
+            cands_by_subject.setdefault(c.subject_id, []).append(c)
+
+        shown_cand_ids: set = set()
+        for lst in cands_by_subject.values():
+            lst.sort(key=lambda c: (c.distance, str(c.cand_id)))
+            del lst[CANDIDATE_CAP:]
+            shown_cand_ids.update(c.cand_id for c in lst)
+
+        subject_ids = {s.subject_id for s in page}
+        ocr = await self.repo.get_ocr_texts(
+            subject_ids | shown_cand_ids, settings.OCR.CONFIDENCE_MIN, settings.OCR.LANG_SCORE_MIN)
+
+        def member(image_id, filename, status):
+            return {"image_id": str(image_id), "filename": filename,
+                    "status": status, "ocr_text": ocr.get(image_id)}
+
+        items = [{
+            "image": member(s.subject_id, s.filename, s.status),
+            "candidates": [
+                {"member": member(c.cand_id, c.cand_filename, c.cand_status),
+                 "distance": c.distance, "match_source": c.match_source}
+                for c in cands_by_subject.get(s.subject_id, [])
+            ],
+            "total_candidates": s.total_candidates,
+        } for s in page]
+
+        next_cursor = (_encode_cursor(page[-1].min_distance, str(page[-1].subject_id))
+                       if (page and has_next) else None)
+        return {"items": items, "next_cursor": next_cursor, "has_next": has_next}
 
     async def resolve(self, tier: str, decisions: list[dict]) -> dict:
         """Apply per-image reject/keep decisions independently -- one decision's failure (DB or

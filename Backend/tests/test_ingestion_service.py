@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from config.settings import settings
-from Backend.app.services.ingestion_service import IngestionService
+from Backend.app.services.ingestion_service import IngestionService, CANDIDATE_CAP
 
 
 @pytest.fixture
@@ -19,6 +19,75 @@ def mock_repo():
 @pytest.fixture
 def service(mock_repo):
     return IngestionService(mock_repo)
+
+
+def _subj(sid, mind, total):
+    return SimpleNamespace(subject_id=sid, filename=f"{sid}.jpg", status="pending",
+                           min_distance=mind, total_candidates=total)
+
+
+def _cand(sid, cid, dist, status="pending", src="in_batch"):
+    return SimpleNamespace(subject_id=sid, cand_id=cid, cand_filename=f"{cid}.jpg",
+                           cand_status=status, distance=dist, match_source=src)
+
+
+class TestListTierBReview:
+    async def test_item_shape_and_ocr(self, service, mock_repo):
+        import uuid
+        s1 = uuid.uuid4(); c1 = uuid.uuid4()
+        mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
+        mock_repo.list_tier_b_review_page.return_value = ([_subj(s1, 0.08, 1)], [_cand(s1, c1, 0.08)])
+        mock_repo.get_ocr_texts.return_value = {s1: "subj text", c1: "cand text"}
+
+        page = await service.list_tier_b_review(limit=40)
+
+        it = page["items"][0]
+        assert it["image"] == {"image_id": str(s1), "filename": f"{s1}.jpg",
+                               "status": "pending", "ocr_text": "subj text"}
+        assert it["candidates"][0]["member"]["ocr_text"] == "cand text"
+        assert it["candidates"][0]["distance"] == 0.08
+        assert it["total_candidates"] == 1
+        assert page["has_next"] is False and page["next_cursor"] is None
+        # OCR fetched for subject + candidate
+        args = mock_repo.get_ocr_texts.call_args.args
+        assert set(args[0]) == {s1, c1}
+        assert args[1:] == (0.4, 0.3)
+
+    async def test_candidates_capped_total_reports_uncapped(self, service, mock_repo):
+        import uuid
+        s1 = uuid.uuid4()
+        cands = [_cand(s1, uuid.uuid4(), 0.05 + i * 0.001) for i in range(CANDIDATE_CAP + 10)]
+        mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
+        mock_repo.list_tier_b_review_page.return_value = ([_subj(s1, 0.05, CANDIDATE_CAP + 10)], cands)
+        mock_repo.get_ocr_texts.return_value = {}
+
+        it = (await service.list_tier_b_review())["items"][0]
+        assert len(it["candidates"]) == CANDIDATE_CAP
+        assert it["total_candidates"] == CANDIDATE_CAP + 10
+        # kept the tightest
+        assert [c["distance"] for c in it["candidates"]] == sorted(c.distance for c in cands)[:CANDIDATE_CAP]
+
+    async def test_has_next_and_cursor_roundtrip(self, service, mock_repo):
+        import uuid
+        subs = [_subj(uuid.uuid4(), 0.05 + i * 0.01, 1) for i in range(3)]
+        mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
+        mock_repo.list_tier_b_review_page.return_value = (subs, [])  # 3 subjects, limit 2 -> has_next
+        mock_repo.get_ocr_texts.return_value = {}
+
+        page = await service.list_tier_b_review(limit=2)
+        assert len(page["items"]) == 2 and page["has_next"] is True
+        from Backend.app.services.ingestion_service import _decode_cursor
+        assert _decode_cursor(page["next_cursor"]) == (subs[1].min_distance, str(subs[1].subject_id))
+
+    async def test_blank_cursor_starts_from_beginning(self, service, mock_repo):
+        import uuid
+        mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
+        mock_repo.list_tier_b_review_page.return_value = ([], [])
+        mock_repo.get_ocr_texts.return_value = {}
+        for bad in ("", "   ", "nope", "0.1|"):
+            await service.list_tier_b_review(cursor=bad)  # must not raise
+            _, kwargs = mock_repo.list_tier_b_review_page.call_args
+            assert kwargs.get("cursor") is None or mock_repo.list_tier_b_review_page.call_args.args[-2] is None
 
 
 class TestResolveRejectSkipsNonPending:
