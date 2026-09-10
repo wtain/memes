@@ -1,6 +1,7 @@
 # Ingestion Review — Per-Image Tier B Review
 
-status: approved
+status: done
+Plan: docs/superpowers/plans/2026-09-10-ingestion-tier-b-per-image-review.md
 Originates from: debugging `/ingestion` tier B hanging on `general` (2026-09-10); the
 cluster model degenerates on real tier-B data.
 Supersedes (operationally): the tier-B path of
