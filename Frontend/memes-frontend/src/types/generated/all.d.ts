@@ -440,6 +440,36 @@ export interface IngestionClusterPage {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionTierBCandidate".
+ */
+export interface IngestionTierBCandidate {
+  member: IngestionClusterMember;
+  distance: number;
+  match_source: string | null;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionTierBReviewItem".
+ */
+export interface IngestionTierBReviewItem {
+  image: IngestionClusterMember;
+  candidates: IngestionTierBCandidate[];
+  total_candidates: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "IngestionTierBReviewPage".
+ */
+export interface IngestionTierBReviewPage {
+  items: IngestionTierBReviewItem[];
+  next_cursor: string | null;
+  has_next: boolean;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "IngestionDecision".
  */
 export interface IngestionDecision {

@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ingestiontierbreviewitem.schema.json",
+  "title": "IngestionTierBReviewItem",
+  "type": "object",
+  "properties": {
+    "image": { "$ref": "./ingestionclustermember.schema.json" },
+    "candidates": { "type": "array", "items": { "$ref": "./ingestiontierbcandidate.schema.json" } },
+    "total_candidates": { "type": "integer" }
+  },
+  "required": ["image", "candidates", "total_candidates"]
+}
