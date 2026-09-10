@@ -52,6 +52,12 @@ export function ClusterRow({
           />
         ))}
       </div>
+      {cluster.total_members > cluster.members.length && (
+        <p className="mt-2 text-xs text-gray-500">
+          Showing {cluster.members.length} of {cluster.total_members} — this candidate group is
+          too large to review as a cluster; per-image review is coming.
+        </p>
+      )}
       <div className="mt-3 flex items-center gap-3">
         <button
           className="text-sm rounded bg-blue-600 text-white px-3 py-1 transition-colors active:scale-[.97] disabled:opacity-40"

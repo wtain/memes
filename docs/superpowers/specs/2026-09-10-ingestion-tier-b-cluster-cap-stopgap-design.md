@@ -1,6 +1,7 @@
 # Ingestion Review — Tier B Cluster Cap (Stopgap)
 
-status: approved
+status: done
+Plan: docs/superpowers/plans/2026-09-10-ingestion-tier-b-cluster-cap-stopgap.md
 Originates from: debugging `/ingestion` tier B hanging on `general` (2026-09-10). Superseded by
 `docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md` once that ships —
 this is a short-lived bridge.

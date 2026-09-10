@@ -11,6 +11,7 @@ const cluster: IngestionCluster = {
     { image_id: 'b', filename: 'b.jpg', status: 'active', ocr_text: 'Не смешно' },
   ],
   edges: [{ image_id1: 'a', image_id2: 'b', distance: 0.04, match_source: 'clip' }],
+  total_members: 2,
 }
 
 function renderRow(props: Partial<Parameters<typeof ClusterRow>[0]> = {}) {
@@ -80,6 +81,7 @@ describe('ClusterRow', () => {
         image_id: `m${i}`, filename: `m${i}.jpg`, status: 'pending', ocr_text: null,
       })),
       edges: [],
+      total_members: 12,
     }
     const onToggleExpand = vi.fn()
     const { rerender } = render(
@@ -102,6 +104,24 @@ describe('ClusterRow', () => {
     )
     expect(screen.getAllByRole('img')).toHaveLength(12)
     expect(screen.getByRole('button', { name: /show fewer/i })).toBeInTheDocument()
+  })
+
+  it('shows a "Showing N of M" notice when the cluster is capped', () => {
+    const capped: IngestionCluster = {
+      members: Array.from({ length: 8 }, (_, i): IngestionClusterMember => ({
+        image_id: `c${i}`, filename: `c${i}.jpg`, status: 'pending', ocr_text: null,
+      })),
+      edges: [],
+      total_members: 512,
+    }
+    renderRow({ cluster: capped })
+    expect(screen.getByText(/showing 8 of 512/i)).toBeInTheDocument()
+    expect(screen.getByText(/per-image review is coming/i)).toBeInTheDocument()
+  })
+
+  it('shows no cap notice for a normal cluster', () => {
+    renderRow() // default cluster: total_members === members.length
+    expect(screen.queryByText(/showing .* of /i)).toBeNull()
   })
 
   it('disables the per-cluster submit until a pending member has a decision', () => {
