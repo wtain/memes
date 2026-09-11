@@ -198,6 +198,8 @@ class IngestionRepository:
         , ranked AS (
             SELECT p.*, ROW_NUMBER() OVER (
                 PARTITION BY p.subject_id ORDER BY p.distance, p.cand_id::text
+                -- cand_id cast to text for byte-parity with the old Python key (distance, str(cand_id));
+                -- ensures identical ordering at the cap boundary when distances are tied.
             ) AS rn
             FROM pair p
             WHERE p.subject_id = ANY(:page_ids)

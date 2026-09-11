@@ -152,3 +152,21 @@ async def test_candidates_capped_at_source_tightest_first(db_session):
     subj_cands = [c for c in candidates if c.subject_id == subject]
     assert len(subj_cands) == CANDIDATE_CAP                          # capped at the source now
     assert [c.cand_id for c in subj_cands] == cand_ids[:CANDIDATE_CAP]  # tightest-first, by construction
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_candidate_cap_tie_break_matches_str_cand_id(db_session):
+    """All-equal distances: the cap boundary is decided purely by the tie-break, which must be
+    `cand_id::text` ascending -- byte-identical to the old Python key (distance, str(cand_id))."""
+    bid = await _run(db_session)
+    subject = await _img(db_session, "pending", bid)
+    cand_ids = [await _img(db_session, "active", bid) for _ in range(CANDIDATE_CAP + 10)]
+    for cid in cand_ids:
+        await _pair(db_session, subject, cid, 0.10)          # identical distance for every pair
+
+    repo = IngestionRepository(db_session)
+    _, candidates = await repo.list_tier_b_review_page(
+        bid, LOW, HIGH, cursor=None, limit=40, candidate_cap=CANDIDATE_CAP)
+
+    got = [str(c.cand_id) for c in candidates if c.subject_id == subject]
+    assert got == sorted(str(c) for c in cand_ids)[:CANDIDATE_CAP]
