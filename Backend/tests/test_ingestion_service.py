@@ -53,19 +53,32 @@ class TestListTierBReview:
         assert set(args[0]) == {s1, c1}
         assert args[1:] == (0.4, 0.3)
 
-    async def test_candidates_capped_total_reports_uncapped(self, service, mock_repo):
+    async def test_candidates_passthrough_from_repo_total_reports_uncapped(self, service, mock_repo):
         import uuid
         s1 = uuid.uuid4()
-        cands = [_cand(s1, uuid.uuid4(), 0.05 + i * 0.001) for i in range(CANDIDATE_CAP + 10)]
+        # Simulates the repo's contract as of Task 1: candidates arrive already capped at
+        # CANDIDATE_CAP and already tightest-first -- the service only groups them by subject.
+        cands = [_cand(s1, uuid.uuid4(), 0.05 + i * 0.001) for i in range(CANDIDATE_CAP)]
         mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
         mock_repo.list_tier_b_review_page.return_value = ([_subj(s1, 0.05, CANDIDATE_CAP + 10)], cands)
         mock_repo.get_ocr_texts.return_value = {}
 
         it = (await service.list_tier_b_review())["items"][0]
         assert len(it["candidates"]) == CANDIDATE_CAP
-        assert it["total_candidates"] == CANDIDATE_CAP + 10
-        # kept the tightest
-        assert [c["distance"] for c in it["candidates"]] == sorted(c.distance for c in cands)[:CANDIDATE_CAP]
+        assert it["total_candidates"] == CANDIDATE_CAP + 10          # uncapped count, from the subject row
+        # passthrough, not re-sorted/re-truncated -- exactly the order the repo returned
+        assert [c["distance"] for c in it["candidates"]] == [c.distance for c in cands]
+
+    async def test_repo_called_with_candidate_cap(self, service, mock_repo):
+        import uuid
+        mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
+        mock_repo.list_tier_b_review_page.return_value = ([], [])
+        mock_repo.get_ocr_texts.return_value = {}
+
+        await service.list_tier_b_review()
+
+        # positional call: (resolved_id, low, high, decoded, limit, candidate_cap)
+        assert mock_repo.list_tier_b_review_page.call_args.args[5] == CANDIDATE_CAP
 
     async def test_has_next_and_cursor_roundtrip(self, service, mock_repo):
         import uuid
