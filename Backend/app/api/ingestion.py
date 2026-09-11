@@ -55,6 +55,24 @@ class ClusterPage(BaseModel):
     has_next: bool
 
 
+class TierBCandidate(BaseModel):
+    member: ClusterMember
+    distance: float
+    match_source: Optional[str]
+
+
+class TierBReviewItem(BaseModel):
+    image: ClusterMember
+    candidates: list[TierBCandidate]
+    total_candidates: int
+
+
+class TierBReviewPage(BaseModel):
+    items: list[TierBReviewItem]
+    next_cursor: Optional[str]
+    has_next: bool
+
+
 class Decision(BaseModel):
     image_id: UUID
     decision: Literal["reject", "keep"]
@@ -111,6 +129,15 @@ async def list_clusters(
     service: IngestionService = Depends(get_ingestion_service),
 ):
     return await service.list_clusters(tier, cursor=cursor, limit=limit)
+
+
+@router.get("/review/tier_b", response_model=TierBReviewPage)
+async def tier_b_review(
+    cursor: Optional[str] = None,
+    limit: int = Query(40, ge=1, le=200),
+    service: IngestionService = Depends(get_ingestion_service),
+):
+    return await service.list_tier_b_review(cursor=cursor, limit=limit)
 
 
 @router.post("/clusters/{tier}/resolve", response_model=ResolveResponse)

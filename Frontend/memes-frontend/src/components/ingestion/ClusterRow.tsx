@@ -38,8 +38,9 @@ export function ClusterRow({
   const shown = expanded ? cluster.members : cluster.members.slice(0, COLLAPSED_COUNT)
   // A capped cluster only returns its tightest CLUSTER_MEMBER_CAP members. Deciding a shown
   // member would settle its pairs against the ~thousands of capped-off members nobody saw
-  // (mark_reviewed touches every pair on the image), so the whole group is context-only until
-  // per-image tier B review ships.
+  // (mark_reviewed touches every pair on the image), so the whole group is context-only,
+  // permanently -- this cap only fires for Tier A (an oversized union-find component); Tier B
+  // routes to the per-image `TierBReviewCard` queue instead, which has no such cap.
   const capped = cluster.total_members > cluster.members.length
 
   return (
@@ -61,7 +62,8 @@ export function ClusterRow({
       {cluster.total_members > cluster.members.length && (
         <p className="mt-2 text-xs text-gray-500">
           Showing {cluster.members.length} of {cluster.total_members} — this candidate group is
-          too large to review as a cluster; per-image review is coming.
+          too large to review as a cluster; oversized groups stay context-only (Tier A has no
+          per-image review path).
         </p>
       )}
       <div className="mt-3 flex items-center gap-3">

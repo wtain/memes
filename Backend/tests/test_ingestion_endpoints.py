@@ -157,6 +157,37 @@ class TestResolveCluster:
         mock_service.resolve.assert_not_awaited()
 
 
+class TestTierBReview:
+    def test_returns_page(self, client, mock_service):
+        mock_service.list_tier_b_review.return_value = {
+            "items": [{
+                "image": {"image_id": "s1", "filename": "s1.jpg", "status": "pending", "ocr_text": "t"},
+                "candidates": [{
+                    "member": {"image_id": "c1", "filename": "c1.jpg", "status": "active", "ocr_text": None},
+                    "distance": 0.08, "match_source": "cross_corpus"}],
+                "total_candidates": 5,
+            }],
+            "next_cursor": "0.08|s1", "has_next": True,
+        }
+        r = client.get("/api/ingestion/review/tier_b")
+        assert r.status_code == 200
+        b = r.json()
+        assert b["items"][0]["image"]["image_id"] == "s1"
+        assert b["items"][0]["candidates"][0]["distance"] == 0.08
+        assert b["items"][0]["total_candidates"] == 5
+        assert b["has_next"] is True
+        mock_service.list_tier_b_review.assert_awaited_once_with(cursor=None, limit=40)
+
+    def test_forwards_cursor_and_limit(self, client, mock_service):
+        mock_service.list_tier_b_review.return_value = {"items": [], "next_cursor": None, "has_next": False}
+        client.get("/api/ingestion/review/tier_b?cursor=0.1%7Cabc&limit=10")
+        mock_service.list_tier_b_review.assert_awaited_once_with(cursor="0.1|abc", limit=10)
+
+    def test_rejects_bad_limit(self, client, mock_service):
+        assert client.get("/api/ingestion/review/tier_b?limit=0").status_code == 422
+        assert client.get("/api/ingestion/review/tier_b?limit=999").status_code == 422
+
+
 class TestUndoReject:
     def test_reverts_to_pending(self, client, mock_service):
         image_id = str(uuid.uuid4())

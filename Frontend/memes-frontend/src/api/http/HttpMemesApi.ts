@@ -3,7 +3,7 @@ import type {
   Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse,
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
   IngestionRunStatus, IngestionPendingImage, IngestionClusterPage, IngestionDecision,
-  IngestionResolveResponse, IngestionUndoRejectResponse,
+  IngestionResolveResponse, IngestionUndoRejectResponse, IngestionTierBReviewPage,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse,
 } from "../../types/generated/all"
@@ -368,6 +368,16 @@ export class HttpMemesApi implements MemesApi {
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`Failed to fetch ${tier} clusters: ${res.status}`)
+    return res.json()
+  }
+
+  async getIngestionTierBReview(cursor?: string): Promise<IngestionTierBReviewPage> {
+    const params = new URLSearchParams({ limit: "40" })
+    if (cursor) params.set("cursor", cursor)
+    const res = await fetch(`${this.baseUrl}/api/ingestion/review/tier_b?${params}`, {
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`Failed to fetch tier B review: ${res.status}`)
     return res.json()
   }
 

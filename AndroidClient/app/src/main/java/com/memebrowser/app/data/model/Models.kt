@@ -252,6 +252,20 @@ data class IngestionClusterPage(
 )
 
 @Serializable
+data class IngestionTierBCandidate(
+    @SerialName("member") val member: IngestionClusterMember,
+    @SerialName("distance") val distance: Float,
+    @SerialName("match_source") val match_source: String?
+)
+
+@Serializable
+data class IngestionTierBReviewPage(
+    @SerialName("items") val items: List<IngestionTierBReviewItem>,
+    @SerialName("next_cursor") val next_cursor: String?,
+    @SerialName("has_next") val has_next: Boolean
+)
+
+@Serializable
 data class Meme(
     @SerialName("id") val id: String,
     @SerialName("imageUrl") val imageUrl: String,
@@ -308,6 +322,13 @@ data class IngestionResolveResponse(
     @SerialName("kept") val kept: List<String>,
     @SerialName("failed") val failed: List<IngestionFailedDecision>,
     @SerialName("move_failed") val move_failed: List<IngestionMoveFailure>
+)
+
+@Serializable
+data class IngestionTierBReviewItem(
+    @SerialName("image") val image: IngestionClusterMember,
+    @SerialName("candidates") val candidates: List<IngestionTierBCandidate>,
+    @SerialName("total_candidates") val total_candidates: Int
 )
 
 @Serializable

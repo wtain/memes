@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import IngestionReviewPage from './IngestionReviewPage'
 import { makeMockApi } from '../test/mockApi'
-import type { IngestionClusterPage, IngestionCluster, IngestionRunStatus } from '../types/generated/all'
+import type {
+  IngestionClusterPage, IngestionCluster, IngestionRunStatus, IngestionTierBReviewItem,
+} from '../types/generated/all'
 
 // Virtuoso mock: mirrors src/components/MemesDuplicatesList.test.tsx. The mock never calls the
 // callback props itself -- it captures `endReached` so the pagination tests can drive it, and
@@ -35,6 +37,21 @@ function cl(id: string, dist = 0.05): IngestionCluster {
   }
 }
 const page = (items: IngestionCluster[], next: string | null = null): IngestionClusterPage =>
+  ({ items, next_cursor: next, has_next: next !== null })
+
+const tierBStatus = { ...runStatus, stage: 'tier_b_review' }
+
+function tbItem(sid: string, candIds: [string, 'pending' | 'active'][], dist = 0.08): IngestionTierBReviewItem {
+  return {
+    image: { image_id: sid, filename: `${sid}.jpg`, status: 'pending', ocr_text: null },
+    candidates: candIds.map(([cid, st], i) => ({
+      member: { image_id: cid, filename: `${cid}.jpg`, status: st, ocr_text: null },
+      distance: dist + i * 0.01, match_source: 'in_batch',
+    })),
+    total_candidates: candIds.length,
+  }
+}
+const tbPage = (items: IngestionTierBReviewItem[], next: string | null = null) =>
   ({ items, next_cursor: next, has_next: next !== null })
 
 beforeEach(() => {
@@ -225,18 +242,20 @@ describe('IngestionReviewPage', () => {
     const getIngestionRunStatus = vi.fn()
       .mockResolvedValueOnce(runStatus)
       .mockResolvedValueOnce({ ...runStatus, stage: 'tier_b_review' })
-    const getIngestionClusters = vi.fn()
-      .mockResolvedValueOnce(page([cl('a')]))
-      .mockResolvedValueOnce(page([]))
+    const getIngestionClusters = vi.fn().mockResolvedValueOnce(page([cl('a')]))
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(tbPage([]))
     const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['a-1'], kept: [], failed: [], move_failed: [] })
-    const api = makeMockApi({ getIngestionRunStatus, getIngestionClusters, resolveIngestionCluster })
+    const api = makeMockApi({ getIngestionRunStatus, getIngestionClusters, getIngestionTierBReview, resolveIngestionCluster })
     render(<IngestionReviewPage memesApi={api} />)
     await screen.findByText('a-1.jpg')
     await userEvent.click(screen.getByRole('button', { name: /^reject$/i }))
     await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
 
-    await waitFor(() => expect(getIngestionClusters).toHaveBeenCalledTimes(2))
-    expect(getIngestionRunStatus).toHaveBeenCalledTimes(2)
+    // last visible cluster resolved + no more pages -> the page reloads and, because run status
+    // has advanced, the reload pulls the Tier B queue rather than a second cluster fetch.
+    await waitFor(() => expect(getIngestionRunStatus).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(getIngestionTierBReview).toHaveBeenCalled())
+    expect(getIngestionClusters).toHaveBeenCalledTimes(1)
     expect(await screen.findByText('Ingestion Review — Tier B')).toBeInTheDocument()
   })
 
@@ -496,10 +515,11 @@ describe('IngestionReviewPage', () => {
     const getIngestionRunStatus = vi.fn()
       .mockResolvedValueOnce({ ...runStatus, stage: 'tier_a_review' })
       .mockResolvedValueOnce({ ...runStatus, stage: 'tier_b_review' })
-    const getIngestionClusters = vi.fn()
-      .mockResolvedValueOnce(page([cl('a')]))
-      .mockResolvedValueOnce(page([cl('a')]))
-    const api = makeMockApi({ getIngestionRunStatus, getIngestionClusters })
+    const getIngestionClusters = vi.fn().mockResolvedValueOnce(page([cl('a')]))
+    // After the tier flips, the Tier B queue is what renders -- give it a subject tile so there
+    // is still a Keep button to assert the (now-cleared) decision highlight against.
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(tbPage([tbItem('a', [['a-2', 'active']])]))
+    const api = makeMockApi({ getIngestionRunStatus, getIngestionClusters, getIngestionTierBReview })
     const { rerender } = render(<IngestionReviewPage memesApi={api} />)
     await screen.findByText('a-1.jpg')
     await userEvent.click(screen.getByRole('button', { name: /^keep$/i }))
@@ -554,5 +574,99 @@ describe('IngestionReviewPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /retry/i }))
     expect(await screen.findByText('a-1.jpg')).toBeInTheDocument()
     expect(screen.queryByText('boom')).toBeNull()
+  })
+})
+
+describe('IngestionReviewPage — tier B', () => {
+  it('renders per-image cards from the tier-b review endpoint, not clusters', async () => {
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(tbPage([tbItem('s1', [['c1', 'active']])]))
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(tierBStatus),
+      getIngestionTierBReview,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    expect(await screen.findByText('s1.jpg')).toBeInTheDocument()
+    expect(screen.getByText('c1.jpg')).toBeInTheDocument()
+    expect(getIngestionTierBReview).toHaveBeenCalledWith(undefined)
+  })
+
+  it('removes a card once its subject is decided and submitted', async () => {
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(tbPage([tbItem('s1', [['c1', 'active']]), tbItem('s2', [['c3', 'active']])]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['s1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(tierBStatus),
+      getIngestionTierBReview, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0])  // s1 subject
+    await userEvent.click(screen.getAllByRole('button', { name: /^submit decisions$/i })[0])
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledWith('tier_b', [{ image_id: 's1', decision: 'reject' }]))
+    await waitFor(() => expect(screen.queryByText('s1.jpg')).toBeNull())
+    expect(screen.getByText('s2.jpg')).toBeInTheDocument()
+  })
+
+  it('a decision on an in-batch candidate shown on two cards reflects on both', async () => {
+    // s1's card lists c1 (pending); c1 also has its own card
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(
+      tbPage([tbItem('s1', [['c1', 'pending']]), tbItem('c1', [['x9', 'active']])]))
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(tierBStatus),
+      getIngestionTierBReview,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    // reject c1 from s1's card (the 2nd reject button: [0]=s1 subject, [1]=c1 candidate, [2]=c1 subject-card)
+    const rejects = screen.getAllByRole('button', { name: /^reject$/i })
+    await userEvent.click(rejects[1])
+    // both c1 tiles now show the reject highlight
+    await waitFor(() => {
+      const highlighted = screen.getAllByRole('button', { name: /^reject$/i }).filter(b => b.className.includes('bg-red-600'))
+      expect(highlighted.length).toBe(2)
+    })
+  })
+
+  it('submit all dedupes a decision shared across cards and does not strand the decided image\'s own card', async () => {
+    // s1's card lists c1 (pending) as a candidate; c1 also has its own subject card with candidate x9
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(
+      tbPage([tbItem('s1', [['c1', 'pending']]), tbItem('c1', [['x9', 'active']])])
+    )
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['c1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(tierBStatus),
+      getIngestionTierBReview, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    const rejects = screen.getAllByRole('button', { name: /^reject$/i })
+    await userEvent.click(rejects[1])  // [0]=s1 subject, [1]=c1 candidate on s1's card, [2]=c1's own subject
+    // sticky bar's image count is deduped to 1 even though c1 is decided on one card and appears
+    // as the subject of another (the card count is legitimately 2 here -- both cards currently
+    // show an actionable decision on c1's shared id -- so it stays a per-card count, not deduped)
+    expect(screen.getByRole('button', { name: /submit all decisions \(2 groups, 1 image\)/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /submit all decisions/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^confirm\?/i }))
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledWith('tier_b', [{ image_id: 'c1', decision: 'reject' }]))
+    // c1's own subject card is dropped (its subject was resolved) -- x9 was only visible there
+    await waitFor(() => expect(screen.queryByText('x9.jpg')).toBeNull())
+    // c1.jpg now appears exactly once -- as the (now read-only) candidate on s1's card, not also as a subject heading
+    expect(screen.getAllByText('c1.jpg')).toHaveLength(1)
+  })
+
+  it('reloads the tier-B queue directly when the last visible card is resolved', async () => {
+    const getIngestionTierBReview = vi.fn()
+      .mockResolvedValueOnce(tbPage([tbItem('s1', [['c1', 'active']])]))
+      .mockResolvedValueOnce(tbPage([tbItem('s2', [['c2', 'active']])]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['s1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(tierBStatus),
+      getIngestionTierBReview, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0])
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
+    await waitFor(() => expect(getIngestionTierBReview).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('s2.jpg')).toBeInTheDocument()
   })
 })
