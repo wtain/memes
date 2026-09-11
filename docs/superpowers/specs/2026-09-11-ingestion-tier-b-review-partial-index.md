@@ -190,8 +190,8 @@ confirmed green immediately after; index confirmed `indisvalid = t` on all three
 `general`, real active batch (`run_id 7f16392b…`, stage `tier_b_review`), Query A's exact SQL via
 `EXPLAIN (ANALYZE, BUFFERS)` over `DATABASE_URL_READONLY`:
 
-- **Before:** 1,201 ms. Plan: `Parallel Seq Scan on tmp_duplicates` (both `UNION ALL` branches), ~20.6k
-  buffer reads from disk.
+- **Before:** 1,201 ms. Plan: `Parallel Seq Scan on tmp_duplicates` (both `UNION ALL` branches), ~20k shared
+  buffer accesses, ~14k of them actual disk reads (the rest already cached).
 - **After (incl. a manual `ANALYZE tmp_duplicates` to rule out stale planner stats):** ~680–690 ms, but —
   **the plan is unchanged: still a `Parallel Seq Scan`, not an index scan.** The new index exists, is valid,
   and is not being used by the planner for this query on this batch, right now.
@@ -215,3 +215,29 @@ confirmed green immediately after; index confirmed `indisvalid = t` on all three
   rollout; the query's correctness (row set, ordering) is provably unaffected by index presence (Postgres
   index vs. seq scan choice never changes query results, only how it finds them); `cd Backend && pytest -q`
   (304) and the ingestion/clusterize integration slice stayed green throughout, unmodified.
+- **Write-side cost, measured, not just asserted "small":** the partial predicate makes `tier_b_reviewed_at`
+  an indexed attribute, so a review decision's `UPDATE ... SET tier_b_reviewed_at = now()`
+  (`mark_reviewed`/`reject_image`) loses HOT-update eligibility for that row — Postgres now has to write a
+  fresh index tuple (into all six of the table's indexes, not just this one) instead of updating in place.
+  Measured directly on `ocrdb_test` (500 updates before/after adding the index): HOT-eligible updates went
+  from 500/500 to 0/500. `general`'s own `pg_stat_user_tables` shows `n_tup_hot_upd`/`n_tup_upd` at ~46%
+  historically — that drops toward 0% for `tmp_duplicates` going forward. The cost is bounded (one extra
+  index-tuple write per review decision, autovacuum-managed) and fully reversible via `alembic downgrade
+  -1`; it is not zero, and "costs only its (small, additive) write-side maintenance overhead" above should
+  be read with this precisely, not as "no write-side effect."
+- **The projected crossover is empirically real, not just theoretical.** Narrowing the query's distance
+  band to simulate a smaller unreviewed fraction (~10% of the table) reproduces the planner picking this
+  index up unprompted, at default cost settings, on both `UNION ALL` branches — confirming the "the planner
+  will use it automatically once the unreviewed fraction is low enough" claim above is a testable, reached
+  threshold (around the ~10%-of-table mark on this data shape), not a hand-wave. `metal` (188,277 pairs) and
+  `it` (12,204 pairs) are both at ~100% unreviewed today, same as `general`'s 96.3% — `idx_scan = 0` on the
+  new index everywhere right now, as expected at this point in each environment's review lifecycle.
+- **Bigger levers exist for Query A's overall cost, out of scope here:** with `random_page_cost` tuned down
+  from the Postgres default (4) toward an SSD-appropriate value, the planner abandons the sequential scan
+  entirely in favor of driving from the *selective* side (pending images for the batch, ~7.5k rows) through
+  the pre-existing `image_id1`/`image_id2` indexes — structurally the better plan for a query this
+  selective on the subject side, independent of this partial index. Separately, the two `tmp_duplicates`
+  scans are well under half of the measured total time even in the worst case; `GroupAggregate` and its
+  disk-spilling sorts (`work_mem`-bound) account for most of the rest. Both are follow-up material, not
+  this spec's job — noted here so a future reader doesn't read this index as the whole story for Query A's
+  cost.
