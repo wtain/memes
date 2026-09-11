@@ -625,4 +625,48 @@ describe('IngestionReviewPage — tier B', () => {
       expect(highlighted.length).toBe(2)
     })
   })
+
+  it('submit all dedupes a decision shared across cards and does not strand the decided image\'s own card', async () => {
+    // s1's card lists c1 (pending) as a candidate; c1 also has its own subject card with candidate x9
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(
+      tbPage([tbItem('s1', [['c1', 'pending']]), tbItem('c1', [['x9', 'active']])])
+    )
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['c1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(tierBStatus),
+      getIngestionTierBReview, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    const rejects = screen.getAllByRole('button', { name: /^reject$/i })
+    await userEvent.click(rejects[1])  // [0]=s1 subject, [1]=c1 candidate on s1's card, [2]=c1's own subject
+    // sticky bar's image count is deduped to 1 even though c1 is decided on one card and appears
+    // as the subject of another (the card count is legitimately 2 here -- both cards currently
+    // show an actionable decision on c1's shared id -- so it stays a per-card count, not deduped)
+    expect(screen.getByRole('button', { name: /submit all decisions \(2 groups, 1 image\)/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /submit all decisions/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^confirm\?/i }))
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledWith('tier_b', [{ image_id: 'c1', decision: 'reject' }]))
+    // c1's own subject card is dropped (its subject was resolved) -- x9 was only visible there
+    await waitFor(() => expect(screen.queryByText('x9.jpg')).toBeNull())
+    // c1.jpg now appears exactly once -- as the (now read-only) candidate on s1's card, not also as a subject heading
+    expect(screen.getAllByText('c1.jpg')).toHaveLength(1)
+  })
+
+  it('reloads the tier-B queue directly when the last visible card is resolved', async () => {
+    const getIngestionTierBReview = vi.fn()
+      .mockResolvedValueOnce(tbPage([tbItem('s1', [['c1', 'active']])]))
+      .mockResolvedValueOnce(tbPage([tbItem('s2', [['c2', 'active']])]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['s1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus: vi.fn().mockResolvedValue(tierBStatus),
+      getIngestionTierBReview, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0])
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
+    await waitFor(() => expect(getIngestionTierBReview).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('s2.jpg')).toBeInTheDocument()
+  })
 })

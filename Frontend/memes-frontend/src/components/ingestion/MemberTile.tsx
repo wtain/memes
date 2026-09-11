@@ -11,7 +11,9 @@ type Props = {
   onPeek: () => void
   // A capped cluster is context-only: a Keep/Reject on a shown member would settle its
   // candidate pairs against the capped-off members nobody saw (via mark_reviewed), so the
-  // decision controls are withheld until per-image tier B review ships.
+  // decision controls are withheld, permanently -- for Tier A, the only tier this can fire on
+  // (an oversized union-find component too big for `CLUSTER_MEMBER_CAP`). Tier B routes to
+  // `TierBReviewCard`/`list_tier_b_review` instead, which has no cap and never sets this.
   readOnly?: boolean
 }
 
