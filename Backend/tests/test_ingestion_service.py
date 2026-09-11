@@ -53,19 +53,38 @@ class TestListTierBReview:
         assert set(args[0]) == {s1, c1}
         assert args[1:] == (0.4, 0.3)
 
-    async def test_candidates_capped_total_reports_uncapped(self, service, mock_repo):
+    async def test_candidates_passthrough_from_repo_total_reports_uncapped(self, service, mock_repo):
         import uuid
         s1 = uuid.uuid4()
-        cands = [_cand(s1, uuid.uuid4(), 0.05 + i * 0.001) for i in range(CANDIDATE_CAP + 10)]
+        # Simulates the repo's contract as of Task 1: candidates arrive already capped/sorted by the
+        # repo. Deliberately scrambled + over-cap here so a reverted sort/truncate would visibly change
+        # the output -- a passthrough test must be ABLE to fail on that regression, not just avoid crashing.
+        # Use CANDIDATE_CAP + 2 items so a reintroduced `del lst[CANDIDATE_CAP:]` would visibly truncate.
+        cands = [
+            _cand(s1, uuid.uuid4(), 0.20),
+            _cand(s1, uuid.uuid4(), 0.05),
+            _cand(s1, uuid.uuid4(), 0.15),
+        ] + [_cand(s1, uuid.uuid4(), 0.10 + i * 0.001) for i in range(CANDIDATE_CAP - 1)]
         mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
         mock_repo.list_tier_b_review_page.return_value = ([_subj(s1, 0.05, CANDIDATE_CAP + 10)], cands)
         mock_repo.get_ocr_texts.return_value = {}
 
         it = (await service.list_tier_b_review())["items"][0]
-        assert len(it["candidates"]) == CANDIDATE_CAP
-        assert it["total_candidates"] == CANDIDATE_CAP + 10
-        # kept the tightest
-        assert [c["distance"] for c in it["candidates"]] == sorted(c.distance for c in cands)[:CANDIDATE_CAP]
+        expected_distances = [0.20, 0.05, 0.15] + [0.10 + i * 0.001 for i in range(CANDIDATE_CAP - 1)]
+        assert len(it["candidates"]) == CANDIDATE_CAP + 2             # NOT trimmed to CANDIDATE_CAP
+        assert [c["distance"] for c in it["candidates"]] == expected_distances  # NOT re-sorted
+        assert it["total_candidates"] == CANDIDATE_CAP + 10           # uncapped count, from the subject row
+
+    async def test_repo_called_with_candidate_cap(self, service, mock_repo):
+        import uuid
+        mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
+        mock_repo.list_tier_b_review_page.return_value = ([], [])
+        mock_repo.get_ocr_texts.return_value = {}
+
+        await service.list_tier_b_review()
+
+        # positional call: (resolved_id, low, high, decoded, limit, candidate_cap)
+        assert mock_repo.list_tier_b_review_page.call_args.args[5] == CANDIDATE_CAP
 
     async def test_has_next_and_cursor_roundtrip(self, service, mock_repo):
         import uuid

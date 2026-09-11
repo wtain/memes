@@ -244,20 +244,20 @@ class IngestionService:
         low, high = _tier_band("tier_b")
         decoded = _decode_cursor(cursor)
         subjects, candidates = await self.repo.list_tier_b_review_page(
-            resolved_id, low, high, decoded, limit)
+            resolved_id, low, high, decoded, limit, CANDIDATE_CAP)
 
         has_next = len(subjects) > limit
         page = subjects[:limit]
 
+        # The repo returns each subject's candidates pre-sorted and pre-capped at CANDIDATE_CAP
+        # (see docs/superpowers/specs/2026-09-11-ingestion-tier-b-candidate-query-bound.md) -- group
+        # only, no re-sort/re-truncate here. CANDIDATE_CAP has exactly one enforcement point: the
+        # repo call above.
         cands_by_subject: dict = {}
+        shown_cand_ids: set = set()
         for c in candidates:
             cands_by_subject.setdefault(c.subject_id, []).append(c)
-
-        shown_cand_ids: set = set()
-        for lst in cands_by_subject.values():
-            lst.sort(key=lambda c: (c.distance, str(c.cand_id)))
-            del lst[CANDIDATE_CAP:]
-            shown_cand_ids.update(c.cand_id for c in lst)
+            shown_cand_ids.add(c.cand_id)
 
         subject_ids = {s.subject_id for s in page}
         ocr = await self.repo.get_ocr_texts(

@@ -1,6 +1,6 @@
 # Ingestion Review — Tier B Candidate Query Bound
 
-status: planned
+status: done
 Plan: docs/superpowers/plans/2026-09-11-ingestion-tier-b-candidate-query-bound.md
 Originates from: docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md's final
 whole-branch review (2026-09-10/11) — Important finding #3, deferred there as a tracked follow-up rather
@@ -170,3 +170,8 @@ Its only caller is `IngestionService.list_tier_b_review`, updated in the same ch
 
 Pure query rewrite + a small service-side simplification. No schema change, no migration, no API contract
 change, no frontend change. Low risk, ships as its own small PR/commit off `main`.
+
+**Server-side scan cost clarification:** This change bounds the wire transfer and Python heap to 30 candidates
+per subject, but Postgres still scans and sorts every in-band candidate row for the page's subjects before the
+window function discards the non-top-30 per partition. The server-side scan cost is the territory of the sibling
+partial-index spec (`2026-09-11-ingestion-tier-b-review-partial-index.md`), not addressed here.
