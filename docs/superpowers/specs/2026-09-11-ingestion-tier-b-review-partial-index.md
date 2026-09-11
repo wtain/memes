@@ -1,6 +1,7 @@
 # Ingestion Review — Tier B Query A Partial Index
 
-status: draft
+status: planned
+Plan: docs/superpowers/plans/2026-09-11-ingestion-tier-b-review-partial-index.md
 Originates from: docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md's final
 whole-branch review (2026-09-10/11) — a Recommendation alongside Important finding #3 ("land the partial
 index now rather than 'if needed'"), deferred as a tracked follow-up rather than reopening that branch. No
