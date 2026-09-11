@@ -21,7 +21,11 @@ type ReviewUnit = IngestionCluster | IngestionTierBReviewItem
 const isTierBItem = (u: ReviewUnit): u is IngestionTierBReviewItem => "image" in u
 
 // Every image id a unit can carry a decision for (subject + its pending members/candidates),
-// used to decide whether a `failed` server response should re-insert an optimistically-removed unit.
+// used to decide whether a `failed` server response should re-insert an optimistically-removed
+// unit. This includes non-pending members/candidates too -- harmless, not imprecise: `failedIds`
+// (the only thing this list is ever tested against) can only ever contain ids that were actually
+// submitted, and `decidedPendingIn` only ever emits *pending* members/candidates into a payload,
+// so a non-pending id from this list can never match a `failedIds` entry.
 function unitImageIds(u: ReviewUnit): string[] {
   return isTierBItem(u)
     ? [u.image.image_id, ...u.candidates.map((c) => c.member.image_id)]
@@ -32,13 +36,18 @@ function unitImageIds(u: ReviewUnit): string[] {
 // `failed`) so their tiles stop offering Keep/Reject -- otherwise, with the decision highlight
 // pruned, a still-pending-looking tile reads as "my submit didn't take". The status *label* stays
 // truthful (a rejected id -> "rejected", a kept id -> "active") via the per-id `resolvedStatus`.
-function flipResolved(unit: ReviewUnit, resolvedStatus: (id: string) => string | null): ReviewUnit {
+// Generic over the concrete unit type so callers mapping a concretely-typed array (e.g.
+// `IngestionTierBReviewItem[]`) keep that concrete type back, with no cast at the call site.
+function flipResolved<T extends ReviewUnit>(unit: T, resolvedStatus: (id: string) => string | null): T {
   if (isTierBItem(unit)) {
     const imgNext = unit.image.status === "pending" ? resolvedStatus(unit.image.image_id) : null
     const candNeedsFlip = unit.candidates.some(
       (c) => c.member.status === "pending" && resolvedStatus(c.member.image_id) !== null
     )
     if (!imgNext && !candNeedsFlip) return unit
+    // The spread-and-override below reconstructs the same concrete shape `unit` was narrowed to
+    // (IngestionTierBReviewItem) -- TS can't see through the spread to re-derive that it's still
+    // exactly T, hence the assertion; the value itself is exactly the T-shaped object it started as.
     return {
       ...unit,
       image: imgNext ? { ...unit.image, status: imgNext } : unit.image,
@@ -46,7 +55,7 @@ function flipResolved(unit: ReviewUnit, resolvedStatus: (id: string) => string |
         const next = c.member.status === "pending" ? resolvedStatus(c.member.image_id) : null
         return next ? { ...c, member: { ...c.member, status: next } } : c
       }),
-    }
+    } as T
   }
   if (!unit.members.some((m) => m.status === "pending" && resolvedStatus(m.image_id) !== null)) return unit
   return {
@@ -55,7 +64,46 @@ function flipResolved(unit: ReviewUnit, resolvedStatus: (id: string) => string |
       const next = m.status === "pending" ? resolvedStatus(m.image_id) : null
       return next ? { ...m, status: next } : m
     }),
+  } as T
+}
+
+// Splices previously-removed units back into a concretely-typed array (reinsert-after-failure,
+// or full rollback on a thrown request). `units` was collected from THIS call's own `toSubmit`
+// (`submitUnit`/`submitAll` always build it from a single tier's active list), so every entry is
+// always the same concrete shape as `copy` here -- a same-call invariant, not an actual type
+// hazard, but not one TS can see through generically, hence the one assertion.
+function spliceIn<T extends ReviewUnit>(copy: T[], units: { unit: ReviewUnit; index: number }[]): T[] {
+  for (const { unit, index } of units) copy.splice(Math.min(index, copy.length), 0, unit as T)
+  return copy
+}
+
+// The response-time transform applied to a review list after a submit: re-insert any units the
+// server reported as `failed` (kept selected for retry), then -- if anything actually resolved --
+// drop any tier-B unit whose own subject was just resolved (see the zombie-card note at its call
+// site) and flip the local status of every other newly-resolved member/candidate. Generic and
+// pure so it can be called twice with the identical arguments: once against a plain `ReviewUnit[]`
+// just to read `.length` for the reload-when-empty check, and once per concrete setState branch
+// to actually apply the update -- see `runSubmit`.
+function resolveUnits<T extends ReviewUnit>(
+  prev: T[],
+  reinsert: { unit: ReviewUnit; index: number }[],
+  resolvedCount: number,
+  resolvedStatus: (id: string) => string | null
+): T[] {
+  let copy = spliceIn(prev.slice(), reinsert)
+  if (resolvedCount > 0) {
+    // A tier-B unit whose own SUBJECT was just resolved -- via *any* card's submit, not
+    // necessarily its own -- can never become isFullyResolved() again: its decision was already
+    // pruned in the caller, and its pairs are already fully settled via the subject's own
+    // mark_reviewed/reject_image cascade. Drop it instead of flipping-and-stranding it, so the
+    // reload-when-empty gate in `runSubmit` still fires. (Tier A is unaffected -- its clusters are
+    // disjoint union-find components, so no image ever appears on two cluster cards.)
+    copy = copy.filter(
+      (u) => !(isTierBItem(u) && u.image.status === "pending" && resolvedStatus(u.image.image_id) !== null)
+    )
+    copy = copy.map((u) => flipResolved(u, resolvedStatus))
   }
+  return copy
 }
 
 // Which tier's queue to show, driven by the run's current stage. "promoted" falls back to
@@ -280,27 +328,40 @@ export default function IngestionReviewPage({ memesApi }: Props) {
 
   async function runSubmit(which: ReviewUnit | "all", toSubmit: { unit: ReviewUnit; index: number }[]) {
     if (!tier) return
-    // Bind the active list ONCE -- `tier` can't change mid-submit, whereas re-deriving from
-    // `tierBItems.length` would flip to the cluster list the moment an optimistic removal empties it.
+    // `tier` can't change mid-submit (unlike re-deriving from `tierBItems.length`, which would
+    // flip to the cluster list the moment an optimistic removal empties it), so it's safe to read
+    // once and dispatch every update to the one active setState below. Each `apply*` updater is
+    // written generically (`<T extends ReviewUnit>`) so it can be handed straight to either
+    // `setTierBItems` or `setClusters` -- TS instantiates T from whichever one actually gets
+    // called, so neither call needs a cast to bridge `ReviewUnit[]` back to a concrete array type.
     const isTierB = tier === "tier_b"
-    const setActive = (updater: (prev: ReviewUnit[]) => ReviewUnit[]) => {
-      if (isTierB) setTierBItems((prev) => updater(prev) as IngestionTierBReviewItem[])
-      else setClusters((prev) => updater(prev) as IngestionCluster[])
-    }
-    const payload = toSubmit.flatMap(({ unit }) => decidedPendingIn(unit))
+    // Fix: dedupe by image_id. The same image can be a pending candidate shown on one card and
+    // the subject of its own card (or a pending candidate on two different cards) -- a multi-unit
+    // submit ("Submit all") must send/count it once, not once per card it happens to appear on.
+    const payloadMap = new Map<string, { image_id: string; decision: Decision }>()
+    for (const { unit } of toSubmit) for (const d of decidedPendingIn(unit)) payloadMap.set(d.image_id, d)
+    const payload = [...payloadMap.values()]
     if (payload.length === 0) return
     // Units we optimistically pull out of the list now, with their original position for rollback.
     const removed = toSubmit.filter(({ unit }) => isFullyResolved(unit))
     const removedSet = new Set<ReviewUnit>(removed.map(({ unit }) => unit))
     setSubmitting(which)
-    // Compute the post-removal visible count inside the updater -- reading it back from a ref
-    // after the await races the passive effect that would sync the ref.
+    // Compute the post-removal visible list+count inside the updater -- reading it back from a
+    // ref after the await races the passive effect that would sync the ref. This dispatch happens
+    // before the `await` below, in the same synchronous batch as the click handler that triggered
+    // it, which is what makes reading `survivingCount`/`activeAfterRemoval` back out immediately
+    // reliable; a later updater dispatched *after* the await can't be read back the same way (see
+    // `finalCount` below), so it's computed independently instead.
     let survivingCount = 0
-    setActive((prev) => {
+    let activeAfterRemoval: ReviewUnit[] = []
+    const applyRemoval = <T extends ReviewUnit>(prev: T[]): T[] => {
       const next = prev.filter((u) => !removedSet.has(u))
       survivingCount = next.length
+      activeAfterRemoval = next
       return next
-    })
+    }
+    if (isTierB) setTierBItems(applyRemoval)
+    else setClusters(applyRemoval)
     try {
       const response: IngestionResolveResponse = await memesApi.resolveIngestionCluster(tier, payload)
       const failedIds = new Set(response.failed.map((f) => f.image_id))
@@ -327,20 +388,24 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       const resolvedCount = rejectedIds.size + keptIds.size
       const resolvedStatus = (imageId: string): string | null =>
         rejectedIds.has(imageId) ? "rejected" : keptIds.has(imageId) ? "active" : null
+      // Fix: `finalCount` (not the earlier `survivingCount`) drives the reload-when-empty check
+      // below -- it accounts for the zombie-card drop just below, which `survivingCount` predates.
+      // Computed via `resolveUnits` applied directly to the already-captured `activeAfterRemoval`
+      // array, NOT by reading a value back out of the setState call a few lines down: that call is
+      // dispatched after the `await` above, outside the click handler's original synchronous
+      // batch, so (unlike `applyRemoval` above) there's no guarantee its updater has already run
+      // by the time the very next line executes.
+      let finalCount = survivingCount
       if (reinsert.length > 0 || resolvedCount > 0) {
-        setActive((prev) => {
-          let copy = [...prev]
-          for (const { unit, index } of reinsert) copy.splice(Math.min(index, copy.length), 0, unit)
-          if (resolvedCount > 0) copy = copy.map((u) => flipResolved(u, resolvedStatus))
-          return copy
-        })
+        finalCount = resolveUnits(activeAfterRemoval, reinsert, resolvedCount, resolvedStatus).length
+        if (isTierB) setTierBItems((prev) => resolveUnits(prev, reinsert, resolvedCount, resolvedStatus))
+        else setClusters((prev) => resolveUnits(prev, reinsert, resolvedCount, resolvedStatus))
       }
       // Ruling 3: reload only when the on-screen queue has fully emptied -- restores the old
       // auto-advance (Tier A -> Tier B, via load() also refetching run status) and, when more
       // pages exist, pulls the next unreviewed page-1 work in place of a bare "Load more" button.
       // Every submit that leaves units visible stays purely optimistic (no reload/scroll jump).
-      const remaining = survivingCount + reinsert.length
-      if (remaining === 0) {
+      if (finalCount === 0) {
         await load()
       }
       // Set the summary after any reload -- load()'s success path clears `error`, so setting it
@@ -349,13 +414,10 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     } catch (e: unknown) {
       // Roll the optimistically-removed units back into place. Decisions were never touched
       // on the way out, so they're still selected -- nothing to restore there.
-      setActive((prev) => {
-        const copy = [...prev]
-        for (const { unit, index } of removed.slice().sort((a, b) => a.index - b.index)) {
-          copy.splice(Math.min(index, copy.length), 0, unit)
-        }
-        return copy
-      })
+      const rollbackUnits = removed.slice().sort((a, b) => a.index - b.index)
+      const applyRollback = <T extends ReviewUnit>(prev: T[]): T[] => spliceIn(prev.slice(), rollbackUnits)
+      if (isTierB) setTierBItems(applyRollback)
+      else setClusters(applyRollback)
       setError(e instanceof Error ? e.message : "Failed to submit decisions")
     } finally {
       setSubmitting(null)
@@ -378,13 +440,19 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   }
 
   const { groupsWithPendingCount, allPendingCount } = useMemo(() => {
-    let c = 0, i = 0
+    // `groupsWithPendingCount` stays a per-card count (correct as-is -- it's cards, not images).
+    // `allPendingCount` dedupes by image_id: the same image can be a decided pending candidate on
+    // one card and the subject of its own card (or a pending candidate on two different cards),
+    // so summing decidedPendingIn().length across cards would double-count it -- misleading on the
+    // "Submit all" bar and its destructive-confirm step.
+    let c = 0
+    const decidedIds = new Set<string>()
     const list: ReviewUnit[] = tier === "tier_b" ? tierBItems : clusters
     for (const unit of list) {
-      const n = decidedPendingIn(unit).length
-      if (n > 0) { c++; i += n }
+      const decided = decidedPendingIn(unit)
+      if (decided.length > 0) { c++; for (const d of decided) decidedIds.add(d.image_id) }
     }
-    return { groupsWithPendingCount: c, allPendingCount: i }
+    return { groupsWithPendingCount: c, allPendingCount: decidedIds.size }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusters, tierBItems, tier, decisions])
 

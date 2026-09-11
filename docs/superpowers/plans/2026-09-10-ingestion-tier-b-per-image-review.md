@@ -1190,3 +1190,14 @@ Invoke `superpowers:requesting-code-review` for the branch against the spec. One
 **Placeholder scan:** none. Every code step has literal code; every test step names the command + expected result. Task 6 is the largest and is broken into 5 numbered sub-steps with the exact edits.
 
 **Type consistency:** `list_tier_b_review_page(batch_id, low, high, cursor, limit) -> (subjects, candidates)` — same row field names (`subject_id`, `min_distance`, `total_candidates`, `cand_id`, `cand_status`, `match_source`) in the SQL `SELECT`, the repo return, the service consumer, and the mock `SimpleNamespace` builders in Task 2's test. `TierBReviewItem` shape (`image` / `candidates: [{member, distance, match_source}]` / `total_candidates`) identical across service (Task 2), Pydantic (Task 3), schema (Task 3), `TierBReviewCard` (Task 5), page tests (Task 6). `CANDIDATE_CAP` imported from `ingestion_service` in Task 2's test. `getIngestionTierBReview(cursor?) -> IngestionTierBReviewPage` consistent Tasks 4/6. `_encode_cursor`/`_decode_cursor` reused unchanged.
+
+**`CLUSTER_MEMBER_CAP` keep-vs-remove decision (per the design spec's Rollout section):** kept, not
+removed. `CLUSTER_MEMBER_CAP`/`_members_by_tightest_edge` in `Backend/app/services/ingestion_service.py`
+are now dead code for Tier B (`list_clusters` is no longer called for that tier — the page routes
+to `list_tier_b_review` instead), but stay live as Tier A's safety net for a rare oversized
+union-find component, where they're harmless and still needed (Tier A has no per-image review
+path to fall back on). The capped-cluster UI/doc wording (`ClusterRow.tsx`, `MemberTile.tsx`,
+the `CLUSTER_MEMBER_CAP` comment, `backend_api.md`) was corrected in this branch's final-review
+fix wave to stop claiming a future "per-image review is coming" — that per-image path shipped,
+this branch, Tier-B-only, so the read-only cap state is now Tier A's permanent behavior, not a
+stopgap awaiting removal.

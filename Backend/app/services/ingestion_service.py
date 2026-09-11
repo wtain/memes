@@ -45,8 +45,10 @@ def _split_params(tier: str):
 
 
 # Deliberately a plain module constant, not a Dynaconf key: it's a browser-payload / reviewer-
-# attention bound, and this whole cap is a short-lived stopgap removed once per-image tier B
-# review ships (see docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md).
+# attention bound. Tier-A-only in practice: `list_clusters` is the only caller, and Tier B routes
+# to `list_tier_b_review` instead (no cap there), since per-image tier B review shipped -- see
+# docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md. Kept as Tier A's
+# safety net for a rare oversized union-find component; not time-bound to a future removal.
 CLUSTER_MEMBER_CAP = 60
 
 CANDIDATE_CAP = 30

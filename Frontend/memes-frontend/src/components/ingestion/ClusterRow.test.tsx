@@ -116,7 +116,7 @@ describe('ClusterRow', () => {
     }
     renderRow({ cluster: capped })
     expect(screen.getByText(/showing 8 of 512/i)).toBeInTheDocument()
-    expect(screen.getByText(/per-image review is coming/i)).toBeInTheDocument()
+    expect(screen.getByText(/stay context-only/i)).toBeInTheDocument()
   })
 
   it('renders a capped cluster read-only: no Keep/Reject buttons, submit stays disabled', () => {
