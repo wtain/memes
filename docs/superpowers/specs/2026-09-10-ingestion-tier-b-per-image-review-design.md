@@ -81,7 +81,7 @@ total_candidates)]` for the page.
 For `subject_id IN (page subject ids)`, the unreviewed in-band pairs, joined to the other
 image: `(subject_id, cand_id, cand_filename, cand_status, distance, match_source)`, ordered
 `subject_id, distance, cand_id`. In the service, keep the tightest `CANDIDATE_CAP` (30) per
-subject.
+subject (capping later moved to the repository — see the candidate-query-bound follow-up spec).
 
 `reviewed_col` / band / `not rejected` / `pending-in-batch` predicates mirror
 `get_tier_candidate_rows`. The `image_id1 = s OR image_id2 = s` expansion uses
@@ -102,7 +102,7 @@ async def list_tier_b_review(self, batch_id=None, cursor=None, limit=40) -> dict
 
 1. `_resolve_batch_id`.
 2. Query A → page subjects.
-3. Query B → candidates; group by subject, sort by distance, cap at `CANDIDATE_CAP`.
+3. Query B → candidates; group by subject, sort by distance, cap at `CANDIDATE_CAP` (capping later moved to the repository — see the candidate-query-bound follow-up spec).
 4. `get_ocr_texts` over `{subject ids} ∪ {shown candidate ids}` with `settings.OCR.*`
    thresholds (reuse the existing method).
 5. Build items:
