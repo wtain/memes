@@ -1,6 +1,6 @@
 # Ingestion Review — Tier B Query A Partial Index
 
-status: planned
+status: done
 Plan: docs/superpowers/plans/2026-09-11-ingestion-tier-b-review-partial-index.md
 Originates from: docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md's final
 whole-branch review (2026-09-10/11) — a Recommendation alongside Important finding #3 ("land the partial
@@ -182,3 +182,36 @@ Additive, concurrently-created index; no application code changes beyond the `St
 is untouched and doesn't need to reference the index by name). No downtime. Low risk: worst case, the
 migration runs and the planner doesn't pick up the new index (verified in Testing) and the change is a
 no-op; there's no path where adding this index makes Query A *slower* or *wrong*.
+
+## Measured outcome
+
+Applied to `metal`, `general`, and `it` via `alembic upgrade head` (each backend's `/api/diagnostics/health`
+confirmed green immediately after; index confirmed `indisvalid = t` on all three). Live before/after on
+`general`, real active batch (`run_id 7f16392b…`, stage `tier_b_review`), Query A's exact SQL via
+`EXPLAIN (ANALYZE, BUFFERS)` over `DATABASE_URL_READONLY`:
+
+- **Before:** 1,201 ms. Plan: `Parallel Seq Scan on tmp_duplicates` (both `UNION ALL` branches), ~20.6k
+  buffer reads from disk.
+- **After (incl. a manual `ANALYZE tmp_duplicates` to rule out stale planner stats):** ~680–690 ms, but —
+  **the plan is unchanged: still a `Parallel Seq Scan`, not an index scan.** The new index exists, is valid,
+  and is not being used by the planner for this query on this batch, right now.
+- **Root cause, confirmed by direct measurement, not guessed:** `SELECT count(*) FILTER (WHERE
+  tier_b_reviewed_at IS NULL) * 100.0 / count(*) FROM tmp_duplicates` → **96.3%** of the table is still
+  unreviewed on `general` today (917,973 of 953,084 rows). The partial predicate the index is built on
+  covers almost the entire table at this point in the batch's review lifecycle, so Postgres's cost-based
+  planner correctly prefers a sequential scan — an index scan over 96% of a table is not cheaper than
+  reading it sequentially. The ~1,201ms → ~685ms delta between the two measurements is attributable to
+  buffer-cache warming between two back-to-back runs of the identical query, not the index; it would have
+  shown the same improvement with no index at all.
+- **This is expected, not a failure of the design.** The index's whole thesis (see Problem/Key facts) is
+  that `tier_b_reviewed_at IS NULL` — and therefore the index's covered row count — *shrinks* as a batch's
+  review progresses. At 96.3% unreviewed, this batch is early in review; the index provides no benefit yet
+  and costs only its (small, additive) write-side maintenance overhead. As more pairs get reviewed and the
+  unreviewed fraction drops below whatever crossover point Postgres's planner finds an index scan cheaper
+  at, the planner will pick it up automatically — no further migration, code change, or manual intervention
+  needed. This spec's job was to make that crossover *possible*; whether and when it's *used* is data- and
+  review-progress-dependent, and will vary batch to batch.
+- **No regression risk observed or expected:** all three environments' backends stayed healthy through the
+  rollout; the query's correctness (row set, ordering) is provably unaffected by index presence (Postgres
+  index vs. seq scan choice never changes query results, only how it finds them); `cd Backend && pytest -q`
+  (304) and the ingestion/clusterize integration slice stayed green throughout, unmodified.
