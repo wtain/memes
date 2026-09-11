@@ -142,11 +142,14 @@ class IngestionRepository:
             blocked.add(id2)
         return blocked
 
-    async def list_tier_b_review_page(self, batch_id, low: float, high: float, cursor, limit: int):
-        """See docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md.
+    async def list_tier_b_review_page(self, batch_id, low: float, high: float, cursor, limit: int,
+                                       candidate_cap: int):
+        """See docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md and
+        docs/superpowers/specs/2026-09-11-ingestion-tier-b-candidate-query-bound.md.
         `cursor` is (min_distance, subject_id_str) or None. Returns (subjects, candidates):
-        subjects is up to limit+1 rows ordered by (min_distance, subject_id); candidates is
-        every candidate row for those subjects."""
+        subjects is up to limit+1 rows ordered by (min_distance, subject_id); candidates is, per
+        subject, its `candidate_cap` tightest rows (tightest-first) -- not every candidate row;
+        callers needing the uncapped count use `total_candidates` on the subject row."""
         # Each unreviewed in-band tmp_duplicates row contributes (subject_id, distance) for the
         # side that is a pending image of this batch, when the other side is not rejected.
         pair_cte = """
@@ -192,14 +195,21 @@ class IngestionRepository:
 
         page_ids = [r.subject_id for r in subjects[:limit]]
         cand_sql = text(pair_cte + """
-        SELECT p.subject_id, p.cand_id, c.filename AS cand_filename, c.status AS cand_status,
-               p.distance, p.match_source
-        FROM pair p JOIN images c ON c.id = p.cand_id
-        WHERE p.subject_id = ANY(:page_ids)
-        ORDER BY p.subject_id, p.distance, p.cand_id
+        , ranked AS (
+            SELECT p.*, ROW_NUMBER() OVER (
+                PARTITION BY p.subject_id ORDER BY p.distance, p.cand_id::text
+            ) AS rn
+            FROM pair p
+            WHERE p.subject_id = ANY(:page_ids)
+        )
+        SELECT r.subject_id, r.cand_id, c.filename AS cand_filename, c.status AS cand_status,
+               r.distance, r.match_source
+        FROM ranked r JOIN images c ON c.id = r.cand_id
+        WHERE r.rn <= :candidate_cap
+        ORDER BY r.subject_id, r.distance, r.cand_id
         """)
         candidates = (await self.session.execute(
-            cand_sql, {**params, "page_ids": page_ids})).all()
+            cand_sql, {**params, "page_ids": page_ids, "candidate_cap": candidate_cap})).all()
         return subjects, candidates
 
     async def promote_images(self, image_ids) -> int:
