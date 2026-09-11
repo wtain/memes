@@ -4,6 +4,9 @@ status: draft
 Originates from: docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md's final
 whole-branch review (2026-09-10/11) — Important finding #3, deferred there as a tracked follow-up rather
 than reopening that branch. No separate review file exists; the finding is reproduced in full below.
+Sibling: docs/superpowers/specs/2026-09-11-ingestion-tier-b-review-partial-index.md — same originating
+review, same branch's Recommendations section, a different query (Query A, not Query B). Independent
+designs, no dependency either direction; either can ship without the other.
 
 ## Problem
 
