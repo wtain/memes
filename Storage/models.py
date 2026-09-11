@@ -218,6 +218,11 @@ class TmpDuplicates(Base):
     __table_args__ = (
         UniqueConstraint("image_id1", "image_id2", name="uq_tmp_duplicates_pair"),
         Index("idx_tmp_duplicates_distance", "distance"),
+        Index(
+            "idx_tmp_duplicates_tier_b_unreviewed_distance",
+            "distance",
+            postgresql_where=text("tier_b_reviewed_at IS NULL"),
+        ),
     )
 
 

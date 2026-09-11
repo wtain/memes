@@ -1,6 +1,6 @@
 # Ingestion Review — Tier B Query A Partial Index
 
-status: planned
+status: done
 Plan: docs/superpowers/plans/2026-09-11-ingestion-tier-b-review-partial-index.md
 Originates from: docs/superpowers/specs/2026-09-10-ingestion-tier-b-per-image-review-design.md's final
 whole-branch review (2026-09-10/11) — a Recommendation alongside Important finding #3 ("land the partial
@@ -182,3 +182,62 @@ Additive, concurrently-created index; no application code changes beyond the `St
 is untouched and doesn't need to reference the index by name). No downtime. Low risk: worst case, the
 migration runs and the planner doesn't pick up the new index (verified in Testing) and the change is a
 no-op; there's no path where adding this index makes Query A *slower* or *wrong*.
+
+## Measured outcome
+
+Applied to `metal`, `general`, and `it` via `alembic upgrade head` (each backend's `/api/diagnostics/health`
+confirmed green immediately after; index confirmed `indisvalid = t` on all three). Live before/after on
+`general`, real active batch (`run_id 7f16392b…`, stage `tier_b_review`), Query A's exact SQL via
+`EXPLAIN (ANALYZE, BUFFERS)` over `DATABASE_URL_READONLY`:
+
+- **Before:** 1,201 ms. Plan: `Parallel Seq Scan on tmp_duplicates` (both `UNION ALL` branches), ~20k shared
+  buffer accesses, ~14k of them actual disk reads (the rest already cached).
+- **After (incl. a manual `ANALYZE tmp_duplicates` to rule out stale planner stats):** ~680–690 ms, but —
+  **the plan is unchanged: still a `Parallel Seq Scan`, not an index scan.** The new index exists, is valid,
+  and is not being used by the planner for this query on this batch, right now.
+- **Root cause, confirmed by direct measurement, not guessed:** `SELECT count(*) FILTER (WHERE
+  tier_b_reviewed_at IS NULL) * 100.0 / count(*) FROM tmp_duplicates` → **96.3%** of the table is still
+  unreviewed on `general` today (917,973 of 953,084 rows). The partial predicate the index is built on
+  covers almost the entire table at this point in the batch's review lifecycle, so Postgres's cost-based
+  planner correctly prefers a sequential scan — an index scan over 96% of a table is not cheaper than
+  reading it sequentially. The ~1,201ms → ~685ms delta between the two measurements is attributable to
+  buffer-cache warming between two back-to-back runs of the identical query, not the index; it would have
+  shown the same improvement with no index at all.
+- **This is expected, not a failure of the design.** The index's whole thesis (see Problem/Key facts) is
+  that `tier_b_reviewed_at IS NULL` — and therefore the index's covered row count — *shrinks* as a batch's
+  review progresses. At 96.3% unreviewed, this batch is early in review; the index provides no benefit yet
+  and costs only its (small, additive) write-side maintenance overhead. As more pairs get reviewed and the
+  unreviewed fraction drops below whatever crossover point Postgres's planner finds an index scan cheaper
+  at, the planner will pick it up automatically — no further migration, code change, or manual intervention
+  needed. This spec's job was to make that crossover *possible*; whether and when it's *used* is data- and
+  review-progress-dependent, and will vary batch to batch.
+- **No regression risk observed or expected:** all three environments' backends stayed healthy through the
+  rollout; the query's correctness (row set, ordering) is provably unaffected by index presence (Postgres
+  index vs. seq scan choice never changes query results, only how it finds them); `cd Backend && pytest -q`
+  (304) and the ingestion/clusterize integration slice stayed green throughout, unmodified.
+- **Write-side cost, measured, not just asserted "small":** the partial predicate makes `tier_b_reviewed_at`
+  an indexed attribute, so a review decision's `UPDATE ... SET tier_b_reviewed_at = now()`
+  (`mark_reviewed`/`reject_image`) loses HOT-update eligibility for that row — Postgres now has to write a
+  fresh index tuple (into all six of the table's indexes, not just this one) instead of updating in place.
+  Measured directly on `ocrdb_test` (500 updates before/after adding the index): HOT-eligible updates went
+  from 500/500 to 0/500. `general`'s own `pg_stat_user_tables` shows `n_tup_hot_upd`/`n_tup_upd` at ~46%
+  historically — that drops toward 0% for `tmp_duplicates` going forward. The cost is bounded (one extra
+  index-tuple write per review decision, autovacuum-managed) and fully reversible via `alembic downgrade
+  -1`; it is not zero, and "costs only its (small, additive) write-side maintenance overhead" above should
+  be read with this precisely, not as "no write-side effect."
+- **The projected crossover is empirically real, not just theoretical.** Narrowing the query's distance
+  band to simulate a smaller unreviewed fraction (~10% of the table) reproduces the planner picking this
+  index up unprompted, at default cost settings, on both `UNION ALL` branches — confirming the "the planner
+  will use it automatically once the unreviewed fraction is low enough" claim above is a testable, reached
+  threshold (around the ~10%-of-table mark on this data shape), not a hand-wave. `metal` (188,277 pairs) and
+  `it` (12,204 pairs) are both at ~100% unreviewed today, same as `general`'s 96.3% — `idx_scan = 0` on the
+  new index everywhere right now, as expected at this point in each environment's review lifecycle.
+- **Bigger levers exist for Query A's overall cost, out of scope here:** with `random_page_cost` tuned down
+  from the Postgres default (4) toward an SSD-appropriate value, the planner abandons the sequential scan
+  entirely in favor of driving from the *selective* side (pending images for the batch, ~7.5k rows) through
+  the pre-existing `image_id1`/`image_id2` indexes — structurally the better plan for a query this
+  selective on the subject side, independent of this partial index. Separately, the two `tmp_duplicates`
+  scans are well under half of the measured total time even in the worst case; `GroupAggregate` and its
+  disk-spilling sorts (`work_mem`-bound) account for most of the rest. Both are follow-up material, not
+  this spec's job — noted here so a future reader doesn't read this index as the whole story for Query A's
+  cost.
