@@ -209,7 +209,13 @@ async def test_query_a_session_tuning_does_not_leak_past_the_transaction(db_engi
         overridden = (await session1.execute(text("SHOW work_mem"))).scalar()
         assert overridden == "256MB"                      # took effect inside this transaction
         await session1.close()
-        await conn1.commit()                              # ends the transaction -- SET LOCAL resets here
+        # Postgres resets SET LOCAL at the end of a transaction whether committed or rolled back
+        # -- rollback proves the same thing commit would, without permanently writing this test's
+        # rows into the shared ocrdb_test database (a real leak an earlier version of this test had:
+        # conn1.commit() here left a stray tmp_duplicates row that other tests in the same pytest
+        # session -- e.g. test_rebuild_duplicates.py's exact-one-row assertions -- then tripped
+        # over when the full tests/integration/ suite ran together).
+        await conn1.rollback()
 
     async with db_engine.connect() as conn2:
         await conn2.begin()
