@@ -3,6 +3,8 @@ import uuid
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services.ingestion_service import CANDIDATE_CAP, IngestionService
@@ -170,3 +172,48 @@ async def test_candidate_cap_tie_break_matches_str_cand_id(db_session):
 
     got = [str(c.cand_id) for c in candidates if c.subject_id == subject]
     assert got == sorted(str(c) for c in cand_ids)[:CANDIDATE_CAP]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_query_a_session_tuning_takes_effect(db_session):
+    """list_tier_b_review_page's SET LOCAL statement actually changes the session's work_mem for
+    Query A (not silently a no-op). random_page_cost is deliberately NOT touched -- see the
+    method's docstring/comment for why it was tried and dropped."""
+    bid = await _run(db_session)
+    subject = await _img(db_session, "pending", bid)
+    other = await _img(db_session, "active", bid)
+    await _pair(db_session, subject, other, 0.10)
+
+    repo = IngestionRepository(db_session)
+    await repo.list_tier_b_review_page(bid, LOW, HIGH, cursor=None, limit=40, candidate_cap=CANDIDATE_CAP)
+
+    row = (await db_session.execute(text("SHOW work_mem"))).scalar()
+    assert row == "256MB"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_query_a_session_tuning_does_not_leak_past_the_transaction(db_engine):
+    """SET LOCAL is transaction-scoped in Postgres -- confirm that holds for real through this
+    codebase's connection pooling: a fresh top-level transaction (mirroring get_async_db's one
+    transaction per request) must see the server default again, not the previous request's
+    override, even if it reuses the same pooled connection."""
+    async with db_engine.connect() as conn1:
+        await conn1.begin()
+        session1 = AsyncSession(bind=conn1, expire_on_commit=False)
+        bid = await _run(session1)
+        subject = await _img(session1, "pending", bid)
+        other = await _img(session1, "active", bid)
+        await _pair(session1, subject, other, 0.10)
+        repo = IngestionRepository(session1)
+        await repo.list_tier_b_review_page(bid, LOW, HIGH, cursor=None, limit=40, candidate_cap=CANDIDATE_CAP)
+        overridden = (await session1.execute(text("SHOW work_mem"))).scalar()
+        assert overridden == "256MB"                      # took effect inside this transaction
+        await session1.close()
+        await conn1.commit()                              # ends the transaction -- SET LOCAL resets here
+
+    async with db_engine.connect() as conn2:
+        await conn2.begin()
+        default_mem = (await conn2.execute(text("SHOW work_mem"))).scalar()
+        await conn2.rollback()
+
+    assert default_mem == "4MB"                           # back to the server default

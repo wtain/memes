@@ -189,6 +189,22 @@ class IngestionRepository:
         ORDER BY MIN(p.distance), p.subject_id::text
         LIMIT :limit
         """)
+        # Scoped to this request's transaction only -- SET LOCAL never outlives it, so it can't
+        # leak onto the next caller of a pooled connection (see get_async_db). Query A's
+        # GroupAggregate sorts the whole unreviewed-in-band tmp_duplicates set; at Postgres's stock
+        # 4MB work_mem default that sort spills to disk. 256MB keeps it in memory -- a real,
+        # repeatedly measured win on live data (both in the partial-index spec's final review and
+        # independently re-confirmed here via interleaved before/after runs on `general`).
+        #
+        # Deliberately NOT setting random_page_cost: an earlier version of this change also lowered
+        # it to drive the planner onto a nested-loop plan through the pending-images index instead
+        # of scanning tmp_duplicates. That looked promising in isolation but did NOT hold up under a
+        # careful, interleaved, repeated live measurement -- no real improvement over the sequential-
+        # scan plan, consistent with the review's own adversarial probe (which had already shown that
+        # exact forced-index plan running slower, 1186ms vs 563ms, and been misread as a validated win
+        # when this change was first designed). Left out rather than shipped on a reading that didn't
+        # survive verification.
+        await self.session.execute(text("SET LOCAL work_mem = '256MB'"))
         subjects = (await self.session.execute(subjects_sql, params)).all()
         if not subjects:
             return [], []
