@@ -369,8 +369,7 @@ class TestGetRunStatus:
 
         assert status["tier_remaining"] is None
         assert status["blocked_total"] is None
-        mock_repo.count_unreviewed_subjects.assert_not_called()
-        mock_repo.unreviewed_subject_ids.assert_not_called()
+        mock_repo.get_review_progress.assert_not_called()
 
     async def test_tier_a_review_computes_tier_a_remaining(self, service, mock_repo):
         import uuid
@@ -378,42 +377,44 @@ class TestGetRunStatus:
         run = SimpleNamespace(run_id=uuid.uuid4(), status="started", stage="tier_a_review", stats={},
                               created_at="t", completed_at=None)
         mock_repo.get_run.return_value = run
-        mock_repo.count_unreviewed_subjects.return_value = 7
-        mock_repo.unreviewed_subject_ids.return_value = set()
+        mock_repo.get_review_progress.return_value = (7, 9)
 
         status = await service.get_run_status(run.run_id)
 
         assert status["tier_remaining"] == 7
-        mock_repo.count_unreviewed_subjects.assert_awaited_once()
-        # Finding #2 (final review, 2026-09-13): assert the FULL call-args tuple (tier + band),
-        # derived from the real _tier_band(), not hardcoded numbers -- a transposed (low, high)
-        # or a tier_a/tier_b band mix-up would previously pass undetected since only the tier
-        # string was checked.
-        low, high = _tier_band("tier_a")
-        assert mock_repo.count_unreviewed_subjects.call_args.args[1:] == ("tier_a", low, high)
+        assert status["blocked_total"] == 9
+        mock_repo.get_review_progress.assert_awaited_once()
+        # Continues the progress-visibility branch's final-review precedent (its own Finding #2):
+        # assert the FULL call-args tuple (current_tier + all 4 band bounds), derived from the
+        # real _tier_band(), not hardcoded -- a transposed (low, high) or a tier_a/tier_b band
+        # mix-up would otherwise pass undetected.
+        tier_a_low, tier_a_high = _tier_band("tier_a")
+        tier_b_low, tier_b_high = _tier_band("tier_b")
+        assert mock_repo.get_review_progress.call_args.args[1:] == (
+            "tier_a", tier_a_low, tier_a_high, tier_b_low, tier_b_high)
 
-    async def test_blocked_total_unions_both_tiers(self, service, mock_repo):
+    async def test_blocked_total_reflects_repo_result(self, service, mock_repo):
+        # Renamed from test_blocked_total_unions_both_tiers: the union-across-both-tiers
+        # arithmetic now lives entirely inside get_review_progress's own SQL (see its integration
+        # test test_get_review_progress_blocked_total_dedupes_a_subject_open_in_both_tiers in
+        # tests/integration/test_ingestion_review_progress.py) -- this unit test, being fully
+        # mocked, can only confirm the service passes the repo's tuple through unchanged, not
+        # that the union itself is correct; that correctness now belongs to the integration test.
         import uuid
         from types import SimpleNamespace
         run = SimpleNamespace(run_id=uuid.uuid4(), status="started", stage="tier_b_review", stats={},
                               created_at="t", completed_at=None)
         mock_repo.get_run.return_value = run
-        mock_repo.count_unreviewed_subjects.return_value = 3
-        s1, s2, s3 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-        mock_repo.unreviewed_subject_ids.side_effect = [{s1, s2}, {s2, s3}]  # tier_a call, then tier_b call
+        mock_repo.get_review_progress.return_value = (3, 5)
 
         status = await service.get_run_status(run.run_id)
 
-        assert status["blocked_total"] == 3  # {s1, s2, s3} -- s2 not double-counted
-        assert mock_repo.unreviewed_subject_ids.await_count == 2
-        # blocked_total is always computed batch-wide over BOTH tiers regardless of which one
-        # is "current" -- assert each call's tier + band explicitly, in order, so a band mix-up
-        # between tier_a/tier_b (or a transposed low/high) can't slip through unnoticed.
+        assert status["tier_remaining"] == 3
+        assert status["blocked_total"] == 5
         tier_a_low, tier_a_high = _tier_band("tier_a")
         tier_b_low, tier_b_high = _tier_band("tier_b")
-        calls = mock_repo.unreviewed_subject_ids.call_args_list
-        assert calls[0].args[1:] == ("tier_a", tier_a_low, tier_a_high)
-        assert calls[1].args[1:] == ("tier_b", tier_b_low, tier_b_high)
+        assert mock_repo.get_review_progress.call_args.args[1:] == (
+            "tier_b", tier_a_low, tier_a_high, tier_b_low, tier_b_high)
 
     async def test_promoted_stage_still_computes_tier_b_remaining(self, service, mock_repo):
         import uuid
@@ -421,11 +422,12 @@ class TestGetRunStatus:
         run = SimpleNamespace(run_id=uuid.uuid4(), status="started", stage="promoted", stats={},
                               created_at="t", completed_at=None)
         mock_repo.get_run.return_value = run
-        mock_repo.count_unreviewed_subjects.return_value = 0
-        mock_repo.unreviewed_subject_ids.return_value = set()
+        mock_repo.get_review_progress.return_value = (0, 0)
 
         status = await service.get_run_status(run.run_id)
 
         assert status["tier_remaining"] == 0
-        low, high = _tier_band("tier_b")
-        assert mock_repo.count_unreviewed_subjects.call_args.args[1:] == ("tier_b", low, high)
+        tier_a_low, tier_a_high = _tier_band("tier_a")
+        tier_b_low, tier_b_high = _tier_band("tier_b")
+        assert mock_repo.get_review_progress.call_args.args[1:] == (
+            "tier_b", tier_a_low, tier_a_high, tier_b_low, tier_b_high)
