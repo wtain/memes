@@ -904,6 +904,10 @@ implicitly operate on the current *active* ingestion run (`batch_runs`, `kind="i
 - **Method**: `GET`
 - **Response**: `RunStatusResponse`
 - **Errors**: `404` if no ingestion run is currently in progress
+- `tier_remaining` (int, nullable) and `blocked_total` (int, nullable): live review-progress counts,
+  computed on every call. Both `null` outside `tier_a_review`/`tier_b_review`/`promoted` stages (no
+  active tier to count); both real integers inside them. `tier_remaining` is scoped to whichever tier
+  `stage` currently is; `blocked_total` is batch-wide across both tiers.
 - **Example**: `GET /api/ingestion/run`
 
 ```json
@@ -912,6 +916,8 @@ implicitly operate on the current *active* ingestion run (`batch_runs`, `kind="i
   "status": "started",
   "stage": "tier_a_review",
   "stats": { "intake": 3, "hash_duplicates_in_batch": 0, "hash_duplicates_cross_corpus": 0, "registered": 3 },
+  "tier_remaining": 2,
+  "blocked_total": 2,
   "created_at": "2026-07-25T18:58:12Z",
   "completed_at": null
 }

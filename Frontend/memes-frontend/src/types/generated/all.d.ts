@@ -373,6 +373,14 @@ export interface IngestionRunStatus {
   stats: {
     [k: string]: unknown;
   } | null;
+  /**
+   * Pending images still needing review in the CURRENT stage's tier; null when the stage has no active tier (hash_dedup, ocr_prepass).
+   */
+  tier_remaining: number | null;
+  /**
+   * Pending images in this batch with an unresolved candidate pair in either tier; null under the same condition as tier_remaining.
+   */
+  blocked_total: number | null;
   created_at: string;
   completed_at: string | null;
   [k: string]: unknown;

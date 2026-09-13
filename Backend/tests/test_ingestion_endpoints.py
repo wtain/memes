@@ -39,7 +39,8 @@ class TestGetRunStatus:
     def test_returns_run_status(self, client, mock_service):
         mock_service.get_run_status.return_value = {
             "run_id": str(uuid.uuid4()), "status": "started", "stage": "tier_a_review",
-            "stats": {"intake": 3}, "created_at": datetime.now(timezone.utc), "completed_at": None,
+            "stats": {"intake": 3}, "tier_remaining": None, "blocked_total": None,
+            "created_at": datetime.now(timezone.utc), "completed_at": None,
         }
 
         response = client.get("/api/ingestion/run")
@@ -47,6 +48,20 @@ class TestGetRunStatus:
         assert response.status_code == 200
         assert response.json()["status"] == "started"
         assert response.json()["stage"] == "tier_a_review"
+
+    def test_returns_review_progress_fields(self, client, mock_service):
+        mock_service.get_run_status.return_value = {
+            "run_id": str(uuid.uuid4()), "status": "started", "stage": "tier_b_review",
+            "stats": {}, "tier_remaining": 12, "blocked_total": 20,
+            "created_at": datetime.now(timezone.utc), "completed_at": None,
+        }
+
+        response = client.get("/api/ingestion/run")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["tier_remaining"] == 12
+        assert body["blocked_total"] == 20
 
 
 class TestListPending:
