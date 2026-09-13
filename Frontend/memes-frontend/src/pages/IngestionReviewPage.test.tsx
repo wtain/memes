@@ -743,4 +743,36 @@ describe('IngestionReviewPage — progress visibility', () => {
     expect(screen.queryByText('boom')).toBeNull()
     expect(screen.getByText('s2.jpg')).toBeInTheDocument()  // submit's own success path unaffected
   })
+
+  it('re-scopes the "since you opened this page" baseline to the new tier after Tier A -> Tier B auto-advance', async () => {
+    // Finding #4 (final review, 2026-09-13): progressBaselineRef used to be captured once ever,
+    // never re-captured when the active tier changed -- so after an auto-advance (a Tier A submit
+    // that empties the queue triggers load(), which can pick up the tier_b_review stage), the
+    // banner's delta compared a Tier A tier_remaining against a Tier B one: a meaningless number.
+    // Numbers are chosen so the OLD buggy behavior would show a nonzero, wrong delta (50 - 20 =
+    // 30) while the fixed behavior (baseline recaptured at the new tier) shows 0.
+    const first = { ...runStatus, stage: 'tier_a_review', tier_remaining: 50, blocked_total: 60 }
+    const second = { ...runStatus, stage: 'tier_b_review', tier_remaining: 20, blocked_total: 25 }
+    const getIngestionRunStatus = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    const getIngestionClusters = vi.fn().mockResolvedValueOnce(page([cl('a')]))
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(tbPage([]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['a-1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({
+      getIngestionRunStatus, getIngestionClusters, getIngestionTierBReview, resolveIngestionCluster,
+    })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('a-1.jpg')
+    await screen.findByText(/still need/i) // initial Tier A banner visible
+
+    await userEvent.click(screen.getByRole('button', { name: /^reject$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
+
+    // last visible cluster resolved -> reload -> run status has advanced to tier_b_review
+    await waitFor(() => expect(getIngestionRunStatus).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('Ingestion Review — Tier B')).toBeInTheDocument()
+
+    const banner = await screen.findByText(/since you opened this page/i)
+    expect(banner.textContent).toContain('-0') // baseline recaptured at the new tier's own value
+    expect(banner.textContent).not.toContain('-30') // the stale cross-tier subtraction (50 - 20)
+  })
 })

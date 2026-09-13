@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from config.settings import settings
-from Backend.app.services.ingestion_service import IngestionService, CANDIDATE_CAP
+from Backend.app.services.ingestion_service import IngestionService, CANDIDATE_CAP, _tier_band
 
 
 @pytest.fixture
@@ -385,8 +385,12 @@ class TestGetRunStatus:
 
         assert status["tier_remaining"] == 7
         mock_repo.count_unreviewed_subjects.assert_awaited_once()
-        tier_arg = mock_repo.count_unreviewed_subjects.call_args.args[1]
-        assert tier_arg == "tier_a"
+        # Finding #2 (final review, 2026-09-13): assert the FULL call-args tuple (tier + band),
+        # derived from the real _tier_band(), not hardcoded numbers -- a transposed (low, high)
+        # or a tier_a/tier_b band mix-up would previously pass undetected since only the tier
+        # string was checked.
+        low, high = _tier_band("tier_a")
+        assert mock_repo.count_unreviewed_subjects.call_args.args[1:] == ("tier_a", low, high)
 
     async def test_blocked_total_unions_both_tiers(self, service, mock_repo):
         import uuid
@@ -402,6 +406,14 @@ class TestGetRunStatus:
 
         assert status["blocked_total"] == 3  # {s1, s2, s3} -- s2 not double-counted
         assert mock_repo.unreviewed_subject_ids.await_count == 2
+        # blocked_total is always computed batch-wide over BOTH tiers regardless of which one
+        # is "current" -- assert each call's tier + band explicitly, in order, so a band mix-up
+        # between tier_a/tier_b (or a transposed low/high) can't slip through unnoticed.
+        tier_a_low, tier_a_high = _tier_band("tier_a")
+        tier_b_low, tier_b_high = _tier_band("tier_b")
+        calls = mock_repo.unreviewed_subject_ids.call_args_list
+        assert calls[0].args[1:] == ("tier_a", tier_a_low, tier_a_high)
+        assert calls[1].args[1:] == ("tier_b", tier_b_low, tier_b_high)
 
     async def test_promoted_stage_still_computes_tier_b_remaining(self, service, mock_repo):
         import uuid
@@ -415,5 +427,5 @@ class TestGetRunStatus:
         status = await service.get_run_status(run.run_id)
 
         assert status["tier_remaining"] == 0
-        tier_arg = mock_repo.count_unreviewed_subjects.call_args.args[1]
-        assert tier_arg == "tier_b"
+        low, high = _tier_band("tier_b")
+        assert mock_repo.count_unreviewed_subjects.call_args.args[1:] == ("tier_b", low, high)
