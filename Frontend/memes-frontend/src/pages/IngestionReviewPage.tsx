@@ -141,7 +141,7 @@ const CONFIRM_ALL_TIMEOUT_MS = 3000
 function StatusBanner({ status, tier, baseline }: {
   status: IngestionRunStatus | null
   tier: IngestionTier | null
-  baseline: { tierRemaining: number; blockedTotal: number } | null
+  baseline: { tier: IngestionTier; tierRemaining: number; blockedTotal: number } | null
 }) {
   if (!status) return null
   const stats = status.stats ?? {}
@@ -153,12 +153,12 @@ function StatusBanner({ status, tier, baseline }: {
         <span className="text-sm text-gray-500 ml-4">Stage</span>
         <span className="font-semibold">{status.stage}</span>
       </div>
-      {status.tier_remaining !== null && (
+      {status.tier_remaining != null && (
         <div className="mt-2 text-sm text-gray-700">
           <span className="font-semibold">{status.tier_remaining}</span>
           {" "}image{status.tier_remaining === 1 ? "" : "s"} still need{status.tier_remaining === 1 ? "s" : ""}{" "}
           {tier ? TIER_LABEL[tier] : ""} review
-          {status.blocked_total !== null && (
+          {status.blocked_total != null && (
             <span className="text-gray-500"> · {status.blocked_total} blocked from promotion</span>
           )}
           {baseline && (
@@ -201,10 +201,15 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   const [confirmingAll, setConfirmingAll] = useState(false)
   const confirmAllTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadingMoreRef = useRef(false)
-  // Captured once, the first time `load()` sees a non-null tier_remaining -- the "since you
-  // opened this page" baseline. A ref (not state) because it must NOT trigger a re-render or
-  // reset on every load() call, only ever be set the first time.
-  const progressBaselineRef = useRef<{ tierRemaining: number; blockedTotal: number } | null>(null)
+  // Captured the first time `load()` sees a non-null tier_remaining, and recaptured whenever the
+  // active tier changes -- the "since you opened this page" baseline. Tier-scoped (Finding #4,
+  // final review 2026-09-13): the page can auto-advance Tier A -> Tier B within one session
+  // (runSubmit's finalCount === 0 branch calls load(), which can pick up a new stage), and a
+  // baseline captured under the old tier would otherwise diff a Tier A count against a Tier B
+  // count -- a meaningless or actively misleading number. A ref (not state) because it must NOT
+  // trigger a re-render on every load() call, only update alongside the setStatus() that already
+  // re-renders this component.
+  const progressBaselineRef = useRef<{ tier: IngestionTier; tierRemaining: number; blockedTotal: number } | null>(null)
 
   const tier = status ? tierForStage(status.stage) : null
 
@@ -213,11 +218,12 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     try {
       const s = await memesApi.getIngestionRunStatus()
       setStatus(s)
-      if (s && s.tier_remaining !== null && progressBaselineRef.current === null) {
-        progressBaselineRef.current = { tierRemaining: s.tier_remaining, blockedTotal: s.blocked_total ?? 0 }
+      const t = s ? tierForStage(s.stage) : null
+      if (s && t && s.tier_remaining !== null &&
+          (progressBaselineRef.current === null || progressBaselineRef.current.tier !== t)) {
+        progressBaselineRef.current = { tier: t, tierRemaining: s.tier_remaining, blockedTotal: s.blocked_total ?? 0 }
       }
       setError(null)
-      const t = s ? tierForStage(s.stage) : null
       // A server reload is authoritative: drop any local decision whose target is no longer a
       // pending, decidable image of the fresh queue (covers a decision resolve() silently skipped
       // -- one that came back in none of rejected/kept/failed/move_failed).
@@ -442,7 +448,12 @@ export default function IngestionReviewPage({ memesApi }: Props) {
         try {
           const prevRemaining = status?.tier_remaining ?? null
           const freshStatus = await memesApi.getIngestionRunStatus()
-          setStatus(freshStatus)
+          // Finding #7 (final review, 2026-09-13): getIngestionRunStatus() can resolve to null
+          // (e.g. a 404 -- no active run) without throwing, so only overwrite status when there's
+          // something to show -- setStatus(null) would otherwise flip the page into its "No
+          // ingestion run..." branch and discard the still-visible queue and any unsubmitted
+          // decisions, contradicting this block's own "best-effort" comment below.
+          if (freshStatus) setStatus(freshStatus)
           if (prevRemaining !== null && freshStatus?.tier_remaining != null) {
             const delta = prevRemaining - freshStatus.tier_remaining
             if (delta > 0) {
