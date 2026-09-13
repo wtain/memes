@@ -554,7 +554,10 @@ describe('IngestionReviewPage — progress visibility', () => {
   })
 
   it('does not show progress numbers when tier_remaining is null', async () => {
-    const status = { ...runStatus, stage: 'ocr_prepass', tier_remaining: null, blocked_total: null }
+    // hash_dedup (not ocr_prepass -- that stage renders a DIFFERENT no-tier message, "OCR is
+    // running...", per IngestionReviewPage.tsx's own stage-message branch) is any stage with no
+    // active tier; this test only needs "no tier -> tier_remaining is null", not which message.
+    const status = { ...runStatus, stage: 'hash_dedup', tier_remaining: null, blocked_total: null }
     const api = makeMockApi({ getIngestionRunStatus: vi.fn().mockResolvedValue(status) })
     render(<IngestionReviewPage memesApi={api} />)
     await screen.findByText(/Candidates haven't been computed/i)
@@ -563,7 +566,9 @@ describe('IngestionReviewPage — progress visibility', () => {
 
   it('refreshes status after a partial submit that leaves units visible, without a full reload', async () => {
     const first = { ...runStatus, stage: 'tier_b_review', tier_remaining: 5, blocked_total: 5 }
-    const second = { ...first, tier_remaining: 4, blocked_total: 4 }
+    // Distinct numbers (4 and 6, not both 4) -- identical values make `findByText(/4/)` match two
+    // separate elements ("4" and "4 blocked from promotion") and throw as ambiguous.
+    const second = { ...first, tier_remaining: 4, blocked_total: 6 }
     const getIngestionRunStatus = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second)
     const getIngestionTierBReview = vi.fn().mockResolvedValue(
       tbPage([tbItem('s1', [['c1', 'active']]), tbItem('s2', [['c2', 'active']])]))
@@ -576,7 +581,7 @@ describe('IngestionReviewPage — progress visibility', () => {
     await waitFor(() => expect(getIngestionRunStatus).toHaveBeenCalledTimes(2))
     expect(getIngestionTierBReview).toHaveBeenCalledTimes(1)  // no full reload -- s2's card is still visible
     expect(screen.getByText('s2.jpg')).toBeInTheDocument()
-    await screen.findByText(/4/)  // banner reflects the refreshed count
+    await screen.findByText(/4/)  // banner reflects the refreshed tier_remaining count
   })
 
   it('shows a delta message after a submit that reduced tier_remaining', async () => {
