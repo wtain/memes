@@ -1,6 +1,7 @@
 # Ingestion Review — Progress Count Query Consolidation
 
-status: approved
+status: planned
+Plan: docs/superpowers/plans/2026-09-13-ingestion-review-progress-count-query.md
 Originates from: docs/superpowers/specs/2026-09-13-ingestion-review-progress-visibility-design.md's
 final whole-branch review (2026-09-13) — Important finding #3, deferred there as a tracked follow-up
 rather than reopening that branch. No separate review file exists for this finding beyond the branch's
