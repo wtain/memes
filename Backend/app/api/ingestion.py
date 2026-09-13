@@ -19,6 +19,8 @@ class RunStatusResponse(BaseModel):
     status: str
     stage: Optional[str]
     stats: Optional[dict]
+    tier_remaining: Optional[int]
+    blocked_total: Optional[int]
     created_at: datetime
     completed_at: Optional[datetime]
 

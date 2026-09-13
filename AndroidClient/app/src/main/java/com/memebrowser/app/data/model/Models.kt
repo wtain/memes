@@ -114,6 +114,8 @@ data class IngestionRunStatus(
     @SerialName("status") val status: String,
     @SerialName("stage") val stage: String?,
     @SerialName("stats") val stats: JsonObject?,
+    @SerialName("tier_remaining") val tier_remaining: Int?,
+    @SerialName("blocked_total") val blocked_total: Int?,
     @SerialName("created_at") val created_at: String,
     @SerialName("completed_at") val completed_at: String?
 )

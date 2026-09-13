@@ -23,7 +23,8 @@ vi.mock('react-virtuoso', () => ({
 }))
 
 const runStatus: IngestionRunStatus = {
-  run_id: 'r1', status: 'started', stage: 'tier_a_review', stats: {}, created_at: '', completed_at: null,
+  run_id: 'r1', status: 'started', stage: 'tier_a_review', stats: {}, tier_remaining: null, blocked_total: null,
+  created_at: '', completed_at: null,
 }
 
 function cl(id: string, dist = 0.05): IngestionCluster {

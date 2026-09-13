@@ -8,8 +8,10 @@
     "status": { "type": "string", "description": "started | completed | failed | aborted" },
     "stage": { "type": ["string", "null"], "description": "hash_dedup | tier_a_review | ocr_prepass | tier_b_review | promoted" },
     "stats": { "type": ["object", "null"], "additionalProperties": true },
+    "tier_remaining": { "type": ["integer", "null"], "description": "Pending images still needing review in the CURRENT stage's tier; null when the stage has no active tier (hash_dedup, ocr_prepass)." },
+    "blocked_total": { "type": ["integer", "null"], "description": "Pending images in this batch with an unresolved candidate pair in either tier; null under the same condition as tier_remaining." },
     "created_at": { "type": "string", "format": "date-time" },
     "completed_at": { "type": ["string", "null"], "format": "date-time" }
   },
-  "required": ["run_id", "status", "stage", "stats", "created_at", "completed_at"]
+  "required": ["run_id", "status", "stage", "stats", "tier_remaining", "blocked_total", "created_at", "completed_at"]
 }
