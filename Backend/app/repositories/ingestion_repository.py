@@ -230,6 +230,71 @@ class IngestionRepository:
             cand_sql, {**params, "page_ids": page_ids, "candidate_cap": candidate_cap})).all()
         return subjects, candidates
 
+    async def count_unreviewed_subjects(self, batch_id, tier: str, distance_low: float, distance_high: float) -> int:
+        """Count of distinct PENDING images in this batch with at least one still-open (not yet
+        reviewed for this tier, other side not rejected) candidate pair in this tier's band -- the
+        same subject set get_tier_candidate_rows/list_tier_b_review_page build, just
+        COUNT(DISTINCT ...) instead of materializing rows. See
+        docs/superpowers/specs/2026-09-13-ingestion-review-progress-visibility-design.md."""
+        assert tier in ("tier_a", "tier_b"), f"unknown tier: {tier!r}"
+        reviewed_col = "tier_a_reviewed_at" if tier == "tier_a" else "tier_b_reviewed_at"
+        # reviewed_col is one of exactly two hardcoded column names (asserted above), never
+        # derived from external input -- the f-string only ever selects between two fixed literals.
+        sql = text(f"""
+            SELECT count(DISTINCT subject_id) FROM (
+                SELECT td.image_id1 AS subject_id
+                FROM tmp_duplicates td
+                JOIN images s ON s.id = td.image_id1
+                JOIN images o ON o.id = td.image_id2
+                WHERE td.{reviewed_col} IS NULL
+                  AND td.distance >= :low AND td.distance < :high
+                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
+                  AND o.status <> 'rejected'
+                UNION ALL
+                SELECT td.image_id2 AS subject_id
+                FROM tmp_duplicates td
+                JOIN images s ON s.id = td.image_id2
+                JOIN images o ON o.id = td.image_id1
+                WHERE td.{reviewed_col} IS NULL
+                  AND td.distance >= :low AND td.distance < :high
+                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
+                  AND o.status <> 'rejected'
+            ) subjects
+        """)
+        return (await self.session.execute(
+            sql, {"low": distance_low, "high": distance_high, "batch_id": batch_id})).scalar()
+
+    async def unreviewed_subject_ids(self, batch_id, tier: str, distance_low: float, distance_high: float) -> set:
+        """Same subject set as count_unreviewed_subjects, as ids rather than a count -- used to
+        union across tiers for a batch-wide blocked-total that can't just sum two per-tier counts
+        (an image can be open in both tiers' bands at once)."""
+        assert tier in ("tier_a", "tier_b"), f"unknown tier: {tier!r}"
+        reviewed_col = "tier_a_reviewed_at" if tier == "tier_a" else "tier_b_reviewed_at"
+        sql = text(f"""
+            SELECT DISTINCT subject_id FROM (
+                SELECT td.image_id1 AS subject_id
+                FROM tmp_duplicates td
+                JOIN images s ON s.id = td.image_id1
+                JOIN images o ON o.id = td.image_id2
+                WHERE td.{reviewed_col} IS NULL
+                  AND td.distance >= :low AND td.distance < :high
+                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
+                  AND o.status <> 'rejected'
+                UNION ALL
+                SELECT td.image_id2 AS subject_id
+                FROM tmp_duplicates td
+                JOIN images s ON s.id = td.image_id2
+                JOIN images o ON o.id = td.image_id1
+                WHERE td.{reviewed_col} IS NULL
+                  AND td.distance >= :low AND td.distance < :high
+                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
+                  AND o.status <> 'rejected'
+            ) subjects
+        """)
+        rows = (await self.session.execute(
+            sql, {"low": distance_low, "high": distance_high, "batch_id": batch_id})).all()
+        return {r.subject_id for r in rows}
+
     async def promote_images(self, image_ids) -> int:
         """Flip status to active for the given image ids (already validated by the caller as
         clear of unresolved candidates). Returns the number of rows updated."""
