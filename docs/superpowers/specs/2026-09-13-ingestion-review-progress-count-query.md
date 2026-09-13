@@ -1,6 +1,6 @@
 # Ingestion Review — Progress Count Query Consolidation
 
-status: planned
+status: done
 Plan: docs/superpowers/plans/2026-09-13-ingestion-review-progress-count-query.md
 Originates from: docs/superpowers/specs/2026-09-13-ingestion-review-progress-visibility-design.md's
 final whole-branch review (2026-09-13) — Important finding #3, deferred there as a tracked follow-up
@@ -263,3 +263,33 @@ count and total database time change. Low risk: worst case, the new query's plan
 today's for some future data shape, and the result is a no-op relative to current cost — there's no path
 where consolidating three round trips into one, with correctness enforced by test parity, makes the
 result slower or wrong. Ships as its own small PR/commit off `main`, independent of any other open work.
+
+## Measured outcome
+
+Re-measured live against `general`'s real active batch (`run_id 7f16392b…`, stage `tier_b_review`) after
+the shipped code landed (commit `93b0712`), via `EXPLAIN (ANALYZE, BUFFERS)` over `DATABASE_URL_READONLY`
+— the exact SQL `get_review_progress` now runs, not a hand-written approximation.
+
+- **New consolidated query:** 608ms (unindexed), 548ms / 562ms across two runs with
+  `SET work_mem = '256MB'` applied first. No disk-spilling sort in either tuned run (both used
+  in-memory `quicksort`, confirming the tuning does what it's meant to); the untuned run showed one
+  parallel worker's sort spill to disk (`Sort Method: external merge Disk: 3072kB`), consistent with the
+  design-time finding.
+- **Old 3-round-trip baseline, re-measured in the same session for a fair comparison** (not reused from
+  the design-time numbers, which were captured under different cache conditions the night before):
+  `count_unreviewed_subjects`(tier_b)-shape query 466ms + `unreviewed_subject_ids`(tier_a)-shape query
+  11ms (cheap — tier_a's band is small and already index-scanned) + `unreviewed_subject_ids`(tier_b)-shape
+  query 414ms = **891ms across 3 round trips**.
+- **Net result:** ~891ms/3 round trips → ~548–608ms/1 round trip, a real ~32–38% reduction measured
+  same-session, same cache conditions, apples to apples. This is a smaller relative win than the
+  design-time measurement's ~60% (472ms/397ms vs. ~1000ms+) — the difference is entirely explained by disk
+  I/O: this measurement's buffer cache was colder (`read=13000–16600` shared buffers this time vs.
+  `read=5700–6500` the night before, on both the old- and new-shape queries alike, so the comparison
+  between old and new stays fair even though the absolute numbers shifted). **Consolidating 3 round trips
+  into 1 is a real, repeatable win under two different live measurement sessions with materially different
+  cache states — the magnitude varies with disk I/O pressure, but the direction and rough size (roughly a
+  third to two-thirds less total query time) do not.**
+- No regression risk observed: `cd Backend && pytest -q` (309 passed) and the full
+  `tests/integration/` sweep (313 passed) stayed green through implementation and this re-measurement;
+  `get_run_status`'s response shape and values are unchanged for identical inputs (proven by
+  `test_get_run_status_end_to_end_real_db`, which asserts through the real repository, not mocks).
