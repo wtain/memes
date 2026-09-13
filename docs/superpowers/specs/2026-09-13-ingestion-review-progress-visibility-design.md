@@ -1,6 +1,7 @@
 # Ingestion Review — Progress Visibility
 
-status: approved
+status: done
+Plan: docs/superpowers/plans/2026-09-13-ingestion-review-progress-visibility.md
 Originates from: a conversation reviewing why Tier B duplicate review "feels noisy" (2026-09-12/13) —
 decomposed into four threads (review UX, text-heavy image classification, description-embedding-based
 dedup, metrics/observability); this spec is the first slice of the metrics/observability thread
