@@ -7,6 +7,10 @@ decomposed into four threads (review UX, text-heavy image classification, descri
 dedup, metrics/observability); this spec is the first slice of the metrics/observability thread
 (operational visibility), chosen to ship first since the other three threads' premises need real numbers
 to validate, not another round of impressions.
+Follow-ups: docs/superpowers/specs/2026-09-13-ingestion-review-progress-count-query.md — a performance
+follow-up from this spec's own final whole-branch review (Important finding #3): the live progress-count
+queries this feature added make 3 DB round trips per call, now paid far more often since this feature
+widened get_run_status's call frequency. Consolidates them into one.
 
 ## Problem
 
