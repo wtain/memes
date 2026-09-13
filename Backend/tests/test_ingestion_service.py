@@ -355,3 +355,65 @@ class TestUndoRejectAfterMoveFailure:
 
         assert result == {"image_id": str(image_id), "status": "pending"}
         mock_repo.undo_reject.assert_awaited_once_with(image_id)
+
+
+class TestGetRunStatus:
+    async def test_no_tier_stage_returns_none_progress(self, service, mock_repo):
+        import uuid
+        from types import SimpleNamespace
+        run = SimpleNamespace(run_id=uuid.uuid4(), status="started", stage="hash_dedup", stats={},
+                              created_at="t", completed_at=None)
+        mock_repo.get_run.return_value = run
+
+        status = await service.get_run_status(run.run_id)
+
+        assert status["tier_remaining"] is None
+        assert status["blocked_total"] is None
+        mock_repo.count_unreviewed_subjects.assert_not_called()
+        mock_repo.unreviewed_subject_ids.assert_not_called()
+
+    async def test_tier_a_review_computes_tier_a_remaining(self, service, mock_repo):
+        import uuid
+        from types import SimpleNamespace
+        run = SimpleNamespace(run_id=uuid.uuid4(), status="started", stage="tier_a_review", stats={},
+                              created_at="t", completed_at=None)
+        mock_repo.get_run.return_value = run
+        mock_repo.count_unreviewed_subjects.return_value = 7
+        mock_repo.unreviewed_subject_ids.return_value = set()
+
+        status = await service.get_run_status(run.run_id)
+
+        assert status["tier_remaining"] == 7
+        mock_repo.count_unreviewed_subjects.assert_awaited_once()
+        tier_arg = mock_repo.count_unreviewed_subjects.call_args.args[1]
+        assert tier_arg == "tier_a"
+
+    async def test_blocked_total_unions_both_tiers(self, service, mock_repo):
+        import uuid
+        from types import SimpleNamespace
+        run = SimpleNamespace(run_id=uuid.uuid4(), status="started", stage="tier_b_review", stats={},
+                              created_at="t", completed_at=None)
+        mock_repo.get_run.return_value = run
+        mock_repo.count_unreviewed_subjects.return_value = 3
+        s1, s2, s3 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        mock_repo.unreviewed_subject_ids.side_effect = [{s1, s2}, {s2, s3}]  # tier_a call, then tier_b call
+
+        status = await service.get_run_status(run.run_id)
+
+        assert status["blocked_total"] == 3  # {s1, s2, s3} -- s2 not double-counted
+        assert mock_repo.unreviewed_subject_ids.await_count == 2
+
+    async def test_promoted_stage_still_computes_tier_b_remaining(self, service, mock_repo):
+        import uuid
+        from types import SimpleNamespace
+        run = SimpleNamespace(run_id=uuid.uuid4(), status="started", stage="promoted", stats={},
+                              created_at="t", completed_at=None)
+        mock_repo.get_run.return_value = run
+        mock_repo.count_unreviewed_subjects.return_value = 0
+        mock_repo.unreviewed_subject_ids.return_value = set()
+
+        status = await service.get_run_status(run.run_id)
+
+        assert status["tier_remaining"] == 0
+        tier_arg = mock_repo.count_unreviewed_subjects.call_args.args[1]
+        assert tier_arg == "tier_b"
