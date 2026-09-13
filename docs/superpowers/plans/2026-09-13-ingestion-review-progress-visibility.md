@@ -84,14 +84,18 @@ async def test_count_unreviewed_subjects_excludes_reviewed_and_rejected(db_sessi
     p2 = await _img(db_session, "pending", bid)
     p3 = await _img(db_session, "pending", bid)
     rejected = await _img(db_session, "rejected", bid)
+    p4 = await _img(db_session, "pending", bid)
+    p5 = await _img(db_session, "pending", bid)
     await _pair(db_session, p1, p2, 0.10)                        # open -> both count
     await _pair(db_session, p3, rejected, 0.12)                  # other side rejected -> excluded
-    already_reviewed_a, already_reviewed_b = p1, p2
-    await _pair(db_session, already_reviewed_a, already_reviewed_b, 0.11, tier_b_reviewed=True)  # a 2nd, already-reviewed pair between the same two -- p1/p2 still open via the first pair
+    await _pair(db_session, p4, p5, 0.11, tier_b_reviewed=True)  # already reviewed -> excluded
+    # NOTE: p4/p5's pair is a SEPARATE pair from p1/p2's -- uq_tmp_duplicates_pair is a real DB
+    # unique constraint on (image_id1, image_id2), so a single pair of images can never have both
+    # an open row and an already-reviewed row at once; use distinct images to test each exclusion.
 
     repo = IngestionRepository(db_session)
     n = await repo.count_unreviewed_subjects(bid, "tier_b", TIER_B_LOW, TIER_B_HIGH)
-    assert n == 2  # p1, p2 -- p3 excluded (only pair has a rejected other side)
+    assert n == 2  # p1, p2 -- p3 excluded (rejected other side), p4/p5 excluded (already reviewed)
 
 
 @pytest.mark.asyncio(loop_scope="session")
