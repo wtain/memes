@@ -240,10 +240,10 @@ class IngestionRepository:
         side not rejected) candidate pair in `current_tier`'s band. blocked_total is the same
         count unioned across BOTH tiers -- a subject open in both bands counts once, never a sum
         (see docs/superpowers/specs/2026-09-13-ingestion-review-progress-visibility-design.md's
-        "don't reuse get_blocked_pending_ids" note). One round trip, one scan of each tier's
-        band, via COUNT(DISTINCT ...) FILTER instead of materializing id sets and unioning them
-        in Python -- see
-        docs/superpowers/specs/2026-09-13-ingestion-review-progress-count-query.md."""
+        "don't reuse get_blocked_pending_ids" note), via COUNT(DISTINCT ...) FILTER instead of
+        materializing id sets and unioning them in Python. One round trip; each tier's band is
+        scanned once per pair direction (4 branches total) instead of 6 scans across 3 separate
+        statements -- see docs/superpowers/specs/2026-09-13-ingestion-review-progress-count-query.md."""
         assert current_tier in ("tier_a", "tier_b"), f"unknown tier: {current_tier!r}"
         sql = text("""
             WITH open_pairs AS (
@@ -276,7 +276,8 @@ class IngestionRepository:
         # get_async_db). Same reasoning as list_tier_b_review_page: this aggregate sorts/merges
         # up to ~210k rows (both tiers, both UNION ALL directions) before the final count -- at
         # Postgres's stock 4MB work_mem that can partially spill to disk. 256MB keeps it in
-        # memory -- measured live on general's real batch: 472ms -> 397ms.
+        # memory -- see docs/superpowers/specs/2026-09-13-ingestion-review-progress-count-query.md's
+        # "Measured outcome" section for the live before/after numbers.
         await self.session.execute(text("SET LOCAL work_mem = '256MB'"))
         row = (await self.session.execute(sql, {
             "ta_low": tier_a_low, "ta_high": tier_a_high,

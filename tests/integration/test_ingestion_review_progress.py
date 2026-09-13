@@ -46,12 +46,18 @@ async def test_get_review_progress_excludes_reviewed_and_rejected(db_session):
     # NOTE: p4/p5's pair is a SEPARATE pair from p1/p2's -- uq_tmp_duplicates_pair is a real DB
     # unique constraint on (image_id1, image_id2), so a single pair of images can never have both
     # an open row and an already-reviewed row at once; use distinct images to test each exclusion.
+    p6 = await _img(db_session, "pending", bid)
+    corpus = await _img(db_session, "active", bid)
+    await _pair(db_session, p6, corpus, 0.13)   # active other side: p6 is a subject, corpus never is
 
     repo = IngestionRepository(db_session)
     tier_remaining, blocked_total = await repo.get_review_progress(
         bid, "tier_b", TIER_A_LOW, TIER_A_HIGH, TIER_B_LOW, TIER_B_HIGH)
-    assert tier_remaining == 2  # p1, p2 -- p3 excluded (rejected other side), p4/p5 excluded (already reviewed)
-    assert blocked_total == 2   # same open set; no tier_a activity in this test
+    # p1, p2, p6 -- p3 excluded (rejected other side), p4/p5 excluded (already reviewed), corpus
+    # excluded because it's `active`, never `pending`, so it can never appear as a subject
+    # regardless of which UNION ALL direction of the pair is evaluated.
+    assert tier_remaining == 3
+    assert blocked_total == 3   # same open set; no tier_a activity in this test
 
 
 @pytest.mark.asyncio(loop_scope="session")

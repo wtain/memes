@@ -108,7 +108,7 @@ and `blocked_total` together, with identical semantics to today.
   this codebase's connection pooling doesn't leak it across pooled-connection reuse. The new method
   follows the identical pattern; no new risk surface.
 - Measured live (read-only role, `general`, `EXPLAIN ANALYZE`, same batch as Problem's baseline): the
-  proposed single-query design took **472ms unindexed**, **397ms with the same `work_mem` tuning
+  proposed single-query design took **472ms untuned**, **397ms with the same `work_mem` tuning
   applied** — both real, measured reductions from the current ~1000ms+/3-round-trip baseline, not
   estimates. The `work_mem` win here is smaller in relative terms than Query A's (the aggregate's sort
   only partially spilled — one of two parallel workers used an external disk merge instead of an
@@ -270,7 +270,7 @@ Re-measured live against `general`'s real active batch (`run_id 7f16392b…`, st
 the shipped code landed (commit `93b0712`), via `EXPLAIN (ANALYZE, BUFFERS)` over `DATABASE_URL_READONLY`
 — the exact SQL `get_review_progress` now runs, not a hand-written approximation.
 
-- **New consolidated query:** 608ms (unindexed), 548ms / 562ms across two runs with
+- **New consolidated query:** 608ms (untuned), 548ms / 562ms across two runs with
   `SET work_mem = '256MB'` applied first. No disk-spilling sort in either tuned run (both used
   in-memory `quicksort`, confirming the tuning does what it's meant to); the untuned run showed one
   parallel worker's sort spill to disk (`Sort Method: external merge Disk: 3072kB`), consistent with the
@@ -282,13 +282,18 @@ the shipped code landed (commit `93b0712`), via `EXPLAIN (ANALYZE, BUFFERS)` ove
   query 414ms = **891ms across 3 round trips**.
 - **Net result:** ~891ms/3 round trips → ~548–608ms/1 round trip, a real ~32–38% reduction measured
   same-session, same cache conditions, apples to apples. This is a smaller relative win than the
-  design-time measurement's ~60% (472ms/397ms vs. ~1000ms+) — the difference is entirely explained by disk
-  I/O: this measurement's buffer cache was colder (`read=13000–16600` shared buffers this time vs.
-  `read=5700–6500` the night before, on both the old- and new-shape queries alike, so the comparison
-  between old and new stays fair even though the absolute numbers shifted). **Consolidating 3 round trips
-  into 1 is a real, repeatable win under two different live measurement sessions with materially different
-  cache states — the magnitude varies with disk I/O pressure, but the direction and rough size (roughly a
-  third to two-thirds less total query time) do not.**
+  design-time measurement's ~60% (472ms/397ms vs. ~1000ms+) — largely explained by disk I/O (this
+  session's buffer cache was colder — `read=13000–16600` shared buffers this time vs. `read=5700–6500`
+  the night before, on both the old- and new-shape queries alike, so the comparison between old and new
+  stays fair even though the absolute numbers shifted), and partly because the design-time "~1000ms+"
+  figure was a rounded estimate (2 × ~500ms + one fast query), not a measured 3-query sum, whereas 891ms
+  here is an actual same-session measurement of all three query shapes — replacing an estimate with a
+  measurement accounts for some of the apparent shrinkage too. **Consolidating 3 round trips into 1 is a
+  real, repeatable win under two different live measurement sessions with materially different cache
+  states — the magnitude varies with disk I/O pressure (and with how the baseline is measured vs.
+  estimated), but the direction is consistent; the roughly-a-third reduction measured same-session here is
+  the more credible figure, with the design-time estimate's up-to-two-thirds figure resting on a rounded
+  baseline rather than a measurement.**
 - No regression risk observed: `cd Backend && pytest -q` (309 passed) and the full
   `tests/integration/` sweep (313 passed) stayed green through implementation and this re-measurement;
   `get_run_status`'s response shape and values are unchanged for identical inputs (proven by
