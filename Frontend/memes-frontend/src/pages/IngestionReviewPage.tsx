@@ -138,7 +138,11 @@ function formatResolveSummary(response: IngestionResolveResponse): string | null
 const TIER_LABEL: Record<IngestionTier, string> = { tier_a: "Tier A", tier_b: "Tier B" }
 const CONFIRM_ALL_TIMEOUT_MS = 3000
 
-function StatusBanner({ status }: { status: IngestionRunStatus | null }) {
+function StatusBanner({ status, tier, baseline }: {
+  status: IngestionRunStatus | null
+  tier: IngestionTier | null
+  baseline: { tierRemaining: number; blockedTotal: number } | null
+}) {
   if (!status) return null
   const stats = status.stats ?? {}
   return (
@@ -149,7 +153,22 @@ function StatusBanner({ status }: { status: IngestionRunStatus | null }) {
         <span className="text-sm text-gray-500 ml-4">Stage</span>
         <span className="font-semibold">{status.stage}</span>
       </div>
-      <div className="mt-2 flex gap-4 text-sm text-gray-600">
+      {status.tier_remaining !== null && (
+        <div className="mt-2 text-sm text-gray-700">
+          <span className="font-semibold">{status.tier_remaining}</span>
+          {" "}image{status.tier_remaining === 1 ? "" : "s"} still need{status.tier_remaining === 1 ? "s" : ""}{" "}
+          {tier ? TIER_LABEL[tier] : ""} review
+          {status.blocked_total !== null && (
+            <span className="text-gray-500"> · {status.blocked_total} blocked from promotion</span>
+          )}
+          {baseline && (
+            <span className="text-gray-400 ml-2">
+              (-{Math.max(0, baseline.tierRemaining - status.tier_remaining)} since you opened this page)
+            </span>
+          )}
+        </div>
+      )}
+      <div className="mt-2 flex gap-4 text-xs text-gray-400">
         {Object.entries(stats).map(([key, value]) => (
           <span key={key}>{key}: <span className="font-semibold">{String(value)}</span></span>
         ))}
@@ -182,6 +201,10 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   const [confirmingAll, setConfirmingAll] = useState(false)
   const confirmAllTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadingMoreRef = useRef(false)
+  // Captured once, the first time `load()` sees a non-null tier_remaining -- the "since you
+  // opened this page" baseline. A ref (not state) because it must NOT trigger a re-render or
+  // reset on every load() call, only ever be set the first time.
+  const progressBaselineRef = useRef<{ tierRemaining: number; blockedTotal: number } | null>(null)
 
   const tier = status ? tierForStage(status.stage) : null
 
@@ -190,6 +213,9 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     try {
       const s = await memesApi.getIngestionRunStatus()
       setStatus(s)
+      if (s && s.tier_remaining !== null && progressBaselineRef.current === null) {
+        progressBaselineRef.current = { tierRemaining: s.tier_remaining, blockedTotal: s.blocked_total ?? 0 }
+      }
       setError(null)
       const t = s ? tierForStage(s.stage) : null
       // A server reload is authoritative: drop any local decision whose target is no longer a
@@ -405,12 +431,33 @@ export default function IngestionReviewPage({ memesApi }: Props) {
       // auto-advance (Tier A -> Tier B, via load() also refetching run status) and, when more
       // pages exist, pulls the next unreviewed page-1 work in place of a bare "Load more" button.
       // Every submit that leaves units visible stays purely optimistic (no reload/scroll jump).
+      let submitDeltaMessage: string | null = null
       if (finalCount === 0) {
         await load()
+      } else {
+        // The visible queue didn't empty, so a full reload isn't warranted -- but the progress
+        // numbers (tier_remaining/blocked_total) did change. Refresh just the status, not the
+        // whole page, so the banner reflects this submit instead of going stale until the queue
+        // happens to empty.
+        try {
+          const prevRemaining = status?.tier_remaining ?? null
+          const freshStatus = await memesApi.getIngestionRunStatus()
+          setStatus(freshStatus)
+          if (prevRemaining !== null && freshStatus?.tier_remaining != null) {
+            const delta = prevRemaining - freshStatus.tier_remaining
+            if (delta > 0) {
+              submitDeltaMessage = `${delta} fewer image${delta === 1 ? "" : "s"} remaining in ${tier === "tier_b" ? TIER_LABEL.tier_b : TIER_LABEL.tier_a} after that submit`
+            }
+          }
+        } catch {
+          // Best-effort -- a failed progress refresh shouldn't surface as a page error or block
+          // a submit that already succeeded.
+        }
       }
       // Set the summary after any reload -- load()'s success path clears `error`, so setting it
       // first would have the reload immediately wipe a move-failed / partial-failure summary.
-      setError(formatResolveSummary(response))
+      const resolveSummary = formatResolveSummary(response)
+      setError([submitDeltaMessage, resolveSummary].filter(Boolean).join("; ") || null)
     } catch (e: unknown) {
       // Roll the optimistically-removed units back into place. Decisions were never touched
       // on the way out, so they're still selected -- nothing to restore there.
@@ -469,7 +516,12 @@ export default function IngestionReviewPage({ memesApi }: Props) {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Ingestion Review{tier ? ` — ${TIER_LABEL[tier]}` : ""}</h1>
-      <StatusBanner status={status} />
+      {/* progressBaselineRef is read here for display only, never for a reactivity decision: it's
+          set at most once (in load(), guarded by `=== null`) and every write to it lands in the
+          same tick as a setStatus() call, which already re-renders this component -- so this read
+          can never observe a stale value between renders. */}
+      {/* eslint-disable-next-line react-hooks/refs -- see comment above */}
+      <StatusBanner status={status} tier={tier} baseline={progressBaselineRef.current} />
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
 
       {!tier && (

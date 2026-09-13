@@ -671,3 +671,76 @@ describe('IngestionReviewPage — tier B', () => {
     expect(await screen.findByText('s2.jpg')).toBeInTheDocument()
   })
 })
+
+describe('IngestionReviewPage — progress visibility', () => {
+  it('shows tier_remaining and blocked_total in the banner when present', async () => {
+    const status = { ...runStatus, stage: 'tier_a_review', tier_remaining: 5, blocked_total: 9 }
+    const api = makeMockApi({ getIngestionRunStatus: vi.fn().mockResolvedValue(status) })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText(/5/)
+    expect(screen.getByText(/still need/i)).toBeInTheDocument()
+    expect(screen.getByText(/9/)).toBeInTheDocument()
+  })
+
+  it('does not show progress numbers when tier_remaining is null', async () => {
+    // hash_dedup (not ocr_prepass -- that stage renders a DIFFERENT no-tier message, "OCR is
+    // running...", per IngestionReviewPage.tsx's own stage-message branch) is any stage with no
+    // active tier; this test only needs "no tier -> tier_remaining is null", not which message.
+    const status = { ...runStatus, stage: 'hash_dedup', tier_remaining: null, blocked_total: null }
+    const api = makeMockApi({ getIngestionRunStatus: vi.fn().mockResolvedValue(status) })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText(/Candidates haven't been computed/i)
+    expect(screen.queryByText(/still need/i)).toBeNull()
+  })
+
+  it('refreshes status after a partial submit that leaves units visible, without a full reload', async () => {
+    const first = { ...runStatus, stage: 'tier_b_review', tier_remaining: 5, blocked_total: 5 }
+    // Distinct numbers (4 and 6, not both 4) -- identical values make `findByText(/4/)` match two
+    // separate elements ("4" and "4 blocked from promotion") and throw as ambiguous.
+    const second = { ...first, tier_remaining: 4, blocked_total: 6 }
+    const getIngestionRunStatus = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(
+      tbPage([tbItem('s1', [['c1', 'active']]), tbItem('s2', [['c2', 'active']])]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['s1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({ getIngestionRunStatus, getIngestionTierBReview, resolveIngestionCluster })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0])
+    await userEvent.click(screen.getAllByRole('button', { name: /^submit decisions$/i })[0])
+    await waitFor(() => expect(getIngestionRunStatus).toHaveBeenCalledTimes(2))
+    expect(getIngestionTierBReview).toHaveBeenCalledTimes(1)  // no full reload -- s2's card is still visible
+    expect(screen.getByText('s2.jpg')).toBeInTheDocument()
+    await screen.findByText(/4/)  // banner reflects the refreshed tier_remaining count
+  })
+
+  it('shows a delta message after a submit that reduced tier_remaining', async () => {
+    const first = { ...runStatus, stage: 'tier_b_review', tier_remaining: 5, blocked_total: 5 }
+    const second = { ...first, tier_remaining: 3, blocked_total: 3 }
+    const getIngestionRunStatus = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(
+      tbPage([tbItem('s1', [['c1', 'active']]), tbItem('s2', [['c2', 'active']])]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['s1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({ getIngestionRunStatus, getIngestionTierBReview, resolveIngestionCluster })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0])
+    await userEvent.click(screen.getAllByRole('button', { name: /^submit decisions$/i })[0])
+    await screen.findByText(/fewer image.*remaining/i)
+  })
+
+  it('a failed progress refresh after a partial submit does not surface a page error', async () => {
+    const first = { ...runStatus, stage: 'tier_b_review', tier_remaining: 5, blocked_total: 5 }
+    const getIngestionRunStatus = vi.fn().mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('boom'))
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(
+      tbPage([tbItem('s1', [['c1', 'active']]), tbItem('s2', [['c2', 'active']])]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: ['s1'], kept: [], failed: [], move_failed: [] })
+    const api = makeMockApi({ getIngestionRunStatus, getIngestionTierBReview, resolveIngestionCluster })
+    render(<IngestionReviewPage memesApi={api} />)
+    await screen.findByText('s1.jpg')
+    await userEvent.click(screen.getAllByRole('button', { name: /^reject$/i })[0])
+    await userEvent.click(screen.getAllByRole('button', { name: /^submit decisions$/i })[0])
+    await waitFor(() => expect(getIngestionRunStatus).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('boom')).toBeNull()
+    expect(screen.getByText('s2.jpg')).toBeInTheDocument()  // submit's own success path unaffected
+  })
+})
