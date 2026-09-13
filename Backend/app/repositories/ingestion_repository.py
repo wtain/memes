@@ -230,70 +230,60 @@ class IngestionRepository:
             cand_sql, {**params, "page_ids": page_ids, "candidate_cap": candidate_cap})).all()
         return subjects, candidates
 
-    async def count_unreviewed_subjects(self, batch_id, tier: str, distance_low: float, distance_high: float) -> int:
-        """Count of distinct PENDING images in this batch with at least one still-open (not yet
-        reviewed for this tier, other side not rejected) candidate pair in this tier's band -- the
-        same subject set get_tier_candidate_rows/list_tier_b_review_page build, just
-        COUNT(DISTINCT ...) instead of materializing rows. See
-        docs/superpowers/specs/2026-09-13-ingestion-review-progress-visibility-design.md."""
-        assert tier in ("tier_a", "tier_b"), f"unknown tier: {tier!r}"
-        reviewed_col = "tier_a_reviewed_at" if tier == "tier_a" else "tier_b_reviewed_at"
-        # reviewed_col is one of exactly two hardcoded column names (asserted above), never
-        # derived from external input -- the f-string only ever selects between two fixed literals.
-        sql = text(f"""
-            SELECT count(DISTINCT subject_id) FROM (
-                SELECT td.image_id1 AS subject_id
-                FROM tmp_duplicates td
-                JOIN images s ON s.id = td.image_id1
-                JOIN images o ON o.id = td.image_id2
-                WHERE td.{reviewed_col} IS NULL
-                  AND td.distance >= :low AND td.distance < :high
-                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
-                  AND o.status <> 'rejected'
+    async def get_review_progress(
+        self, batch_id, current_tier: str,
+        tier_a_low: float, tier_a_high: float,
+        tier_b_low: float, tier_b_high: float,
+    ) -> tuple[int, int]:
+        """Live progress counts for the ingestion review banner: (tier_remaining, blocked_total).
+        tier_remaining is the count of distinct pending subjects with an open (unreviewed, other
+        side not rejected) candidate pair in `current_tier`'s band. blocked_total is the same
+        count unioned across BOTH tiers -- a subject open in both bands counts once, never a sum
+        (see docs/superpowers/specs/2026-09-13-ingestion-review-progress-visibility-design.md's
+        "don't reuse get_blocked_pending_ids" note). One round trip, one scan of each tier's
+        band, via COUNT(DISTINCT ...) FILTER instead of materializing id sets and unioning them
+        in Python -- see
+        docs/superpowers/specs/2026-09-13-ingestion-review-progress-count-query.md."""
+        assert current_tier in ("tier_a", "tier_b"), f"unknown tier: {current_tier!r}"
+        sql = text("""
+            WITH open_pairs AS (
+                SELECT 'tier_a' AS tier, td.image_id1 AS subject_id
+                FROM tmp_duplicates td JOIN images s ON s.id = td.image_id1 JOIN images o ON o.id = td.image_id2
+                WHERE td.tier_a_reviewed_at IS NULL AND td.distance >= :ta_low AND td.distance < :ta_high
+                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending' AND o.status <> 'rejected'
                 UNION ALL
-                SELECT td.image_id2 AS subject_id
-                FROM tmp_duplicates td
-                JOIN images s ON s.id = td.image_id2
-                JOIN images o ON o.id = td.image_id1
-                WHERE td.{reviewed_col} IS NULL
-                  AND td.distance >= :low AND td.distance < :high
-                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
-                  AND o.status <> 'rejected'
-            ) subjects
-        """)
-        return (await self.session.execute(
-            sql, {"low": distance_low, "high": distance_high, "batch_id": batch_id})).scalar()
-
-    async def unreviewed_subject_ids(self, batch_id, tier: str, distance_low: float, distance_high: float) -> set:
-        """Same subject set as count_unreviewed_subjects, as ids rather than a count -- used to
-        union across tiers for a batch-wide blocked-total that can't just sum two per-tier counts
-        (an image can be open in both tiers' bands at once)."""
-        assert tier in ("tier_a", "tier_b"), f"unknown tier: {tier!r}"
-        reviewed_col = "tier_a_reviewed_at" if tier == "tier_a" else "tier_b_reviewed_at"
-        sql = text(f"""
-            SELECT DISTINCT subject_id FROM (
-                SELECT td.image_id1 AS subject_id
-                FROM tmp_duplicates td
-                JOIN images s ON s.id = td.image_id1
-                JOIN images o ON o.id = td.image_id2
-                WHERE td.{reviewed_col} IS NULL
-                  AND td.distance >= :low AND td.distance < :high
-                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
-                  AND o.status <> 'rejected'
+                SELECT 'tier_a', td.image_id2
+                FROM tmp_duplicates td JOIN images s ON s.id = td.image_id2 JOIN images o ON o.id = td.image_id1
+                WHERE td.tier_a_reviewed_at IS NULL AND td.distance >= :ta_low AND td.distance < :ta_high
+                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending' AND o.status <> 'rejected'
                 UNION ALL
-                SELECT td.image_id2 AS subject_id
-                FROM tmp_duplicates td
-                JOIN images s ON s.id = td.image_id2
-                JOIN images o ON o.id = td.image_id1
-                WHERE td.{reviewed_col} IS NULL
-                  AND td.distance >= :low AND td.distance < :high
-                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
-                  AND o.status <> 'rejected'
-            ) subjects
+                SELECT 'tier_b', td.image_id1
+                FROM tmp_duplicates td JOIN images s ON s.id = td.image_id1 JOIN images o ON o.id = td.image_id2
+                WHERE td.tier_b_reviewed_at IS NULL AND td.distance >= :tb_low AND td.distance < :tb_high
+                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending' AND o.status <> 'rejected'
+                UNION ALL
+                SELECT 'tier_b', td.image_id2
+                FROM tmp_duplicates td JOIN images s ON s.id = td.image_id2 JOIN images o ON o.id = td.image_id1
+                WHERE td.tier_b_reviewed_at IS NULL AND td.distance >= :tb_low AND td.distance < :tb_high
+                  AND s.ingestion_batch_id = :batch_id AND s.status = 'pending' AND o.status <> 'rejected'
+            )
+            SELECT
+                count(DISTINCT subject_id) FILTER (WHERE tier = :current_tier) AS tier_remaining,
+                count(DISTINCT subject_id) AS blocked_total
+            FROM open_pairs
         """)
-        rows = (await self.session.execute(
-            sql, {"low": distance_low, "high": distance_high, "batch_id": batch_id})).all()
-        return {r.subject_id for r in rows}
+        # Scoped to this request's transaction only -- SET LOCAL never outlives it (see
+        # get_async_db). Same reasoning as list_tier_b_review_page: this aggregate sorts/merges
+        # up to ~210k rows (both tiers, both UNION ALL directions) before the final count -- at
+        # Postgres's stock 4MB work_mem that can partially spill to disk. 256MB keeps it in
+        # memory -- measured live on general's real batch: 472ms -> 397ms.
+        await self.session.execute(text("SET LOCAL work_mem = '256MB'"))
+        row = (await self.session.execute(sql, {
+            "ta_low": tier_a_low, "ta_high": tier_a_high,
+            "tb_low": tier_b_low, "tb_high": tier_b_high,
+            "batch_id": batch_id, "current_tier": current_tier,
+        })).one()
+        return row.tier_remaining, row.blocked_total
 
     async def promote_images(self, image_ids) -> int:
         """Flip status to active for the given image ids (already validated by the caller as

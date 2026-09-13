@@ -32,7 +32,7 @@ async def _pair(session, a, b, d, tier_b_reviewed=False, tier_a_reviewed=False):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_count_unreviewed_subjects_excludes_reviewed_and_rejected(db_session):
+async def test_get_review_progress_excludes_reviewed_and_rejected(db_session):
     bid = await _run(db_session)
     p1 = await _img(db_session, "pending", bid)
     p2 = await _img(db_session, "pending", bid)
@@ -48,21 +48,20 @@ async def test_count_unreviewed_subjects_excludes_reviewed_and_rejected(db_sessi
     # an open row and an already-reviewed row at once; use distinct images to test each exclusion.
 
     repo = IngestionRepository(db_session)
-    n = await repo.count_unreviewed_subjects(bid, "tier_b", TIER_B_LOW, TIER_B_HIGH)
-    assert n == 2  # p1, p2 -- p3 excluded (rejected other side), p4/p5 excluded (already reviewed)
+    tier_remaining, blocked_total = await repo.get_review_progress(
+        bid, "tier_b", TIER_A_LOW, TIER_A_HIGH, TIER_B_LOW, TIER_B_HIGH)
+    assert tier_remaining == 2  # p1, p2 -- p3 excluded (rejected other side), p4/p5 excluded (already reviewed)
+    assert blocked_total == 2   # same open set; no tier_a activity in this test
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_count_unreviewed_subjects_tier_a_excludes_tier_a_reviewed(db_session):
-    # Finding #1 (final review, 2026-09-13): the tier_a branch of count_unreviewed_subjects'
-    # reviewed_col ternary was never exercised by a test that actually sets tier_a_reviewed_at --
-    # a silently-swapped tier_a/tier_b ternary would still pass the whole suite. This pairs two
-    # pending images in the tier A band, marks the pair tier_a-reviewed, and asserts the tier_a
-    # query correctly excludes it -- while the identical pair, reviewed via tier_b instead, still
-    # counts as open for tier_a (proving the tier_a query only looks at its own column).
-    # A single batch run -- only one active "ingestion" run is allowed at a time (see
-    # ix_batch_runs_one_active_per_kind), so both parts of this assertion share one bid, using
-    # distinct image pairs (uq_tmp_duplicates_pair forbids reusing the same pair twice anyway).
+async def test_get_review_progress_tier_a_excludes_tier_a_reviewed(db_session):
+    # Carries forward the case the progress-visibility branch's final review added (its own
+    # Finding #1): the tier_a branch's reviewed-column handling must look only at
+    # tier_a_reviewed_at, never tier_b_reviewed_at. A single batch run -- only one active
+    # "ingestion" run is allowed at a time (ix_batch_runs_one_active_per_kind) -- so both halves
+    # of this assertion share one bid, using distinct image pairs (uq_tmp_duplicates_pair forbids
+    # reusing the same pair twice anyway).
     bid = await _run(db_session)
     p1 = await _img(db_session, "pending", bid)
     p2 = await _img(db_session, "pending", bid)
@@ -70,40 +69,32 @@ async def test_count_unreviewed_subjects_tier_a_excludes_tier_a_reviewed(db_sess
 
     p3 = await _img(db_session, "pending", bid)
     p4 = await _img(db_session, "pending", bid)
-    await _pair(db_session, p3, p4, 0.02, tier_b_reviewed=True)  # same band, but reviewed for tier B only
+    await _pair(db_session, p3, p4, 0.02, tier_b_reviewed=True)  # same band, reviewed for tier B only
 
     repo = IngestionRepository(db_session)
-    assert await repo.count_unreviewed_subjects(bid, "tier_a", TIER_A_LOW, TIER_A_HIGH) == 2  # p3, p4 only
+    tier_remaining, _ = await repo.get_review_progress(
+        bid, "tier_a", TIER_A_LOW, TIER_A_HIGH, TIER_B_LOW, TIER_B_HIGH)
+    assert tier_remaining == 2  # p3, p4 only -- p1/p2 excluded (tier_a-reviewed)
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_count_unreviewed_subjects_respects_band_and_tier(db_session):
+async def test_get_review_progress_respects_band_and_tier(db_session):
     bid = await _run(db_session)
     p1 = await _img(db_session, "pending", bid)
     p2 = await _img(db_session, "pending", bid)
     await _pair(db_session, p1, p2, 0.02)  # tier A band, not tier B
 
     repo = IngestionRepository(db_session)
-    assert await repo.count_unreviewed_subjects(bid, "tier_a", TIER_A_LOW, TIER_A_HIGH) == 2
-    assert await repo.count_unreviewed_subjects(bid, "tier_b", TIER_B_LOW, TIER_B_HIGH) == 0
+    tier_a_remaining, _ = await repo.get_review_progress(
+        bid, "tier_a", TIER_A_LOW, TIER_A_HIGH, TIER_B_LOW, TIER_B_HIGH)
+    tier_b_remaining, _ = await repo.get_review_progress(
+        bid, "tier_b", TIER_A_LOW, TIER_A_HIGH, TIER_B_LOW, TIER_B_HIGH)
+    assert tier_a_remaining == 2
+    assert tier_b_remaining == 0
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_unreviewed_subject_ids_returns_the_actual_ids(db_session):
-    bid = await _run(db_session)
-    p1 = await _img(db_session, "pending", bid)
-    p2 = await _img(db_session, "pending", bid)
-    other = await _img(db_session, "active", bid)
-    await _pair(db_session, p1, p2, 0.10)
-    await _pair(db_session, p2, other, 0.15)
-
-    repo = IngestionRepository(db_session)
-    ids = await repo.unreviewed_subject_ids(bid, "tier_b", TIER_B_LOW, TIER_B_HIGH)
-    assert ids == {p1, p2}  # `other` is active, never a subject
-
-
-@pytest.mark.asyncio(loop_scope="session")
-async def test_unreviewed_subject_ids_union_dedupes_a_subject_open_in_both_tiers(db_session):
+async def test_get_review_progress_blocked_total_dedupes_a_subject_open_in_both_tiers(db_session):
     bid = await _run(db_session)
     p1 = await _img(db_session, "pending", bid)
     p2 = await _img(db_session, "pending", bid)
@@ -112,11 +103,9 @@ async def test_unreviewed_subject_ids_union_dedupes_a_subject_open_in_both_tiers
     await _pair(db_session, p1, p3, 0.10)   # tier B band -- p1 open in BOTH tiers
 
     repo = IngestionRepository(db_session)
-    ids_a = await repo.unreviewed_subject_ids(bid, "tier_a", TIER_A_LOW, TIER_A_HIGH)
-    ids_b = await repo.unreviewed_subject_ids(bid, "tier_b", TIER_B_LOW, TIER_B_HIGH)
-    union = ids_a | ids_b
-    assert union == {p1, p2, p3}   # p1 counted once despite being in both sets
-    assert len(union) == 3
+    _, blocked_total = await repo.get_review_progress(
+        bid, "tier_a", TIER_A_LOW, TIER_A_HIGH, TIER_B_LOW, TIER_B_HIGH)
+    assert blocked_total == 3   # p1, p2, p3 -- p1 counted once despite being open in both bands
 
 
 @pytest.mark.asyncio(loop_scope="session")

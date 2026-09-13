@@ -128,13 +128,10 @@ class IngestionService:
         blocked_total = None
         current_tier = _tier_for_stage(run.stage)
         if current_tier is not None:
-            low, high = _tier_band(current_tier)
-            tier_remaining = await self.repo.count_unreviewed_subjects(resolved_id, current_tier, low, high)
             tier_a_low, tier_a_high = _tier_band("tier_a")
             tier_b_low, tier_b_high = _tier_band("tier_b")
-            blocked_ids = await self.repo.unreviewed_subject_ids(resolved_id, "tier_a", tier_a_low, tier_a_high)
-            blocked_ids |= await self.repo.unreviewed_subject_ids(resolved_id, "tier_b", tier_b_low, tier_b_high)
-            blocked_total = len(blocked_ids)
+            tier_remaining, blocked_total = await self.repo.get_review_progress(
+                resolved_id, current_tier, tier_a_low, tier_a_high, tier_b_low, tier_b_high)
 
         return {
             "run_id": str(run.run_id),
