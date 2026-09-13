@@ -25,6 +25,18 @@ def _tier_band(tier: str) -> tuple[float, float]:
     return low, (high if high is not None else settings.DUPLICATES.THRESHOLD)
 
 
+def _tier_for_stage(stage: Optional[str]) -> Optional[str]:
+    """Mirrors IngestionReviewPage.tsx's tierForStage exactly -- keep both in sync if either
+    changes. 'promoted' falls back to tier_b's (by-then-empty) queue for the same reason the
+    frontend does: once a run completes it drops out of get_run_status entirely, so this is a
+    safety net, not the normal path."""
+    if stage == "tier_a_review":
+        return "tier_a"
+    if stage in ("tier_b_review", "promoted"):
+        return "tier_b"
+    return None
+
+
 def _split_params(tier: str):
     """Threshold ladder + max size for `tier`, or None when splitting is disabled or the
     config block is absent (a stale/omitted overlay disables cleanly rather than raising)."""
@@ -111,11 +123,26 @@ class IngestionService:
         run = await self.repo.get_run(resolved_id)
         if run is None:
             raise HTTPException(status_code=404, detail="Ingestion run not found")
+
+        tier_remaining = None
+        blocked_total = None
+        current_tier = _tier_for_stage(run.stage)
+        if current_tier is not None:
+            low, high = _tier_band(current_tier)
+            tier_remaining = await self.repo.count_unreviewed_subjects(resolved_id, current_tier, low, high)
+            tier_a_low, tier_a_high = _tier_band("tier_a")
+            tier_b_low, tier_b_high = _tier_band("tier_b")
+            blocked_ids = await self.repo.unreviewed_subject_ids(resolved_id, "tier_a", tier_a_low, tier_a_high)
+            blocked_ids |= await self.repo.unreviewed_subject_ids(resolved_id, "tier_b", tier_b_low, tier_b_high)
+            blocked_total = len(blocked_ids)
+
         return {
             "run_id": str(run.run_id),
             "status": run.status,
             "stage": run.stage,
             "stats": run.stats,
+            "tier_remaining": tier_remaining,
+            "blocked_total": blocked_total,
             "created_at": run.created_at,
             "completed_at": run.completed_at,
         }
