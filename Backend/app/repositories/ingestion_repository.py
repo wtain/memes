@@ -148,8 +148,12 @@ class IngestionRepository:
         docs/superpowers/specs/2026-09-11-ingestion-tier-b-candidate-query-bound.md.
         `cursor` is (min_distance, subject_id_str) or None. Returns (subjects, candidates):
         subjects is up to limit+1 rows ordered by (min_distance, subject_id); candidates is, per
-        subject, its `candidate_cap` tightest rows (tightest-first) -- not every candidate row;
-        callers needing the uncapped count use `total_candidates` on the subject row."""
+        subject, its `candidate_cap` highest-priority rows -- not every candidate row; callers
+        needing the uncapped count use `total_candidates` on the subject row. Priority is
+        in_batch (the other side is a pending image, never reviewed) before cross_corpus (the
+        other side is already `active`, reviewed in some earlier ingestion), tightest-distance
+        first within each group -- surfacing genuinely-new comparisons ahead of a tighter match
+        against an already-vetted corpus image."""
         # Each unreviewed in-band tmp_duplicates row contributes (subject_id, distance) for the
         # side that is a pending image of this batch, when the other side is not rejected.
         pair_cte = """
@@ -213,9 +217,12 @@ class IngestionRepository:
         cand_sql = text(pair_cte + """
         , ranked AS (
             SELECT p.*, ROW_NUMBER() OVER (
-                PARTITION BY p.subject_id ORDER BY p.distance, p.cand_id::text
-                -- cand_id cast to text for byte-parity with the old Python key (distance, str(cand_id));
-                -- ensures identical ordering at the cap boundary when distances are tied.
+                PARTITION BY p.subject_id
+                ORDER BY (p.match_source = 'cross_corpus'), p.distance, p.cand_id::text
+                -- in_batch (never reviewed) before cross_corpus (already active/reviewed), see
+                -- the docstring above; cand_id cast to text for byte-parity with the old Python
+                -- key (distance, str(cand_id)) -- ensures identical ordering at the cap boundary
+                -- when both match_source and distance are tied.
             ) AS rn
             FROM pair p
             WHERE p.subject_id = ANY(:page_ids)
@@ -224,7 +231,7 @@ class IngestionRepository:
                r.distance, r.match_source
         FROM ranked r JOIN images c ON c.id = r.cand_id
         WHERE r.rn <= :candidate_cap
-        ORDER BY r.subject_id, r.distance, r.cand_id
+        ORDER BY r.subject_id, (r.match_source = 'cross_corpus'), r.distance, r.cand_id
         """)
         candidates = (await self.session.execute(
             cand_sql, {**params, "page_ids": page_ids, "candidate_cap": candidate_cap})).all()

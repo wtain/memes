@@ -63,7 +63,11 @@ def _split_params(tier: str):
 # safety net for a rare oversized union-find component; not time-bound to a future removal.
 CLUSTER_MEMBER_CAP = 60
 
-CANDIDATE_CAP = 30
+# Lowered from 30 (2026-09-14): even the pre-sorted top-30 was still too many candidates to
+# review one by one for a hot template. Paired with list_tier_b_review_page's in_batch-before-
+# cross_corpus ordering, the 10 shown are the ones most worth a reviewer's attention -- genuinely
+# new comparisons first, not just whatever happened to be tightest.
+CANDIDATE_CAP = 10
 
 
 def _members_by_tightest_edge(group, group_edges) -> list[str]:
