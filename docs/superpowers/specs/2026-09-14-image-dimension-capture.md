@@ -1,6 +1,6 @@
 # Image Dimension Capture
 
-status: planned
+status: done
 Plan: docs/superpowers/plans/2026-09-14-image-dimension-capture.md
 Originates from: a conversation continuing the 2026-09-12/13 Tier B review-noise discussion — after
 metrics landed (`2026-09-13-ingestion-review-progress-visibility-design.md` and its query-consolidation
@@ -300,3 +300,25 @@ backfilled by re-running the existing, already-documented-as-safe-to-re-run `fix
 No further specs need this data yet — it lands purely as a prerequisite. The text-heavy classifier
 (coverage-ratio calculation and threshold calibration against real data) is deliberately a separate,
 future spec.
+
+## Rollout outcome
+
+Backfill run 2026-09-15 (`fix_image_formats.py --status active`, plus `--status pending` per environment
+to cover any in-flight batch predating this code) against all three live environments, followed by a
+read-only verification query (`DATABASE_URL_READONLY`) per environment:
+
+| Environment | Status | With dimensions | Total | Gap explained by |
+|---|---|---|---|---|
+| `metal` | active | 18,087 | 18,088 | 1 unreadable (run's own counter) |
+| `metal` | pending | — | 0 | no in-flight batch |
+| `general` | active | 25,285 | 25,286 | 1 unreadable (run's own counter) |
+| `general` | pending | 7,181 | 7,181 | none — full coverage |
+| `it` | active | 1,422 | 1,422 | none — full coverage |
+| `it` | pending | — | 0 | no in-flight batch |
+
+Every gap between "with dimensions" and "total" matches that environment's own `unreadable` counter from
+the run exactly — no silent failures, no unexplained missing rows. All three backends'
+`/api/diagnostics/health` returned `200` immediately after their runs. `general`'s conversions/renames
+during the active-status run (`converted=62`, `renamed=28`) and `metal`'s (`converted=16`, `renamed=1`)
+are pre-existing format-validation activity unrelated to this feature — this run simply picked up
+dimension capture for every image it touched, readable or already-correct alike, exactly as designed.
