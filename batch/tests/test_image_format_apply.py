@@ -20,7 +20,7 @@ def _save(base_path, filename: str, pillow_format: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_noop_is_counted_and_touches_neither_repo(tmp_path):
+async def test_noop_is_counted_and_persists_dimensions_only(tmp_path):
     _save(tmp_path, "a.jpg", "JPEG")
     images_repo, extras_repo = AsyncMock(), AsyncMock()
     metrics = SimpleMetricsListener()
@@ -28,6 +28,7 @@ async def test_noop_is_counted_and_touches_neither_repo(tmp_path):
     await apply_format_fix(images_repo, extras_repo, metrics, str(tmp_path), "img-1", "a.jpg")
 
     assert metrics.counters_dict() == {"no_op": 1}
+    images_repo.update_dimensions.assert_awaited_once_with("img-1", 4, 4)
     images_repo.update_filename_and_hash.assert_not_awaited()
     extras_repo.set_flagged.assert_not_awaited()
 
@@ -83,6 +84,7 @@ async def test_unreadable_flags_the_image(tmp_path):
         "img-1", True, remarks="unreadable during format validation",
     )
     images_repo.update_filename_and_hash.assert_not_awaited()
+    images_repo.update_dimensions.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -97,6 +99,7 @@ async def test_rename_persists_the_new_filename_without_a_hash(tmp_path):
     images_repo.update_filename_and_hash.assert_awaited_once_with(
         "img-1", "a.png", content_hash=None,
     )
+    images_repo.update_dimensions.assert_awaited_once_with("img-1", 4, 4)
     extras_repo.set_flagged.assert_not_awaited()
 
 
@@ -112,6 +115,7 @@ async def test_conversion_persists_the_new_filename_and_hash(tmp_path):
     (args, kwargs) = images_repo.update_filename_and_hash.await_args
     assert args == ("img-1", "a.jpg")
     assert kwargs["content_hash"]  # a real sha256 of the newly written jpeg
+    images_repo.update_dimensions.assert_awaited_once_with("img-1", 4, 4)
 
 
 @pytest.mark.asyncio
@@ -122,6 +126,7 @@ async def test_animated_conversion_gets_its_own_counter(tmp_path):
     metrics = SimpleMetricsListener()
     outcome = FixOutcome(
         changed=True, new_filename="a.jpg", new_content_hash="deadbeef", animated=True,
+        width=4, height=4,
     )
 
     with patch("batch.utils.image_format_apply.fix_image_file", return_value=outcome):
@@ -131,3 +136,4 @@ async def test_animated_conversion_gets_its_own_counter(tmp_path):
     images_repo.update_filename_and_hash.assert_awaited_once_with(
         "img-1", "a.jpg", content_hash="deadbeef",
     )
+    images_repo.update_dimensions.assert_awaited_once_with("img-1", 4, 4)

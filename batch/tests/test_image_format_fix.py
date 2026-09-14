@@ -29,19 +29,19 @@ def _save(base_path, filename: str, pillow_format: str, mode: str = "RGB", color
 def test_detects_real_jpeg(tmp_path):
     _save(tmp_path, "a.jpg", "JPEG")
 
-    assert detect_actual_format(str(tmp_path / "a.jpg")) == "JPEG"
+    assert detect_actual_format(str(tmp_path / "a.jpg"))[0] == "JPEG"
 
 
 def test_detects_png_mislabeled_as_jpg(tmp_path):
     _save(tmp_path, "a.jpg", "PNG")
 
-    assert detect_actual_format(str(tmp_path / "a.jpg")) == "PNG"
+    assert detect_actual_format(str(tmp_path / "a.jpg"))[0] == "PNG"
 
 
 def test_detects_webp(tmp_path):
     _save(tmp_path, "a.webp", "WEBP")
 
-    assert detect_actual_format(str(tmp_path / "a.webp")) == "WEBP"
+    assert detect_actual_format(str(tmp_path / "a.webp"))[0] == "WEBP"
 
 
 def test_returns_none_for_unreadable_file(tmp_path):
@@ -56,7 +56,17 @@ def test_reports_raw_pillow_format_for_unmapped_formats(tmp_path):
     it must not be conflated with "Pillow couldn't read this at all" (which returns None)."""
     _save(tmp_path, "a.ppm", "PPM")
 
-    assert detect_actual_format(str(tmp_path / "a.ppm")) == "PPM"
+    assert detect_actual_format(str(tmp_path / "a.ppm"))[0] == "PPM"
+
+
+def test_dimensions_are_not_swapped_for_a_non_square_image(tmp_path):
+    path = os.path.join(str(tmp_path), "wide.jpg")
+    PILImage.new("RGB", (8, 4), (255, 0, 0)).save(path, "JPEG")
+
+    outcome = fix_image_file(str(tmp_path), "wide.jpg")
+
+    assert outcome.width == 8
+    assert outcome.height == 4
 
 
 # --------------------------------------------------------------------------
@@ -69,6 +79,8 @@ def test_noop_when_extension_already_matches(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.jpg")
 
     assert outcome.changed is False
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.unreadable is False
     assert (tmp_path / "a.jpg").exists()
 
@@ -81,6 +93,8 @@ def test_noop_for_jpeg_saved_as_jpeg_extension(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.jpeg")
 
     assert outcome.changed is False
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.unreadable is False
     assert (tmp_path / "a.jpeg").exists()
 
@@ -92,6 +106,8 @@ def test_noop_for_tiff_saved_as_tif_extension(tmp_path):
     outcome = fix_image_file(str(tmp_path), "b.tif")
 
     assert outcome.changed is False
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.unreadable is False
     assert (tmp_path / "b.tif").exists()
 
@@ -105,6 +121,8 @@ def test_leaves_unmapped_but_readable_format_untouched(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.ppm")
 
     assert outcome.changed is False
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.unreadable is False
     assert (tmp_path / "a.ppm").exists()
 
@@ -118,6 +136,8 @@ def test_unmapped_format_under_a_wrong_extension_is_still_untouched(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.jpg")
 
     assert outcome.changed is False
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.unreadable is False
     assert (tmp_path / "a.jpg").exists()
 
@@ -130,6 +150,8 @@ def test_flags_unreadable_file_without_changing_it(tmp_path):
 
     assert outcome.unreadable is True
     assert outcome.changed is False
+    assert outcome.width is None
+    assert outcome.height is None
     assert path.exists()  # untouched
 
 
@@ -139,6 +161,8 @@ def test_renames_mislabeled_non_webp_file(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.jpg")
 
     assert outcome.changed is True
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.new_filename == "a.png"
     assert outcome.new_content_hash is None  # bytes unchanged, no hash to update
     assert (tmp_path / "a.png").exists()
@@ -151,6 +175,8 @@ def test_rename_avoids_collision_with_existing_file(tmp_path):
 
     outcome = fix_image_file(str(tmp_path), "a.jpg")
 
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.new_filename == "a_1.png"
     assert (tmp_path / "a_1.png").exists()
     assert (tmp_path / "a.png").exists()  # the pre-existing one, untouched
@@ -166,6 +192,8 @@ def test_converts_opaque_webp_to_jpeg(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.webp")
 
     assert outcome.changed is True
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.new_filename == "a.jpg"
     assert outcome.new_content_hash is not None
     assert (tmp_path / "a.jpg").exists()
@@ -184,6 +212,8 @@ def test_converts_webp_mislabeled_as_jpg_reusing_the_same_name(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.jpg")
 
     assert outcome.changed is True
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.new_filename == "a.jpg"
     with PILImage.open(tmp_path / "a.jpg") as img:
         assert img.format == "JPEG"
@@ -196,6 +226,8 @@ def test_flattens_transparent_webp_onto_white_background(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.webp")
 
     assert outcome.changed is True
+    assert outcome.width == 4
+    assert outcome.height == 4
     with PILImage.open(tmp_path / "a.jpg") as img:
         assert img.mode == "RGB"  # JPEG has no alpha channel
 
@@ -206,6 +238,8 @@ def test_single_frame_webp_conversion_is_not_reported_as_animated(tmp_path):
     outcome = fix_image_file(str(tmp_path), "a.webp")
 
     assert outcome.changed is True
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.animated is False
 
 
@@ -221,6 +255,8 @@ def test_animated_webp_conversion_reports_animated(tmp_path):
     outcome = fix_image_file(str(tmp_path), "anim.webp")
 
     assert outcome.changed is True
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.animated is True
     assert outcome.new_filename == "anim.jpg"
     with PILImage.open(tmp_path / "anim.jpg") as img:
@@ -239,6 +275,8 @@ def test_convert_avoids_collision_in_both_target_directories(tmp_path):
 
     outcome = fix_image_file(str(tmp_path), "a.webp")
 
+    assert outcome.width == 4
+    assert outcome.height == 4
     assert outcome.new_filename == "a_1.jpg"
     assert (tmp_path / "a_1.jpg").exists()
     assert (tmp_path / "a.jpg").exists()  # unrelated file, untouched

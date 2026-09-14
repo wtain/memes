@@ -44,15 +44,15 @@ JPEG_QUALITY = 95
 CONVERTED_ORIGINALS_DIRNAME = "converted_originals"
 
 
-def detect_actual_format(path: str) -> str | None:
-    """Returns Pillow's own format name for the file's real content (e.g. "JPEG", "WEBP",
-    or a format this module has no specific handling for, like "MPO"/"AVIF"), or None if
-    Pillow can't identify it at all (corrupt/truncated file, or the file doesn't exist). A
-    format Pillow *can* open successfully is never "unreadable", even if this module has no
-    specific handling for it."""
+def detect_actual_format(path: str) -> tuple[str, tuple[int, int]] | None:
+    """Returns (Pillow's own format name, (width, height)) for the file's real content
+    (e.g. ("JPEG", (1080, 1350)), or a format this module has no specific handling for,
+    like "MPO"/"AVIF"), or None if Pillow can't identify it at all (corrupt/truncated file,
+    or the file doesn't exist). A format Pillow *can* open successfully is never
+    "unreadable", even if this module has no specific handling for it."""
     try:
         with PILImage.open(path) as img:
-            return img.format
+            return img.format, img.size
     except Exception:
         return None
 
@@ -64,6 +64,8 @@ class FixOutcome:
     new_filename: str | None = None
     new_content_hash: str | None = None
     animated: bool = False
+    width: int | None = None
+    height: int | None = None
 
 
 def fix_image_file(base_path: str, filename: str) -> FixOutcome:
@@ -74,33 +76,34 @@ def fix_image_file(base_path: str, filename: str) -> FixOutcome:
     otherwise handle risks corrupting a valid file's name, and "unreadable" would be wrong
     since the file opens fine."""
     path = os.path.join(base_path, filename)
-    actual_format = detect_actual_format(path)
+    detected = detect_actual_format(path)
 
-    if actual_format is None:
+    if detected is None:
         return FixOutcome(changed=False, unreadable=True)
+    actual_format, (width, height) = detected
 
     if actual_format == "WEBP":
-        return _convert_webp_to_jpeg(base_path, filename, path)
+        return _convert_webp_to_jpeg(base_path, filename, path, width, height)
 
     acceptable_extensions = FORMAT_ACCEPTABLE_EXTENSIONS.get(actual_format)
     if acceptable_extensions is None:
-        return FixOutcome(changed=False)
+        return FixOutcome(changed=False, width=width, height=height)
 
     current_ext = os.path.splitext(filename)[1].lower()
     if current_ext not in acceptable_extensions:
-        return _rename_in_place(base_path, filename, CANONICAL_EXTENSION[actual_format])
+        return _rename_in_place(base_path, filename, CANONICAL_EXTENSION[actual_format], width, height)
 
-    return FixOutcome(changed=False)
+    return FixOutcome(changed=False, width=width, height=height)
 
 
-def _rename_in_place(base_path: str, filename: str, actual_ext: str) -> FixOutcome:
+def _rename_in_place(base_path: str, filename: str, actual_ext: str, width: int, height: int) -> FixOutcome:
     stem = os.path.splitext(filename)[0]
     final_name = available_filename(base_path, f"{stem}{actual_ext}")
     os.rename(os.path.join(base_path, filename), os.path.join(base_path, final_name))
-    return FixOutcome(changed=True, new_filename=final_name)
+    return FixOutcome(changed=True, new_filename=final_name, width=width, height=height)
 
 
-def _convert_webp_to_jpeg(base_path: str, filename: str, path: str) -> FixOutcome:
+def _convert_webp_to_jpeg(base_path: str, filename: str, path: str, width: int, height: int) -> FixOutcome:
     with PILImage.open(path) as img:
         # Pillow's WebP plugin only exposes n_frames on multi-frame files; a JPEG can only
         # hold one frame, so an animated source loses everything past frame 0 here. The
@@ -135,4 +138,5 @@ def _convert_webp_to_jpeg(base_path: str, filename: str, path: str) -> FixOutcom
     new_content_hash = sha256_file(final_path)
     return FixOutcome(
         changed=True, new_filename=final_name, new_content_hash=new_content_hash, animated=animated,
+        width=width, height=height,
     )

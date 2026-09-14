@@ -46,9 +46,16 @@ async def test_renames_mislabeled_pending_image_and_updates_filename(tmp_path, d
 
     assert metrics.counters_dict() == {"renamed": 1}
     refreshed = await db_session.get(Image, image.id)
+    # width/height were never loaded on this identity-mapped object at construction time,
+    # so the ORM-enabled UPDATE's synchronize_session logic (evaluate/fetch alike) leaves
+    # them alone rather than inventing a "loaded" value for an attribute it never tracked --
+    # an explicit refresh is needed to see the columns update_dimensions() just wrote.
+    await db_session.refresh(refreshed)
     assert refreshed.filename == "a.png"
     assert refreshed.content_hash == "orig"  # unchanged -- bytes weren't touched
     assert (tmp_path / "a.png").exists()
+    assert refreshed.width == 4
+    assert refreshed.height == 4
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -64,10 +71,15 @@ async def test_converts_webp_pending_image_and_updates_hash(tmp_path, db_session
 
     assert metrics.counters_dict() == {"converted": 1}
     refreshed = await db_session.get(Image, image.id)
+    # See test_renames_mislabeled_pending_image_and_updates_filename for why this refresh
+    # is needed.
+    await db_session.refresh(refreshed)
     assert refreshed.filename == "a.jpg"
     assert refreshed.content_hash != "orig"
     with PILImage.open(tmp_path / "a.jpg") as img:
         assert img.format == "JPEG"
+    assert refreshed.width == 4
+    assert refreshed.height == 4
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -89,6 +101,8 @@ async def test_flags_unreadable_pending_image_and_leaves_it_alone(tmp_path, db_s
     )).scalar_one()
     assert extras.flagged is True
     assert extras.remarks == "unreadable during format validation"
+    assert refreshed.width is None
+    assert refreshed.height is None
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -104,8 +118,13 @@ async def test_noop_image_is_counted_and_untouched(tmp_path, db_session):
 
     assert metrics.counters_dict() == {"no_op": 1}
     refreshed = await db_session.get(Image, image.id)
+    # See test_renames_mislabeled_pending_image_and_updates_filename for why this refresh
+    # is needed.
+    await db_session.refresh(refreshed)
     assert refreshed.filename == "a.jpg"
     assert refreshed.content_hash == "orig"
+    assert refreshed.width == 4
+    assert refreshed.height == 4
 
 
 @pytest.mark.asyncio(loop_scope="session")

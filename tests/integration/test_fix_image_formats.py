@@ -30,7 +30,14 @@ async def test_fixes_active_images_by_default(tmp_path, db_session):
 
     assert metrics.counters_dict() == {"renamed": 1}
     refreshed = await db_session.get(Image, image.id)
+    # width/height were never loaded on this identity-mapped object at construction time,
+    # so the ORM-enabled UPDATE's synchronize_session logic (evaluate/fetch alike) leaves
+    # them alone rather than inventing a "loaded" value for an attribute it never tracked --
+    # an explicit refresh is needed to see the columns update_dimensions() just wrote.
+    await db_session.refresh(refreshed)
     assert refreshed.filename == "a.png"
+    assert refreshed.width == 4
+    assert refreshed.height == 4
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -55,8 +62,12 @@ async def test_status_flag_can_target_pending_images(tmp_path, db_session):
 
     assert metrics.counters_dict() == {"converted": 1}
     refreshed = await db_session.get(Image, pending_image.id)
+    # See test_fixes_active_images_by_default for why this refresh is needed.
+    await db_session.refresh(refreshed)
     assert refreshed.filename == "a.jpg"
     assert refreshed.content_hash != "orig"
+    assert refreshed.width == 4
+    assert refreshed.height == 4
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -74,6 +85,9 @@ async def test_flags_unreadable_active_image(tmp_path, db_session):
     )).scalar_one()
     assert extras.flagged is True
     assert extras.remarks == "unreadable during format validation"
+    refreshed = await db_session.get(Image, image.id)
+    assert refreshed.width is None
+    assert refreshed.height is None
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -88,3 +102,8 @@ async def test_rerun_is_a_noop_on_already_fixed_images(tmp_path, db_session):
 
     second = await run(db_session, str(tmp_path), "active")
     assert second.counters_dict() == {"no_op": 1}
+    refreshed = await db_session.get(Image, image.id)
+    # See test_fixes_active_images_by_default for why this refresh is needed.
+    await db_session.refresh(refreshed)
+    assert refreshed.width == 4
+    assert refreshed.height == 4
