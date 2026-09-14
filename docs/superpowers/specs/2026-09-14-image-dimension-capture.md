@@ -28,6 +28,13 @@ Populate `Image.width`/`Image.height` for every newly-ingested image going forwa
 the existing corpus, with the smallest possible change — no new extraction pass, no new batch script if
 an existing one can be reused.
 
+**Caveat:** "every newly-ingested image" means images going through the `ingest_hash_dedup.py` →
+`ingest_validate_formats.py` pipeline specifically. `batch/extract_text_from_memes.py:57`'s
+`register_image()` call auto-registers any file dropped directly into `BASE_PATH` outside that
+pipeline entirely — those images never pass through `apply_format_fix()` and their dimensions stay
+`NULL` until a separate `fix_image_formats.py --status active` pass picks them up. A future consumer
+of `width`/`height` must treat `NULL` as "unknown," not "this image predates the feature."
+
 ## Non-goals
 
 - **The text-heavy classifier itself** (coverage-ratio calculation, threshold calibration, wiring into
@@ -72,6 +79,13 @@ an existing one can be reused.
   correct) — it only calls `images_repo.update_filename_and_hash(...)` when something changed. Persisting
   dimensions needs a new, unconditional write (whenever the file was readable), independent of that
   branch.
+- This is a real increase in aggregate write volume: a `fix_image_formats.py --status active` re-run now
+  writes every readable row in the table on every invocation (not just rows needing an actual format fix),
+  whereas before it only wrote the rows that actually needed a rename/conversion. Each individual write is
+  still cheap, but the row-lock footprint across a full-corpus re-run is worth keeping in mind if this
+  script is ever run concurrently with other row-mutating batch jobs (`unregister_deleted_images`,
+  `ingest_promote`) or scheduled to run frequently. It was empirically fine for the three live rollout runs
+  this branch already did, at current corpus sizes.
 
 ## Design
 
@@ -319,6 +333,7 @@ read-only verification query (`DATABASE_URL_READONLY`) per environment:
 Every gap between "with dimensions" and "total" matches that environment's own `unreadable` counter from
 the run exactly — no silent failures, no unexplained missing rows. All three backends'
 `/api/diagnostics/health` returned `200` immediately after their runs. `general`'s conversions/renames
-during the active-status run (`converted=62`, `renamed=28`) and `metal`'s (`converted=16`, `renamed=1`)
-are pre-existing format-validation activity unrelated to this feature — this run simply picked up
-dimension capture for every image it touched, readable or already-correct alike, exactly as designed.
+during the active-status run (`converted=62`, `renamed=28`) and `metal`'s (`converted=16`, `renamed=1`),
+and `it`'s (`renamed=2`, no conversions), are pre-existing format-validation activity unrelated to this
+feature — this run simply picked up dimension capture for every image it touched, readable or
+already-correct alike, exactly as designed.

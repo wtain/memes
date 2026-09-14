@@ -227,7 +227,12 @@ unregister_deleted_images   → also runs remove_singletons automatically afterw
                                single member; --no-chain skips this.
 fix_image_formats           → retroactively applies ingest_validate_formats' fix logic to
                                the existing corpus (default --status active); safe to
-                               re-run, already-fixed images are no-ops.
+                               re-run, already-fixed images are no-ops. Also the only path that
+                               backfills Image.width/height (see
+                               docs/superpowers/specs/2026-09-14-image-dimension-capture.md) --
+                               images registered directly via extract_text_from_memes.py's
+                               register_image() (bypassing the ingestion pipeline) need this
+                               re-run too, since they never pass through apply_format_fix().
 
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters

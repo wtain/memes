@@ -14,9 +14,8 @@ from batch.utils.image_format_fix import (
 )
 
 
-def _save(base_path, filename: str, pillow_format: str, mode: str = "RGB", color=(255, 0, 0)):
+def _save(base_path, filename: str, pillow_format: str, mode: str = "RGB", color=(255, 0, 0), size=(4, 4)):
     path = os.path.join(str(base_path), filename)
-    size = (4, 4)
     img = PILImage.new(mode, size, color)
     img.save(path, pillow_format)
     return path
@@ -169,6 +168,16 @@ def test_renames_mislabeled_non_webp_file(tmp_path):
     assert not (tmp_path / "a.jpg").exists()
 
 
+def test_rename_preserves_non_square_dimensions(tmp_path):
+    _save(tmp_path, "a.jpg", "PNG", size=(8, 4))
+
+    outcome = fix_image_file(str(tmp_path), "a.jpg")
+
+    assert outcome.changed is True
+    assert outcome.width == 8
+    assert outcome.height == 4
+
+
 def test_rename_avoids_collision_with_existing_file(tmp_path):
     _save(tmp_path, "a.jpg", "PNG")   # will want to become a.png
     _save(tmp_path, "a.png", "PNG")   # already occupies that name
@@ -202,6 +211,16 @@ def test_converts_opaque_webp_to_jpeg(tmp_path):
     # original preserved in converted_originals/, not deleted
     assert (tmp_path / CONVERTED_ORIGINALS_DIRNAME / "a.webp").exists()
     assert not (tmp_path / "a.webp").exists()
+
+
+def test_webp_conversion_preserves_non_square_dimensions(tmp_path):
+    _save(tmp_path, "a.webp", "WEBP", size=(8, 4))
+
+    outcome = fix_image_file(str(tmp_path), "a.webp")
+
+    assert outcome.changed is True
+    assert outcome.width == 8
+    assert outcome.height == 4
 
 
 def test_converts_webp_mislabeled_as_jpg_reusing_the_same_name(tmp_path):
