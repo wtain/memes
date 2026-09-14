@@ -23,8 +23,8 @@ async def _img(session, status, batch_id):
     session.add(i); await session.flush(); return i.id
 
 
-async def _pair(session, a, b, d):
-    session.add(TmpDuplicates(image_id1=min(a, b), image_id2=max(a, b), distance=d, match_source="in_batch"))
+async def _pair(session, a, b, d, match_source="in_batch"):
+    session.add(TmpDuplicates(image_id1=min(a, b), image_id2=max(a, b), distance=d, match_source=match_source))
     await session.flush()
 
 
@@ -172,6 +172,51 @@ async def test_candidate_cap_tie_break_matches_str_cand_id(db_session):
 
     got = [str(c.cand_id) for c in candidates if c.subject_id == subject]
     assert got == sorted(str(c) for c in cand_ids)[:CANDIDATE_CAP]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_in_batch_candidates_sort_before_cross_corpus_even_when_looser(db_session):
+    """A never-reviewed (in_batch) candidate should outrank an already-reviewed (cross_corpus,
+    i.e. the other side is `active`) one even when the cross_corpus candidate is a tighter
+    distance match -- the whole point of the reorder is to surface genuinely-new comparisons
+    first, not just the closest ones."""
+    bid = await _run(db_session)
+    subject = await _img(db_session, "pending", bid)
+    pending_cand = await _img(db_session, "pending", bid)
+    active_cand = await _img(db_session, "active", bid)
+    await _pair(db_session, subject, active_cand, 0.06, match_source="cross_corpus")   # tighter, already reviewed
+    await _pair(db_session, subject, pending_cand, 0.08, match_source="in_batch")      # looser, never reviewed
+
+    repo = IngestionRepository(db_session)
+    _, candidates = await repo.list_tier_b_review_page(
+        bid, LOW, HIGH, cursor=None, limit=40, candidate_cap=CANDIDATE_CAP)
+
+    subj_cands = [c for c in candidates if c.subject_id == subject]
+    assert [c.cand_id for c in subj_cands] == [pending_cand, active_cand]  # in_batch first despite looser distance
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cap_prioritizes_in_batch_candidates_over_tighter_cross_corpus(db_session):
+    """The cap boundary is decided by the new (match_source, distance, cand_id) ordering, not
+    distance alone -- a looser in_batch candidate must survive the cap ahead of a tighter
+    cross_corpus one, matching what test_in_batch_candidates_sort_before_cross_corpus_even_when_looser
+    proves for display order."""
+    bid = await _run(db_session)
+    subject = await _img(db_session, "pending", bid)
+    cross_ids = [await _img(db_session, "active", bid) for _ in range(CANDIDATE_CAP)]
+    for i, cid in enumerate(cross_ids):
+        await _pair(db_session, subject, cid, 0.05 + i * 0.001, match_source="cross_corpus")
+    pending_cand = await _img(db_session, "pending", bid)
+    await _pair(db_session, subject, pending_cand, 0.20, match_source="in_batch")  # loosest of all
+
+    repo = IngestionRepository(db_session)
+    _, candidates = await repo.list_tier_b_review_page(
+        bid, LOW, HIGH, cursor=None, limit=40, candidate_cap=CANDIDATE_CAP)
+
+    subj_cands = [c for c in candidates if c.subject_id == subject]
+    assert len(subj_cands) == CANDIDATE_CAP
+    assert pending_cand in [c.cand_id for c in subj_cands]      # made the cut despite being loosest overall
+    assert cross_ids[-1] not in [c.cand_id for c in subj_cands]  # bumped out despite a tighter distance
 
 
 @pytest.mark.asyncio(loop_scope="session")

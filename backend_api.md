@@ -980,9 +980,13 @@ Each cluster carries `total_members` — the subgroup's full member count before
 #### Tier B Review
 
 One item per pending image with an unresolved Tier B candidate pair, ordered by the image's
-tightest candidate distance. Candidates are capped at 30 (tightest); `total_candidates` is the
-uncapped count. Decisions go to `/api/ingestion/clusters/tier_b/resolve` as usual and settle
-every pair touching the decided image.
+tightest candidate distance. Candidates are capped at 10, prioritized by whether the candidate has
+ever been reviewed before: a candidate that's still `pending` (never reviewed, from this same
+intake) sorts ahead of one that's already `active` (reviewed and approved in an earlier ingestion),
+tightest distance first within each group — surfacing genuinely-new comparisons ahead of a tighter
+match against an already-vetted corpus image. `total_candidates` is the uncapped count. Decisions
+go to `/api/ingestion/clusters/tier_b/resolve` as usual and settle every pair touching the decided
+image.
 
 - **URL**: `/api/ingestion/review/tier_b`
 - **Method**: `GET`
