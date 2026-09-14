@@ -168,6 +168,11 @@ class ImagesRepository:
             update(Image).where(Image.id == image_id).values(**values)
         )
 
+    async def update_dimensions(self, image_id, width: int, height: int) -> None:
+        await self.session.execute(
+            update(Image).where(Image.id == image_id).values(width=width, height=height)
+        )
+
     async def get_all_images(self, status: str = "active"):
         query = (
             select(

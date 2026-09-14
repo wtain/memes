@@ -22,12 +22,12 @@ async def apply_format_fix(
     """Fixes one image's file and persists the result. Only fix_image_file() -- pure
     filesystem/Pillow logic, no DB access -- is wrapped in try/except: a failure there
     never touches the DB session, so catching it and moving on to the next image is safe.
-    The two persistence calls below are deliberately NOT wrapped: a failure in a DB
-    statement aborts the whole Postgres transaction server-side, so catching it and
-    continuing to issue more statements on the same session would just cascade-fail every
-    remaining image with a misleading "error.fix_failed" instead of surfacing the real
-    problem -- a DB-level failure is left to propagate and abort run() normally, exactly
-    like every other batch script in this codebase already does."""
+    The persistence calls below are deliberately NOT wrapped: a failure in a DB statement
+    aborts the whole Postgres transaction server-side, so catching it and continuing to
+    issue more statements on the same session would just cascade-fail every remaining
+    image with a misleading "error.fix_failed" instead of surfacing the real problem -- a
+    DB-level failure is left to propagate and abort run() normally, exactly like every
+    other batch script in this codebase already does."""
     try:
         outcome = fix_image_file(base_path, filename)
     except Exception as e:
@@ -39,6 +39,13 @@ async def apply_format_fix(
         await extras_repo.set_flagged(image_id, True, remarks="unreadable during format validation")
         metrics.increment("unreadable")
         return
+
+    # Unconditional whenever the file was readable -- including the no-op case below,
+    # which previously made no DB write at all. Not conditional on "was previously NULL":
+    # simpler than reading before writing, and cheap (one-row UPDATE) for a batch job
+    # that's manually/admin-triggered, never scheduled. See
+    # docs/superpowers/specs/2026-09-14-image-dimension-capture.md.
+    await images_repo.update_dimensions(image_id, outcome.width, outcome.height)
 
     if not outcome.changed:
         metrics.increment("no_op")
