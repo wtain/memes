@@ -1,6 +1,7 @@
 # Image Dimension Capture
 
-status: approved
+status: planned
+Plan: docs/superpowers/plans/2026-09-14-image-dimension-capture.md
 Originates from: a conversation continuing the 2026-09-12/13 Tier B review-noise discussion — after
 metrics landed (`2026-09-13-ingestion-review-progress-visibility-design.md` and its query-consolidation
 follow-up), the conversation moved to thread B (text-heavy image classification, e.g. chat/Twitter/Threads
