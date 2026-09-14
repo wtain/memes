@@ -85,9 +85,10 @@ async def test_flags_unreadable_active_image(tmp_path, db_session):
     )).scalar_one()
     assert extras.flagged is True
     assert extras.remarks == "unreadable during format validation"
-    refreshed = await db_session.get(Image, image.id)
-    assert refreshed.width is None
-    assert refreshed.height is None
+    row = (await db_session.execute(
+        select(Image.width, Image.height).where(Image.id == image.id)
+    )).one()
+    assert row == (None, None)
 
 
 @pytest.mark.asyncio(loop_scope="session")
