@@ -62,6 +62,7 @@ class Image(Base):
     description_note_lemmas = relationship(
         "DescriptionNoteLemma", back_populates="image", cascade="all, delete-orphan"
     )
+    classifications = relationship("ImageClassification", back_populates="image", cascade="all, delete-orphan")
 
 
 class ImageMetrics(Base):
@@ -422,6 +423,18 @@ class ImageExtras(Base):
     remarks = Column(Text)
 
     image = relationship("Image", back_populates="image_extras")
+
+
+class ImageClassification(Base):
+    __tablename__ = "image_classifications"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    classifier = Column(String, primary_key=True)
+    result = Column(String, nullable=False)
+    details = Column(JSON)
+    computed_at = Column(DateTime, server_default=func.now())
+
+    image = relationship("Image", back_populates="classifications")
 
 
 class DescriptionNote(Base):
