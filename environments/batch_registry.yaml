@@ -49,3 +49,6 @@ rebuild_duplicates:
 clusterize:
   module: batch.clusterize
   kind: clusterize
+classify_text_heavy:
+  module: batch.classify_text_heavy
+  kind: classify_text_heavy

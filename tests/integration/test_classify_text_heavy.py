@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from batch.classify_text_heavy import run
 from batch.utils.text_heavy_classifier import CLASSIFIER_NAME, TEXT_HEAVY
+from repository.image_classifications import ImageClassificationsRepository
 from Storage.models import Image, ImageClassification, OCRText
 
 CONFIDENCE_MIN = 0.4
@@ -90,3 +91,24 @@ async def test_image_without_dimensions_is_excluded(tmp_path, db_session):
     metrics = await run(db_session, str(tmp_path), CONFIDENCE_MIN, "active")
 
     assert metrics.counters_dict() == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_result_upserts_on_reclassification(db_session):
+    image = Image(filename="a.jpg", status="active", width=200, height=200)
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageClassificationsRepository(db_session)
+    await repo.set_result(image.id, CLASSIFIER_NAME, "not_text_heavy", {"coverage_ratio": 0.1})
+    await db_session.commit()
+
+    await repo.set_result(image.id, CLASSIFIER_NAME, TEXT_HEAVY, {"coverage_ratio": 0.9})
+    await db_session.commit()
+
+    rows = (await db_session.execute(
+        select(ImageClassification).where(ImageClassification.image_id == image.id)
+    )).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].result == TEXT_HEAVY
+    assert rows[0].details["coverage_ratio"] == 0.9

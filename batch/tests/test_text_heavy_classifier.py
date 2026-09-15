@@ -48,6 +48,14 @@ def test_degenerate_zero_area_bbox_is_discarded_without_raising():
     assert regions == []
 
 
+def test_flat_bbox_is_discarded_without_raising():
+    # A malformed flat [x, y, w, h] bbox (1-D, not a list of points) -- permitted by
+    # OCRText.bbox's column comment even though nothing in this pipeline writes it today.
+    bbox = [10, 10, 50, 30]
+    regions = filter_axis_aligned_regions([bbox])
+    assert regions == []
+
+
 # --------------------------------------------------------------------------
 # coverage_ratio
 # --------------------------------------------------------------------------

@@ -239,7 +239,9 @@ classify_text_heavy         → computes the text-heavy classifier (coverage rat
                                image_classifications. Admin-triggerable from /admin/batches,
                                manual-trigger only, not scheduled. --status defaults to active
                                (the existing corpus); --status pending covers an in-flight
-                               ingestion batch. See
+                               ingestion batch. Uses ProgressTracker, so when run interactively on
+                               Windows it needs PYTHONIOENCODING=utf-8 set first -- see the
+                               ProgressTracker gotcha below. See
                                docs/superpowers/specs/2026-09-15-text-heavy-classifier.md.
 
 # Concept discovery for the new rules engine (see Rules engine below)

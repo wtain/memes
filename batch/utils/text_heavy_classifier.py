@@ -58,7 +58,7 @@ def filter_axis_aligned_regions(bboxes: list) -> list[Region]:
     regions = []
     for bbox in bboxes:
         pts = np.array(bbox, dtype=float)
-        if pts.shape[0] < 3:
+        if pts.ndim != 2 or pts.shape[0] < 3:
             continue
         x0, y0 = pts[:, 0].min(), pts[:, 1].min()
         x1, y1 = pts[:, 0].max(), pts[:, 1].max()

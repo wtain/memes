@@ -15,6 +15,8 @@ from metrics.listener import SimpleMetricsListener
 from repository.image_classifications import ImageClassificationsRepository
 from Storage.db import AsyncSessionLocal
 
+COMMIT_INTERVAL = 500
+
 
 async def run(session, base_path: str, confidence_min: float, status: str) -> SimpleMetricsListener:
     repo = ImageClassificationsRepository(session)
@@ -26,7 +28,7 @@ async def run(session, base_path: str, confidence_min: float, status: str) -> Si
     metrics = SimpleMetricsListener()
     tracker = ProgressTracker(len(images), report_every=100, report_interval_secs=10)
 
-    for image_id, group in images:
+    for i, (image_id, group) in enumerate(images, start=1):
         _, filename, width, height, _, _ = group[0]
         bboxes = [row.bbox for row in group]
         outcome = classify(base_path, filename, width, height, bboxes)
@@ -38,6 +40,9 @@ async def run(session, base_path: str, confidence_min: float, status: str) -> Si
         await repo.set_result(image_id, CLASSIFIER_NAME, result, details)
         metrics.increment(result)
         tracker.mark_done()
+
+        if i % COMMIT_INTERVAL == 0:
+            await session.commit()
 
     tracker.summary()
     return metrics
