@@ -1,6 +1,7 @@
 # Text-Heavy Meme Classifier — Compute and Store
 
-status: approved
+status: planned
+Plan: docs/superpowers/plans/2026-09-15-text-heavy-classifier.md
 Originates from: the 2026-09-13/15 conversation continuing the Tier B review-noise thread B
 (text-heavy image classification, e.g. chat/Twitter/Threads screenshots where OCR text should drive
 duplicate detection instead of weak CLIP visual similarity for that subset). Builds directly on
