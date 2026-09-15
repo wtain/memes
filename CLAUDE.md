@@ -218,7 +218,7 @@ build_concept_embeddings   → concept CLIP embeddings + mappings
 # Maintenance (run as needed)
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
 detect_entities_and_tag    tag_images_from_concepts  build_bow          remove_singletons
-fix_image_formats
+fix_image_formats          classify_text_heavy
 
 move_flagged                → also runs unregister_deleted_images automatically afterward,
                                reconciling the DB with whatever was moved; --no-chain skips this.
@@ -233,6 +233,14 @@ fix_image_formats           → retroactively applies ingest_validate_formats' f
                                images registered directly via extract_text_from_memes.py's
                                register_image() (bypassing the ingestion pipeline) need this
                                re-run too, since they never pass through apply_format_fix().
+classify_text_heavy         → computes the text-heavy classifier (coverage ratio, background
+                               color uniformity, ink-color consistency) for images with OCR text
+                               and real dimensions, storing both the raw signals and the result in
+                               image_classifications. Admin-triggerable from /admin/batches,
+                               manual-trigger only, not scheduled. --status defaults to active
+                               (the existing corpus); --status pending covers an in-flight
+                               ingestion batch. See
+                               docs/superpowers/specs/2026-09-15-text-heavy-classifier.md.
 
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters
