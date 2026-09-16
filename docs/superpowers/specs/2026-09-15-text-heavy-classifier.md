@@ -1,6 +1,6 @@
 # Text-Heavy Meme Classifier — Compute and Store
 
-status: planned
+status: done
 Plan: docs/superpowers/plans/2026-09-15-text-heavy-classifier.md
 Originates from: the 2026-09-13/15 conversation continuing the Tier B review-noise thread B
 (text-heavy image classification, e.g. chat/Twitter/Threads screenshots where OCR text should drive
@@ -538,3 +538,34 @@ classify_text_heavy         → computes the text-heavy classifier (coverage rat
    this spec's validation) to catch any environment-specific surprise before considering this done.
 
 Downstream consumption (wiring this into actual dedup routing) is explicitly future work — see Non-goals.
+
+## Rollout outcome (2026-09-16)
+
+Migration applied and `classify_text_heavy.py --status active` run against all three live
+environments, controller-executed per the plan's Task 4. Each environment's backend health
+(`/api/diagnostics/health`) was confirmed after the migration and after the classification run.
+Final counts, independently re-verified via `DATABASE_URL_READONLY`:
+
+| Environment | Images classified | `text_heavy` | `not_text_heavy` | `text_heavy` rate |
+|---|---|---|---|---|
+| metal   | 17,150 | 406   | 16,744 | 2.4%  |
+| general | 24,324 | 3,349 | 20,975 | 13.8% |
+| it      | 1,405  | 178   | 1,227  | 12.7% |
+
+`metal`'s much lower rate than `general`/`it` is plausible given the corpus content, not
+investigated further — no crash, no 100%-one-result or 0-row result, no unreadable-file spike in
+any environment.
+
+**Spot-check (7 `text_heavy` images opened directly, 1-3 per environment):** 6/7 correct —
+genuine dialog/tweet/text screenshots (Instagram and Twitter/X screenshots in English and Russian,
+one dense magazine text column). 1/7 was a false positive: a 4-panel rage-comic strip
+(`general/E8lCLTPICD0.jpg`) with a mostly-white background and a few short black captions — this is
+exactly the already-documented, accepted false-positive class from this spec's Problem section
+(plain-background, uniformly-colored bold caption over line art/photo), not a new failure mode.
+Consistent with the ~1.6% false-positive rate found in the original 129-image validation sample;
+no recalibration performed, per this spec's Non-goals.
+
+All three `classify_text_heavy.py` runs completed without the Windows `UnicodeEncodeError`
+(`PYTHONIOENCODING=utf-8` set per the fix-wave's CLAUDE.md update) and without losing partial
+progress on failure (the fix-wave's `COMMIT_INTERVAL=500` periodic commit, unexercised in practice
+since none of the three runs crashed).
