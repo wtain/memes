@@ -1,6 +1,6 @@
 """
 Unit tests for batch/ingest_auto_prep.py -- the ingestion prep chain driver. No real DB; all
-5 chained steps' main() functions are mocked, matching batch/tests/test_move_flagged.py's
+6 chained steps' main() functions are mocked, matching batch/tests/test_move_flagged.py's
 chaining-test style.
 """
 from unittest.mock import AsyncMock, patch
@@ -22,12 +22,13 @@ def _ctx(value):
 
 
 def _patched_steps(module, **overrides):
-    """Returns a dict of the 5 step mocks, pre-wired as no-op AsyncMocks unless overridden."""
+    """Returns a dict of the 6 step mocks, pre-wired as no-op AsyncMocks unless overridden."""
     steps = {
         "ingest_hash_dedup": AsyncMock(),
         "ingest_validate_formats": AsyncMock(),
         "build_image_embeddings": AsyncMock(),
         "extract_text_from_memes": AsyncMock(),
+        "classify_text_heavy": AsyncMock(),
         "ingest_find_duplicates": AsyncMock(),
     }
     steps.update(overrides)
@@ -38,7 +39,7 @@ def _patched_steps(module, **overrides):
 
 class TestRunPrepChain:
     @pytest.mark.asyncio
-    async def test_calls_all_five_steps_in_order_with_expected_args(self):
+    async def test_calls_all_six_steps_in_order_with_expected_args(self):
         import batch.ingest_auto_prep as module
 
         call_order = []
@@ -52,12 +53,13 @@ class TestRunPrepChain:
 
         assert call_order == [
             "ingest_hash_dedup", "ingest_validate_formats", "build_image_embeddings",
-            "extract_text_from_memes", "ingest_find_duplicates",
+            "extract_text_from_memes", "classify_text_heavy", "ingest_find_duplicates",
         ]
         steps["ingest_hash_dedup"].assert_awaited_once_with(env=None)
         steps["ingest_validate_formats"].assert_awaited_once_with(env=None)
         steps["build_image_embeddings"].assert_awaited_once_with(incremental=True, target_status="pending")
         steps["extract_text_from_memes"].assert_awaited_once_with("/fake/base", target_status="pending")
+        steps["classify_text_heavy"].assert_awaited_once_with(status="pending")
         steps["ingest_find_duplicates"].assert_awaited_once_with(env=None, tier="tier_a", k=None)
 
     @pytest.mark.asyncio

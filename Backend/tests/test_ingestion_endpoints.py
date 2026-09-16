@@ -86,7 +86,7 @@ class TestListClusters:
             "items": [{
                 "members": [
                     {"image_id": "11111111-1111-1111-1111-111111111111", "filename": "a.jpg",
-                     "status": "pending", "ocr_text": "Не смешно"},
+                     "status": "pending", "ocr_text": "Не смешно", "text_heavy": True},
                 ],
                 "edges": [],
                 "total_members": 1,
@@ -100,7 +100,27 @@ class TestListClusters:
         assert body["has_next"] is True
         assert body["next_cursor"] == "0.05|11111111-1111-1111-1111-111111111111"
         assert body["items"][0]["members"][0]["ocr_text"] == "Не смешно"
+        assert body["items"][0]["members"][0]["text_heavy"] is True
         mock_service.list_clusters.assert_awaited_once_with("tier_a", cursor=None, limit=40)
+
+    def test_member_defaults_text_heavy_to_false_when_service_omits_it(self, client, mock_service):
+        # A response_model field with no matching key in the service's dict must still
+        # serialize -- this is exactly the shape a stale/unwired response model would silently
+        # drop the new field for, so the default matters as much as the True case above.
+        mock_service.list_clusters.return_value = {
+            "items": [{
+                "members": [
+                    {"image_id": "11111111-1111-1111-1111-111111111111", "filename": "a.jpg",
+                     "status": "pending", "ocr_text": None},
+                ],
+                "edges": [],
+                "total_members": 1,
+            }],
+            "next_cursor": None,
+            "has_next": False,
+        }
+        response = client.get("/api/ingestion/clusters/tier_a")
+        assert response.json()["items"][0]["members"][0]["text_heavy"] is False
 
     def test_forwards_cursor_and_limit(self, client, mock_service):
         mock_service.list_clusters.return_value = {"items": [], "next_cursor": None, "has_next": False}
@@ -176,9 +196,11 @@ class TestTierBReview:
     def test_returns_page(self, client, mock_service):
         mock_service.list_tier_b_review.return_value = {
             "items": [{
-                "image": {"image_id": "s1", "filename": "s1.jpg", "status": "pending", "ocr_text": "t"},
+                "image": {"image_id": "s1", "filename": "s1.jpg", "status": "pending", "ocr_text": "t",
+                          "text_heavy": False},
                 "candidates": [{
-                    "member": {"image_id": "c1", "filename": "c1.jpg", "status": "active", "ocr_text": None},
+                    "member": {"image_id": "c1", "filename": "c1.jpg", "status": "active", "ocr_text": None,
+                              "text_heavy": True},
                     "distance": 0.08, "match_source": "cross_corpus"}],
                 "total_candidates": 5,
             }],
@@ -188,6 +210,8 @@ class TestTierBReview:
         assert r.status_code == 200
         b = r.json()
         assert b["items"][0]["image"]["image_id"] == "s1"
+        assert b["items"][0]["image"]["text_heavy"] is False
+        assert b["items"][0]["candidates"][0]["member"]["text_heavy"] is True
         assert b["items"][0]["candidates"][0]["distance"] == 0.08
         assert b["items"][0]["total_candidates"] == 5
         assert b["has_next"] is True

@@ -67,3 +67,17 @@ class TestGetOcrTexts:
         session.execute.return_value = _rows((img, "short", 0.85, None))
         out = await r.get_ocr_texts([img], 0.4, 0.3)
         assert out == {img: "short"}
+
+
+class TestGetTextHeavyIds:
+    async def test_empty_ids_returns_empty_without_query(self, repo):
+        r, session = repo
+        assert await r.get_text_heavy_ids([]) == set()
+        session.execute.assert_not_awaited()
+
+    async def test_returns_only_ids_present_in_query_result(self, repo):
+        r, session = repo
+        img1, img2 = uuid.uuid4(), uuid.uuid4()
+        session.execute.return_value = _rows((img1,))
+        out = await r.get_text_heavy_ids([img1, img2])
+        assert out == {img1}

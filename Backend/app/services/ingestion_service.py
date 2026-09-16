@@ -202,8 +202,10 @@ class IngestionService:
         ocr_texts = await self.repo.get_ocr_texts(
             member_uuids, settings.OCR.CONFIDENCE_MIN, settings.OCR.LANG_SCORE_MIN,
         )
+        text_heavy_ids = await self.repo.get_text_heavy_ids(member_uuids)
         for uid, info in member_info.items():
             info["ocr_text"] = ocr_texts.get(uid)
+            info["text_heavy"] = uid in text_heavy_ids
 
         clusters = []
         for root in uf.list_clusters():
@@ -288,12 +290,15 @@ class IngestionService:
             shown_cand_ids.add(c.cand_id)
 
         subject_ids = {s.subject_id for s in page}
+        member_ids = subject_ids | shown_cand_ids
         ocr = await self.repo.get_ocr_texts(
-            subject_ids | shown_cand_ids, settings.OCR.CONFIDENCE_MIN, settings.OCR.LANG_SCORE_MIN)
+            member_ids, settings.OCR.CONFIDENCE_MIN, settings.OCR.LANG_SCORE_MIN)
+        text_heavy_ids = await self.repo.get_text_heavy_ids(member_ids)
 
         def member(image_id, filename, status):
             return {"image_id": str(image_id), "filename": filename,
-                    "status": status, "ocr_text": ocr.get(image_id)}
+                    "status": status, "ocr_text": ocr.get(image_id),
+                    "text_heavy": image_id in text_heavy_ids}
 
         items = [{
             "image": member(s.subject_id, s.filename, s.status),

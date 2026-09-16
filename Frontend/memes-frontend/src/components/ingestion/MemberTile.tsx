@@ -40,8 +40,11 @@ export function MemberTile({ memesApi, member, edgeSummary, decision, onDecide, 
         />
       </button>
       <div className="text-xs mt-1 truncate" title={member.filename}>{member.filename}</div>
-      <div className="text-xs">
+      <div className="text-xs flex items-center gap-1">
         <span className={isPending ? "text-blue-600" : "text-gray-400"}>{member.status}</span>
+        {member.text_heavy && (
+          <span className="text-[10px] bg-purple-100 text-purple-700 rounded px-1.5 py-0.5">Text-heavy</span>
+        )}
       </div>
       {member.ocr_text && (
         <div className="text-[13px] text-gray-700 mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-gray-200 pl-2">

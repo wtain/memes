@@ -410,6 +410,10 @@ export interface IngestionClusterMember {
    * Tier B's primary review signal; null if OCR hasn't run for this image yet (e.g. Tier A, before the OCR pre-pass)
    */
   ocr_text: string | null;
+  /**
+   * True if the text-heavy classifier (docs/superpowers/specs/2026-09-15-text-heavy-classifier.md) marked this image text_heavy. False for both a not_text_heavy result and an image not yet classified -- the review UI only surfaces the positive signal.
+   */
+  text_heavy?: boolean;
   [k: string]: unknown;
 }
 /**

@@ -13,7 +13,9 @@ from Backend.app.services.ingestion_service import IngestionService, CANDIDATE_C
 
 @pytest.fixture
 def mock_repo():
-    return AsyncMock()
+    repo = AsyncMock()
+    repo.get_text_heavy_ids.return_value = set()
+    return repo
 
 
 @pytest.fixture
@@ -38,13 +40,15 @@ class TestListTierBReview:
         mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
         mock_repo.list_tier_b_review_page.return_value = ([_subj(s1, 0.08, 1)], [_cand(s1, c1, 0.08)])
         mock_repo.get_ocr_texts.return_value = {s1: "subj text", c1: "cand text"}
+        mock_repo.get_text_heavy_ids.return_value = {c1}
 
         page = await service.list_tier_b_review(limit=40)
 
         it = page["items"][0]
         assert it["image"] == {"image_id": str(s1), "filename": f"{s1}.jpg",
-                               "status": "pending", "ocr_text": "subj text"}
+                               "status": "pending", "ocr_text": "subj text", "text_heavy": False}
         assert it["candidates"][0]["member"]["ocr_text"] == "cand text"
+        assert it["candidates"][0]["member"]["text_heavy"] is True
         assert it["candidates"][0]["distance"] == 0.08
         assert it["total_candidates"] == 1
         assert page["has_next"] is False and page["next_cursor"] is None
@@ -52,6 +56,8 @@ class TestListTierBReview:
         args = mock_repo.get_ocr_texts.call_args.args
         assert set(args[0]) == {s1, c1}
         assert args[1:] == (0.4, 0.3)
+        # text_heavy_ids fetched for the same member set
+        assert set(mock_repo.get_text_heavy_ids.call_args.args[0]) == {s1, c1}
 
     async def test_candidates_passthrough_from_repo_total_reports_uncapped(self, service, mock_repo):
         import uuid
@@ -325,6 +331,17 @@ class TestListClustersPagination:
         await self._setup(service, mock_repo, [])
         page = await service.list_clusters("tier_b", limit=10)
         assert page == {"items": [], "next_cursor": None, "has_next": False}
+
+    async def test_text_heavy_flag_reflects_repo_result(self, service, mock_repo):
+        a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
+        await self._setup(service, mock_repo, [self._row(a1, a2, 0.05)])
+        mock_repo.get_text_heavy_ids.return_value = {a1}
+
+        page = await service.list_clusters("tier_b", limit=10)
+
+        members = {m["image_id"]: m["text_heavy"] for m in page["items"][0]["members"]}
+        assert members == {a1: True, a2: False}
+        assert set(mock_repo.get_text_heavy_ids.call_args.args[0]) == {a1, a2}
 
     async def test_passes_ocr_thresholds_from_settings(self, service, mock_repo):
         a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"

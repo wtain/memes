@@ -92,6 +92,11 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 
 # Shared JSON schemas → Kotlin DTOs (AndroidClient/)
 ./AndroidClient/scripts/generate_dtos.py
+
+# Shared JSON schemas → Python Pydantic models (Backend/app/types/generated/) -- run from Backend/,
+# see documents/generation.md for the full command. Easy to forget since it has no wrapper script
+# like the two above; a schema change with no corresponding diff under Backend/app/types/generated/
+# means this step was skipped.
 ```
 
 ## Architecture
@@ -239,9 +244,10 @@ classify_text_heavy         → computes the text-heavy classifier (coverage rat
                                image_classifications. Admin-triggerable from /admin/batches,
                                manual-trigger only, not scheduled. --status defaults to active
                                (the existing corpus); --status pending covers an in-flight
-                               ingestion batch. Uses ProgressTracker, so when run interactively on
-                               Windows it needs PYTHONIOENCODING=utf-8 set first -- see the
-                               ProgressTracker gotcha below. See
+                               ingestion batch -- also chained automatically as part of
+                               ingest_auto_prep (see Ingestion below). Uses ProgressTracker, so
+                               when run interactively on Windows it needs PYTHONIOENCODING=utf-8
+                               set first -- see the ProgressTracker gotcha below. See
                                docs/superpowers/specs/2026-09-15-text-heavy-classifier.md.
 
 # Concept discovery for the new rules engine (see Rules engine below)
@@ -267,6 +273,8 @@ trends_batch                → GLiNER NER over each configured trend source's f
 #                                                   are decisive" premise doesn't hold for all
 #                                                   content, e.g. same-format-different-text
 #                                                   meme cards -- both tiers need OCR now)
+#   classify_text_heavy --status pending   (needs OCR text; only affects the review UI's
+#                                           text_heavy badge, not matching -- see its own entry)
 #   ingest_find_duplicates --tier tier_a   (review in UI, reject/keep)
 #   ingest_find_duplicates --tier tier_b   (review in UI, reject/keep)
 #   ingest_promote
@@ -284,10 +292,11 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
                                see their own entries). Newly-added images need
                                ingest_validate_formats.py, build_image_embeddings --status
                                pending --incremental, extract_text_from_memes --status pending,
-                               and ingest_find_duplicates.py (both tiers, as applicable) re-run
-                               afterward to get review coverage -- all four are already safe to
-                               re-run against the same batch. Skipping the embeddings step is not
-                               just incomplete -- ingest_find_duplicates.py's probe is an inner join
+                               classify_text_heavy --status pending, and ingest_find_duplicates.py
+                               (both tiers, as applicable) re-run afterward to get review coverage
+                               -- all five are already safe to re-run against the same batch.
+                               Skipping the embeddings step is not just incomplete --
+                               ingest_find_duplicates.py's probe is an inner join
                                against embeddings, so an image with none is silently excluded from
                                review entirely and can reach ingest_promote unreviewed.
 ingest_validate_formats     → Stage 1.5: renames files whose extension doesn't match their
@@ -305,6 +314,13 @@ extract_text_from_memes --status pending
                              → OCR for Stage 1's survivors, run before either tier's review (see
                                run-order note above; existing script/flag, no ingestion-specific
                                code)
+classify_text_heavy --status pending
+                             → computes the text-heavy classifier for Stage 1's survivors, so the
+                               review UI's text_heavy badge (see its own entry below) is populated
+                               for newly-ingested images by the time either tier's review starts.
+                               Purely additive metadata -- doesn't affect matching, candidate
+                               selection, or promotion; existing script/flag, no ingestion-specific
+                               code.
 ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_duplicates for the
                                active ingestion run's pending images via the same merged
                                probe/corpus find_duplicates() primitive rebuild_duplicates.py
@@ -336,7 +352,8 @@ ingest_abort                → Abandons the currently active ingestion run inst
 `ingest_auto_prep` is a one-job alternative to running Stage 1 through the Tier A step by
 hand: it chains `ingest_hash_dedup` → `ingest_validate_formats` → `build_image_embeddings
 --status pending --incremental` → `extract_text_from_memes --status pending` →
-`ingest_find_duplicates --tier tier_a`, self-tracked under `kind="ingestion_auto_prep"` —
+`classify_text_heavy --status pending` → `ingest_find_duplicates --tier tier_a`, self-tracked
+under `kind="ingestion_auto_prep"` —
 deliberately distinct from the long-lived `kind="ingestion"` review-run row, since that row
 can stay open for days during human review and must not be mistaken for an orphaned/crashed
 job. It's manual-trigger-only (via `/admin/batches`, not `scheduler.jobs`) — no automatic
@@ -512,3 +529,4 @@ this regardless of how a future dispatch prompt happens to be worded.
 - **Some images in the `general` corpus are WebP files saved with a `.jpg` extension**, which Ollama's llava/qwen2.5vl vision backend cannot decode ("Failed to load image or audio file") — the existing `path.lower().endswith("webp")` skip in `build_image_descriptions.py` only checks the extension, not actual content, so these slip through. Rare (a ~2,000-file sample of ~22,000 images found none beyond the two already known) but non-zero. This is now handled by content sniffing: `batch/ingest_validate_formats.py` (ingestion Stage 1.5, for every newly-ingested image) and `batch/fix_image_formats.py` (retroactive maintenance over the existing corpus) open each file with Pillow, convert any real WebP content to JPEG regardless of its extension (original preserved in `<BASE_PATH>/converted_originals/`), and rename other extension/content mismatches in place — see `docs/superpowers/specs/2026-08-11-ingestion-image-format-validation-design.md`. The older behavioral mitigation still stands as a backstop for anything that slips through: the failure-tracking feature marks a failed (image, prompt) pair permanently failed after one attempt, so it isn't retried forever.
 - **`.dockerignore` has no relationship to `.gitignore` — a gitignored (untracked) directory is still sent as Docker build context unless it's separately listed in `.dockerignore`.** `Storage/backups/` (local Postgres dumps, tracked in `Storage/.gitignore`, 33GB on a real dev machine) and `batch/images/` (the meme corpus) were both being transferred on every `docker build -f Dockerfile.backend` despite neither ever being `COPY`'d, making the build context 500MB+ and climbing, sometimes taking 10+ minutes just to transfer. If a Docker build seems to hang at "load build context", run `du -sh */` at the repo root and compare against `.dockerignore` — don't assume "it's gitignored" means "Docker won't see it." See `dependencies.md` for the full incident.
 - **Any batch script using `batch/utils/progress.py`'s `ProgressTracker` can crash with `UnicodeEncodeError: 'charmap' codec can't encode character '≈'` when run interactively on Windows** — its progress lines contain "≈" (U+2248), which isn't encodable in Windows' default console codepage (cp1252) unless the console/process is explicitly UTF-8. Confirmed against a real run of `build_ocr_lemmas.py --env metal`: it crashed 1,800 images into a 17,634-image full rebuild. This is worse than a clean failure — `OCRLemmasSaver.__aexit__` (and the equivalent in other batch scripts using a similar `async with ... Saver` pattern) commits unconditionally as the exception unwinds through it, so the crash left a **partial** rebuild committed (1,800 images with fresh lemmas, the other ~15,800 with none at all) rather than either a clean full rebuild or a no-op failure. Fix: set `PYTHONIOENCODING=utf-8` in the environment before running any batch script interactively on Windows (e.g. `PYTHONIOENCODING=utf-8 python -m batch.build_ocr_lemmas --env metal`), not just for `build_ocr_lemmas.py` — any script pulling in `ProgressTracker` is exposed the same way.
+- **Some `Backend/app/api/*.py` routers hand-write their own Pydantic response models (e.g. `ingestion.py`'s `ClusterMember`/`ClusterPage`/`TierBReviewPage`) instead of importing the schema-generated ones from `Backend/app/types/generated/`.** Adding a field to a `shared/schemas/*.schema.json` file and regenerating all three trees (TypeScript, Kotlin, Python) is not sufficient in that case — the generated Python model changes, but the actual `response_model=` FastAPI uses is the hand-written class, which silently drops any field it doesn't declare (Pydantic strips unknown fields on serialization, no error). Confirmed while adding `text_heavy` to `IngestionClusterMember` (2026-09-16): the service layer and the generated `Schema` class both had the field, but `GET /api/ingestion/clusters/{tier}` kept omitting it from real responses until `ingestion.py`'s own `ClusterMember` was edited directly. If a schema field isn't showing up in a live response after regenerating types, grep the relevant router file for a same-named hand-written `BaseModel` before assuming the regeneration failed.

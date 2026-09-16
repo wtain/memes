@@ -957,8 +957,8 @@ still-undecided member are returned — resolved rows drop out automatically.
   "items": [
     {
       "members": [
-        { "image_id": "1a2b...", "filename": "meme_01.jpg", "status": "pending", "ocr_text": "Не смешно" },
-        { "image_id": "3c4d...", "filename": "meme_02.jpg", "status": "active", "ocr_text": "Не смешно, совсем" }
+        { "image_id": "1a2b...", "filename": "meme_01.jpg", "status": "pending", "ocr_text": "Не смешно", "text_heavy": false },
+        { "image_id": "3c4d...", "filename": "meme_02.jpg", "status": "active", "ocr_text": "Не смешно, совсем", "text_heavy": true }
       ],
       "edges": [
         { "image_id1": "1a2b...", "image_id2": "3c4d...", "distance": 0.041, "match_source": "cross_corpus" }
@@ -976,6 +976,8 @@ Clusters are ordered by their tightest edge (closest match first). `next_cursor`
 A large union-find component is split into tight subgroups for review — each subgroup is a separate item in `items`. Decisions are per-image and settle every candidate pair regardless of which subgroup an image is shown in.
 
 Each cluster carries `total_members` — the subgroup's full member count before capping. `members` is capped (currently 60) per cluster — the tightest by minimum incident edge distance, returned tightest-first — and `edges` is filtered to those members. A cluster with `total_members > len(members)` is shown **read-only** in the review UI: its shown members are context only, with no Keep/Reject controls, permanently — because keeping/rejecting a shown member would settle its candidate pairs against the members not returned (`keep` marks every pair touching the image as reviewed), potentially promoting unreviewed near-duplicates. In practice this can only occur for Tier A: Tier B routes to `GET /api/ingestion/review/tier_b` instead, which has no such cap. Tier A has no per-image review path, so an oversized Tier A group stays context-only and promote-blocked, with its unresolved pairs intact, for as long as it stays oversized.
+
+Each member carries `text_heavy` — `true` if the [text-heavy classifier](docs/superpowers/specs/2026-09-15-text-heavy-classifier.md) marked the image `text_heavy`; `false` for both a `not_text_heavy` result and an image not yet classified (e.g. a `pending` image before `classify_text_heavy` has run against it). Compute+store only — this flag doesn't affect matching or candidate selection.
 
 #### Tier B Review
 
@@ -1000,10 +1002,10 @@ image.
 {
   "items": [
     {
-      "image": { "image_id": "1a2b...", "filename": "new_01.jpg", "status": "pending", "ocr_text": "Не смешно" },
+      "image": { "image_id": "1a2b...", "filename": "new_01.jpg", "status": "pending", "ocr_text": "Не смешно", "text_heavy": false },
       "candidates": [
         {
-          "member": { "image_id": "3c4d...", "filename": "meme_02.jpg", "status": "active", "ocr_text": "Не смешно, совсем" },
+          "member": { "image_id": "3c4d...", "filename": "meme_02.jpg", "status": "active", "ocr_text": "Не смешно, совсем", "text_heavy": true },
           "distance": 0.08,
           "match_source": "cross_corpus"
         }

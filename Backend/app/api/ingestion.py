@@ -36,6 +36,7 @@ class ClusterMember(BaseModel):
     filename: str
     status: str
     ocr_text: Optional[str]
+    text_heavy: bool = False
 
 
 class ClusterEdge(BaseModel):

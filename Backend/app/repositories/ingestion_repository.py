@@ -5,7 +5,8 @@ from sqlalchemy import or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from Storage.models import BatchRun, Image, OCRText, RunStatus, TmpDuplicates
+from batch.utils.text_heavy_classifier import CLASSIFIER_NAME, TEXT_HEAVY
+from Storage.models import BatchRun, Image, ImageClassification, OCRText, RunStatus, TmpDuplicates
 
 
 class IngestionRepository:
@@ -127,6 +128,23 @@ class IngestionRepository:
             seen_for_image.add(block)
             by_image.setdefault(image_id, []).append(block)
         return {image_id: " ".join(parts) for image_id, parts in by_image.items()}
+
+    async def get_text_heavy_ids(self, image_ids) -> set:
+        """Image ids among `image_ids` classified text_heavy by the text-heavy classifier (see
+        docs/superpowers/specs/2026-09-15-text-heavy-classifier.md). Unclassified images and
+        images classified not_text_heavy are both simply absent from the result -- the review UI
+        only needs the positive signal."""
+        if not image_ids:
+            return set()
+        result = await self.session.execute(
+            select(ImageClassification.image_id)
+            .where(
+                ImageClassification.image_id.in_(image_ids),
+                ImageClassification.classifier == CLASSIFIER_NAME,
+                ImageClassification.result == TEXT_HEAVY,
+            )
+        )
+        return {row[0] for row in result.all()}
 
     async def get_blocked_pending_ids(self, batch_id, tier_a_high: float, tier_b_high: float) -> set:
         """Pending image ids in this batch that still have at least one unresolved candidate
