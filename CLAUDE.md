@@ -223,7 +223,7 @@ build_concept_embeddings   → concept CLIP embeddings + mappings
 # Maintenance (run as needed)
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
 detect_entities_and_tag    tag_images_from_concepts  build_bow          remove_singletons
-fix_image_formats          classify_text_heavy
+fix_image_formats          classify_text_heavy       build_ocr_text_embeddings
 
 move_flagged                → also runs unregister_deleted_images automatically afterward,
                                reconciling the DB with whatever was moved; --no-chain skips this.
@@ -249,6 +249,14 @@ classify_text_heavy         → computes the text-heavy classifier (coverage rat
                                when run interactively on Windows it needs PYTHONIOENCODING=utf-8
                                set first -- see the ProgressTracker gotcha below. See
                                docs/superpowers/specs/2026-09-15-text-heavy-classifier.md.
+build_ocr_text_embeddings   → computes sentence embeddings (paraphrase-multilingual-MiniLM-
+                               L12-v2, 384-dim) for the OCR text of every text_heavy-classified
+                               image, storing them in ocr_text_embeddings. Compute+store only --
+                               no matching/routing logic reads this table yet. Admin-triggerable
+                               from /admin/batches, manual-trigger only, not scheduled. --status
+                               defaults to active; --status pending covers an in-flight
+                               ingestion batch. See
+                               docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md.
 
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters
