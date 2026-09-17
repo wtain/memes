@@ -1,6 +1,6 @@
 # OCR Text Embeddings — Compute and Store
 
-status: draft
+status: approved
 Originates from: the 2026-09-16/17 conversation continuing the text-heavy-classifier work
 (`docs/superpowers/specs/2026-09-15-text-heavy-classifier.md`) — that spec's Non-goals named
 "OCR-text-embedding comparison for the text_heavy bucket vs. today's CLIP-only comparison" as
