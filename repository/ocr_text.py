@@ -87,3 +87,38 @@ class OCRTextRepository:
             text("UPDATE ocr_texts SET lang_score = :lang_score WHERE id = :b_id"),
             updates,
         )
+
+
+def concatenate_ocr_rows(rows, confidence_min: float, lang_score_min: float) -> dict:
+    """rows: iterable of (image_id, text, confidence, lang_score) tuples -- e.g. straight from
+    a SELECT OCRText.image_id, OCRText.text, OCRText.confidence, OCRText.lang_score. Drops
+    blocks below either threshold, orders survivors most-language-plausible first (Russian
+    leads instead of the EN/ES EasyOCR readers' Latin transliteration noise), dedupes identical
+    block text per image, and concatenates into one string per image_id. Images with no
+    surviving block are simply absent from the result."""
+    def _order_key(row):
+        _, _, confidence, lang_score = row
+        return (
+            lang_score is None,
+            -(lang_score if lang_score is not None else 0.0),
+            confidence is None,
+            -(confidence if confidence is not None else 0.0),
+        )
+
+    rows = sorted(rows, key=_order_key)
+    by_image: dict = {}
+    seen: dict = {}
+    for image_id, text, confidence, lang_score in rows:
+        if confidence is not None and confidence < confidence_min:
+            continue
+        if lang_score is not None and lang_score < lang_score_min:
+            continue
+        block = (text or "").strip()
+        if not block:
+            continue
+        seen_for_image = seen.setdefault(image_id, set())
+        if block in seen_for_image:
+            continue
+        seen_for_image.add(block)
+        by_image.setdefault(image_id, []).append(block)
+    return {image_id: " ".join(parts) for image_id, parts in by_image.items()}
