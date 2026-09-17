@@ -1,6 +1,7 @@
 # OCR Text Embeddings — Compute and Store
 
-status: approved
+status: done
+Plan: docs/superpowers/plans/2026-09-17-ocr-text-embeddings.md
 Originates from: the 2026-09-16/17 conversation continuing the text-heavy-classifier work
 (`docs/superpowers/specs/2026-09-15-text-heavy-classifier.md`) — that spec's Non-goals named
 "OCR-text-embedding comparison for the text_heavy bucket vs. today's CLIP-only comparison" as
@@ -429,3 +430,50 @@ spec follows; that convention differs from `Backend/app/repositories/`'s mocked-
 6. Write the follow-up spec ("wire text-embedding matching into Tier A/B and corpus-wide dedup")
    using this rollout's real data to ground its threshold proposals, per the approved design from
    the brainstorming conversation this spec originates from.
+
+## Rollout outcome (2026-09-18)
+
+Migration applied and `build_ocr_text_embeddings.py --status active` run against all three live
+environments, controller-executed per the plan's Task 4. Each environment's backend health
+(`/api/diagnostics/health`) was confirmed after the migration and after the embedding run. Final
+counts, independently re-verified via `DATABASE_URL_READONLY`:
+
+| Environment | `text_heavy` images | Embedded | Excluded (empty-after-filter) | Run time |
+|---|---|---|---|---|
+| metal   | 406   | 406   | 0   | 15s |
+| general | 4,084 | 3,348 | 736 (18%) | 2m16s |
+| it      | 178   | 178   | 0   | 6s |
+
+`ocr_text_embeddings` row counts match each run's own `embedded` metric exactly in all three
+environments. `general`'s 18% exclusion rate is notably higher than `metal`'s/`it`'s 0% — plausible
+given `get_ocr_texts()`'s filter is stricter than the classifier's own bbox-coverage filter (adds
+a `lang_score` threshold the classifier doesn't apply), not investigated further per this spec's
+Non-goals (no re-classification/re-embedding tooling); worth keeping in mind if the follow-up
+spec's threshold calibration sample draws from `general`.
+
+**Spot-check:** pulled each environment's tightest real embedding-distance pairs (self-join on
+`ocr_text_embeddings`, `ORDER BY embedding <=> embedding LIMIT`) and opened the actual image files
+directly — same manual-verification approach used throughout this spec's and the classifier's
+validation:
+- `it`: multiple pairs at exactly `distance = 0`, all confirmed genuine byte-identical duplicate
+  uploads (same tweet screenshot saved under two filenames, e.g. `FB_IMG_1770108272435.jpg` /
+  `FB_IMG_1770108272435 (1).jpg`).
+- `metal`: tightest pair (`distance = 0.0042`) confirmed a genuine duplicate — the same screenshot
+  reposted under two different filenames (`IMG_20230804_143659_936.jpg` /
+  `FB_IMG_1691151469406.jpg`).
+- `general`: tightest pair (`distance = 0.0254`) confirmed a genuine near-duplicate — the same
+  three-panel meme, slightly different crop/compression, identical text
+  (`FB_IMG_1714493179072.jpg` / `IMG_20230820_134335_454.jpg`).
+
+All three environments' tightest real pairs are genuine duplicates/near-duplicates, confirming the
+signal behaves sensibly at real corpus scale — consistent with this spec's Problem section's
+three-sentence sanity check (near-duplicate ≈0.09, unrelated ≈0.49) but now grounded in real data
+across all three environments, not synthetic examples. No threshold was locked, per this spec's
+own Non-goals — this data is exactly what the follow-up spec (wiring text-embedding matching into
+Tier A/B and corpus-wide dedup) will calibrate against.
+
+The final whole-branch review also caught and fixed a real, independently-verified pre-existing
+Backend Docker image import failure (unrelated to this spec's own design, introduced by the
+already-merged text-heavy-classifier work, deepened by this branch's own refactor) — see the
+branch's SDD ledger for the full finding and fix. `pytest tests/docker/` passes as of the merged
+branch.
