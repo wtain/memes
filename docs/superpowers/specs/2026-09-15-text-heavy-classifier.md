@@ -2,6 +2,7 @@
 
 status: done
 Plan: docs/superpowers/plans/2026-09-15-text-heavy-classifier.md
+Follow-ups: docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md
 Originates from: the 2026-09-13/15 conversation continuing the Tier B review-noise thread B
 (text-heavy image classification, e.g. chat/Twitter/Threads screenshots where OCR text should drive
 duplicate detection instead of weak CLIP visual similarity for that subset). Builds directly on
