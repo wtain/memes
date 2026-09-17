@@ -63,6 +63,9 @@ class Image(Base):
         "DescriptionNoteLemma", back_populates="image", cascade="all, delete-orphan"
     )
     classifications = relationship("ImageClassification", back_populates="image", cascade="all, delete-orphan")
+    ocr_text_embedding = relationship(
+        "OCRTextEmbedding", uselist=False, back_populates="image", cascade="all, delete-orphan"
+    )
 
 
 class ImageMetrics(Base):
@@ -435,6 +438,30 @@ class ImageClassification(Base):
     computed_at = Column(DateTime, server_default=func.now())
 
     image = relationship("Image", back_populates="classifications")
+
+
+OCR_TEXT_EMBEDDING_DIM = 384  # paraphrase-multilingual-MiniLM-L12-v2 -- verified empirically
+                               # (SbertModel().embed_text(...).shape == (384,)), not
+                               # bge-large-en-v1.5's 1024 (TEXT_EMBEDDING_DIM).
+
+
+class OCRTextEmbedding(Base):
+    __tablename__ = "ocr_text_embeddings"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    embedding = Column(Vector(OCR_TEXT_EMBEDDING_DIM))
+    computed_at = Column(DateTime, server_default=func.now())
+
+    image = relationship("Image", back_populates="ocr_text_embedding")
+
+    __table_args__ = (
+        Index(
+            "ix_ocr_text_embeddings_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
 
 class DescriptionNote(Base):
