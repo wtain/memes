@@ -80,3 +80,25 @@ async def test_image_with_entirely_filtered_text_is_excluded(db_session):
     metrics = await run(db_session, CONFIDENCE_MIN, LANG_SCORE_MIN, "active")
 
     assert metrics.counters_dict() == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_no_candidates_returns_empty_metrics_without_loading_model(db_session):
+    metrics = await run(db_session, CONFIDENCE_MIN, LANG_SCORE_MIN, "active")
+    assert metrics.counters_dict() == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_two_candidates_one_embeddable_one_filtered_out(db_session):
+    embeddable = await _text_heavy_image(db_session)
+    db_session.add(OCRText(image_id=embeddable.id, text="a real sentence to embed", confidence=0.9, lang_score=0.9))
+    filtered_out = await _text_heavy_image(db_session)
+    db_session.add(OCRText(image_id=filtered_out.id, text="noise", confidence=0.1, lang_score=0.9))
+    await db_session.flush()
+
+    metrics = await run(db_session, CONFIDENCE_MIN, LANG_SCORE_MIN, "active")
+    await db_session.commit()
+
+    assert metrics.counters_dict() == {"embedded": 1}
+    embedded_ids = (await db_session.execute(select(OCRTextEmbedding.image_id))).scalars().all()
+    assert embedded_ids == [embeddable.id]

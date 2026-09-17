@@ -10,10 +10,10 @@ import uuid
 from ai.sbert import SbertModel
 from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.progress import ProgressTracker
-from batch.utils.text_heavy_classifier import CLASSIFIER_NAME
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from repository.ocr_text_embeddings import OCRTextEmbeddingsRepository
+from rules.text_heavy_result import CLASSIFIER_NAME
 from Storage.db import AsyncSessionLocal
 
 EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"  # ai/sbert.py's own default -- named
@@ -29,8 +29,11 @@ async def run(session, confidence_min: float, lang_score_min: float, status: str
         CLASSIFIER_NAME, confidence_min, lang_score_min, status=status)
     print(f"Images to embed: {len(texts)}")
 
-    embedder = SbertModel(model_name=EMBEDDING_MODEL)
     metrics = SimpleMetricsListener()
+    if not texts:
+        return metrics
+
+    embedder = SbertModel(model_name=EMBEDDING_MODEL)
     tracker = ProgressTracker(total=len(texts), report_every=settings.GENERAL.PROGRESS_EVERY)
 
     for i, (image_id, text) in enumerate(texts.items()):

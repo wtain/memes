@@ -1,9 +1,9 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from batch.utils.text_heavy_classifier import TEXT_HEAVY
 from repository.ocr_text import concatenate_ocr_rows
+from rules.text_heavy_result import TEXT_HEAVY
 from Storage.models import Image, ImageClassification, OCRText, OCRTextEmbedding
 
 
@@ -51,7 +51,7 @@ class OCRTextEmbeddingsRepository:
             .values(image_id=image_id, embedding=embedding)
             .on_conflict_do_update(
                 index_elements=["image_id"],
-                set_={"embedding": embedding},
+                set_={"embedding": embedding, "computed_at": func.now()},
             )
         )
         await self.session.execute(stmt)

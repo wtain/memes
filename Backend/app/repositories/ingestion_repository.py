@@ -5,8 +5,8 @@ from sqlalchemy import or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from batch.utils.text_heavy_classifier import CLASSIFIER_NAME, TEXT_HEAVY
 from repository.ocr_text import concatenate_ocr_rows
+from rules.text_heavy_result import CLASSIFIER_NAME, TEXT_HEAVY
 from Storage.models import BatchRun, Image, ImageClassification, OCRText, RunStatus, TmpDuplicates
 
 
@@ -90,7 +90,8 @@ class IngestionRepository:
     ) -> dict:
         """Concatenated OCR text per image id for the review UI. See
         repository/ocr_text.py's concatenate_ocr_rows for the filtering/ordering/dedup
-        rules this delegates to."""
+        rules this delegates to. Pending members may have no OCR yet if it hasn't reached
+        them; active members always do, since they're already fully enriched."""
         if not image_ids:
             return {}
         result = await self.session.execute(

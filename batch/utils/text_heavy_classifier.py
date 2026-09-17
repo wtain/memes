@@ -8,10 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from PIL import Image as PILImage
 
-CLASSIFIER_NAME = "text_heavy_v1"
-
-TEXT_HEAVY = "text_heavy"
-NOT_TEXT_HEAVY = "not_text_heavy"
+from rules.text_heavy_result import CLASSIFIER_NAME, NOT_TEXT_HEAVY, TEXT_HEAVY
 
 # Axis-alignment test: for a true rectangle, polygon area == AABB area; any rotation makes the
 # AABB strictly larger. 0.95 tolerance absorbs OCR coordinate jitter on genuinely axis-aligned

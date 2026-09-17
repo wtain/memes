@@ -1,9 +1,7 @@
-import numpy
 from sqlalchemy import delete, select, text
 from sqlalchemy.sql.functions import count
 
 from Storage.models import OCRText
-from rules.lang_plausibility import score as compute_lang_score
 
 
 class OCRTextRepository:
@@ -43,6 +41,9 @@ class OCRTextRepository:
         return result.all()
 
     async def overwrite_texts(self, image, ocr_result, language):
+        import numpy
+        from rules.lang_plausibility import score as compute_lang_score
+
         await self.session.execute(
             delete(OCRText).where(
                 OCRText.image_id == image.id,
@@ -95,7 +96,9 @@ def concatenate_ocr_rows(rows, confidence_min: float, lang_score_min: float) -> 
     blocks below either threshold, orders survivors most-language-plausible first (Russian
     leads instead of the EN/ES EasyOCR readers' Latin transliteration noise), dedupes identical
     block text per image, and concatenates into one string per image_id. Images with no
-    surviving block are simply absent from the result."""
+    surviving block are simply absent from the result. Thresholds are required, passed in by
+    the caller from settings.OCR.* -- this function stays config-agnostic and carries no
+    literal defaults that could drift from environments/settings.yaml."""
     def _order_key(row):
         _, _, confidence, lang_score = row
         return (
