@@ -27,7 +27,10 @@ import argparse
 import asyncio
 
 from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
-from batch.rebuild_duplicates import find_duplicates
+from batch.rebuild_duplicates import (
+    find_duplicates, _EXCLUDE_TEXT_HEAVY_PAIR, _TEXT_HEAVY_PAIR_ONLY,
+    CLIP_SAFETY_NET_THRESHOLD, TEXT_EMBEDDING_LOOSE_THRESHOLD,
+)
 from config.settings import load_env, settings
 from repository.batch_runs import BatchRunRepository
 from Storage.db import AsyncSessionLocal
@@ -58,20 +61,66 @@ _BATCH_PROBE_SQL = """
     WHERE i.status = 'pending' AND i.ingestion_batch_id = :batch_id
 """
 
-_BATCH_CORPUS_FILTER_SQL = """
-    i2.status = 'active'
-    OR (i2.status = 'pending' AND i2.ingestion_batch_id = :batch_id)
+_BATCH_PROBE_SQL_OCR_TEXT = """
+    SELECT i.id, oe.embedding
+    FROM images i
+    JOIN ocr_text_embeddings oe ON oe.image_id = i.id
+    WHERE i.status = 'pending' AND i.ingestion_batch_id = :batch_id
+"""
+
+_BATCH_CORPUS_FILTER_SQL_CLIP = f"""
+    (i2.status = 'active' OR (i2.status = 'pending' AND i2.ingestion_batch_id = :batch_id))
+    AND ({_EXCLUDE_TEXT_HEAVY_PAIR})
+"""
+
+_BATCH_CORPUS_FILTER_SQL_CLIP_SAFETY_NET = f"""
+    (i2.status = 'active' OR (i2.status = 'pending' AND i2.ingestion_batch_id = :batch_id))
+    AND ({_TEXT_HEAVY_PAIR_ONLY})
+"""
+
+_BATCH_CORPUS_FILTER_SQL_OCR_TEXT = """
+    i2.status = 'active' OR (i2.status = 'pending' AND i2.ingestion_batch_id = :batch_id)
 """
 
 
 async def find_batch_duplicates(session, batch_id, k: int, threshold: float) -> int:
     """Populate tmp_duplicates with candidate pairs for `batch_id`'s pending images, at the
-    given threshold. Safe to call once per tier (Tier A tight, Tier B loose) -- a pair
-    already found by an earlier, tighter call is a no-op via ON CONFLICT DO NOTHING."""
-    return await find_duplicates(
-        session, _BATCH_PROBE_SQL, _BATCH_CORPUS_FILTER_SQL, k, threshold,
+    given threshold, across all three signals (general CLIP excluding text-heavy pairs, CLIP
+    safety net for text-heavy pairs, OCR-text for text-heavy pairs). Safe to call once per tier
+    (Tier A tight, Tier B loose) -- a pair already found by an earlier, tighter call, or by a
+    different signal, is a no-op via ON CONFLICT DO NOTHING.
+
+    The OCR-text probe always runs at TEXT_EMBEDDING_LOOSE_THRESHOLD regardless of `threshold` or
+    which tier is calling -- deliberately, not by coincidence. This mirrors this file's own
+    already-established convention for the CLIP probe itself: the tier_b CLIP call already
+    inserts generously all the way down to distance 0, relying entirely on the review query's own
+    band filtering (get_tier_candidate_rows/list_tier_b_review_page's `distance >= low AND
+    distance < high`) to decide which UI tier a stored row surfaces in -- not on which probe call
+    inserted it. See this plan's Global Constraints for why deriving a tighter value via e.g.
+    min(threshold, TEXT_EMBEDDING_LOOSE_THRESHOLD) would be a real bug, not a simplification.
+
+    The safety-net probe reuses _BATCH_PROBE_SQL unchanged (all pending images in the batch, not
+    scoped to text_heavy on the probe side) -- unlike rebuild_duplicates.py's own safety-net
+    probe, this file's probes have no incremental skip condition to begin with (this function
+    probes every pending image in the batch every time, relying entirely on ON CONFLICT DO
+    NOTHING), so there is no analogous incremental-staleness risk here to design around. The
+    corpus filter alone (_BATCH_CORPUS_FILTER_SQL_CLIP_SAFETY_NET) correctly finds zero candidates
+    for a non-text-heavy probe image regardless."""
+    inserted = await find_duplicates(
+        session, _BATCH_PROBE_SQL, _BATCH_CORPUS_FILTER_SQL_CLIP, k, threshold,
+        distance_source="clip", extra_params={"batch_id": batch_id},
+    )
+    inserted += await find_duplicates(
+        session, _BATCH_PROBE_SQL, _BATCH_CORPUS_FILTER_SQL_CLIP_SAFETY_NET, k, CLIP_SAFETY_NET_THRESHOLD,
+        distance_source="clip", extra_params={"batch_id": batch_id},
+    )
+    inserted += await find_duplicates(
+        session, _BATCH_PROBE_SQL_OCR_TEXT, _BATCH_CORPUS_FILTER_SQL_OCR_TEXT, k,
+        TEXT_EMBEDDING_LOOSE_THRESHOLD,
+        distance_source="ocr_text", embedding_table="ocr_text_embeddings",
         extra_params={"batch_id": batch_id},
     )
+    return inserted
 
 
 async def main(env: str | None, tier: str, k: int | None) -> None:

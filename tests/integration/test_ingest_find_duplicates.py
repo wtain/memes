@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from batch.ingest_find_duplicates import find_batch_duplicates
 from repository.batch_runs import BatchRunRepository
-from Storage.models import Embedding, Image
+from Storage.models import Embedding, Image, ImageClassification, OCRTextEmbedding
 
 _DIM = 512
 
@@ -113,3 +113,80 @@ def test_should_advance_stage_tier_b_from_anything_before_it():
     assert should_advance_stage("format_validation", "tier_b_review") is True
     assert should_advance_stage("tier_a_review", "tier_b_review") is True
     assert should_advance_stage("tier_b_review", "tier_b_review") is False
+
+
+async def _mark_text_heavy(session, image_id: uuid.UUID) -> None:
+    session.add(ImageClassification(
+        image_id=image_id, classifier="text_heavy_v1", result="text_heavy", details={}))
+    await session.flush()
+
+
+async def _insert_ocr_text_embedding(session, image_id: uuid.UUID, embedding_values: list[float]) -> None:
+    session.add(OCRTextEmbedding(image_id=image_id, embedding=embedding_values))
+    await session.flush()
+
+
+def _text_unit_vector(index: int) -> list[float]:
+    vec = [0.0] * 384
+    vec[index] = 1.0
+    return vec
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_general_clip_excludes_text_heavy_pair_safety_net_still_finds_it(db_session):
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    a = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
+    b = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)  # identical -> distance 0
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+
+    inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)
+
+    assert inserted == 1
+    row = (await db_session.execute(
+        text("SELECT image_id1, image_id2, distance_source FROM tmp_duplicates")
+    )).one()
+    assert {row.image_id1, row.image_id2} == {a, b}
+    assert row.distance_source == "clip"  # the safety net, since the general probe excludes this pair
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_finds_pair_at_tier_b(db_session):
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    a = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
+    b = await _insert_image(db_session, _unit_vector(1), "pending", batch_id)  # orthogonal CLIP
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+
+    inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.12)  # tier_b threshold
+
+    assert inserted == 1
+    row = (await db_session.execute(
+        text("SELECT image_id1, image_id2, distance_source FROM tmp_duplicates")
+    )).one()
+    assert {row.image_id1, row.image_id2} == {a, b}
+    assert row.distance_source == "ocr_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_ignores_threshold_argument(db_session):
+    """Regression test for the min(threshold, TEXT_EMBEDDING_LOOSE_THRESHOLD) bug this plan's
+    Global Constraints explicitly forbid reintroducing -- the OCR-text probe must still find a
+    pair at distance ~0 even when called with Tier A's tight threshold (0.05), since it always
+    uses TEXT_EMBEDDING_LOOSE_THRESHOLD (0.10) regardless of the `threshold` argument."""
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    a = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
+    b = await _insert_image(db_session, _unit_vector(1), "pending", batch_id)
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+
+    inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.05)  # tier_a threshold
+
+    row = (await db_session.execute(
+        text("SELECT distance_source FROM tmp_duplicates")
+    )).one()
+    assert row.distance_source == "ocr_text"  # found despite tier_a's tight CLIP threshold
