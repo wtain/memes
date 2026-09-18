@@ -210,6 +210,12 @@ class TmpDuplicates(Base):
     # beyond always populating it via the same query.
     match_source = Column(String(20), nullable=True)
 
+    # 'clip' | 'ocr_text' -- which embedding signal produced this row's distance. Orthogonal to
+    # match_source (in_batch/cross_corpus): a pair can be any combination of the two. Existing
+    # rows (all CLIP-sourced, from before this column existed) default to 'clip'. See
+    # docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md.
+    distance_source = Column(String(20), nullable=False, server_default="clip")
+
     # Ingestion-specific, tier-scoped review-queue resumability markers -- set only by an
     # explicit "not a duplicate" decision in that tier's review UI. Never set by the
     # active-library rebuild. See 2026-07-24-ingestion-pipeline-design.md's
