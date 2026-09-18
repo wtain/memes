@@ -263,6 +263,23 @@ _ACTIVE_PROBE_OCR_TEXT_FULL = """
     JOIN ocr_text_embeddings oe ON oe.image_id = i.id
     WHERE i.status = 'active'
 """
+
+# Safety-net probe: deliberately NOT the same _ACTIVE_PROBE_INCREMENTAL/_FULL fragments the
+# general CLIP call uses, and deliberately has no incremental skip condition at all -- see the
+# explanation after rebuild_active_library() below for why sharing an incremental marker with
+# the general probe is actually broken, not just imprecise. Scoped to active text_heavy images
+# only (the corpus filter already requires this on the candidate side; scoping the probe side
+# too avoids wastefully KNN-searching non-text-heavy images that could never match it anyway).
+_ACTIVE_PROBE_SAFETY_NET = """
+    SELECT i.id, e.embedding
+    FROM images i
+    JOIN embeddings e ON e.image_id = i.id
+    WHERE i.status = 'active'
+      AND EXISTS (
+          SELECT 1 FROM image_classifications c WHERE c.image_id = i.id
+          AND c.classifier = 'text_heavy_v1' AND c.result = 'text_heavy'
+      )
+"""
 ```
 
 `rebuild_active_library()` now issues three `find_duplicates()` calls instead of one:
@@ -289,9 +306,12 @@ async def rebuild_active_library(session, k: int, threshold: float, full: bool =
         session, clip_probe_sql, _ACTIVE_CORPUS_FILTER_CLIP, k, threshold,
         distance_source="clip", extra_params={"probe_distance_source": "clip"},
     )
+    # Deliberately NOT clip_probe_sql, and deliberately NO incremental skip condition -- see
+    # below for why sharing the general probe's own incremental marker is genuinely broken here,
+    # not just imprecise.
     inserted += await find_duplicates(
-        session, clip_probe_sql, _ACTIVE_CORPUS_FILTER_CLIP_SAFETY_NET, k, CLIP_SAFETY_NET_THRESHOLD,
-        distance_source="clip", extra_params={"probe_distance_source": "clip"},
+        session, _ACTIVE_PROBE_SAFETY_NET, _ACTIVE_CORPUS_FILTER_CLIP_SAFETY_NET, k,
+        CLIP_SAFETY_NET_THRESHOLD, distance_source="clip",
     )
     inserted += await find_duplicates(
         session, ocr_probe_sql, _ACTIVE_CORPUS_FILTER_OCR_TEXT, k, TEXT_EMBEDDING_LOOSE_THRESHOLD,
@@ -301,32 +321,34 @@ async def rebuild_active_library(session, k: int, threshold: float, full: bool =
     return inserted
 ```
 
-Note the safety-net call reuses `clip_probe_sql` (the *same* CLIP probe-image selection as the
-general call) — both draw from the `embeddings` table, just with different corpus filters and
-thresholds, and since the probe-set fragment is now `distance_source`-gated (§2) using the same
-`'clip'` marker for both, an image already touched by the general CLIP probe within this same run
-would be **skipped** by the safety-net call's own incremental check too (both check for an
-existing `distance_source='clip'` row). This is intentional, not a bug: the safety-net probe only
-needs to look at images that haven't been CLIP-probed *at all* this run — once the general probe
-has run for an image (even if it inserted zero rows, because nothing matched), a `NOT EXISTS`
-check for "any clip row for this image" would still be `TRUE` if zero rows were inserted, so the
-safety-net call still fires for that image on the same run. Concretely: the incremental check
-prevents *re-probing across separate script invocations*, not within one — both CLIP calls
-naturally run for every eligible image on a given `rebuild_duplicates.py` invocation regardless of
-each other, since neither call commits mid-run (both work against the same in-progress
-transaction, and Postgres `NOT EXISTS` sees uncommitted rows from earlier statements in the same
-transaction — so the general probe's inserts *would* be visible to the safety-net probe's own
-`NOT EXISTS` check within the same transaction, correctly preventing the safety-net call from
-re-probing an image the general call already produced a `'clip'`-sourced row for. Since both calls
-share the same `distance_source='clip'` marker, this is actually the *desired* behavior: once
-either CLIP call has touched an image, the other skips it on a future run, but both still run
-against the full incremental probe set on a given invocation where neither has touched an image
-yet.
+**Why the safety-net probe has no incremental skip condition at all, and doesn't reuse
+`clip_probe_sql`:** an earlier draft of this section had it reuse `clip_probe_sql` with the same
+`probe_distance_source="clip"` marker as the general call, reasoning that "an image already
+touched by the general probe this run would still have `NOT EXISTS` return `TRUE` if the general
+probe found zero matches for it." That reasoning only holds for an image the general probe found
+*nothing* for. It breaks for the much more common case: a text-heavy image that also happens to
+have some unrelated non-text-heavy CLIP-similar neighbor. The general probe (which does not
+exclude that pairing — `_EXCLUDE_TEXT_HEAVY_PAIR` only excludes a pairing where *both* sides are
+text-heavy) would correctly find and insert that unrelated match, giving the text-heavy image a
+`distance_source='clip'` row. If the safety-net probe shared that same incremental marker, its own
+`NOT EXISTS` check would now see that row and skip the image entirely — permanently, since nothing
+ever re-triggers an incremental probe once *any* row of that `distance_source` exists — starving
+the safety net of exactly the images it exists to protect, with no error or warning that it
+happened. Scoping the safety-net probe to run unconditionally over every active text-heavy image,
+every invocation (relying purely on `ON CONFLICT DO NOTHING` for idempotency, the same convention
+`ingest_find_duplicates.py`'s own batch probes already use for a different reason), sidesteps this
+entirely: it doesn't matter what the general probe did or didn't insert, because the safety net
+never consults that bookkeeping at all. The text-heavy population is a small fraction of the
+active corpus, so re-scanning it in full on every routine rebuild is cheap.
 
-*(Self-review note: this sub-paragraph was rewritten once already during self-review because the
-first draft asserted an incorrect claim about the two CLIP calls' interaction — see the Self-Review
-section at the end of this document. It's genuinely subtle; the implementer should re-verify this
-reasoning empirically in Task 1's tests, not just trust this prose.)*
+*(Self-review note: this section was rewritten twice during self-review. The first rewrite fixed a
+narrower issue — two calls potentially finding the exact same pair. Writing the implementation
+plan surfaced this broader, more serious issue: the shared marker doesn't just risk redundant
+work, it risks silently and permanently disabling the safety net for any text-heavy image that
+happens to also have an unrelated CLIP match. The fix — the safety-net probe never checks
+incremental state at all — resolves both. This is the single most subtle piece of mechanics in
+the whole spec; Task 2's own tests must verify it empirically (see the Testing section's new case
+below), not just trust this prose.)*
 
 `_process()` and `main()` are unaffected beyond `rebuild_active_library`'s internals — the public
 CLI surface (`--k`, `--threshold`, `--full`) doesn't change; `--threshold` continues to mean "the
@@ -550,9 +572,14 @@ edgeSummary={`${c.distance.toFixed(3)} · ${c.distance_source === "ocr_text" ? "
   a tight text-heavy-vs-text-heavy CLIP match the general probe excluded; the OCR-text probe
   finds a pair via `ocr_text_embeddings`; the §2 incremental-probe-staleness fix — call
   `find_duplicates()` twice in sequence within one test (CLIP then OCR-text) against the same
-  probe image and confirm the second call is NOT silently skipped (this is the regression test
-  for the bug this spec's own design section spent the most effort on — it must fail without the
-  `distance_source`-gated `NOT EXISTS` fix and pass with it).
+  probe image and confirm the second call is NOT silently skipped (this is a regression test for
+  the first, narrower incremental-staleness bug this spec's design caught); **the broader
+  safety-net-starvation regression** — a text-heavy image A with both a non-text-heavy CLIP
+  neighbor C (found by the general probe, inserting a `distance_source='clip'` row for A) and a
+  genuine tight text-heavy near-duplicate B — call `rebuild_active_library()` once and confirm
+  *both* the (A,C) and (A,B) pairs get inserted; this must fail if the safety-net probe is
+  changed back to share the general probe's own incremental marker, and is the regression test
+  for the second, more serious bug this spec's design caught during plan-writing.
 - **`batch/tests/test_ingest_find_duplicates_*.py`**: mirror the above for
   `find_batch_duplicates()` — three calls happen per invocation, each with correct scoping.
 - **`batch/tests/test_clusterize*.py`**: `get_duplicate_pairs` returns a CLIP-sourced pair under
@@ -599,17 +626,25 @@ edgeSummary={`${c.distance.toFixed(3)} · ${c.distance_source === "ocr_text" ? "
 Performed inline per the brainstorming skill's Architectural-path requirement (fresh eyes against
 the spec, not a subagent dispatch):
 
-**Caught and fixed during this self-review (three issues, all fixed in place, not left for the
+**Caught and fixed across two self-review passes — the initial pass while writing this document,
+and a second pass while writing the implementation plan, which is exactly what the plan's own
+"argue from the spec" role is for (three issues total, all fixed in place, none left for the
 implementer):**
 
 1. §3's first draft claimed the safety-net CLIP probe and the general CLIP probe "can't both run
    for the same image in one invocation" without explaining why in a way that survived a second
-   read — the actual mechanism (both share the `distance_source='clip'` incremental marker, and
-   Postgres `NOT EXISTS` sees same-transaction uncommitted inserts) needed to be spelled out
-   explicitly rather than asserted, and the note now flags this as something Task 1's own tests
-   must verify empirically rather than trust from this prose alone — the single most subtle piece
-   of mechanics in the whole spec and the part most likely to have a real bug if implemented from
-   a shallower reading.
+   read. The first rewrite (during this document's own initial self-review) explained the shared-
+   marker mechanism but only checked the narrow case of both calls finding the *same* pair. Writing
+   the implementation plan surfaced the real, broader bug this was hiding: if the general probe
+   finds and inserts a row for a text-heavy image from an *unrelated* non-text-heavy match (a
+   common case, not an edge case — `_EXCLUDE_TEXT_HEAVY_PAIR` only excludes pairings where *both*
+   sides are text-heavy), a safety-net probe sharing that same incremental marker would then be
+   silently and *permanently* skipped for that image, defeating the safety net's entire purpose
+   for exactly the images it exists to protect. Fixed by giving the safety-net probe no
+   incremental skip condition at all — see §3's own explanation, rewritten a second time, for the
+   final design and why it's correct. This was the single most subtle piece of mechanics in the
+   whole spec, and it took two full passes (writing the spec, then writing the plan) to get right —
+   a real demonstration of why the plan's own self-review step matters, not a formality.
 2. **A genuine correctness bug**, not just a clarity issue: §4's first draft derived Tier A's
    OCR-text probe threshold via `min(threshold, TEXT_EMBEDDING_LOOSE_THRESHOLD)`, which only
    produces the intended tight value (0.05) because `TIER_A_THRESHOLD` and
