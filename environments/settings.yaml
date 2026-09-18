@@ -48,7 +48,13 @@ duplicates:
   # worth storing in tmp_duplicates at all. Distinct from clusterize.py's own tighter
   # PROXIMITY_THRESHOLD (0.05), which decides what's shown as a confirmed duplicate cluster.
   # See docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
-  threshold: 0.3
+  # Lowered from 0.3 to 0.12 on 2026-09-18 after empirical review of general's Tier B queue:
+  # visual spot-checks across the full 0.05-0.22 range found CLIP conflating "same meme
+  # template genre" (e.g. photo + bold caption bands, chat-screenshot layout) with genuine
+  # near-duplication -- every sampled pair above ~0.05 was unrelated content sharing only a
+  # visual template. 0.12 keeps a margin above Tier A's own 0.05 cutoff while cutting
+  # general's then-current unreviewed Tier B backlog by ~96% (154,732 -> 6,386 pairs).
+  threshold: 0.12
   # Neighbors considered per probe image. Empirically validated 2026-07-25 against real
   # tmp_duplicates data on metal (max real tight-band cluster degree: 8) and general (max: 37,
   # meaning k=20 was silently truncating real near-duplicate clusters there -- images beyond

@@ -333,7 +333,10 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                active ingestion run's pending images via the same merged
                                probe/corpus find_duplicates() primitive rebuild_duplicates.py
                                uses, at clusterize.py's PROXIMITY_THRESHOLD (0.05). --tier tier_b
-                               uses settings.DUPLICATES.THRESHOLD (0.3) as its outer bound.
+                               uses settings.DUPLICATES.THRESHOLD (0.12, lowered from 0.3 on
+                               2026-09-18 -- see the setting's own comment in
+                               environments/settings.yaml for the empirical basis) as its
+                               outer bound.
                                Review (listing clusters, resolving reject/keep decisions) is the
                                /api/ingestion/* endpoints (Backend/app/api/ingestion.py), with a
                                frontend page at /ingestion covering both tiers (switches queue
