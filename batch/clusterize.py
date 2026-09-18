@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from collections import defaultdict
 
-from sqlalchemy import select, delete
+from sqlalchemy import and_, or_, select, delete
 
 from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import settings
@@ -11,6 +11,12 @@ from Storage.db import AsyncSessionLocal
 from Storage.models import DuplicateDecision, Image, TmpDuplicates, TmpImageClusters
 
 PROXIMITY_THRESHOLD = 0.05
+
+# Matches TEXT_EMBEDDING_TIGHT_THRESHOLD in batch/rebuild_duplicates.py. A separately-named
+# constant, not a shared import, even though the two are numerically equal today -- see
+# docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md: never assume the two
+# scales stay coupled, so a future change to either doesn't silently move the other.
+PROXIMITY_THRESHOLD_OCR_TEXT = 0.05
 
 
 def resolve_cluster(
@@ -73,7 +79,7 @@ async def cluster_active_library(session) -> None:
 
     print("Reading duplicates...")
     # Select all duplicate pairs with distance < PROXIMITY_THRESHOLD, int-id mapped
-    pairs = await get_duplicate_pairs(session, img_id_to_int_id, PROXIMITY_THRESHOLD)
+    pairs = await get_duplicate_pairs(session, img_id_to_int_id, PROXIMITY_THRESHOLD, PROXIMITY_THRESHOLD_OCR_TEXT)
     print(f"Total connections: {len(pairs)}")
 
     uf = UnionFind()
@@ -130,7 +136,7 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None) -> None
 
 async def get_images_ids(session):
     # active only -- matches rebuild_duplicates.py's active-library scoping
-    # (_ACTIVE_PROBE_INCREMENTAL/_ACTIVE_CORPUS_FILTER) and the review API's own
+    # (_ACTIVE_PROBE_INCREMENTAL/_ACTIVE_CORPUS_FILTER_CLIP) and the review API's own
     # status == 'active' filter (Backend/app/repositories/image_repository.py's
     # get_duplicates_clustered). Without this, a pending/rejected image left over
     # from an ingestion probe still gets clustered here, and since the review API
@@ -155,7 +161,7 @@ async def get_images_ids(session):
     return result, result_reverse
 
 
-async def get_duplicate_pairs(session, mapping, threshold) -> list[tuple[int, int, float]]:
+async def get_duplicate_pairs(session, mapping, clip_threshold, ocr_text_threshold) -> list[tuple[int, int, float]]:
     decided_pair_exists = (
         select(DuplicateDecision.id)
         .where(
@@ -170,7 +176,10 @@ async def get_duplicate_pairs(session, mapping, threshold) -> list[tuple[int, in
             TmpDuplicates.image_id2,
             TmpDuplicates.distance,
         ).where(
-            TmpDuplicates.distance < threshold,
+            or_(
+                and_(TmpDuplicates.distance_source == "clip", TmpDuplicates.distance < clip_threshold),
+                and_(TmpDuplicates.distance_source == "ocr_text", TmpDuplicates.distance < ocr_text_threshold),
+            ),
             TmpDuplicates.image_id1 != TmpDuplicates.image_id2,
             ~decided_pair_exists,
         )

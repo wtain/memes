@@ -22,9 +22,9 @@ def _normalize(a: uuid.UUID, b: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
     return (a, b) if a < b else (b, a)
 
 
-async def _insert_pair(session, a: uuid.UUID, b: uuid.UUID, distance: float) -> None:
+async def _insert_pair(session, a: uuid.UUID, b: uuid.UUID, distance: float, distance_source: str = "clip") -> None:
     id1, id2 = _normalize(a, b)
-    session.add(TmpDuplicates(image_id1=id1, image_id2=id2, distance=distance))
+    session.add(TmpDuplicates(image_id1=id1, image_id2=id2, distance=distance, distance_source=distance_source))
     await session.flush()
 
 
@@ -108,3 +108,49 @@ async def test_bridge_node_transitively_reunites_a_decided_pair(db_session):
 
     rows = (await db_session.execute(select(TmpImageClusters.image_id))).scalars().all()
     assert set(rows) == {a, b, c}  # a and b are back in one cluster, despite the decision
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_sourced_pair_clusters_under_its_own_threshold(db_session):
+    a = await _insert_image(db_session)
+    b = await _insert_image(db_session)
+    await _insert_pair(db_session, a, b, 0.03, distance_source="ocr_text")  # < PROXIMITY_THRESHOLD_OCR_TEXT (0.05)
+
+    await cluster_active_library(db_session)
+
+    rows = (await db_session.execute(select(TmpImageClusters.image_id))).scalars().all()
+    assert set(rows) == {a, b}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_sourced_pair_past_its_own_threshold_does_not_cluster(db_session):
+    a = await _insert_image(db_session)
+    b = await _insert_image(db_session)
+    # 0.08 is past PROXIMITY_THRESHOLD_OCR_TEXT (0.05) but well within clip's own 0.05 too --
+    # this must NOT cluster despite the distance being numerically close to what a clip-sourced
+    # pair at the same value would need. Proves the two thresholds are independently enforced,
+    # not OR'd loosely against a single shared cutoff.
+    await _insert_pair(db_session, a, b, 0.08, distance_source="ocr_text")
+
+    await cluster_active_library(db_session)
+
+    rows = (await db_session.execute(select(TmpImageClusters))).scalars().all()
+    assert rows == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_clip_and_ocr_text_thresholds_enforced_independently(db_session):
+    """The core regression test for this task: two pairs at distances that would swap outcomes
+    if the two distance_source thresholds were ever accidentally conflated into one shared
+    comparison."""
+    a = await _insert_image(db_session)
+    b = await _insert_image(db_session)
+    c = await _insert_image(db_session)
+    d = await _insert_image(db_session)
+    await _insert_pair(db_session, a, b, 0.045, distance_source="clip")      # < 0.05 (PROXIMITY_THRESHOLD) -> clusters
+    await _insert_pair(db_session, c, d, 0.045, distance_source="ocr_text")  # < 0.05 (PROXIMITY_THRESHOLD_OCR_TEXT) -> clusters
+
+    await cluster_active_library(db_session)
+
+    rows = (await db_session.execute(select(TmpImageClusters.image_id))).scalars().all()
+    assert set(rows) == {a, b, c, d}
