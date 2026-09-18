@@ -7,7 +7,7 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from batch.clusterize import cluster_active_library
+from batch.clusterize import cluster_active_library, get_duplicate_pairs, get_images_ids
 from Storage.models import DuplicateDecision, Embedding, Image, TmpDuplicates, TmpImageClusters
 
 
@@ -154,3 +154,26 @@ async def test_clip_and_ocr_text_thresholds_enforced_independently(db_session):
 
     rows = (await db_session.execute(select(TmpImageClusters.image_id))).scalars().all()
     assert set(rows) == {a, b, c, d}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_duplicate_pairs_enforces_each_threshold_independently(db_session):
+    """Direct call to get_duplicate_pairs() with deliberately DIFFERENT clip/ocr_text thresholds --
+    genuinely discriminates per-source gating from a naive OR'd single-threshold bug. The tests
+    above (driven through cluster_active_library()) can't discriminate this, since
+    PROXIMITY_THRESHOLD and PROXIMITY_THRESHOLD_OCR_TEXT happen to both equal 0.05 today -- a bug
+    that silently dropped the per-branch distance_source guard would still pass every test above
+    unnoticed, collapsing to a single distance < 0.05 check regardless of source."""
+    a = await _insert_image(db_session)
+    b = await _insert_image(db_session)
+    c = await _insert_image(db_session)
+    d = await _insert_image(db_session)
+    await _insert_pair(db_session, a, b, 0.03, distance_source="clip")      # < clip_threshold (0.05) -> included
+    await _insert_pair(db_session, c, d, 0.03, distance_source="ocr_text")  # NOT < ocr_text_threshold (0.02) -> excluded
+
+    mapping, _ = await get_images_ids(db_session)
+    pairs = await get_duplicate_pairs(db_session, mapping, clip_threshold=0.05, ocr_text_threshold=0.02)
+
+    pair_id_sets = [{p[0], p[1]} for p in pairs]
+    assert {mapping[a], mapping[b]} in pair_id_sets
+    assert {mapping[c], mapping[d]} not in pair_id_sets
