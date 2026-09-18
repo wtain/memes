@@ -132,6 +132,20 @@ def _text_unit_vector(index: int) -> list[float]:
     return vec
 
 
+def _near_text_unit_vector(index: int, epsilon: float = 0.41) -> list[float]:
+    """A 384-dim OCR-text vector close to (but not identical to) _text_unit_vector(index) --
+    cosine distance from _text_unit_vector(index) works out to ~0.0747 for the default epsilon,
+    strictly between tier_a's threshold (0.05) and TEXT_EMBEDDING_LOOSE_THRESHOLD (0.10) -- the
+    exact band needed to discriminate the correct literal-constant probe threshold from a
+    min(threshold, TEXT_EMBEDDING_LOOSE_THRESHOLD) regression."""
+    vec = [0.0] * 384
+    vec[index] = 1.0
+    other = (index + 1) % 384
+    vec[other] = epsilon
+    norm = (1.0 + epsilon ** 2) ** 0.5
+    return [v / norm for v in vec]
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_general_clip_excludes_text_heavy_pair_safety_net_still_finds_it(db_session):
     batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
@@ -182,7 +196,10 @@ async def test_ocr_text_probe_ignores_threshold_argument(db_session):
     await _mark_text_heavy(db_session, a)
     await _mark_text_heavy(db_session, b)
     await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
-    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _near_text_unit_vector(0))  # distance ~0.0747:
+    # strictly between tier_a's threshold (0.05) and TEXT_EMBEDDING_LOOSE_THRESHOLD (0.10) --
+    # this is what makes the test actually discriminate the literal-constant probe threshold from
+    # a min()-derived regression, rather than passing under both (a distance-0 pair would)
 
     inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.05)  # tier_a threshold
 
