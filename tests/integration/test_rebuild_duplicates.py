@@ -11,8 +11,8 @@ import uuid
 import pytest
 from sqlalchemy import text
 
-from batch.rebuild_duplicates import find_duplicates, rebuild_active_library, _ACTIVE_CORPUS_FILTER
-from Storage.models import Embedding, Image
+from batch.rebuild_duplicates import find_duplicates, rebuild_active_library, _ACTIVE_CORPUS_FILTER_CLIP
+from Storage.models import Embedding, Image, ImageClassification, OCRTextEmbedding
 
 _DIM = 512
 
@@ -146,7 +146,8 @@ async def test_find_duplicates_is_reusable_with_arbitrary_scoping(db_session):
     b = await _insert_image_with_embedding(db_session, _unit_vector(0))
 
     probe_sql = f"SELECT i.id, e.embedding FROM images i JOIN embeddings e ON e.image_id = i.id WHERE i.id = '{a}'"
-    inserted = await find_duplicates(db_session, probe_sql, _ACTIVE_CORPUS_FILTER, k=5, threshold=0.3)
+    inserted = await find_duplicates(db_session, probe_sql, _ACTIVE_CORPUS_FILTER_CLIP, k=5,
+                                      threshold=0.3, distance_source="clip")
 
     assert inserted == 1
     row = (await db_session.execute(text("SELECT image_id1, image_id2 FROM tmp_duplicates"))).one()
@@ -168,3 +169,122 @@ async def test_expected_indexes_and_constraint_exist(db_session):
     """))
     constraint_names = {row[0] for row in result.all()}
     assert "uq_tmp_duplicates_pair" in constraint_names
+
+
+async def _mark_text_heavy(session, image_id: uuid.UUID) -> None:
+    session.add(ImageClassification(
+        image_id=image_id, classifier="text_heavy_v1", result="text_heavy", details={}))
+    await session.flush()
+
+
+async def _insert_ocr_text_embedding(session, image_id: uuid.UUID, embedding_values: list[float]) -> None:
+    session.add(OCRTextEmbedding(image_id=image_id, embedding=embedding_values))
+    await session.flush()
+
+
+def _text_unit_vector(index: int) -> list[float]:
+    vec = [0.0] * 384  # OCR_TEXT_EMBEDDING_DIM
+    vec[index] = 1.0
+    return vec
+
+
+def _near_unit_vector(index: int, epsilon: float = 0.5) -> list[float]:
+    """A CLIP vector close to (but not identical to) the pure unit vector at `index` -- cosine
+    distance from _unit_vector(index) works out to ~0.106 for the default epsilon (comfortably
+    inside the general probe's 0.3 threshold, and nowhere near the tight 0.02 safety-net
+    threshold, though that only matters if the corpus filter would even consider the pair)."""
+    vec = [0.0] * _DIM
+    vec[index] = 1.0
+    other = (index + 1) % _DIM
+    vec[other] = epsilon
+    norm = (1.0 + epsilon ** 2) ** 0.5
+    return [v / norm for v in vec]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_safety_net_finds_tight_text_heavy_match_general_probe_excludes(db_session):
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))
+    b = await _insert_image_with_embedding(db_session, _unit_vector(0))  # identical -> distance 0
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+
+    await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    row = (await db_session.execute(
+        text("SELECT image_id1, image_id2, distance, distance_source FROM tmp_duplicates")
+    )).one()
+    assert {row.image_id1, row.image_id2} == {a, b}
+    assert row.distance_source == "clip"  # the safety net, not the excluded general probe
+    assert row.distance == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_safety_net_not_starved_by_unrelated_general_probe_match(db_session):
+    """The regression test for the correctness bug this plan's Global Constraints call out
+    explicitly: a text-heavy image with an unrelated non-text-heavy CLIP match must still get
+    its own safety-net-eligible text-heavy near-duplicate found, even though the general probe
+    already inserted a distance_source='clip' row for it first. This must fail if the safety-net
+    probe is changed back to share the general probe's own incremental marker."""
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))         # text-heavy
+    b = await _insert_image_with_embedding(db_session, _unit_vector(0))         # text-heavy, near-dup of a
+    c = await _insert_image_with_embedding(db_session, _near_unit_vector(0))    # NOT text-heavy, close enough to a for general CLIP (~0.106)
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    # c is deliberately left unclassified (not text_heavy)
+
+    await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    pairs = {
+        tuple(sorted((str(r.image_id1), str(r.image_id2)))): r.distance_source
+        for r in (await db_session.execute(
+            text("SELECT image_id1, image_id2, distance_source FROM tmp_duplicates")
+        )).all()
+    }
+    assert tuple(sorted((str(a), str(b)))) in pairs  # safety net found the text-heavy pair
+    assert tuple(sorted((str(a), str(c)))) in pairs  # general probe found the unrelated pair
+    assert pairs[tuple(sorted((str(a), str(b))))] == "clip"
+    assert pairs[tuple(sorted((str(a), str(c))))] == "clip"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_finds_pair_via_ocr_text_embeddings(db_session):
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))
+    b = await _insert_image_with_embedding(db_session, _unit_vector(1))  # orthogonal CLIP -- general probe won't find this
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))  # identical OCR-text embedding
+
+    await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    row = (await db_session.execute(
+        text("SELECT image_id1, image_id2, distance, distance_source FROM tmp_duplicates "
+             "WHERE distance_source = 'ocr_text'")
+    )).one()
+    assert {row.image_id1, row.image_id2} == {a, b}
+    assert row.distance == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_incremental_rerun_does_not_skip_ocr_text_probe_for_already_clip_probed_image(db_session):
+    """Task 1's own §2 regression: a second signal's probe must not be silently skipped just
+    because a different signal's probe already inserted a row for the same image earlier in the
+    same incremental probe-set fragment's lifetime."""
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))
+    b = await _insert_image_with_embedding(db_session, _unit_vector(1))  # orthogonal CLIP, no general-probe match
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+
+    # First rebuild: general probe finds nothing (a,b are CLIP-orthogonal and text-heavy-excluded
+    # anyway); safety net finds nothing (CLIP-orthogonal, past CLIP_SAFETY_NET_THRESHOLD); OCR-text
+    # probe finds the pair.
+    first = await rebuild_active_library(db_session, k=20, threshold=0.3)
+    assert first == 1
+
+    # Second, incremental rebuild: nothing new to find, but this must not raise or behave
+    # differently -- confirms the incremental NOT EXISTS fragment's distance_source gating didn't
+    # somehow desync between the two signals.
+    second = await rebuild_active_library(db_session, k=20, threshold=0.3)
+    assert second == 0
