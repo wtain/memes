@@ -190,6 +190,10 @@ rebuild_duplicates         → near-duplicate candidate pairs; HNSW-assisted KNN
                               incremental marker with the general probe would silently and
                               permanently disable the safety net for affected images), so don't
                               "simplify" it into sharing the general probe's incremental marker.
+                              The OCR-text probe additionally requires a lexical-overlap
+                              corroboration check against ocr_lemmas before inserting a candidate
+                              (MIN_LEMMA_OVERLAP_COEFFICIENT=0.2, MIN_LEMMA_COUNT_FLOOR=3) -- see
+                              docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md.
                               --full clears active-library pairs and re-probes everything;
                               --k/--threshold override settings.DUPLICATES.K/THRESHOLD (the general
                               CLIP probe's threshold only -- the safety-net and OCR-text
@@ -198,22 +202,21 @@ rebuild_duplicates         → near-duplicate candidate pairs; HNSW-assisted KNN
                               independently admin-triggerable from /admin/batches, manual-trigger
                               only (not scheduled).
 clusterize                 → optimize cluster index; admin-triggerable from /admin/batches,
-                              manual-trigger only. Union-find over tmp_duplicates pairs --
-                              CLIP-sourced only, below PROXIMITY_THRESHOLD (0.05).
-                              ocr_text-sourced pairs are deliberately EXCLUDED from active-library
-                              auto-clustering regardless of distance (get_duplicate_pairs() is
-                              CLIP-only) -- a 2026-09-19 live-rollout spot-check found the
-                              OCR-text embedding signal produces a genuine false-positive "hub"
-                              pattern (informal/profane meme captions cluster by register, not
-                              actual content) at too high a rate to auto-confirm without human
-                              review. ocr_text pairs are still inserted into tmp_duplicates and
-                              still surfaced for ingestion's Tier A/B human review, just not
-                              auto-clustered here. PROXIMITY_THRESHOLD_OCR_TEXT is kept defined but
-                              currently unused -- see
-                              docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md's
-                              "Known limitation" section for the full incident and what a
-                              recalibrated design needs before this can safely change.
-                              Then shapes the result: clusters bigger
+                              manual-trigger only. Union-find over tmp_duplicates pairs, gated
+                              per distance_source: clip-sourced pairs below PROXIMITY_THRESHOLD
+                              (0.05), ocr_text-sourced pairs below the separate
+                              PROXIMITY_THRESHOLD_OCR_TEXT (0.05, independently configured, not
+                              coupled to the CLIP constant even though they're numerically equal
+                              today). ocr_text-sourced pairs are trustworthy here specifically
+                              because batch/rebuild_duplicates.py's/batch/ingest_find_duplicates.py's
+                              own OCR-text probes already require a lexical-overlap corroboration
+                              check (against ocr_lemmas) before inserting a row at all — see
+                              docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md.
+                              (A 2026-09-18 live-rollout finding briefly disabled ocr_text
+                              auto-clustering entirely before that corroboration check existed --
+                              see docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md's
+                              "Known limitation" section for that incident.) Then shapes the
+                              result: clusters bigger
                               than settings.CLUSTERING.SPLITTING.MAX_CLUSTER_SIZE are recursively
                               re-clustered at progressively tighter thresholds (stepping down by
                               .DECREMENT until a group is small enough or the next threshold would
@@ -228,9 +231,16 @@ clusterize                 → optimize cluster index; admin-triggerable from /a
                               block for defaults.
 
 build_tags_from_ocr        → rule-based tags from OCR text
-build_ocr_lemmas           → per-image lemma index for smart search (see
-                              docs/superpowers/specs/2026-07-21-smart-search-design.md);
-                              --incremental skips images already indexed
+build_ocr_lemmas            → per-image lemma index for smart search (see
+                               docs/superpowers/specs/2026-07-21-smart-search-design.md) and, since
+                               2026-09-19, for the OCR-text duplicate-matching corroboration check
+                               (see docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md).
+                               --incremental skips images already indexed for this pipeline.
+                               --status defaults to active; --status pending covers an in-flight
+                               ingestion batch -- also chained automatically as part of
+                               ingest_auto_prep (see Ingestion below). --status pending requires
+                               --incremental (a full reprocess deletes the ENTIRE table
+                               unconditionally, not just pending-status rows).
 build_description_note_lemmas → per-image lemma index for human description notes (see
                               docs/superpowers/specs/2026-08-20-description-notes-design.md);
                               admin-triggerable from /admin/batches, manual-trigger only, not
@@ -313,6 +323,12 @@ trends_batch                → GLiNER NER over each configured trend source's f
 #                                                   are decisive" premise doesn't hold for all
 #                                                   content, e.g. same-format-different-text
 #                                                   meme cards -- both tiers need OCR now)
+#   build_ocr_lemmas --status pending --incremental   (needs OCR text; populates ocr_lemmas for
+#                                                   smart search and for the OCR-text duplicate-
+#                                                   matching corroboration check -- see
+#                                                   docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md;
+#                                                   no ordering dependency on classify_text_heavy,
+#                                                   placed here to get coverage as early as possible)
 #   classify_text_heavy --status pending   (needs OCR text; only affects the review UI's
 #                                           text_heavy badge, not matching -- see its own entry)
 #   build_ocr_text_embeddings --status pending   (needs classify_text_heavy's output -- only
@@ -337,10 +353,11 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
                                see their own entries). Newly-added images need
                                ingest_validate_formats.py, build_image_embeddings --status
                                pending --incremental, extract_text_from_memes --status pending,
-                               classify_text_heavy --status pending, build_ocr_text_embeddings
+                               build_ocr_lemmas --status pending --incremental, classify_text_heavy
+                               --status pending, build_ocr_text_embeddings
                                --status pending, and ingest_find_duplicates.py
                                (both tiers, as applicable) re-run afterward to get review coverage
-                               -- all six are already safe to re-run against the same batch.
+                               -- all seven are already safe to re-run against the same batch.
                                Skipping the embeddings step is not just incomplete --
                                ingest_find_duplicates.py's probe is an inner join
                                against embeddings, so an image with none is silently excluded from
@@ -360,6 +377,16 @@ extract_text_from_memes --status pending
                              → OCR for Stage 1's survivors, run before either tier's review (see
                                run-order note above; existing script/flag, no ingestion-specific
                                code)
+build_ocr_lemmas --status pending --incremental
+                             → populates ocr_lemmas for Stage 1's survivors -- needed both for
+                               smart search and, since 2026-09-19, for the OCR-text duplicate-
+                               matching corroboration check (see
+                               docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md).
+                               --status pending requires --incremental (see build_ocr_lemmas'
+                               own entry above); no ordering dependency on classify_text_heavy,
+                               so it runs directly after OCR to get lemma coverage as early in
+                               the chain as possible (existing script/flag, no ingestion-specific
+                               code).
 classify_text_heavy --status pending
                              → computes the text-heavy classifier for Stage 1's survivors, so the
                                review UI's text_heavy badge (see its own entry below) is populated
@@ -393,7 +420,10 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                of which tier called it -- never derived from the tier's own
                                threshold (e.g. via min()) -- a real bug caught during that
                                feature's design; don't reintroduce a tier-derived OCR-text
-                               threshold.
+                               threshold. The OCR-text probe additionally requires a lexical-overlap
+                               corroboration check against ocr_lemmas before inserting a candidate
+                               (MIN_LEMMA_OVERLAP_COEFFICIENT=0.2, MIN_LEMMA_COUNT_FLOOR=3) -- see
+                               docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md.
                                Review (listing clusters, resolving reject/keep decisions) is the
                                /api/ingestion/* endpoints (Backend/app/api/ingestion.py), with a
                                frontend page at /ingestion covering both tiers (switches queue
@@ -420,8 +450,8 @@ ingest_abort                → Abandons the currently active ingestion run inst
 `ingest_auto_prep` is a one-job alternative to running Stage 1 through the Tier A step by
 hand: it chains `ingest_hash_dedup` → `ingest_validate_formats` → `build_image_embeddings
 --status pending --incremental` → `extract_text_from_memes --status pending` →
-`classify_text_heavy --status pending` → `build_ocr_text_embeddings --status pending` →
-`ingest_find_duplicates --tier tier_a`, self-tracked
+`build_ocr_lemmas --status pending` → `classify_text_heavy --status pending` →
+`build_ocr_text_embeddings --status pending` → `ingest_find_duplicates --tier tier_a`, self-tracked
 under `kind="ingestion_auto_prep"` —
 deliberately distinct from the long-lived `kind="ingestion"` review-run row, since that row
 can stay open for days during human review and must not be mistaken for an orphaned/crashed
