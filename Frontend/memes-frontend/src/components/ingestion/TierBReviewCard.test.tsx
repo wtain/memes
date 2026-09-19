@@ -8,8 +8,8 @@ import type { IngestionTierBReviewItem } from '../../types/generated/all'
 const item: IngestionTierBReviewItem = {
   image: { image_id: 's1', filename: 's1.jpg', status: 'pending', ocr_text: 'subject' },
   candidates: [
-    { member: { image_id: 'c1', filename: 'c1.jpg', status: 'pending', ocr_text: null }, distance: 0.08, match_source: 'in_batch' },
-    { member: { image_id: 'c2', filename: 'c2.jpg', status: 'active', ocr_text: null }, distance: 0.15, match_source: 'cross_corpus' },
+    { member: { image_id: 'c1', filename: 'c1.jpg', status: 'pending', ocr_text: null }, distance: 0.08, match_source: 'in_batch', distance_source: 'clip' },
+    { member: { image_id: 'c2', filename: 'c2.jpg', status: 'active', ocr_text: null }, distance: 0.15, match_source: 'cross_corpus', distance_source: 'clip' },
   ],
   total_candidates: 2,
 }
@@ -42,7 +42,18 @@ describe('TierBReviewCard', () => {
 
   it('shows a candidate distance/source line', () => {
     renderCard()
-    expect(screen.getByText(/0\.080 · in_batch/)).toBeInTheDocument()
+    expect(screen.getByText(/0\.080 · visual · in_batch/)).toBeInTheDocument()
+  })
+
+  it('shows a text-embedding label for an ocr_text-sourced candidate', () => {
+    const c3 = {
+      member: { image_id: 'c3', filename: 'c3.jpg', status: 'active', ocr_text: null },
+      distance: 0.08,
+      match_source: 'in_batch',
+      distance_source: 'ocr_text',
+    }
+    renderCard({ item: { ...item, candidates: [...item.candidates, c3] } })
+    expect(screen.getByText(/0\.080 · text · in_batch/)).toBeInTheDocument()
   })
 
   it('shows "Showing K of N" when total_candidates exceeds the returned list', () => {

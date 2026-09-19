@@ -45,7 +45,7 @@ export function TierBReviewCard({
             key={c.member.image_id}
             memesApi={memesApi}
             member={c.member}
-            edgeSummary={`${c.distance.toFixed(3)} · ${c.match_source ?? "?"}`}
+            edgeSummary={`${c.distance.toFixed(3)} · ${c.distance_source === "ocr_text" ? "text" : "visual"} · ${c.match_source ?? "?"}`}
             decision={c.member.status === "pending" ? decisions[c.member.image_id] : undefined}
             onDecide={
               c.member.status === "pending"
