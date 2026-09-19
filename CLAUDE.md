@@ -174,18 +174,38 @@ here in the same change.
 ```
 extract_text_from_memes    → registers images + EasyOCR (EN/ES/RU)
 build_image_embeddings     → CLIP 512-dim vectors
-rebuild_duplicates         → near-duplicate candidate pairs, incremental by default (only images
-                              without an existing tmp_duplicates row are probed); HNSW-assisted
-                              KNN, not a full cross join — see
+rebuild_duplicates         → near-duplicate candidate pairs; HNSW-assisted KNN, not a full cross
+                              join — see
                               docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
+                              Issues three probes per run: the general CLIP probe (incremental by
+                              default -- only images with no existing tmp_duplicates row for that
+                              probe's distance_source are re-probed), a tight CLIP "safety net"
+                              probe for text-heavy-vs-text-heavy pairs, and an OCR-text-embedding
+                              probe for text-heavy-vs-text-heavy pairs — see
+                              docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md.
+                              The safety-net probe is deliberately NOT incremental -- it always
+                              re-probes every active text-heavy image on every run, relying
+                              entirely on ON CONFLICT DO NOTHING for idempotency; this is the
+                              single most load-bearing invariant in that feature (sharing an
+                              incremental marker with the general probe would silently and
+                              permanently disable the safety net for affected images), so don't
+                              "simplify" it into sharing the general probe's incremental marker.
                               --full clears active-library pairs and re-probes everything;
-                              --k/--threshold override settings.DUPLICATES.K/THRESHOLD. Chains
+                              --k/--threshold override settings.DUPLICATES.K/THRESHOLD (the general
+                              CLIP probe's threshold only -- the safety-net and OCR-text
+                              thresholds are fixed module constants). Chains
                               into clusterize when it finishes (--no-chain to skip); both are
                               independently admin-triggerable from /admin/batches, manual-trigger
                               only (not scheduled).
 clusterize                 → optimize cluster index; admin-triggerable from /admin/batches,
-                              manual-trigger only. Union-find over tmp_duplicates pairs below
-                              PROXIMITY_THRESHOLD (0.05), then shapes the result: clusters bigger
+                              manual-trigger only. Union-find over tmp_duplicates pairs, gated
+                              per distance_source: clip-sourced pairs below PROXIMITY_THRESHOLD
+                              (0.05), ocr_text-sourced pairs below the separate
+                              PROXIMITY_THRESHOLD_OCR_TEXT (0.05, independently configured, not
+                              coupled to the CLIP constant even though they're numerically equal
+                              today) — see
+                              docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md.
+                              Then shapes the result: clusters bigger
                               than settings.CLUSTERING.SPLITTING.MAX_CLUSTER_SIZE are recursively
                               re-clustered at progressively tighter thresholds (stepping down by
                               .DECREMENT until a group is small enough or the next threshold would
@@ -251,12 +271,16 @@ classify_text_heavy         → computes the text-heavy classifier (coverage rat
                                docs/superpowers/specs/2026-09-15-text-heavy-classifier.md.
 build_ocr_text_embeddings   → computes sentence embeddings (paraphrase-multilingual-MiniLM-
                                L12-v2, 384-dim) for the OCR text of every text_heavy-classified
-                               image, storing them in ocr_text_embeddings. Compute+store only --
-                               no matching/routing logic reads this table yet. Admin-triggerable
+                               image, storing them in ocr_text_embeddings. Consumed by
+                               rebuild_duplicates/ingest_find_duplicates for text-heavy-vs-
+                               text-heavy duplicate matching (see
+                               docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md)
+                               -- see docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md for
+                               the embedding computation itself. Admin-triggerable
                                from /admin/batches, manual-trigger only, not scheduled. --status
                                defaults to active; --status pending covers an in-flight
-                               ingestion batch. See
-                               docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md.
+                               ingestion batch -- also chained automatically as part of
+                               ingest_auto_prep (see Ingestion below).
 
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters
@@ -283,6 +307,11 @@ trends_batch                → GLiNER NER over each configured trend source's f
 #                                                   meme cards -- both tiers need OCR now)
 #   classify_text_heavy --status pending   (needs OCR text; only affects the review UI's
 #                                           text_heavy badge, not matching -- see its own entry)
+#   build_ocr_text_embeddings --status pending   (needs classify_text_heavy's output -- only
+#                                           text_heavy-classified images get embedded; needed by
+#                                           ingest_find_duplicates' OCR-text probe for full
+#                                           text-heavy-vs-text-heavy coverage, see
+#                                           docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md)
 #   ingest_find_duplicates --tier tier_a   (review in UI, reject/keep)
 #   ingest_find_duplicates --tier tier_b   (review in UI, reject/keep)
 #   ingest_promote
@@ -300,9 +329,10 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
                                see their own entries). Newly-added images need
                                ingest_validate_formats.py, build_image_embeddings --status
                                pending --incremental, extract_text_from_memes --status pending,
-                               classify_text_heavy --status pending, and ingest_find_duplicates.py
+                               classify_text_heavy --status pending, build_ocr_text_embeddings
+                               --status pending, and ingest_find_duplicates.py
                                (both tiers, as applicable) re-run afterward to get review coverage
-                               -- all five are already safe to re-run against the same batch.
+                               -- all six are already safe to re-run against the same batch.
                                Skipping the embeddings step is not just incomplete --
                                ingest_find_duplicates.py's probe is an inner join
                                against embeddings, so an image with none is silently excluded from
@@ -329,14 +359,30 @@ classify_text_heavy --status pending
                                Purely additive metadata -- doesn't affect matching, candidate
                                selection, or promotion; existing script/flag, no ingestion-specific
                                code.
+build_ocr_text_embeddings --status pending
+                             → embeds Stage 1's text_heavy-classified survivors for the OCR-text
+                               duplicate-matching probe -- needs classify_text_heavy's output, so
+                               it runs after it (existing script/flag, no ingestion-specific code;
+                               see build_ocr_text_embeddings' own entry above)
 ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_duplicates for the
-                               active ingestion run's pending images via the same merged
-                               probe/corpus find_duplicates() primitive rebuild_duplicates.py
-                               uses, at clusterize.py's PROXIMITY_THRESHOLD (0.05). --tier tier_b
-                               uses settings.DUPLICATES.THRESHOLD (0.12, lowered from 0.3 on
+                               active ingestion run's pending images via the same find_duplicates()
+                               primitive rebuild_duplicates.py uses, at clusterize.py's
+                               PROXIMITY_THRESHOLD (0.05). --tier tier_b uses
+                               settings.DUPLICATES.THRESHOLD (0.12, lowered from 0.3 on
                                2026-09-18 -- see the setting's own comment in
                                environments/settings.yaml for the empirical basis) as its
                                outer bound.
+                               Each tier call now issues three probes, mirroring
+                               rebuild_duplicates.py's own split (see
+                               docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md):
+                               general CLIP (excluding text-heavy-vs-text-heavy pairs), a tight
+                               CLIP safety net, and an OCR-text-embedding probe, both scoped to
+                               text-heavy-vs-text-heavy pairs. The OCR-text probe deliberately
+                               ALWAYS inserts at TEXT_EMBEDDING_LOOSE_THRESHOLD (0.10) regardless
+                               of which tier called it -- never derived from the tier's own
+                               threshold (e.g. via min()) -- a real bug caught during that
+                               feature's design; don't reintroduce a tier-derived OCR-text
+                               threshold.
                                Review (listing clusters, resolving reject/keep decisions) is the
                                /api/ingestion/* endpoints (Backend/app/api/ingestion.py), with a
                                frontend page at /ingestion covering both tiers (switches queue
@@ -363,7 +409,8 @@ ingest_abort                → Abandons the currently active ingestion run inst
 `ingest_auto_prep` is a one-job alternative to running Stage 1 through the Tier A step by
 hand: it chains `ingest_hash_dedup` → `ingest_validate_formats` → `build_image_embeddings
 --status pending --incremental` → `extract_text_from_memes --status pending` →
-`classify_text_heavy --status pending` → `ingest_find_duplicates --tier tier_a`, self-tracked
+`classify_text_heavy --status pending` → `build_ocr_text_embeddings --status pending` →
+`ingest_find_duplicates --tier tier_a`, self-tracked
 under `kind="ingestion_auto_prep"` —
 deliberately distinct from the long-lived `kind="ingestion"` review-run row, since that row
 can stay open for days during human review and must not be mistaken for an orphaned/crashed

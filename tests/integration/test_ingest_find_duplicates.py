@@ -153,6 +153,13 @@ async def test_general_clip_excludes_text_heavy_pair_safety_net_still_finds_it(d
     b = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)  # identical -> distance 0
     await _mark_text_heavy(db_session, a)
     await _mark_text_heavy(db_session, b)
+    # Both images need an ocr_text_embeddings row for _EXCLUDE_TEXT_HEAVY_PAIR (keyed on
+    # embedding existence, not classification) to actually exclude this pair from the general
+    # CLIP probe. Deliberately far apart in OCR-text space (orthogonal -> distance 1.0, past
+    # TEXT_EMBEDDING_LOOSE_THRESHOLD) so the OCR-text probe doesn't find them either -- the
+    # safety net must be the only probe that surfaces this pair.
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(1))
 
     inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)
 
@@ -203,6 +210,8 @@ async def test_ocr_text_probe_ignores_threshold_argument(db_session):
 
     inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.05)  # tier_a threshold
 
+    assert inserted == 1  # only the OCR-text probe finds this pair -- general/safety-net CLIP
+    # both miss it (orthogonal CLIP vectors, distance 1.0, past even the safety net's 0.02)
     row = (await db_session.execute(
         text("SELECT distance_source FROM tmp_duplicates")
     )).one()

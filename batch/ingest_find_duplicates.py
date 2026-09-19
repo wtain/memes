@@ -96,8 +96,9 @@ async def find_batch_duplicates(session, batch_id, k: int, threshold: float) -> 
     inserts generously all the way down to distance 0, relying entirely on the review query's own
     band filtering (get_tier_candidate_rows/list_tier_b_review_page's `distance >= low AND
     distance < high`) to decide which UI tier a stored row surfaces in -- not on which probe call
-    inserted it. See this plan's Global Constraints for why deriving a tighter value via e.g.
-    min(threshold, TEXT_EMBEDDING_LOOSE_THRESHOLD) would be a real bug, not a simplification.
+    inserted it. See docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md's §4
+    for why deriving a tighter value via e.g. min(threshold, TEXT_EMBEDDING_LOOSE_THRESHOLD) would
+    be a real bug, not a simplification.
 
     The safety-net probe reuses _BATCH_PROBE_SQL unchanged (all pending images in the batch, not
     scoped to text_heavy on the probe side) -- unlike rebuild_duplicates.py's own safety-net

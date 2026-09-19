@@ -52,8 +52,9 @@ _ACTIVE_PROBE_OCR_TEXT_FULL = """
 """
 
 # Safety-net probe: deliberately NOT _ACTIVE_PROBE_INCREMENTAL/_FULL, and deliberately has no
-# incremental skip condition at all -- see Global Constraints at the top of this plan, and the
-# spec's §3, for why sharing an incremental marker with the general CLIP probe is genuinely
+# incremental skip condition at all -- see
+# docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md's §3 for why sharing an
+# incremental marker with the general CLIP probe is genuinely
 # broken (not just imprecise): it would silently and permanently disable the safety net for any
 # text-heavy image that also has an unrelated non-text-heavy CLIP match. Scoped to active
 # text_heavy images only, on the probe side too, so it never wastes a KNN search on an image that
@@ -73,12 +74,23 @@ _ACTIVE_PROBE_SAFETY_NET = """
 # OCR-text embeddings instead, plus the tight CLIP safety net above. Appended to every existing
 # CLIP corpus filter as an extra AND clause. References probe.id/i2.id, both in scope wherever
 # this is interpolated into find_duplicates()'s LATERAL subquery.
+#
+# Keyed on ocr_text_embeddings existence, NOT on image_classifications' text_heavy result --
+# deliberately, not an oversight (found and fixed during final whole-branch review). An image can
+# be classified text_heavy but still have no ocr_text_embeddings row: build_ocr_text_embeddings.py
+# applies its own quality filter (OCR.CONFIDENCE_MIN / OCR.LANG_SCORE_MIN), so text too short or
+# low-confidence to pass that filter never gets embedded even though the classifier marked the
+# image text_heavy. If this exclusion were keyed on classification instead, such an image would be
+# excluded from the general CLIP probe (because it's classified text_heavy) with zero replacement
+# coverage from the OCR-text probe (because it has no embedding to probe with) -- silently losing
+# all mid-band duplicate coverage down to the 0.02 CLIP safety net. Keying on embedding existence
+# instead makes this exclusion the exact complement of what the OCR-text probe can actually cover,
+# so an image in that gap correctly falls back to normal general-CLIP matching. See
+# docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md.
 _EXCLUDE_TEXT_HEAVY_PAIR = """
     NOT (
-        EXISTS (SELECT 1 FROM image_classifications tc1 WHERE tc1.image_id = probe.id
-                AND tc1.classifier = 'text_heavy_v1' AND tc1.result = 'text_heavy')
-        AND EXISTS (SELECT 1 FROM image_classifications tc2 WHERE tc2.image_id = i2.id
-                    AND tc2.classifier = 'text_heavy_v1' AND tc2.result = 'text_heavy')
+        EXISTS (SELECT 1 FROM ocr_text_embeddings oe1 WHERE oe1.image_id = probe.id)
+        AND EXISTS (SELECT 1 FROM ocr_text_embeddings oe2 WHERE oe2.image_id = i2.id)
     )
 """
 
@@ -172,7 +184,7 @@ async def rebuild_active_library(session, k: int, threshold: float, full: bool =
         distance_source="clip", extra_params={"probe_distance_source": "clip"},
     )
     # Deliberately NOT clip_probe_sql, and deliberately no incremental skip condition -- see
-    # this plan's Global Constraints and the spec's §3 for why.
+    # docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md's §3 for why.
     inserted += await find_duplicates(
         session, _ACTIVE_PROBE_SAFETY_NET, _ACTIVE_CORPUS_FILTER_CLIP_SAFETY_NET, k,
         CLIP_SAFETY_NET_THRESHOLD, distance_source="clip",

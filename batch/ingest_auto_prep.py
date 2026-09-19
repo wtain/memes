@@ -1,6 +1,6 @@
 """
 Ingestion prep driver: automates the ingestion pipeline's fully-automatable prep stages --
-hash dedup through Tier A duplicate-finding -- so an operator no longer has to run 6 commands
+hash dedup through Tier A duplicate-finding -- so an operator no longer has to run 7 commands
 by hand just to get newly-dropped inbox files into the Tier A review queue. Tier B
 duplicate-finding and promotion stay manual; both depend on a human having finished the prior
 tier's review, so auto-running them risks promoting images (or advancing the review queue) out
@@ -29,8 +29,8 @@ import asyncio
 import uuid
 
 from batch import (
-    build_image_embeddings, classify_text_heavy, extract_text_from_memes, ingest_find_duplicates,
-    ingest_hash_dedup, ingest_validate_formats,
+    build_image_embeddings, build_ocr_text_embeddings, classify_text_heavy, extract_text_from_memes,
+    ingest_find_duplicates, ingest_hash_dedup, ingest_validate_formats,
 )
 from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
@@ -44,6 +44,7 @@ async def _run_prep_chain() -> None:
         ("build_image_embeddings", lambda: build_image_embeddings.main(incremental=True, target_status="pending")),
         ("extract_text_from_memes", lambda: extract_text_from_memes.main(settings.BASE_PATH, target_status="pending")),
         ("classify_text_heavy", lambda: classify_text_heavy.main(status="pending")),
+        ("build_ocr_text_embeddings", lambda: build_ocr_text_embeddings.main(status="pending")),
         ("ingest_find_duplicates", lambda: ingest_find_duplicates.main(env=None, tier="tier_a", k=None)),
     ]
     for name, step in steps:

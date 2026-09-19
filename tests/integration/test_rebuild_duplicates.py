@@ -207,6 +207,13 @@ async def test_safety_net_finds_tight_text_heavy_match_general_probe_excludes(db
     b = await _insert_image_with_embedding(db_session, _unit_vector(0))  # identical -> distance 0
     await _mark_text_heavy(db_session, a)
     await _mark_text_heavy(db_session, b)
+    # Both images need an ocr_text_embeddings row for _EXCLUDE_TEXT_HEAVY_PAIR (keyed on
+    # embedding existence, not classification -- see the constant's own comment) to actually
+    # exclude this pair from the general CLIP probe. Deliberately far apart in OCR-text space
+    # (orthogonal -> distance 1.0, past TEXT_EMBEDDING_LOOSE_THRESHOLD) so the OCR-text probe
+    # doesn't find them either -- the safety net must be the only probe that surfaces this pair.
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(1))
 
     await rebuild_active_library(db_session, k=20, threshold=0.3)
 
@@ -266,22 +273,76 @@ async def test_ocr_text_probe_finds_pair_via_ocr_text_embeddings(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_text_heavy_pair_without_ocr_embeddings_falls_back_to_general_clip_probe(db_session):
+    """Regression test for a whole-branch-review finding: images classified text_heavy but with
+    no ocr_text_embeddings row (e.g. OCR text too short/low-confidence to pass
+    build_ocr_text_embeddings' own quality filter) must not silently lose all mid-band duplicate
+    coverage. _EXCLUDE_TEXT_HEAVY_PAIR is keyed on ocr_text_embeddings existence, not
+    classification, so a pair like this falls back to the general CLIP probe instead of being
+    excluded with no replacement signal."""
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))
+    b = await _insert_image_with_embedding(db_session, _near_unit_vector(0))  # ~0.1056: past the
+    # 0.02 safety net threshold, well within the general probe's 0.3 threshold in this test
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    # deliberately no ocr_text_embeddings for either image -- the exact scenario this test guards
+
+    await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    row = (await db_session.execute(
+        text("SELECT image_id1, image_id2, distance, distance_source FROM tmp_duplicates")
+    )).one()
+    assert {row.image_id1, row.image_id2} == {a, b}
+    assert row.distance_source == "clip"  # found by the general probe's fallback coverage -- the
+    # 0.02-only safety net alone would have missed this (0.1056 > 0.02), and with the OLD
+    # classification-based exclusion this pair would have been excluded from general with no
+    # replacement, causing this query to find zero rows
+    assert row.distance == pytest.approx(0.10557280900008414, abs=1e-6)
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_incremental_rerun_does_not_skip_ocr_text_probe_for_already_clip_probed_image(db_session):
     """Task 1's own §2 regression: a second signal's probe must not be silently skipped just
     because a different signal's probe already inserted a row for the same image earlier in the
-    same incremental probe-set fragment's lifetime."""
+    same incremental probe-set fragment's lifetime.
+
+    Strengthened per final-whole-branch-review finding 4: the original fixture never actually gave
+    `a` a `distance_source='clip'` row before the OCR-text probe ran within the same first call, so
+    it couldn't have failed for the reason its name/docstring claims (the OCR incremental probe's
+    own SQL hardcodes `distance_source = 'ocr_text'` in its NOT EXISTS check, so it was always
+    structurally immune regardless). `c` is added specifically to give `a` a real
+    `distance_source='clip'` row (from the general probe) in the same `rebuild_active_library()`
+    call that the OCR-text probe also runs in, so this test now genuinely exercises the scenario
+    its docstring describes."""
     a = await _insert_image_with_embedding(db_session, _unit_vector(0))
     b = await _insert_image_with_embedding(db_session, _unit_vector(1))  # orthogonal CLIP, no general-probe match
+    c = await _insert_image_with_embedding(db_session, _near_unit_vector(0))  # NOT text-heavy,
+    # ~0.1056 from a -- close enough for the general CLIP probe to insert a distance_source='clip'
+    # row touching a, before/alongside the OCR-text probe runs in the same call.
     await _mark_text_heavy(db_session, a)
     await _mark_text_heavy(db_session, b)
     await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
     await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    # c is deliberately left unclassified (not text_heavy) and without an ocr_text_embeddings row
 
-    # First rebuild: general probe finds nothing (a,b are CLIP-orthogonal and text-heavy-excluded
-    # anyway); safety net finds nothing (CLIP-orthogonal, past CLIP_SAFETY_NET_THRESHOLD); OCR-text
-    # probe finds the pair.
+    # First rebuild: general probe excludes (a,b) (both have ocr_text_embeddings rows) but finds
+    # (a,c) (c has no ocr_text_embeddings row, so the pair isn't excluded, and is well within the
+    # general 0.3 threshold); safety net finds nothing (a,b are CLIP-orthogonal, past
+    # CLIP_SAFETY_NET_THRESHOLD, and c isn't text_heavy so the safety net's corpus filter excludes
+    # it regardless); OCR-text probe finds (a,b) despite a already carrying a fresh
+    # distance_source='clip' row from the general probe's (a,c) match earlier in this same call --
+    # the actual regression this test guards against.
     first = await rebuild_active_library(db_session, k=20, threshold=0.3)
-    assert first == 1
+    assert first == 2
+
+    pairs = {
+        tuple(sorted((str(r.image_id1), str(r.image_id2)))): r.distance_source
+        for r in (await db_session.execute(
+            text("SELECT image_id1, image_id2, distance_source FROM tmp_duplicates")
+        )).all()
+    }
+    assert pairs[tuple(sorted((str(a), str(c))))] == "clip"
+    assert pairs[tuple(sorted((str(a), str(b))))] == "ocr_text"
 
     # Second, incremental rebuild: nothing new to find, but this must not raise or behave
     # differently -- confirms the incremental NOT EXISTS fragment's distance_source gating didn't

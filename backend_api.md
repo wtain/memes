@@ -943,6 +943,11 @@ in-batch and cross-corpus matches (`match_source` per edge), per
 `2026-07-25-duplicate-clustering-incremental-design.md`. Only clusters with at least one
 still-undecided member are returned — resolved rows drop out automatically.
 
+Each edge also carries `distance_source` — `"clip"` (CLIP visual embedding) or `"ocr_text"`
+(OCR-text sentence embedding, text-heavy-vs-text-heavy pairs only), per
+`2026-09-18-text-embedding-duplicate-matching.md`. The two signals use different distance scales,
+so `distance_source` tells a reviewer which scale a given `distance` value is on.
+
 - **URL**: `/api/ingestion/clusters/{tier}`
 - **Method**: `GET`
 - **Path params**: `tier` — `tier_a` (pre-OCR, tight threshold) or `tier_b` (post-OCR-prepass, loose threshold)
@@ -961,7 +966,7 @@ still-undecided member are returned — resolved rows drop out automatically.
         { "image_id": "3c4d...", "filename": "meme_02.jpg", "status": "active", "ocr_text": "Не смешно, совсем", "text_heavy": true }
       ],
       "edges": [
-        { "image_id1": "1a2b...", "image_id2": "3c4d...", "distance": 0.041, "match_source": "cross_corpus" }
+        { "image_id1": "1a2b...", "image_id2": "3c4d...", "distance": 0.041, "match_source": "cross_corpus", "distance_source": "clip" }
       ],
       "total_members": 2
     }
@@ -995,7 +1000,7 @@ image.
 - **Query params**:
   - `cursor` — optional, opaque pagination token. Omit for the first page.
   - `limit` — optional, default `40`, must be between `1` and `200`.
-- **Response**: `TierBReviewPage` — `items[]` of `{ image, candidates: [{ member, distance, match_source }], total_candidates }`, plus `next_cursor` (opaque string, `null` on the last page) and `has_next`.
+- **Response**: `TierBReviewPage` — `items[]` of `{ image, candidates: [{ member, distance, match_source, distance_source }], total_candidates }`, plus `next_cursor` (opaque string, `null` on the last page) and `has_next`.
 - **Example**: `GET /api/ingestion/review/tier_b`
 
 ```json
@@ -1007,7 +1012,8 @@ image.
         {
           "member": { "image_id": "3c4d...", "filename": "meme_02.jpg", "status": "active", "ocr_text": "Не смешно, совсем", "text_heavy": true },
           "distance": 0.08,
-          "match_source": "cross_corpus"
+          "match_source": "cross_corpus",
+          "distance_source": "clip"
         }
       ],
       "total_candidates": 5
