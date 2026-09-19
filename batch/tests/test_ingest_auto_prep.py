@@ -1,6 +1,6 @@
 """
 Unit tests for batch/ingest_auto_prep.py -- the ingestion prep chain driver. No real DB; all
-7 chained steps' main() functions are mocked, matching batch/tests/test_move_flagged.py's
+8 chained steps' main() functions are mocked, matching batch/tests/test_move_flagged.py's
 chaining-test style.
 """
 from unittest.mock import AsyncMock, patch
@@ -22,12 +22,13 @@ def _ctx(value):
 
 
 def _patched_steps(module, **overrides):
-    """Returns a dict of the 7 step mocks, pre-wired as no-op AsyncMocks unless overridden."""
+    """Returns a dict of the 8 step mocks, pre-wired as no-op AsyncMocks unless overridden."""
     steps = {
         "ingest_hash_dedup": AsyncMock(),
         "ingest_validate_formats": AsyncMock(),
         "build_image_embeddings": AsyncMock(),
         "extract_text_from_memes": AsyncMock(),
+        "build_ocr_lemmas": AsyncMock(),
         "classify_text_heavy": AsyncMock(),
         "build_ocr_text_embeddings": AsyncMock(),
         "ingest_find_duplicates": AsyncMock(),
@@ -40,7 +41,7 @@ def _patched_steps(module, **overrides):
 
 class TestRunPrepChain:
     @pytest.mark.asyncio
-    async def test_calls_all_seven_steps_in_order_with_expected_args(self):
+    async def test_calls_all_eight_steps_in_order_with_expected_args(self):
         import batch.ingest_auto_prep as module
 
         call_order = []
@@ -54,20 +55,21 @@ class TestRunPrepChain:
 
         assert call_order == [
             "ingest_hash_dedup", "ingest_validate_formats", "build_image_embeddings",
-            "extract_text_from_memes", "classify_text_heavy", "build_ocr_text_embeddings",
-            "ingest_find_duplicates",
+            "extract_text_from_memes", "build_ocr_lemmas", "classify_text_heavy",
+            "build_ocr_text_embeddings", "ingest_find_duplicates",
         ]
         steps["ingest_hash_dedup"].assert_awaited_once_with(env=None)
         steps["ingest_validate_formats"].assert_awaited_once_with(env=None)
         steps["build_image_embeddings"].assert_awaited_once_with(incremental=True, target_status="pending")
         steps["extract_text_from_memes"].assert_awaited_once_with("/fake/base", target_status="pending")
+        steps["build_ocr_lemmas"].assert_awaited_once_with(status="pending")
         steps["classify_text_heavy"].assert_awaited_once_with(status="pending")
         steps["build_ocr_text_embeddings"].assert_awaited_once_with(status="pending")
         steps["ingest_find_duplicates"].assert_awaited_once_with(env=None, tier="tier_a", k=None)
 
     @pytest.mark.asyncio
     async def test_runtime_error_from_a_later_step_is_swallowed(self):
-        """The common case: the inbox is empty and no ingestion run is active, so steps 2-6
+        """The common case: the inbox is empty and no ingestion run is active, so steps 2-7
         raise 'No ingestion run is currently in progress' -- that must not fail the tick."""
         import batch.ingest_auto_prep as module
 
@@ -104,7 +106,7 @@ class TestRunPrepChain:
     @pytest.mark.asyncio
     async def test_runtime_error_from_hash_dedup_propagates(self):
         """Step 1 failing (e.g. PATH_INGESTION_SOURCE misconfigured) must fail the whole tick,
-        not be swallowed like steps 2-6's expected 'nothing to do' error."""
+        not be swallowed like steps 2-7's expected 'nothing to do' error."""
         import batch.ingest_auto_prep as module
 
         steps = _patched_steps(
