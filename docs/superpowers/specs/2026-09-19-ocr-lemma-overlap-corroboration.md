@@ -1,6 +1,7 @@
 # OCR-Lemma Overlap Corroboration for Text-Embedding Duplicate Matching
 
-status: approved
+status: planned
+Plan: `docs/superpowers/plans/2026-09-19-ocr-lemma-overlap-corroboration.md`
 Originates from: `docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md`'s
 "Known limitation" section (live-rollout finding, 2026-09-19) — that spec shipped OCR-text-embedding
 distance as the primary duplicate signal for text-heavy image pairs, but the live rollout found a
