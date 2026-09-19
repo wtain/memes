@@ -1,6 +1,10 @@
 # Text-Embedding Duplicate Matching
 
 status: done
+Follow-ups: `docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md` (the
+  recalibration the "Known limitation" section below calls for — a lexical-overlap corroboration
+  gate on the OCR-text probe, letting active-library auto-clustering for `ocr_text`-sourced pairs
+  be safely re-enabled)
 Originates from: the 2026-09-18 conversation continuing the Tier B review-noise thread (see
 `docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md`'s Non-goals, which explicitly deferred
 "wiring this into `tmp_duplicates`, `ingest_find_duplicates.py`, `rebuild_duplicates.py`,
