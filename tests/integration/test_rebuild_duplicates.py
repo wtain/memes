@@ -441,6 +441,29 @@ async def test_ocr_lemma_overlap_check_uses_coefficient_not_raw_count(db_session
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_tolerates_image_with_no_ocr_lemmas(db_session):
+    """Regression test for the GREATEST(..., 1) division-by-zero guard in
+    _OCR_LEMMA_OVERLAP_CHECK: an image with zero ocr_lemmas rows (common in practice until
+    build_ocr_lemmas.py's coverage catches up with ocr_text_embeddings) must be excluded cleanly,
+    not raise a DivisionByZeroError. LEAST(count_a, count_b) = 0 here, which would divide by zero
+    without the guard."""
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))
+    b = await _insert_image_with_embedding(db_session, _unit_vector(1))
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    await _insert_ocr_lemmas(db_session, a, {"дом", "кот", "утро", "чай"})
+    # b deliberately gets NO ocr_lemmas rows at all -- LEAST(4, 0) = 0
+
+    inserted = await rebuild_active_library(db_session, k=20, threshold=0.3)  # must not raise
+
+    assert inserted == 0
+    rows = (await db_session.execute(text("SELECT * FROM tmp_duplicates"))).all()
+    assert rows == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_ocr_lemma_overlap_check_respects_min_lemma_count_floor(db_session):
     """Two images with only 1-2 total ocr_lemmas each, fully overlapping (coefficient would
     compute to 1.0) -- must still be excluded, since MIN_LEMMA_COUNT_FLOOR (3) isn't met. Guards

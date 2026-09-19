@@ -127,6 +127,11 @@ MIN_LEMMA_COUNT_FLOOR = 3            # guards the degenerate case where an image
 # with an unrelated image purely through volume (confirmed on real data -- a 635-OCR-block image
 # shared 4 lemmas with a totally unrelated post), which a raw-count threshold would wrongly admit.
 # Normalized by the smaller side, that same pair scores 0.042 -- correctly rejected.
+# GREATEST(..., 1) prevents a genuine division-by-zero: LEAST(...) is 0 whenever either image has
+# no ocr_lemmas rows at all (common until build_ocr_lemmas.py's coverage catches up -- see
+# docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md's Design §3), and Postgres
+# gives no left-to-right short-circuit guarantee for AND, so this can be reached even when the
+# count-floor check would separately reject the row.
 _OCR_LEMMA_OVERLAP_CHECK = """
     (SELECT LEAST(
         (SELECT count(*) FROM ocr_lemmas WHERE image_id = probe.id),
