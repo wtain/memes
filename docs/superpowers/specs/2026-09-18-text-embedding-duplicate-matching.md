@@ -1,6 +1,6 @@
 # Text-Embedding Duplicate Matching
 
-status: implementation
+status: done
 Originates from: the 2026-09-18 conversation continuing the Tier B review-noise thread (see
 `docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md`'s Non-goals, which explicitly deferred
 "wiring this into `tmp_duplicates`, `ingest_find_duplicates.py`, `rebuild_duplicates.py`,
@@ -675,6 +675,67 @@ acceptable-risk surface for the same noisy signal in a way active-library auto-c
 properly recalibrated design addressing the false-positive rate found above — this is future work,
 not scheduled as part of this spec's own rollout. `PROXIMITY_THRESHOLD_OCR_TEXT` in
 `batch/clusterize.py` is kept defined (unused) rather than deleted, to save re-deriving it later.
+
+## Rollout Outcome
+
+Executed 2026-09-19. All three environments backed up via `pg_dump` before any write.
+
+**Migration:** applied cleanly to `metal`/`general`/`it` (`c358dccbcf48` → `67d11660282b`), backend
+health confirmed after each.
+
+**`rebuild_duplicates.py` (chains to `clusterize.py`), first pass, before the auto-clustering
+fix:**
+
+| Environment | `ocr_text` pairs inserted | Total active-library connections |
+|---|---|---|
+| `metal` | 1 | 5 (18,088 images) |
+| `general` | 191 | 1,475 (25,286 images) |
+| `it` | 1 | 65 (1,422 images) |
+
+**Step 4 spot-check found the false-positive pattern documented in "Known limitation" above** —
+2 of the first 6 manually-verified pairs were false positives, both already auto-confirmed as
+duplicates on `general`'s live Explore → Duplicates page. Full investigation (191-pair
+distribution, hub analysis, CLIP-distance corroboration considered and rejected) is in that
+section. Fixed by scoping `clusterize.py`'s active-library auto-clustering to CLIP-only
+(commit `4e8d959`, reviewed and approved).
+
+**`clusterize.py` re-run alone, after the fix** (no need to re-run `rebuild_duplicates.py` —
+`tmp_duplicates` itself was untouched, only the derived cluster index needed rebuilding):
+
+| Environment | Connections before fix | Connections after fix | Difference |
+|---|---|---|---|
+| `metal` | 5 | 4 | -1 |
+| `general` | 1,475 | 1,473 | -2 |
+| `it` | 65 | 65 | 0 |
+
+Each difference matches exactly the count of `ocr_text`-sourced pairs that had been under the
+0.05 auto-cluster threshold per environment — confirming the fix removed precisely the
+contaminated pairs and nothing else. Independently verified via read-only query: the two
+confirmed false-positive images no longer appear in any `tmp_clusters` row on `general`.
+
+**Ingestion re-run** (`general`'s in-flight pending batch, unaffected by the auto-clustering fix
+since Tier A/B review reads `tmp_duplicates` directly): Tier A found 45 candidate pairs
+(k=50, threshold=0.05); Tier B found 0 new candidate pairs (k=50, threshold=0.12) beyond what
+Tier A already covered.
+
+**Live UI/API spot-check:** hit an unrelated operational snag — `general`'s persistent dev
+backend (port 8082) kept serving stale, pre-this-branch code after two restart attempts, due to
+orphaned listener sockets accumulating on the port (a Windows/`uvicorn --reload` quirk, not a
+code issue — `netstat` showed 2-3 processes simultaneously `LISTENING` on the same port, at least
+one already dead per `Get-Process`). Resolved once the user killed all `python`/`uvicorn`
+processes system-wide and did a full clean restart of all three environments. Confirmed
+afterward: `general`'s live OpenAPI schema and real Tier B review API responses correctly carry
+`distance_source` (`"clip"` or `"ocr_text"`) on every candidate/edge; Task 6's frontend label
+logic (already `tsc`/`eslint`/`vitest`-verified) will render correctly from this data.
+
+**Final `distance_source` counts** (`tmp_duplicates`, all sources, live read-only query,
+post-rollout):
+
+| Environment | `clip` | `ocr_text` |
+|---|---|---|
+| `metal` | 188,277 | 1 |
+| `general` | 822,216 | 191 |
+| `it` | 12,204 | 1 |
 
 ## Self-Review
 
