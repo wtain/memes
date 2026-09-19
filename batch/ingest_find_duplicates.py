@@ -28,8 +28,9 @@ import asyncio
 
 from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
 from batch.rebuild_duplicates import (
-    find_duplicates, _EXCLUDE_TEXT_HEAVY_PAIR, _TEXT_HEAVY_PAIR_ONLY,
-    CLIP_SAFETY_NET_THRESHOLD, TEXT_EMBEDDING_LOOSE_THRESHOLD,
+    find_duplicates, _EXCLUDE_TEXT_HEAVY_PAIR, _TEXT_HEAVY_PAIR_ONLY, _OCR_LEMMA_OVERLAP_CHECK,
+    CLIP_SAFETY_NET_THRESHOLD, TEXT_EMBEDDING_LOOSE_THRESHOLD, MIN_LEMMA_COUNT_FLOOR,
+    MIN_LEMMA_OVERLAP_COEFFICIENT,
 )
 from config.settings import load_env, settings
 from repository.batch_runs import BatchRunRepository
@@ -106,7 +107,12 @@ async def find_batch_duplicates(session, batch_id, k: int, threshold: float) -> 
     probes every pending image in the batch every time, relying entirely on ON CONFLICT DO
     NOTHING), so there is no analogous incremental-staleness risk here to design around. The
     corpus filter alone (_BATCH_CORPUS_FILTER_SQL_CLIP_SAFETY_NET) correctly finds zero candidates
-    for a non-text-heavy probe image regardless."""
+    for a non-text-heavy probe image regardless.
+
+    Since 2026-09-19, the OCR-text probe additionally requires a lexical-overlap corroboration
+    check (ocr_lemmas-based, see docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md)
+    before a candidate is inserted -- identical mechanism to rebuild_duplicates.py's own OCR-text
+    probe, imported from that module rather than redefined here."""
     inserted = await find_duplicates(
         session, _BATCH_PROBE_SQL, _BATCH_CORPUS_FILTER_SQL_CLIP, k, threshold,
         distance_source="clip", extra_params={"batch_id": batch_id},
@@ -119,7 +125,12 @@ async def find_batch_duplicates(session, batch_id, k: int, threshold: float) -> 
         session, _BATCH_PROBE_SQL_OCR_TEXT, _BATCH_CORPUS_FILTER_SQL_OCR_TEXT, k,
         TEXT_EMBEDDING_LOOSE_THRESHOLD,
         distance_source="ocr_text", embedding_table="ocr_text_embeddings",
-        extra_params={"batch_id": batch_id},
+        extra_params={
+            "batch_id": batch_id,
+            "min_lemma_count": MIN_LEMMA_COUNT_FLOOR,
+            "min_overlap_coefficient": MIN_LEMMA_OVERLAP_COEFFICIENT,
+        },
+        extra_where_sql=_OCR_LEMMA_OVERLAP_CHECK,
     )
     return inserted
 

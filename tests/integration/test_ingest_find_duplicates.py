@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from batch.ingest_find_duplicates import find_batch_duplicates
 from repository.batch_runs import BatchRunRepository
-from Storage.models import Embedding, Image, ImageClassification, OCRTextEmbedding
+from Storage.models import Embedding, Image, ImageClassification, OCRLemma, OCRTextEmbedding
 
 _DIM = 512
 
@@ -126,6 +126,12 @@ async def _insert_ocr_text_embedding(session, image_id: uuid.UUID, embedding_val
     await session.flush()
 
 
+async def _insert_ocr_lemmas(session, image_id: uuid.UUID, lemmas: set[str]) -> None:
+    for lemma in lemmas:
+        session.add(OCRLemma(image_id=image_id, lemma=lemma))
+    await session.flush()
+
+
 def _text_unit_vector(index: int) -> list[float]:
     vec = [0.0] * 384
     vec[index] = 1.0
@@ -180,6 +186,9 @@ async def test_ocr_text_probe_finds_pair_at_tier_b(db_session):
     await _mark_text_heavy(db_session, b)
     await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
     await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    shared_lemmas = {"репост", "мем", "смешно", "картинка", "текст"}
+    await _insert_ocr_lemmas(db_session, a, shared_lemmas)
+    await _insert_ocr_lemmas(db_session, b, shared_lemmas)
 
     inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.12)  # tier_b threshold
 
@@ -207,6 +216,9 @@ async def test_ocr_text_probe_ignores_threshold_argument(db_session):
     # strictly between tier_a's threshold (0.05) and TEXT_EMBEDDING_LOOSE_THRESHOLD (0.10) --
     # this is what makes the test actually discriminate the literal-constant probe threshold from
     # a min()-derived regression, rather than passing under both (a distance-0 pair would)
+    shared_lemmas = {"репост", "мем", "смешно", "картинка", "текст"}
+    await _insert_ocr_lemmas(db_session, a, shared_lemmas)
+    await _insert_ocr_lemmas(db_session, b, shared_lemmas)
 
     inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.05)  # tier_a threshold
 
@@ -216,3 +228,67 @@ async def test_ocr_text_probe_ignores_threshold_argument(db_session):
         text("SELECT distance_source FROM tmp_duplicates")
     )).one()
     assert row.distance_source == "ocr_text"  # found despite tier_a's tight CLIP threshold
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_excludes_pair_below_overlap_coefficient(db_session):
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    a = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
+    b = await _insert_image(db_session, _unit_vector(1), "pending", batch_id)
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    await _insert_ocr_lemmas(db_session, a, {"дом", "кот", "утро", "чай"})
+    await _insert_ocr_lemmas(db_session, b, {"машина", "дорога", "город", "ночь"})  # zero overlap
+
+    inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)
+
+    assert inserted == 0
+    rows = (await db_session.execute(text("SELECT * FROM tmp_duplicates"))).all()
+    assert rows == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_includes_pair_above_overlap_coefficient(db_session):
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    a = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
+    b = await _insert_image(db_session, _unit_vector(1), "pending", batch_id)
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    await _insert_ocr_lemmas(db_session, a, {"дом", "кот", "утро", "чай", "стол"})
+    await _insert_ocr_lemmas(db_session, b, {"дом", "кот", "утро", "чай", "окно", "дверь"})
+
+    inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)
+
+    assert inserted == 1
+    row = (await db_session.execute(
+        text("SELECT image_id1, image_id2, distance_source FROM tmp_duplicates")
+    )).one()
+    assert {row.image_id1, row.image_id2} == {a, b}
+    assert row.distance_source == "ocr_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_tolerates_image_with_no_ocr_lemmas(db_session):
+    """Regression test mirroring rebuild_duplicates.py's own test of the same name: an image with
+    zero ocr_lemmas rows (common in practice until build_ocr_lemmas.py's coverage catches up with
+    ocr_text_embeddings) must be excluded cleanly by _OCR_LEMMA_OVERLAP_CHECK's GREATEST(..., 1)
+    guard, not raise a DivisionByZeroError."""
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    a = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
+    b = await _insert_image(db_session, _unit_vector(1), "pending", batch_id)
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    await _insert_ocr_lemmas(db_session, a, {"дом", "кот", "утро", "чай"})
+    # b deliberately gets NO ocr_lemmas rows at all -- LEAST(4, 0) = 0
+
+    inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)  # must not raise
+
+    assert inserted == 0
+    rows = (await db_session.execute(text("SELECT * FROM tmp_duplicates"))).all()
+    assert rows == []
