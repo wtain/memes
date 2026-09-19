@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import text
 
 from batch.rebuild_duplicates import find_duplicates, rebuild_active_library, _ACTIVE_CORPUS_FILTER_CLIP
-from Storage.models import Embedding, Image, ImageClassification, OCRTextEmbedding
+from Storage.models import Embedding, Image, ImageClassification, OCRLemma, OCRTextEmbedding
 
 _DIM = 512
 
@@ -182,6 +182,12 @@ async def _insert_ocr_text_embedding(session, image_id: uuid.UUID, embedding_val
     await session.flush()
 
 
+async def _insert_ocr_lemmas(session, image_id: uuid.UUID, lemmas: set[str]) -> None:
+    for lemma in lemmas:
+        session.add(OCRLemma(image_id=image_id, lemma=lemma))
+    await session.flush()
+
+
 def _text_unit_vector(index: int) -> list[float]:
     vec = [0.0] * 384  # OCR_TEXT_EMBEDDING_DIM
     vec[index] = 1.0
@@ -261,6 +267,13 @@ async def test_ocr_text_probe_finds_pair_via_ocr_text_embeddings(db_session):
     await _mark_text_heavy(db_session, b)
     await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
     await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))  # identical OCR-text embedding
+    # Matching ocr_lemmas so the new lemma-overlap corroboration gate (Task 2 of
+    # docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md) doesn't reject this
+    # pair -- 5 shared lemmas, well above MIN_LEMMA_COUNT_FLOOR (3) and giving overlap
+    # coefficient 1.0, well above MIN_LEMMA_OVERLAP_COEFFICIENT (0.2).
+    shared_lemmas = {"репост", "мем", "смешно", "картинка", "текст"}
+    await _insert_ocr_lemmas(db_session, a, shared_lemmas)
+    await _insert_ocr_lemmas(db_session, b, shared_lemmas)
 
     await rebuild_active_library(db_session, k=20, threshold=0.3)
 
@@ -323,6 +336,9 @@ async def test_incremental_rerun_does_not_skip_ocr_text_probe_for_already_clip_p
     await _mark_text_heavy(db_session, b)
     await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
     await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    shared_lemmas = {"репост", "мем", "смешно", "картинка", "текст"}
+    await _insert_ocr_lemmas(db_session, a, shared_lemmas)
+    await _insert_ocr_lemmas(db_session, b, shared_lemmas)
     # c is deliberately left unclassified (not text_heavy) and without an ocr_text_embeddings row
 
     # First rebuild: general probe excludes (a,b) (both have ocr_text_embeddings rows) but finds
@@ -349,3 +365,97 @@ async def test_incremental_rerun_does_not_skip_ocr_text_probe_for_already_clip_p
     # somehow desync between the two signals.
     second = await rebuild_active_library(db_session, k=20, threshold=0.3)
     assert second == 0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_excludes_pair_below_overlap_coefficient(db_session):
+    """The core regression test for this task: a tight OCR-text-embedding match with NO shared
+    ocr_lemmas must not be inserted at all -- not just excluded from clustering (that's
+    clusterize.py's old, now-reverted, interim behavior), excluded from tmp_duplicates entirely."""
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))
+    b = await _insert_image_with_embedding(db_session, _unit_vector(1))
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))  # identical -- distance 0
+    await _insert_ocr_lemmas(db_session, a, {"дом", "кот", "утро", "чай"})
+    await _insert_ocr_lemmas(db_session, b, {"машина", "дорога", "город", "ночь"})  # zero overlap
+
+    inserted = await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    assert inserted == 0
+    rows = (await db_session.execute(text("SELECT * FROM tmp_duplicates"))).all()
+    assert rows == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_text_probe_includes_pair_above_overlap_coefficient(db_session):
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))
+    b = await _insert_image_with_embedding(db_session, _unit_vector(1))
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    # 4 shared lemmas out of min(5, 6) = 5 total on the smaller side -> overlap coefficient 0.8,
+    # comfortably above MIN_LEMMA_OVERLAP_COEFFICIENT (0.2).
+    await _insert_ocr_lemmas(db_session, a, {"дом", "кот", "утро", "чай", "стол"})
+    await _insert_ocr_lemmas(db_session, b, {"дом", "кот", "утро", "чай", "окно", "дверь"})
+
+    inserted = await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    assert inserted == 1
+    row = (await db_session.execute(
+        text("SELECT image_id1, image_id2, distance_source FROM tmp_duplicates")
+    )).one()
+    assert {row.image_id1, row.image_id2} == {a, b}
+    assert row.distance_source == "ocr_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_lemma_overlap_check_uses_coefficient_not_raw_count(db_session):
+    """Regression test for the hub-coincidence bug this design explicitly guards against
+    (confirmed on real production data -- see the spec's Design §1): a probe image with a LARGE
+    ocr_lemmas set can coincidentally share enough RAW lemmas with an unrelated candidate to clear
+    a naive count threshold, while the ratio (normalized by the SMALLER side) correctly stays low.
+    This must fail if _OCR_LEMMA_OVERLAP_CHECK is ever simplified back to a raw count."""
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))  # the "hub" -- huge lemma set
+    b = await _insert_image_with_embedding(db_session, _unit_vector(1))  # normal-sized, mostly-unrelated set
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    hub_lemmas = {f"слово{i}" for i in range(40)} | {"дом", "кот", "утро"}  # 43 total (the hub)
+    normal_lemmas = {f"фраза{i}" for i in range(17)} | {"дом", "кот", "утро"}  # 20 total (the
+    # smaller side -- this is the denominator)
+    # raw intersection = 3 (>= MIN_LEMMA_COUNT_FLOOR of 3 -- a raw-count-only check with a
+    # threshold <= 3 would wrongly admit this); overlap coefficient = 3 / min(43, 20) = 3/20 = 0.15,
+    # below MIN_LEMMA_OVERLAP_COEFFICIENT (0.2) -- correctly rejected.
+    await _insert_ocr_lemmas(db_session, a, hub_lemmas)
+    await _insert_ocr_lemmas(db_session, b, normal_lemmas)
+
+    inserted = await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    assert inserted == 0
+    rows = (await db_session.execute(text("SELECT * FROM tmp_duplicates"))).all()
+    assert rows == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_lemma_overlap_check_respects_min_lemma_count_floor(db_session):
+    """Two images with only 1-2 total ocr_lemmas each, fully overlapping (coefficient would
+    compute to 1.0) -- must still be excluded, since MIN_LEMMA_COUNT_FLOOR (3) isn't met. Guards
+    against the degenerate case where a single coincidental shared word looks like 100% overlap."""
+    a = await _insert_image_with_embedding(db_session, _unit_vector(0))
+    b = await _insert_image_with_embedding(db_session, _unit_vector(1))
+    await _mark_text_heavy(db_session, a)
+    await _mark_text_heavy(db_session, b)
+    await _insert_ocr_text_embedding(db_session, a, _text_unit_vector(0))
+    await _insert_ocr_text_embedding(db_session, b, _text_unit_vector(0))
+    await _insert_ocr_lemmas(db_session, a, {"привет"})
+    await _insert_ocr_lemmas(db_session, b, {"привет"})  # coefficient = 1/1 = 1.0, but only 1 lemma total
+
+    inserted = await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    assert inserted == 0
+    rows = (await db_session.execute(text("SELECT * FROM tmp_duplicates"))).all()
+    assert rows == []

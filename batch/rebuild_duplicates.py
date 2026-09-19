@@ -106,6 +106,42 @@ TEXT_EMBEDDING_TIGHT_THRESHOLD = 0.05   # auto-cluster-worthy OCR-text match
 TEXT_EMBEDDING_LOOSE_THRESHOLD = 0.10   # review-worthy OCR-text match (Tier B upper bound)
 CLIP_SAFETY_NET_THRESHOLD = 0.02        # near-pixel-identical repost, text-heavy pairs only
 
+# Corroboration gate for the OCR-text probe specifically -- see
+# docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md. Computed from
+# ocr_lemmas (already populated by build_ocr_lemmas.py for smart search, reused as-is here) rather
+# than the OCR-text embedding itself, because embedding distance alone was shown NOT to separate
+# true from false positives (both span 0.05-0.10) -- lexical overlap does, cleanly, on real data.
+MIN_LEMMA_OVERLAP_COEFFICIENT = 0.2  # shared_lemmas / min(lemma_count_1, lemma_count_2);
+                                      # calibrated against general's real 191-pair distribution --
+                                      # zero pairs observed between 0.125 and 0.417, so 0.2 sits in
+                                      # the middle of a genuinely empty gap, not a guessed round number
+MIN_LEMMA_COUNT_FLOOR = 3            # guards the degenerate case where an image has 1-2 total
+                                      # lemmas, where a single coincidental shared word would
+                                      # otherwise score 50-100% overlap
+
+# References probe.id and nn.image_id -- only valid interpolated into find_duplicates()'s OUTER
+# WHERE clause (after the LATERAL resolves nn), never into corpus_filter_sql (which runs inside
+# the LATERAL, before nn exists) -- see this plan's Global Constraints for why placement matters.
+# Deliberately normalizes by the SMALLER image's lemma count (an "overlap coefficient"), not raw
+# Jaccard or raw intersection count: a large "hub" text can coincidentally share several lemmas
+# with an unrelated image purely through volume (confirmed on real data -- a 635-OCR-block image
+# shared 4 lemmas with a totally unrelated post), which a raw-count threshold would wrongly admit.
+# Normalized by the smaller side, that same pair scores 0.042 -- correctly rejected.
+_OCR_LEMMA_OVERLAP_CHECK = """
+    (SELECT LEAST(
+        (SELECT count(*) FROM ocr_lemmas WHERE image_id = probe.id),
+        (SELECT count(*) FROM ocr_lemmas WHERE image_id = nn.image_id)
+    )) >= :min_lemma_count
+    AND (
+        (SELECT count(*) FROM ocr_lemmas a JOIN ocr_lemmas b ON a.lemma = b.lemma
+         WHERE a.image_id = probe.id AND b.image_id = nn.image_id)::float
+        / GREATEST((SELECT LEAST(
+            (SELECT count(*) FROM ocr_lemmas WHERE image_id = probe.id),
+            (SELECT count(*) FROM ocr_lemmas WHERE image_id = nn.image_id)
+        )), 1)
+    ) >= :min_overlap_coefficient
+"""
+
 _ACTIVE_CORPUS_FILTER_CLIP = f"i2.status = 'active' AND ({_EXCLUDE_TEXT_HEAVY_PAIR})"
 _ACTIVE_CORPUS_FILTER_CLIP_SAFETY_NET = f"i2.status = 'active' AND ({_TEXT_HEAVY_PAIR_ONLY})"
 _ACTIVE_CORPUS_FILTER_OCR_TEXT = "i2.status = 'active'"  # ocr_text_embeddings join is already
@@ -114,7 +150,7 @@ _ACTIVE_CORPUS_FILTER_OCR_TEXT = "i2.status = 'active'"  # ocr_text_embeddings j
 
 async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: int, threshold: float,
                            distance_source: str, embedding_table: str = "embeddings",
-                           extra_params: dict | None = None) -> int:
+                           extra_params: dict | None = None, extra_where_sql: str | None = None) -> int:
     """Insert candidate duplicate pairs found by probing `probe_sql` images (must select
     exactly (id, embedding)) against `corpus_filter_sql`-scoped neighbors in `embedding_table`
     ("embeddings" for CLIP, "ocr_text_embeddings" for OCR-text -- both use the column name
@@ -129,7 +165,15 @@ async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: in
 
     `probe_sql`/`corpus_filter_sql` may reference named bind params (e.g. `:batch_id`) -- pass
     their values via `extra_params` rather than string-interpolating them into the fragment, even
-    though callers so far only ever pass internally-generated values (never raw user input)."""
+    though callers so far only ever pass internally-generated values (never raw user input).
+
+    `extra_where_sql`, when provided, is ANDed into the OUTER SELECT's WHERE clause (alongside
+    `nn.distance < :threshold`) -- deliberately NOT into corpus_filter_sql, which runs inside the
+    LATERAL before the ORDER BY ... LIMIT :k narrows the candidate set. A condition placed here
+    only ever evaluates against the already-k-bounded result, not the full corpus the LATERAL
+    considers. References `probe.id`/`nn.image_id` if it needs the two candidate image ids -- see
+    docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md's Design §2."""
+    extra_where_clause = f"AND ({extra_where_sql})" if extra_where_sql else ""
     stmt = text(f"""
         INSERT INTO tmp_duplicates (image_id1, image_id2, distance, match_source, distance_source)
         SELECT
@@ -152,6 +196,7 @@ async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: in
             LIMIT :k
         ) nn
         WHERE nn.distance < :threshold
+        {extra_where_clause}
         ON CONFLICT (image_id1, image_id2) DO NOTHING
     """)
     params = {"k": k, "threshold": threshold, "distance_source": distance_source, **(extra_params or {})}
@@ -192,7 +237,12 @@ async def rebuild_active_library(session, k: int, threshold: float, full: bool =
     inserted += await find_duplicates(
         session, ocr_probe_sql, _ACTIVE_CORPUS_FILTER_OCR_TEXT, k, TEXT_EMBEDDING_LOOSE_THRESHOLD,
         distance_source="ocr_text", embedding_table="ocr_text_embeddings",
-        extra_params={"probe_distance_source": "ocr_text"},
+        extra_params={
+            "probe_distance_source": "ocr_text",
+            "min_lemma_count": MIN_LEMMA_COUNT_FLOOR,
+            "min_overlap_coefficient": MIN_LEMMA_OVERLAP_COEFFICIENT,
+        },
+        extra_where_sql=_OCR_LEMMA_OVERLAP_CHECK,
     )
     return inserted
 
