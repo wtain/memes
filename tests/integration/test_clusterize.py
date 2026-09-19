@@ -111,32 +111,10 @@ async def test_bridge_node_transitively_reunites_a_decided_pair(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_ocr_text_sourced_pair_never_auto_clusters(db_session):
-    """Regression test for the 2026-09-19 live-rollout finding (see get_duplicate_pairs()'s own
-    docstring): ocr_text-sourced pairs must never auto-cluster in the active library, regardless
-    of how tight their distance is -- even a near-zero distance must not cluster, since the
-    signal's false-positive rate is too high to auto-confirm without human review. Ingestion's
-    Tier A/B review (a separate code path, unaffected by this function) is still where ocr_text
-    candidates are surfaced, for a human to accept or reject."""
+async def test_ocr_text_sourced_pair_clusters_under_its_own_threshold(db_session):
     a = await _insert_image(db_session)
     b = await _insert_image(db_session)
-    # near-zero -- would have clustered under any threshold this feature has ever used, including
-    # the tightest
-    await _insert_pair(db_session, a, b, 0.001, distance_source="ocr_text")
-
-    await cluster_active_library(db_session)
-
-    rows = (await db_session.execute(select(TmpImageClusters))).scalars().all()
-    assert rows == []
-
-
-@pytest.mark.asyncio(loop_scope="session")
-async def test_clip_sourced_pair_still_clusters_normally(db_session):
-    """Regression guard: scoping active-library auto-clustering back to CLIP-only must not have
-    broken the CLIP path itself."""
-    a = await _insert_image(db_session)
-    b = await _insert_image(db_session)
-    await _insert_pair(db_session, a, b, 0.045, distance_source="clip")  # < PROXIMITY_THRESHOLD (0.05)
+    await _insert_pair(db_session, a, b, 0.03, distance_source="ocr_text")  # < PROXIMITY_THRESHOLD_OCR_TEXT (0.05)
 
     await cluster_active_library(db_session)
 
@@ -145,22 +123,55 @@ async def test_clip_sourced_pair_still_clusters_normally(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_get_duplicate_pairs_ignores_ocr_text_pairs_entirely(db_session):
-    """Direct call to get_duplicate_pairs() -- confirms its query itself is CLIP-only (not just
-    that no test happens to insert an ocr_text pair tight enough to matter). A clip-sourced pair
-    is included; an ocr_text-sourced pair at the same (or an even tighter) distance is not,
-    regardless of clip_threshold's value."""
+async def test_ocr_text_sourced_pair_past_its_own_threshold_does_not_cluster(db_session):
+    a = await _insert_image(db_session)
+    b = await _insert_image(db_session)
+    # 0.08 is past PROXIMITY_THRESHOLD_OCR_TEXT (0.05) but well within clip's own 0.05 too --
+    # this must NOT cluster despite the distance being numerically close to what a clip-sourced
+    # pair at the same value would need. Proves the two thresholds are independently enforced,
+    # not OR'd loosely against a single shared cutoff.
+    await _insert_pair(db_session, a, b, 0.08, distance_source="ocr_text")
+
+    await cluster_active_library(db_session)
+
+    rows = (await db_session.execute(select(TmpImageClusters))).scalars().all()
+    assert rows == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_clip_and_ocr_text_thresholds_enforced_independently(db_session):
+    """Two pairs at distances that would swap outcomes if the two distance_source thresholds
+    were ever accidentally conflated into one shared comparison."""
     a = await _insert_image(db_session)
     b = await _insert_image(db_session)
     c = await _insert_image(db_session)
     d = await _insert_image(db_session)
-    await _insert_pair(db_session, a, b, 0.03, distance_source="clip")  # < clip_threshold -> included
-    # tighter than the clip pair above, but must still be excluded -- distance_source alone
-    # decides eligibility here
-    await _insert_pair(db_session, c, d, 0.001, distance_source="ocr_text")
+    await _insert_pair(db_session, a, b, 0.045, distance_source="clip")      # < 0.05 (PROXIMITY_THRESHOLD) -> clusters
+    await _insert_pair(db_session, c, d, 0.045, distance_source="ocr_text")  # < 0.05 (PROXIMITY_THRESHOLD_OCR_TEXT) -> clusters
+
+    await cluster_active_library(db_session)
+
+    rows = (await db_session.execute(select(TmpImageClusters.image_id))).scalars().all()
+    assert set(rows) == {a, b, c, d}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_duplicate_pairs_enforces_each_threshold_independently(db_session):
+    """Direct call to get_duplicate_pairs() with deliberately DIFFERENT clip/ocr_text thresholds --
+    genuinely discriminates per-source gating from a naive OR'd single-threshold bug. The tests
+    above (driven through cluster_active_library()) can't discriminate this, since
+    PROXIMITY_THRESHOLD and PROXIMITY_THRESHOLD_OCR_TEXT happen to both equal 0.05 today -- a bug
+    that silently dropped the per-branch distance_source guard would still pass every test above
+    unnoticed, collapsing to a single distance < 0.05 check regardless of source."""
+    a = await _insert_image(db_session)
+    b = await _insert_image(db_session)
+    c = await _insert_image(db_session)
+    d = await _insert_image(db_session)
+    await _insert_pair(db_session, a, b, 0.03, distance_source="clip")      # < clip_threshold (0.05) -> included
+    await _insert_pair(db_session, c, d, 0.03, distance_source="ocr_text")  # NOT < ocr_text_threshold (0.02) -> excluded
 
     mapping, _ = await get_images_ids(db_session)
-    pairs = await get_duplicate_pairs(db_session, mapping, clip_threshold=0.05)
+    pairs = await get_duplicate_pairs(db_session, mapping, clip_threshold=0.05, ocr_text_threshold=0.02)
 
     pair_id_sets = [{p[0], p[1]} for p in pairs]
     assert {mapping[a], mapping[b]} in pair_id_sets

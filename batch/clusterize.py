@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from collections import defaultdict
 
-from sqlalchemy import select, delete
+from sqlalchemy import and_, or_, select, delete
 
 from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import settings
@@ -12,11 +12,13 @@ from Storage.models import DuplicateDecision, Image, TmpDuplicates, TmpImageClus
 
 PROXIMITY_THRESHOLD = 0.05
 
-# Currently UNUSED by get_duplicate_pairs() -- ocr_text-sourced pairs are deliberately excluded
-# from active-library auto-clustering (see get_duplicate_pairs()'s own comment below for why).
-# Kept defined, not deleted, so a future recalibrated design doesn't have to re-derive this value
-# from scratch -- see docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md's
-# "Known limitation" section for the full incident writeup and what a fix needs to address.
+# Matches TEXT_EMBEDDING_TIGHT_THRESHOLD in batch/rebuild_duplicates.py. A separately-named
+# constant, not a shared import, even though the two are numerically equal today -- see
+# docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md: never assume the two
+# scales stay coupled, so a future change to either doesn't silently move the other. Safe to trust
+# again as of docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md -- every
+# ocr_text-sourced row in tmp_duplicates has already passed that spec's insertion-time lemma-
+# overlap gate by the time this function reads it.
 PROXIMITY_THRESHOLD_OCR_TEXT = 0.05
 
 
@@ -80,7 +82,7 @@ async def cluster_active_library(session) -> None:
 
     print("Reading duplicates...")
     # Select all duplicate pairs with distance < PROXIMITY_THRESHOLD, int-id mapped
-    pairs = await get_duplicate_pairs(session, img_id_to_int_id, PROXIMITY_THRESHOLD)
+    pairs = await get_duplicate_pairs(session, img_id_to_int_id, PROXIMITY_THRESHOLD, PROXIMITY_THRESHOLD_OCR_TEXT)
     print(f"Total connections: {len(pairs)}")
 
     uf = UnionFind()
@@ -162,25 +164,16 @@ async def get_images_ids(session):
     return result, result_reverse
 
 
-async def get_duplicate_pairs(session, mapping, clip_threshold) -> list[tuple[int, int, float]]:
-    """Active-library auto-clustering is CLIP-only, deliberately -- ocr_text-sourced pairs are
-    excluded here, not just at a loose threshold. Live-rollout investigation on 2026-09-19 found
-    the OCR-text embedding signal produces a genuine "hub" false-positive pattern (informal/
-    profanity-heavy meme captions cluster by register, not actual joke content -- the same
-    "same template != same content" failure this whole feature exists to fix for CLIP, recurring
-    in the text signal) at a rate too high to auto-confirm without human review: ~41% of
-    general's ocr_text candidate pairs had CLIP distance >= 0.35 (almost certainly visually
-    unrelated), and a corroborating-CLIP-distance threshold alone could not cleanly separate the
-    remaining ambiguous middle third from genuine reposts (a confirmed true positive and a
-    confirmed false positive were both found in the same 0.25-0.35 CLIP-distance band). See
+async def get_duplicate_pairs(session, mapping, clip_threshold, ocr_text_threshold) -> list[tuple[int, int, float]]:
+    """Active-library auto-clustering trusts both clip- and ocr_text-sourced tmp_duplicates rows,
+    each gated by its own threshold. ocr_text-sourced rows are safe to trust here specifically
+    because docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md's lexical-overlap
+    corroboration check already ran at INSERTION time (batch/rebuild_duplicates.py's and
+    batch/ingest_find_duplicates.py's OCR-text probes) -- this function doesn't need to know
+    anything about ocr_lemmas itself, only that distance_source='ocr_text' already implies the
+    check passed. See that spec's Design §4 for the full reasoning, and
     docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md's "Known limitation"
-    section for the full writeup and what a recalibrated design needs to address before this can
-    be safely re-enabled.
-
-    ocr_text-sourced candidate pairs are still inserted into tmp_duplicates as before (Tasks 2/3
-    of that spec are unaffected) and still surfaced for Tier A/B ingestion review, where a human
-    reviewer -- not an unsupervised auto-cluster -- makes the final call; only this function's
-    own active-library auto-clustering path is scoped back to CLIP-only."""
+    section for why this trust was temporarily withdrawn before that spec existed."""
     decided_pair_exists = (
         select(DuplicateDecision.id)
         .where(
@@ -195,8 +188,10 @@ async def get_duplicate_pairs(session, mapping, clip_threshold) -> list[tuple[in
             TmpDuplicates.image_id2,
             TmpDuplicates.distance,
         ).where(
-            TmpDuplicates.distance_source == "clip",
-            TmpDuplicates.distance < clip_threshold,
+            or_(
+                and_(TmpDuplicates.distance_source == "clip", TmpDuplicates.distance < clip_threshold),
+                and_(TmpDuplicates.distance_source == "ocr_text", TmpDuplicates.distance < ocr_text_threshold),
+            ),
             TmpDuplicates.image_id1 != TmpDuplicates.image_id2,
             ~decided_pair_exists,
         )
