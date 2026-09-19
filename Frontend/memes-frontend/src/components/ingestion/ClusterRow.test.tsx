@@ -10,7 +10,7 @@ const cluster: IngestionCluster = {
     { image_id: 'a', filename: 'a.jpg', status: 'pending', ocr_text: 'Не смешно, совсем не смешно, длинный текст который раньше обрезался' },
     { image_id: 'b', filename: 'b.jpg', status: 'active', ocr_text: 'Не смешно' },
   ],
-  edges: [{ image_id1: 'a', image_id2: 'b', distance: 0.04, match_source: 'clip' }],
+  edges: [{ image_id1: 'a', image_id2: 'b', distance: 0.04, match_source: 'clip', distance_source: 'clip' }],
   total_members: 2,
 }
 

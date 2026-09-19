@@ -33,7 +33,7 @@ function cl(id: string, dist = 0.05): IngestionCluster {
       { image_id: `${id}-1`, filename: `${id}-1.jpg`, status: 'pending', ocr_text: 'текст' },
       { image_id: `${id}-2`, filename: `${id}-2.jpg`, status: 'active', ocr_text: 'текст' },
     ],
-    edges: [{ image_id1: `${id}-1`, image_id2: `${id}-2`, distance: dist, match_source: 'clip' }],
+    edges: [{ image_id1: `${id}-1`, image_id2: `${id}-2`, distance: dist, match_source: 'clip', distance_source: 'clip' }],
     total_members: 2,
   }
 }
@@ -47,7 +47,7 @@ function tbItem(sid: string, candIds: [string, 'pending' | 'active'][], dist = 0
     image: { image_id: sid, filename: `${sid}.jpg`, status: 'pending', ocr_text: null },
     candidates: candIds.map(([cid, st], i) => ({
       member: { image_id: cid, filename: `${cid}.jpg`, status: st, ocr_text: null },
-      distance: dist + i * 0.01, match_source: 'in_batch',
+      distance: dist + i * 0.01, match_source: 'in_batch', distance_source: 'clip',
     })),
     total_candidates: candIds.length,
   }
