@@ -1,6 +1,6 @@
 # Text-Embedding Duplicate Matching
 
-status: approved
+status: implementation
 Originates from: the 2026-09-18 conversation continuing the Tier B review-noise thread (see
 `docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md`'s Non-goals, which explicitly deferred
 "wiring this into `tmp_duplicates`, `ingest_find_duplicates.py`, `rebuild_duplicates.py`,

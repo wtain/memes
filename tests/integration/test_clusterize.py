@@ -120,8 +120,9 @@ async def test_ocr_text_sourced_pair_never_auto_clusters(db_session):
     candidates are surfaced, for a human to accept or reject."""
     a = await _insert_image(db_session)
     b = await _insert_image(db_session)
-    await _insert_pair(db_session, a, b, 0.001, distance_source="ocr_text")  # near-zero -- would
-    # have clustered under any threshold this feature has ever used, including the tightest
+    # near-zero -- would have clustered under any threshold this feature has ever used, including
+    # the tightest
+    await _insert_pair(db_session, a, b, 0.001, distance_source="ocr_text")
 
     await cluster_active_library(db_session)
 
@@ -153,9 +154,10 @@ async def test_get_duplicate_pairs_ignores_ocr_text_pairs_entirely(db_session):
     b = await _insert_image(db_session)
     c = await _insert_image(db_session)
     d = await _insert_image(db_session)
-    await _insert_pair(db_session, a, b, 0.03, distance_source="clip")      # < clip_threshold -> included
-    await _insert_pair(db_session, c, d, 0.001, distance_source="ocr_text")  # tighter than the clip
-    # pair above, but must still be excluded -- distance_source alone decides eligibility here
+    await _insert_pair(db_session, a, b, 0.03, distance_source="clip")  # < clip_threshold -> included
+    # tighter than the clip pair above, but must still be excluded -- distance_source alone
+    # decides eligibility here
+    await _insert_pair(db_session, c, d, 0.001, distance_source="ocr_text")
 
     mapping, _ = await get_images_ids(db_session)
     pairs = await get_duplicate_pairs(db_session, mapping, clip_threshold=0.05)
