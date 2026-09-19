@@ -621,6 +621,61 @@ edgeSummary={`${c.distance.toFixed(3)} · ${c.distance_source === "ocr_text" ? "
 7. Mark this spec `done` with a Rollout Outcome section (counts per environment, spot-check
    findings), matching every prior spec's rollout-outcome convention this session.
 
+## Known limitation: OCR-text auto-clustering disabled pending recalibration
+
+Found during Step 4's live-rollout spot-check on 2026-09-19, against real `general` data (all
+three environments already migrated and rebuilt by that point).
+
+**What was found:** the initial spot-check (a handful of tight `ocr_text`-sourced pairs) found 2
+false positives out of 6 checked, both well inside `clusterize.py`'s auto-cluster threshold
+(0.0454 and 0.0488, both < `PROXIMITY_THRESHOLD_OCR_TEXT` = 0.05) — meaning they were being
+auto-confirmed as duplicates in `general`'s live Explore → Duplicates page with zero human
+review. Pulling the full distribution of `general`'s 191 `ocr_text`-sourced pairs (not just the
+tightest few) showed this was systemic, not two edge cases:
+
+- **Hub effect**: dozens of images each appeared in 11-20 different "duplicate" pairs. Genuine
+  reposting produces small pairs/groups; a 20-way hub is the signature of spurious clustering
+  (directly analogous to the CLIP "same template, not actual duplicate" hub pathology this whole
+  feature was built to fix — recurring in the text signal instead).
+- **Root cause, confirmed by direct visual/OCR-text inspection**: informal, profanity-heavy,
+  exclamatory meme captions (crude "rage comic"-style content, and separately, badly-OCR'd
+  handwriting/stylized fonts that EasyOCR confidently misreads as different-but-still-plausible
+  Cyrillic text) cluster together in `paraphrase-multilingual-MiniLM-L12-v2` embedding space by
+  **register/style**, not actual joke content. Two entirely unrelated images sharing "crude, short,
+  ALL-CAPS Cyrillic exclamations" as their dominant textual register can land well inside the
+  tight auto-cluster threshold despite having nothing in common.
+- **A CLIP-distance corroboration gate (require some baseline visual similarity too) was
+  considered and rejected as insufficient on its own**: `general`'s 191 `ocr_text` pairs' CLIP
+  distances were pulled and checked against 3 more confirmed examples. 78/191 (41%) had CLIP
+  distance >= 0.35 (almost certainly visually unrelated — a corroboration gate would cleanly
+  reject these). But the ambiguous middle band (0.25-0.35 CLIP distance, 66/191 pairs, over a
+  third of the total) contained BOTH a confirmed genuine repost (0.32, same joke posted to two
+  different platforms with different visual chrome) AND a confirmed false positive (0.27,
+  unrelated hand-drawn map vs. an unrelated cartoon) — CLIP distance alone does not cleanly
+  separate the two in that band. A real fix needs something more targeted than a single corroborating
+  distance threshold (candidate directions for a follow-up: per-pair OCR-text substance/length
+  gating, since the confirmed true positives all had long, distinctive, well-recognized text while
+  the confirmed false positives had either very short/fragmented text or heavily garbled OCR;
+  possibly a different or fine-tuned embedding model better suited to short informal Cyrillic
+  meme captions specifically).
+
+**Decision:** rather than block the whole feature on solving this open calibration question,
+`batch/clusterize.py`'s `get_duplicate_pairs()` was scoped back to CLIP-only for active-library
+auto-clustering (`ocr_text`-sourced pairs are now unconditionally excluded from auto-confirmed
+clusters, regardless of distance). This removes the acute live harm (false duplicates silently
+shown as confirmed on a public-facing page) with a small, surgical, easily-reversible change.
+**Ingestion's Tier A/B review is unaffected** — `ingest_find_duplicates.py` still inserts
+`ocr_text`-sourced candidate rows into `tmp_duplicates` exactly as designed, and the Backend's
+review API (`get_tier_candidate_rows`/`list_tier_b_review_page`) still surfaces them, because that
+path reads `tmp_duplicates` directly and was never routed through `get_duplicate_pairs()` — a
+human reviewer, not an unsupervised auto-cluster, makes the final call there, which is an
+acceptable-risk surface for the same noisy signal in a way active-library auto-clustering is not.
+
+**Follow-up required before re-enabling active-library auto-clustering for `ocr_text` pairs:** a
+properly recalibrated design addressing the false-positive rate found above — this is future work,
+not scheduled as part of this spec's own rollout. `PROXIMITY_THRESHOLD_OCR_TEXT` in
+`batch/clusterize.py` is kept defined (unused) rather than deleted, to save re-deriving it later.
+
 ## Self-Review
 
 Performed inline per the brainstorming skill's Architectural-path requirement (fresh eyes against

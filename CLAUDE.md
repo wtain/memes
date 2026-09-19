@@ -198,13 +198,21 @@ rebuild_duplicates         → near-duplicate candidate pairs; HNSW-assisted KNN
                               independently admin-triggerable from /admin/batches, manual-trigger
                               only (not scheduled).
 clusterize                 → optimize cluster index; admin-triggerable from /admin/batches,
-                              manual-trigger only. Union-find over tmp_duplicates pairs, gated
-                              per distance_source: clip-sourced pairs below PROXIMITY_THRESHOLD
-                              (0.05), ocr_text-sourced pairs below the separate
-                              PROXIMITY_THRESHOLD_OCR_TEXT (0.05, independently configured, not
-                              coupled to the CLIP constant even though they're numerically equal
-                              today) — see
-                              docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md.
+                              manual-trigger only. Union-find over tmp_duplicates pairs --
+                              CLIP-sourced only, below PROXIMITY_THRESHOLD (0.05).
+                              ocr_text-sourced pairs are deliberately EXCLUDED from active-library
+                              auto-clustering regardless of distance (get_duplicate_pairs() is
+                              CLIP-only) -- a 2026-09-19 live-rollout spot-check found the
+                              OCR-text embedding signal produces a genuine false-positive "hub"
+                              pattern (informal/profane meme captions cluster by register, not
+                              actual content) at too high a rate to auto-confirm without human
+                              review. ocr_text pairs are still inserted into tmp_duplicates and
+                              still surfaced for ingestion's Tier A/B human review, just not
+                              auto-clustered here. PROXIMITY_THRESHOLD_OCR_TEXT is kept defined but
+                              currently unused -- see
+                              docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md's
+                              "Known limitation" section for the full incident and what a
+                              recalibrated design needs before this can safely change.
                               Then shapes the result: clusters bigger
                               than settings.CLUSTERING.SPLITTING.MAX_CLUSTER_SIZE are recursively
                               re-clustered at progressively tighter thresholds (stepping down by
