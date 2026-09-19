@@ -71,7 +71,8 @@ data class IngestionClusterEdge(
     @SerialName("image_id1") val image_id1: String,
     @SerialName("image_id2") val image_id2: String,
     @SerialName("distance") val distance: Float,
-    @SerialName("match_source") val match_source: String?
+    @SerialName("match_source") val match_source: String?,
+    @SerialName("distance_source") val distance_source: String?
 )
 
 @Serializable
@@ -79,7 +80,8 @@ data class IngestionClusterMember(
     @SerialName("image_id") val image_id: String,
     @SerialName("filename") val filename: String,
     @SerialName("status") val status: String,
-    @SerialName("ocr_text") val ocr_text: String?
+    @SerialName("ocr_text") val ocr_text: String?,
+    @SerialName("text_heavy") val text_heavy: Boolean? = null
 )
 
 @Serializable
@@ -257,7 +259,8 @@ data class IngestionClusterPage(
 data class IngestionTierBCandidate(
     @SerialName("member") val member: IngestionClusterMember,
     @SerialName("distance") val distance: Float,
-    @SerialName("match_source") val match_source: String?
+    @SerialName("match_source") val match_source: String?,
+    @SerialName("distance_source") val distance_source: String?
 )
 
 @Serializable

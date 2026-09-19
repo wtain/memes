@@ -428,6 +428,7 @@ export interface IngestionClusterEdge {
    * in_batch | cross_corpus
    */
   match_source: string | null;
+  distance_source: string | null;
   [k: string]: unknown;
 }
 /**
@@ -458,6 +459,7 @@ export interface IngestionTierBCandidate {
   member: IngestionClusterMember;
   distance: number;
   match_source: string | null;
+  distance_source: string | null;
   [k: string]: unknown;
 }
 /**

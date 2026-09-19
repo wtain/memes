@@ -172,7 +172,7 @@ class IngestionService:
         member_uuids: set = set()
         pairs_by_member: dict = defaultdict(list)
 
-        for id1, filename1, status1, id2, filename2, status2, distance, match_source in rows:
+        for id1, filename1, status1, id2, filename2, status2, distance, match_source, distance_source in rows:
             uf.connect(id1, id2)
             member_info[id1] = {"image_id": str(id1), "filename": filename1, "status": status1}
             member_info[id2] = {"image_id": str(id2), "filename": filename2, "status": status2}
@@ -182,7 +182,7 @@ class IngestionService:
                 pairs_by_member[id2].append((id1, distance))
             edges.append({
                 "image_id1": str(id1), "image_id2": str(id2),
-                "distance": distance, "match_source": match_source,
+                "distance": distance, "match_source": match_source, "distance_source": distance_source,
             })
 
         if split_cfg is not None:
@@ -304,7 +304,8 @@ class IngestionService:
             "image": member(s.subject_id, s.filename, s.status),
             "candidates": [
                 {"member": member(c.cand_id, c.cand_filename, c.cand_status),
-                 "distance": c.distance, "match_source": c.match_source}
+                 "distance": c.distance, "match_source": c.match_source,
+                 "distance_source": c.distance_source}
                 for c in cands_by_subject.get(s.subject_id, [])
             ],
             "total_candidates": s.total_candidates,

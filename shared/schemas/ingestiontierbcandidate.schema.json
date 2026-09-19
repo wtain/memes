@@ -6,7 +6,8 @@
   "properties": {
     "member": { "$ref": "./ingestionclustermember.schema.json" },
     "distance": { "type": "number" },
-    "match_source": { "type": ["string", "null"] }
+    "match_source": { "type": ["string", "null"] },
+    "distance_source": { "type": ["string", "null"] }
   },
-  "required": ["member", "distance", "match_source"]
+  "required": ["member", "distance", "match_source", "distance_source"]
 }

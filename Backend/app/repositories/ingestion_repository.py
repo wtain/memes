@@ -66,7 +66,7 @@ class IngestionRepository:
             select(
                 TmpDuplicates.image_id1, img1.filename, img1.status,
                 TmpDuplicates.image_id2, img2.filename, img2.status,
-                TmpDuplicates.distance, TmpDuplicates.match_source,
+                TmpDuplicates.distance, TmpDuplicates.match_source, TmpDuplicates.distance_source,
             )
             .join(img1, img1.id == TmpDuplicates.image_id1)
             .join(img2, img2.id == TmpDuplicates.image_id2)
@@ -126,7 +126,7 @@ class IngestionRepository:
         tier_a_rows = await self.get_tier_candidate_rows(batch_id, "tier_a", 0.0, tier_a_high)
         tier_b_rows = await self.get_tier_candidate_rows(batch_id, "tier_b", tier_a_high, tier_b_high)
         blocked = set()
-        for id1, _, _, id2, _, _, _, _ in (*tier_a_rows, *tier_b_rows):
+        for id1, _, _, id2, _, _, _, _, _ in (*tier_a_rows, *tier_b_rows):
             blocked.add(id1)
             blocked.add(id2)
         return blocked
@@ -147,7 +147,7 @@ class IngestionRepository:
         # side that is a pending image of this batch, when the other side is not rejected.
         pair_cte = """
         WITH pair AS (
-            SELECT td.image_id1 AS subject_id, td.image_id2 AS cand_id, td.distance, td.match_source
+            SELECT td.image_id1 AS subject_id, td.image_id2 AS cand_id, td.distance, td.match_source, td.distance_source
             FROM tmp_duplicates td
             JOIN images s ON s.id = td.image_id1
             JOIN images o ON o.id = td.image_id2
@@ -156,7 +156,7 @@ class IngestionRepository:
               AND s.ingestion_batch_id = :batch_id AND s.status = 'pending'
               AND o.status <> 'rejected'
             UNION ALL
-            SELECT td.image_id2 AS subject_id, td.image_id1 AS cand_id, td.distance, td.match_source
+            SELECT td.image_id2 AS subject_id, td.image_id1 AS cand_id, td.distance, td.match_source, td.distance_source
             FROM tmp_duplicates td
             JOIN images s ON s.id = td.image_id2
             JOIN images o ON o.id = td.image_id1
@@ -217,7 +217,7 @@ class IngestionRepository:
             WHERE p.subject_id = ANY(:page_ids)
         )
         SELECT r.subject_id, r.cand_id, c.filename AS cand_filename, c.status AS cand_status,
-               r.distance, r.match_source
+               r.distance, r.match_source, r.distance_source
         FROM ranked r JOIN images c ON c.id = r.cand_id
         WHERE r.rn <= :candidate_cap
         ORDER BY r.subject_id, (r.match_source = 'cross_corpus'), r.distance, r.cand_id

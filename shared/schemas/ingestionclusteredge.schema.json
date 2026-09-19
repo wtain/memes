@@ -7,7 +7,8 @@
     "image_id1": { "type": "string" },
     "image_id2": { "type": "string" },
     "distance": { "type": "number" },
-    "match_source": { "type": ["string", "null"], "description": "in_batch | cross_corpus" }
+    "match_source": { "type": ["string", "null"], "description": "in_batch | cross_corpus" },
+    "distance_source": { "type": ["string", "null"] }
   },
-  "required": ["image_id1", "image_id2", "distance", "match_source"]
+  "required": ["image_id1", "image_id2", "distance", "match_source", "distance_source"]
 }

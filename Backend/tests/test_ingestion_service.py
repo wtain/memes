@@ -28,9 +28,10 @@ def _subj(sid, mind, total):
                            min_distance=mind, total_candidates=total)
 
 
-def _cand(sid, cid, dist, status="pending", src="in_batch"):
+def _cand(sid, cid, dist, status="pending", src="in_batch", distance_source="clip"):
     return SimpleNamespace(subject_id=sid, cand_id=cid, cand_filename=f"{cid}.jpg",
-                           cand_status=status, distance=dist, match_source=src)
+                           cand_status=status, distance=dist, match_source=src,
+                           distance_source=distance_source)
 
 
 class TestListTierBReview:
@@ -252,13 +253,22 @@ class TestListClustersPagination:
 
     def _row(self, id1, id2, distance, status1="pending", status2="pending"):
         # matches get_tier_candidate_rows' tuple shape:
-        # (image_id1, filename1, status1, image_id2, filename2, status2, distance, match_source)
-        return (id1, f"{id1}.jpg", status1, id2, f"{id2}.jpg", status2, distance, "clip")
+        # (image_id1, filename1, status1, image_id2, filename2, status2, distance, match_source,
+        #  distance_source)
+        return (id1, f"{id1}.jpg", status1, id2, f"{id2}.jpg", status2, distance, "clip", "clip")
 
     async def _setup(self, service, mock_repo, rows):
         mock_repo.get_active_run.return_value = SimpleNamespace(run_id=uuid.uuid4())
         mock_repo.get_tier_candidate_rows.return_value = rows
         mock_repo.get_ocr_texts.return_value = {}
+
+    async def test_distance_source_threaded_through_to_edges(self, service, mock_repo):
+        a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
+        await self._setup(service, mock_repo, [
+            (a1, f"{a1}.jpg", "pending", a2, f"{a2}.jpg", "pending", 0.03, "cross_corpus", "ocr_text"),
+        ])
+        page = await service.list_clusters("tier_a", limit=10)
+        assert page["items"][0]["edges"][0]["distance_source"] == "ocr_text"
 
     async def test_orders_clusters_by_tightest_edge_and_paginates(self, service, mock_repo):
         a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"

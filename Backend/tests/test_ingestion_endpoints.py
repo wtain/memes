@@ -88,7 +88,11 @@ class TestListClusters:
                     {"image_id": "11111111-1111-1111-1111-111111111111", "filename": "a.jpg",
                      "status": "pending", "ocr_text": "Не смешно", "text_heavy": True},
                 ],
-                "edges": [],
+                "edges": [
+                    {"image_id1": "11111111-1111-1111-1111-111111111111",
+                     "image_id2": "22222222-2222-2222-2222-222222222222",
+                     "distance": 0.03, "match_source": "cross_corpus", "distance_source": "ocr_text"},
+                ],
                 "total_members": 1,
             }],
             "next_cursor": "0.05|11111111-1111-1111-1111-111111111111",
@@ -101,6 +105,7 @@ class TestListClusters:
         assert body["next_cursor"] == "0.05|11111111-1111-1111-1111-111111111111"
         assert body["items"][0]["members"][0]["ocr_text"] == "Не смешно"
         assert body["items"][0]["members"][0]["text_heavy"] is True
+        assert body["items"][0]["edges"][0]["distance_source"] == "ocr_text"  # in the cluster test
         mock_service.list_clusters.assert_awaited_once_with("tier_a", cursor=None, limit=40)
 
     def test_member_defaults_text_heavy_to_false_when_service_omits_it(self, client, mock_service):
@@ -201,7 +206,7 @@ class TestTierBReview:
                 "candidates": [{
                     "member": {"image_id": "c1", "filename": "c1.jpg", "status": "active", "ocr_text": None,
                               "text_heavy": True},
-                    "distance": 0.08, "match_source": "cross_corpus"}],
+                    "distance": 0.08, "match_source": "cross_corpus", "distance_source": "ocr_text"}],
                 "total_candidates": 5,
             }],
             "next_cursor": "0.08|s1", "has_next": True,
@@ -214,6 +219,7 @@ class TestTierBReview:
         assert b["items"][0]["candidates"][0]["member"]["text_heavy"] is True
         assert b["items"][0]["candidates"][0]["distance"] == 0.08
         assert b["items"][0]["total_candidates"] == 5
+        assert b["items"][0]["candidates"][0]["distance_source"] == "ocr_text"  # in the tier_b test
         assert b["has_next"] is True
         mock_service.list_tier_b_review.assert_awaited_once_with(cursor=None, limit=40)
 

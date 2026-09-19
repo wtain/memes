@@ -44,6 +44,7 @@ class ClusterEdge(BaseModel):
     image_id2: str
     distance: float
     match_source: Optional[str]
+    distance_source: Optional[str]
 
 
 class Cluster(BaseModel):
@@ -62,6 +63,7 @@ class TierBCandidate(BaseModel):
     member: ClusterMember
     distance: float
     match_source: Optional[str]
+    distance_source: Optional[str]
 
 
 class TierBReviewItem(BaseModel):

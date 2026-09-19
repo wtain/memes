@@ -27,10 +27,11 @@ async def _make_image(session, status: str, batch_id=None) -> uuid.UUID:
     return image.id
 
 
-async def _make_pair(session, id1, id2, distance: float, match_source: str = "cross_corpus") -> None:
+async def _make_pair(session, id1, id2, distance: float, match_source: str = "cross_corpus",
+                      distance_source: str = "clip") -> None:
     session.add(TmpDuplicates(
         image_id1=min(id1, id2), image_id2=max(id1, id2),
-        distance=distance, match_source=match_source,
+        distance=distance, match_source=match_source, distance_source=distance_source,
     ))
     await session.flush()
 
@@ -72,7 +73,7 @@ async def test_get_tier_candidate_rows_respects_distance_band(db_session):
     tier_b_rows = await repo.get_tier_candidate_rows(batch_id, "tier_b", 0.05, 0.3)
 
     def other_side(rows):
-        (id1, _, _, id2, _, _, _, _), = rows
+        (id1, _, _, id2, _, _, _, _, _), = rows
         return id2 if id1 == pending else id1
 
     assert len(tier_a_rows) == 1
@@ -126,6 +127,33 @@ async def test_get_tier_candidate_rows_includes_in_batch_and_cross_corpus_togeth
 
     match_sources = {r[7] for r in rows}
     assert match_sources == {"in_batch", "cross_corpus"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_tier_candidate_rows_returns_distance_source(db_session):
+    batch_id = await _make_run(db_session)
+    pending = await _make_image(db_session, "pending", batch_id)
+    other = await _make_image(db_session, "active")
+    await _make_pair(db_session, pending, other, distance=0.02, distance_source="ocr_text")
+
+    repo = IngestionRepository(db_session)
+    (row,) = await repo.get_tier_candidate_rows(batch_id, "tier_a", 0.0, 0.05)
+
+    assert row[8] == "ocr_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_list_tier_b_review_page_returns_distance_source(db_session):
+    batch_id = await _make_run(db_session)
+    pending = await _make_image(db_session, "pending", batch_id)
+    other = await _make_image(db_session, "active")
+    await _make_pair(db_session, pending, other, distance=0.10, distance_source="ocr_text")
+
+    repo = IngestionRepository(db_session)
+    _, candidates = await repo.list_tier_b_review_page(
+        batch_id, 0.05, 0.3, cursor=None, limit=40, candidate_cap=10)
+
+    assert [c.distance_source for c in candidates] == ["ocr_text"]
 
 
 # --------------------------------------------------------------------------
