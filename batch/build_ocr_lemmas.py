@@ -14,7 +14,8 @@ from repository.images import ImagesRepository, OCR_LEMMAS_PIPELINE
 from repository.ocr_lemmas import OCRLemmasRepository, OCRLemmasSaver
 
 
-async def run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_word_length, morph, metrics):
+async def run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_word_length, morph,
+              metrics, status: str = "active"):
     lemmas_repo = OCRLemmasRepository(session)
     images_repo = ImagesRepository(session)
     status_repo = ImageProcessingStatusRepository(session, OCR_LEMMAS_PIPELINE)
@@ -25,13 +26,14 @@ async def run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_
         await session.commit()
 
     print(f"Mode: {'incremental' if incremental else 'full'}")
+    print(f"Status: {status}")
     print(f"OCR_CONFIDENCE_MIN={ocr_confidence_min}, OCR_LANG_SCORE_MIN={ocr_lang_score_min}")
     print(f"BOW_MIN_WORD_LENGTH={min_word_length}")
 
     if incremental:
-        rows = await images_repo.get_images_and_ocr_texts_without_lemmas_with_language()
+        rows = await images_repo.get_images_and_ocr_texts_without_lemmas_with_language(status=status)
     else:
-        rows = await images_repo.get_images_and_ocr_texts_with_language()
+        rows = await images_repo.get_images_and_ocr_texts_with_language(status=status)
 
     simplified_rows = [
         (image_id, text, confidence, language, lang_score)
@@ -60,7 +62,7 @@ async def run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_
     tracker.summary()
 
 
-async def _process(incremental: bool) -> None:
+async def _process(incremental: bool, status: str = "active") -> None:
     ocr_confidence_min = settings.OCR.CONFIDENCE_MIN
     ocr_lang_score_min = settings.OCR.LANG_SCORE_MIN
     min_word_length = settings.BOW.MIN_WORD_LENGTH
@@ -69,19 +71,28 @@ async def _process(incremental: bool) -> None:
     metrics = SimpleMetricsListener()
 
     async with AsyncSessionLocal() as session:
-        await run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_word_length, morph, metrics)
+        await run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_word_length,
+                  morph, metrics, status=status)
 
     print("Lemmas:")
     metrics.print()
 
 
-async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, incremental: bool = True) -> None:
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, incremental: bool = True,
+                status: str = "active") -> None:
+    if status == "pending" and not incremental:
+        raise ValueError(
+            "build_ocr_lemmas: --status pending requires incremental mode. A full reprocess "
+            "(incremental=False) unconditionally deletes ALL ocr_lemmas rows via "
+            "OCRLemmasRepository.delete_all() -- there is no status-scoped delete -- which would "
+            "wipe the active corpus's lemma index too, not just pending images."
+        )
     if run_id is not None:
         async with finish_existing_run(run_id):
-            await _process(incremental=incremental)
+            await _process(incremental=incremental, status=status)
     else:
         async with tracked_run(kind="build_ocr_lemmas", trigger=trigger):
-            await _process(incremental=incremental)
+            await _process(incremental=incremental, status=status)
 
 
 if __name__ == "__main__":
@@ -90,6 +101,9 @@ if __name__ == "__main__":
     parser.add_argument("--incremental", action="store_true",
                         help="Only process images not yet marked done for the ocr_lemmas "
                              "pipeline (default: clear all and reprocess)")
+    parser.add_argument("--status", choices=["active", "pending"], default="active",
+                        help="Which images to process (default: active). --status pending "
+                             "requires --incremental (see main()'s own guard).")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(incremental=args.incremental))
+    asyncio.run(main(incremental=args.incremental, status=args.status))

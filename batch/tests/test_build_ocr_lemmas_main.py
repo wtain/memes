@@ -33,7 +33,7 @@ class TestMain:
             await main(trigger="scheduled")
 
         tracked_run_mock.assert_called_once_with(kind="build_ocr_lemmas", trigger="scheduled")
-        process_mock.assert_awaited_once_with(incremental=True)
+        process_mock.assert_awaited_once_with(incremental=True, status="active")
 
     @pytest.mark.asyncio
     async def test_finish_existing_run_path_forces_incremental_true_by_default(self):
@@ -45,4 +45,29 @@ class TestMain:
             await main(trigger="manual", run_id="existing-run-1")
 
         finish_mock.assert_called_once_with("existing-run-1")
-        process_mock.assert_awaited_once_with(incremental=True)
+        process_mock.assert_awaited_once_with(incremental=True, status="active")
+
+    @pytest.mark.asyncio
+    async def test_status_pending_threaded_through_to_process(self):
+        process_mock = AsyncMock()
+        import batch.build_ocr_lemmas as module
+
+        with patch.object(module, "tracked_run", return_value=_ctx("run-1")), \
+             patch.object(module, "_process", process_mock):
+            await main(trigger="scheduled", status="pending")
+
+        process_mock.assert_awaited_once_with(incremental=True, status="pending")
+
+    @pytest.mark.asyncio
+    async def test_status_pending_with_incremental_false_raises_before_any_db_work(self):
+        process_mock = AsyncMock()
+        import batch.build_ocr_lemmas as module
+
+        with patch.object(module, "tracked_run") as tracked_run_mock, \
+             patch.object(module, "_process", process_mock):
+            with pytest.raises(ValueError, match="requires incremental mode"):
+                await main(status="pending", incremental=False)
+
+        tracked_run_mock.assert_not_called()  # the guard fires before tracked_run/_process --
+        # confirms this can't reach delete_all() even indirectly
+        process_mock.assert_not_awaited()
