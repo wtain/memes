@@ -375,9 +375,12 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                Each tier call now issues three probes, mirroring
                                rebuild_duplicates.py's own split (see
                                docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md):
-                               general CLIP (excluding text-heavy-vs-text-heavy pairs), a tight
-                               CLIP safety net, and an OCR-text-embedding probe, both scoped to
-                               text-heavy-vs-text-heavy pairs. The OCR-text probe deliberately
+                               general CLIP (excluding pairs where both sides have an
+                               ocr_text_embeddings row -- not the same as both being text_heavy-
+                               classified, see rebuild_duplicates.py's own _EXCLUDE_TEXT_HEAVY_PAIR
+                               comment), a tight CLIP safety net (text_heavy-classification-scoped,
+                               a deliberately broader superset), and an OCR-text-embedding probe
+                               (embedding-existence-scoped, same as the general probe's exclusion). The OCR-text probe deliberately
                                ALWAYS inserts at TEXT_EMBEDDING_LOOSE_THRESHOLD (0.10) regardless
                                of which tier called it -- never derived from the tier's own
                                threshold (e.g. via min()) -- a real bug caught during that

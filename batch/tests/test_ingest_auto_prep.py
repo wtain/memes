@@ -67,7 +67,7 @@ class TestRunPrepChain:
 
     @pytest.mark.asyncio
     async def test_runtime_error_from_a_later_step_is_swallowed(self):
-        """The common case: the inbox is empty and no ingestion run is active, so steps 2-5
+        """The common case: the inbox is empty and no ingestion run is active, so steps 2-6
         raise 'No ingestion run is currently in progress' -- that must not fail the tick."""
         import batch.ingest_auto_prep as module
 
@@ -104,7 +104,7 @@ class TestRunPrepChain:
     @pytest.mark.asyncio
     async def test_runtime_error_from_hash_dedup_propagates(self):
         """Step 1 failing (e.g. PATH_INGESTION_SOURCE misconfigured) must fail the whole tick,
-        not be swallowed like steps 2-5's expected 'nothing to do' error."""
+        not be swallowed like steps 2-6's expected 'nothing to do' error."""
         import batch.ingest_auto_prep as module
 
         steps = _patched_steps(

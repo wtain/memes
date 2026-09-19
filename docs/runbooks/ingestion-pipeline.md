@@ -20,6 +20,8 @@ python -m batch.ingest_hash_dedup --env <env>
 python -m batch.ingest_validate_formats --env <env>
 python -m batch.build_image_embeddings --env <env> --status pending --incremental
 python -m batch.extract_text_from_memes --env <env> --status pending
+python -m batch.classify_text_heavy --env <env> --status pending
+python -m batch.build_ocr_text_embeddings --env <env> --status pending
 python -m batch.ingest_find_duplicates --env <env> --tier tier_a
 # → review Tier A at /ingestion, keep/reject, submit
 python -m batch.ingest_find_duplicates --env <env> --tier tier_b
@@ -31,10 +33,10 @@ Then, separately, run the normal enrichment pipeline (tags, lemmas, descriptions
 concepts) — see [Does NOT cover](#does-not-cover). Full detail on each step, plus
 prerequisites and status-checking, is below.
 
-Steps 1-6 above (hash dedup through Tier A find-duplicates) can also run as one job,
+Steps 1-7 above (hash dedup through Tier A find-duplicates) can also run as one job,
 `ingest_auto_prep`, instead of by hand — triggered manually from the `/admin/batches` UI
 (it is not on an automatic schedule; `environments/settings.yaml`'s `scheduler.jobs`
-deliberately excludes it). Tier B find-duplicates and promotion (steps 8, 10) are also
+deliberately excludes it). Tier B find-duplicates and promotion (steps 8, 9) are also
 individually triggerable from `/admin/batches` — as `ingest_find_duplicates_tier_b` and
 `ingest_promote` respectively — instead of the direct CLI commands, if you'd rather not
 open a terminal. Both remain manual either way (not on any schedule): Tier B needs Tier A
@@ -146,27 +148,41 @@ runs, files just sit in `inbox\` untouched.
    python -m batch.extract_text_from_memes --env <env> --status pending
    ```
 
-6. **Tier A — tight-threshold candidates:**
+6. **Text-heavy classification** — needed before either tier reviews, so the review UI's
+   `text_heavy` badge is populated for these images (purely additive metadata; doesn't
+   affect matching itself):
+   ```powershell
+   python -m batch.classify_text_heavy --env <env> --status pending
+   ```
+
+7. **OCR-text embeddings** — needed before either tier's find-duplicates step, so
+   text-heavy-vs-text-heavy pairs get OCR-text-based matching instead of losing coverage
+   (see `docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md`):
+   ```powershell
+   python -m batch.build_ocr_text_embeddings --env <env> --status pending
+   ```
+
+8. **Tier A — tight-threshold candidates:**
    ```powershell
    python -m batch.ingest_find_duplicates --env <env> --tier tier_a
    ```
 
-7. **Review Tier A** in the browser at `/ingestion` (use whichever origin is CORS-allowed
+9. **Review Tier A** in the browser at `/ingestion` (use whichever origin is CORS-allowed
    for this environment's frontend — see `environments/Environments.md`; e.g. metal's LAN
    origin, not `127.0.0.1`, if that's what `.env.metal` declares). Keep/reject each pending
    member; submissions can be partial (not every cluster needs a decision in one pass). A
    "Submit all decisions" button submits every cluster with at least one decision in one
    request, instead of clicking each cluster's own Submit button individually.
 
-8. **Tier B — loose-threshold candidates:**
-   ```powershell
-   python -m batch.ingest_find_duplicates --env <env> --tier tier_b
-   ```
+10. **Tier B — loose-threshold candidates:**
+    ```powershell
+    python -m batch.ingest_find_duplicates --env <env> --tier tier_b
+    ```
 
-9. **Review Tier B** on the same `/ingestion` page — it switches queues automatically based
-   on the run's current stage.
+11. **Review Tier B** on the same `/ingestion` page — it switches queues automatically based
+    on the run's current stage.
 
-10. **Promote:**
+12. **Promote:**
     ```powershell
     python -m batch.ingest_promote --env <env>
     ```
@@ -175,7 +191,7 @@ runs, files just sit in `inbox\` untouched.
     batch — otherwise it's safe and expected to re-run this later, after more review, as a
     no-op for anything already resolved.
 
-11. **(Optional)** if you want the promoted images' duplicate relationships to appear in
+13. **(Optional)** if you want the promoted images' duplicate relationships to appear in
     Explore → Duplicates right away:
     ```powershell
     python -m batch.rebuild_duplicates --env <env>
@@ -185,7 +201,7 @@ runs, files just sit in `inbox\` untouched.
     only the duplicate-candidate rebuild. Both are also independently admin-triggerable from
     `/admin/batches` as `rebuild_duplicates` and `clusterize`.
 
-12. **Run the rest of the enrichment pipeline** (see "Does NOT cover" above and CLAUDE.md's
+14. **Run the rest of the enrichment pipeline** (see "Does NOT cover" above and CLAUDE.md's
     Batch pipeline section for the full order) to tag, index, and describe the
     newly-active images.
 
@@ -228,9 +244,11 @@ the lock.
 newly-dropped files, instead of being blocked — it joins the active run (same `batch_id`,
 stats accumulate across invocations) rather than refusing. After doing so, re-run
 `ingest_validate_formats.py --env <env>`, `build_image_embeddings --status pending
---incremental`, `extract_text_from_memes --status pending`, and `ingest_find_duplicates.py`
-(both tiers, as applicable) — steps 4-9 in "Running a batch" above — so the newly-added
-images get review coverage; all four are already safe to re-run against the same batch.
+--incremental`, `extract_text_from_memes --status pending`, `classify_text_heavy --status
+pending`, `build_ocr_text_embeddings --status pending`, and `ingest_find_duplicates.py`
+(both tiers, as applicable) — steps 3-8 and 10 in "Running a batch" above — so the
+newly-added images get review coverage; all six are already safe to re-run against the
+same batch.
 **Don't skip the embeddings step**:
 `ingest_find_duplicates.py`'s probe is an inner join against `embeddings`, so an image with
 none is silently excluded from review entirely and could reach `ingest_promote.py`
