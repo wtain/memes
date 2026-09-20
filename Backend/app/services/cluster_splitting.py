@@ -74,8 +74,12 @@ def split_for_review(members, pairs_by_member, *, start, decrement, floor, max_s
 
     # 3. Residual: loose ids that reach no core. They were all in one blob, so they're
     #    connected among themselves at the tier's outer threshold -- union-find their mutual
-    #    edges and emit each component. Also the "whole blob is looser than start-decrement"
-    #    fallback: `cores` is empty, nothing attaches, everyone lands here as one component.
+    #    edges and emit each component. In practice this step now rarely has work to do --
+    #    batch/clusterize.py's resolve_cluster() (as of
+    #    docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md) never
+    #    returns an empty core list for a >= 2-member input, so `loose` is usually empty too.
+    #    Kept as a defensive fallback for any future resolve_cluster() change that reintroduces
+    #    a case where it returns fewer members than it was given.
     if loose:
         uf = UnionFind()
         for m in loose:

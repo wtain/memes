@@ -70,11 +70,14 @@ clustering:
     # Governs clusterize.py's post-union-find shaping of tmp_clusters: clusters bigger
     # than max_cluster_size are recursively re-clustered at progressively tighter
     # thresholds (starting from clusterize.py's own PROXIMITY_THRESHOLD = 0.05) until
-    # every resulting group is small enough or the threshold hits floor, whichever comes
-    # first; any member that ends up with no surviving edge at a given threshold is
-    # dropped as an implicit singleton rather than written out as a size-1 cluster. Kept
-    # as its own group rather than folded into `duplicates` above since it governs a
-    # different pipeline stage (confirmed-cluster shaping, not candidate-pair discovery).
+    # every resulting group is small enough, the threshold hits floor, or a tightening
+    # step severs every remaining edge among the group's members at once (see
+    # docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md),
+    # whichever comes first; any member that ends up with no surviving edge at a given
+    # threshold is dropped as an implicit singleton rather than written out as a size-1
+    # cluster. Kept as its own group rather than folded into `duplicates` above since it
+    # governs a different pipeline stage (confirmed-cluster shaping, not candidate-pair
+    # discovery).
     #
     # Set enabled: false to fall back to clusterize.py's original behavior -- every
     # union-find cluster is written out exactly as found, however large, and singleton

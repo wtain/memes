@@ -11,7 +11,6 @@ import pytest
 
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services.ingestion_service import IngestionService
-from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
 from config.settings import settings
 from repository.batch_runs import BatchRunRepository
 from Storage.models import Image, TmpDuplicates
@@ -40,7 +39,9 @@ async def _make_pair(session, id1, id2, distance) -> None:
 async def _chain(session, batch_id, n, loose_at, tight=0.02, loose=0.045):
     """n pending images in a chain; links are `tight` except indices in `loose_at` (0-based
     edge index) which are `loose` -> one union-find blob, splits at the loose links.
-    Defaults are a Tier A band; pass tight=0.08/loose=0.22 for a Tier B chain."""
+    Defaults are a Tier A band; for a Tier B chain pass tight=0.08 and derive `loose` from
+    the live settings.DUPLICATES.THRESHOLD (e.g. settings.DUPLICATES.THRESHOLD - 0.01) rather
+    than hardcoding a value -- the Tier B query band is [0.05, settings.DUPLICATES.THRESHOLD)."""
     ids = [await _make_image(session, "pending", batch_id) for _ in range(n)]
     for i in range(n - 1):
         await _make_pair(session, ids[i], ids[i + 1], loose if i in loose_at else tight)
@@ -121,7 +122,10 @@ async def test_tier_b_blob_splits_with_the_tier_b_ladder(db_session, force_split
     batch_id = await _make_run(db_session)
     # Tier B band: tight links 0.08, loose links 0.22 -> one union-find blob, splits at the
     # loose links into {0,1,2} {3,4,5} {6,7}.
-    ids = await _chain(db_session, batch_id, n=8, loose_at={2, 5}, tight=0.08, loose=0.22)
+    ids = await _chain(
+        db_session, batch_id, n=8, loose_at={2, 5},
+        tight=0.08, loose=settings.DUPLICATES.THRESHOLD - 0.01,
+    )
     service = IngestionService(IngestionRepository(db_session))
 
     page = await service.list_clusters("tier_b", batch_id=batch_id)

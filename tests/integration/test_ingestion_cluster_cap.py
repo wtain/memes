@@ -86,7 +86,7 @@ async def test_oversized_group_capped_with_splitting_enabled(db_session, split_g
     hub = await _make_image(db_session, "pending", batch_id)
     spokes = [await _make_image(db_session, "pending", batch_id) for _ in range(CLUSTER_MEMBER_CAP + 15)]
     band_width = settings.DUPLICATES.THRESHOLD - TIER_A_THRESHOLD
-    step = (band_width - 0.005) / len(spokes)
+    step = (band_width * 0.95) / len(spokes)
     for i, s in enumerate(spokes):
         await _make_pair(db_session, hub, s, TIER_A_THRESHOLD + 0.001 + i * step)
 

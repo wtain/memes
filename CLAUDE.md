@@ -219,8 +219,11 @@ clusterize                 → optimize cluster index; admin-triggerable from /a
                               result: clusters bigger
                               than settings.CLUSTERING.SPLITTING.MAX_CLUSTER_SIZE are recursively
                               re-clustered at progressively tighter thresholds (stepping down by
-                              .DECREMENT until a group is small enough or the next threshold would
-                              drop below .FLOOR, whichever comes first — at that point the cluster
+                              .DECREMENT until a group is small enough, the next threshold would
+                              drop below .FLOOR, or a tightening step severs every remaining edge
+                              among the group's members at once (see
+                              docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md)
+                              — whichever comes first; in any of the latter two cases the cluster
                               is accepted oversized rather than split further); any member left
                               with no surviving edge at a given threshold is dropped as an implicit
                               singleton instead of being written out as a size-1 cluster.

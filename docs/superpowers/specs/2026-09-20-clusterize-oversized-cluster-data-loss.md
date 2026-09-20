@@ -1,6 +1,7 @@
 # Clusterize Oversized-Cluster Data Loss
 
-status: approved
+status: implementation
+Plan: `docs/superpowers/plans/2026-09-20-clusterize-oversized-cluster-data-loss.md`
 Originates from: `docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md`'s
 "Rollout Outcome" section (live-rollout discovery, 2026-09-20) — that rollout's own
 verification step found `general`'s Explore → Duplicates page showing zero items and traced it

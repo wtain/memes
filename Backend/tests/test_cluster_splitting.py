@@ -53,8 +53,12 @@ class TestSplitForReview:
         assert {4, 5}.issubset(next(g for g in groups if 1 in g))
 
     def test_blob_looser_than_first_step_returns_whole(self):
-        # every edge in [start-decrement, start) -> resolve_cluster finds no core, nothing
-        # attaches, the residual union-find reconnects them -> one group, nothing dropped
+        # every edge in [start-decrement, start) -> resolve_cluster's own zero-yield guard
+        # (see batch/clusterize.py) returns the whole group directly on the first tightening
+        # attempt, before split_for_review's re-attachment/residual steps ever run -> one
+        # group, nothing dropped. (Prior to that guard existing, this same fixture exercised
+        # split_for_review's step-3 residual fallback instead -- see
+        # docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md.)
         members = [1, 2, 3, 4]
         pairs = _symmetric([(1, 2, 0.045), (2, 3, 0.045), (3, 4, 0.045)])
         groups = split_for_review(members, pairs, start=0.05, decrement=0.01, floor=0.01, max_size=3)
@@ -68,6 +72,24 @@ class TestSplitForReview:
         groups = split_for_review(members, pairs, start=0.05, decrement=0.01, floor=0.01, max_size=3)
         _assert_partition(groups, members)
         assert {4, 5} in [set(g) for g in groups]
+
+    def test_zero_yield_sub_component_stays_its_own_group_not_glued_to_an_unrelated_core(self):
+        # Before batch/clusterize.py's resolve_cluster() fix (see
+        # docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md), a
+        # sub-component wiped to [] by a zero-yield tightening step got Prim-reattached here
+        # onto whatever unrelated tight core happened to be nearest, producing one oversized
+        # glued review card covering both. After the fix, resolve_cluster() itself preserves
+        # the wiped sub-component as its own group, so split_for_review() never needs to
+        # reattach it at all -- it partitions cleanly into two separate groups instead of one.
+        members = [1, 2, 3, 4, 5, 6, 7]
+        pairs = _symmetric([
+            (1, 2, 0.035), (2, 3, 0.035), (3, 4, 0.035),  # would zero-yield-wipe at 0.03 alone
+            (4, 5, 0.049),                                  # loose bridge, severed at the first tightening
+            (5, 6, 0.02), (6, 7, 0.02),                     # unrelated tight core
+        ])
+        groups = split_for_review(members, pairs, start=0.05, decrement=0.01, floor=0.01, max_size=3)
+        _assert_partition(groups, members)
+        assert sorted(sorted(g) for g in groups) == [[1, 2, 3, 4], [5, 6, 7]]
 
     def test_oversized_core_at_floor_is_returned_not_dropped(self):
         # 4 members all mutually 0.005 -- tighter than floor; resolve_cluster gives up oversized

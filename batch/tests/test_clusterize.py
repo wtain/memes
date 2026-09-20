@@ -126,4 +126,27 @@ class TestResolveCluster:
         result = resolve_cluster(
             [1, 2, 3, 4, 5], pairs_by_member, threshold=0.05, decrement=0.01, floor=0.01, max_size=2,
         )
-        assert result == [[1, 2, 3, 4, 5]]
+        assert sorted(sorted(group) for group in result) == [[1, 2, 3, 4, 5]]
+
+    def test_combined_partial_drop_then_zero_yield_wipe_preserves_the_core(self):
+        # Mirrors the real production incident's two-level shape (general's 288-member hub:
+        # 204 true singletons correctly dropped at the first tightening, then the surviving
+        # 69+15-member sub-components would have been wiped entirely by the second tightening
+        # without this fix). Members 9, 10, and 11 each connect only to member 1, at a
+        # distance that doesn't survive the first tightening (0.05 -> 0.04) -- they become
+        # true implicit singletons and are correctly dropped, exactly as before this fix.
+        # Members 1, 2, 3 form a chain that DOES survive the first tightening (0.035 < 0.04)
+        # as one still-oversized sub-component, but the second tightening (0.04 -> 0.03)
+        # severs every edge in it at once -- without this fix, that sub-component would
+        # itself vanish to [] and the whole test would show 0 members surviving instead of 3.
+        pairs_by_member = _symmetric_pairs([
+            (1, 2, 0.035),
+            (2, 3, 0.035),
+            (1, 9, 0.048),
+            (1, 10, 0.048),
+            (1, 11, 0.048),
+        ])
+        result = resolve_cluster(
+            [1, 2, 3, 9, 10, 11], pairs_by_member, threshold=0.05, decrement=0.01, floor=0.01, max_size=2,
+        )
+        assert result == [[1, 2, 3]]
