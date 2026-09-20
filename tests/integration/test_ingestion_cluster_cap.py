@@ -6,6 +6,8 @@ import pytest
 
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services.ingestion_service import IngestionService, CLUSTER_MEMBER_CAP
+from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
+from config.settings import settings
 from repository.batch_runs import BatchRunRepository
 from Storage.models import Image, TmpDuplicates
 
@@ -41,7 +43,7 @@ async def test_oversized_cluster_is_capped_and_reports_total(db_session, no_spli
     # a second, disjoint small cluster -- used to prove ordering/cursor are cap-independent
     x = await _make_image(db_session, "pending", batch_id)
     y = await _make_image(db_session, "pending", batch_id)
-    await _make_pair(db_session, x, y, 0.20)
+    await _make_pair(db_session, x, y, settings.DUPLICATES.THRESHOLD - 0.03)
 
     service = IngestionService(IngestionRepository(db_session))
     page = await service.list_clusters("tier_b", batch_id=batch_id)
@@ -83,8 +85,10 @@ async def test_oversized_group_capped_with_splitting_enabled(db_session, split_g
     batch_id = await _make_run(db_session)
     hub = await _make_image(db_session, "pending", batch_id)
     spokes = [await _make_image(db_session, "pending", batch_id) for _ in range(CLUSTER_MEMBER_CAP + 15)]
+    band_width = settings.DUPLICATES.THRESHOLD - TIER_A_THRESHOLD
+    step = (band_width - 0.005) / len(spokes)
     for i, s in enumerate(spokes):
-        await _make_pair(db_session, hub, s, 0.10 + i * 0.001)  # all in Tier B band, < 0.30
+        await _make_pair(db_session, hub, s, TIER_A_THRESHOLD + 0.001 + i * step)
 
     service = IngestionService(IngestionRepository(db_session))
     page = await service.list_clusters("tier_b", batch_id=batch_id)
@@ -100,7 +104,7 @@ async def test_small_clusters_untouched(db_session, no_split):
     batch_id = await _make_run(db_session)
     a = await _make_image(db_session, "pending", batch_id)
     b = await _make_image(db_session, "pending", batch_id)
-    await _make_pair(db_session, a, b, 0.12)
+    await _make_pair(db_session, a, b, settings.DUPLICATES.THRESHOLD - 0.001)
 
     service = IngestionService(IngestionRepository(db_session))
     page = await service.list_clusters("tier_b", batch_id=batch_id)

@@ -96,7 +96,7 @@ clustering:
     # members so no candidate pair ever leaves the review queue.
     enabled: true
     max_group_size: 12
-    # Tier A candidate pairs are all < 0.05; Tier B's are 0.05-0.30. Each tier's ladder
+    # Tier A candidate pairs are all < 0.05; Tier B's are 0.05-0.12. Each tier's ladder
     # starts at its band top -- derived by _split_params (0.05 for tier_a, and
     # settings.DUPLICATES.THRESHOLD for tier_b), not configured here -- and tightens by
     # `decrement` until a group is small enough or the next step would fall below `floor`.

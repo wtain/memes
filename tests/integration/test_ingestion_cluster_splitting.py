@@ -11,6 +11,8 @@ import pytest
 
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services.ingestion_service import IngestionService
+from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
+from config.settings import settings
 from repository.batch_runs import BatchRunRepository
 from Storage.models import Image, TmpDuplicates
 
@@ -138,7 +140,10 @@ async def test_tier_b_splitting_disabled_returns_one_cluster_per_blob(db_session
         "Backend.app.services.ingestion_service._split_params", lambda tier: None,
     )
     batch_id = await _make_run(db_session)
-    ids = await _chain(db_session, batch_id, n=8, loose_at={2, 5}, tight=0.08, loose=0.22)
+    ids = await _chain(
+        db_session, batch_id, n=8, loose_at={2, 5},
+        tight=0.08, loose=settings.DUPLICATES.THRESHOLD - 0.01,
+    )
     service = IngestionService(IngestionRepository(db_session))
 
     page = await service.list_clusters("tier_b", batch_id=batch_id)
