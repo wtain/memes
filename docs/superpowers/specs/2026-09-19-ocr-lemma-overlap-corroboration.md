@@ -1,6 +1,6 @@
 # OCR-Lemma Overlap Corroboration for Text-Embedding Duplicate Matching
 
-status: planned
+status: done
 Plan: `docs/superpowers/plans/2026-09-19-ocr-lemma-overlap-corroboration.md`
 Originates from: `docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md`'s
 "Known limitation" section (live-rollout finding, 2026-09-19) — that spec shipped OCR-text-embedding
@@ -411,6 +411,95 @@ script that evaluates the corroboration check against existing rows in place and
 that fail it, without a full re-probe. Both are viable; the implementation plan should pick one
 explicitly rather than leave it implicit — this is exactly the kind of `tmp_duplicates`-mutating
 step Task 7's own rollout treated as controller-only, explicit-go-ahead-required.
+
+## Rollout Outcome
+
+Executed 2026-09-19/20 (controller-only, all live-database steps run directly, per explicit user
+go-ahead). Tasks 1-6 (code + docs) were merged first via the standard SDD task loop; this section
+covers Task 7's live rollout across `metal`/`general`/`it`.
+
+**Backups**: `pg_dump -Fc` taken for all three databases before any write
+(`Storage/backups/ocrdb-2026-09-20-{metal,general,it}.dump`), matching the originating spec's
+rollout precedent.
+
+**Step 2 — `build_ocr_lemmas --status active --incremental` coverage-gap backfill**:
+
+| Environment | Images backfilled | Lemmas added |
+|---|---|---|
+| `metal` | 0 (already fully indexed) | 0 |
+| `general` | 43 | 645 |
+| `it` | 0 (already fully indexed) | 0 |
+
+The `general` gap had already narrowed substantially from the 742-image estimate in Design §3
+(taken at the 2026-09-18 rollout) by the time this plan executed — most of the corpus had already
+picked up coverage since then, likely from other activity between the two rollouts.
+
+**Step 3 — deleted existing `distance_source='ocr_text'` rows** (per this spec's own Rollout
+ruling, resolved during plan-writing: delete-and-reprobe rather than evaluate-in-place):
+
+| Environment | Rows deleted |
+|---|---|
+| `metal` | 1 |
+| `general` | 236 (grown from the 191 recorded in Design §1's calibration snapshot — more
+  candidates accumulated between the two rollouts) |
+| `it` | 1 |
+
+**Step 4 — re-ran `rebuild_duplicates.py --env <environment>`** (chains to `clusterize.py`) for all
+three. All three backends (`/api/diagnostics/health`) stayed healthy throughout every step.
+
+**Step 5 — verification** (via `DATABASE_URL_READONLY`):
+
+| Environment | `ocr_text` rows before delete | `ocr_text` rows after re-probe |
+|---|---|---|
+| `metal` | 1 | 1 |
+| `general` | 236 | **13** |
+| `it` | 1 | 1 |
+
+`general`'s post-rollout count of exactly 13 matches Design §1's own calibration finding almost
+exactly ("13 pairs at overlap coefficient ≥ 0.417" in the original complete 191-pair distribution).
+Computed the overlap coefficient directly (via `psql`, not trusted from application logic) for all
+13 surviving pairs: every one clears 0.417+ (range 0.417-0.938), with the boundary-case pair
+scoring exactly 0.417 (10 shared / 24 min) and turning out, on inspection, to be Design §1's own
+"3 stages of life template, different comment" calibration example. The known false-positive hub
+image (635 OCR blocks, confirmed by querying `ocr_texts` grouped by `image_id` for the matching
+block count) is confirmed absent from every surviving `general` pair — zero pairs touch it.
+
+Spot-checked two `general` pairs by opening the actual image files: the 0.417-boundary pair (the
+"3 stages of life" template, confirmed genuine) and the highest-coefficient pair (0.938 — two
+screenshots of the same comment thread at different scroll depth, confirmed genuine). Also
+spot-checked `metal`'s sole surviving pair (distance 0.013, well under
+`PROXIMITY_THRESHOLD_OCR_TEXT`) by opening both images — same tweet screenshot, two different crops,
+confirmed genuine and confirmed present in `tmp_clusters` (correctly auto-clustered).
+
+**Step 6 — live Explore → Duplicates spot-check**: `metal` (5 clusters, 10 rows in `tmp_clusters`)
+and `it` (54 clusters, 112 rows) both show real, correct content via `/api/images/duplicates` — the
+`metal` true-positive pair above is present and correctly clustered.
+
+`general` currently shows **zero** items on this page (`tmp_clusters` has 0 rows for `general`).
+Investigated this rather than treating it as a silent pass: `general` has three unusually large
+CLIP-sourced connected components (288/136/76 images — long-standing repost "hub" clusters, not new
+from this rollout) that `clusterize.py`'s pre-existing oversized-cluster splitting logic
+(`resolve_cluster()`, untouched by any task in this plan) shatters entirely to zero surviving
+groups when it tightens the threshold from 0.05 down to the 0.01 floor — every member ends up
+dropped as an implicit singleton rather than landing in a valid 2-12-member group. Confirmed this
+is **not caused by this rollout**: reproducing the identical union-find graph using only
+`clip`-sourced edges (with `ocr_text` completely excluded — nothing in Tasks 1-7 touches CLIP
+thresholds, `resolve_cluster`, or the splitting settings) gives the byte-identical zero-groups
+result. None of `general`'s 13 surviving `ocr_text` pairs are affected either way — all 13 sit
+above `PROXIMITY_THRESHOLD_OCR_TEXT` (0.05, range is 0.0517-0.0972), so none was ever a candidate
+for `clusterize.py`'s tighter auto-cluster threshold regardless of this splitting behavior; they
+still reach ingestion's Tier A/B human review via `ingest_find_duplicates.py`, unaffected.
+
+**This is a known, separate, pre-existing issue in `clusterize.py`'s oversized-cluster splitting
+algorithm for very large, densely-connected hub clusters — out of this spec's scope (no task here
+touches `resolve_cluster` or the splitting settings) and not fixed as part of this rollout.** It
+affects only `general`'s largest CLIP-only hub clusters, not the OCR-text corroboration mechanism
+this spec ships. Flagged here for whoever picks up a future fix; worth a follow-up spec.
+
+**Conclusion**: the OCR-lemma overlap corroboration gate is live and functioning exactly as
+calibrated in Design §1 across all three environments — `general`'s `ocr_text` candidate pool
+dropped from 236 to 13 with zero false positives surviving and the previously-identified hub image
+confirmed excluded, and both `metal`'s and `it`'s single surviving pairs are confirmed genuine.
 
 ## Self-Review
 
