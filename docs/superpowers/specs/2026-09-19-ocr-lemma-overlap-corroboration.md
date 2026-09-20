@@ -384,10 +384,16 @@ mirroring exactly how Task 7's fix updated this file for `build_ocr_text_embeddi
 1. Ship the code (this spec's Design §1-§4) plus test coverage, through the same SDD process as
    every prior piece of this effort.
 2. **Controller-only, live-database step, explicit go-ahead required before this step**: run
-   `build_ocr_lemmas.py --status active` (no `--incremental` — a fresh pass is needed since the
-   catch-up covers existing gaps, not just new images) against `metal`/`general`/`it` to close the
+   `build_ocr_lemmas.py --status active --incremental` against `metal`/`general`/`it` to close the
    742-image (`general`; smaller counts expected for `metal`/`it`) coverage gap identified in
-   Design §3.
+   Design §3. `--incremental` here is *not* the same as skipping the gap: `ImagesRepository`'s
+   incremental query (`repository/images.py`) filters on processing-status, not on "already has
+   lemma rows", so it still picks up every never-processed image in the gap. A non-incremental
+   full reprocess is both unnecessary (it would redo already-covered images) and, per Task 1's own
+   guard, actively wrong to combine with `--status pending` — safest to default to `--incremental`
+   for every `--status active` invocation too. (Corrected post-rollout: this originally read "no
+   `--incremental`" — the actual Task 7 execution used `--incremental` throughout; see Rollout
+   Outcome below.)
 3. Re-run `rebuild_duplicates.py --env <environment>` against all three (incremental; chains to
    `clusterize.py` automatically) — this re-evaluates every existing `ocr_text` candidate against
    the new corroboration gate (rows that already exist in `tmp_duplicates` from the prior rollout
@@ -495,6 +501,32 @@ algorithm for very large, densely-connected hub clusters — out of this spec's 
 touches `resolve_cluster` or the splitting settings) and not fixed as part of this rollout.** It
 affects only `general`'s largest CLIP-only hub clusters, not the OCR-text corroboration mechanism
 this spec ships. Flagged here for whoever picks up a future fix; worth a follow-up spec.
+
+**Backup/restore caveat**: the pre-rollout `pg_dump` backups (`Storage/backups/ocrdb-2026-09-20-
+{metal,general,it}.dump`) contain the un-gated `ocr_text` rows Step 3 deleted (238 across all three
+environments). Restoring one of these dumps reintroduces rows that never passed the corroboration
+check into a `clusterize.py` that trusts `distance_source` unconditionally. If restoring a
+pre-rollout dump, re-run `DELETE FROM tmp_duplicates WHERE distance_source = 'ocr_text';` followed
+by `rebuild_duplicates.py --env <environment>` afterward.
+
+**Final whole-branch review** (dispatched on the most capable model, per SDD convention for a
+branch touching live-database-affecting matching logic): **Ready to merge: Yes**, no Critical
+findings. Independently re-verified the `clusterize.py` discovery above (confirmed via `git log -p`
+that `resolve_cluster()` and every splitting setting are untouched across the whole branch) and
+independently re-ran all three test suites in a separate worktree against `main`, confirming the
+5 `tests/integration/` failures are pre-existing and unrelated. Two Important, non-blocking
+findings accepted as follow-ups rather than fixed in this branch: (1) nothing structurally prevents
+`ocr_lemmas` coverage from silently lagging `rebuild_duplicates.py` runs going forward — a coverage
+gap causes an image to be rejected for missing lemmas rather than low overlap, indistinguishably
+from the outside, since `build_ocr_lemmas`/`build_ocr_text_embeddings`/`rebuild_duplicates` are all
+deliberately unscheduled/manual-trigger-only; worth an operator-facing warning count (e.g. images
+with an `ocr_text_embeddings` row but no `ocr_lemmas` rows) in a future change. (2) `general`'s
+re-enabled `ocr_text` auto-clustering has near-zero live validation today, since all 13 surviving
+pairs sit above `PROXIMITY_THRESHOLD_OCR_TEXT` (0.05) — only `metal`'s single pair (0.013)
+currently exercises the live auto-cluster path; worth re-checking `general`'s `tmp_clusters` after
+future `rebuild_duplicates` runs once pairs start landing under 0.05. Minor findings (two misleading
+test docstrings, this Rollout section's stale `--incremental` guidance, a `CLAUDE.md` consistency
+gap) were fixed directly following the review.
 
 **Conclusion**: the OCR-lemma overlap corroboration gate is live and functioning exactly as
 calibrated in Design §1 across all three environments — `general`'s `ocr_text` candidate pool

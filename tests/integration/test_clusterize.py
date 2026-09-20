@@ -126,10 +126,11 @@ async def test_ocr_text_sourced_pair_clusters_under_its_own_threshold(db_session
 async def test_ocr_text_sourced_pair_past_its_own_threshold_does_not_cluster(db_session):
     a = await _insert_image(db_session)
     b = await _insert_image(db_session)
-    # 0.08 is past PROXIMITY_THRESHOLD_OCR_TEXT (0.05) but well within clip's own 0.05 too --
-    # this must NOT cluster despite the distance being numerically close to what a clip-sourced
-    # pair at the same value would need. Proves the two thresholds are independently enforced,
-    # not OR'd loosely against a single shared cutoff.
+    # 0.08 is past both PROXIMITY_THRESHOLD (0.05) and PROXIMITY_THRESHOLD_OCR_TEXT (0.05) --
+    # this must NOT cluster. Basic sanity check that the ocr_text branch actually enforces its
+    # threshold at all; see test_get_duplicate_pairs_enforces_each_threshold_independently below
+    # for the test that actually discriminates per-source gating from a conflated single check
+    # (this test can't, since both thresholds are numerically equal today).
     await _insert_pair(db_session, a, b, 0.08, distance_source="ocr_text")
 
     await cluster_active_library(db_session)
@@ -139,9 +140,11 @@ async def test_ocr_text_sourced_pair_past_its_own_threshold_does_not_cluster(db_
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_clip_and_ocr_text_thresholds_enforced_independently(db_session):
-    """Two pairs at distances that would swap outcomes if the two distance_source thresholds
-    were ever accidentally conflated into one shared comparison."""
+async def test_both_sources_cluster_under_their_own_thresholds(db_session):
+    """Sanity check that a clip-sourced and an ocr_text-sourced pair both cluster when each is
+    under its own threshold. Does NOT discriminate per-source gating from a conflated single
+    check, since PROXIMITY_THRESHOLD and PROXIMITY_THRESHOLD_OCR_TEXT are both 0.05 today -- see
+    test_get_duplicate_pairs_enforces_each_threshold_independently below for that."""
     a = await _insert_image(db_session)
     b = await _insert_image(db_session)
     c = await _insert_image(db_session)
