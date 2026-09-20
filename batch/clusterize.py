@@ -37,9 +37,10 @@ def resolve_cluster(
     members: the int ids in this cluster.
     pairs_by_member: id -> list of (neighbor id, distance) below the *original*
         PROXIMITY_THRESHOLD, symmetric (each pair present from both endpoints).
-    Returns a list of finalized member-id lists -- each either within max_size, or
-    still oversized because splitting hit `floor` without shrinking it further.
-    Clusters of size < 2 are dropped entirely.
+    Returns a list of finalized member-id lists -- each either within max_size, or still
+    oversized because splitting hit `floor` or a tightening step found no surviving
+    sub-structure at all (a "total wipe" -- both are treated as "give up, accept as-is").
+    Clusters of size < 2 are dropped entirely; a >= 2-member group is never dropped.
     """
     members = list(members)
     if len(members) <= 1:
@@ -58,8 +59,20 @@ def resolve_cluster(
             if neighbor in member_set and distance < next_threshold:
                 sub_uf.connect(member, neighbor)
 
+    roots = sub_uf.list_clusters()
+    if not roots:
+        # Tightening to next_threshold severed every remaining edge among these members at
+        # once -- recursing into an empty sub_uf would return [] and silently drop the whole
+        # group (up to hundreds of members for a real dense CLIP "hub" -- see
+        # docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md). Treat
+        # a total wipe the same as hitting `floor`: give up and accept the group oversized as
+        # one group rather than destroying it. Does NOT change the *other* outcome --
+        # partial success, where some members drop as true singletons but at least one
+        # sub-component of size >= 2 survives -- that recursion path is unchanged below.
+        return [members]
+
     results: list[list[int]] = []
-    for root in sub_uf.list_clusters():
+    for root in roots:
         sub_members = sub_uf.get_cluster(root)
         results.extend(
             resolve_cluster(sub_members, pairs_by_member, next_threshold, decrement, floor, max_size)

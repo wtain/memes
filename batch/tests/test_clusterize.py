@@ -105,3 +105,25 @@ class TestResolveCluster:
             [1, 2, 3], pairs_by_member={}, threshold=0.02, decrement=0.02, floor=0.01, max_size=2,
         )
         assert result == [[1, 2, 3]]
+
+    def test_zero_yield_split_is_accepted_oversized_not_dropped(self):
+        # Chain 1-2-3-4-5, all four edges at distance 0.035. At the first tightening
+        # (0.05 -> 0.04) every edge still qualifies (0.035 < 0.04), so the whole 5-member
+        # chain survives as ONE still-oversized sub-component -- no fragmentation yet,
+        # matching the real shape seen in general's 288-member hub cluster's first split
+        # (see docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md).
+        # Recursing into it retries at 0.04 -> 0.03: now 0.035 >= 0.03, so EVERY edge is
+        # severed at once -- sub_uf finds zero sub-components. Before the fix, this
+        # returned [] and silently dropped all 5 members, even though every edge was well
+        # inside the original PROXIMITY_THRESHOLD (0.05). The fix must return the whole
+        # group as one accepted-oversized group instead.
+        pairs_by_member = _symmetric_pairs([
+            (1, 2, 0.035),
+            (2, 3, 0.035),
+            (3, 4, 0.035),
+            (4, 5, 0.035),
+        ])
+        result = resolve_cluster(
+            [1, 2, 3, 4, 5], pairs_by_member, threshold=0.05, decrement=0.01, floor=0.01, max_size=2,
+        )
+        assert result == [[1, 2, 3, 4, 5]]
