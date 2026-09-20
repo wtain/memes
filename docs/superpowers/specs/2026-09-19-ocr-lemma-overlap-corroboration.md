@@ -8,6 +8,10 @@ distance as the primary duplicate signal for text-heavy image pairs, but the liv
 genuine false-positive "hub" pattern too severe to auto-confirm without human review, and disabled
 active-library auto-clustering for `ocr_text`-sourced pairs pending a properly recalibrated design.
 This spec is that recalibration.
+Follow-ups: `docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md` (a
+pre-existing, unrelated `clusterize.py` defect discovered during this spec's own Task 7 rollout
+verification — `general`'s Explore → Duplicates page showing zero items, confirmed independent of
+this spec's changes and spun out as its own follow-up).
 
 ## Problem
 
