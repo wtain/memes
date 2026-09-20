@@ -1,6 +1,6 @@
 # Clusterize Oversized-Cluster Data Loss
 
-status: implementation
+status: done
 Plan: `docs/superpowers/plans/2026-09-20-clusterize-oversized-cluster-data-loss.md`
 Originates from: `docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md`'s
 "Rollout Outcome" section (live-rollout discovery, 2026-09-20) — that rollout's own
@@ -280,6 +280,40 @@ from the live setting.
    Explore → Duplicates spot-check for `general`.
 3. Mark this spec `done` with a brief Rollout Outcome note (before/after `tmp_clusters` row count
    for `general`, confirmation the three hub clusters now appear).
+
+## Rollout Outcome
+
+Executed 2026-09-20 (controller-only, executed directly, per explicit user go-ahead). Code (Design
+§1-§2) was implemented and merged via subagent-driven development: two independently-reviewed
+tasks (Task 1: `resolve_cluster()`'s fix, Task 2: the four stale test fixtures), followed by a
+final whole-branch review (Opus) that found no Critical issues and one bundled fix wave addressing
+10 polish/coverage findings, then a clean scoped re-review confirming all 10 addressed with no new
+breakage.
+
+**Step 2 — re-ran `rebuild_duplicates.py --env general`** (chains to `clusterize.py`). Backend
+health confirmed healthy (`/api/diagnostics/health`) before and after.
+
+**Verification via `DATABASE_URL_READONLY`**:
+
+| | Before this fix | After |
+|---|---|---|
+| `tmp_clusters` rows for `general` | 0 | **128** |
+| Distinct clusters | 0 | **4** |
+| Cluster sizes | — | **69, 26, 18, 15** |
+
+The recovered sizes match Design §1's own investigation exactly: the 288-member hub split into
+groups of 69 and 15 (204 members correctly remain dropped as true implicit singletons — unrelated
+to the hub, never near-duplicates), the 136-member hub recovered as one 18-member group, and the
+76-member hub recovered as one 26-member group. `metal`/`it` were not touched — confirmed during
+Design §1's investigation to have no connected component large enough to trigger oversized
+splitting at all, so this defect never affected them.
+
+**Spot-check**: `/api/images/duplicates` for `general` now returns real, populated clusters (5
+items fetched and inspected, all with real filenames) where it previously returned an empty list.
+
+**Conclusion**: the fix works exactly as designed in live production — `general`'s Explore →
+Duplicates page, empty since this defect was introduced, now shows real content, with the exact
+member counts predicted by this spec's own investigation.
 
 ## Self-Review
 
