@@ -4,15 +4,38 @@ Requires a live PostgreSQL instance with pgvector -- see tests/integration/conft
 """
 import uuid
 
+import numpy as np
 import pytest
 from sqlalchemy import select
 
+from batch import build_ocr_text_embeddings
 from batch.build_ocr_text_embeddings import run
 from batch.utils.text_heavy_classifier import CLASSIFIER_NAME, TEXT_HEAVY
 from Storage.models import Image, ImageClassification, OCRText, OCRTextEmbedding
 
 CONFIDENCE_MIN = 0.4
 LANG_SCORE_MIN = 0.3
+EMBEDDING_DIM = 384  # paraphrase-multilingual-MiniLM-L12-v2 -- matches OCRTextEmbedding.embedding
+
+
+class _FakeEmbedder:
+    def embed_text(self, text: str) -> np.ndarray:
+        return np.full(EMBEDDING_DIM, 1.0 / np.sqrt(EMBEDDING_DIM))
+
+
+@pytest.fixture(autouse=True)
+def embedder_loads(monkeypatch):
+    """Swaps the real sentence-transformers model for a fake -- integration CI installs neither
+    sentence-transformers nor torch (these tests exercise the DB logic, not the model) -- and
+    records each load so tests can assert on whether the model was ever requested."""
+    loads = []
+
+    def _fake_get_embedder():
+        loads.append(1)
+        return _FakeEmbedder()
+
+    monkeypatch.setattr(build_ocr_text_embeddings, "_get_embedder", _fake_get_embedder)
+    return loads
 
 
 async def _text_heavy_image(db_session, status="active"):
@@ -38,7 +61,7 @@ async def test_embeds_and_persists_a_text_heavy_image(db_session):
     row = (await db_session.execute(
         select(OCRTextEmbedding).where(OCRTextEmbedding.image_id == image.id)
     )).scalar_one()
-    assert len(row.embedding) == 384
+    assert len(row.embedding) == EMBEDDING_DIM
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -83,9 +106,10 @@ async def test_image_with_entirely_filtered_text_is_excluded(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_no_candidates_returns_empty_metrics_without_loading_model(db_session):
+async def test_no_candidates_returns_empty_metrics_without_loading_model(db_session, embedder_loads):
     metrics = await run(db_session, CONFIDENCE_MIN, LANG_SCORE_MIN, "active")
     assert metrics.counters_dict() == {}
+    assert embedder_loads == []
 
 
 @pytest.mark.asyncio(loop_scope="session")

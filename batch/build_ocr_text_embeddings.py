@@ -7,7 +7,6 @@ import argparse
 import asyncio
 import uuid
 
-from ai.sbert import SbertModel
 from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
@@ -23,6 +22,13 @@ EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"  # ai/sbert.py's own d
                                                              # ever changing later.
 
 
+def _get_embedder():
+    # Imported lazily so this module stays importable without sentence-transformers/torch
+    # (integration CI and Dockerfile.backend install neither; only actually embedding needs them).
+    from ai.sbert import SbertModel
+    return SbertModel(model_name=EMBEDDING_MODEL)
+
+
 async def run(session, confidence_min: float, lang_score_min: float, status: str) -> SimpleMetricsListener:
     repo = OCRTextEmbeddingsRepository(session)
     texts = await repo.get_text_heavy_images_needing_embedding(
@@ -33,7 +39,7 @@ async def run(session, confidence_min: float, lang_score_min: float, status: str
     if not texts:
         return metrics
 
-    embedder = SbertModel(model_name=EMBEDDING_MODEL)
+    embedder = _get_embedder()
     tracker = ProgressTracker(total=len(texts), report_every=settings.GENERAL.PROGRESS_EVERY)
 
     for i, (image_id, text) in enumerate(texts.items()):

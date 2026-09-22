@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services.ingestion_service import CANDIDATE_CAP, IngestionService
+from config.settings import settings
 from repository.batch_runs import BatchRunRepository
 from Storage.models import Image, TmpDuplicates
 
@@ -102,7 +103,7 @@ async def test_rejecting_a_subject_drops_it_and_prunes_it_from_other_cards(db_se
     p2 = await _img(db_session, "pending", bid)
     active = await _img(db_session, "active", bid)
     await _pair(db_session, p1, p2, 0.09)       # p1<->p2
-    await _pair(db_session, p2, active, 0.20)   # p2 also has an active candidate
+    await _pair(db_session, p2, active, settings.DUPLICATES.THRESHOLD - 0.02)  # p2 also has an active candidate (in-band)
 
     service = IngestionService(IngestionRepository(db_session))
     with patch("Backend.app.services.ingestion_service.image_store.move_to_rejected"):
