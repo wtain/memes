@@ -249,7 +249,10 @@ Response from `POST /api/bug-reports`.
     "with_descriptions": "number",
     "with_concept_tags": "number",
     "flagged": "number",
-    "duplicate_clusters": "number"
+    "duplicate_clusters": "number",
+    "ocr_missing_text_heavy_classification": "number",
+    "text_heavy_missing_embeddings": "number",
+    "embeddings_missing_lemmas": "number"
   },
   "content": {
     "ocr_texts": "number",
