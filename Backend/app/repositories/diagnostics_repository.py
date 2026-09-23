@@ -5,7 +5,9 @@ from Storage.models import (
     Concept, ConceptImage, ConceptImageSet,
     Embedding, Image, ImageExtras,
     ImageTag, OCRText, ImageDescription, ImageDescriptionFeedback, TmpImageClusters, BatchRun, TrendSource,
+    ImageClassification, OCRLemma, OCRTextEmbedding,
 )
+from rules.text_heavy_result import CLASSIFIER_NAME, TEXT_HEAVY
 
 
 class DiagnosticsRepository:
@@ -62,6 +64,40 @@ class DiagnosticsRepository:
                     .scalar_subquery().label("flagged"),
                 select(func.count(TmpImageClusters.cluster_id.distinct()))
                     .scalar_subquery().label("duplicate_clusters"),
+                select(func.count()).select_from(Image)
+                    .where(
+                        Image.status == "active",
+                        exists(select(OCRText.image_id).where(OCRText.image_id == Image.id)),
+                        ~exists(
+                            select(ImageClassification.image_id)
+                            .where(
+                                ImageClassification.image_id == Image.id,
+                                ImageClassification.classifier == CLASSIFIER_NAME,
+                            )
+                        ),
+                    )
+                    .scalar_subquery().label("ocr_missing_text_heavy_classification"),
+                select(func.count()).select_from(Image)
+                    .where(
+                        Image.status == "active",
+                        exists(
+                            select(ImageClassification.image_id)
+                            .where(
+                                ImageClassification.image_id == Image.id,
+                                ImageClassification.classifier == CLASSIFIER_NAME,
+                                ImageClassification.result == TEXT_HEAVY,
+                            )
+                        ),
+                        ~exists(select(OCRTextEmbedding.image_id).where(OCRTextEmbedding.image_id == Image.id)),
+                    )
+                    .scalar_subquery().label("text_heavy_missing_embeddings"),
+                select(func.count()).select_from(Image)
+                    .where(
+                        Image.status == "active",
+                        exists(select(OCRTextEmbedding.image_id).where(OCRTextEmbedding.image_id == Image.id)),
+                        ~exists(select(OCRLemma.image_id).where(OCRLemma.image_id == Image.id)),
+                    )
+                    .scalar_subquery().label("embeddings_missing_lemmas"),
                 select(func.count()).select_from(OCRText)
                     .scalar_subquery().label("ocr_texts"),
                 select(func.count()).select_from(ImageTag)
