@@ -234,3 +234,43 @@ picks up the three new fields once §1's regeneration completes.
    the count is measuring the right thing.
 4. Mark this spec `done` with a short Rollout Outcome section (the three counts observed per
    environment at rollout time).
+
+## Rollout outcome (2026-09-23)
+
+Implemented via subagent-driven-development in an isolated worktree (all 5 plan tasks complete,
+each independently reviewed clean — see the plan's own ledger). **Branch not yet merged to `main`
+as of this writing** — see the note below on what that means for these numbers.
+
+**Read-only verification** (`DATABASE_URL_READONLY`, controller-executed directly, per this repo's
+live-DB-access rule) against all three environments' real data, using the same anti-join logic the
+implemented `DiagnosticsRepository.get_statistics()` query uses:
+
+| Environment | `ocr_missing_text_heavy_classification` | `text_heavy_missing_embeddings` | `embeddings_missing_lemmas` |
+|---|---|---|---|
+| metal   | 484 | 0 | 0 |
+| general | 197 | 1 | 5 |
+| it      | 12  | 0 | 0 |
+
+Matches expectations: `metal`/`it` read at/near zero on `embeddings_missing_lemmas`, consistent
+with both being fully caught up per `docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md`'s
+own rollout. `general`'s non-zero `embeddings_missing_lemmas` (5) is expected — `general`'s
+`ocr_lemmas` coverage gap was the originating finding's whole premise
+(`docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md`'s final-review finding).
+`metal`'s numbers were independently cross-checked two ways: Task 3's live-server smoke test
+(`GET /api/diagnostics/statistics` on a temporary port against the real `metal` database) returned
+the identical 484/0/0, and this controller-run raw-SQL query reproduced it exactly — strong
+corroborating evidence the implemented query is correct, not an artifact of either verification
+method.
+
+**Live-endpoint deployment note:** the three currently-running dev servers (`metal`/`general`/`it`,
+ports 8081-8083) are still serving pre-merge code as of this rollout note — confirmed directly
+(`GET /api/diagnostics/statistics` on `metal` does not yet include the three new fields). This is
+expected: this branch has not merged into `main` yet. These servers run with `--reload`/
+`WATCHFILES_FORCE_POLLING` against the main checkout, so merging this branch into `main` is
+expected to make them pick up the change automatically, with no separate deploy step. The table
+above is independent of that — it queries the database directly, not through the (not-yet-updated)
+live endpoint.
+
+Status intentionally left `planned` rather than `done` here — per this repo's lifecycle, `done`
+means "implemented and merged," and the merge hasn't happened yet. The status line will be updated
+once the branch is actually merged.
