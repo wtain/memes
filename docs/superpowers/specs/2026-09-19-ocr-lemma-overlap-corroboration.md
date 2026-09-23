@@ -11,7 +11,8 @@ This spec is that recalibration.
 Follow-ups: `docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md` (a
 pre-existing, unrelated `clusterize.py` defect discovered during this spec's own Task 7 rollout
 verification — `general`'s Explore → Duplicates page showing zero items, confirmed independent of
-this spec's changes and spun out as its own follow-up).
+this spec's changes and spun out as its own follow-up); `docs/superpowers/specs/2026-09-23-duplicate-matching-coverage-gap-diagnostics.md`
+(the operator-facing coverage-gap warning this spec's own final-review finding (1) called for).
 
 ## Problem
 
