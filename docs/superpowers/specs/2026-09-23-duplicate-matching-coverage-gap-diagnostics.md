@@ -1,6 +1,6 @@
 # Duplicate-Matching Pipeline Coverage-Gap Diagnostics
 
-status: draft
+status: approved
 Originates from: `docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md`'s final
 whole-branch review, Important finding (1): "nothing structurally prevents `ocr_lemmas` coverage
 from silently lagging `rebuild_duplicates.py` runs going forward — a coverage gap causes an image
