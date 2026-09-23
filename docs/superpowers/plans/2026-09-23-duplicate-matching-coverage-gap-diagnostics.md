@@ -422,11 +422,15 @@ In `backend_api.md`, find the `### StatisticsResponse` section's example JSON bl
 to the new second-to-last line. Keep the rest of the block — the closing `},` for `memes`, and the
 `content`/`trends` objects that follow — unchanged.)
 
-- [ ] **Step 6: Manual smoke-test against a real environment (per CLAUDE.md's "Before committing backend changes")**
+- [ ] **Step 6: Manual smoke-test against a live server (per CLAUDE.md's "Before committing backend changes")**
 
-Start one backend environment (e.g. `metal`, port 8081) per CLAUDE.md's uvicorn command, then:
+Ports 8081/8082/8083 are permanently occupied by the developer's live `metal`/`general`/`it`
+environments (CLAUDE.md, `environments/Environments.md`) — never bind a server to them for testing.
+Instead, start a temporary backend on a verified-free port outside that table, e.g. 8189
+(`netstat -ano | findstr :8189` confirmed free before use), per CLAUDE.md's uvicorn command with
+`--port 8189` in place of one of the reserved ports, then:
 ```bash
-curl -s http://localhost:8081/api/diagnostics/statistics | python -m json.tool
+curl -s http://localhost:8189/api/diagnostics/statistics | python -m json.tool
 ```
 Expected: the response's `memes` object includes `ocr_missing_text_heavy_classification`, `text_heavy_missing_embeddings`, `embeddings_missing_lemmas` with real integer values — this confirms the hand-written model actually serializes them in a live response, not just in the mocked test. Also hit `/api/diagnostics/health` and `/api/images?limit=1` per CLAUDE.md's smoke-test minimum.
 

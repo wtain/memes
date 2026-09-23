@@ -58,6 +58,27 @@ All three counts are diagnostic only — pure reads, no new writes, no change to
 behavior or to the corroboration gate itself. A non-zero count tells an operator "re-run stage X,"
 nothing more.
 
+**Caveat: not every non-zero count is a re-run backlog.** Each stage's own producing batch script
+has additional eligibility rules a re-run cannot clear:
+- `ocr_missing_text_heavy_classification`: `classify_text_heavy`'s candidate query
+  (`repository/image_classifications.py`) requires non-NULL `Image.width`/`height` and a
+  `bbox`-having OCR row at or above `OCR.CONFIDENCE_MIN` — an image missing dimensions (e.g.
+  registered via `extract_text_from_memes.register_image()` and never backfilled by
+  `fix_image_formats`, per CLAUDE.md's own gotcha) is permanently ineligible, not merely
+  unprocessed.
+- `text_heavy_missing_embeddings`: `build_ocr_text_embeddings`'s own docstring
+  (`repository/ocr_text_embeddings.py`) documents that a `text_heavy` image whose OCR text is
+  entirely below `OCR.LANG_SCORE_MIN` is silently excluded from the to-embed set every run.
+- `embeddings_missing_lemmas`: `build_ocr_lemmas.py` marks an image done (via
+  `status_repo.mark_done_by_id`) even when its lemma set comes out empty, so an image can be
+  fully, correctly processed by this stage while never getting an `ocr_lemmas` row.
+
+A persistently non-zero count on an environment that's otherwise fully re-run (see Rollout outcome
+below) most likely reflects this structural floor, not an operator action item. Mirroring each
+stage's eligibility predicate into these queries would let the count distinguish "needs a re-run"
+from "structurally ineligible" — out of scope for this change; worth a follow-up spec if any
+environment's floor turns out large enough to matter operationally.
+
 ## Non-goals
 
 - **Fixing the underlying drift.** This spec adds visibility, not automation — it does not make
@@ -233,7 +254,9 @@ picks up the three new fields once §1's regeneration completes.
    so a non-zero `embeddings_missing_lemmas` on `general` at rollout time is expected and confirms
    the count is measuring the right thing.
 4. Mark this spec `done` with a short Rollout Outcome section (the three counts observed per
-   environment at rollout time).
+   environment at rollout time). (Deferred: see the Rollout outcome section below — this branch
+   hadn't merged to `main` yet as of this writing, and this repo's lifecycle defines `done` as
+   "implemented and merged.")
 
 ## Rollout outcome (2026-09-23)
 
@@ -260,7 +283,10 @@ own rollout. `general`'s non-zero `embeddings_missing_lemmas` (5) is expected �
 (`GET /api/diagnostics/statistics` on a temporary port against the real `metal` database) returned
 the identical 484/0/0, and this controller-run raw-SQL query reproduced it exactly — strong
 corroborating evidence the implemented query is correct, not an artifact of either verification
-method.
+method. `metal`'s non-zero `ocr_missing_text_heavy_classification` (484) is most likely largely the
+structural floor described in the Goal section's caveat above, not a re-run backlog — not
+independently confirmed by a per-image breakdown in this rollout, but consistent with `metal`'s
+OCR/classification pipeline otherwise being fully caught up.
 
 **Live-endpoint deployment note:** the three currently-running dev servers (`metal`/`general`/`it`,
 ports 8081-8083) are still serving pre-merge code as of this rollout note — confirmed directly
