@@ -14,7 +14,10 @@
     "with_descriptions":  { "type": "integer", "description": "Images with an Ollama description" },
     "with_concept_tags":  { "type": "integer", "description": "Images with at least one CONCEPT-source tag" },
     "flagged":            { "type": "integer", "description": "Images marked as flagged" },
-    "duplicate_clusters": { "type": "integer", "description": "Total distinct duplicate-image clusters" }
+    "duplicate_clusters": { "type": "integer", "description": "Total distinct duplicate-image clusters" },
+    "ocr_missing_text_heavy_classification": { "type": "integer", "description": "Active images with OCR text but no classify_text_heavy verdict yet" },
+    "text_heavy_missing_embeddings":         { "type": "integer", "description": "Active images classified text_heavy with no ocr_text_embeddings row yet" },
+    "embeddings_missing_lemmas":             { "type": "integer", "description": "Active images with an ocr_text_embeddings row but no ocr_lemmas rows yet -- the corroboration gate's blind spot, see docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md" }
   },
-  "required": ["total", "pending", "rejected", "with_embeddings", "with_ocr", "with_tags", "without_tags", "with_descriptions", "with_concept_tags", "flagged", "duplicate_clusters"]
+  "required": ["total", "pending", "rejected", "with_embeddings", "with_ocr", "with_tags", "without_tags", "with_descriptions", "with_concept_tags", "flagged", "duplicate_clusters", "ocr_missing_text_heavy_classification", "text_heavy_missing_embeddings", "embeddings_missing_lemmas"]
 }

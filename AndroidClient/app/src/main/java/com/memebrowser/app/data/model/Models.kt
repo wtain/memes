@@ -185,7 +185,10 @@ data class StatisticsMemeStats(
     @SerialName("with_descriptions") val with_descriptions: Int,
     @SerialName("with_concept_tags") val with_concept_tags: Int,
     @SerialName("flagged") val flagged: Int,
-    @SerialName("duplicate_clusters") val duplicate_clusters: Int
+    @SerialName("duplicate_clusters") val duplicate_clusters: Int,
+    @SerialName("ocr_missing_text_heavy_classification") val ocr_missing_text_heavy_classification: Int,
+    @SerialName("text_heavy_missing_embeddings") val text_heavy_missing_embeddings: Int,
+    @SerialName("embeddings_missing_lemmas") val embeddings_missing_lemmas: Int
 )
 
 @Serializable

@@ -242,6 +242,18 @@ export interface StatisticsMemeStats {
    * Total distinct duplicate-image clusters
    */
   duplicate_clusters: number;
+  /**
+   * Active images with OCR text but no classify_text_heavy verdict yet
+   */
+  ocr_missing_text_heavy_classification: number;
+  /**
+   * Active images classified text_heavy with no ocr_text_embeddings row yet
+   */
+  text_heavy_missing_embeddings: number;
+  /**
+   * Active images with an ocr_text_embeddings row but no ocr_lemmas rows yet -- the corroboration gate's blind spot, see docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md
+   */
+  embeddings_missing_lemmas: number;
   [k: string]: unknown;
 }
 /**
