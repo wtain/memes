@@ -46,6 +46,7 @@ def _fake_stats_row(**overrides):
         tag_keys=8, tag_values=90,
         trends_runs=4, trend_sources=2,
         descriptions_approved=21, descriptions_rejected=3, descriptions_feedback_total=24,
+        ocr_missing_text_heavy_classification=7, text_heavy_missing_embeddings=4, embeddings_missing_lemmas=2,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -72,6 +73,19 @@ class TestStatistics:
         data = response.json()
         assert data["memes"]["pending"] == 6
         assert data["memes"]["rejected"] == 2
+
+    def test_statistics_includes_coverage_gap_counts(self, client, mock_diagnostics_repo):
+        mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(
+            ocr_missing_text_heavy_classification=7, text_heavy_missing_embeddings=4, embeddings_missing_lemmas=2,
+        )
+
+        response = client.get("/api/diagnostics/statistics")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["memes"]["ocr_missing_text_heavy_classification"] == 7
+        assert data["memes"]["text_heavy_missing_embeddings"] == 4
+        assert data["memes"]["embeddings_missing_lemmas"] == 2
 
     def test_statistics_zero_feedback(self, client, mock_diagnostics_repo):
         mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(

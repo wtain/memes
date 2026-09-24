@@ -249,7 +249,10 @@ Response from `POST /api/bug-reports`.
     "with_descriptions": "number",
     "with_concept_tags": "number",
     "flagged": "number",
-    "duplicate_clusters": "number"
+    "duplicate_clusters": "number",
+    "ocr_missing_text_heavy_classification": "number",
+    "text_heavy_missing_embeddings": "number",
+    "embeddings_missing_lemmas": "number"
   },
   "content": {
     "ocr_texts": "number",
@@ -867,7 +870,11 @@ Returns row counts across all major tables in a single SQL round-trip.
     "without_tags": 2300,
     "with_descriptions": 3400,
     "with_concept_tags": 8700,
-    "flagged": 82
+    "flagged": 82,
+    "duplicate_clusters": 14,
+    "ocr_missing_text_heavy_classification": 484,
+    "text_heavy_missing_embeddings": 0,
+    "embeddings_missing_lemmas": 5
   },
   "content": {
     "ocr_texts": 31000,

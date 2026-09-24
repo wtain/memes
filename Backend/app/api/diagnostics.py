@@ -26,6 +26,9 @@ class MemeStats(BaseModel):
     with_concept_tags: int
     flagged: int
     duplicate_clusters: int
+    ocr_missing_text_heavy_classification: int
+    text_heavy_missing_embeddings: int
+    embeddings_missing_lemmas: int
 
 
 class ContentStats(BaseModel):
@@ -83,6 +86,9 @@ async def statistics(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)
             with_concept_tags=row.with_concept_tags,
             flagged=row.flagged,
             duplicate_clusters=row.duplicate_clusters,
+            ocr_missing_text_heavy_classification=row.ocr_missing_text_heavy_classification,
+            text_heavy_missing_embeddings=row.text_heavy_missing_embeddings,
+            embeddings_missing_lemmas=row.embeddings_missing_lemmas,
         ),
         content=ContentStats(
             ocr_texts=row.ocr_texts,

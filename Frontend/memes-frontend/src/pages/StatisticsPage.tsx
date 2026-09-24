@@ -88,6 +88,9 @@ export default function StatisticsPage({ memesApi }: Props) {
           { label: "With descriptions", value: `${n(memes.with_descriptions)} (${pct(memes.with_descriptions, memes.total)})` },
           { label: "Without descriptions", value: `${n(withoutDescriptions)} (${pct(withoutDescriptions, memes.total)})` },
           { label: "With concept assignments", value: `${n(memes.with_concept_tags)} (${pct(memes.with_concept_tags, memes.total)})` },
+          { label: "OCR without text-heavy classification", value: n(memes.ocr_missing_text_heavy_classification) },
+          { label: "Text-heavy without OCR-text embeddings", value: n(memes.text_heavy_missing_embeddings) },
+          { label: "Embeddings without OCR lemmas", value: n(memes.embeddings_missing_lemmas) },
         ]} />
       </section>
 
