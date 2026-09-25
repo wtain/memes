@@ -1,6 +1,7 @@
 # Duplicate-Cluster Partial Resolution (OCR-Assisted Splitting)
 
-status: approved
+status: planned
+Plan: docs/superpowers/plans/2026-09-26-duplicate-cluster-partial-resolution.md
 Originates from: `docs/superpowers/specs/drafts/2026-08-19-ocr-assisted-deduplication-draft.md` — Case 1 of
 that draft (false positives: a big CLIP cluster that's really one visual template with many
 different captions). Case 2 of the same draft (false negatives — genuine duplicates CLIP misses
