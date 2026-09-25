@@ -373,3 +373,44 @@ async def test_short_english_word_still_reaches_stemming_fallback(db_session):
     ids = await matching_image_ids(db_session, "runs")
 
     assert ids == {image.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_pairwise_overlap_coefficients_computes_expected_ratio(db_session):
+    a, b = Image(filename=f"{uuid.uuid4()}.jpg"), Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([a, b])
+    await db_session.flush()
+    db_session.add_all([
+        OCRLemma(image_id=a.id, lemma="cat"), OCRLemma(image_id=a.id, lemma="dog"),
+        OCRLemma(image_id=a.id, lemma="bird"), OCRLemma(image_id=a.id, lemma="fish"),
+        OCRLemma(image_id=b.id, lemma="cat"), OCRLemma(image_id=b.id, lemma="dog"),
+    ])
+    await db_session.flush()
+
+    repo = OCRLemmasRepository(db_session)
+    result = await repo.get_pairwise_overlap_coefficients([a.id, b.id])
+
+    key = (min(a.id, b.id), max(a.id, b.id))
+    assert result[key] == pytest.approx(1.0)  # 2 shared / min(4, 2) = 1.0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_pairwise_overlap_coefficients_excludes_pair_with_no_lemmas(db_session):
+    a, b = Image(filename=f"{uuid.uuid4()}.jpg"), Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([a, b])
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=a.id, lemma="cat"))
+    await db_session.flush()
+
+    repo = OCRLemmasRepository(db_session)
+    result = await repo.get_pairwise_overlap_coefficients([a.id, b.id])
+
+    assert result == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_pairwise_overlap_coefficients_single_or_empty_input_returns_empty(db_session):
+    repo = OCRLemmasRepository(db_session)
+
+    assert await repo.get_pairwise_overlap_coefficients([]) == {}
+    assert await repo.get_pairwise_overlap_coefficients([uuid.uuid4()]) == {}

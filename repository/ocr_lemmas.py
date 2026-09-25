@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Optional
+import uuid
 
 from sqlalchemy import delete, distinct, func, select, text, union
 from sqlalchemy.dialects.postgresql import insert
@@ -209,6 +210,32 @@ class OCRLemmasRepository:
         print("Deleting all ocr_lemmas rows...")
         await self.session.execute(delete(OCRLemma))
         print("Done")
+
+    async def get_pairwise_overlap_coefficients(self, image_ids: list[uuid.UUID]) -> dict[tuple[uuid.UUID, uuid.UUID], float]:
+        """Overlap coefficient (shared_lemmas / min(lemma_count_1, lemma_count_2)) for every pair
+        within image_ids -- same formula batch/rebuild_duplicates.py's corroboration gate uses
+        (_OCR_LEMMA_OVERLAP_CHECK), computed directly rather than reused verbatim since that SQL
+        fragment is correlated against a specific LATERAL-join probe/nn pair, not a free list of
+        ids. Presentation-only: never written anywhere. Pairs where either side has zero
+        ocr_lemmas rows are simply absent from the result (nothing to compare), not scored 0.0 --
+        the caller renders "no OCR text" for those, not a false "definitely different" signal."""
+        if len(image_ids) < 2:
+            return {}
+        rows = await self.session.execute(
+            select(OCRLemma.image_id, OCRLemma.lemma).where(OCRLemma.image_id.in_(image_ids))
+        )
+        lemmas_by_image: dict[uuid.UUID, set[str]] = {}
+        for image_id, lemma in rows:
+            lemmas_by_image.setdefault(image_id, set()).add(lemma)
+
+        result: dict[tuple[uuid.UUID, uuid.UUID], float] = {}
+        ids_with_lemmas = [i for i in image_ids if i in lemmas_by_image]
+        for i, a in enumerate(ids_with_lemmas):
+            for b in ids_with_lemmas[i + 1:]:
+                shared = len(lemmas_by_image[a] & lemmas_by_image[b])
+                denom = min(len(lemmas_by_image[a]), len(lemmas_by_image[b]))
+                result[(min(a, b), max(a, b))] = shared / denom if denom else 0.0
+        return result
 
 
 class OCRLemmasSaver:
