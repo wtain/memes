@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from Storage.db import get_async_db, AsyncSessionLocal
 from Backend.app.repositories.duplicate_decisions_repository import DuplicateDecisionsRepository
 from Backend.app.repositories.image_repository import ImageRepository
+from repository.ocr_lemmas import OCRLemmasRepository
 from Backend.app.services.cache import image_cache_headers, no_cache_headers
 from Backend.app.services.image_service import ImageService
 from Backend.app.services.image_store import get_image_path, image_exists
@@ -38,6 +39,20 @@ class DuplicateDismissResponseModel(BaseModel):
 
 class DuplicateUndoDismissRequest(BaseModel):
     pairs: list[DuplicatePairModel]
+
+
+class DuplicateDismissRequestModel(BaseModel):
+    member_ids: list[str] | None = None
+
+
+class ClusterSimilarityPairModel(BaseModel):
+    image_id1: str
+    image_id2: str
+    overlap: float
+
+
+class ClusterSimilarityResponseModel(BaseModel):
+    pairs: list[ClusterSimilarityPairModel]
 
 
 class DescriptionNoteRequest(BaseModel):
@@ -63,7 +78,8 @@ async def get_image_service(
 ) -> AsyncGenerator[ImageService, None]:
     repository = ImageRepository(db)
     decision_repository = DuplicateDecisionsRepository(db)
-    service = ImageService(repository, decision_repository)
+    ocr_lemmas_repository = OCRLemmasRepository(db)
+    service = ImageService(repository, decision_repository, ocr_lemmas_repository)
     try:
         yield service
     finally:
@@ -168,9 +184,10 @@ async def get_meme(
 async def mark_flagged(
     image_id: str,
     response: Response,
+    reason: str | None = Query(None, max_length=50),
     service: ImageService = Depends(get_image_service),
 ):
-    await service.mark_flagged(image_id)
+    await service.mark_flagged(image_id, reason)
 
 
 @router.put("/meme/{image_id}/unmark_flagged")
@@ -245,12 +262,30 @@ async def get_duplicate_images(
 async def dismiss_duplicate_cluster(
     cluster_id: int,
     response: Response,
+    body: DuplicateDismissRequestModel = DuplicateDismissRequestModel(),
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    pairs = await service.dismiss_cluster(cluster_id)
+    member_ids = [uuid.UUID(i) for i in body.member_ids] if body.member_ids else None
+    pairs = await service.dismiss_cluster(cluster_id, member_ids)
     return DuplicateDismissResponseModel(
         pairs=[DuplicatePairModel(image_id1=str(a), image_id2=str(b)) for a, b in pairs]
+    )
+
+
+@router.get("/duplicates/clusters/{cluster_id}/similarity", response_model=ClusterSimilarityResponseModel)
+async def get_cluster_similarity(
+    cluster_id: int,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    pairs = await service.get_cluster_overlap_coefficients(cluster_id)
+    return ClusterSimilarityResponseModel(
+        pairs=[
+            ClusterSimilarityPairModel(image_id1=str(a), image_id2=str(b), overlap=coeff)
+            for (a, b), coeff in pairs.items()
+        ]
     )
 
 

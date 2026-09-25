@@ -10,9 +10,7 @@ from pydantic import BaseModel
 class Schema(BaseModel):
     image_id1: str
     image_id2: str
-    distance: float
-    match_source: str | None
+    overlap: float
     """
-    in_batch | cross_corpus
+    OCR-lemma overlap coefficient, 0.0-1.0. Presentation-only, never written anywhere.
     """
-    distance_source: str | None

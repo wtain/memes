@@ -484,8 +484,11 @@ Mark a meme as flagged.
 - **Method**: `PUT`
 - **Path Parameters**:
   - `image_id`: Unique identifier of the image
+- **Query Parameters**:
+  - `reason` (optional): Free-text reason for flagging (max 50 chars), stored alongside the flag
 - **Response**: Success (no content)
 - **Example**: `PUT /api/images/meme/abc123/mark_flagged`
+- **Example (with reason)**: `PUT /api/images/meme/abc123/mark_flagged?reason=duplicate_review`
 
 #### Unmark Meme as Flagged
 
@@ -566,20 +569,44 @@ Find duplicate or near-duplicate images using clustering.
 
 #### Dismiss Duplicate Cluster
 
-Record that every pair of images in a duplicate cluster is confirmed **not** a duplicate. Looks
-up the cluster's current members server-side (never client-supplied) and records all `C(N, 2)`
-pairs. Does not trigger a `clusterize` rerun — the effect is visible the next time `clusterize`
-runs (manually, via `/admin/batches`). See
-`docs/superpowers/specs/2026-08-19-duplicate-dismissal-decisions-design.md`.
+Record that a set of images in a duplicate cluster are confirmed **not** duplicates of each
+other. Looks up the cluster's current members server-side (never trusts client-supplied ids as
+the full membership) and records all `C(N, 2)` pairs among the target set. Does not trigger a
+`clusterize` rerun — the effect is visible the next time `clusterize` runs (manually, via
+`/admin/batches`). See
+`docs/superpowers/specs/2026-08-19-duplicate-dismissal-decisions-design.md` and
+`docs/superpowers/specs/2026-09-26-duplicate-cluster-partial-resolution.md`.
 
 - **URL**: `/api/images/duplicates/clusters/{cluster_id}/dismiss`
 - **Method**: `POST`
 - **Path Parameters**:
   - `cluster_id`: The cluster's `clusterId` as returned by `GET /api/images/duplicates`
+- **Body** (optional): `{"member_ids": ["...", "..."]}` — a subset of the cluster's member ids to
+  dismiss as not-duplicates of each other. Omitted or `null` dismisses the whole cluster (every
+  member pair) — today's existing behavior.
 - **Response**: `{"pairs": [{"image_id1": "...", "image_id2": "..."}, ...]}` — every pair recorded
-- **Errors**: `404` if `cluster_id` doesn't currently exist in `tmp_clusters`
+- **Errors**: `404` if `cluster_id` doesn't currently exist in `tmp_clusters`; `400` if
+  `member_ids` contains an id that isn't a member of the cluster, or fewer than 2 ids
 - **Cache**: no-cache
 - **Example**: `POST /api/images/duplicates/clusters/141/dismiss`
+- **Example (subset)**: `POST /api/images/duplicates/clusters/141/dismiss` with body
+  `{"member_ids": ["11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"]}`
+
+#### Get Cluster Similarity
+
+Presentation-only pairwise OCR-lemma overlap coefficients for a duplicate cluster's members, to
+help a human reviewer judge which members are most/least alike before dismissing a subset. Never
+written anywhere — computed fresh on each request. See
+`docs/superpowers/specs/2026-09-26-duplicate-cluster-partial-resolution.md`.
+
+- **URL**: `/api/images/duplicates/clusters/{cluster_id}/similarity`
+- **Method**: `GET`
+- **Path Parameters**:
+  - `cluster_id`: The cluster's `clusterId` as returned by `GET /api/images/duplicates`
+- **Response**: `{"pairs": [{"image_id1": "...", "image_id2": "...", "overlap": 0.75}, ...]}` —
+  overlap is a coefficient between 0.0 and 1.0
+- **Cache**: no-cache
+- **Example**: `GET /api/images/duplicates/clusters/141/similarity`
 
 #### Undo Dismiss Duplicates
 

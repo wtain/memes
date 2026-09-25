@@ -6,13 +6,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from . import clustersimilaritypair
+
 
 class Schema(BaseModel):
-    image_id1: str
-    image_id2: str
-    distance: float
-    match_source: str | None
-    """
-    in_batch | cross_corpus
-    """
-    distance_source: str | None
+    pairs: list[clustersimilaritypair.Schema]

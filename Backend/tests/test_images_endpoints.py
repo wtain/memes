@@ -280,7 +280,15 @@ class TestMarkFlagged:
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.mark_flagged.assert_called_once_with("123")
+        mock_image_service.mark_flagged.assert_called_once_with("123", None)
+
+    def test_mark_flagged_with_reason(self, client, mock_image_service):
+        mock_image_service.mark_flagged.return_value = None
+
+        response = client.put("/api/images/meme/123/mark_flagged?reason=duplicate_review")
+
+        assert response.status_code == 200
+        mock_image_service.mark_flagged.assert_called_once_with("123", "duplicate_review")
 
     def test_mark_flagged_multiple_times(self, client, mock_image_service):
         """Test marking the same image as flagged multiple times (should be idempotent)."""
@@ -307,7 +315,7 @@ class TestMarkFlagged:
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.mark_flagged.assert_called_once_with(uuid_id)
+        mock_image_service.mark_flagged.assert_called_once_with(uuid_id, None)
 
     def test_mark_flagged_service_error(self, client, mock_image_service):
         """Test handling of service errors when marking flagged."""
@@ -388,7 +396,7 @@ class TestMarkUnmarkFlaggedWorkflow:
         # Assert
         assert mark_response.status_code == 200
         assert unmark_response.status_code == 200
-        mock_image_service.mark_flagged.assert_called_once_with(image_id)
+        mock_image_service.mark_flagged.assert_called_once_with(image_id, None)
         mock_image_service.unmark_flagged.assert_called_once_with(image_id)
 
 
@@ -1412,7 +1420,7 @@ class TestDismissDuplicateCluster:
             "image_id1": "11111111-1111-1111-1111-111111111111",
             "image_id2": "22222222-2222-2222-2222-222222222222",
         }]
-        mock_image_service.dismiss_cluster.assert_called_once_with(141)
+        mock_image_service.dismiss_cluster.assert_called_once_with(141, None)
 
     def test_dismiss_not_found(self, client, mock_image_service):
         from fastapi import HTTPException
@@ -1423,6 +1431,27 @@ class TestDismissDuplicateCluster:
         response = client.post("/api/images/duplicates/clusters/999/dismiss")
 
         assert response.status_code == 404
+
+    def test_dismiss_with_member_ids(self, client, mock_image_service):
+        mock_image_service.dismiss_cluster.return_value = [
+            (uuid.UUID("11111111-1111-1111-1111-111111111111"),
+             uuid.UUID("22222222-2222-2222-2222-222222222222")),
+        ]
+
+        response = client.post(
+            "/api/images/duplicates/clusters/141/dismiss",
+            json={"member_ids": [
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222",
+            ]},
+        )
+
+        assert response.status_code == 200
+        mock_image_service.dismiss_cluster.assert_called_once_with(
+            141,
+            [uuid.UUID("11111111-1111-1111-1111-111111111111"),
+             uuid.UUID("22222222-2222-2222-2222-222222222222")],
+        )
 
 
 class TestUndoDismissDuplicates:
@@ -1446,6 +1475,23 @@ class TestUndoDismissDuplicates:
             uuid.UUID("11111111-1111-1111-1111-111111111111"),
             uuid.UUID("22222222-2222-2222-2222-222222222222"),
         )]
+
+
+class TestClusterSimilarity:
+    """Tests for GET /api/images/duplicates/clusters/{cluster_id}/similarity."""
+
+    def test_similarity_success(self, client, mock_image_service):
+        a = uuid.UUID("11111111-1111-1111-1111-111111111111")
+        b = uuid.UUID("22222222-2222-2222-2222-222222222222")
+        mock_image_service.get_cluster_overlap_coefficients.return_value = {(a, b): 0.75}
+
+        response = client.get("/api/images/duplicates/clusters/141/similarity")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pairs"] == [{
+            "image_id1": str(a), "image_id2": str(b), "overlap": 0.75,
+        }]
 
 
 class TestListDuplicateDecisions:

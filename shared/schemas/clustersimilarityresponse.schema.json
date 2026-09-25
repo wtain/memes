@@ -1,0 +1,10 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "clustersimilarityresponse.schema.json",
+  "title": "ClusterSimilarityResponse",
+  "type": "object",
+  "properties": {
+    "pairs": { "type": "array", "items": { "$ref": "./clustersimilaritypair.schema.json" } }
+  },
+  "required": ["pairs"]
+}

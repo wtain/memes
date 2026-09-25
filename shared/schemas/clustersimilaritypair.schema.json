@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "clustersimilaritypair.schema.json",
+  "title": "ClusterSimilarityPair",
+  "type": "object",
+  "properties": {
+    "image_id1": { "type": "string" },
+    "image_id2": { "type": "string" },
+    "overlap": { "type": "number", "description": "OCR-lemma overlap coefficient, 0.0-1.0. Presentation-only, never written anywhere." }
+  },
+  "required": ["image_id1", "image_id2", "overlap"]
+}

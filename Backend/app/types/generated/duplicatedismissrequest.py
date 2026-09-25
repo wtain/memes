@@ -8,11 +8,7 @@ from pydantic import BaseModel
 
 
 class Schema(BaseModel):
-    image_id1: str
-    image_id2: str
-    distance: float
-    match_source: str | None
+    member_ids: list[str] | None = None
     """
-    in_batch | cross_corpus
+    Subset of the cluster's member ids to dismiss as not-duplicates. Omitted or null dismisses the whole cluster (today's existing behavior).
     """
-    distance_source: str | None

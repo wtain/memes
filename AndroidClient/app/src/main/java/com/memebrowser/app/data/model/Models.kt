@@ -15,6 +15,13 @@ data class BatchNamesResponse(
 )
 
 @Serializable
+data class ClusterSimilarityPair(
+    @SerialName("image_id1") val image_id1: String,
+    @SerialName("image_id2") val image_id2: String,
+    @SerialName("overlap") val overlap: Float
+)
+
+@Serializable
 data class Concept(
     @SerialName("id") val id: Int,
     @SerialName("name") val name: String
@@ -32,6 +39,11 @@ data class DuplicateDecisionItem(
     @SerialName("image_id2") val image_id2: String,
     @SerialName("filename2") val filename2: String,
     @SerialName("decided_at") val decided_at: String
+)
+
+@Serializable
+data class DuplicateDismissRequest(
+    @SerialName("member_ids") val member_ids: List<String>? = null
 )
 
 @Serializable
@@ -227,6 +239,11 @@ data class UploadedFile(
     @SerialName("size_bytes") val size_bytes: Int,
     @SerialName("content_type") val content_type: String,
     @SerialName("status") val status: String
+)
+
+@Serializable
+data class ClusterSimilarityResponse(
+    @SerialName("pairs") val pairs: List<ClusterSimilarityPair>
 )
 
 @Serializable

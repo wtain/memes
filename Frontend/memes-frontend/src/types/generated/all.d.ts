@@ -602,6 +602,17 @@ export interface DuplicatePair {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DuplicateDismissRequest".
+ */
+export interface DuplicateDismissRequest {
+  /**
+   * Subset of the cluster's member ids to dismiss as not-duplicates. Omitted or null dismisses the whole cluster (today's existing behavior).
+   */
+  member_ids?: string[] | null;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DuplicateDismissResponse".
  */
 export interface DuplicateDismissResponse {
@@ -635,5 +646,26 @@ export interface DuplicateDecisionItem {
 export interface DuplicateDecisionListResponse {
   items: DuplicateDecisionItem[];
   total: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ClusterSimilarityPair".
+ */
+export interface ClusterSimilarityPair {
+  image_id1: string;
+  image_id2: string;
+  /**
+   * OCR-lemma overlap coefficient, 0.0-1.0. Presentation-only, never written anywhere.
+   */
+  overlap: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ClusterSimilarityResponse".
+ */
+export interface ClusterSimilarityResponse {
+  pairs: ClusterSimilarityPair[];
   [k: string]: unknown;
 }

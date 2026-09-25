@@ -43,9 +43,12 @@
     "RunListResponse":         { "$ref": "runlistresponse.schema.json" },
     "BatchNamesResponse":      { "$ref": "batchnamesresponse.schema.json" },
     "DuplicatePair":                 { "$ref": "duplicatepair.schema.json" },
+    "DuplicateDismissRequest":        { "$ref": "duplicatedismissrequest.schema.json" },
     "DuplicateDismissResponse":       { "$ref": "duplicatedismissresponse.schema.json" },
     "DuplicateUndoDismissRequest":    { "$ref": "duplicateundodismissrequest.schema.json" },
     "DuplicateDecisionItem":          { "$ref": "duplicatedecisionitem.schema.json" },
-    "DuplicateDecisionListResponse":  { "$ref": "duplicatedecisionlistresponse.schema.json" }
+    "DuplicateDecisionListResponse":  { "$ref": "duplicatedecisionlistresponse.schema.json" },
+    "ClusterSimilarityPair":          { "$ref": "clustersimilaritypair.schema.json" },
+    "ClusterSimilarityResponse":      { "$ref": "clustersimilarityresponse.schema.json" }
   }
 }
