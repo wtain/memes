@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from Backend.app.repositories.duplicate_decisions_repository import DuplicateDecisionsRepository
 from Backend.app.repositories.history_repository import HistoryRepository
 from Backend.app.repositories.image_repository import ImageRepository
+from repository.ocr_lemmas import OCRLemmasRepository
 from Storage.db import AsyncSessionLocal
 from Backend.app.types.generated.facet import Schema as Facet
 from Backend.app.types.generated.facetbucket import Schema as FacetBucket
@@ -27,9 +28,10 @@ def _feedback_label(approved: Optional[bool]) -> Optional[str]:
 
 
 class ImageService:
-    def __init__(self, repo: ImageRepository, decision_repo: DuplicateDecisionsRepository):
+    def __init__(self, repo: ImageRepository, decision_repo: DuplicateDecisionsRepository, ocr_lemmas_repo: OCRLemmasRepository):
         self.repo = repo
         self.decision_repo = decision_repo
+        self.ocr_lemmas_repo = ocr_lemmas_repo
 
     async def search(
         self,
@@ -378,17 +380,32 @@ class ImageService:
             previousCursor=previous_cursor, facets=[],
         )
 
-    async def dismiss_cluster(self, cluster_id: int) -> list[tuple[uuid.UUID, uuid.UUID]]:
-        member_ids = await self.repo.get_cluster_member_ids(cluster_id)
-        if not member_ids:
+    async def dismiss_cluster(self, cluster_id: int, member_ids: list[uuid.UUID] | None = None) -> list[tuple[uuid.UUID, uuid.UUID]]:
+        all_member_ids = await self.repo.get_cluster_member_ids(cluster_id)
+        if not all_member_ids:
             raise HTTPException(status_code=404, detail=f"Cluster {cluster_id} not found")
+
+        if member_ids is None:
+            target_ids = all_member_ids
+        else:
+            invalid = set(member_ids) - set(all_member_ids)
+            if invalid:
+                raise HTTPException(status_code=400, detail=f"Not members of cluster {cluster_id}: {invalid}")
+            if len(member_ids) < 2:
+                raise HTTPException(status_code=400, detail="Need at least 2 members to dismiss a subset")
+            target_ids = member_ids
+
         pairs = [
-            (member_ids[i], member_ids[j])
-            for i in range(len(member_ids))
-            for j in range(i + 1, len(member_ids))
+            (target_ids[i], target_ids[j])
+            for i in range(len(target_ids))
+            for j in range(i + 1, len(target_ids))
         ]
         await self.decision_repo.record_decisions_bulk(pairs)
         return pairs
+
+    async def get_cluster_overlap_coefficients(self, cluster_id: int) -> dict[tuple[uuid.UUID, uuid.UUID], float]:
+        member_ids = await self.repo.get_cluster_member_ids(cluster_id)
+        return await self.ocr_lemmas_repo.get_pairwise_overlap_coefficients(member_ids)
 
     async def undo_dismiss(self, pairs: list[tuple[uuid.UUID, uuid.UUID]]) -> None:
         await self.decision_repo.delete_decisions(pairs)
@@ -425,8 +442,8 @@ class ImageService:
 
         return self._paginate_response(rows, items, limit)
 
-    async def mark_flagged(self, image_id):
-        await self.repo.set_flagged(image_id, True)
+    async def mark_flagged(self, image_id, reason: str | None = None):
+        await self.repo.set_flagged(image_id, True, reason)
 
     async def unmark_flagged(self, image_id):
         await self.repo.set_flagged(image_id, False)

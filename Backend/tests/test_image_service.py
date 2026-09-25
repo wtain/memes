@@ -27,8 +27,13 @@ def mock_decision_repo():
 
 
 @pytest.fixture
-def service(mock_repo, mock_decision_repo):
-    return ImageService(mock_repo, mock_decision_repo)
+def mock_ocr_lemmas_repo():
+    return AsyncMock()
+
+
+@pytest.fixture
+def service(mock_repo, mock_decision_repo, mock_ocr_lemmas_repo):
+    return ImageService(mock_repo, mock_decision_repo, mock_ocr_lemmas_repo)
 
 
 class TestGetSimilarImageMode:
@@ -457,3 +462,61 @@ class TestDescriptionNoteService:
         result = await service.get_meme("image-1")
 
         assert result.descriptionNote is None
+
+
+class TestDismissClusterSubset:
+    async def test_dismiss_subset_generates_only_subset_pairs(self, service, mock_repo, mock_decision_repo):
+        a, b, c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        mock_repo.get_cluster_member_ids.return_value = [a, b, c]
+
+        pairs = await service.dismiss_cluster(141, member_ids=[a, b])
+
+        assert sorted(pairs) == sorted([(a, b)])
+        mock_decision_repo.record_decisions_bulk.assert_awaited_once_with([(a, b)])
+
+    async def test_dismiss_subset_rejects_id_not_in_cluster(self, service, mock_repo):
+        a, b = uuid.uuid4(), uuid.uuid4()
+        outsider = uuid.uuid4()
+        mock_repo.get_cluster_member_ids.return_value = [a, b]
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.dismiss_cluster(141, member_ids=[a, outsider])
+
+        assert exc_info.value.status_code == 400
+
+    async def test_dismiss_subset_of_one_is_rejected(self, service, mock_repo):
+        a, b = uuid.uuid4(), uuid.uuid4()
+        mock_repo.get_cluster_member_ids.return_value = [a, b]
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.dismiss_cluster(141, member_ids=[a])
+
+        assert exc_info.value.status_code == 400
+
+
+class TestMarkFlaggedReason:
+    async def test_mark_flagged_passes_reason_through(self, service, mock_repo):
+        image_id = uuid.uuid4()
+
+        await service.mark_flagged(image_id, reason="duplicate_review")
+
+        mock_repo.set_flagged.assert_awaited_once_with(image_id, True, "duplicate_review")
+
+    async def test_mark_flagged_without_reason_passes_none(self, service, mock_repo):
+        image_id = uuid.uuid4()
+
+        await service.mark_flagged(image_id)
+
+        mock_repo.set_flagged.assert_awaited_once_with(image_id, True, None)
+
+
+class TestClusterOverlapCoefficients:
+    async def test_delegates_member_ids_to_ocr_lemmas_repo(self, service, mock_repo, mock_ocr_lemmas_repo):
+        a, b = uuid.uuid4(), uuid.uuid4()
+        mock_repo.get_cluster_member_ids.return_value = [a, b]
+        mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.return_value = {(a, b): 0.5}
+
+        result = await service.get_cluster_overlap_coefficients(141)
+
+        mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.assert_awaited_once_with([a, b])
+        assert result == {(a, b): 0.5}
