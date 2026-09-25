@@ -12,6 +12,7 @@ public method against a real schema.
 import uuid
 
 import pytest
+from sqlalchemy import select
 
 from Backend.app.repositories.image_repository import ImageRepository
 from Storage.models import (
@@ -582,3 +583,53 @@ async def test_get_is_flagged_falsy_when_no_extras_row(db_session):
 
     repo = ImageRepository(db_session)
     assert not await repo.get_is_flagged(image.id)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_flagged_persists_reason(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    await repo.set_flagged(image.id, True, reason="duplicate_review")
+    await db_session.commit()
+
+    result = await db_session.execute(select(ImageExtras).where(ImageExtras.image_id == image.id))
+    extras = result.scalar_one()
+    assert extras.flagged is True
+    assert extras.flagged_reason == "duplicate_review"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_flagged_without_reason_leaves_it_null(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    await repo.set_flagged(image.id, True)
+    await db_session.commit()
+
+    result = await db_session.execute(select(ImageExtras).where(ImageExtras.image_id == image.id))
+    extras = result.scalar_one()
+    assert extras.flagged is True
+    assert extras.flagged_reason is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_flagged_false_clears_reason(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    await repo.set_flagged(image.id, True, reason="duplicate_review")
+    await db_session.commit()
+    await repo.set_flagged(image.id, False)
+    await db_session.commit()
+
+    result = await db_session.execute(select(ImageExtras).where(ImageExtras.image_id == image.id))
+    extras = result.scalar_one()
+    assert extras.flagged is False
+    assert extras.flagged_reason is None

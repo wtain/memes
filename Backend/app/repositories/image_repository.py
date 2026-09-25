@@ -577,13 +577,13 @@ class ImageRepository:
         )
         return results.all()
 
-    async def set_flagged(self, image_id, is_flagged):
+    async def set_flagged(self, image_id, is_flagged, reason: str | None = None):
         stmt = (
             insert(ImageExtras)
-            .values(image_id=image_id, flagged=is_flagged)
+            .values(image_id=image_id, flagged=is_flagged, flagged_reason=reason)
             .on_conflict_do_update(
                 index_elements=["image_id"],
-                set_={"flagged": is_flagged},
+                set_={"flagged": is_flagged, "flagged_reason": reason},
             )
         )
         await self.session.execute(stmt)
