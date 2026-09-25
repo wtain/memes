@@ -4,7 +4,7 @@ import type {
   IngestionRunStatus, IngestionPendingImage, IngestionClusterPage, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse, IngestionTierBReviewPage,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
-  DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse,
+  DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
 } from "../types/generated/all";
 
 export type IngestionTier = "tier_a" | "tier_b"
@@ -18,7 +18,9 @@ export interface MemesApi {
 
   iterateDuplicates(limit?: number, cursor?: string, threshold?: number, direction?: "forward" | "backward"): Promise<MemeSearchResponse>;
 
-  dismissDuplicateCluster(clusterId: number): Promise<DuplicateDismissResponse>;
+  dismissDuplicateCluster(clusterId: number, memberIds?: string[]): Promise<DuplicateDismissResponse>;
+
+  getClusterSimilarity(clusterId: number): Promise<ClusterSimilarityResponse>;
 
   undoDismissDuplicates(pairs: DuplicatePair[]): Promise<void>;
 
@@ -50,7 +52,7 @@ export interface MemesApi {
 
   getConcept(id: number): Promise<Concept>;
 
-  markImageIsFlagged(id: string): Promise<void>;
+  markImageIsFlagged(id: string, reason?: string): Promise<void>;
 
   unmarkImageIsFlagged(id: string): Promise<void>;
 

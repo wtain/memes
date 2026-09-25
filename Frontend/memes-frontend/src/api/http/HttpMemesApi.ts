@@ -5,7 +5,7 @@ import type {
   IngestionRunStatus, IngestionPendingImage, IngestionClusterPage, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse, IngestionTierBReviewPage,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
-  DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse,
+  DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
 } from "../../types/generated/all"
 
 export class HttpMemesApi implements MemesApi {
@@ -270,8 +270,9 @@ export class HttpMemesApi implements MemesApi {
     return res.json()
   }
 
-  async markImageIsFlagged(id: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/mark_flagged`, {
+  async markImageIsFlagged(id: string, reason?: string): Promise<void> {
+    const params = reason ? `?reason=${encodeURIComponent(reason)}` : ""
+    const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/mark_flagged${params}`, {
       method: "PUT"
     })
 
@@ -400,12 +401,21 @@ export class HttpMemesApi implements MemesApi {
     return res.json()
   }
 
-  async dismissDuplicateCluster(clusterId: number): Promise<DuplicateDismissResponse> {
+  async dismissDuplicateCluster(clusterId: number, memberIds?: string[]): Promise<DuplicateDismissResponse> {
     const res = await fetch(`${this.baseUrl}/api/images/duplicates/clusters/${clusterId}/dismiss`, {
       method: "POST",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ member_ids: memberIds ?? null }),
     })
     if (!res.ok) throw new Error(`Failed to dismiss cluster ${clusterId}: ${res.status}`)
+    return res.json()
+  }
+
+  async getClusterSimilarity(clusterId: number): Promise<ClusterSimilarityResponse> {
+    const res = await fetch(`${this.baseUrl}/api/images/duplicates/clusters/${clusterId}/similarity`, {
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`Failed to fetch similarity for cluster ${clusterId}: ${res.status}`)
     return res.json()
   }
 

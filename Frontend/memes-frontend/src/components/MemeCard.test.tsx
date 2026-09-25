@@ -78,3 +78,43 @@ describe('MemeCard', () => {
     expect(onClick).toHaveBeenCalledOnce()
   })
 })
+
+describe('MemeCard selection (duplicates review)', () => {
+  it('renders a selection checkbox only when selectable, and calls onToggleSelect', () => {
+    const api = makeMockApi()
+    const onToggleSelect = vi.fn()
+    const meme = { id: 'a', imageUrl: '/a.jpg', text: [], tags: [] }
+    render(<MemeCard meme={meme} memesApi={api} selectable selected={false} onToggleSelect={onToggleSelect} />)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select' }))
+
+    expect(onToggleSelect).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render a selection checkbox when not selectable', () => {
+    const api = makeMockApi()
+    const meme = { id: 'a', imageUrl: '/a.jpg', text: [], tags: [] }
+    render(<MemeCard meme={meme} memesApi={api} />)
+
+    expect(screen.queryByRole('checkbox', { name: 'Select' })).not.toBeInTheDocument()
+  })
+
+  it('renders a keeper control only while selected, and calls onSetKeeper', () => {
+    const api = makeMockApi()
+    const onSetKeeper = vi.fn()
+    const meme = { id: 'a', imageUrl: '/a.jpg', text: [], tags: [] }
+    render(<MemeCard meme={meme} memesApi={api} selectable selected onToggleSelect={vi.fn()} isKeeper={false} onSetKeeper={onSetKeeper} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Keeper' }))
+
+    expect(onSetKeeper).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a similarity badge when a similarity score is provided', () => {
+    const api = makeMockApi()
+    const meme = { id: 'a', imageUrl: '/a.jpg', text: [], tags: [] }
+    render(<MemeCard meme={meme} memesApi={api} similarity={0.82} />)
+
+    expect(screen.getByText('82%')).toBeInTheDocument()
+  })
+})

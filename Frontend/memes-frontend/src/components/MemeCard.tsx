@@ -7,10 +7,16 @@ type Props = {
   meme: Meme
   memesApi: MemesApi
   onClick?: () => void
-  variant?: "square" | "full"  // 👈
+  variant?: "square" | "full"
+  selectable?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
+  isKeeper?: boolean
+  onSetKeeper?: () => void
+  similarity?: number
 }
 
-export default function MemeCard({ meme, memesApi, onClick, variant = "square" }: Props) {
+export default function MemeCard({ meme, memesApi, onClick, variant = "square", selectable = false, selected = false, onToggleSelect, isKeeper = false, onSetKeeper, similarity }: Props) {
   const [showText, setShowText] = useState(false)
   const [isFlagged, setIsFlagged] = useState(meme.flagged ?? false)
   const [copied, setCopied] = useState(false)
@@ -69,6 +75,37 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square" }
           <span className={`transition-opacity duration-500 ${copied ? "opacity-100" : "opacity-0"}`}>
             Copied
           </span>
+        </div>
+      )}
+      {selectable && (
+        <div className="px-4 py-1 flex items-center gap-3 border-b">
+          <label className="flex items-center gap-1 text-xs">
+            <input
+              type="checkbox"
+              role="checkbox"
+              aria-label="Select"
+              checked={selected}
+              onChange={() => onToggleSelect?.()}
+            />
+            Select
+          </label>
+          {selected && (
+            <label className="flex items-center gap-1 text-xs">
+              <input
+                type="radio"
+                role="radio"
+                aria-label="Keeper"
+                checked={isKeeper}
+                onChange={() => onSetKeeper?.()}
+              />
+              Keeper
+            </label>
+          )}
+        </div>
+      )}
+      {similarity != null && (
+        <div className="px-4 py-1 text-xs text-gray-500 border-b">
+          {Math.round(similarity * 100)}%
         </div>
       )}
       <div>
