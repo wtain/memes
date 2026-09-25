@@ -77,3 +77,61 @@ This captures the idea and its risks for future design work — it does not prop
 A follow-up brainstorming session should produce approaches and a recommendation before this
 becomes a full design doc and progresses through this repo's usual
 draft → approved → planned → implementation → done status lifecycle.
+
+## Brainstorming session notes (2026-09-04)
+
+Core principle raised for this round: **keep the duplicate/not-duplicate decision on a human**;
+OCR should help a human split/mark clusters (e.g. a big cluster that's really one template with
+many different captions), not drive automatic clustering. Also flagged: a prior automatic
+deduplication pass produced false positives, removing visually-similar-but-different memes — this
+is the concrete incident motivating "human stays in the loop."
+
+**Relevant prior art found in-repo (not proposed here — already shipped):**
+
+- `duplicate_decisions` table + `clusterize.py` anti-join filter
+  (`2026-08-19-duplicate-dismissal-decisions-design.md`) — durable human "not duplicate" pair
+  decisions, permanently excluded from future clustering.
+- `tools/agent_duplicates.py` + `.claude/commands/review-duplicates.md` — already surfaces OCR
+  text, embedding pairwise distances, and descriptions per cluster member; documented decision
+  priority is explicitly **OCR text first, embedding distance second** (different text → template
+  variant → keep both). Human/agent judgment call today, not an algorithmic filter.
+- Ingestion Tier A/B review (`2026-07-24-ingestion-pipeline-design.md`) — Tier B exists specifically
+  because loose embedding matches need OCR text to separate a real repost from a template variant,
+  modeled on the same OCR-first priority. Always human-reviewed.
+
+So "OCR as a human-assist signal, human decides" is already the established pattern in two places.
+The open question isn't whether that's the right direction — it's what's actually missing in the
+existing flows that this draft should fix.
+
+**Open questions for discussion:**
+
+1. Should this draft pivot away from options (a)/(b) above (both feed *automatic* detection in
+   `rebuild_duplicates.py`/`clusterize.py`) toward pure tooling/UI work that never changes what's
+   written to `tmp_duplicates`/`tmp_clusters`? Demote (a)/(b) to explicitly-rejected alternatives?
+2. What's insufficient about `agent_duplicates.py`'s existing per-member OCR text + pairwise
+   distances for a "huge templated cluster" today — does O(N²) pairwise text reasoning not scale
+   past a few members? Or is the real gap the **web** `/duplicates` page, which (per the
+   dismissal-decisions spec) shows only thumbnails + a "not duplicates" button, no OCR/distances?
+3. Details of the "automatic dedup produced false positives" incident: was that `/review-duplicates`
+   running semi-autonomously (agent calling `mark_flagged` on its own OCR-first judgment) and still
+   getting variants wrong, or a different mechanism? Determines whether the fix is "better
+   signal/UI for a human" vs. "the agent's judgment itself needs to be more conservative."
+4. "Splitting huge clusters" — (i) presentation-only sub-grouping by OCR similarity during review
+   (no DB write) vs. (ii) an actual change to `clusterize.py`'s `resolve_cluster` splitting math
+   (OCR distance as a second axis)? (ii) reopens the same automatic-detection-quality risk this
+   draft already flags.
+5. If (i): what does a human do differently afterward — select-and-split a subset of members into
+   their own group? Does a confirmed split persist as bulk-dismissed cross-group pairs (reusing
+   `duplicate_decisions` as-is), or does grouping need a new, positive "same template" relationship
+   distinct from a negative "not duplicate" one?
+6. Case 2 in this draft (false negatives — real duplicates CLIP misses but OCR would catch) is a
+   different problem — finding new candidate pairs, not organizing existing clusters. Keep it in
+   this draft, or split into its own follow-up spec?
+7. (Once scope is fixed) `pg_trgm` trigram similarity is already tuned for single-lemma search
+   matching (`search.fuzzy_similarity_threshold = 0.35`, `fuzzy_min_lemma_length = 5`); whole
+   multi-line, multi-language OCR blob comparison is a different regime and would want its own
+   empirical check rather than assuming the same threshold transfers.
+8. (Mechanics) OCR-empty images: "no signal, fall back to embeddings only" vs. "both empty →
+   textually identical" (current `agent_duplicates.py` behavior)?
+9. (Surface) CLI/agent tool only, the web `/duplicates` page, or both — they currently expose very
+   different levels of OCR signal to the reviewer?
