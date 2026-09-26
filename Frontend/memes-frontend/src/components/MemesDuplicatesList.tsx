@@ -162,15 +162,17 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
   }, [pages, firstItemIndex, rowFirstItemIndex, rowStartItemOffsets])
 
   const handleUndoCluster = useCallback(async (clusterId: number) => {
-    const pairs = dismissedClusters.get(clusterId)
-    if (!pairs) return
-    await memesApi.undoDismissDuplicates(pairs)
-    setDismissedClusters(prev => {
-      const next = new Map(prev)
-      next.delete(clusterId)
-      return next
-    })
-  }, [memesApi, dismissedClusters])
+    const pairs = dismissedClusters.get(clusterId) ?? []
+    const flagged = Array.from(flaggedMembers.get(clusterId) ?? [])
+    if (pairs.length === 0 && flagged.length === 0) return
+    if (pairs.length > 0) await memesApi.undoDismissDuplicates(pairs)
+    if (flagged.length > 0) await Promise.all(flagged.map(id => memesApi.unmarkImageIsFlagged(id)))
+    setDismissedClusters(prev => { const next = new Map(prev); next.delete(clusterId); return next })
+    setFlaggedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
+    setResolvedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
+    setSelectedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
+    setKeeperByCluster(prev => { const next = new Map(prev); next.delete(clusterId); return next })
+  }, [memesApi, dismissedClusters, flaggedMembers])
 
   const toggleSelect = useCallback((clusterId: number, memberId: string) => {
     setSelectedMembers(prev => {
@@ -195,22 +197,25 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     if (selected.length < 2) return
     try {
       const response = await memesApi.dismissDuplicateCluster(clusterId, selected)
-      // Only collapse the row into the legacy full-cluster "Marked as not duplicates" branch
-      // (the isDismissed check above, keyed on dismissedClusters) when the dismissed subset IS
-      // the row's entire original member set -- i.e. "select all" + "Not duplicates" reproducing
-      // the pre-existing full-dismiss state exactly, per the brief. A genuine partial subset
-      // dismiss must leave the row rendering normally (via resolvedMembers/visibleMembers below)
-      // so the unselected remaining members stay visible instead of being swept into that
-      // all-members thumbnail strip.
-      const row = clusterRows.find(r => r.clusterId === clusterId)
-      if (row && selected.length === row.members.length) {
-        setDismissedClusters(prev => new Map(prev).set(clusterId, response.pairs))
-      }
+      // Accumulate across every dismiss call for this cluster (not just a full-cluster one) --
+      // a row can reach full resolution across several partial actions, and handleUndoCluster
+      // needs every accumulated pair to undo the whole history in one shot. Whether the row
+      // visually collapses is now decided at render time by counting resolved members, not by
+      // this write ever "knowing" it was the row's final resolving action.
+      setDismissedClusters(prev => {
+        const next = new Map(prev)
+        next.set(clusterId, [...(next.get(clusterId) ?? []), ...response.pairs])
+        return next
+      })
       setResolvedMembers(prev => new Map(prev).set(clusterId, new Set([...(prev.get(clusterId) ?? []), ...selected])))
+      // Selection is per-action, not persistent -- clear it so a later action on this same row
+      // starts from an empty selection instead of accumulating stale, already-resolved ids.
+      setSelectedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
+      setKeeperByCluster(prev => { const next = new Map(prev); next.delete(clusterId); return next })
     } catch {
       // Left silent, matching this component's existing error-handling convention.
     }
-  }, [memesApi, selectedMembers, clusterRows])
+  }, [memesApi, selectedMembers])
 
   const handleKeepBest = useCallback(async (clusterId: number) => {
     const selected = Array.from(selectedMembers.get(clusterId) ?? [])
@@ -220,6 +225,10 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     await Promise.all(losers.map(id => memesApi.markImageIsFlagged(id, "duplicate_review")))
     setFlaggedMembers(prev => new Map(prev).set(clusterId, new Set([...(prev.get(clusterId) ?? []), ...losers])))
     setResolvedMembers(prev => new Map(prev).set(clusterId, new Set([...(prev.get(clusterId) ?? []), ...losers])))
+    // Same reason as handleDismissSelected: don't let selection/keeper state survive past the
+    // action that used it.
+    setSelectedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
+    setKeeperByCluster(prev => { const next = new Map(prev); next.delete(clusterId); return next })
   }, [memesApi, selectedMembers, keeperByCluster])
 
   const handleUndoFlagged = useCallback(async (clusterId: number) => {
@@ -301,8 +310,20 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
         increaseViewportBy={{ top: 600, bottom: 1200 }}
         minOverscanItemCount={{ top: 2, bottom: 4 }}
         itemContent={(_index, row) => {
-          const isDismissed = typeof row.clusterId === "number" && dismissedClusters.has(row.clusterId)
-          if (isDismissed) {
+          const clusterId = row.clusterId
+          const resolved = typeof clusterId === "number" ? (resolvedMembers.get(clusterId) ?? new Set()) : new Set()
+          const visibleMembers = row.members.filter(m => !resolved.has(m.id))
+          // A row is fully resolved when every original member has been resolved by SOME
+          // combination of actions -- one dismiss, one keep-best, or several of either across
+          // multiple clicks. Deliberately count-based, not "did the last action happen to be a
+          // full-cluster one": keep-best alone can never reach zero here (a keeper always
+          // survives its own round, and both actions require selecting >=2 currently-visible
+          // members, so the very last member can only ever be cleared by a dismiss) -- so this
+          // branch's "Marked as not duplicates" wording is always accurate even after a mixed
+          // history, and no separate keep-best collapse state is needed.
+          const isFullyResolved = typeof clusterId === "number" && row.members.length > 0 && visibleMembers.length === 0
+
+          if (isFullyResolved) {
             return (
               <div>
                 <div className="py-3 flex items-center gap-3">
@@ -320,7 +341,7 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
                   <span className="text-sm text-gray-400 italic">Marked as not duplicates</span>
                   <button
                     className="text-xs rounded bg-gray-100 px-3 py-1 hover:bg-gray-200"
-                    onClick={() => handleUndoCluster(row.clusterId as number)}
+                    onClick={() => handleUndoCluster(clusterId as number)}
                   >
                     Undo
                   </button>
@@ -329,29 +350,10 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
               </div>
             )
           }
-          const clusterId = row.clusterId
-          const resolved = typeof clusterId === "number" ? (resolvedMembers.get(clusterId) ?? new Set()) : new Set()
-          const visibleMembers = row.members.filter(m => !resolved.has(m.id))
+
           const selected = typeof clusterId === "number" ? (selectedMembers.get(clusterId) ?? new Set()) : new Set()
           const keeper = typeof clusterId === "number" ? keeperByCluster.get(clusterId) : undefined
           const similarityMap = typeof clusterId === "number" ? similarityByCluster.get(clusterId) : undefined
-
-          if (visibleMembers.length === 0 && typeof clusterId === "number" && flaggedMembers.has(clusterId)) {
-            return (
-              <div>
-                <div className="py-3 flex items-center gap-3">
-                  <span className="text-sm text-gray-400 italic">Marked as duplicates — kept best</span>
-                  <button
-                    className="text-xs rounded bg-gray-100 px-3 py-1 hover:bg-gray-200"
-                    onClick={() => handleUndoFlagged(clusterId)}
-                  >
-                    Undo
-                  </button>
-                </div>
-                <hr className="my-4 border-gray-300" />
-              </div>
-            )
-          }
 
           return (
             <div>
@@ -407,9 +409,9 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
                   {flaggedMembers.has(clusterId) && (
                     // The row's keeper is never added to resolvedMembers/flaggedMembers (it's
                     // the kept image), so a keep-best action can never empty visibleMembers on
-                    // its own -- the fully-collapsed flaggedMembers branch above is unreachable
-                    // from keep-best alone. This inline Undo is what lets a partially-resolved
-                    // keep-best row still be undone.
+                    // its own -- this inline Undo is what lets a partially-resolved keep-best
+                    // row still be undone while it's still showing a keeper and stays outside
+                    // the isFullyResolved branch above.
                     <button
                       className="text-xs rounded bg-gray-100 px-3 py-1 hover:bg-gray-200"
                       onClick={() => handleUndoFlagged(clusterId)}
