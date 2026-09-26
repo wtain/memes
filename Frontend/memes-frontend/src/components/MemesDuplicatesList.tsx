@@ -174,19 +174,35 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     setKeeperByCluster(prev => { const next = new Map(prev); next.delete(clusterId); return next })
   }, [memesApi, dismissedClusters, flaggedMembers])
 
+  const maybeFetchSimilarity = useCallback((clusterId: number) => {
+    if (fetchedSimilarityRef.current.has(clusterId)) return
+    fetchedSimilarityRef.current.add(clusterId)
+    memesApi.getClusterSimilarity(clusterId).then(response => {
+      const map = new Map<string, number>()
+      for (const pair of response.pairs) {
+        map.set(`${pair.image_id1}:${pair.image_id2}`, pair.overlap)
+      }
+      setSimilarityByCluster(prev => new Map(prev).set(clusterId, map))
+    }).catch(() => {
+      // Presentation-only aid -- a failed fetch just leaves no badges for that row.
+    })
+  }, [memesApi])
+
   const toggleSelect = useCallback((clusterId: number, memberId: string) => {
     setSelectedMembers(prev => {
       const next = new Map(prev)
       const set = new Set(next.get(clusterId) ?? [])
       if (set.has(memberId)) set.delete(memberId); else set.add(memberId)
       next.set(clusterId, set)
+      if (set.size >= 2) maybeFetchSimilarity(clusterId)
       return next
     })
-  }, [])
+  }, [maybeFetchSimilarity])
 
   const selectAll = useCallback((clusterId: number, memberIds: string[]) => {
     setSelectedMembers(prev => new Map(prev).set(clusterId, new Set(memberIds)))
-  }, [])
+    if (memberIds.length >= 2) maybeFetchSimilarity(clusterId)
+  }, [maybeFetchSimilarity])
 
   const setKeeper = useCallback((clusterId: number, memberId: string) => {
     setKeeperByCluster(prev => new Map(prev).set(clusterId, memberId))
@@ -195,8 +211,20 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
   const handleDismissSelected = useCallback(async (clusterId: number) => {
     const selected = Array.from(selectedMembers.get(clusterId) ?? [])
     if (selected.length < 2) return
+    const row = clusterRows.find(r => r.clusterId === clusterId)
+    const alreadyResolved = resolvedMembers.get(clusterId)?.size ?? 0
+    // A fresh (nothing yet resolved on this row) selection that covers every member currently
+    // in the pagination window is sent with NO memberIds at all, so the server resolves the
+    // cluster's true full membership -- a cluster can straddle a page boundary (see this
+    // file's own rowStartItemOffsets/eviction comments), so "everything visible right now" is
+    // not always "the whole cluster". Once anything has already been resolved on this row, a
+    // later action is unambiguously partial and must name its subset explicitly -- that's also
+    // what makes cumulative multi-action resolution (see handleUndoCluster) correct.
+    const isFreshFullWindowSelection = alreadyResolved === 0 && !!row && selected.length === row.members.length
     try {
-      const response = await memesApi.dismissDuplicateCluster(clusterId, selected)
+      const response = isFreshFullWindowSelection
+        ? await memesApi.dismissDuplicateCluster(clusterId)
+        : await memesApi.dismissDuplicateCluster(clusterId, selected)
       // Accumulate across every dismiss call for this cluster (not just a full-cluster one) --
       // a row can reach full resolution across several partial actions, and handleUndoCluster
       // needs every accumulated pair to undo the whole history in one shot. Whether the row
@@ -215,54 +243,21 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     } catch {
       // Left silent, matching this component's existing error-handling convention.
     }
-  }, [memesApi, selectedMembers])
+  }, [memesApi, selectedMembers, resolvedMembers, clusterRows])
 
   const handleKeepBest = useCallback(async (clusterId: number) => {
     const selected = Array.from(selectedMembers.get(clusterId) ?? [])
     const keeper = keeperByCluster.get(clusterId)
     if (selected.length < 2 || !keeper) return
     const losers = selected.filter(id => id !== keeper)
-    await Promise.all(losers.map(id => memesApi.markImageIsFlagged(id, "duplicate_review")))
-    setFlaggedMembers(prev => new Map(prev).set(clusterId, new Set([...(prev.get(clusterId) ?? []), ...losers])))
-    setResolvedMembers(prev => new Map(prev).set(clusterId, new Set([...(prev.get(clusterId) ?? []), ...losers])))
-    // Same reason as handleDismissSelected: don't let selection/keeper state survive past the
-    // action that used it.
+    const results = await Promise.allSettled(losers.map(id => memesApi.markImageIsFlagged(id, "duplicate_review")))
+    const succeeded = losers.filter((_, i) => results[i].status === "fulfilled")
+    if (succeeded.length === 0) return
+    setFlaggedMembers(prev => new Map(prev).set(clusterId, new Set([...(prev.get(clusterId) ?? []), ...succeeded])))
+    setResolvedMembers(prev => new Map(prev).set(clusterId, new Set([...(prev.get(clusterId) ?? []), ...succeeded])))
     setSelectedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
     setKeeperByCluster(prev => { const next = new Map(prev); next.delete(clusterId); return next })
   }, [memesApi, selectedMembers, keeperByCluster])
-
-  const handleUndoFlagged = useCallback(async (clusterId: number) => {
-    const flagged = Array.from(flaggedMembers.get(clusterId) ?? [])
-    await Promise.all(flagged.map(id => memesApi.unmarkImageIsFlagged(id)))
-    setFlaggedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
-    setResolvedMembers(prev => {
-      const next = new Map(prev)
-      const set = new Set(next.get(clusterId) ?? [])
-      flagged.forEach(id => set.delete(id))
-      next.set(clusterId, set)
-      return next
-    })
-  }, [memesApi, flaggedMembers])
-
-  // Fetch similarity lazily per row the first time it renders. Fetching inside itemContent's row
-  // render would be wrong -- React effects belong in useEffect -- so this instead fetches when a
-  // row's clusterId first appears in clusterRows.
-  useEffect(() => {
-    for (const row of clusterRows) {
-      if (typeof row.clusterId !== "number") continue
-      if (fetchedSimilarityRef.current.has(row.clusterId)) continue
-      fetchedSimilarityRef.current.add(row.clusterId)
-      memesApi.getClusterSimilarity(row.clusterId).then(response => {
-        const map = new Map<string, number>()
-        for (const pair of response.pairs) {
-          map.set(`${pair.image_id1}:${pair.image_id2}`, pair.overlap)
-        }
-        setSimilarityByCluster(prev => new Map(prev).set(row.clusterId as number, map))
-      }).catch(() => {
-        // Presentation-only aid -- a failed fetch just leaves no badges for that row.
-      })
-    }
-  }, [clusterRows, memesApi])
 
   useEffect(() => {
     return () => {
@@ -371,9 +366,12 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
               <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                 {visibleMembers.map(meme => {
                   const others = visibleMembers.filter(m => m.id !== meme.id && selected.has(m.id))
-                  const bestSim = others.length && similarityMap
-                    ? Math.max(...others.map(o => similarityMap.get(`${[meme.id, o.id].sort().join(':')}`) ?? 0))
-                    : undefined
+                  const scores = similarityMap
+                    ? others
+                        .map(o => similarityMap.get(`${[meme.id, o.id].sort().join(':')}`))
+                        .filter((v): v is number => v !== undefined)
+                    : []
+                  const bestSim = scores.length > 0 ? Math.max(...scores) : undefined
                   return (
                     <MemeCard
                       key={meme.id}
@@ -406,15 +404,15 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
                   >
                     Duplicates — keep best
                   </button>
-                  {flaggedMembers.has(clusterId) && (
-                    // The row's keeper is never added to resolvedMembers/flaggedMembers (it's
-                    // the kept image), so a keep-best action can never empty visibleMembers on
-                    // its own -- this inline Undo is what lets a partially-resolved keep-best
-                    // row still be undone while it's still showing a keeper and stays outside
-                    // the isFullyResolved branch above.
+                  {(dismissedClusters.has(clusterId) || flaggedMembers.has(clusterId)) && (
+                    // A partial action of either kind needs its own Undo affordance while the
+                    // row still has visible members (the row only shows the fully-collapsed
+                    // strip once every member is resolved) -- handleUndoCluster already unwinds
+                    // both accumulated dismissed pairs and flagged members in one action, so it
+                    // is reused here rather than adding a third, narrower undo path.
                     <button
                       className="text-xs rounded bg-gray-100 px-3 py-1 hover:bg-gray-200"
-                      onClick={() => handleUndoFlagged(clusterId)}
+                      onClick={() => handleUndoCluster(clusterId)}
                     >
                       Undo
                     </button>

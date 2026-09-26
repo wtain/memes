@@ -247,7 +247,7 @@ describe('MemesDuplicatesList dismiss/undo', () => {
     fireEvent.click(button)
 
     await waitFor(() => {
-      expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1, ['a', 'b'])
+      expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1)
     })
     expect(await screen.findByText('Marked as not duplicates')).toBeInTheDocument()
     // Member thumbnails stay visible on the dismissed row so distinct clusters remain
@@ -311,9 +311,9 @@ describe('MemesDuplicatesList dismiss/undo', () => {
     expect(dismissButtons).toHaveLength(2)
 
     fireEvent.click(dismissButtons[0])
-    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1, ['a', 'b']))
+    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1))
     fireEvent.click(await screen.findByRole('button', { name: 'Not duplicates' })) // cluster 2's, now the only one left
-    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(2, ['c', 'd']))
+    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(2))
 
     // Both rows dismissed, each with its own working Undo -- not just the last one.
     expect(screen.getAllByText('Marked as not duplicates')).toHaveLength(2)

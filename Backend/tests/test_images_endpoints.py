@@ -1453,6 +1453,28 @@ class TestDismissDuplicateCluster:
              uuid.UUID("22222222-2222-2222-2222-222222222222")],
         )
 
+    def test_dismiss_with_empty_member_ids_returns_400(self, client, mock_image_service):
+        from fastapi import HTTPException
+        mock_image_service.dismiss_cluster.side_effect = HTTPException(
+            status_code=400, detail="Need at least 2 members to dismiss a subset"
+        )
+
+        response = client.post(
+            "/api/images/duplicates/clusters/141/dismiss",
+            json={"member_ids": []},
+        )
+
+        assert response.status_code == 400
+        mock_image_service.dismiss_cluster.assert_called_once_with(141, [])
+
+    def test_dismiss_with_malformed_uuid_returns_422(self, client, mock_image_service):
+        response = client.post(
+            "/api/images/duplicates/clusters/141/dismiss",
+            json={"member_ids": ["not-a-uuid"]},
+        )
+
+        assert response.status_code == 422
+
 
 class TestUndoDismissDuplicates:
     """Tests for POST /api/images/duplicates/pairs/undo-dismiss."""

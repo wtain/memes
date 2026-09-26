@@ -42,7 +42,7 @@ class DuplicateUndoDismissRequest(BaseModel):
 
 
 class DuplicateDismissRequestModel(BaseModel):
-    member_ids: list[str] | None = None
+    member_ids: list[uuid.UUID] | None = None
 
 
 class ClusterSimilarityPairModel(BaseModel):
@@ -266,8 +266,7 @@ async def dismiss_duplicate_cluster(
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    member_ids = [uuid.UUID(i) for i in body.member_ids] if body.member_ids else None
-    pairs = await service.dismiss_cluster(cluster_id, member_ids)
+    pairs = await service.dismiss_cluster(cluster_id, body.member_ids)
     return DuplicateDismissResponseModel(
         pairs=[DuplicatePairModel(image_id1=str(a), image_id2=str(b)) for a, b in pairs]
     )
