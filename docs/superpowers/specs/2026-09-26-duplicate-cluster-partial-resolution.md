@@ -375,3 +375,15 @@ nothing here changes automatic detection or existing decision data. Manual smoke
 environment's `/duplicates` page (select a subset, dismiss, refresh, confirm only that subset is
 gone from the cluster) before calling this done, per this repo's "Before committing backend
 changes" convention.
+
+## Rollout outcome
+
+Migration `29a039fa4457` (add `flagged_reason` to `image_extras`) applied to all three live
+environments — `metal`, `general`, `it` — each verified at the new revision via
+`DATABASE_URL_READONLY`, with `/api/diagnostics/health` confirmed healthy on each afterward.
+Read-only smoke test against `metal`'s live data (a real cluster and the new
+`GET .../similarity` endpoint) confirmed correct before the migration; not re-run after, since the
+migration is additive and orthogonal to what that endpoint reads. The write-side manual
+smoke-test this section calls for (actually dismissing/flagging a real cluster through the UI)
+has not been done — those are permanent decisions against real production data, deferred pending
+an explicit go-ahead from whoever is at the keyboard for that environment.
