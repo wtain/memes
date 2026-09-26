@@ -204,6 +204,10 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     if (memberIds.length >= 2) maybeFetchSimilarity(clusterId)
   }, [maybeFetchSimilarity])
 
+  const clearSelection = useCallback((clusterId: number) => {
+    setSelectedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
+  }, [])
+
   const setKeeper = useCallback((clusterId: number, memberId: string) => {
     setKeeperByCluster(prev => new Map(prev).set(clusterId, memberId))
   }, [])
@@ -306,7 +310,7 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
         minOverscanItemCount={{ top: 2, bottom: 4 }}
         itemContent={(_index, row) => {
           const clusterId = row.clusterId
-          const resolved = typeof clusterId === "number" ? (resolvedMembers.get(clusterId) ?? new Set()) : new Set()
+          const resolved = typeof clusterId === "number" ? (resolvedMembers.get(clusterId) ?? new Set<string>()) : new Set<string>()
           const visibleMembers = row.members.filter(m => !resolved.has(m.id))
           // A row is fully resolved when every original member has been resolved by SOME
           // combination of actions -- one dismiss, one keep-best, or several of either across
@@ -333,7 +337,9 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
                       />
                     ))}
                   </div>
-                  <span className="text-sm text-gray-400 italic">Marked as not duplicates</span>
+                  <span className="text-sm text-gray-400 italic">
+                    {flaggedMembers.has(clusterId as number) ? "Resolved (not duplicates + kept best)" : "Marked as not duplicates"}
+                  </span>
                   <button
                     className="text-xs rounded bg-gray-100 px-3 py-1 hover:bg-gray-200"
                     onClick={() => handleUndoCluster(clusterId as number)}
@@ -346,7 +352,7 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
             )
           }
 
-          const selected = typeof clusterId === "number" ? (selectedMembers.get(clusterId) ?? new Set()) : new Set()
+          const selected = typeof clusterId === "number" ? (selectedMembers.get(clusterId) ?? new Set<string>()) : new Set<string>()
           const keeper = typeof clusterId === "number" ? keeperByCluster.get(clusterId) : undefined
           const similarityMap = typeof clusterId === "number" ? similarityByCluster.get(clusterId) : undefined
 
@@ -358,7 +364,10 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
                     type="checkbox"
                     aria-label="Select all"
                     checked={visibleMembers.length > 0 && visibleMembers.every(m => selected.has(m.id))}
-                    onChange={() => selectAll(clusterId, visibleMembers.map(m => m.id))}
+                    onChange={() => {
+                      const allSelected = visibleMembers.length > 0 && visibleMembers.every(m => selected.has(m.id))
+                      if (allSelected) clearSelection(clusterId); else selectAll(clusterId, visibleMembers.map(m => m.id))
+                    }}
                   />
                   Select all
                 </label>

@@ -262,11 +262,11 @@ async def get_duplicate_images(
 async def dismiss_duplicate_cluster(
     cluster_id: int,
     response: Response,
-    body: DuplicateDismissRequestModel = DuplicateDismissRequestModel(),
+    body: DuplicateDismissRequestModel | None = None,
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    pairs = await service.dismiss_cluster(cluster_id, body.member_ids)
+    pairs = await service.dismiss_cluster(cluster_id, body.member_ids if body else None)
     return DuplicateDismissResponseModel(
         pairs=[DuplicatePairModel(image_id1=str(a), image_id2=str(b)) for a, b in pairs]
     )

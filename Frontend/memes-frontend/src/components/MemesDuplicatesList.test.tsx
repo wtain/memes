@@ -427,4 +427,54 @@ describe('MemesDuplicatesList partial selection', () => {
     })
     expect(api.unmarkImageIsFlagged).not.toHaveBeenCalledWith('a')
   })
+
+  it('"Select all" toggles off an already-fully-selected row instead of being a no-op', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [clusterMeme('a', 1), clusterMeme('b', 1)],
+        facets: [], hasNext: false,
+      }),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    const selectAllCheckbox = await screen.findByRole('checkbox', { name: 'Select all' })
+    fireEvent.click(selectAllCheckbox)
+    expect(selectAllCheckbox).toBeChecked()
+    const notDuplicatesButton = await screen.findByRole('button', { name: 'Not duplicates' })
+    expect(notDuplicatesButton).not.toBeDisabled()
+
+    fireEvent.click(selectAllCheckbox)
+
+    expect(selectAllCheckbox).not.toBeChecked()
+    expect(notDuplicatesButton).toBeDisabled()
+  })
+
+  it('labels a fully-resolved row that mixed dismiss and keep-best differently from a pure dismiss', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [clusterMeme('a', 1), clusterMeme('b', 1), clusterMeme('c', 1)],
+        facets: [], hasNext: false,
+      }),
+      markImageIsFlagged: vi.fn().mockResolvedValue(undefined),
+      dismissDuplicateCluster: vi.fn().mockResolvedValue({
+        pairs: [{ image_id1: 'a', image_id2: 'c' }],
+      }),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    // Keep-best resolves b (a stays the keeper, still visible).
+    const checkboxes = await screen.findAllByRole('checkbox', { name: 'Select' })
+    fireEvent.click(checkboxes[0])  // a
+    fireEvent.click(checkboxes[1])  // b
+    fireEvent.click((await screen.findAllByRole('radio', { name: 'Keeper' }))[0])  // a is keeper
+    fireEvent.click(await screen.findByRole('button', { name: 'Duplicates — keep best' }))
+    await waitFor(() => expect(api.markImageIsFlagged).toHaveBeenCalledWith('b', 'duplicate_review'))
+
+    // Then a dismiss resolves the last two remaining (a, c), fully resolving the row.
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Not duplicates' }))
+
+    expect(await screen.findByText('Resolved (not duplicates + kept best)')).toBeInTheDocument()
+    expect(screen.queryByText('Marked as not duplicates')).not.toBeInTheDocument()
+  })
 })

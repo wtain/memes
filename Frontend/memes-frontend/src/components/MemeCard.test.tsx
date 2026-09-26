@@ -115,6 +115,6 @@ describe('MemeCard selection (duplicates review)', () => {
     const meme = { id: 'a', imageUrl: '/a.jpg', text: [], tags: [] }
     render(<MemeCard meme={meme} memesApi={api} similarity={0.82} />)
 
-    expect(screen.getByText('82%')).toBeInTheDocument()
+    expect(screen.getByText('Caption match: 82%')).toBeInTheDocument()
   })
 })

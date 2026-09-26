@@ -82,7 +82,6 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
           <label className="flex items-center gap-1 text-xs">
             <input
               type="checkbox"
-              role="checkbox"
               aria-label="Select"
               checked={selected}
               onChange={() => onToggleSelect?.()}
@@ -93,7 +92,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
             <label className="flex items-center gap-1 text-xs">
               <input
                 type="radio"
-                role="radio"
+                name={`keeper-${meme.clusterId ?? "unknown"}`}
                 aria-label="Keeper"
                 checked={isKeeper}
                 onChange={() => onSetKeeper?.()}
@@ -104,8 +103,11 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
         </div>
       )}
       {similarity != null && (
-        <div className="px-4 py-1 text-xs text-gray-500 border-b">
-          {Math.round(similarity * 100)}%
+        <div
+          className="px-4 py-1 text-xs text-gray-500 border-b"
+          title="Highest OCR-caption overlap with any currently-selected sibling in this cluster"
+        >
+          Caption match: {Math.round(similarity * 100)}%
         </div>
       )}
       <div>

@@ -21,6 +21,15 @@ from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchR
 from graph.uf import UnionFind
 
 
+# Presentation-only similarity computation is O(members^2) -- clusters on the corpus-wide
+# /duplicates page are normally bounded by clusterize.py's MAX_CLUSTER_SIZE (12), but CLAUDE.md
+# documents that an oversized cluster can be "accepted" (not split further) when a tightening
+# step severs every remaining edge at once, so an unbounded response is theoretically possible.
+# This cap is deliberately generous (never expected to fire in practice) and simply skips the
+# computation for a cluster past it, rather than either crashing or paying an unbounded cost.
+SIMILARITY_MEMBER_CAP = 100
+
+
 def _feedback_label(approved: Optional[bool]) -> Optional[str]:
     if approved is None:
         return None
@@ -388,12 +397,16 @@ class ImageService:
         if member_ids is None:
             target_ids = all_member_ids
         else:
-            invalid = set(member_ids) - set(all_member_ids)
+            # Dedupe before validating -- a client-supplied list with a repeated id (e.g.
+            # [a, b, a]) would otherwise pass both checks below and produce a self-pair (a, a)
+            # in the pairwise loop; duplicate_decisions has no constraint preventing that insert.
+            deduped_ids = list(dict.fromkeys(member_ids))
+            invalid = set(deduped_ids) - set(all_member_ids)
             if invalid:
                 raise HTTPException(status_code=400, detail=f"Not members of cluster {cluster_id}: {invalid}")
-            if len(member_ids) < 2:
+            if len(deduped_ids) < 2:
                 raise HTTPException(status_code=400, detail="Need at least 2 members to dismiss a subset")
-            target_ids = member_ids
+            target_ids = deduped_ids
 
         pairs = [
             (target_ids[i], target_ids[j])
@@ -405,6 +418,8 @@ class ImageService:
 
     async def get_cluster_overlap_coefficients(self, cluster_id: int) -> dict[tuple[uuid.UUID, uuid.UUID], float]:
         member_ids = await self.repo.get_cluster_member_ids(cluster_id)
+        if len(member_ids) > SIMILARITY_MEMBER_CAP:
+            return {}
         return await self.ocr_lemmas_repo.get_pairwise_overlap_coefficients(member_ids)
 
     async def undo_dismiss(self, pairs: list[tuple[uuid.UUID, uuid.UUID]]) -> None:

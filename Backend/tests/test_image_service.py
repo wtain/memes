@@ -493,6 +493,27 @@ class TestDismissClusterSubset:
 
         assert exc_info.value.status_code == 400
 
+    async def test_dismiss_subset_dedupes_repeated_ids_before_pairing(self, service, mock_repo, mock_decision_repo):
+        # A repeated id in member_ids (e.g. [a, b, a]) must not produce a self-pair (a, a) --
+        # duplicate_decisions has no constraint preventing that insert, so this is enforced here.
+        a, b, c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        mock_repo.get_cluster_member_ids.return_value = [a, b, c]
+
+        pairs = await service.dismiss_cluster(141, member_ids=[a, b, a])
+
+        assert sorted(pairs) == sorted([(a, b)])
+        mock_decision_repo.record_decisions_bulk.assert_awaited_once_with([(a, b)])
+
+    async def test_dismiss_subset_of_one_after_dedup_is_rejected(self, service, mock_repo):
+        # [a, a] dedupes down to a single id -- must still be rejected as "need at least 2".
+        a, b = uuid.uuid4(), uuid.uuid4()
+        mock_repo.get_cluster_member_ids.return_value = [a, b]
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.dismiss_cluster(141, member_ids=[a, a])
+
+        assert exc_info.value.status_code == 400
+
 
 class TestMarkFlaggedReason:
     async def test_mark_flagged_passes_reason_through(self, service, mock_repo):
@@ -520,3 +541,13 @@ class TestClusterOverlapCoefficients:
 
         mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.assert_awaited_once_with([a, b])
         assert result == {(a, b): 0.5}
+
+    async def test_skips_computation_above_the_member_cap(self, service, mock_repo, mock_ocr_lemmas_repo):
+        from Backend.app.services.image_service import SIMILARITY_MEMBER_CAP
+        oversized = [uuid.uuid4() for _ in range(SIMILARITY_MEMBER_CAP + 1)]
+        mock_repo.get_cluster_member_ids.return_value = oversized
+
+        result = await service.get_cluster_overlap_coefficients(141)
+
+        mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.assert_not_awaited()
+        assert result == {}
