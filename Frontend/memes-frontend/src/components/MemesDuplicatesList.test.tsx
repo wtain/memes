@@ -242,11 +242,12 @@ describe('MemesDuplicatesList dismiss/undo', () => {
     })
     render(<MemesDuplicatesList memesApi={api} />)
 
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all' }))
     const button = await screen.findByRole('button', { name: 'Not duplicates' })
     fireEvent.click(button)
 
     await waitFor(() => {
-      expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1)
+      expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1, ['a', 'b'])
     })
     expect(await screen.findByText('Marked as not duplicates')).toBeInTheDocument()
     // Member thumbnails stay visible on the dismissed row so distinct clusters remain
@@ -269,6 +270,7 @@ describe('MemesDuplicatesList dismiss/undo', () => {
     })
     render(<MemesDuplicatesList memesApi={api} />)
 
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Not duplicates' }))
     await screen.findByText('Marked as not duplicates')
 
@@ -300,13 +302,18 @@ describe('MemesDuplicatesList dismiss/undo', () => {
     })
     render(<MemesDuplicatesList memesApi={api} />)
 
+    const selectAllCheckboxes = await screen.findAllByRole('checkbox', { name: 'Select all' })
+    expect(selectAllCheckboxes).toHaveLength(2)
+    fireEvent.click(selectAllCheckboxes[0])
+    fireEvent.click(selectAllCheckboxes[1])
+
     const dismissButtons = await screen.findAllByRole('button', { name: 'Not duplicates' })
     expect(dismissButtons).toHaveLength(2)
 
     fireEvent.click(dismissButtons[0])
-    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1))
+    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1, ['a', 'b']))
     fireEvent.click(await screen.findByRole('button', { name: 'Not duplicates' })) // cluster 2's, now the only one left
-    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(2))
+    await waitFor(() => expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(2, ['c', 'd']))
 
     // Both rows dismissed, each with its own working Undo -- not just the last one.
     expect(screen.getAllByText('Marked as not duplicates')).toHaveLength(2)
@@ -322,5 +329,102 @@ describe('MemesDuplicatesList dismiss/undo', () => {
     expect(await screen.findByRole('button', { name: 'Not duplicates' })).toBeInTheDocument()
     expect(screen.getAllByText('Marked as not duplicates')).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: 'Undo' })).toHaveLength(1)
+  })
+})
+
+describe('MemesDuplicatesList partial selection', () => {
+  it('leaves the Not duplicates button disabled until 2+ members are selected', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [clusterMeme('a', 1), clusterMeme('b', 1), clusterMeme('c', 1)],
+        facets: [], hasNext: false,
+      }),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    const notDuplicatesButton = await screen.findByRole('button', { name: 'Not duplicates' })
+    expect(notDuplicatesButton).toBeDisabled()
+
+    const checkboxes = await screen.findAllByRole('checkbox', { name: 'Select' })
+    fireEvent.click(checkboxes[0])
+    expect(notDuplicatesButton).toBeDisabled()
+
+    fireEvent.click(checkboxes[1])
+    expect(notDuplicatesButton).not.toBeDisabled()
+  })
+
+  it('dismisses only the selected subset, leaving unselected members visible', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [clusterMeme('a', 1), clusterMeme('b', 1), clusterMeme('c', 1)],
+        facets: [], hasNext: false,
+      }),
+      dismissDuplicateCluster: vi.fn().mockResolvedValue({
+        pairs: [{ image_id1: 'a', image_id2: 'b' }],
+      }),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    const checkboxes = await screen.findAllByRole('checkbox', { name: 'Select' })
+    fireEvent.click(checkboxes[0])
+    fireEvent.click(checkboxes[1])
+    fireEvent.click(await screen.findByRole('button', { name: 'Not duplicates' }))
+
+    await waitFor(() => {
+      expect(api.dismissDuplicateCluster).toHaveBeenCalledWith(1, ['a', 'b'])
+    })
+    // c was never selected -- the row is NOT fully collapsed, c's card is still rendered
+    expect(screen.queryByText('Marked as not duplicates')).not.toBeInTheDocument()
+    expect(screen.getByAltText('c')).toBeInTheDocument()
+  })
+
+  it('requires exactly one keeper before enabling "Duplicates — keep best"', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [clusterMeme('a', 1), clusterMeme('b', 1)],
+        facets: [], hasNext: false,
+      }),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    const checkboxes = await screen.findAllByRole('checkbox', { name: 'Select' })
+    fireEvent.click(checkboxes[0])
+    fireEvent.click(checkboxes[1])
+    const keepBestButton = await screen.findByRole('button', { name: 'Duplicates — keep best' })
+    expect(keepBestButton).toBeDisabled()
+
+    const keeperRadios = await screen.findAllByRole('radio', { name: 'Keeper' })
+    fireEvent.click(keeperRadios[0])
+    expect(keepBestButton).not.toBeDisabled()
+  })
+
+  it('flags every selected non-keeper with reason duplicate_review, and undo unflags exactly those', async () => {
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({
+        items: [clusterMeme('a', 1), clusterMeme('b', 1), clusterMeme('c', 1)],
+        facets: [], hasNext: false,
+      }),
+      markImageIsFlagged: vi.fn().mockResolvedValue(undefined),
+      unmarkImageIsFlagged: vi.fn().mockResolvedValue(undefined),
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+
+    const checkboxes = await screen.findAllByRole('checkbox', { name: 'Select' })
+    fireEvent.click(checkboxes[0])  // a
+    fireEvent.click(checkboxes[1])  // b
+    const keeperRadios = await screen.findAllByRole('radio', { name: 'Keeper' })
+    fireEvent.click(keeperRadios[0])  // a is keeper
+    fireEvent.click(await screen.findByRole('button', { name: 'Duplicates — keep best' }))
+
+    await waitFor(() => {
+      expect(api.markImageIsFlagged).toHaveBeenCalledWith('b', 'duplicate_review')
+    })
+    expect(api.markImageIsFlagged).not.toHaveBeenCalledWith('a', expect.anything())
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+    await waitFor(() => {
+      expect(api.unmarkImageIsFlagged).toHaveBeenCalledWith('b')
+    })
+    expect(api.unmarkImageIsFlagged).not.toHaveBeenCalledWith('a')
   })
 })
