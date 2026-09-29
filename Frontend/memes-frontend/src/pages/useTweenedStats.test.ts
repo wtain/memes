@@ -82,8 +82,13 @@ describe("useTweenedStats", () => {
     rerender({ t: c })
     expect(result.current!.memes.total).toBe(shown)
 
+    // The first frame of the new glide has progress 0, so it shows exactly the
+    // interrupted frame: no jump back toward a (0) or forward toward b (100).
+    act(() => { vi.advanceTimersByTime(16) })
+    expect(result.current!.memes.total).toBe(shown)
+
     act(() => { vi.advanceTimersByTime(50) })
-    expect(result.current!.memes.total).toBeGreaterThanOrEqual(shown)
+    expect(result.current!.memes.total).toBeGreaterThan(shown)
 
     act(() => { vi.advanceTimersByTime(TWEEN_DURATION_MS * 2) })
     expect(result.current).toEqual(c)
