@@ -55,3 +55,6 @@ classify_text_heavy:
 build_ocr_text_embeddings:
   module: batch.build_ocr_text_embeddings
   kind: build_ocr_text_embeddings
+build_statistics:
+  module: batch.build_statistics
+  kind: statistics

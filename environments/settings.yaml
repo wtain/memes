@@ -123,6 +123,12 @@ scheduler:
       interval_minutes: 360
       max_runtime_minutes: 60
       enabled: true
+    - name: build_statistics
+      script: build_statistics
+      batch_run_kind: statistics
+      interval_minutes: 60
+      max_runtime_minutes: 10
+      enabled: true
     # ingest_auto_prep, build_tags_from_ocr, build_ocr_lemmas, build_tags_from_descriptions,
     # build_concept_embeddings, detect_entities_and_tag, build_bow,
     # ingest_find_duplicates_tier_b, ingest_promote, rebuild_duplicates, and clusterize are
