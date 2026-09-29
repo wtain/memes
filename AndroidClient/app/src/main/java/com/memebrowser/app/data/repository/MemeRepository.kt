@@ -11,6 +11,8 @@ import com.memebrowser.app.data.model.StatisticsResponse
 import com.memebrowser.app.data.model.TrendEntry
 import com.memebrowser.app.data.model.TrendsRun
 import com.memebrowser.app.data.model.UploadResponse
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -60,10 +62,12 @@ open class MemeRepository @Inject constructor(
     }
 
     suspend fun healthCheck(baseUrl: String): Result<Unit> = runCatching {
-        val url = baseUrl.trimEnd('/') + "/health"
-        val request = Request.Builder().url(url).get().build()
-        okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("HTTP ${response.code}")
+        withContext(Dispatchers.IO) {
+            val url = baseUrl.trimEnd('/') + "/health"
+            val request = Request.Builder().url(url).get().build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error("HTTP ${response.code}")
+            }
         }
     }
 

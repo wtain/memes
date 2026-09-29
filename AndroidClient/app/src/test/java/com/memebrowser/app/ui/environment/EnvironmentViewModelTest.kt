@@ -101,10 +101,13 @@ class EnvironmentViewModelTest {
     fun `checkHealth sets Online on success`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200))
         viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
-        viewModel.checkHealth("test-general", testEnvs[0].environment.baseUrl)
         viewModel.uiState.test {
-            val state = awaitItem()
-            assertEquals(EnvHealthStatus.Online, state.healthMap["test-general"])
+            awaitItem() // initial state, before checkHealth is called
+            viewModel.checkHealth("test-general", testEnvs[0].environment.baseUrl)
+            assertEquals(EnvHealthStatus.Checking, awaitItem().healthMap["test-general"])
+            // healthCheck() now runs its network call on Dispatchers.IO (see MemeRepository),
+            // so Online arrives as a separate emission after a real thread hop, not synchronously.
+            assertEquals(EnvHealthStatus.Online, awaitItem().healthMap["test-general"])
         }
     }
 
@@ -112,10 +115,11 @@ class EnvironmentViewModelTest {
     fun `checkHealth sets Offline on failure`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
         viewModel = EnvironmentViewModel(envRepo, memeRepo, mockk(relaxed = true), mockk(relaxed = true))
-        viewModel.checkHealth("test-general", testEnvs[0].environment.baseUrl)
         viewModel.uiState.test {
-            val state = awaitItem()
-            assertEquals(EnvHealthStatus.Offline, state.healthMap["test-general"])
+            awaitItem() // initial state, before checkHealth is called
+            viewModel.checkHealth("test-general", testEnvs[0].environment.baseUrl)
+            assertEquals(EnvHealthStatus.Checking, awaitItem().healthMap["test-general"])
+            assertEquals(EnvHealthStatus.Offline, awaitItem().healthMap["test-general"])
         }
     }
 }

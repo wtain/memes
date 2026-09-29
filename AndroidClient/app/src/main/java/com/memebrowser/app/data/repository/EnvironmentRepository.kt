@@ -37,6 +37,18 @@ open class EnvironmentRepository @Inject constructor(
         urlProvider.setBaseUrl(env.baseUrl)
     }
 
+    /**
+     * Points [urlProvider] at whatever environment was persisted from a previous session.
+     * [UrlProvider] only holds its base URL in memory, so without this the app falls back to
+     * its hardcoded default on every process restart, ignoring the user's last selection.
+     */
+    suspend fun restoreSelectedBaseUrl() {
+        val envs = store.environments.first()
+        val selectedId = store.selectedEnvironmentId.first()
+        val env = envs.find { it.id == selectedId } ?: envs.firstOrNull() ?: return
+        urlProvider.setBaseUrl(env.baseUrl)
+    }
+
     suspend fun addEnvironment(name: String, baseUrl: String) {
         val current = store.environments.first()
         val new = BackendEnvironment(
