@@ -4,7 +4,8 @@ Endpoints tested:
 - health
 - statistics (including the description-feedback counts)
 """
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock
 
+from Backend.app.api import diagnostics as diagnostics_module
 from Backend.app.api.diagnostics import router as diagnostics_router
 from Backend.app.services.statistics_snapshot_service import statistics_payload
 
@@ -65,6 +67,11 @@ def _fake_stats_row(**overrides):
     return SimpleNamespace(**defaults)
 
 
+def _fresh_time(minutes=5):
+    """Second-precision UTC timestamp `minutes` in the past (so the "Z" string is exact)."""
+    return datetime.now(timezone.utc).replace(microsecond=0) - timedelta(minutes=minutes)
+
+
 class TestStatistics:
     def test_statistics_includes_description_feedback_counts(self, client, mock_diagnostics_repo):
         mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row()
@@ -114,9 +121,10 @@ class TestStatistics:
         assert data["content"]["descriptions_feedback_total"] == 0
 
     def test_serves_stored_snapshot_without_recomputing(self, client, mock_diagnostics_repo, mock_snapshots_repo):
+        fresh = _fresh_time()
         mock_snapshots_repo.get.return_value = SimpleNamespace(
             payload=statistics_payload(_fake_stats_row(total_memes=555)),
-            computed_at=datetime(2026, 9, 29, 12, 0, 0, tzinfo=timezone.utc),
+            computed_at=fresh,
         )
 
         response = client.get("/api/diagnostics/statistics")
@@ -124,35 +132,68 @@ class TestStatistics:
         assert response.status_code == 200
         data = response.json()
         assert data["memes"]["total"] == 555
-        assert data["computed_at"].startswith("2026-09-29T12:00:00")
+        assert data["computed_at"] == fresh.strftime("%Y-%m-%dT%H:%M:%SZ")
         mock_diagnostics_repo.get_statistics.assert_not_awaited()
         mock_snapshots_repo.upsert.assert_not_awaited()
 
     def test_without_snapshot_computes_live_stores_it_and_reports_computed_at(
         self, client, mock_diagnostics_repo, mock_snapshots_repo,
     ):
-        mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(total_memes=321)
+        row = _fake_stats_row(total_memes=321)
+        mock_diagnostics_repo.get_statistics.return_value = row
 
         response = client.get("/api/diagnostics/statistics")
 
         assert response.status_code == 200
         data = response.json()
         assert data["memes"]["total"] == 321
-        assert data["computed_at"] is not None
+        assert isinstance(data["computed_at"], str) and data["computed_at"]
         mock_snapshots_repo.upsert.assert_awaited_once()
+        args = mock_snapshots_repo.upsert.await_args.args
+        assert args[1] == statistics_payload(row)
 
     def test_unusable_stored_payload_is_recomputed_instead_of_failing(
-        self, client, mock_diagnostics_repo, mock_snapshots_repo,
+        self, client, mock_diagnostics_repo, mock_snapshots_repo, caplog,
     ):
         # e.g. an older snapshot written before a new stat field existed
         mock_snapshots_repo.get.return_value = SimpleNamespace(
             payload={"memes": {"total": 1}},
-            computed_at=datetime(2026, 9, 29, 12, 0, 0, tzinfo=timezone.utc),
+            computed_at=_fresh_time(),
         )
         mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(total_memes=777)
 
-        response = client.get("/api/diagnostics/statistics")
+        with caplog.at_level(logging.WARNING, logger=diagnostics_module.logger.name):
+            response = client.get("/api/diagnostics/statistics")
 
         assert response.status_code == 200
         assert response.json()["memes"]["total"] == 777
         mock_snapshots_repo.upsert.assert_awaited_once()
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING and "recomputed" in r.getMessage()]
+        assert len(warnings) == 1
+
+    def test_snapshot_older_than_max_age_is_recomputed(self, client, mock_diagnostics_repo, mock_snapshots_repo):
+        mock_snapshots_repo.get.return_value = SimpleNamespace(
+            payload=statistics_payload(_fake_stats_row(total_memes=555)),
+            computed_at=_fresh_time(minutes=180),
+        )
+        mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(total_memes=888)
+
+        response = client.get("/api/diagnostics/statistics")
+
+        assert response.status_code == 200
+        assert response.json()["memes"]["total"] == 888
+        mock_diagnostics_repo.get_statistics.assert_awaited_once()
+        mock_snapshots_repo.upsert.assert_awaited_once()
+
+    def test_snapshot_just_inside_max_age_is_served(self, client, mock_diagnostics_repo, mock_snapshots_repo):
+        mock_snapshots_repo.get.return_value = SimpleNamespace(
+            payload=statistics_payload(_fake_stats_row(total_memes=555)),
+            computed_at=_fresh_time(minutes=119),
+        )
+
+        response = client.get("/api/diagnostics/statistics")
+
+        assert response.status_code == 200
+        assert response.json()["memes"]["total"] == 555
+        mock_diagnostics_repo.get_statistics.assert_not_awaited()
+        mock_snapshots_repo.upsert.assert_not_awaited()

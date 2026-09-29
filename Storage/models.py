@@ -680,6 +680,7 @@ class TrendsRunResult(Base):
             f" name={self.name!r} value={self.value}>"
         )
 
+
 class StatisticsSnapshot(Base):
     """Latest precomputed result of an expensive statistics query, one row per `name`
     (only 'corpus' today). See docs/superpowers/specs/2026-09-29-precomputed-statistics-design.md."""

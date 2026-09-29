@@ -1,4 +1,5 @@
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends
@@ -6,8 +7,14 @@ from pydantic import BaseModel, ValidationError
 
 from Storage.db import AsyncSessionLocal, get_async_db
 from Backend.app.repositories.diagnostics_repository import DiagnosticsRepository
-from Backend.app.services.statistics_snapshot_service import CORPUS_SNAPSHOT, refresh_corpus_snapshot
+from Backend.app.services.statistics_snapshot_service import (
+    CORPUS_SNAPSHOT,
+    SNAPSHOT_MAX_AGE,
+    refresh_corpus_snapshot,
+)
 from repository.statistics_snapshots import StatisticsSnapshotsRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/diagnostics", tags=["diagnostics"])
 
@@ -86,13 +93,18 @@ async def statistics(
     snapshots_repo: StatisticsSnapshotsRepository = Depends(get_statistics_snapshots_repo),
 ):
     """Serves the precomputed snapshot (see batch/build_statistics.py). Falls back to a live
-    compute-and-store when there is no snapshot yet, or the stored payload no longer matches
-    the response shape (e.g. written before a stat field was added)."""
+    compute-and-store when there is no snapshot yet, the snapshot is older than
+    SNAPSHOT_MAX_AGE (so a deployment without a running scheduler stays bounded), or the
+    stored payload no longer matches the response shape (e.g. written before a stat field
+    was added)."""
     snapshot = await snapshots_repo.get(CORPUS_SNAPSHOT)
-    if snapshot is not None:
+    if snapshot is not None and datetime.now(timezone.utc) - snapshot.computed_at <= SNAPSHOT_MAX_AGE:
         try:
             return StatisticsResponse(**snapshot.payload, computed_at=snapshot.computed_at)
         except ValidationError:
-            pass  # fall through to a fresh compute, which also overwrites the unusable row
+            # fall through to a fresh compute, which also overwrites the unusable row
+            logger.warning(
+                "Stored statistics snapshot no longer matches the response shape; recomputed live"
+            )
     result = await refresh_corpus_snapshot(diagnostics_repo, snapshots_repo)
     return StatisticsResponse(**result.payload, computed_at=result.computed_at)

@@ -6,9 +6,13 @@ payload. See docs/superpowers/specs/2026-09-29-precomputed-statistics-design.md.
 """
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 CORPUS_SNAPSHOT = "corpus"
+# Twice the hourly refresh interval (environments/settings.yaml, build_statistics job): where the
+# scheduler runs, a snapshot is never this old; where it doesn't (e.g. the Docker image),
+# the read path recomputes instead of serving a frozen row forever.
+SNAPSHOT_MAX_AGE = timedelta(hours=2)
 
 
 @dataclass(frozen=True)
