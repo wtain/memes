@@ -7,7 +7,7 @@ from sqlalchemy import (
     DateTime, JSON, func, Numeric, Index, Boolean,
     BigInteger, UniqueConstraint, text
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 import uuid
 
@@ -679,3 +679,13 @@ class TrendsRunResult(Base):
             f"<TrendsRunResult id={self.id} label={self.label!r}"
             f" name={self.name!r} value={self.value}>"
         )
+
+class StatisticsSnapshot(Base):
+    """Latest precomputed result of an expensive statistics query, one row per `name`
+    (only 'corpus' today). See docs/superpowers/specs/2026-09-29-precomputed-statistics-design.md."""
+    __tablename__ = "statistics_snapshots"
+
+    name: Mapped[str] = mapped_column(Text, primary_key=True)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
