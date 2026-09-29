@@ -1,10 +1,13 @@
+from datetime import datetime
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from Storage.db import AsyncSessionLocal, get_async_db
 from Backend.app.repositories.diagnostics_repository import DiagnosticsRepository
+from Backend.app.services.statistics_snapshot_service import CORPUS_SNAPSHOT, refresh_corpus_snapshot
+from repository.statistics_snapshots import StatisticsSnapshotsRepository
 
 router = APIRouter(prefix="/diagnostics", tags=["diagnostics"])
 
@@ -53,6 +56,7 @@ class StatisticsResponse(BaseModel):
     memes: MemeStats
     content: ContentStats
     trends: TrendsStats
+    computed_at: datetime | None = None
 
 
 async def get_diagnostics_repo(
@@ -64,6 +68,12 @@ async def get_diagnostics_repo(
         pass
 
 
+async def get_statistics_snapshots_repo(
+    db: AsyncSessionLocal = Depends(get_async_db),
+) -> AsyncGenerator[StatisticsSnapshotsRepository, None]:
+    yield StatisticsSnapshotsRepository(db)
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)):
     db_ok = await repo.check_database()
@@ -71,39 +81,18 @@ async def health(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)):
 
 
 @router.get("/statistics", response_model=StatisticsResponse)
-async def statistics(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)):
-    row = await repo.get_statistics()
-    return StatisticsResponse(
-        memes=MemeStats(
-            total=row.total_memes,
-            pending=row.pending,
-            rejected=row.rejected,
-            with_embeddings=row.with_embeddings,
-            with_ocr=row.with_ocr,
-            with_tags=row.with_tags,
-            without_tags=row.without_tags,
-            with_descriptions=row.with_descriptions,
-            with_concept_tags=row.with_concept_tags,
-            flagged=row.flagged,
-            duplicate_clusters=row.duplicate_clusters,
-            ocr_missing_text_heavy_classification=row.ocr_missing_text_heavy_classification,
-            text_heavy_missing_embeddings=row.text_heavy_missing_embeddings,
-            embeddings_missing_lemmas=row.embeddings_missing_lemmas,
-        ),
-        content=ContentStats(
-            ocr_texts=row.ocr_texts,
-            tags=row.tags,
-            tag_keys=row.tag_keys,
-            tag_values=row.tag_values,
-            concepts=row.concepts,
-            concept_image_sets=row.concept_image_sets,
-            concept_images=row.concept_images,
-            descriptions_approved=row.descriptions_approved,
-            descriptions_rejected=row.descriptions_rejected,
-            descriptions_feedback_total=row.descriptions_feedback_total,
-        ),
-        trends=TrendsStats(
-            runs=row.trends_runs,
-            trend_sources=row.trend_sources,
-        ),
-    )
+async def statistics(
+    diagnostics_repo: DiagnosticsRepository = Depends(get_diagnostics_repo),
+    snapshots_repo: StatisticsSnapshotsRepository = Depends(get_statistics_snapshots_repo),
+):
+    """Serves the precomputed snapshot (see batch/build_statistics.py). Falls back to a live
+    compute-and-store when there is no snapshot yet, or the stored payload no longer matches
+    the response shape (e.g. written before a stat field was added)."""
+    snapshot = await snapshots_repo.get(CORPUS_SNAPSHOT)
+    if snapshot is not None:
+        try:
+            return StatisticsResponse(**snapshot.payload, computed_at=snapshot.computed_at)
+        except ValidationError:
+            pass  # fall through to a fresh compute, which also overwrites the unusable row
+    result = await refresh_corpus_snapshot(diagnostics_repo, snapshots_repo)
+    return StatisticsResponse(**result.payload, computed_at=result.computed_at)
