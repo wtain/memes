@@ -1,6 +1,6 @@
 # Precomputed Statistics Snapshot
 
-status: implementation
+status: done
 Plan: `docs/superpowers/plans/2026-09-29-precomputed-statistics.md`
 
 ## Problem
