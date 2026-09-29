@@ -47,8 +47,9 @@ be applied to the metal, general and IT databases.
   (`main(trigger=, run_id=)`, `BatchRun` tracking with `kind="statistics"`, repository
   pattern, no `commit()` inside repositories): compute, upsert the `'corpus'` row, record
   the run. Idempotent; safe to re-run at any time.
-- New repository methods (global `repository/` layer): `upsert_snapshot(name, payload,
-  duration_ms)` and `get_snapshot(name)`. Repositories do not commit.
+- New repository methods (global `repository/` layer): `upsert(name, payload, computed_at,
+  duration_ms)` and `get(name)` (the service stamps `computed_at`). Repositories do not
+  commit.
 
 ### 3. Triggers
 
@@ -74,6 +75,12 @@ be applied to the metal, general and IT databases.
   live once, store the result via the same upsert, and return it. The page never breaks and
   never shows an empty state. Concurrent first requests may each compute; the upsert makes
   that harmless.
+- **Age bound**: a stored snapshot older than 2 hours (`SNAPSHOT_MAX_AGE`, twice the hourly
+  refresh interval) is treated like a missing one and recomputed on request, so a deployment
+  without a running scheduler (e.g. the Docker image, which loads only the base
+  `settings.yaml` with `scheduler.enabled: false`) has bounded staleness instead of a frozen
+  row. A stored payload that no longer matches the response shape (schema drift) is likewise
+  recomputed, and logged as a warning.
 - Update `backend_api.md` (the `StatisticsResponse` block and the endpoint entry) and the
   shared schema in `shared/schemas/`, then regenerate the TypeScript, Kotlin and Python
   types per CLAUDE.md. Note the gotcha there: `diagnostics.py` hand-writes its response
@@ -113,7 +120,14 @@ other changes.
 
 ## Rollout
 
-1. Merge; apply the migration to metal, general and IT.
-2. Restart each backend so the scheduler picks up the new job. Before restarting, run
-   `pip check` in `.venv311` (see the venv-rot gotcha in CLAUDE.md).
-3. Until the first job run, the read-path fallback serves the first request.
+1. Apply the Alembic migration to the metal, general and IT databases FIRST (or together
+   with the merge). It is purely additive, so running it before the new code is safe while
+   the old code is still serving.
+2. Merge. The three always-on backends run `uvicorn --reload --reload-dir Backend/app`, so
+   they reload onto the new code automatically on merge; until the table exists,
+   `GET /api/diagnostics/statistics` would return 500, which is why the migration goes
+   first. The reloaded scheduler then fires `build_statistics` immediately (there is no
+   prior `statistics` run).
+3. Run `pip check` in `.venv311` before any manual backend restart (see the venv-rot
+   gotcha in CLAUDE.md).
+4. Until the first job run, the read-path fallback serves the first request.

@@ -1340,7 +1340,7 @@ Expected: all pass. The **entire** `tests/integration/` root is required, not ju
 
 - [ ] **Step 3: Smoke-test the real app without binding a port**
 
-Uses `TestClient` **without** a `with` block, so the app lifespan (and therefore the scheduler) never starts, against the throwaway `ocrdb_test` database only:
+Uses `httpx.AsyncClient(transport=httpx.ASGITransport(app=app))` inside a single `asyncio.run`, which never runs the app lifespan (and therefore never starts the scheduler), against the throwaway `ocrdb_test` database only. Do not use starlette's `TestClient` without a `with` block here: it runs each request in a fresh event loop, which kills asyncpg's pooled connection on the second request ("Event loop is closed"):
 
 ```bash
 export DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" BASE_PATH=/tmp/test_images APP_ENV=general
@@ -1357,18 +1357,24 @@ async def go(action):
 
 asyncio.run(go("create_all"))
 
-from fastapi.testclient import TestClient
+import httpx
 from Backend.app.main import app
-c = TestClient(app)  # no `with`: lifespan/scheduler not started
-print("health    ", c.get("/api/diagnostics/health").json())
-first = c.get("/api/diagnostics/statistics").json()
-second = c.get("/api/diagnostics/statistics").json()
-print("first  computed_at:", first["computed_at"])
-print("second computed_at:", second["computed_at"])
-assert first["computed_at"] is not None and first["computed_at"] == second["computed_at"], "second call must be served from the stored snapshot"
-print("images    ", c.get("/api/images?limit=1").status_code)
 
-asyncio.run(go("drop_all"))
+async def smoke():
+    # ASGITransport does not run the lifespan, so the scheduler never starts
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+        print("health    ", (await c.get("/api/diagnostics/health")).json())
+        first = (await c.get("/api/diagnostics/statistics")).json()
+        second = (await c.get("/api/diagnostics/statistics")).json()
+        print("first  computed_at:", first["computed_at"])
+        print("second computed_at:", second["computed_at"])
+        assert first["computed_at"] is not None and first["computed_at"] == second["computed_at"], "second call must be served from the stored snapshot"
+        print("images    ", (await c.get("/api/images?limit=1")).status_code)
+
+try:
+    asyncio.run(smoke())
+finally:
+    asyncio.run(go("drop_all"))
 EOF
 unset DATABASE_URL BASE_PATH APP_ENV
 ```

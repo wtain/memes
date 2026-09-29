@@ -314,7 +314,9 @@ build_statistics            → precomputes the statistics page's numbers into t
                                bypass the wrapper, and inputs that change outside any batch
                                (flagged, description feedback, ingestion promote/reject) are
                                only picked up by the hourly run -- there is deliberately no
-                               per-mutation invalidation. See
+                               per-mutation invalidation. The endpoint itself recomputes a
+                               snapshot older than 2 hours, so deployments without a scheduler
+                               stay bounded. See
                                docs/superpowers/specs/2026-09-29-precomputed-statistics-design.md.
 
 # Concept discovery for the new rules engine (see Rules engine below)

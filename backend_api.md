@@ -879,7 +879,7 @@ Returns backend liveness and a live database connectivity probe.
 
 #### Statistics
 
-Returns row counts across all major tables from a precomputed snapshot (table `statistics_snapshots`), refreshed hourly, after every wrapped batch run, and on demand via the `build_statistics` job in `/admin/batches`. `computed_at` says when the snapshot was computed. If no snapshot exists yet (fresh environment), the first request computes and stores one, then returns it.
+Returns row counts across all major tables from a precomputed snapshot (table `statistics_snapshots`), refreshed hourly, after every wrapped batch run, and on demand via the `build_statistics` job in `/admin/batches`. `computed_at` says when the snapshot was computed. If no snapshot exists yet (fresh environment), or the stored snapshot is older than 2 hours, the request computes and stores a fresh one, then returns it.
 
 - **URL**: `/api/diagnostics/statistics`
 - **Method**: `GET`
