@@ -2,6 +2,7 @@
 Unit tests for batch/run_wrapper.py's argument resolution and dispatch. Mocks
 importlib.import_module and BatchRegistry -- no real batch script or DB involved.
 """
+import logging
 import sys
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -9,6 +10,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 import batch.run_wrapper as run_wrapper
+
+# Captured at import time, before the autouse fixture below replaces the module attribute.
+_REAL_REFRESH = run_wrapper._refresh_statistics_best_effort
+
+
+@pytest.fixture(autouse=True)
+def refresh_hook_mock():
+    """Every test in this file runs the real main(); without this, the post-batch hook would
+    try to reach a real database after each fake script."""
+    with patch("batch.run_wrapper._refresh_statistics_best_effort", new=AsyncMock()) as mock:
+        yield mock
 
 
 class TestRunWrapperMain:
@@ -60,3 +72,77 @@ class TestRunWrapperMain:
              patch.object(sys, "argv", ["run_wrapper.py"] + argv):
             with pytest.raises(SystemExit):
                 await run_wrapper.main()
+
+
+def _run_argv(script: str) -> list[str]:
+    return ["run_wrapper.py", "--script", script, "--env", "metal", "--trigger", "scheduled"]
+
+
+def _registry_for(script: str) -> MagicMock:
+    registry = MagicMock()
+    registry.all_names.return_value = [script]
+    registry.get.return_value = {"module": f"batch.{script}", "kind": script}
+    return registry
+
+
+class TestPostBatchStatisticsRefresh:
+    @pytest.mark.asyncio
+    async def test_refreshes_after_a_successful_script(self, refresh_hook_mock):
+        fake_module = MagicMock()
+        fake_module.main = AsyncMock()
+
+        with patch("batch.run_wrapper.BatchRegistry", return_value=_registry_for("trends_batch")), \
+             patch("batch.run_wrapper.load_env"), \
+             patch("batch.run_wrapper.importlib.import_module", return_value=fake_module), \
+             patch.object(sys, "argv", _run_argv("trends_batch")):
+            await run_wrapper.main()
+
+        refresh_hook_mock.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_does_not_refresh_when_the_script_fails(self, refresh_hook_mock):
+        fake_module = MagicMock()
+        fake_module.main = AsyncMock(side_effect=RuntimeError("boom"))
+
+        with patch("batch.run_wrapper.BatchRegistry", return_value=_registry_for("trends_batch")), \
+             patch("batch.run_wrapper.load_env"), \
+             patch("batch.run_wrapper.importlib.import_module", return_value=fake_module), \
+             patch.object(sys, "argv", _run_argv("trends_batch")):
+            with pytest.raises(RuntimeError, match="boom"):
+                await run_wrapper.main()
+
+        refresh_hook_mock.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_does_not_refresh_after_build_statistics_itself(self, refresh_hook_mock):
+        fake_module = MagicMock()
+        fake_module.main = AsyncMock()
+
+        with patch("batch.run_wrapper.BatchRegistry", return_value=_registry_for("build_statistics")), \
+             patch("batch.run_wrapper.load_env"), \
+             patch("batch.run_wrapper.importlib.import_module", return_value=fake_module), \
+             patch.object(sys, "argv", _run_argv("build_statistics")):
+            await run_wrapper.main()
+
+        refresh_hook_mock.assert_not_awaited()
+
+
+class TestRefreshStatisticsBestEffort:
+    @pytest.mark.asyncio
+    async def test_calls_build_statistics_refresh_snapshot(self):
+        with patch("batch.build_statistics.refresh_snapshot", new=AsyncMock()) as refresh_mock:
+            await _REAL_REFRESH()
+
+        refresh_mock.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_swallows_refresh_failures(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="batch.run_wrapper"), \
+             patch("batch.build_statistics.refresh_snapshot",
+                   new=AsyncMock(side_effect=RuntimeError("db down"))):
+            await _REAL_REFRESH()  # must not raise
+
+        warnings = [r for r in caplog.records
+                    if r.name == "batch.run_wrapper" and r.levelno == logging.WARNING
+                    and "post-batch statistics refresh failed" in r.getMessage()]
+        assert len(warnings) == 1
