@@ -303,6 +303,20 @@ build_ocr_text_embeddings   → computes sentence embeddings (paraphrase-multili
                                ingestion batch -- also chained automatically as part of
                                ingest_auto_prep (see Ingestion below).
 
+build_statistics            → precomputes the statistics page's numbers into the single-row
+                               statistics_snapshots table (name='corpus'), so GET
+                               /api/diagnostics/statistics is a row read instead of ~28
+                               subqueries. Scheduled hourly (scheduler.jobs), admin-triggerable
+                               from /admin/batches, and also run best-effort by
+                               batch/run_wrapper.py after every other successful wrapped batch
+                               (failures there are logged and swallowed, and it is skipped for
+                               build_statistics itself). Scripts run directly from a shell
+                               bypass the wrapper, and inputs that change outside any batch
+                               (flagged, description feedback, ingestion promote/reject) are
+                               only picked up by the hourly run -- there is deliberately no
+                               per-mutation invalidation. See
+                               docs/superpowers/specs/2026-09-29-precomputed-statistics-design.md.
+
 # Concept discovery for the new rules engine (see Rules engine below)
 build_lemma_clusters       → draft_concepts_from_clusters
 
