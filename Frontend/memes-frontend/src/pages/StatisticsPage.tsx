@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import type { StatisticsResponse } from "../types/generated/all"
+import { formatUpdatedAgo } from "./formatUpdatedAgo"
 
 type Props = { memesApi: MemesApi }
 
@@ -56,6 +57,7 @@ export default function StatisticsPage({ memesApi }: Props) {
   )
 
   const { memes, content } = stats
+  const updatedAgo = formatUpdatedAgo(stats.computed_at)
   const withoutTags = (memes.total ?? 0) - (memes.with_tags ?? 0)
   const withoutDescriptions = (memes.total ?? 0) - (memes.with_descriptions ?? 0)
   const avgTags = (memes.with_tags ?? 0) > 0
@@ -64,7 +66,10 @@ export default function StatisticsPage({ memesApi }: Props) {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold mb-4">Statistics</h1>
+      <div>
+        <h1 className="text-2xl font-bold mb-1">Statistics</h1>
+        {updatedAgo && <p className="text-sm text-gray-500">{updatedAgo}</p>}
+      </div>
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Library</h2>
