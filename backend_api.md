@@ -266,7 +266,8 @@ Response from `POST /api/bug-reports`.
   "trends": {
     "runs": "number",
     "trend_sources": "number"
-  }
+  },
+  "computed_at": "string | null (ISO 8601, UTC)"
 }
 ```
 
@@ -878,7 +879,7 @@ Returns backend liveness and a live database connectivity probe.
 
 #### Statistics
 
-Returns row counts across all major tables in a single SQL round-trip.
+Returns row counts across all major tables from a precomputed snapshot (table `statistics_snapshots`), refreshed hourly, after every wrapped batch run, and on demand via the `build_statistics` job in `/admin/batches`. `computed_at` says when the snapshot was computed. If no snapshot exists yet (fresh environment), the first request computes and stores one, then returns it.
 
 - **URL**: `/api/diagnostics/statistics`
 - **Method**: `GET`
@@ -918,7 +919,8 @@ Returns row counts across all major tables in a single SQL round-trip.
   "trends": {
     "runs": 14,
     "trend_sources": 6
-  }
+  },
+  "computed_at": "2026-09-29T12:00:00Z"
 }
 ```
 

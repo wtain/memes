@@ -326,6 +326,10 @@ export interface StatisticsResponse {
   memes: StatisticsMemeStats;
   content: StatisticsContentStats;
   trends: StatisticsTrendsStats;
+  /**
+   * When this snapshot was computed (UTC); null when unknown.
+   */
+  computed_at?: string | null;
   [k: string]: unknown;
 }
 /**

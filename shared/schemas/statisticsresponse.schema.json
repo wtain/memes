@@ -6,7 +6,8 @@
   "properties": {
     "memes":   { "$ref": "./statisticsmemestats.schema.json" },
     "content": { "$ref": "./statisticscontentstats.schema.json" },
-    "trends":  { "$ref": "./statisticstrendsstats.schema.json" }
+    "trends":  { "$ref": "./statisticstrendsstats.schema.json" },
+    "computed_at": { "type": ["string", "null"], "format": "date-time", "description": "When this snapshot was computed (UTC); null when unknown." }
   },
   "required": ["memes", "content", "trends"]
 }

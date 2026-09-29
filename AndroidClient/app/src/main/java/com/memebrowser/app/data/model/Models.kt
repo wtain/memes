@@ -377,5 +377,6 @@ data class UploadResponse(
 data class StatisticsResponse(
     @SerialName("memes") val memes: StatisticsMemeStats,
     @SerialName("content") val content: StatisticsContentStats,
-    @SerialName("trends") val trends: StatisticsTrendsStats
+    @SerialName("trends") val trends: StatisticsTrendsStats,
+    @SerialName("computed_at") val computed_at: String? = null
 )
