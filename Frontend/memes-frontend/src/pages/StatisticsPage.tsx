@@ -2,25 +2,21 @@ import { useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import type { StatisticsResponse } from "../types/generated/all"
 import { formatUpdatedAgo } from "./formatUpdatedAgo"
+import { buildSections, changedCellLabels, type StatCell } from "./statisticsSections"
+import { useTweenedStats } from "./useTweenedStats"
 
 type Props = { memesApi: MemesApi }
 
-function n(v: number | undefined | null): string {
-  return (v ?? 0).toLocaleString()
-}
+const FLASH_MS = 1500
 
-function pct(count: number | undefined, total: number | undefined): string {
-  if (!total) return "0.0%"
-  return `${(((count ?? 0) / total) * 100).toFixed(1)}%`
-}
-
-type StatCell = { label: string; value: string }
-
-function StatGrid({ cells }: { cells: StatCell[] }) {
+function StatGrid({ cells, flashing }: { cells: StatCell[]; flashing: ReadonlySet<string> }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {cells.map(({ label, value }) => (
-        <div key={label} className="bg-white rounded-lg p-4 shadow-sm">
+        <div
+          key={label}
+          className={`rounded-lg p-4 shadow-sm transition-colors duration-1000 ${flashing.has(label) ? "bg-amber-100" : "bg-white"}`}
+        >
           <div className="text-sm text-gray-500">{label}</div>
           <div className="text-xl font-semibold mt-1">{value}</div>
         </div>
@@ -30,22 +26,50 @@ function StatGrid({ cells }: { cells: StatCell[] }) {
 }
 
 export default function StatisticsPage({ memesApi }: Props) {
-  const [stats, setStats] = useState<StatisticsResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [snapshot, setSnapshot] = useState<StatisticsResponse | null>(null)
+  const [live, setLive] = useState<StatisticsResponse | null>(null)
+  const [liveSettled, setLiveSettled] = useState(false)
+  const [snapshotError, setSnapshotError] = useState<string | null>(null)
+  const [flashing, setFlashing] = useState<ReadonlySet<string>>(new Set())
   const loadedRef = useRef(false)
+  const snapshotRef = useRef<StatisticsResponse | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (loadedRef.current) return
     loadedRef.current = true
+
     memesApi.getStatistics()
-      .then(setStats)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load statistics"))
+      .then((result) => {
+        snapshotRef.current = result
+        setSnapshot(result)
+      })
+      .catch((e: unknown) => setSnapshotError(e instanceof Error ? e.message : "Failed to load statistics"))
+
+    // Live failures are deliberately silent: the snapshot (if any) stays on screen.
+    memesApi.getStatistics({ live: true })
+      .then((result) => {
+        setLive(result)
+        if (snapshotRef.current) {
+          setFlashing(changedCellLabels(snapshotRef.current, result))
+          if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+          flashTimerRef.current = setTimeout(() => setFlashing(new Set()), FLASH_MS)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLiveSettled(true))
   }, [memesApi])
 
-  if (error) return (
+  useEffect(() => () => {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+  }, [])
+
+  const stats = useTweenedStats(live ?? snapshot)
+
+  if (snapshotError && liveSettled && !live) return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold mb-4">Statistics</h1>
-      <p className="text-sm text-red-500">{error}</p>
+      <p className="text-sm text-red-500">{snapshotError}</p>
     </div>
   )
 
@@ -56,67 +80,30 @@ export default function StatisticsPage({ memesApi }: Props) {
     </div>
   )
 
-  const { memes, content } = stats
   const updatedAgo = formatUpdatedAgo(stats.computed_at)
-  const withoutTags = (memes.total ?? 0) - (memes.with_tags ?? 0)
-  const withoutDescriptions = (memes.total ?? 0) - (memes.with_descriptions ?? 0)
-  const avgTags = (memes.with_tags ?? 0) > 0
-    ? ((content.tags ?? 0) / (memes.with_tags ?? 1)).toFixed(1)
-    : "—"
+  const refreshing = snapshot !== null && !liveSettled
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold mb-1">Statistics</h1>
-        {updatedAgo && <p className="text-sm text-gray-500">{updatedAgo}</p>}
+        <div className="flex items-center gap-3">
+          {updatedAgo && <p className="text-sm text-gray-500">{updatedAgo}</p>}
+          {refreshing && (
+            <span role="status" className="inline-flex items-center gap-1.5 text-sm text-gray-400">
+              <span className="h-2 w-2 rounded-full bg-gray-400 animate-pulse" aria-hidden="true" />
+              Refreshing…
+            </span>
+          )}
+        </div>
       </div>
 
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Library</h2>
-        <StatGrid cells={[
-          { label: "Total memes", value: n(memes.total) },
-          { label: "Tagged", value: `${n(memes.with_tags)} (${pct(memes.with_tags, memes.total)})` },
-          { label: "Not tagged", value: `${n(withoutTags)} (${pct(withoutTags, memes.total)})` },
-          { label: "Flagged", value: n(memes.flagged) },
-          { label: "Duplicate clusters", value: n(memes.duplicate_clusters) },
-          { label: "Pending ingestion review", value: n(memes.pending) },
-          { label: "Rejected (ingestion)", value: n(memes.rejected) },
-        ]} />
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Pipeline coverage</h2>
-        <StatGrid cells={[
-          { label: "With OCR", value: `${n(memes.with_ocr)} (${pct(memes.with_ocr, memes.total)})` },
-          { label: "With embeddings", value: `${n(memes.with_embeddings)} (${pct(memes.with_embeddings, memes.total)})` },
-          { label: "With tags", value: `${n(memes.with_tags)} (${pct(memes.with_tags, memes.total)})` },
-          { label: "With descriptions", value: `${n(memes.with_descriptions)} (${pct(memes.with_descriptions, memes.total)})` },
-          { label: "Without descriptions", value: `${n(withoutDescriptions)} (${pct(withoutDescriptions, memes.total)})` },
-          { label: "With concept assignments", value: `${n(memes.with_concept_tags)} (${pct(memes.with_concept_tags, memes.total)})` },
-          { label: "OCR without text-heavy classification", value: n(memes.ocr_missing_text_heavy_classification) },
-          { label: "Text-heavy without OCR-text embeddings", value: n(memes.text_heavy_missing_embeddings) },
-          { label: "Embeddings without OCR lemmas", value: n(memes.embeddings_missing_lemmas) },
-        ]} />
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Tags</h2>
-        <StatGrid cells={[
-          { label: "Total tags", value: n(content.tags) },
-          { label: "Avg tags / tagged meme", value: avgTags },
-          { label: "Tag categories", value: n(content.tag_keys) },
-          { label: "Distinct tag values", value: n(content.tag_values) },
-          { label: "OCR text blocks", value: n(content.ocr_texts) },
-        ]} />
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Knowledge base</h2>
-        <StatGrid cells={[
-          { label: "Concepts", value: n(content.concepts) },
-          { label: "Concept image sets", value: n(content.concept_image_sets) },
-        ]} />
-      </section>
+      {buildSections(stats).map((section) => (
+        <section key={section.title}>
+          <h2 className="text-lg font-semibold mb-3">{section.title}</h2>
+          <StatGrid cells={section.cells} flashing={flashing} />
+        </section>
+      ))}
     </div>
   )
 }

@@ -343,8 +343,9 @@ export class HttpMemesApi implements MemesApi {
     return res.json()
   }
 
-  async getStatistics(): Promise<StatisticsResponse> {
-    const res = await fetch(`${this.baseUrl}/api/diagnostics/statistics`, { headers: { Accept: "application/json" } })
+  async getStatistics(options?: { live?: boolean }): Promise<StatisticsResponse> {
+    const query = options?.live ? "?live=true" : ""
+    const res = await fetch(`${this.baseUrl}/api/diagnostics/statistics${query}`, { headers: { Accept: "application/json" } })
     if (!res.ok) throw new Error(`Failed to fetch statistics: ${res.status}`)
     return res.json()
   }

@@ -67,7 +67,7 @@ export interface MemesApi {
 
   uploadMemes(files: File[]): Promise<UploadResponse>;
 
-  getStatistics(): Promise<StatisticsResponse>;
+  getStatistics(options?: { live?: boolean }): Promise<StatisticsResponse>;
 
   /** Resolves to null (not a rejection) when no ingestion run is currently in progress. */
   getIngestionRunStatus(): Promise<IngestionRunStatus | null>;
