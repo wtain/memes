@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ValidationError
 
 from Storage.db import AsyncSessionLocal, get_async_db
@@ -89,6 +89,11 @@ async def health(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)):
 
 @router.get("/statistics", response_model=StatisticsResponse)
 async def statistics(
+    live: bool = Query(
+        False,
+        description="Compute on the fly instead of serving the stored snapshot; the result is "
+                    "also stored as the new snapshot.",
+    ),
     diagnostics_repo: DiagnosticsRepository = Depends(get_diagnostics_repo),
     snapshots_repo: StatisticsSnapshotsRepository = Depends(get_statistics_snapshots_repo),
 ):
@@ -96,15 +101,21 @@ async def statistics(
     compute-and-store when there is no snapshot yet, the snapshot is older than
     SNAPSHOT_MAX_AGE (so a deployment without a running scheduler stays bounded), or the
     stored payload no longer matches the response shape (e.g. written before a stat field
-    was added)."""
-    snapshot = await snapshots_repo.get(CORPUS_SNAPSHOT)
-    if snapshot is not None and datetime.now(timezone.utc) - snapshot.computed_at <= SNAPSHOT_MAX_AGE:
-        try:
-            return StatisticsResponse(**snapshot.payload, computed_at=snapshot.computed_at)
-        except ValidationError:
-            # fall through to a fresh compute, which also overwrites the unusable row
-            logger.warning(
-                "Stored statistics snapshot no longer matches the response shape; recomputed live"
-            )
+    was added).
+
+    live=true skips the snapshot entirely: it computes on the fly, stores the result as the
+    new snapshot (write-through, so every live request also refreshes what plain requests
+    serve) and returns it. The statistics page uses this to replace the instantly-shown
+    snapshot with current numbers."""
+    if not live:
+        snapshot = await snapshots_repo.get(CORPUS_SNAPSHOT)
+        if snapshot is not None and datetime.now(timezone.utc) - snapshot.computed_at <= SNAPSHOT_MAX_AGE:
+            try:
+                return StatisticsResponse(**snapshot.payload, computed_at=snapshot.computed_at)
+            except ValidationError:
+                # fall through to a fresh compute, which also overwrites the unusable row
+                logger.warning(
+                    "Stored statistics snapshot no longer matches the response shape; recomputed live"
+                )
     result = await refresh_corpus_snapshot(diagnostics_repo, snapshots_repo)
     return StatisticsResponse(**result.payload, computed_at=result.computed_at)

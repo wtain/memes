@@ -316,7 +316,10 @@ build_statistics            → precomputes the statistics page's numbers into t
                                only picked up by the hourly run -- there is deliberately no
                                per-mutation invalidation. The endpoint itself recomputes a
                                snapshot older than 2 hours, so deployments without a scheduler
-                               stay bounded. See
+                               stay bounded. The statistics page also requests `?live=true` on
+                               every open, which recomputes and stores the snapshot, so the
+                               snapshot is in practice refreshed whenever someone views the page;
+                               the hourly job is the backstop. See
                                docs/superpowers/specs/2026-09-29-precomputed-statistics-design.md.
 
 # Concept discovery for the new rules engine (see Rules engine below)

@@ -883,8 +883,10 @@ Returns row counts across all major tables from a precomputed snapshot (table `s
 
 - **URL**: `/api/diagnostics/statistics`
 - **Method**: `GET`
+- **Query Parameters**:
+  - `live` (boolean, optional, default `false`): when `true`, skips the stored snapshot, computes the statistics on the fly, stores the result as the new snapshot and returns it (`computed_at` is then the time of this request). The statistics page calls the plain endpoint first (instant) and then `?live=true` to refresh.
 - **Response**: `StatisticsResponse`
-- **Example**: `GET /api/diagnostics/statistics`
+- **Example**: `GET /api/diagnostics/statistics` or `GET /api/diagnostics/statistics?live=true`
 
 ```json
 {

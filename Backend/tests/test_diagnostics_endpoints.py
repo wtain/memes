@@ -197,3 +197,61 @@ class TestStatistics:
         assert response.json()["memes"]["total"] == 555
         mock_diagnostics_repo.get_statistics.assert_not_awaited()
         mock_snapshots_repo.upsert.assert_not_awaited()
+
+    def test_live_true_computes_stores_and_ignores_a_fresh_snapshot(
+        self, client, mock_diagnostics_repo, mock_snapshots_repo,
+    ):
+        mock_snapshots_repo.get.return_value = SimpleNamespace(
+            payload=statistics_payload(_fake_stats_row(total_memes=555)),
+            computed_at=_fresh_time(),
+        )
+        mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(total_memes=999)
+
+        response = client.get("/api/diagnostics/statistics?live=true")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["memes"]["total"] == 999          # live value, not the stored 555
+        assert data["computed_at"] is not None
+        mock_diagnostics_repo.get_statistics.assert_awaited_once()
+        mock_snapshots_repo.upsert.assert_awaited_once()   # write-through
+        mock_snapshots_repo.get.assert_not_awaited()
+
+    def test_live_false_behaves_like_the_default_and_serves_the_snapshot(
+        self, client, mock_diagnostics_repo, mock_snapshots_repo,
+    ):
+        mock_snapshots_repo.get.return_value = SimpleNamespace(
+            payload=statistics_payload(_fake_stats_row(total_memes=555)),
+            computed_at=_fresh_time(),
+        )
+
+        response = client.get("/api/diagnostics/statistics?live=false")
+
+        assert response.status_code == 200
+        assert response.json()["memes"]["total"] == 555
+        mock_diagnostics_repo.get_statistics.assert_not_awaited()
+        mock_snapshots_repo.upsert.assert_not_awaited()
+
+    def test_live_compute_failure_propagates_as_500_and_writes_nothing(
+        self, mock_diagnostics_repo, mock_snapshots_repo,
+    ):
+        # A separate client that does not re-raise server exceptions, to observe the 500.
+        from Backend.app.api.diagnostics import get_diagnostics_repo, get_statistics_snapshots_repo
+
+        async def override_diagnostics():
+            yield mock_diagnostics_repo
+
+        async def override_snapshots():
+            yield mock_snapshots_repo
+
+        app.dependency_overrides[get_diagnostics_repo] = override_diagnostics
+        app.dependency_overrides[get_statistics_snapshots_repo] = override_snapshots
+        mock_diagnostics_repo.get_statistics.side_effect = RuntimeError("db down")
+        try:
+            with TestClient(app, raise_server_exceptions=False) as c:
+                response = c.get("/api/diagnostics/statistics?live=true")
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 500
+        mock_snapshots_repo.upsert.assert_not_awaited()
