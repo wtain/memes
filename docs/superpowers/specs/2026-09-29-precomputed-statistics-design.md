@@ -1,7 +1,7 @@
 # Precomputed Statistics Snapshot
 
-status: draft
-Plan: (none yet)
+status: planned
+Plan: `docs/superpowers/plans/2026-09-29-precomputed-statistics.md`
 
 ## Problem
 
