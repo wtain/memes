@@ -458,7 +458,10 @@ see docs/security/admin-permissions-todo.md.
   - `image_id`: Unique identifier of the image
 - **Body**: `{"text": "..."}`
 - **Response**: Success (no content). An empty/whitespace-only `text` clears the note
-  (equivalent to `DELETE`) rather than storing an empty string.
+  (equivalent to `DELETE`) rather than storing an empty string. A non-empty `text` also
+  refreshes that note's lemma index in the same request (smart search sees it immediately);
+  `Note` tags (`build_tags_from_notes`) and the note embedding (`build_description_note_embeddings`)
+  are still updated only by their batch jobs.
 - **Cache**: no-cache
 - **Example**: `PUT /api/images/abc123/description-note` with body `{"text": "a cat wearing a hat"}`
 
@@ -467,7 +470,7 @@ see docs/security/admin-permissions-todo.md.
 Clear an image's description note. Also removes its embedding row (`ON DELETE CASCADE`)
 and lemma index rows (deleted explicitly by the repository -- that table's FK cascades off
 the image, not the note), synchronously -- no batch run required for a cleared note to stop
-appearing in search/similarity results. No authentication today -- see
+appearing in search/similarity results. The image's `Note` tags are deleted too (as when `PUT` is given empty text). No authentication today -- see
 docs/security/admin-permissions-todo.md.
 
 - **URL**: `/api/images/{image_id}/description-note`

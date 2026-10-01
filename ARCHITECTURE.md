@@ -123,8 +123,14 @@ Database (Images + Embeddings + Clusters)
        ├─→ (batch/build_image_description_embeddings.py)
        │   └─→ SBERT description embeddings (description similarity only)
        │
-       └─→ (batch/build_tags_from_descriptions.py)
-           └─→ ConceptTagger tagging from descriptions (source "Ollama")
+       ├─→ (batch/build_tags_from_descriptions.py)
+       │   └─→ ConceptTagger tagging from descriptions (source "Ollama")
+       │
+       ├─→ (batch/build_description_lemmas.py)
+       │   └─→ Description lemmas (smart search)
+       │
+       └─→ (batch/build_tags_from_notes.py)
+           └─→ ConceptTagger tagging from description notes (source "Note")
            (see docs/data-flow.md for the full signal/consumer matrix)
        │
        ▼
@@ -255,7 +261,7 @@ class ImageRepository:
 4. **clusterize** - Optimize cluster storage
 5. **build_tags_from_ocr** - Rule-based tagging
 6. **build_image_descriptions** - LLM descriptions (Ollama)
-7. **build_tags_from_descriptions** - Description-based tagging
+7. **build_tags_from_descriptions** - Description-based tagging (also: **build_description_lemmas**, **build_tags_from_notes**)
 8. **build_concept_embeddings** - Semantic concepts
 9. **Utilities** - Move excluded, unregister deleted, trends analysis
 10. **deduplicate_ocr_texts** - Remove duplicate OCR entries per image/language
@@ -417,8 +423,14 @@ Parallel tagging (batch jobs 5-7)
   ├─ build_image_descriptions.py
   │  Call Ollama → descriptions
   │
-  └─ build_tags_from_descriptions.py
-     Apply rules to descriptions → tags
+  ├─ build_tags_from_descriptions.py
+  │  Apply rules to descriptions → tags
+  │
+  ├─ build_description_lemmas.py
+  │  Index descriptions as English lemmas → smart search
+  │
+  └─ build_tags_from_notes.py
+     Apply rules to human description notes → Note tags
                 │
                 ▼
 All tags stored in `image_tags` table
@@ -602,6 +614,14 @@ Total for 1000 images: ~30-60 minutes
 7. build_tags_from_descriptions
    Input:  Descriptions + rules
    Output: Tags from descriptions
+
+   build_description_lemmas
+   Input:  Descriptions
+   Output: Description lemmas (smart search)
+
+   build_tags_from_notes
+   Input:  Description notes + rules
+   Output: Note tags
    Time:   ~10ms per image
 ```
 

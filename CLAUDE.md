@@ -248,6 +248,12 @@ build_description_note_lemmas → per-image lemma index for human description no
                               docs/superpowers/specs/2026-08-20-description-notes-design.md);
                               admin-triggerable from /admin/batches, manual-trigger only, not
                               scheduled
+build_description_lemmas   → per-description lemma index for Ollama descriptions, indexed as English
+                              (see docs/superpowers/specs/2026-10-01-description-notes-search-similarity-tagging-design.md);
+                              incremental by construction; feeds smart search, with rows of rejected
+                              descriptions excluded at query time; admin-triggerable from
+                              /admin/batches, manual-trigger only, not scheduled; --status pending
+                              is not supported (task 148)
 build_description_note_embeddings → SBERT embeddings (bge-large-en-v1.5, 1024-dim) for
                               non-empty description notes; admin-triggerable from
                               /admin/batches, manual-trigger only, not scheduled
@@ -270,6 +276,12 @@ build_tags_from_descriptions → ConceptTagger tags from descriptions (same voca
                               images' Ollama tags from all their descriptions. Full run
                               (no --incremental) deletes every Ollama tag first. See
                               docs/data-flow.md for which signals feed which consumers.
+build_tags_from_notes      → ConceptTagger tags from human description notes (same vocabulary/profile as
+                              build_tags_from_ocr, source "Note", language=None). --incremental selects
+                              notes with no Note tag or edited after their newest Note tag and rewrites
+                              those images' Note tags; full run (no --incremental) deletes every Note
+                              tag first. Clearing a note deletes its Note tags immediately.
+                              admin-triggerable from /admin/batches, manual-trigger only, not scheduled.
 build_concept_embeddings   → concept CLIP embeddings + mappings
 
 # Maintenance (run as needed)
