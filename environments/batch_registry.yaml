@@ -64,3 +64,6 @@ build_image_descriptions:
 build_image_description_embeddings:
   module: batch.build_image_description_embeddings
   kind: build_image_description_embeddings
+description_pipeline:
+  module: batch.description_pipeline
+  kind: description_pipeline

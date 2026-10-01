@@ -59,11 +59,11 @@ Notes:
 
 - Scheduled (`environments/settings.yaml`, `scheduler.jobs`): only `trends_batch` and `build_statistics`.
 - Every other enrichment job is manual. Most are triggerable from `/admin/batches` through `environments/batch_registry.yaml`.
-- `build_image_descriptions` and `build_image_description_embeddings` are run-tracked and in the registry (admin-triggerable, manual only). The admin trigger has no `--limit`, so one trigger describes the whole backlog; the planned `description_pipeline` driver (task 155) will cap it.
+- `build_image_descriptions` and `build_image_description_embeddings` are run-tracked and in the registry (admin-triggerable, manual only). Triggered on their own they have no `--limit`, so one trigger describes the whole backlog.
+- `description_pipeline` (admin-triggerable, manual only) runs, in order: `build_tags_from_ocr`, the two note jobs, `build_image_descriptions` (capped by `image_descriptions.max_per_run`, unset means unlimited), then description embeddings and `build_tags_from_descriptions`. Independent steps continue past a failure; the two steps that need descriptions are skipped if `build_image_descriptions` fails. Each step self-tracks under its own kind. Active images only, so new images join after `ingest_promote`. Not in the chain: `tag_images_from_concepts`, `detect_entities_and_tag`, concept drafting.
 - Ingestion (`ingest_auto_prep`) does not cover descriptions: neither description job supports `--status pending`.
 
 ## 5. Known gaps (tracked in `board/todo`)
 
 See tasks 147-154 (index: `board/description-tagging-tracker.md`). Summary: description feedback is not consumed anywhere, descriptions are not searchable, notes do not join tagging
-or description similarity, description jobs are untracked and outside ingestion,
-and there is no description/tagging pipeline.
+or description similarity, description jobs are outside ingestion (deliberately: new images are described after promotion).

@@ -112,6 +112,7 @@ async def _process(reset: bool, limit: int | None = None, retry_failed: bool = F
         total_pending = len(work)
         if limit is not None:
             work = work[:limit]
+        print(f"{len(work)} image(s) to describe this run, {total_pending - len(work)} left waiting")
 
         committer = DescriptionBatchCommitter(session, batch_size=batch_size)
         tracker = ProgressTracker(total=len(work), report_every=settings.GENERAL.PROGRESS_EVERY)

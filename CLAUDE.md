@@ -275,6 +275,16 @@ build_tags_from_descriptions → ConceptTagger tags from descriptions (same voca
                               images' Ollama tags from all their descriptions. Full run
                               (no --incremental) deletes every Ollama tag first. See
                               docs/data-flow.md for which signals feed which consumers.
+description_pipeline      → one admin-triggerable driver (manual-trigger only, not scheduled) that refreshes the
+                              description and tagging data: build_tags_from_ocr, build_description_note_lemmas,
+                              build_description_note_embeddings, build_image_descriptions (capped per run by
+                              image_descriptions.max_per_run, unset = unlimited; re-trigger until the backlog is empty),
+                              then build_image_description_embeddings and build_tags_from_descriptions (both need
+                              the describe step). Active images only, so new images join after ingest_promote. A failed
+                              step only skips the steps that need it; each child self-tracks under its own kind and an
+                              already-running child is skipped, not failed. Excludes tag_images_from_concepts,
+                              detect_entities_and_tag and concept drafting. See
+                              docs/superpowers/specs/2026-10-01-description-tagging-pipeline-driver-design.md.
 build_concept_embeddings   → concept CLIP embeddings + mappings
 
 # Maintenance (run as needed)
