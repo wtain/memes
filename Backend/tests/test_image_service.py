@@ -641,3 +641,37 @@ class TestPaginateResponseCursor:
         assert response.hasNext is False
         _, cursor_id = ImageService._decode_cursor(response.nextCursor)
         assert cursor_id == rows[-1].id
+
+
+class TestSearchCursor:
+    def test_ranked_cursor_round_trips_with_score(self):
+        created_at = datetime(2026, 1, 1, 12, 0, 0)
+        image_id = uuid.uuid4()
+        row = SimpleNamespace(id=image_id, created_at=created_at, score=1.9)
+
+        cursor = ImageService._encode_cursor(row)
+        score, decoded_created_at, decoded_id = ImageService._decode_search_cursor(cursor)
+
+        assert (score, decoded_created_at, decoded_id) == (1.9, created_at, image_id)
+
+    def test_recency_cursor_has_no_score(self):
+        created_at = datetime(2026, 1, 1, 12, 0, 0)
+        image_id = uuid.uuid4()
+        cursor = ImageService._encode_cursor(SimpleNamespace(id=image_id, created_at=created_at))
+
+        assert ImageService._decode_search_cursor(cursor) == (None, created_at, image_id)
+        assert ImageService._decode_search_cursor(None) == (None, None, None)
+
+    async def test_search_passes_the_decoded_score_to_the_repository(self, service, mock_repo, monkeypatch):
+        created_at = datetime(2026, 1, 1, 12, 0, 0)
+        image_id = uuid.uuid4()
+        cursor = ImageService._encode_cursor(SimpleNamespace(id=image_id, created_at=created_at, score=0.9))
+        mock_repo.search.return_value = ([], {})
+        monkeypatch.setattr(ImageService, "_record_history", AsyncMock())
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+
+        await service.search(q="cat", raw_facets=None, cursor=cursor, limit=10)
+
+        kwargs = mock_repo.search.call_args.kwargs
+        assert kwargs["cursor_score"] == 0.9
+        assert kwargs["cursor_created_at"] == created_at and kwargs["cursor_id"] == image_id

@@ -1,6 +1,8 @@
+import logging
+import time
 from collections import defaultdict
 from datetime import datetime
-from typing import Optional
+from typing import NamedTuple, Optional
 import uuid
 
 import sqlalchemy
@@ -17,26 +19,33 @@ from Storage.models import (
 from graph.uf import UnionFind
 from repository.description_note_lemmas import DescriptionNoteLemmasSaver, compute_note_lemmas
 from repository.image_descriptions import description_not_rejected
-from repository.ocr_lemmas import matching_image_ids
+from repository.ocr_lemmas import scored_image_matches
+from repository.search_ranking import get_weights
 from repository.tags import DESCRIPTION_TAG_SOURCE, NOTE_TAG_SOURCE, TagsRepository
+
+logger = logging.getLogger(__name__)
+
+
+class RankedRow(NamedTuple):
+    """One page row of a relevance-ranked search: the usual image columns plus the relevance score."""
+    id: uuid.UUID
+    filename: str
+    created_at: datetime
+    flagged: Optional[bool]
+    score: float
 
 
 class ImageRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def _build_filtered_ids_query(
-        self,
-        q: Optional[str],
-        tags: dict[str, set],
-    ):
-        """Returns a scalar-subquery of image IDs matching q and tags, unpaginated."""
+    async def _build_filtered_ids_query(self, matching_ids: Optional[set], tags: dict[str, set]):
+        """Returns a scalar-subquery of image IDs matching the text-match set and tags, unpaginated."""
         img = aliased(Image)
         image_tag = aliased(ImageTag)
 
         query = select(img.id).where(img.status == "active")
 
-        matching_ids = await matching_image_ids(self.session, q)
         if matching_ids is not None:
             query = query.where(img.id.in_(matching_ids))
 
@@ -59,11 +68,13 @@ class ImageRepository:
         cursor_created_at: Optional[datetime],
         cursor_id: Optional[uuid.UUID],
         limit: int,
+        cursor_score: Optional[float] = None,
     ):
         img = aliased(Image)
         image_tag = aliased(ImageTag)
 
-        filtered_ids = await self._build_filtered_ids_query(q, tags)
+        scores = await scored_image_matches(self.session, q)
+        filtered_ids = await self._build_filtered_ids_query(None if scores is None else set(scores), tags)
         filtered_ids_subquery = filtered_ids.subquery()
 
         # Facet counts over the full filtered set — no pagination applied here
@@ -80,6 +91,16 @@ class ImageRepository:
         raw_facets: dict[str, dict[str, int]] = defaultdict(dict)
         for k, v, count in facets_result.all():
             raw_facets[k][v] = count
+
+        if scores is not None:
+            rows = await self._ranked_page(
+                scores, filtered_ids_subquery, cursor_score, cursor_created_at, cursor_id, limit
+            )
+            return rows, dict(raw_facets)
+
+        if cursor_score is not None:
+            # A relevance cursor presented without a ranked query: restart at page 1.
+            cursor_created_at = cursor_id = None
 
         # Paginated page of image rows with flagged status
         extras = aliased(ImageExtras)
@@ -98,6 +119,31 @@ class ImageRepository:
         )
 
         return results.all(), dict(raw_facets)
+
+    async def _ranked_page(self, scores, filtered_ids_subquery, cursor_score, cursor_created_at, cursor_id, limit):
+        """Relevance-ordered page: score map from matching, rows fetched for the surviving ids, sorted and
+        paged in Python (docs/adr/adr-2026-10-01-search-ranking-in-python.md)."""
+        started = time.perf_counter()
+        img = aliased(Image)
+        extras = aliased(ImageExtras)
+        result = await self.session.execute(
+            select(img.id, img.filename, img.created_at, extras.flagged)
+            .outerjoin(extras, img.id == extras.image_id)
+            .where(img.id.in_(select(filtered_ids_subquery.c.id)))
+        )
+        rows = [RankedRow(r.id, r.filename, r.created_at, r.flagged, scores[r.id]) for r in result.all()]
+        rows.sort(key=lambda r: (r.score, r.created_at, r.id), reverse=True)
+        if cursor_score is not None and cursor_created_at is not None and cursor_id is not None:
+            cursor_key = (cursor_score, cursor_created_at, cursor_id)
+            rows = [r for r in rows if (r.score, r.created_at, r.id) < cursor_key]
+
+        warn_at = get_weights().warn_match_count
+        if len(scores) > warn_at:
+            logger.warning(
+                "ranked search matched %d images (> %d); scoring+paging took %.0f ms",
+                len(scores), warn_at, (time.perf_counter() - started) * 1000,
+            )
+        return rows[: limit + 1]
 
     async def get_filename(self, image_id: str) -> Optional[str]:
         result = await self.session.execute(

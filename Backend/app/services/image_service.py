@@ -51,7 +51,7 @@ class ImageService:
         user_agent: str = "",
     ) -> MemeSearchResponse:
         tags = self._parse_facets(raw_facets)
-        cursor_created_at, cursor_id = self._decode_cursor(cursor)
+        cursor_score, cursor_created_at, cursor_id = self._decode_search_cursor(cursor)
 
         rows, raw_facet_map = await self.repo.search(
             q=q,
@@ -59,6 +59,7 @@ class ImageService:
             cursor_created_at=cursor_created_at,
             cursor_id=cursor_id,
             limit=limit,
+            cursor_score=cursor_score,
         )
 
         facets = [
@@ -500,15 +501,28 @@ class ImageService:
         return datetime.fromisoformat(obj["created_at"]), uuid.UUID(obj["id"])
 
     @staticmethod
-    def _encode_cursor(last_row) -> str:
-        id = last_row.id
-        created_at = last_row.created_at
-        return ImageService._encode_cursor1(created_at, id)
+    def _decode_search_cursor(cursor: Optional[str]):
+        """(score, created_at, id) for the main search endpoint: score is None for a recency-format cursor."""
+        if not cursor:
+            return None, None, None
+        obj = json.loads(base64.urlsafe_b64decode(cursor).decode())
+        score = obj.get("score")
+        return (
+            float(score) if score is not None else None,
+            datetime.fromisoformat(obj["created_at"]),
+            uuid.UUID(obj["id"]),
+        )
 
     @staticmethod
-    def _encode_cursor1(created_at, id):
-        payload = json.dumps({"id": str(id), "created_at": created_at.isoformat()})
-        return base64.urlsafe_b64encode(payload.encode()).decode()
+    def _encode_cursor(last_row) -> str:
+        return ImageService._encode_cursor1(last_row.created_at, last_row.id, getattr(last_row, "score", None))
+
+    @staticmethod
+    def _encode_cursor1(created_at, id, score=None):
+        payload = {"id": str(id), "created_at": created_at.isoformat()}
+        if score is not None:
+            payload["score"] = score
+        return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
 
     @staticmethod
     def _decode_cluster_cursor(cursor: Optional[str]):
