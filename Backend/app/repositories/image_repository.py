@@ -73,6 +73,7 @@ class ImageRepository:
         img = aliased(Image)
         image_tag = aliased(ImageTag)
 
+        started = time.perf_counter()   # covers the per-token matching queries, not just the final sort
         scores = await scored_image_matches(self.session, q)
         filtered_ids = await self._build_filtered_ids_query(None if scores is None else set(scores), tags)
         filtered_ids_subquery = filtered_ids.subquery()
@@ -94,7 +95,8 @@ class ImageRepository:
 
         if scores is not None:
             rows = await self._ranked_page(
-                scores, filtered_ids_subquery, cursor_score, cursor_created_at, cursor_id, limit
+                scores, filtered_ids_subquery, cursor_score, cursor_created_at, cursor_id, limit,
+                started=started, query_length=len(q or ""),
             )
             return rows, dict(raw_facets)
 
@@ -120,10 +122,13 @@ class ImageRepository:
 
         return results.all(), dict(raw_facets)
 
-    async def _ranked_page(self, scores, filtered_ids_subquery, cursor_score, cursor_created_at, cursor_id, limit):
+    async def _ranked_page(
+        self, scores, filtered_ids_subquery, cursor_score, cursor_created_at, cursor_id, limit,
+        started: float, query_length: int,
+    ):
         """Relevance-ordered page: score map from matching, rows fetched for the surviving ids, sorted and
-        paged in Python (docs/adr/adr-2026-10-01-search-ranking-in-python.md)."""
-        started = time.perf_counter()
+        paged in Python (docs/adr/adr-2026-10-01-search-ranking-in-python.md). `started` is the
+        perf_counter time at which scoring began, so the scale-guard log covers matching + fetch + sort."""
         img = aliased(Image)
         extras = aliased(ImageExtras)
         result = await self.session.execute(
@@ -140,8 +145,8 @@ class ImageRepository:
         warn_at = get_weights().warn_match_count
         if len(scores) > warn_at:
             logger.warning(
-                "ranked search matched %d images (> %d); scoring+paging took %.0f ms",
-                len(scores), warn_at, (time.perf_counter() - started) * 1000,
+                "ranked search matched %d images (> %d) for query length %d; scoring+fetch+sort took %.0f ms",
+                len(scores), warn_at, query_length, (time.perf_counter() - started) * 1000,
             )
         return rows[: limit + 1]
 

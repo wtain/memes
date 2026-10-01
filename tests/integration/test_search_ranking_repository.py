@@ -157,4 +157,8 @@ async def test_scale_guard_logs_a_warning_above_warn_match_count(db_session, mon
     with caplog.at_level(logging.WARNING, logger="Backend.app.repositories.image_repository"):
         await _search(ImageRepository(db_session), "zebracorn")
 
-    assert any("ranked search matched" in r.getMessage() for r in caplog.records)
+    messages = [r.getMessage() for r in caplog.records if "ranked search matched" in r.getMessage()]
+    assert len(messages) == 1
+    assert "matched 3 images" in messages[0]
+    assert "query length 9" in messages[0]      # len("zebracorn")
+    assert "ms" in messages[0]
