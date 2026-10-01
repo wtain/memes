@@ -1,4 +1,4 @@
-﻿# [P3] Search has no ranking: results are a membership filter ordered by created_at
+# [P3] Search has no ranking: results are a membership filter ordered by created_at
 
 - **Priority:** P3
 - **Area:** Backend search

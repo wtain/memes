@@ -20,20 +20,17 @@ Topic trackers with sessions and dependencies: [description-tagging-tracker.md](
 | 144 | P2 | [environments/Environments.md still has TODO placeholders for DB build and migration steps](todo/144-environments-md-todo-placeholders.md) |
 | 145 | P2 | [No process supervision / restart policy design for the VPS-hosted backend](todo/145-no-process-supervision-restart-policy.md) |
 | 146 | P2 | [No monitoring/alerting for the production service (uptime, log aggregation)](todo/146-no-monitoring-alerting.md) |
-| 148 | P2 | [Description jobs cannot cover an in-flight ingestion batch (no --status pending)](todo/148-description-jobs-no-pending-status-ingestion.md) |
 | 154 | P3 | [Question: should description embeddings take part in duplicate detection?](todo/154-description-embeddings-in-duplicate-detection-question.md) |
-| 156 | P3 | [Search has no ranking: results are a membership filter ordered by created_at](todo/156-search-result-ranking.md) |
-| 157 | P3 | [Measure `source=description_all` on a real corpus (unindexed cross join)](todo/157-description-all-performance.md) |
 
 ## analysis
 
-_none_
+| # | Priority | Task |
+|---|---|---|
+| 156 | P3 | [Search has no ranking: results are a membership filter ordered by created_at](analysis/156-search-result-ranking.md) |
 
 ## design
 
-| # | Priority | Task |
-|---|---|---|
-| 149 | P2 | [Rejected description feedback must exclude the description from search, similarity and tagging](design/149-description-feedback-not-consumed.md) |
+_none_
 
 ## implementation
 
@@ -43,14 +40,17 @@ _none_
 
 | # | Priority | Task |
 |---|---|---|
-| 150 | P1 | [Description tagging should use ConceptTagger, and retag when a description changes](verification/150-description-tagging-use-concept-tagger.md) |
-| 151 | P2 | [Ollama descriptions have no lemma index, so smart search cannot match them](verification/151-ollama-descriptions-not-searchable.md) |
-| 152 | P1 | [Design: human notes join (not override) Ollama descriptions in search, similarity and tagging](verification/152-description-notes-join-search-similarity-tagging-design.md) |
+| 149 | P2 | [Rejected description feedback must exclude the description from search, similarity and tagging](verification/149-description-feedback-not-consumed.md) |
 
 ## done
 
 | # | Priority | Task |
 |---|---|---|
 | 147 | P2 | [build_image_descriptions and build_image_description_embeddings are not run-tracked or admin-triggerable](done/147-description-jobs-not-run-tracked.md) |
+| 148 | P2 | [Description jobs cannot cover an in-flight ingestion batch (no --status pending) — won't-do](done/148-description-jobs-no-pending-status-ingestion.md) |
+| 150 | P1 | [Description tagging should use ConceptTagger, and retag when a description changes](done/150-description-tagging-use-concept-tagger.md) |
+| 151 | P2 | [Ollama descriptions have no lemma index, so smart search cannot match them](done/151-ollama-descriptions-not-searchable.md) |
+| 152 | P1 | [Design: human notes join (not override) Ollama descriptions in search, similarity and tagging](done/152-description-notes-join-search-similarity-tagging-design.md) |
 | 153 | P1 | [Pipeline: scheduled chain of description and tagging jobs, with human gates](done/153-description-tagging-pipeline-orchestration.md) |
 | 155 | P1 | [Implement the description_pipeline driver](done/155-description-pipeline-driver.md) |
+| 157 | P3 | [Measure `source=description_all` on a real corpus (unindexed cross join)](done/157-description-all-performance.md) |

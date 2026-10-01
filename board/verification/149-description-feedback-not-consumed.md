@@ -110,3 +110,11 @@ Acceptance: reject a description -> its words stop matching in `source=descripti
 
 **Blocked on** the 151/152 work being merged to main (the predicate lives only on `worktree-152-notes-join-design`). Start implementation after
 that merge, or on top of its commit `4198086`+ if the other session agrees.
+
+## Implementation (2026-10-01)
+
+Implemented in worktree `.claude/worktrees/149-feedback-exclusion` (branch `worktree-149-feedback-exclusion`, based on main 9222ba6), staged but not committed.
+Delivered exactly the design above, plus one consistency fix: `has_description_embedding` also ignores rejected descriptions, so `source=description`
+404s when all of the source image's descriptions are rejected (same as `description_all`). Added `DESCRIPTION_TAG_SOURCE` to `repository/tags.py`.
+Verified: whole `tests/integration/` root (416), `Backend/tests` (351), `batch/tests` (197). Docs updated: `backend_api.md`, `docs/data-flow.md`, `CLAUDE.md`.
+Not done: a live check against a real database through the UI (reject a description, confirm tags drop and return after a `description_tags` run).
