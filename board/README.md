@@ -20,12 +20,12 @@ Topic trackers with sessions and dependencies: [description-tagging-tracker.md](
 | 144 | P2 | [environments/Environments.md still has TODO placeholders for DB build and migration steps](todo/144-environments-md-todo-placeholders.md) |
 | 145 | P2 | [No process supervision / restart policy design for the VPS-hosted backend](todo/145-no-process-supervision-restart-policy.md) |
 | 146 | P2 | [No monitoring/alerting for the production service (uptime, log aggregation)](todo/146-no-monitoring-alerting.md) |
-| 154 | P3 | [Question: should description embeddings take part in duplicate detection?](todo/154-description-embeddings-in-duplicate-detection-question.md) |
 
 ## analysis
 
 | # | Priority | Task |
 |---|---|---|
+| 154 | P3 | [Question: should description embeddings take part in duplicate detection?](analysis/154-description-embeddings-in-duplicate-detection-question.md) |
 | 156 | P3 | [Search has no ranking: results are a membership filter ordered by created_at](analysis/156-search-result-ranking.md) |
 
 ## design
