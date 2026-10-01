@@ -67,7 +67,8 @@ def _merge_max(*hit_maps: dict) -> dict:
 async def _exact_hits(session: AsyncSession, lemma: str, weights: RankingWeights) -> dict:
     # Description lemmas are Snowball stems (indexed with language="en"), while the query lemma
     # of a Latin word is unstemmed: match both forms so a competing exact hit elsewhere cannot
-    # suppress description recall (the stem tier only runs when this tier returns nothing).
+    # suppress description recall (the stem tier only runs when this tier returns nothing, which is
+    # why _stem_hits has no description query: this tier already covered the stem form).
     return await _best_weights(session, "exact", {
         "ocr": [select(OCRLemma.image_id).where(OCRLemma.lemma == lemma)],
         "tag": [select(distinct(ImageTag.image_id)).where(func.upper(ImageTag.value) == lemma.upper())],
@@ -171,12 +172,14 @@ async def _stem_hits(session: AsyncSession, lemma: str, weights: RankingWeights)
     fallback coverage; trigram similarity catches most word-form variation
     in practice.
 
-    Description lemmas ARE included: build_description_lemmas.py indexes Ollama descriptions with language="en", so they are pre-stemmed like en OCR rows.
+    Description lemmas are deliberately NOT queried here: they are pre-stemmed (language="en"), and
+    _exact_hits already compares them against the query's stem form (_description_forms), so
+    this tier only runs after that comparison found nothing and a description query here could never
+    return a row.
     """
     stem = stem_english_word(lemma)
     return await _best_weights(session, "stem", {
         "ocr": [select(OCRLemma.image_id).where(OCRLemma.lemma == stem)],
-        "description": [_description_image_ids(DescriptionLemma.lemma == stem)],
     }, weights)
 
 
@@ -239,6 +242,7 @@ async def scored_image_matches(
 
     weights = weights or get_weights()
     token_hits = []
+    candidates: Optional[set] = None
     for lemma in lemmas:
         hits = await _exact_hits(session, lemma, weights)
         if not hits:
@@ -255,6 +259,10 @@ async def scored_image_matches(
         if not hits:
             return {}
         token_hits.append(hits)
+        # Early exit: once no image carries every token seen so far, later tokens cannot revive one.
+        candidates = set(hits) if candidates is None else candidates & set(hits)
+        if not candidates:
+            return {}
 
     return score_images(token_hits)
 

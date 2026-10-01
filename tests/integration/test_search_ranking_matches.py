@@ -85,6 +85,35 @@ async def test_multiple_tokens_sum_and_all_tokens_are_required(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_disjoint_token_hits_return_empty_and_stop_querying(db_session, monkeypatch):
+    import repository.ocr_lemmas as ol
+
+    img_a = await _image(db_session)
+    img_b = await _image(db_session)
+    db_session.add_all([
+        OCRLemma(image_id=img_a.id, lemma="zebracorn"),
+        OCRLemma(image_id=img_b.id, lemma="quokkaberry"),
+        OCRLemma(image_id=img_a.id, lemma="narwhalpie"),
+    ])
+    await db_session.flush()
+
+    queried = []
+    real_exact = ol._exact_hits
+
+    async def spy(session, lemma, weights):
+        queried.append(lemma)
+        return await real_exact(session, lemma, weights)
+
+    monkeypatch.setattr(ol, "_exact_hits", spy)
+    # normalize() returns an unordered set; pin the token order so the assertion is deterministic
+    monkeypatch.setattr(ol, "normalize", lambda *a, **k: ["zebracorn", "quokkaberry", "narwhalpie"])
+
+    assert await scored_image_matches(db_session, "zebracorn quokkaberry narwhalpie") == {}
+    # the intersection is already empty after the second token, so the third is never queried
+    assert queried == ["zebracorn", "quokkaberry"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_exact_outranks_fuzzy_for_the_same_source(db_session):
     # The fallback tiers only run when NO source has an exact hit for the token, so exact and fuzzy are
     # exercised with two different query words.
