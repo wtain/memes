@@ -18,7 +18,7 @@ from graph.uf import UnionFind
 from repository.description_note_lemmas import DescriptionNoteLemmasSaver, compute_note_lemmas
 from repository.image_descriptions import description_not_rejected
 from repository.ocr_lemmas import matching_image_ids
-from repository.tags import NOTE_TAG_SOURCE
+from repository.tags import DESCRIPTION_TAG_SOURCE, NOTE_TAG_SOURCE, TagsRepository
 
 
 class ImageRepository:
@@ -182,6 +182,8 @@ class ImageRepository:
                 source_desc.image_id == image_id,
                 cand_desc.image_id != image_id,
                 img.status == "active",
+                description_not_rejected(source_desc.id),
+                description_not_rejected(cand_desc.id),
             )
             .group_by(cand_desc.image_id, img.filename, extras.flagged)
             .order_by("distance")
@@ -243,7 +245,7 @@ class ImageRepository:
         result = await self.session.execute(
             select(ImageDescriptionEmbedding.image_description_id)
             .join(ImageDescription, ImageDescription.id == ImageDescriptionEmbedding.image_description_id)
-            .where(ImageDescription.image_id == image_id)
+            .where(ImageDescription.image_id == image_id, description_not_rejected(ImageDescription.id))
             .limit(1)
         )
         return result.first() is not None
@@ -290,6 +292,13 @@ class ImageRepository:
             )
         )
         await self.session.execute(stmt)
+
+    async def delete_description_tags(self, image_id: str) -> None:
+        """Drops the image's description-derived tags. Those tags are unioned across all of the
+        image's descriptions with no per-description provenance, so after a feedback change the
+        only correct repair is to rebuild them from the non-rejected descriptions; the next
+        build_tags_from_descriptions run does that for any image with no such tags."""
+        await TagsRepository(self.session).delete_tags_for_images(DESCRIPTION_TAG_SOURCE, [image_id])
 
     async def clear_description_feedback(self, description_id) -> None:
         await self.session.execute(

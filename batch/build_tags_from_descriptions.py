@@ -9,10 +9,10 @@ from metrics.listener import SimpleMetricsListener
 from rules.concept_tagger import ConceptTagger
 from Storage.db import AsyncSessionLocal
 from repository.images import ImagesRepository
-from repository.tags import TagsRepository, TagsSaver
+from repository.tags import DESCRIPTION_TAG_SOURCE, TagsRepository, TagsSaver
 
 _SCRIPT_DIR = Path(__file__).parent
-_SOURCE = "Ollama"
+_SOURCE = DESCRIPTION_TAG_SOURCE
 # Descriptions are LLM output in English regardless of the meme's own language.
 _DESCRIPTION_LANGUAGE = "en"
 

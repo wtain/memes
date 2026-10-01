@@ -278,7 +278,9 @@ build_tags_from_descriptions → ConceptTagger tags from descriptions (same voca
                               as "en", tags unioned per image; no OCR confidence/language filters).
                               --incremental selects images with no Ollama tag or whose newest
                               description is newer than their newest Ollama tag, and rewrites those
-                              images' Ollama tags from all their descriptions. Full run
+                              images' Ollama tags from all their non-rejected descriptions (rejected
+                              feedback excluded; any feedback change in the API deletes the image's
+                              Ollama tags so the next run rebuilds them). Full run
                               (no --incremental) deletes every Ollama tag first. See
                               docs/data-flow.md for which signals feed which consumers.
 build_tags_from_notes      → ConceptTagger tags from human description notes (same vocabulary/profile as

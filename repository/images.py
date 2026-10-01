@@ -3,6 +3,7 @@ from sqlalchemy import select, delete, update, or_, func
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
+from repository.image_descriptions import description_not_rejected
 from Storage.models import OCRText, Image, ImageDescription, ImageTag, ImageProcessingStatus, DescriptionNote
 
 OCR_LEMMAS_PIPELINE = "ocr_lemmas"
@@ -123,7 +124,7 @@ class ImagesRepository:
                 self.description.text
             ).join(
                 self.description, self.description.image_id == self.img.id
-            ).where(self.img.status == status)
+            ).where(self.img.status == status, description_not_rejected(self.description.id))
         )
         result = await self.session.execute(query)
         return result.fetchall()
@@ -163,6 +164,7 @@ class ImagesRepository:
             .outerjoin(latest_tag, latest_tag.c.image_id == self.img.id)
             .where(
                 self.img.status == status,
+                description_not_rejected(self.description.id),
                 or_(
                     latest_tag.c.latest.is_(None),
                     latest_description.c.latest > latest_tag.c.latest,

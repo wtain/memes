@@ -13,7 +13,7 @@ Start here when asked "does X use Y?"; update it whenever a producer or consumer
 | OCR-text embedding (384-dim) | `ocr_text_embeddings` | `build_ocr_text_embeddings` | Duplicates (OCR-text probe, text-heavy pairs only) |
 | Ollama description | `image_descriptions` (one row per image + prompt) | `build_image_descriptions` | Description embeddings, description tagging, `build_bow --text-source descriptions` (concept discovery only), UI display |
 | Description lemmas | `description_lemmas` | `build_description_lemmas` | Smart search (Ollama description as a search source; indexed as English; rows of rejected descriptions are excluded at query time) |
-| Description feedback | `image_description_feedback` (approved / rejected) | UI (`PUT .../feedback`) | Smart search and `/similar?source=description_all` (rejected descriptions excluded), UI display. **Not consumed by description tagging, description embedding generation or `source=description`** (board task 149) |
+| Description feedback | `image_description_feedback` (approved / rejected) | UI (`PUT .../feedback`) | Smart search, `/similar?source=description` and `source=description_all` (rejected descriptions excluded), description tagging (rejected descriptions are not tagged), UI display. Embeddings are still generated for rejected descriptions and filtered at query time |
 | Description embedding (bge-large, 1024-dim) | `image_description_embeddings` | `build_image_description_embeddings` | `/similar?source=description` only. **Not used by duplicates** |
 | Description note (human, one per image) | `description_notes` | UI (`PUT/DELETE /api/images/{id}/description-note`) | Note lemmas, note embeddings, note tagging |
 | Note lemmas | `description_note_lemmas` | `build_description_note_lemmas` (also refreshed inline by `PUT .../description-note`) | Smart search |
@@ -59,8 +59,11 @@ Notes:
   per pair and retried only with `--retry-failed`. See specs 2026-07-13 and 2026-07-15.
 - **Description lemmas** (`description_lemmas`): each Ollama description indexed as English by `build_description_lemmas`; incremental by construction.
 - **Feedback** (`image_description_feedback`): per description, approve or reject, toggled via the API. Rejected descriptions are excluded from
-  smart search and from `source=description_all`. Excluding them from description TAGGING, description EMBEDDING generation and
-  `source=description` is NOT part of this change (board task 149).
+  smart search, `source=description`, `source=description_all` and description tagging, all through the shared `description_not_rejected`
+  predicate (no feedback row = unreviewed = included). Query-time consumers react immediately and re-approval restores them. Tags are
+  materialized and unioned per image with no per-description provenance, so any feedback change (approve, reject, clear) deletes the
+  image's `Ollama` tags in the API transaction and the next `build_tags_from_descriptions` run rebuilds them from the non-rejected
+  descriptions; until then the image has no `Ollama` tags. Embedding generation is unchanged: every description is embedded.
 - **Description embeddings**: SBERT `BAAI/bge-large-en-v1.5`, per description. `/similar?source=description` takes the minimum cosine
   distance over pairs that share the same `prompt_key`. See spec 2026-07-16.
 - **Description notes**: human-written, one per image, editable in place, no history. Notes **do not replace** Ollama descriptions. They
@@ -79,5 +82,4 @@ Notes:
 
 ## 5. Known gaps (tracked in `board/todo`)
 
-See tasks 147-156 (index: `board/description-tagging-tracker.md`). Summary: description feedback is not consumed by description tagging, embedding generation or `source=description` (task 149),
-description jobs are outside ingestion (deliberately: new images are described after promotion), and search has no ranking (task 156).
+See tasks 147-156 (index: `board/description-tagging-tracker.md`). Summary: description jobs are outside ingestion (deliberately: new images are described after promotion), and search has no ranking (task 156).

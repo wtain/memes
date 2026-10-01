@@ -159,9 +159,11 @@ class ImageService:
         current = await self.repo.get_description_feedback(description_id)
         if current is target_approved:
             await self.repo.clear_description_feedback(description_id)
+            await self.repo.delete_description_tags(image_id)
             return None
 
         await self.repo.set_description_feedback(description_id, target_approved)
+        await self.repo.delete_description_tags(image_id)
         return _feedback_label(target_approved)
 
     async def set_description_note(self, image_id: str, text: str) -> None:

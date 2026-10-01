@@ -575,3 +575,35 @@ class TestClusterOverlapCoefficients:
 
         mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.assert_not_awaited()
         assert result == {}
+
+
+class TestFeedbackChangeDeletesDescriptionTags:
+    """Ollama tags are unioned across an image's descriptions and carry no per-description
+    provenance, so any feedback change drops them and the next description_tags run rebuilds
+    them from the non-rejected descriptions (task 149)."""
+
+    @pytest.mark.parametrize("prior, method", [
+        (None, "approve_description_feedback"),    # set approved
+        (True, "approve_description_feedback"),    # clear
+        (False, "approve_description_feedback"),   # reject -> approve
+        (None, "reject_description_feedback"),     # set rejected
+        (False, "reject_description_feedback"),    # clear
+        (True, "reject_description_feedback"),     # approve -> reject
+    ])
+    async def test_every_feedback_change_deletes_the_images_description_tags(
+        self, service, mock_repo, prior, method
+    ):
+        mock_repo.get_description_id.return_value = "desc-uuid-1"
+        mock_repo.get_description_feedback.return_value = prior
+
+        await getattr(service, method)("image-1", "general_description")
+
+        mock_repo.delete_description_tags.assert_awaited_once_with("image-1")
+
+    async def test_missing_description_deletes_nothing(self, service, mock_repo):
+        mock_repo.get_description_id.return_value = None
+
+        with pytest.raises(HTTPException):
+            await service.reject_description_feedback("image-1", "unknown_prompt")
+
+        mock_repo.delete_description_tags.assert_not_called()

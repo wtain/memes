@@ -387,7 +387,7 @@ Find images similar to a given image.
   - `image_id`: Unique identifier of the image
 - **Query Parameters**:
   - `limit` (optional): Number of results (1-100, default: 10)
-  - `source` (optional): `image` (default) ranks by CLIP visual-embedding similarity; `description` ranks by LLM-description text-embedding similarity (only images sharing at least one prompt's description embedding with the source image are candidates); `description_note` ranks by human-written description-note text-embedding similarity; `description_all` ranks by the minimum cosine distance across all of the image's non-rejected Ollama description embeddings and its note embedding, versus every other active image's (no prompt_key restriction; `cosineDistance` is that minimum; 404 when the image has no non-rejected description embedding and no note embedding, so an image whose only descriptions are rejected also 404s). Returns 404 if the source image has no embedding of the requested kind.
+  - `source` (optional): `image` (default) ranks by CLIP visual-embedding similarity; `description` ranks by LLM-description text-embedding similarity (only images sharing at least one prompt's description embedding with the source image are candidates; descriptions the user rejected are ignored on both sides, and the source image 404s if all of its descriptions are rejected); `description_note` ranks by human-written description-note text-embedding similarity; `description_all` ranks by the minimum cosine distance across all of the image's non-rejected Ollama description embeddings and its note embedding, versus every other active image's (no prompt_key restriction; `cosineDistance` is that minimum; 404 when the image has no non-rejected description embedding and no note embedding, so an image whose only descriptions are rejected also 404s). Returns 404 if the source image has no embedding of the requested kind.
 - **Response**: `MemeSearchResponse` — each `Meme` item includes `cosineDistance` (float, lower = more similar; not comparable between `source=image` and `source=description` responses — different embedding spaces)
 - **Example**: `GET /api/images/abc123/similar?limit=10`
 - **Example**: `GET /api/images/abc123/similar?source=description&limit=10`
@@ -410,7 +410,10 @@ configured prompt; see `image_descriptions.prompts_file`).
 
 Record a human "approved" judgment on one AI-generated description. Toggles:
 calling this when the description is already approved clears the feedback
-back to no-feedback instead of re-approving.
+back to no-feedback instead of re-approving. Any feedback change (approve, reject or clear)
+also deletes that image's description-derived (`source="Ollama"`) tags in the same
+transaction; the next `build_tags_from_descriptions` run rebuilds them from the
+non-rejected descriptions, so until then the image has no such tags.
 
 - **URL**: `/api/images/{image_id}/descriptions/{prompt_key}/approve`
 - **Method**: `PUT`
@@ -423,9 +426,10 @@ back to no-feedback instead of re-approving.
 #### Reject Image Description
 
 Record a human "rejected" judgment on one AI-generated description. Toggles
-the same way as Approve, in the opposite direction. Does **not** hide the
-description or exclude it from semantic-similarity search — this is a pure
-feedback signal.
+the same way as Approve, in the opposite direction. A rejected description is not
+hidden in the description list, but it is excluded from smart search, from
+`/similar?source=description` and `source=description_all`, and from description
+tagging. Tag side effect as for Approve.
 
 - **URL**: `/api/images/{image_id}/descriptions/{prompt_key}/reject`
 - **Method**: `PUT`

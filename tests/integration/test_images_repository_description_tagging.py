@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from repository.images import ImagesRepository
 from repository.tags import TagsRepository
-from Storage.models import Image, ImageDescription, ImageTag
+from Storage.models import Image, ImageDescription, ImageDescriptionFeedback, ImageTag
 
 _T0 = datetime(2026, 1, 1, 12, 0, 0)
 
@@ -122,3 +122,40 @@ async def test_delete_tags_for_images_only_touches_given_images_and_source(db_se
     assert sorted(remaining, key=lambda r: (str(r[0]), r[1])) == sorted(
         [(target.id, "OCR"), (bystander.id, "Ollama")], key=lambda r: (str(r[0]), r[1])
     )
+
+
+async def _feedback(db_session, description, approved):
+    db_session.add(ImageDescriptionFeedback(image_description_id=description.id, approved=approved))
+    await db_session.flush()
+
+
+async def _all_texts(db_session, image):
+    rows = await ImagesRepository(db_session).get_images_and_descriptions()
+    return sorted(text for _filename, image_id, text in rows if image_id == image.id)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_rejected_description_is_not_fed_to_the_tagger(db_session):
+    image = await _image(db_session)
+    rejected = _description(image, "a", "rejected text", _T0)
+    approved = _description(image, "b", "approved text", _T0)
+    unreviewed = _description(image, "c", "unreviewed text", _T0)
+    db_session.add_all([rejected, approved, unreviewed])
+    await db_session.flush()
+    await _feedback(db_session, rejected, False)
+    await _feedback(db_session, approved, True)
+
+    assert await _needing(db_session, image) == ["approved text", "unreviewed text"]
+    assert await _all_texts(db_session, image) == ["approved text", "unreviewed text"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_image_with_every_description_rejected_is_never_selected(db_session):
+    image = await _image(db_session)
+    only = _description(image, "a", "rejected text", _T0)
+    db_session.add(only)
+    await db_session.flush()
+    await _feedback(db_session, only, False)
+
+    assert await _needing(db_session, image) == []
+    assert await _all_texts(db_session, image) == []
