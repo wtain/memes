@@ -4,7 +4,7 @@ Status: done
 Plan: docs/superpowers/plans/2026-10-01-description-notes-search-similarity-tagging.md
 Originates from: board/description-tagging-tracker.md tasks 151 and 152; docs/superpowers/specs/drafts/2026-10-01-description-tagging-audit-and-pipeline-notes.md
 Related: 2026-08-20-description-notes-design.md (notes, done), 2026-07-21-smart-search-design.md, 2026-07-19-description-feedback-design.md, docs/data-flow.md
-Follow-ups: task 149 (rejected feedback excluded everywhere), 148 (`--status pending`), 153 (pipeline orchestration)
+Follow-ups: task 149 (rejected feedback excluded everywhere), 148 (`--status pending`), 153 (pipeline orchestration), docs/superpowers/specs/2026-10-01-search-result-ranking-design.md (task 156, search ranking)
 
 ## Motivation
 
