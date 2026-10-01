@@ -26,7 +26,6 @@ Topic trackers with sessions and dependencies: [description-tagging-tracker.md](
 | # | Priority | Task |
 |---|---|---|
 | 154 | P3 | [Question: should description embeddings take part in duplicate detection?](analysis/154-description-embeddings-in-duplicate-detection-question.md) |
-| 156 | P3 | [Search has no ranking: results are a membership filter ordered by created_at](analysis/156-search-result-ranking.md) |
 
 ## design
 
@@ -53,4 +52,5 @@ _none_
 | 152 | P1 | [Design: human notes join (not override) Ollama descriptions in search, similarity and tagging](done/152-description-notes-join-search-similarity-tagging-design.md) |
 | 153 | P1 | [Pipeline: scheduled chain of description and tagging jobs, with human gates](done/153-description-tagging-pipeline-orchestration.md) |
 | 155 | P1 | [Implement the description_pipeline driver](done/155-description-pipeline-driver.md) |
+| 156 | P3 | [Search has no ranking: results are a membership filter ordered by created_at](done/156-search-result-ranking.md) |
 | 157 | P3 | [Measure `source=description_all` on a real corpus (unindexed cross join)](done/157-description-all-performance.md) |

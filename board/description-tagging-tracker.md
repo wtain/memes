@@ -22,7 +22,7 @@ Claude Code session id; resume with `claude --resume <id>`. Add a new row's sess
 | 153 | Pipeline orchestration with human gates (design approved, spec 2026-10-01-description-tagging-pipeline-driver-design.md) | P1 | architectural | 147 | done | 12ec6cf0-9a05-40be-ad18-6802263c7ac5 |
 | 155 | Implement `description_pipeline` driver | P1 | bounded | 147 | done | 12ec6cf0-9a05-40be-ad18-6802263c7ac5 |
 | 154 | Question: description embeddings in duplicates | P3 | analysis | - | analysis | 12ec6cf0-9a05-40be-ad18-6802263c7ac5 |
-| 156 | Search ranking (results are an unranked membership filter today) | P3 | analysis then design | 151, 152 | analysis | 1178696a-3821-4aac-97b2-d52c07e4406c |
+| 156 | Search ranking (results are an unranked membership filter today) | P3 | analysis then design | 151, 152 | done 2026-10-02 (merged a103e36; also fixed the pagination cursor skipping a row per page) | 1178696a-3821-4aac-97b2-d52c07e4406c |
 | 157 | Measure `description_all` similarity on a real corpus; HNSW per-vector fallback if slow | P3 | analysis | 151, 152 | done 2026-10-01 (0.5 s on 32k vectors, no fallback needed) | 1178696a-3821-4aac-97b2-d52c07e4406c |
 
 Suggested order: 152 and 150 (decisions shape the rest) -> 147 -> 151 -> 149 -> 148 (likely won't-do) -> 155 (closes 153); 154 any time.

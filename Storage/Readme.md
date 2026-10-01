@@ -30,9 +30,9 @@ Dump
 Requires password
 
 ```commandline
-pg_dump -h localhost -p 5432 -U ocr -Fc -f ./backups/ocrdb-2026-08-16-metal.dump ocrdb
-pg_dump -h localhost -p 5434 -U ocr -Fc -f ./backups/ocrdb-2026-08-16-general.dump ocrdb
-pg_dump -h localhost -p 5436 -U ocr -Fc -f ./backups/ocrdb-2026-08-16-it.dump ocrdb
+pg_dump -h localhost -p 5432 -U ocr -Fc -f ./backups/ocrdb-2026-09-19-metal.dump ocrdb
+pg_dump -h localhost -p 5434 -U ocr -Fc -f ./backups/ocrdb-2026-09-19-general.dump ocrdb
+pg_dump -h localhost -p 5436 -U ocr -Fc -f ./backups/ocrdb-2026-09-19-it.dump ocrdb
 
 ```
 
