@@ -256,12 +256,17 @@ build_image_descriptions   → multi-prompt Ollama LLM descriptions (optional), 
                               per environment; incremental with its own commit interval;
                               permanently-failed pairs are skipped by default (--retry-failed
                               to re-attempt, --reset to clear everything, --limit to cap a run).
+                              Run-tracked (kind build_image_descriptions, stats include
+                              images_selected/images_remaining) and admin-triggerable from
+                              /admin/batches (no --limit there: one trigger covers the whole backlog),
+                              manual-trigger only, not scheduled. Always active images only.
                               See docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md
                               and docs/superpowers/specs/2026-07-15-image-description-failure-tracking-and-context-size.md
 build_image_description_embeddings → SBERT embeddings (bge-large-en-v1.5, 1024-dim), one per
                               Ollama description; used only by /similar?source=description (NOT by
-                              duplicates). Shell-only for now: no tracked_run, not in
-                              batch_registry.yaml, no --status pending. See docs/data-flow.md.
+                              duplicates). Run-tracked (kind build_image_description_embeddings) and admin-triggerable from
+                              /admin/batches, manual-trigger only, not scheduled; no --status pending.
+                              See docs/data-flow.md.
 build_tags_from_descriptions → ConceptTagger tags from descriptions (same vocabulary/profile as
                               build_tags_from_ocr, source "Ollama"; each description tagged on its own
                               as "en", tags unioned per image; no OCR confidence/language filters).

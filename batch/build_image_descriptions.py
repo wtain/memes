@@ -1,9 +1,11 @@
 import argparse
 import asyncio
 import os
+import uuid
 
 from ai.image_description_prompts import load_prompts, resolve_model
 from ai.ollama import OllamaImageDescriber
+from batch.run_tracking import finish_existing_run, record_stats, tracked_run
 from batch.utils.description_batch_commit import DescriptionBatchCommitter
 from batch.utils.image_format_filter import has_unsupported_image_extension
 from batch.utils.progress import ProgressTracker
@@ -69,7 +71,9 @@ async def _images_missing_prompts(images_repo, descriptions_repo, status_repos, 
     return work
 
 
-async def main(reset: bool, limit: int | None = None, retry_failed: bool = False):
+async def _process(reset: bool, limit: int | None = None, retry_failed: bool = False) -> dict[str, int]:
+    """Returns run stats: images selected for this run, images still waiting beyond `limit`,
+    plus the metrics counters (saved, error.model, skipped.*)."""
     BASE_PATH = settings.BASE_PATH
     print(f"BASE_PATH={BASE_PATH}")
     base_path = os.path.abspath(BASE_PATH)
@@ -105,6 +109,7 @@ async def main(reset: bool, limit: int | None = None, retry_failed: bool = False
         work = await _images_missing_prompts(
             images_repo, descriptions_repo, status_repos, prompts, retry_failed, metrics
         )
+        total_pending = len(work)
         if limit is not None:
             work = work[:limit]
 
@@ -157,6 +162,23 @@ async def main(reset: bool, limit: int | None = None, retry_failed: bool = False
 
     tracker.summary()
     metrics.print()
+    return {
+        **metrics.counters_dict(),
+        "images_selected": len(work),
+        "images_remaining": total_pending - len(work),
+    }
+
+
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, reset: bool = False,
+               limit: int | None = None, retry_failed: bool = False) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed)
+            await record_stats(run_id, stats)
+    else:
+        async with tracked_run(kind="build_image_descriptions", trigger=trigger) as new_run_id:
+            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed)
+            await record_stats(new_run_id, stats)
 
 
 if __name__ == "__main__":
@@ -173,4 +195,4 @@ if __name__ == "__main__":
                              "(default: skip pairs that failed on a prior run)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(args.reset, args.limit, args.retry_failed))
+    asyncio.run(main(reset=args.reset, limit=args.limit, retry_failed=args.retry_failed))  # trigger defaults to "manual"

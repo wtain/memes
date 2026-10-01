@@ -59,7 +59,7 @@ Notes:
 
 - Scheduled (`environments/settings.yaml`, `scheduler.jobs`): only `trends_batch` and `build_statistics`.
 - Every other enrichment job is manual. Most are triggerable from `/admin/batches` through `environments/batch_registry.yaml`.
-- **Not in the registry and not run-tracked:** `build_image_descriptions`, `build_image_description_embeddings`. They run from the shell only.
+- `build_image_descriptions` and `build_image_description_embeddings` are run-tracked and in the registry (admin-triggerable, manual only). The admin trigger has no `--limit`, so one trigger describes the whole backlog; the planned `description_pipeline` driver (task 155) will cap it.
 - Ingestion (`ingest_auto_prep`) does not cover descriptions: neither description job supports `--status pending`.
 
 ## 5. Known gaps (tracked in `board/todo`)

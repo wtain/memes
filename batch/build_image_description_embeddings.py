@@ -1,7 +1,9 @@
 import argparse
 import asyncio
+import uuid
 
 from ai.sbert import SbertModel
+from batch.run_tracking import finish_existing_run, record_stats, tracked_run
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
 from Storage.db import AsyncSessionLocal
@@ -10,7 +12,7 @@ from repository.image_description_embeddings import ImageDescriptionEmbeddingsRe
 EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
 
 
-async def main(reset: bool):
+async def _process(reset: bool) -> dict[str, int]:
     async with AsyncSessionLocal() as session:
         embeddings_repo = ImageDescriptionEmbeddingsRepository(session)
 
@@ -36,6 +38,18 @@ async def main(reset: bool):
         await session.commit()
 
     tracker.summary()
+    return {"descriptions_embedded": len(rows)}
+
+
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, reset: bool = False) -> None:
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            stats = await _process(reset=reset)
+            await record_stats(run_id, stats)
+    else:
+        async with tracked_run(kind="build_image_description_embeddings", trigger=trigger) as new_run_id:
+            stats = await _process(reset=reset)
+            await record_stats(new_run_id, stats)
 
 
 if __name__ == "__main__":
@@ -47,4 +61,4 @@ if __name__ == "__main__":
                              "(default: fill only descriptions missing an embedding)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(args.reset))
+    asyncio.run(main(reset=args.reset))  # trigger defaults to "manual" -- unchanged direct-CLI behavior

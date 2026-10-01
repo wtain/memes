@@ -27,6 +27,14 @@ async def tracked_run(kind: str, trigger: str):
             await session.commit()
 
 
+async def record_stats(run_id: uuid.UUID, stats: dict) -> None:
+    """Merges stats into a run's stats (BatchRunRepository.update_stats merges, not replaces).
+    Call inside tracked_run/finish_existing_run so the run's final commit keeps them."""
+    async with AsyncSessionLocal() as session:
+        await BatchRunRepository(session).update_stats(run_id, **stats)
+        await session.commit()
+
+
 @asynccontextmanager
 async def finish_existing_run(run_id: uuid.UUID):
     """Commits/fails a run_id the CALLER already created (the admin endpoint's case, where
