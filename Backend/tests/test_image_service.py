@@ -10,6 +10,7 @@ integration tests call ImageRepository directly, never through the service.
 import uuid
 import pytest
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from fastapi import HTTPException
 
@@ -607,3 +608,36 @@ class TestFeedbackChangeDeletesDescriptionTags:
             await service.reject_description_feedback("image-1", "unknown_prompt")
 
         mock_repo.delete_description_tags.assert_not_called()
+
+
+class TestPaginateResponseCursor:
+    def _rows(self, n):
+        base = datetime(2026, 1, 1, 12, 0, 0)
+        return [
+            SimpleNamespace(id=uuid.UUID(int=i + 1), created_at=base.replace(minute=59 - i))
+            for i in range(n)
+        ]
+
+    @staticmethod
+    def _items(rows):
+        return [{"id": str(r.id), "imageUrl": f"/api/images/{r.id}"} for r in rows]
+
+    def test_cursor_points_at_last_returned_row_not_the_extra_row(self):
+        rows = self._rows(4)            # limit 3 -> the repo returned limit + 1 rows
+        items = self._items(rows)
+
+        response = ImageService._paginate_response(rows, items, limit=3)
+
+        assert response.hasNext is True
+        cursor_created_at, cursor_id = ImageService._decode_cursor(response.nextCursor)
+        assert cursor_id == rows[2].id          # the 3rd (last returned) row, not rows[3]
+        assert cursor_created_at == rows[2].created_at
+
+    def test_cursor_is_last_row_when_there_is_no_next_page(self):
+        rows = self._rows(2)
+
+        response = ImageService._paginate_response(rows, self._items(rows), limit=3)
+
+        assert response.hasNext is False
+        _, cursor_id = ImageService._decode_cursor(response.nextCursor)
+        assert cursor_id == rows[-1].id

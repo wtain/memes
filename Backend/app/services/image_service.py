@@ -477,7 +477,10 @@ class ImageService:
         has_next = len(items) > limit
         if has_next:
             items = items[:limit]
-        next_cursor = ImageService._encode_cursor(rows[-1]) if rows else None
+        # `rows` holds up to limit + 1 rows (the extra one only proves hasNext). The cursor must point at the
+        # last row actually returned: pointing at the extra row would make the next page's strict "after cursor"
+        # predicate skip it.
+        next_cursor = ImageService._encode_cursor(rows[min(len(rows), limit) - 1]) if rows else None
         return MemeSearchResponse(items=items, nextCursor=next_cursor, hasNext=has_next, facets=facets or [])
 
     @staticmethod
