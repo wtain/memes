@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Optional
 import uuid
 
-from sqlalchemy import delete, distinct, func, select, text, union
+from sqlalchemy import delete, distinct, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,7 @@ from rules.english_stemming import is_latin_word, stem_english_word
 from rules.normalize import make_morph, normalize
 from rules.phonetic import is_cyrillic_word, russian_metaphone
 from repository.image_descriptions import description_not_rejected
+from repository.search_ranking import RankingWeights, get_weights, score_images
 from Storage.models import DescriptionLemma, DescriptionNoteLemma, ImageDescription, ImageTag, OCRLemma
 
 
@@ -39,19 +40,43 @@ def _description_forms(lemma: str) -> list:
     return forms
 
 
-async def _exact_lemma_ids(session: AsyncSession, lemma: str) -> set:
-    ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma == lemma)
-    tag_subq = select(distinct(ImageTag.image_id)).where(func.upper(ImageTag.value) == lemma.upper())
-    note_subq = select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma == lemma)
+async def _best_weights(
+    session: AsyncSession, tier: str, source_queries: dict, weights: RankingWeights,
+) -> dict:
+    """Runs one query per source and returns image id -> best hit weight (source weight x tier weight).
+    `source_queries` maps a source name to a list of queries that each select image ids."""
+    best: dict = {}
+    for source, queries in source_queries.items():
+        weight = weights.hit(source, tier)
+        for query in queries:
+            for (image_id,) in (await session.execute(query)).all():
+                if weight > best.get(image_id, 0.0):
+                    best[image_id] = weight
+    return best
+
+
+def _merge_max(*hit_maps: dict) -> dict:
+    merged: dict = {}
+    for hit_map in hit_maps:
+        for image_id, weight in hit_map.items():
+            if weight > merged.get(image_id, 0.0):
+                merged[image_id] = weight
+    return merged
+
+
+async def _exact_hits(session: AsyncSession, lemma: str, weights: RankingWeights) -> dict:
     # Description lemmas are Snowball stems (indexed with language="en"), while the query lemma
     # of a Latin word is unstemmed: match both forms so a competing exact hit elsewhere cannot
     # suppress description recall (the stem tier only runs when this tier returns nothing).
-    description_subq = _description_image_ids(DescriptionLemma.lemma.in_(_description_forms(lemma)))
-    result = await session.execute(union(ocr_subq, tag_subq, note_subq, description_subq))
-    return {row[0] for row in result.all()}
+    return await _best_weights(session, "exact", {
+        "ocr": [select(OCRLemma.image_id).where(OCRLemma.lemma == lemma)],
+        "tag": [select(distinct(ImageTag.image_id)).where(func.upper(ImageTag.value) == lemma.upper())],
+        "note": [select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma == lemma)],
+        "description": [_description_image_ids(DescriptionLemma.lemma.in_(_description_forms(lemma)))],
+    }, weights)
 
 
-async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
+async def _fuzzy_hits(session: AsyncSession, lemma: str, weights: RankingWeights) -> dict:
     """
     Trigram-similarity fallback, written to use the pg_trgm GIN index
     (ix_ocr_lemmas_lemma_trgm, ix_description_note_lemmas_lemma_trgm, and
@@ -83,15 +108,14 @@ async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
     threshold = float(settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD)
     assert 0 < threshold <= 1, f"invalid fuzzy similarity threshold: {threshold}"
     await session.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
-    ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma.op("%")(lemma))
-    tag_subq = select(distinct(ImageTag.image_id)).where(ImageTag.value.op("%")(lemma))
-    note_subq = select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma.op("%")(lemma))
-    description_subqs = [
-        _description_image_ids(DescriptionLemma.lemma.op("%")(form))
-        for form in _description_forms(lemma)
-    ]
-    result = await session.execute(union(ocr_subq, tag_subq, note_subq, *description_subqs))
-    return {row[0] for row in result.all()}
+    return await _best_weights(session, "fuzzy", {
+        "ocr": [select(OCRLemma.image_id).where(OCRLemma.lemma.op("%")(lemma))],
+        "tag": [select(distinct(ImageTag.image_id)).where(ImageTag.value.op("%")(lemma))],
+        "note": [select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma.op("%")(lemma))],
+        "description": [
+            _description_image_ids(DescriptionLemma.lemma.op("%")(form)) for form in _description_forms(lemma)
+        ],
+    }, weights)
 
 
 def _is_known_word(lemma: str) -> bool:
@@ -103,7 +127,7 @@ def _is_known_word(lemma: str) -> bool:
     return bool(_get_morph().parse(lemma)[0].is_known)
 
 
-async def _phonetic_lemma_ids(session: AsyncSession, lemma: str) -> set:
+async def _phonetic_hits(session: AsyncSession, lemma: str, weights: RankingWeights) -> dict:
     """
     Phonetic-code fallback for erratives that trigram similarity cannot
     catch -- see docs/superpowers/specs/2026-07-25-smart-search-phonetic-erratives-design.md
@@ -113,13 +137,12 @@ async def _phonetic_lemma_ids(session: AsyncSession, lemma: str) -> set:
     errative string.
     """
     code = russian_metaphone(lemma)
-    result = await session.execute(
-        select(OCRLemma.image_id).where(OCRLemma.phonetic_code == code)
-    )
-    return {row[0] for row in result.all()}
+    return await _best_weights(session, "phonetic", {
+        "ocr": [select(OCRLemma.image_id).where(OCRLemma.phonetic_code == code)],
+    }, weights)
 
 
-async def _stem_lemma_ids(session: AsyncSession, lemma: str) -> set:
+async def _stem_hits(session: AsyncSession, lemma: str, weights: RankingWeights) -> dict:
     """
     Query-time-only fallback for English word-form variation (e.g. a
     query for "cats" reaching an indexed "cat"). OCRLemmasSaver.add_lemmas()
@@ -151,19 +174,22 @@ async def _stem_lemma_ids(session: AsyncSession, lemma: str) -> set:
     Description lemmas ARE included: build_description_lemmas.py indexes Ollama descriptions with language="en", so they are pre-stemmed like en OCR rows.
     """
     stem = stem_english_word(lemma)
-    ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma == stem)
-    description_subq = _description_image_ids(DescriptionLemma.lemma == stem)
-    result = await session.execute(union(ocr_subq, description_subq))
-    return {row[0] for row in result.all()}
+    return await _best_weights(session, "stem", {
+        "ocr": [select(OCRLemma.image_id).where(OCRLemma.lemma == stem)],
+        "description": [_description_image_ids(DescriptionLemma.lemma == stem)],
+    }, weights)
 
 
-async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optional[set]:
+async def scored_image_matches(
+    session: AsyncSession, q: Optional[str], weights: Optional[RankingWeights] = None,
+) -> Optional[dict]:
     """
     None means "apply no filter" (q is falsy, or every token normalizes
-    away to nothing). Otherwise returns the set of image IDs whose
+    away to nothing). Otherwise returns image id -> relevance score (sum
+    over tokens of the best hit's source x tier weight) for the images whose
     OCR-lemma index, description-note-lemma index, Ollama-description-lemma
     index (rejected descriptions excluded), or tags contain every
-    query lemma (AND); an empty set means no image matches.
+    query lemma (AND); an empty dict means no image matches.
 
     Each query lemma is matched exactly first. If that finds nothing,
     every applicable fallback tier below is unioned together (not tried
@@ -211,26 +237,33 @@ async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optiona
     if not lemmas:
         return None
 
-    matching_ids: Optional[set] = None
+    weights = weights or get_weights()
+    token_hits = []
     for lemma in lemmas:
-        lemma_ids = await _exact_lemma_ids(session, lemma)
-        if not lemma_ids:
+        hits = await _exact_hits(session, lemma, weights)
+        if not hits:
             if is_latin_word(lemma):
-                lemma_ids = lemma_ids | await _stem_lemma_ids(session, lemma)
+                hits = _merge_max(hits, await _stem_hits(session, lemma, weights))
             if len(lemma) >= settings.SEARCH.FUZZY_MIN_LEMMA_LENGTH:
-                lemma_ids = lemma_ids | await _fuzzy_lemma_ids(session, lemma)
+                hits = _merge_max(hits, await _fuzzy_hits(session, lemma, weights))
                 if (
                     is_cyrillic_word(lemma)
                     and len(lemma) >= settings.SEARCH.PHONETIC_MIN_LEMMA_LENGTH
                     and not _is_known_word(lemma)
                 ):
-                    lemma_ids = lemma_ids | await _phonetic_lemma_ids(session, lemma)
+                    hits = _merge_max(hits, await _phonetic_hits(session, lemma, weights))
+        if not hits:
+            return {}
+        token_hits.append(hits)
 
-        matching_ids = lemma_ids if matching_ids is None else (matching_ids & lemma_ids)
-        if not matching_ids:
-            break
+    return score_images(token_hits)
 
-    return matching_ids
+
+async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optional[set]:
+    """Set of image ids matching q (None = no filter), same semantics as before ranking existed; a thin
+    wrapper over scored_image_matches for callers that do not need the scores."""
+    scores = await scored_image_matches(session, q)
+    return None if scores is None else set(scores)
 
 
 class OCRLemmasRepository:

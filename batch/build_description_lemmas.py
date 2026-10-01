@@ -11,7 +11,7 @@ from Storage.db import AsyncSessionLocal
 
 # Ollama descriptions are English LLM output regardless of the meme's own language, so they are
 # indexed as "en": words are stemmed at index time exactly like en-tagged OCR rows, which is what
-# lets repository/ocr_lemmas.py's _stem_lemma_ids fallback find them.
+# lets repository/ocr_lemmas.py's _stem_hits fallback find them.
 _DESCRIPTION_LANGUAGE = "en"
 
 

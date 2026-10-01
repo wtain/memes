@@ -105,7 +105,7 @@ async def test_multi_word_query_requires_all_lemmas(db_session):
 async def test_multi_lemma_query_mixes_exact_and_fuzzy_matching(db_session):
     """One query lemma matches exactly, the other only via fuzzy fallback --
     proves the AND-across-lemmas intersection works correctly when the two
-    lemmas take different code paths (_exact_lemma_ids vs _fuzzy_lemma_ids)
+    lemmas take different code paths (_exact_hits vs _fuzzy_hits)
     within the same query."""
     both = Image(filename=f"{uuid.uuid4()}.jpg")
     only_one = Image(filename=f"{uuid.uuid4()}.jpg")
@@ -195,7 +195,7 @@ async def test_fuzzy_fallback_respects_configured_threshold_not_pg_trgm_default(
     """Regression test: 'который'/'колотрый' scores ~0.31 similarity -- above
     pg_trgm's own built-in default threshold (0.30) but below our configured
     threshold (settings.SEARCH.FUZZY_SIMILARITY_THRESHOLD = 0.35). If the
-    SET LOCAL statement in _fuzzy_lemma_ids ever silently failed or was
+    SET LOCAL statement in _fuzzy_hits ever silently failed or was
     removed, this pair would incorrectly match under pg_trgm's looser
     default -- this test is the only thing in the suite that would catch
     that, since every other fuzzy test uses pairs far above or far below

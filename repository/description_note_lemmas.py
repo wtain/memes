@@ -19,7 +19,7 @@ def note_lemma_set(text: str, morph, min_word_length: int) -> set[str]:
     """The one normalization of a human note into lemmas, shared by the batch job and by
     PUT /description-note. language=None: notes have no language tag, so this matches
     matching_image_ids' own query-time convention (script-based pymorphy3 fallback) and the
-    index is never pre-stemmed for English -- see the comment above _stem_lemma_ids in
+    index is never pre-stemmed for English -- see the comment above _stem_hits in
     repository/ocr_lemmas.py."""
     return normalize(text, morph, min_length=min_word_length, language=None, keep_digit_tokens=True)
 
