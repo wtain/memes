@@ -28,11 +28,25 @@ def _description_image_ids(*lemma_filters):
     )
 
 
+def _description_forms(lemma: str) -> list:
+    """Forms of a query lemma to compare against description lemmas: the lemma itself plus, for a
+    Latin word, its English stem (descriptions are indexed stemmed)."""
+    forms = [lemma]
+    if is_latin_word(lemma):
+        stem = stem_english_word(lemma)
+        if stem != lemma:
+            forms.append(stem)
+    return forms
+
+
 async def _exact_lemma_ids(session: AsyncSession, lemma: str) -> set:
     ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma == lemma)
     tag_subq = select(distinct(ImageTag.image_id)).where(func.upper(ImageTag.value) == lemma.upper())
     note_subq = select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma == lemma)
-    description_subq = _description_image_ids(DescriptionLemma.lemma == lemma)
+    # Description lemmas are Snowball stems (indexed with language="en"), while the query lemma
+    # of a Latin word is unstemmed: match both forms so a competing exact hit elsewhere cannot
+    # suppress description recall (the stem tier only runs when this tier returns nothing).
+    description_subq = _description_image_ids(DescriptionLemma.lemma.in_(_description_forms(lemma)))
     result = await session.execute(union(ocr_subq, tag_subq, note_subq, description_subq))
     return {row[0] for row in result.all()}
 
@@ -72,8 +86,11 @@ async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
     ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma.op("%")(lemma))
     tag_subq = select(distinct(ImageTag.image_id)).where(ImageTag.value.op("%")(lemma))
     note_subq = select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma.op("%")(lemma))
-    description_subq = _description_image_ids(DescriptionLemma.lemma.op("%")(lemma))
-    result = await session.execute(union(ocr_subq, tag_subq, note_subq, description_subq))
+    description_subqs = [
+        _description_image_ids(DescriptionLemma.lemma.op("%")(form))
+        for form in _description_forms(lemma)
+    ]
+    result = await session.execute(union(ocr_subq, tag_subq, note_subq, *description_subqs))
     return {row[0] for row in result.all()}
 
 

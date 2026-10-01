@@ -118,3 +118,31 @@ async def test_has_text_embedding_reflects_available_vectors(db_session):
     assert await repo.has_text_embedding(str(with_description.id)) is True
     assert await repo.has_text_embedding(str(only_rejected.id)) is False
     assert await repo.has_text_embedding(str(nothing.id)) is False
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_source_whose_only_close_vector_is_rejected_does_not_match(db_session):
+    """Rejected vectors are ignored on the SOURCE side too: the source's rejected vector is
+    identical to the candidate's, but only its non-rejected (orthogonal) vector counts."""
+    source = await _image(db_session)
+    candidate = await _image(db_session)
+    await _description_vector(db_session, source, _vec(1.0, 0.0), prompt_key="a", feedback=False)
+    await _description_vector(db_session, source, _vec(0.0, 1.0), prompt_key="b")
+    await _description_vector(db_session, candidate, _vec(1.0, 0.0))
+
+    rows = await ImageRepository(db_session).get_similar_by_description_all(str(source.id), limit=50)
+
+    by_id = {row[0]: row[1] for row in rows}
+    assert by_id[candidate.id] == pytest.approx(1.0, abs=1e-6)  # not 0.0 via the rejected vector
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_source_with_only_rejected_vectors_returns_no_rows(db_session):
+    source = await _image(db_session)
+    candidate = await _image(db_session)
+    await _description_vector(db_session, source, _vec(1.0, 0.0), feedback=False)
+    await _description_vector(db_session, candidate, _vec(1.0, 0.0))
+
+    rows = await ImageRepository(db_session).get_similar_by_description_all(str(source.id), limit=50)
+
+    assert rows == []

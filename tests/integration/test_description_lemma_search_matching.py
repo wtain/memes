@@ -98,3 +98,60 @@ async def test_description_lemma_does_not_match_a_different_word(db_session):
     await _image_with_description_lemma(db_session, "pineapple")
 
     assert await matching_image_ids(db_session, "zebra") == set()
+
+
+# --- Real-indexer tests: description lemmas are Snowball stems ("funny" -> "funni") -------------
+
+from batch.build_description_lemmas import run as build_description_lemmas_run  # noqa: E402
+from rules.normalize import make_morph  # noqa: E402
+
+_MORPH = make_morph()
+
+
+async def _indexed_image(db_session, texts, feedbacks=None):
+    """Image whose descriptions (one per text) are indexed by the real build_description_lemmas."""
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    for i, text in enumerate(texts):
+        description = ImageDescription(image_id=image.id, prompt_key=f"p{i}", model_used="m", text=text)
+        db_session.add(description)
+        await db_session.flush()
+        if feedbacks and feedbacks[i] is not None:
+            db_session.add(ImageDescriptionFeedback(
+                image_description_id=description.id, approved=feedbacks[i],
+            ))
+    await db_session.flush()
+    await build_description_lemmas_run(db_session, morph=_MORPH, min_word_length=3)
+    return image
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("word", ["funny", "dancing"])
+async def test_really_indexed_description_found_despite_competing_exact_hit(db_session, word):
+    described = await _indexed_image(db_session, [f"A {word} cat on a sofa"])
+    competitor = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(competitor)
+    await db_session.flush()
+    db_session.add(OCRLemma(image_id=competitor.id, lemma=word))
+    await db_session.flush()
+
+    assert await matching_image_ids(db_session, word) == {described.id, competitor.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_one_rejected_description_does_not_hide_a_non_rejected_one(db_session):
+    image = await _indexed_image(
+        db_session, ["A funny cat", "A funny dog"], feedbacks=[False, None],
+    )
+
+    assert await matching_image_ids(db_session, "funny") == {image.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_only_matching_description_rejected_means_no_match(db_session):
+    await _indexed_image(
+        db_session, ["A funny cat", "A serious dog"], feedbacks=[False, None],
+    )
+
+    assert await matching_image_ids(db_session, "funny") == set()
