@@ -1,11 +1,10 @@
 # Search result ranking — Design
 
-Status: draft
-<!-- Design approved in conversation 2026-10-01; this written spec awaits user review. Becomes `approved` after that. -->
+Status: planned
 Originates from: board task 156 (board/analysis/156-search-result-ranking.md), follow-up of
 docs/superpowers/specs/2026-10-01-description-notes-search-similarity-tagging-design.md
 ADR: docs/adr/adr-2026-10-01-search-ranking-in-python.md
-Plan: (none yet)
+Plan: docs/superpowers/plans/2026-10-01-search-result-ranking.md
 
 ## Motivation
 
