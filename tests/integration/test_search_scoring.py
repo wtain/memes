@@ -45,6 +45,28 @@ def test_score_images_rounds_to_six_decimals():
     assert score_images([{a: 0.1}, {a: 0.2}, {a: 0.3}])[a] == 0.6   # 0.6000000000000001 unrounded
 
 
+def test_get_weights_names_missing_keys(monkeypatch):
+    from types import SimpleNamespace
+
+    import repository.search_ranking as sr
+
+    ranking = SimpleNamespace(
+        SOURCE_WEIGHTS={"ocr": 0.9, "tag": 0.8, "description": 0.6},          # "note" missing
+        TIER_WEIGHTS={"exact": 1.0, "stem": 0.8, "fuzzy": 0.5},                # "phonetic" missing
+        WARN_MATCH_COUNT=10000,
+    )
+    monkeypatch.setattr(sr, "settings", SimpleNamespace(SEARCH=SimpleNamespace(RANKING=ranking)))
+    sr.get_weights.cache_clear()
+    try:
+        with pytest.raises(ValueError) as exc:
+            sr.get_weights()
+    finally:
+        sr.get_weights.cache_clear()
+
+    assert "source_weights.note" in str(exc.value)
+    assert "tier_weights.phonetic" in str(exc.value)
+
+
 def test_get_weights_reads_the_configured_defaults():
     weights = get_weights()
 
