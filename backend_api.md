@@ -373,6 +373,8 @@ Search for memes with optional query, facets, and pagination.
   - `limit` (optional): Number of results (1-100, default: 20)
   - `facets` (optional): Facet filter string
   - `cursor` (optional): Pagination cursor for next page
+- **Ordering**: with a non-empty `q`, results are ordered by relevance (per-token best hit, source weight x match-tier weight, summed across tokens), then by recency. Without `q` they are ordered by recency (unchanged). `nextCursor` stays an opaque string; relevance pages embed the score in it. A cursor in the other format (e.g. a recency cursor sent with `q`) is ignored and the listing restarts at the first page. Weights live in `search.ranking.*` in `environments/settings.yaml`.
+- **Pagination fix**: the cursor now points at the last row actually returned, so no result is skipped between pages (previously one row per page boundary was lost; this affected every paginated listing).
 - **Response**: `MemeSearchResponse`
 - **Cache**: no-cache
 - **Example**: `GET /api/images?q=funny&limit=50`

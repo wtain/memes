@@ -51,6 +51,8 @@ search:
   # A hit's weight is source_weight * tier_weight; a token's score is its best hit, an image's score the sum over tokens.
   ranking:
     source_weights: {note: 1.0, ocr: 0.9, tag: 0.8, description: 0.6}
+    # Note: description lemmas are stored as stems, so description stem-form matches score at the
+    # exact tier; the stem tier is unreachable for the description source (its weight is never used).
     tier_weights: {exact: 1.0, stem: 0.8, fuzzy: 0.5, phonetic: 0.4}
     # Log a warning when one query matches more than this many images: the trigger to revisit
     # Python-side scoring (docs/adr/adr-2026-10-01-search-ranking-in-python.md).

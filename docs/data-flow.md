@@ -22,6 +22,9 @@ Start here when asked "does X use Y?"; update it whenever a producer or consumer
 
 Smart search matches an image if the query lemma is in `ocr_lemmas`, in `image_tags`, in `description_note_lemmas`, or in
 `description_lemmas` (`repository/ocr_lemmas.py`). Ollama description lemmas of descriptions the user rejected are excluded at query time.
+Results are ranked: each token's best hit scores source weight x match-tier weight, an image's score is the sum over tokens, and ties
+fall back to recency (`repository/search_ranking.py`). Weights and `warn_match_count` are the `search.ranking.*` keys in
+`environments/settings.yaml`; see `docs/superpowers/specs/2026-10-01-search-result-ranking-design.md`.
 
 Similarity modes of `GET /api/images/{id}/similar`: `image` (CLIP), `description` (minimum cosine distance over description vectors sharing
 a `prompt_key`), `description_note` (note vector) and `description_all` (minimum cosine distance over all of the image's non-rejected
@@ -82,4 +85,4 @@ Notes:
 
 ## 5. Known gaps (tracked in `board/todo`)
 
-See tasks 147-156 (index: `board/description-tagging-tracker.md`). Summary: description jobs are outside ingestion (deliberately: new images are described after promotion), and search has no ranking (task 156).
+See tasks 147-156 (index: `board/description-tagging-tracker.md`). Summary: description jobs are outside ingestion (deliberately: new images are described after promotion).

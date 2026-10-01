@@ -1,6 +1,6 @@
 # Search result ranking — Design
 
-Status: planned
+Status: done
 Originates from: board task 156 (board/analysis/156-search-result-ranking.md), follow-up of
 docs/superpowers/specs/2026-10-01-description-notes-search-similarity-tagging-design.md
 ADR: docs/adr/adr-2026-10-01-search-ranking-in-python.md
@@ -53,6 +53,10 @@ Default weights (config, see below):
 | `stem` | 0.8 | OCR, descriptions |
 | `fuzzy` | 0.5 | OCR, tags, notes, descriptions |
 | `phonetic` | 0.4 | OCR |
+
+Note: description lemmas are stored as English stems, and the exact tier already compares the query's stem form against them (a
+pre-existing semantic). Stem-form matches against descriptions therefore score at the `exact` tier, so the `stem` tier is unreachable
+for the `description` source (its 0.6 x 0.8 weight is never used).
 
 The tier trigger rules are exactly today's: the stem, fuzzy and phonetic fallbacks run only when the exact tier found nothing for that
 token in any source, and are unioned (not sequential), so a token matches at exactly one tier; the sources within that tier are scored
