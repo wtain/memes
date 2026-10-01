@@ -23,6 +23,7 @@ Topic trackers with sessions and dependencies: [description-tagging-tracker.md](
 | 148 | P2 | [Description jobs cannot cover an in-flight ingestion batch (no --status pending)](todo/148-description-jobs-no-pending-status-ingestion.md) |
 | 154 | P3 | [Question: should description embeddings take part in duplicate detection?](todo/154-description-embeddings-in-duplicate-detection-question.md) |
 | 156 | P3 | [Search has no ranking: results are a membership filter ordered by created_at](todo/156-search-result-ranking.md) |
+| 157 | P3 | [Measure `source=description_all` on a real corpus (unindexed cross join)](todo/157-description-all-performance.md) |
 
 ## analysis
 
@@ -36,16 +37,15 @@ _none_
 
 ## implementation
 
-| # | Priority | Task |
-|---|---|---|
-| 151 | P2 | [Ollama descriptions have no lemma index, so smart search cannot match them](implementation/151-ollama-descriptions-not-searchable.md) |
-| 152 | P1 | [Design: human notes join (not override) Ollama descriptions in search, similarity and tagging](implementation/152-description-notes-join-search-similarity-tagging-design.md) |
+_none_
 
 ## verification
 
 | # | Priority | Task |
 |---|---|---|
 | 150 | P1 | [Description tagging should use ConceptTagger, and retag when a description changes](verification/150-description-tagging-use-concept-tagger.md) |
+| 151 | P2 | [Ollama descriptions have no lemma index, so smart search cannot match them](verification/151-ollama-descriptions-not-searchable.md) |
+| 152 | P1 | [Design: human notes join (not override) Ollama descriptions in search, similarity and tagging](verification/152-description-notes-join-search-similarity-tagging-design.md) |
 
 ## done
 
