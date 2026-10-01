@@ -15,6 +15,7 @@ from Storage.models import (
     DescriptionNote, DescriptionNoteEmbedding, DescriptionNoteLemma,
 )
 from graph.uf import UnionFind
+from repository.description_note_lemmas import DescriptionNoteLemmasSaver, compute_note_lemmas
 from repository.image_descriptions import description_not_rejected
 from repository.ocr_lemmas import matching_image_ids
 from repository.tags import NOTE_TAG_SOURCE
@@ -310,8 +311,21 @@ class ImageRepository:
                 index_elements=["image_id"],
                 set_={"text": text, "updated_at": func.now()},
             )
+            .returning(DescriptionNote.updated_at)
         )
-        await self.session.execute(stmt)
+        updated_at = (await self.session.execute(stmt)).scalar_one()
+
+        # Refresh this note's lemma index in the same transaction so an edited note is searchable
+        # immediately. Stamped with the observed updated_at (same value the batch's staleness
+        # predicate compares against), so build_description_note_lemmas skips it. Tags and the
+        # embedding stay batch-only: the backend has neither rapidfuzz nor the SBERT model.
+        saver = DescriptionNoteLemmasSaver(self.session)
+        await saver.replace_lemmas(image_id, compute_note_lemmas(text))
+        await self.session.execute(
+            sqlalchemy.update(DescriptionNote)
+            .where(DescriptionNote.image_id == image_id)
+            .values(lemmas_built_at=updated_at)
+        )
 
     async def clear_description_note(self, image_id: str) -> None:
         """Deletes the note row; ON DELETE CASCADE removes any

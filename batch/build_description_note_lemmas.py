@@ -5,8 +5,10 @@ import uuid
 from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
-from repository.description_note_lemmas import DescriptionNoteLemmasRepository, DescriptionNoteLemmasSaver
-from rules.normalize import make_morph, normalize
+from repository.description_note_lemmas import (
+    DescriptionNoteLemmasRepository, DescriptionNoteLemmasSaver, note_lemma_set,
+)
+from rules.normalize import make_morph
 from Storage.db import AsyncSessionLocal
 
 
@@ -19,14 +21,7 @@ async def run(session, morph, min_word_length: int) -> None:
 
     async with DescriptionNoteLemmasSaver(session) as saver:
         for image_id, text, updated_at in rows:
-            # language=None: no per-note language tag exists, so this
-            # matches matching_image_ids' own query-time convention
-            # (script-based pymorphy3 fallback). Means the note-lemma
-            # index is never pre-stemmed for English -- see the comment
-            # above _stem_lemma_ids in repository/ocr_lemmas.py.
-            lemma_set = normalize(
-                text, morph, min_length=min_word_length, language=None, keep_digit_tokens=True
-            )
+            lemma_set = note_lemma_set(text, morph, min_word_length)
             await saver.replace_lemmas(image_id, lemma_set)
             await lemmas_repo.mark_lemmas_built(image_id, updated_at)
             tracker.mark_done()

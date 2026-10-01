@@ -67,7 +67,7 @@ async def test_clear_description_note_deletes_row_and_cascades(db_session):
     await repo.set_description_note(str(image.id), "will be cleared")
     await db_session.flush()
     db_session.add(DescriptionNoteEmbedding(description_note_id=image.id, embedding=[0.0] * 1024))
-    db_session.add(DescriptionNoteLemma(image_id=image.id, lemma="cleared"))
+    db_session.add(DescriptionNoteLemma(image_id=image.id, lemma="zzmanual"))
     await db_session.flush()
 
     await repo.clear_description_note(str(image.id))
@@ -115,3 +115,41 @@ async def test_clear_description_note_deletes_note_tags_but_not_other_sources(db
         select(ImageTag.source).where(ImageTag.image_id == image.id)
     )).scalars().all()
     assert sources == ["OCR"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_description_note_writes_lemmas_and_marks_them_built(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    await repo.set_description_note(str(image.id), "a pineapple wearing a hat")
+    await db_session.flush()
+
+    lemmas = set((await db_session.execute(
+        select(DescriptionNoteLemma.lemma).where(DescriptionNoteLemma.image_id == image.id)
+    )).scalars().all())
+    note = (await db_session.execute(
+        select(DescriptionNote).where(DescriptionNote.image_id == image.id)
+    )).scalar_one()
+    assert {"pineapple", "hat"} <= lemmas
+    assert note.lemmas_built_at == note.updated_at   # batch staleness predicate will skip it
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_description_note_replaces_lemmas_when_edited(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    await repo.set_description_note(str(image.id), "pineapple")
+    await db_session.flush()
+    await repo.set_description_note(str(image.id), "zebra")
+    await db_session.flush()
+
+    lemmas = set((await db_session.execute(
+        select(DescriptionNoteLemma.lemma).where(DescriptionNoteLemma.image_id == image.id)
+    )).scalars().all())
+    assert lemmas == {"zebra"}
