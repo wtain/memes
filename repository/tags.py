@@ -5,6 +5,8 @@ from sqlalchemy.orm import aliased
 
 from Storage.models import ImageTag
 
+_DELETE_CHUNK_SIZE = 10_000
+
 
 class TagsRepository:
 
@@ -24,6 +26,17 @@ class TagsRepository:
         )
         await self.session.commit()
         print("Done")
+
+    async def delete_tags_for_images(self, source, image_ids):
+        """Removes `source` tags for just these images (no commit; the caller's session
+        commits together with the replacement tags)."""
+        image_ids = list(image_ids)
+        # Chunked: asyncpg caps a statement at 32767 bind parameters, and a full corpus is bigger.
+        for start in range(0, len(image_ids), _DELETE_CHUNK_SIZE):
+            chunk = image_ids[start:start + _DELETE_CHUNK_SIZE]
+            await self.session.execute(
+                delete(ImageTag).where(ImageTag.source == source, ImageTag.image_id.in_(chunk))
+            )
 
 
 class TagsSaver:

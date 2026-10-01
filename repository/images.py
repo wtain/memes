@@ -1,5 +1,5 @@
 
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete, update, or_, func
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
@@ -128,12 +128,29 @@ class ImagesRepository:
         result = await self.session.execute(query)
         return result.fetchall()
 
-    async def get_images_and_descriptions_without_tags(self, source: str, status: str = "active"):
-        already_tagged = (
-            select(ImageTag.image_id)
+    async def get_images_and_descriptions_needing_tags(self, source: str, status: str = "active"):
+        """Every description of each image whose `source` tags are missing or stale.
+
+        Stale means the image's newest description is newer than its newest `source` tag, i.e.
+        it was (re-)described after it was last tagged. All of a selected image's descriptions
+        are returned, not only the new ones, because the caller rewrites the image's tags from
+        the full description set. An image whose descriptions yield no tags has no tag to
+        compare against, so it is selected on every call; that is harmless (re-tagging is
+        idempotent) but means "selected" does not imply "changed".
+        """
+        latest_description = (
+            select(
+                ImageDescription.image_id,
+                func.max(ImageDescription.created_at).label("latest"),
+            )
+            .group_by(ImageDescription.image_id)
+            .subquery()
+        )
+        latest_tag = (
+            select(ImageTag.image_id, func.max(ImageTag.created_at).label("latest"))
             .where(ImageTag.source == source)
-            .distinct()
-            .scalar_subquery()
+            .group_by(ImageTag.image_id)
+            .subquery()
         )
         query = (
             select(
@@ -142,7 +159,15 @@ class ImagesRepository:
                 self.description.text
             )
             .join(self.description, self.description.image_id == self.img.id)
-            .where(self.img.id.not_in(already_tagged), self.img.status == status)
+            .join(latest_description, latest_description.c.image_id == self.img.id)
+            .outerjoin(latest_tag, latest_tag.c.image_id == self.img.id)
+            .where(
+                self.img.status == status,
+                or_(
+                    latest_tag.c.latest.is_(None),
+                    latest_description.c.latest > latest_tag.c.latest,
+                ),
+            )
         )
         result = await self.session.execute(query)
         return result.fetchall()

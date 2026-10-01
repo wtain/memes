@@ -124,7 +124,7 @@ Database (Images + Embeddings + Clusters)
        │   └─→ SBERT description embeddings (description similarity only)
        │
        └─→ (batch/build_tags_from_descriptions.py)
-           └─→ Regex-rule tagging (old RulesEngine) from descriptions
+           └─→ ConceptTagger tagging from descriptions (source "Ollama")
            (see docs/data-flow.md for the full signal/consumer matrix)
        │
        ▼

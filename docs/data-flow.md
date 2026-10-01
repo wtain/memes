@@ -29,14 +29,17 @@ Tags are rows in `image_tags` with a `source` string. Each job owns one source, 
 | Job | Engine | Input | `source` | Incremental behavior |
 |---|---|---|---|---|
 | `build_tags_from_ocr` | `ConceptTagger` (`rules/concept_tagger.py`, YAML in `batch/data/tagging/`, profile `GENERAL.TAGGING_PROFILE`) | OCR text, per language, after the OCR confidence and language-plausibility filters | `OCR` | Skips images that already have an `OCR` tag |
-| `build_tags_from_descriptions` | **Old** `RulesEngine` (`rules/engine.py`, `RULES.FILE` JSON): regex/substring on raw text | Every Ollama description (all prompts) | `Ollama` | Skips images that already have an `Ollama` tag, so **re-describing an image never retags it** without a full run |
+| `build_tags_from_descriptions` | `ConceptTagger`, same vocabulary and profile as OCR tagging | Every Ollama description (all prompts), each tagged on its own as `en` with no confidence or language filters, then the tags are unioned per image | `Ollama` | Selects images with no `Ollama` tag, or whose newest description is newer than their newest `Ollama` tag (re-described). Their `Ollama` tags are deleted and rewritten from all their descriptions. An image whose descriptions yield no tags is re-evaluated on every run (harmless) |
 | `tag_images_from_concepts` | CLIP concept similarity (`CONCEPTS.*`, built by `build_concept_embeddings`) | CLIP embeddings | `CONCEPT` | Full rebuild |
 | `detect_entities_and_tag` | YOLOv8 animal detector | Image files | `YOLO` | Full rebuild |
 
 Notes:
-- The two text engines are different. `ConceptTagger` does concept voting on lemmas, with language-aware rules. `RulesEngine` does
-  plain pattern matching. Description tags are therefore not comparable with OCR tags.
-- `rules/normalize.py` is shared by both engines and `build_bow`.
+- OCR and description tagging share one engine and vocabulary, but the vocabulary was written for meme text, so descriptions
+  (visual, English prose) may match it differently. Tags are kept apart by `source`. Description votes are not accumulated across
+  prompts: a tag must reach its threshold within a single description.
+- `ConceptTagger` needs `batch/data/tagging/{concepts,tags}.<profile>.yaml`; only `metal` and `general` have them, so neither tagging job runs on `it`.
+- The old `RulesEngine` (`rules/engine.py`) is no longer used by any batch job, only by dev tools under `batch/tools/`.
+- `rules/normalize.py` is shared by `ConceptTagger` and `build_bow`.
 - Concept discovery (`build_bow`, `build_lemma_clusters`, `draft_concepts_from_clusters`) drafts new concept/tag YAML entries
   for human review. It is a human-in-the-loop step, not an automatic tagger.
 
@@ -62,5 +65,5 @@ Notes:
 ## 5. Known gaps (tracked in `board/todo`)
 
 See tasks 147-154 (index: `board/description-tagging-tracker.md`). Summary: description feedback is not consumed anywhere, descriptions are not searchable, notes do not join tagging
-or description similarity, description tagging uses the old engine and never retags, description jobs are untracked and outside ingestion,
+or description similarity, description jobs are untracked and outside ingestion,
 and there is no description/tagging pipeline.

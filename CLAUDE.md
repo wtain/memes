@@ -262,9 +262,13 @@ build_image_description_embeddings → SBERT embeddings (bge-large-en-v1.5, 1024
                               Ollama description; used only by /similar?source=description (NOT by
                               duplicates). Shell-only for now: no tracked_run, not in
                               batch_registry.yaml, no --status pending. See docs/data-flow.md.
-build_tags_from_descriptions → rule-based tags from descriptions (old RulesEngine, source "Ollama",
-                              NOT ConceptTagger/lemmas; --incremental skips any image that already
-                              has an Ollama tag, so re-described images are not retagged). See
+build_tags_from_descriptions → ConceptTagger tags from descriptions (same vocabulary/profile as
+                              build_tags_from_ocr, source "Ollama"; each description tagged on its own
+                              as "en", tags unioned per image; no OCR confidence/language filters).
+                              --incremental selects images with no Ollama tag or whose newest
+                              description is newer than their newest Ollama tag, and rewrites those
+                              images' Ollama tags from all their descriptions. Full run
+                              (no --incremental) deletes every Ollama tag first. See
                               docs/data-flow.md for which signals feed which consumers.
 build_concept_embeddings   → concept CLIP embeddings + mappings
 
@@ -505,8 +509,8 @@ This ensures OCR data is preserved if the run is interrupted.
 
 Two implementations coexist:
 
-- **Current** (`rules/engine.py` + `batch/data/rules.*.json`): regex/substring matching → tags. Used by `build_tags_from_descriptions`.
-- **New design** (`rules/concept_tagger.py`, `batch/data/tagging/`): concept voting with YAML rule files. See `batch/rules_engine.md` for the full design. Already wired into the main pipeline via `build_tags_from_ocr`.
+- **Legacy** (`rules/engine.py` + `batch/data/rules.*.json`): regex/substring matching → tags. No batch job uses it any more (only dev tools under `batch/tools/` and `batch/diff_rules.py`).
+- **Current** (`rules/concept_tagger.py`, `batch/data/tagging/`): concept voting with YAML rule files. See `batch/rules_engine.md` for the full design. Used by both `build_tags_from_ocr` and `build_tags_from_descriptions`.
 
 `rules/normalize.py` is shared by both engines and `build_bow.py` — use it for all text normalization to keep behavior consistent.
 
