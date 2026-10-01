@@ -17,6 +17,7 @@ from Storage.models import (
 from graph.uf import UnionFind
 from repository.image_descriptions import description_not_rejected
 from repository.ocr_lemmas import matching_image_ids
+from repository.tags import NOTE_TAG_SOURCE
 
 
 class ImageRepository:
@@ -319,7 +320,11 @@ class ImageRepository:
         are deleted explicitly here instead -- that table's FK cascades off
         images.id (mirroring OCRLemma), not description_notes.image_id, so
         the database would not otherwise clean it up when just the note
-        (not the whole image) is cleared."""
+        (not the whole image) is cleared. Note-derived tags (source 'Note')
+        are deleted too, so a cleared note stops producing tags."""
+        await self.session.execute(
+            delete(ImageTag).where(ImageTag.image_id == image_id, ImageTag.source == NOTE_TAG_SOURCE)
+        )
         await self.session.execute(
             delete(DescriptionNoteLemma).where(DescriptionNoteLemma.image_id == image_id)
         )

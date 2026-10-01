@@ -3,7 +3,7 @@ from sqlalchemy import select, delete, update, or_, func
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
-from Storage.models import OCRText, Image, ImageDescription, ImageTag, ImageProcessingStatus
+from Storage.models import OCRText, Image, ImageDescription, ImageTag, ImageProcessingStatus, DescriptionNote
 
 OCR_LEMMAS_PIPELINE = "ocr_lemmas"
 
@@ -171,6 +171,35 @@ class ImagesRepository:
         )
         result = await self.session.execute(query)
         return result.fetchall()
+
+    async def get_notes_needing_tags(self, source: str, status: str = "active"):
+        """(image_id, text) of notes whose `source` tags are missing or stale (note edited after
+        the image's newest `source` tag). A note that yields no tags has nothing to compare
+        against, so it is re-selected every call: harmless, tagging is idempotent."""
+        latest_tag = (
+            select(ImageTag.image_id, func.max(ImageTag.created_at).label("latest"))
+            .where(ImageTag.source == source)
+            .group_by(ImageTag.image_id)
+            .subquery()
+        )
+        result = await self.session.execute(
+            select(DescriptionNote.image_id, DescriptionNote.text)
+            .join(self.img, self.img.id == DescriptionNote.image_id)
+            .outerjoin(latest_tag, latest_tag.c.image_id == DescriptionNote.image_id)
+            .where(
+                self.img.status == status,
+                or_(latest_tag.c.latest.is_(None), DescriptionNote.updated_at > latest_tag.c.latest),
+            )
+        )
+        return result.all()
+
+    async def get_all_notes(self, status: str = "active"):
+        result = await self.session.execute(
+            select(DescriptionNote.image_id, DescriptionNote.text)
+            .join(self.img, self.img.id == DescriptionNote.image_id)
+            .where(self.img.status == status)
+        )
+        return result.all()
 
     async def get_all_images_with_hash(self, status: str = "active"):
         query = (

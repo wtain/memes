@@ -7,6 +7,8 @@ from Storage.models import ImageTag
 
 _DELETE_CHUNK_SIZE = 10_000
 
+NOTE_TAG_SOURCE = "Note"
+
 
 class TagsRepository:
 

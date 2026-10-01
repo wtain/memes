@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from Backend.app.repositories.image_repository import ImageRepository
-from Storage.models import DescriptionNote, DescriptionNoteEmbedding, DescriptionNoteLemma, Image
+from Storage.models import DescriptionNote, DescriptionNoteEmbedding, DescriptionNoteLemma, Image, ImageTag
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -93,3 +93,25 @@ async def test_clear_description_note_on_unset_note_is_a_safe_noop(db_session):
     await db_session.flush()
 
     assert await repo.get_description_note(str(image.id)) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_clear_description_note_deletes_note_tags_but_not_other_sources(db_session):
+    image = Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add(image)
+    await db_session.flush()
+    db_session.add_all([
+        ImageTag(image_id=image.id, key="k", value="v", source="Note"),
+        ImageTag(image_id=image.id, key="k", value="v", source="OCR"),
+    ])
+    repo = ImageRepository(db_session)
+    await repo.set_description_note(str(image.id), "a cat")
+    await db_session.flush()
+
+    await repo.clear_description_note(str(image.id))
+    await db_session.flush()
+
+    sources = (await db_session.execute(
+        select(ImageTag.source).where(ImageTag.image_id == image.id)
+    )).scalars().all()
+    assert sources == ["OCR"]

@@ -25,6 +25,9 @@ build_description_lemmas:
 build_tags_from_descriptions:
   module: batch.build_tags_from_descriptions
   kind: build_tags_from_descriptions
+build_tags_from_notes:
+  module: batch.build_tags_from_notes
+  kind: build_tags_from_notes
 build_concept_embeddings:
   module: batch.build_concept_embeddings
   kind: build_concept_embeddings
