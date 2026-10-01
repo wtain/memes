@@ -15,3 +15,8 @@
 Add `--status {active,pending}` to the three jobs (same convention as `build_ocr_lemmas`). Decide with the pipeline task (153)
 whether `ingest_auto_prep` chains them or whether they run after `ingest_promote`. Descriptions are GPU-heavy, so chaining them
 before review may be the wrong call; analysis needed.
+
+## Update 2026-10-01 (analysis of 153)
+
+User decision: new images join the description chain after `ingest_promote`, active only. This task is not needed by the pipeline;
+keep only if descriptions are later wanted during ingestion review. Candidate to close as won't-do.
