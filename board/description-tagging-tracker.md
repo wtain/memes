@@ -16,13 +16,14 @@ Claude Code session id; resume with `claude --resume <id>`. Add a new row's sess
 | 147 | Run-track and register description jobs | P2 | bounded | - | done | 12ec6cf0-9a05-40be-ad18-6802263c7ac5 |
 | 148 | `--status pending` for description jobs | P2 | bounded + analysis | 147 | todo | - |
 | 150 | Description tagging via ConceptTagger + retag fix | P1 | bounded/architectural | - | verification | 1178696a-3821-4aac-97b2-d52c07e4406c |
-| 151 | Lemma index for Ollama descriptions (search) | P2 | analysis then design | 152 (design together) | implementation (plan written, not started) | 1178696a-3821-4aac-97b2-d52c07e4406c |
-| 152 | Design: notes join search/similarity/tagging | P1 | architectural | - | implementation (plan written, not started) | 1178696a-3821-4aac-97b2-d52c07e4406c |
-| 149 | Rejected feedback excluded everywhere | P2 | design | 150, 151 | todo | - |
+| 151 | Lemma index for Ollama descriptions (search) | P2 | analysis then design | 152 (design together) | verification (merged to main 2a96a8c; pending rollout) | 1178696a-3821-4aac-97b2-d52c07e4406c |
+| 152 | Design: notes join search/similarity/tagging | P1 | architectural | - | verification (merged to main 2a96a8c; pending rollout) | 1178696a-3821-4aac-97b2-d52c07e4406c |
+| 149 | Rejected feedback excluded everywhere | P2 | design | 150, 151 | design (blocked on 151/152 merge) | 12ec6cf0-9a05-40be-ad18-6802263c7ac5 |
 | 153 | Pipeline orchestration with human gates (design approved, spec 2026-10-01-description-tagging-pipeline-driver-design.md) | P1 | architectural | 147 | done | 12ec6cf0-9a05-40be-ad18-6802263c7ac5 |
 | 155 | Implement `description_pipeline` driver | P1 | bounded | 147 | done | 12ec6cf0-9a05-40be-ad18-6802263c7ac5 |
 | 154 | Question: description embeddings in duplicates | P3 | analysis | - | todo | - |
 | 156 | Search ranking (results are an unranked membership filter today) | P3 | analysis then design | 151, 152 | todo | - |
+| 157 | Measure `description_all` similarity on a real corpus; HNSW per-vector fallback if slow | P3 | analysis | 151, 152 | todo | - |
 
 Suggested order: 152 and 150 (decisions shape the rest) -> 147 -> 151 -> 149 -> 148 (likely won't-do) -> 155 (closes 153); 154 any time.
 

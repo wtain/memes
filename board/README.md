@@ -21,7 +21,6 @@ Topic trackers with sessions and dependencies: [description-tagging-tracker.md](
 | 145 | P2 | [No process supervision / restart policy design for the VPS-hosted backend](todo/145-no-process-supervision-restart-policy.md) |
 | 146 | P2 | [No monitoring/alerting for the production service (uptime, log aggregation)](todo/146-no-monitoring-alerting.md) |
 | 148 | P2 | [Description jobs cannot cover an in-flight ingestion batch (no --status pending)](todo/148-description-jobs-no-pending-status-ingestion.md) |
-| 149 | P2 | [Rejected description feedback must exclude the description from search, similarity and tagging](todo/149-description-feedback-not-consumed.md) |
 | 154 | P3 | [Question: should description embeddings take part in duplicate detection?](todo/154-description-embeddings-in-duplicate-detection-question.md) |
 | 156 | P3 | [Search has no ranking: results are a membership filter ordered by created_at](todo/156-search-result-ranking.md) |
 
@@ -31,7 +30,9 @@ _none_
 
 ## design
 
-_none_
+| # | Priority | Task |
+|---|---|---|
+| 149 | P2 | [Rejected description feedback must exclude the description from search, similarity and tagging](design/149-description-feedback-not-consumed.md) |
 
 ## implementation
 
