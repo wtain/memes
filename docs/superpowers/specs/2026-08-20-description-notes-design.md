@@ -2,6 +2,7 @@
 
 Status: done
 Plan: docs/superpowers/plans/2026-08-20-description-notes.md
+Follow-ups: docs/superpowers/specs/2026-10-01-description-notes-search-similarity-tagging-design.md
 
 ## Motivation
 
