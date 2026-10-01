@@ -3,6 +3,7 @@
 See docs/superpowers/specs/2026-10-01-search-result-ranking-design.md and
 docs/adr/adr-2026-10-01-search-ranking-in-python.md.
 """
+import math
 import uuid
 from dataclasses import dataclass
 from functools import lru_cache
@@ -28,18 +29,47 @@ class RankingWeights:
 
 @lru_cache(maxsize=1)
 def get_weights() -> RankingWeights:
-    ranking = settings.SEARCH.RANKING
-    source_cfg = ranking.SOURCE_WEIGHTS
-    tier_cfg = ranking.TIER_WEIGHTS
+    try:
+        ranking = settings.SEARCH.RANKING
+        source_cfg = ranking.SOURCE_WEIGHTS
+        tier_cfg = ranking.TIER_WEIGHTS
+        warn_raw = ranking.WARN_MATCH_COUNT
+    except (AttributeError, KeyError) as exc:
+        raise ValueError(f"search.ranking missing: {exc}") from exc
     missing = [f"source_weights.{k}" for k in SOURCES if k not in source_cfg]
     missing += [f"tier_weights.{k}" for k in TIERS if k not in tier_cfg]
     if missing:
         raise ValueError(f"search.ranking is missing keys: {', '.join(missing)}")
-    return RankingWeights(
-        source={k: float(source_cfg[k]) for k in SOURCES},
-        tier={k: float(tier_cfg[k]) for k in TIERS},
-        warn_match_count=int(ranking.WARN_MATCH_COUNT),
-    )
+
+    # A weight <= 0 would make the max-merge treat a real hit as "no hit" and so change which
+    # images match, so every weight must be a finite number strictly above zero.
+    problems = []
+    source, tier = {}, {}
+    for target, cfg, prefix, keys in (
+        (source, source_cfg, "source_weights", SOURCES),
+        (tier, tier_cfg, "tier_weights", TIERS),
+    ):
+        for k in keys:
+            raw = cfg[k]
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                value = None
+            if isinstance(raw, bool) or value is None or not math.isfinite(value) or value <= 0:
+                problems.append(f"{prefix}.{k}={raw!r}")
+            else:
+                target[k] = value
+    warn = None
+    if isinstance(warn_raw, int) and not isinstance(warn_raw, bool) and warn_raw >= 1:
+        warn = warn_raw
+    else:
+        problems.append(f"warn_match_count={warn_raw!r}")
+    if problems:
+        raise ValueError(
+            "search.ranking has invalid values (weights must be finite numbers > 0, "
+            f"warn_match_count an int >= 1): {', '.join(problems)}"
+        )
+    return RankingWeights(source=source, tier=tier, warn_match_count=warn)
 
 
 def score_images(token_hits: list[dict[uuid.UUID, float]]) -> dict[uuid.UUID, float]:
