@@ -539,6 +539,31 @@ class DescriptionNoteLemma(Base):
     image = relationship("Image", back_populates="description_note_lemmas")
 
 
+class DescriptionLemma(Base):
+    __tablename__ = "description_lemmas"
+
+    # Keyed by description (not image) so a rejected description's lemmas can be excluded at
+    # query time via description_not_rejected(), with no batch rerun on feedback changes.
+    image_description_id = Column(
+        UUID(as_uuid=True), ForeignKey("image_descriptions.id", ondelete="CASCADE"), primary_key=True,
+    )
+    lemma = Column(String, primary_key=True)
+    # Populated for schema symmetry with OCRLemma; never queried (descriptions are English
+    # LLM output, the phonetic erratives fallback does not apply).
+    phonetic_code = Column(String, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_description_lemmas_lemma", "lemma"),
+        Index(
+            "ix_description_lemmas_lemma_trgm",
+            "lemma",
+            postgresql_using="gin",
+            postgresql_ops={"lemma": "gin_trgm_ops"},
+        ),
+    )
+
+
 class SearchHistory(Base):
     __tablename__ = "search_history"
 

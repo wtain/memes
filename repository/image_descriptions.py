@@ -1,8 +1,21 @@
 import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, exists, select
 
-from Storage.models import ImageDescription
+from Storage.models import ImageDescription, ImageDescriptionFeedback
+
+
+def description_not_rejected(description_id_col):
+    """True when the description has no feedback row with approved = FALSE.
+
+    The one definition of "rejected" (no feedback row = unreviewed = included). Takes the
+    description id column so it works against an aliased ImageDescription too; the EXISTS
+    correlates to whichever outer query contains that column.
+    """
+    return ~exists().where(
+        ImageDescriptionFeedback.image_description_id == description_id_col,
+        ImageDescriptionFeedback.approved.is_(False),
+    )
 
 
 class ImageDescriptionsRepository:
