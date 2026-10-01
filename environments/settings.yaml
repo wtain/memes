@@ -47,6 +47,14 @@ search:
   fuzzy_min_lemma_length: 5
   fuzzy_similarity_threshold: 0.35
   phonetic_min_lemma_length: 5
+  # Relevance ranking for text queries (docs/superpowers/specs/2026-10-01-search-result-ranking-design.md).
+  # A hit's weight is source_weight * tier_weight; a token's score is its best hit, an image's score the sum over tokens.
+  ranking:
+    source_weights: {note: 1.0, ocr: 0.9, tag: 0.8, description: 0.6}
+    tier_weights: {exact: 1.0, stem: 0.8, fuzzy: 0.5, phonetic: 0.4}
+    # Log a warning when one query matches more than this many images: the trigger to revisit
+    # Python-side scoring (docs/adr/adr-2026-10-01-search-ranking-in-python.md).
+    warn_match_count: 10000
 
 duplicates:
   # Candidate cutoff for rebuild_duplicates.py's KNN search -- cheap/loose, decides what's
