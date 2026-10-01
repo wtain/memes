@@ -31,6 +31,11 @@ image_descriptions:
   model: llava
   num_ctx: 8192
   batch_size: 50
+  # Optional cap on images described per description_pipeline run (passed as --limit). Unset
+  # means unlimited. Set per environment from measured Ollama throughput so one slice finishes
+  # well under an hour; re-trigger the pipeline until the backlog is empty. See
+  # docs/superpowers/specs/2026-10-01-description-tagging-pipeline-driver-design.md.
+  # max_per_run: 500
 
 general:
   batch_size: 100

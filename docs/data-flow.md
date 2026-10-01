@@ -25,7 +25,7 @@ Smart search matches an image if the query lemma is in `ocr_lemmas`, in `image_t
 
 Similarity modes of `GET /api/images/{id}/similar`: `image` (CLIP), `description` (minimum cosine distance over description vectors sharing
 a `prompt_key`), `description_note` (note vector) and `description_all` (minimum cosine distance over all of the image's non-rejected
-description vectors plus its note vector, no `prompt_key` restriction; 404 when the image has neither).
+description vectors plus its note vector, no `prompt_key` restriction; 404 when the image has no non-rejected description embedding and no note embedding, so an image whose only descriptions are rejected also 404s).
 
 Latency after a note edit: lemmas are immediate (refreshed inline in `PUT .../description-note`); tags appear after `build_tags_from_notes`;
 the similarity vector updates after `build_description_note_embeddings`.
@@ -43,6 +43,7 @@ Tags are rows in `image_tags` with a `source` string. Each job owns one source, 
 | `detect_entities_and_tag` | YOLOv8 animal detector | Image files | `YOLO` | Full rebuild |
 
 Notes:
+- `description_pipeline` runs both `build_tags_from_notes` and `build_description_lemmas` (see section 4).
 - OCR and description tagging share one engine and vocabulary, but the vocabulary was written for meme text, so descriptions
   (visual, English prose) may match it differently. Tags are kept apart by `source`. Description votes are not accumulated across
   prompts: a tag must reach its threshold within a single description.
@@ -64,18 +65,19 @@ Notes:
   distance over pairs that share the same `prompt_key`. See spec 2026-07-16.
 - **Description notes**: human-written, one per image, editable in place, no history. Notes **do not replace** Ollama descriptions. They
   are a separate, parallel signal: they join search through their lemmas and have their own similarity mode (`source=description_note`).
-  They feed tagging through `build_tags_from_notes` (source `Note`) and `source=description_all` similarity. See specs 2026-08-20 and 2026-10-01.
+  They feed tagging through `build_tags_from_notes` (source `Note`), and they also feed `source=description_all` similarity. See specs 2026-08-20 and 2026-10-01.
 - **Duplicates never use descriptions or notes.** They use CLIP, OCR-text embeddings and OCR lemmas (see CLAUDE.md, batch pipeline).
 
 ## 4. Scheduling and admin triggering
 
 - Scheduled (`environments/settings.yaml`, `scheduler.jobs`): only `trends_batch` and `build_statistics`.
 - Every other enrichment job is manual. Most are triggerable from `/admin/batches` through `environments/batch_registry.yaml`.
-- **Not in the registry and not run-tracked:** `build_image_descriptions`, `build_image_description_embeddings`. They run from the shell only.
+- `build_image_descriptions` and `build_image_description_embeddings` are run-tracked and in the registry (admin-triggerable, manual only). Triggered on their own they have no `--limit`, so one trigger describes the whole backlog.
 - `build_description_lemmas` and `build_tags_from_notes` are in the registry (admin-triggerable, manual only, not scheduled).
+- `description_pipeline` (admin-triggerable, manual only) runs, in order: `build_tags_from_ocr`, the two note jobs, `build_tags_from_notes`, `build_image_descriptions` (capped by `image_descriptions.max_per_run`, unset means unlimited), then description embeddings, `build_description_lemmas` and `build_tags_from_descriptions`. Independent steps continue past a failure; the steps that need descriptions are skipped if `build_image_descriptions` fails. Each step self-tracks under its own kind. Active images only, so new images join after `ingest_promote`. Not in the chain: `tag_images_from_concepts`, `detect_entities_and_tag`, concept drafting.
 - Ingestion (`ingest_auto_prep`) does not cover descriptions: none of the description jobs, including `build_description_lemmas`, supports `--status pending` (board task 148).
 
 ## 5. Known gaps (tracked in `board/todo`)
 
-See tasks 147-154 (index: `board/description-tagging-tracker.md`). Summary: description feedback is not consumed by description tagging, embedding generation or `source=description` (task 149),
-description jobs are partly untracked and outside ingestion (148), and there is no description/tagging pipeline (153).
+See tasks 147-156 (index: `board/description-tagging-tracker.md`). Summary: description feedback is not consumed by description tagging, embedding generation or `source=description` (task 149),
+description jobs are outside ingestion (deliberately: new images are described after promotion), and search has no ranking (task 156).

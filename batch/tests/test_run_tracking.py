@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from batch.run_tracking import finish_existing_run, tracked_run
+from batch.run_tracking import finish_existing_run, record_stats, tracked_run
 
 
 class TestTrackedRun:
@@ -69,6 +69,20 @@ class TestFinishExistingRun:
 
         repo.fail.assert_awaited_once_with("existing-run-id", error="boom")
         repo.commit.assert_not_called()
+
+
+class TestRecordStats:
+    @pytest.mark.asyncio
+    async def test_merges_stats_into_the_run_and_commits(self):
+        repo = AsyncMock()
+        session = AsyncMock()
+
+        with patch("batch.run_tracking.AsyncSessionLocal", return_value=_ctx(session)), \
+             patch("batch.run_tracking.BatchRunRepository", return_value=repo):
+            await record_stats("run-1", {"saved": 4})
+
+        repo.update_stats.assert_awaited_once_with("run-1", saved=4)
+        session.commit.assert_awaited_once()
 
 
 def _ctx(session):

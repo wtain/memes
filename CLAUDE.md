@@ -262,12 +262,17 @@ build_image_descriptions   → multi-prompt Ollama LLM descriptions (optional), 
                               per environment; incremental with its own commit interval;
                               permanently-failed pairs are skipped by default (--retry-failed
                               to re-attempt, --reset to clear everything, --limit to cap a run).
+                              Run-tracked (kind build_image_descriptions, stats include
+                              images_selected/images_remaining) and admin-triggerable from
+                              /admin/batches (no --limit there: one trigger covers the whole backlog),
+                              manual-trigger only, not scheduled. Always active images only.
                               See docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md
                               and docs/superpowers/specs/2026-07-15-image-description-failure-tracking-and-context-size.md
 build_image_description_embeddings → SBERT embeddings (bge-large-en-v1.5, 1024-dim), one per
                               Ollama description; used only by /similar?source=description (NOT by
-                              duplicates). Shell-only for now: no tracked_run, not in
-                              batch_registry.yaml, no --status pending. See docs/data-flow.md.
+                              duplicates). Run-tracked (kind build_image_description_embeddings) and admin-triggerable from
+                              /admin/batches, manual-trigger only, not scheduled; no --status pending.
+                              See docs/data-flow.md.
 build_tags_from_descriptions → ConceptTagger tags from descriptions (same vocabulary/profile as
                               build_tags_from_ocr, source "Ollama"; each description tagged on its own
                               as "en", tags unioned per image; no OCR confidence/language filters).
@@ -280,8 +285,21 @@ build_tags_from_notes      → ConceptTagger tags from human description notes (
                               build_tags_from_ocr, source "Note", language=None). --incremental selects
                               notes with no Note tag or edited after their newest Note tag and rewrites
                               those images' Note tags; full run (no --incremental) deletes every Note
-                              tag first. Clearing a note deletes its Note tags immediately.
+                              tag first. Clearing a note deletes its Note tags immediately. The CLI default is a FULL
+                              run (pass --incremental for staleness mode), while main() and the admin
+                              trigger default to incremental. On `it` (no tagging vocabulary files) it
+                              cannot run, same as the other ConceptTagger jobs.
                               admin-triggerable from /admin/batches, manual-trigger only, not scheduled.
+description_pipeline      → one admin-triggerable driver (manual-trigger only, not scheduled) that refreshes the
+                              description and tagging data: build_tags_from_ocr, build_description_note_lemmas,
+                              build_description_note_embeddings, build_tags_from_notes, build_image_descriptions
+                              (capped per run by image_descriptions.max_per_run, unset = unlimited; re-trigger until
+                              the backlog is empty), then build_image_description_embeddings, build_description_lemmas
+                              and build_tags_from_descriptions (all need the describe step). Active images only, so new images join after ingest_promote. A failed
+                              step only skips the steps that need it; each child self-tracks under its own kind and an
+                              already-running child is skipped, not failed. Excludes tag_images_from_concepts,
+                              detect_entities_and_tag and concept drafting. See
+                              docs/superpowers/specs/2026-10-01-description-tagging-pipeline-driver-design.md.
 build_concept_embeddings   → concept CLIP embeddings + mappings
 
 # Maintenance (run as needed)

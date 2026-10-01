@@ -261,7 +261,9 @@ class ImageRepository:
 4. **clusterize** - Optimize cluster storage
 5. **build_tags_from_ocr** - Rule-based tagging
 6. **build_image_descriptions** - LLM descriptions (Ollama)
-7. **build_tags_from_descriptions** - Description-based tagging (also: **build_description_lemmas**, **build_tags_from_notes**)
+7. **build_tags_from_descriptions** - Description-based tagging
+   - **build_description_lemmas** - Description lemma index for smart search
+   - **build_tags_from_notes** - Tags from human description notes
 8. **build_concept_embeddings** - Semantic concepts
 9. **Utilities** - Move excluded, unregister deleted, trends analysis
 10. **deduplicate_ocr_texts** - Remove duplicate OCR entries per image/language
@@ -614,6 +616,7 @@ Total for 1000 images: ~30-60 minutes
 7. build_tags_from_descriptions
    Input:  Descriptions + rules
    Output: Tags from descriptions
+   Time:   ~10ms per image
 
    build_description_lemmas
    Input:  Descriptions
@@ -623,6 +626,9 @@ Total for 1000 images: ~30-60 minutes
    Input:  Description notes + rules
    Output: Note tags
    Time:   ~10ms per image
+
+   (description_pipeline chains OCR tags, the note jobs incl. build_tags_from_notes,
+    build_image_descriptions, then description embeddings, lemmas and tags)
 ```
 
 ### Quality Assurance Pipeline (Optional)
