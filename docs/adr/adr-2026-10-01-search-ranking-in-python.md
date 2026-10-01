@@ -20,8 +20,9 @@ images on `metal` and 32k on `general`; a typical text query matches from a hand
 Compute relevance in Python and page in Python:
 
 - `scored_image_matches` returns `{image_id: score}` (best hit per token, `source weight x tier weight`, summed across tokens).
-- The repository fetches `(id, filename, created_at, flagged)` for the surviving ids in one query; the service sorts by
-  `(score desc, created_at desc, id desc)` and returns the page strictly after a keyset cursor `(score, created_at, id)`.
+- The repository (`ImageRepository._ranked_page`) fetches `(id, filename, created_at, flagged)` for the surviving ids in one query, sorts by
+  `(score desc, created_at desc, id desc)` and returns the page strictly after a keyset cursor `(score, created_at, id)`; the service only
+  decodes and encodes the cursor and builds the response.
 - Queries without `q` keep the existing SQL path and `(created_at, id)` cursor.
 
 ## Alternatives considered
@@ -43,6 +44,9 @@ Compute relevance in Python and page in Python:
 - Each ranked request materializes the full match set in Python and sorts it: time and memory are linear in the number of **matches**
   (not the corpus). Page cost is therefore dominated by how common the query words are.
 - The match-set size is unbounded in principle; a very common word on a large corpus is the failure mode.
+- The id list is also passed to SQL as `img.id IN (...)`, so asyncpg's hard limit of 32,767 bind parameters per statement is the ceiling: a
+  near-universal word on a corpus near 32k images would error, not just slow down. This predates ranking (the old filter path had it), but
+  it is the hard stop beside the 10,000 warning threshold.
 - Cursor format changes for ranked pages; a stale-format cursor restarts at page 1 (web and Android treat the cursor as opaque).
 - The score is deterministic for a given query and data, so pages are consistent unless the underlying data changes mid-pagination (same
   caveat as any keyset pagination).
@@ -53,6 +57,7 @@ Any of these holds, then move to alternative 1 (SQL-side scoring and keyset) or 
 
 - The scale guard fires routinely: the backend logs a warning when a query matches more than `search.ranking.warn_match_count`
   (default 10,000) images. Treat sustained warnings as the signal.
+- The corpus (or a common word's match set) approaches 32,767 images, asyncpg's bind-parameter limit for the `img.id IN (...)` filter.
 - p95 latency of a ranked `GET /api/images?q=` exceeds about 1 s on the largest environment.
 - Memory per search request becomes a concern (many concurrent common-word queries).
 - The corpus grows by roughly an order of magnitude (hundreds of thousands of images), at which point common-word match sets stop being "a few thousand".

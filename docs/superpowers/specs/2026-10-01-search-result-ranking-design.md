@@ -50,7 +50,7 @@ Default weights (config, see below):
 | Tier | Weight | Sources queried |
 |---|---|---|
 | `exact` | 1.0 | OCR, tags, notes, descriptions |
-| `stem` | 0.8 | OCR, descriptions |
+| `stem` | 0.8 | OCR (description stem-form matches are scored at the exact tier, see the Note) |
 | `fuzzy` | 0.5 | OCR, tags, notes, descriptions |
 | `phonetic` | 0.4 | OCR |
 
@@ -83,16 +83,17 @@ separately. The rejected-description exclusion applies unchanged.
 - `search(q, tags, cursor, limit)` is split by whether `q` yields scores:
   - **no `q`, or `q` that normalizes away (scores is `None`)**: current SQL path and `(created_at, id)` cursor, untouched.
   - **scores present**: intersect with the tag-facet filter (`tags` AND semantics as today). Facet counts are computed over the same filtered
-    set as today, unaffected by order. Then one query fetches `(id, filename, created_at, flagged)` for the surviving ids; the service
-    sorts by `(score desc, created_at desc, id desc)` and returns the page strictly after the cursor, `limit + 1` rows to compute `hasNext`.
+    set as today, unaffected by order. Then one query fetches `(id, filename, created_at, flagged)` for the surviving ids; the repository
+    (`ImageRepository._ranked_page`) sorts by `(score desc, created_at desc, id desc)` and returns the page strictly after the cursor,
+    `limit + 1` rows to compute `hasNext`. The service only decodes/encodes the cursor and builds the response.
 - The cursor for ranked pages is an opaque base64 JSON `{"score": float, "created_at": iso, "id": uuid}`. The decoder distinguishes the two
   formats by the presence of `score`. A recency-format cursor presented with a `q` that produces scores is treated as invalid: the request
   restarts at page 1 (no error). A ranked cursor presented without `q` is ignored the same way. Web and Android treat the cursor as an
   opaque string, so no client change is needed.
 - Scores are compared as floats rounded to 6 decimals before sorting and in the cursor, so a cursor round-trips through JSON without
   drifting across the strict-after comparison.
-- **Scale guard:** when a query matches more than `settings.SEARCH.RANKING.WARN_MATCH_COUNT` (default 10000) images, log one warning with
-  the query length, match count and elapsed scoring time. No behavior change. This is the measurable trigger named in the ADR.
+- **Scale guard:** when a query matches more than `settings.SEARCH.RANKING.WARN_MATCH_COUNT` (default 10000) images, log a warning per request (not once per query) with
+  the query length, match count and total elapsed time (per-token matching + fetch + sort). No behavior change. This is the measurable trigger named in the ADR.
 - `_record_history` and the response shape are unchanged.
 
 ### Configuration (`environments/settings.yaml`, group `search`)

@@ -25,6 +25,9 @@ Smart search matches an image if the query lemma is in `ocr_lemmas`, in `image_t
 Results are ranked: each token's best hit scores source weight x match-tier weight, an image's score is the sum over tokens, and ties
 fall back to recency (`repository/search_ranking.py`). Weights and `warn_match_count` are the `search.ranking.*` keys in
 `environments/settings.yaml`; see `docs/superpowers/specs/2026-10-01-search-result-ranking-design.md`.
+Known limitation (pre-existing, not changed by ranking): description lemmas are stems and take part in the exact tier with the query's stem
+form, so a query like "cats" whose stem "cat" appears in any description suppresses the OCR stem fallback; OCR-only "cat" images may then not
+match "cats".
 
 Similarity modes of `GET /api/images/{id}/similar`: `image` (CLIP), `description` (minimum cosine distance over description vectors sharing
 a `prompt_key`), `description_note` (note vector) and `description_all` (minimum cosine distance over all of the image's non-rejected
