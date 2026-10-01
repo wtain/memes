@@ -120,8 +120,12 @@ Database (Images + Embeddings + Clusters)
        ├─→ (batch/build_image_descriptions.py)
        │   └─→ Ollama descriptions (if enabled)
        │
+       ├─→ (batch/build_image_description_embeddings.py)
+       │   └─→ SBERT description embeddings (description similarity only)
+       │
        └─→ (batch/build_tags_from_descriptions.py)
-           └─→ Rule-based tagging from descriptions
+           └─→ Regex-rule tagging (old RulesEngine) from descriptions
+           (see docs/data-flow.md for the full signal/consumer matrix)
        │
        ▼
 Database (Fully Enriched Images)
