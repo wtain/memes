@@ -15,6 +15,7 @@ from Storage.models import (
     DescriptionNote, DescriptionNoteEmbedding, DescriptionNoteLemma,
 )
 from graph.uf import UnionFind
+from repository.image_descriptions import description_not_rejected
 from repository.ocr_lemmas import matching_image_ids
 
 
@@ -181,6 +182,56 @@ class ImageRepository:
                 img.status == "active",
             )
             .group_by(cand_desc.image_id, img.filename, extras.flagged)
+            .order_by("distance")
+            .limit(limit)
+        )
+        return result.all()
+
+    @staticmethod
+    def _text_vectors(image_id_filter=None):
+        """UNION ALL of (image_id, embedding) over non-rejected Ollama description vectors and
+        note vectors. Both come from bge-large-en-v1.5, so they share one space."""
+        description_vectors = (
+            select(
+                ImageDescription.image_id.label("image_id"),
+                ImageDescriptionEmbedding.embedding.label("embedding"),
+            )
+            .select_from(ImageDescriptionEmbedding)
+            .join(ImageDescription, ImageDescription.id == ImageDescriptionEmbedding.image_description_id)
+            .where(description_not_rejected(ImageDescription.id))
+        )
+        note_vectors = select(
+            DescriptionNoteEmbedding.description_note_id.label("image_id"),
+            DescriptionNoteEmbedding.embedding.label("embedding"),
+        )
+        if image_id_filter is not None:
+            description_vectors = description_vectors.where(ImageDescription.image_id == image_id_filter)
+            note_vectors = note_vectors.where(DescriptionNoteEmbedding.description_note_id == image_id_filter)
+        return union_all(description_vectors, note_vectors)
+
+    async def has_text_embedding(self, image_id: str) -> bool:
+        vectors = self._text_vectors(image_id_filter=image_id).subquery()
+        result = await self.session.execute(select(vectors.c.image_id).limit(1))
+        return result.first() is not None
+
+    async def get_similar_by_description_all(self, image_id: str, limit: int = 10):
+        """Min cosine distance over every (source vector, candidate vector) pair, where an
+        image's vectors are its non-rejected Ollama description embeddings plus its note
+        embedding. Unlike get_similar_by_description, prompt_key is not required to match, so a
+        note can be compared with an Ollama description."""
+        source = self._text_vectors(image_id_filter=image_id).subquery("source_vectors")
+        candidates = self._text_vectors().subquery("candidate_vectors")
+        img, extras = aliased(Image), aliased(ImageExtras)
+
+        distance = func.min(source.c.embedding.cosine_distance(candidates.c.embedding)).label("distance")
+        result = await self.session.execute(
+            select(candidates.c.image_id, distance, img.filename, extras.flagged)
+            .select_from(source)
+            .join(candidates, candidates.c.image_id != image_id)
+            .join(img, img.id == candidates.c.image_id)
+            .outerjoin(extras, extras.image_id == candidates.c.image_id)
+            .where(img.status == "active")
+            .group_by(candidates.c.image_id, img.filename, extras.flagged)
             .order_by("distance")
             .limit(limit)
         )

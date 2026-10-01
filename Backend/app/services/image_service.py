@@ -184,6 +184,10 @@ class ImageService:
             if embedding is None:
                 raise HTTPException(status_code=404, detail="No description note embedding found for this image")
             rows = await self.repo.get_similar_by_note(image_id, embedding, limit=limit)
+        elif source == "description_all":
+            if not await self.repo.has_text_embedding(image_id):
+                raise HTTPException(status_code=404, detail="No description or note embedding found for this image")
+            rows = await self.repo.get_similar_by_description_all(image_id, limit=limit)
         else:
             embedding = await self.repo.get_embedding(image_id)
             if embedding is None:

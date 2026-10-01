@@ -135,6 +135,30 @@ class TestGetSimilarDescriptionNoteMode:
         assert [item.cosineDistance for item in result.items] == [0.02]
 
 
+class TestGetSimilarDescriptionAllMode:
+    async def test_raises_404_when_no_text_embedding(self, service, mock_repo):
+        mock_repo.has_text_embedding.return_value = False
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_similar("image-1", limit=10, source="description_all")
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No description or note embedding found for this image"
+        mock_repo.get_similar_by_description_all.assert_not_called()
+
+    async def test_happy_path_calls_repo_get_similar_by_description_all(self, service, mock_repo):
+        mock_repo.has_text_embedding.return_value = True
+        mock_repo.get_similar_by_description_all.return_value = [
+            ("image-4", 0.02, "fourth.png", False),
+        ]
+
+        result = await service.get_similar("image-1", limit=7, source="description_all")
+
+        mock_repo.get_similar_by_description_all.assert_awaited_once_with("image-1", limit=7)
+        assert [item.id for item in result.items] == ["image-4"]
+        assert [item.cosineDistance for item in result.items] == [0.02]
+
+
 class TestGetDescriptionsFeedback:
     async def test_feedback_is_none_when_no_row(self, service, mock_repo):
         mock_repo.get_descriptions.return_value = [
