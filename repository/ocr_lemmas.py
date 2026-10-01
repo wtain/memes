@@ -10,7 +10,8 @@ from config.settings import settings
 from rules.english_stemming import is_latin_word, stem_english_word
 from rules.normalize import make_morph, normalize
 from rules.phonetic import is_cyrillic_word, russian_metaphone
-from Storage.models import DescriptionNoteLemma, ImageTag, OCRLemma
+from repository.image_descriptions import description_not_rejected
+from Storage.models import DescriptionLemma, DescriptionNoteLemma, ImageDescription, ImageTag, OCRLemma
 
 
 @lru_cache(maxsize=1)
@@ -18,18 +19,29 @@ def _get_morph():
     return make_morph()
 
 
+def _description_image_ids(*lemma_filters):
+    """Image ids of non-rejected Ollama descriptions whose lemma rows satisfy the filters."""
+    return (
+        select(ImageDescription.image_id)
+        .join(DescriptionLemma, DescriptionLemma.image_description_id == ImageDescription.id)
+        .where(*lemma_filters, description_not_rejected(ImageDescription.id))
+    )
+
+
 async def _exact_lemma_ids(session: AsyncSession, lemma: str) -> set:
     ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma == lemma)
     tag_subq = select(distinct(ImageTag.image_id)).where(func.upper(ImageTag.value) == lemma.upper())
     note_subq = select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma == lemma)
-    result = await session.execute(union(ocr_subq, tag_subq, note_subq))
+    description_subq = _description_image_ids(DescriptionLemma.lemma == lemma)
+    result = await session.execute(union(ocr_subq, tag_subq, note_subq, description_subq))
     return {row[0] for row in result.all()}
 
 
 async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
     """
     Trigram-similarity fallback, written to use the pg_trgm GIN index
-    (ix_ocr_lemmas_lemma_trgm, and now also ix_description_note_lemmas_lemma_trgm)
+    (ix_ocr_lemmas_lemma_trgm, ix_description_note_lemmas_lemma_trgm, and
+    ix_description_lemmas_lemma_trgm)
     rather than a sequential scan.
 
     This is deliberately NOT `func.similarity(col, lemma) >= threshold`,
@@ -60,7 +72,8 @@ async def _fuzzy_lemma_ids(session: AsyncSession, lemma: str) -> set:
     ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma.op("%")(lemma))
     tag_subq = select(distinct(ImageTag.image_id)).where(ImageTag.value.op("%")(lemma))
     note_subq = select(DescriptionNoteLemma.image_id).where(DescriptionNoteLemma.lemma.op("%")(lemma))
-    result = await session.execute(union(ocr_subq, tag_subq, note_subq))
+    description_subq = _description_image_ids(DescriptionLemma.lemma.op("%")(lemma))
+    result = await session.execute(union(ocr_subq, tag_subq, note_subq, description_subq))
     return {row[0] for row in result.all()}
 
 
@@ -117,11 +130,13 @@ async def _stem_lemma_ids(session: AsyncSession, lemma: str) -> set:
     would be dead code. Notes still get exact-match and trigram-fuzzy
     fallback coverage; trigram similarity catches most word-form variation
     in practice.
+
+    Description lemmas ARE included: build_description_lemmas.py indexes Ollama descriptions with language="en", so they are pre-stemmed like en OCR rows.
     """
     stem = stem_english_word(lemma)
-    result = await session.execute(
-        select(OCRLemma.image_id).where(OCRLemma.lemma == stem)
-    )
+    ocr_subq = select(OCRLemma.image_id).where(OCRLemma.lemma == stem)
+    description_subq = _description_image_ids(DescriptionLemma.lemma == stem)
+    result = await session.execute(union(ocr_subq, description_subq))
     return {row[0] for row in result.all()}
 
 
@@ -129,7 +144,8 @@ async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optiona
     """
     None means "apply no filter" (q is falsy, or every token normalizes
     away to nothing). Otherwise returns the set of image IDs whose
-    OCR-lemma index, description-note-lemma index, or tags contain every
+    OCR-lemma index, description-note-lemma index, Ollama-description-lemma
+    index (rejected descriptions excluded), or tags contain every
     query lemma (AND); an empty set means no image matches.
 
     Each query lemma is matched exactly first. If that finds nothing,
