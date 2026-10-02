@@ -43,10 +43,14 @@ in P1 and reviewed by the user, using existing tags and the existing corpus to g
 - **Always store** a short English "use when" sentence per meme, as the human-readable source for explanation and for re-extraction.
 - **Vectors**: one vector per (image, axis) for axes where soft matching is needed (`situation` for sure, the others via the
   vocabulary key similarity instead of per-image vectors). This avoids n x axes vectors per image where a lookup table is enough.
-- **Embedding model**: one text embedding model for English phrases and vocabulary definitions. Because the LLM normalises the
-  query into English profile values, an English-only model such as the existing `bge-large-en-v1.5` is a candidate, which avoids a
-  new multilingual space. Alternative: a multilingual model and no translation. Compare both on the gold set (P6) before
-  committing (OQ-4). The result must be one decision, not per-axis models.
+- **Embedding model** (provisional, decided in P1 on 2026-10-02): one English text-embedding model **served by the local Ollama**
+  and called over HTTP, for meme situation phrases, vocabulary definitions and query situation phrases. Reason: the backend forbids
+  ML libraries (torch, sentence-transformers), so it cannot embed text itself, and Ollama is already the only allowed query-time
+  model host (D2). Because the LLM normalises the query into English profile values, an English model suffices and no multilingual
+  space is needed. These vectors live in new tables and are never mixed with the existing sentence-transformers `bge-large-en-v1.5`
+  vectors. `model_name` and `model_digest` are stored per row so a switch is a re-embed. P6 compares this choice with a
+  multilingual model on the gold set and may overturn it (OQ-4). The result must be one decision, not per-axis models. Details:
+  `2026-10-02-p1-taxonomy-and-data-model-design.md`, decision 6.
 - **Versioning**: a profile row stores `taxonomy_version`, `extractor_model`, `extractor_prompt_version`, `extracted_at`,
   `human_verified`. Changing the vocabulary or prompt marks rows stale, which re-extracts them (except `human_verified` rows,
   which are flagged for review instead).

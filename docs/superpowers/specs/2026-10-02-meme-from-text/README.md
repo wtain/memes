@@ -2,7 +2,7 @@
 
 Status: draft
 Originates from: user request, 2026-10-02 (brainstorming session)
-Follow-ups: none yet (project specs will be listed here and in `tracker.md`)
+Follow-ups: `2026-10-02-p1-taxonomy-and-data-model-design.md` (P1). Further project specs are listed in `tracker.md`.
 
 Given a piece of text, find a meme (or several) that fit it. The user opens the web UI, enters text, and gets ranked memes.
 The text is turned into a structured profile along fixed "meaning axes" (situation, emotion, ...), and memes carry the same axes,
