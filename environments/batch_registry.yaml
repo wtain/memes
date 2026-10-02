@@ -73,3 +73,6 @@ build_image_description_embeddings:
 description_pipeline:
   module: batch.description_pipeline
   kind: description_pipeline
+build_meme_profiles:
+  module: batch.build_meme_profiles
+  kind: build_meme_profiles
