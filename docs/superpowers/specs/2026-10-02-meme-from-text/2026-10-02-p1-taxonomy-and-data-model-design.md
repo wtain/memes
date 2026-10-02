@@ -1,6 +1,7 @@
 # P1: Taxonomy and data model — Design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-02-p1-taxonomy-and-data-model.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P1)
 Follow-ups: none yet (P2 meme profile extraction and P3 query understanding consume this spec)
 
