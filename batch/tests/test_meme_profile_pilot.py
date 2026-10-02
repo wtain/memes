@@ -1,5 +1,3 @@
-import json
-
 from batch.tools import meme_profile_pilot as pilot
 
 
@@ -117,3 +115,78 @@ class TestRenderSheet:
         assert "data:image/jpeg;base64,AAAA" in html
         assert "ratings.json" in html and "best" in html and "acceptable" in html and "poor" in html
         assert "anger" in html and "joy" in html
+
+
+def _sheet_item(runs, ocr="plain"):
+    return {"image_id": "id-1", "filename": "1.jpg", "stratum": "ocr only", "path": "text",
+            "bundle": {"note": None, "descriptions": [], "ocr": ocr}, "runs": runs}
+
+
+class TestRenderSheetSafety:
+    def test_model_and_input_text_is_escaped(self):
+        script = "<script>alert(1)</script>"
+        hostile = _run()
+        hostile["profile"]["situation"] = script
+        hostile["profile"]["emotion"] = [{"key": "joy", "confidence": script}]
+        items = [_sheet_item({"m1": [hostile, _run()], "m2": [_run(), _run()]}, ocr=script)]
+        labels = {"id-1": {"A": "m1", "B": "m2"}}
+
+        html = pilot.render_sheet(items, labels, thumbnails={})
+
+        assert script not in html
+        assert "&lt;script&gt;" in html
+
+    def test_invalid_run_never_leaks_the_model_name_through_its_error(self):
+        broken = _run(ok=False)
+        broken["error"] = "model 'secret-model-name' not found"
+        items = [_sheet_item({"secret-model-name": [broken, _run()], "other-model": [_run(), _run()]})]
+        labels = {"id-1": {"A": "secret-model-name", "B": "other-model"}}
+
+        html = pilot.render_sheet(items, labels, thumbnails={})
+
+        assert "secret-model-name" not in html and "not found" not in html
+        assert "invalid output" in html
+
+    def test_axis_items_without_confidence_or_key_render(self):
+        run = _run()
+        run["profile"]["emotion"] = [{"key": "joy"}, {}]
+        items = [_sheet_item({"m1": [run, _run()]})]
+
+        html = pilot.render_sheet(items, {"id-1": {"A": "m1"}}, thumbnails={})
+
+        assert "joy (-)" in html and "? (-)" in html
+
+    def test_export_reads_id_and_label_from_data_attributes(self):
+        items = [_sheet_item({"m1": [_run(), _run()]})]
+        items[0]["image_id"] = "a|b"
+
+        html = pilot.render_sheet(items, {"a|b": {"A": "m1"}}, thumbnails={})
+
+        assert "data-id='a|b'" in html and "data-label='A'" in html
+        assert "split('|')" not in html and "r.dataset.id" in html
+
+
+class TestSplitWinners:
+    def test_text_and_vision_candidates_are_judged_separately(self):
+        stats = {"text-a": {"valid_rate": 1.0, "mean_rating": 1.0, "mean_seconds": 1.0},
+                 "text-b": {"valid_rate": 1.0, "mean_rating": 1.5, "mean_seconds": 1.0},
+                 "vis@vision": {"valid_rate": 1.0, "mean_rating": 2.0, "mean_seconds": 9.0}}
+
+        assert pilot.split_winners(stats) == ("text-b", "vis")
+
+    def test_none_when_a_side_has_no_qualifying_candidate(self):
+        stats = {"vis@vision": {"valid_rate": 1.0, "mean_rating": 2.0, "mean_seconds": 9.0}}
+
+        assert pilot.split_winners(stats) == (None, "vis")
+        assert pilot.split_winners({}) == (None, None)
+
+
+class TestWriteAtomic:
+    def test_replaces_the_target_and_leaves_no_temp_file(self, tmp_path):
+        target = tmp_path / "out.json"
+        target.write_text("old", encoding="utf-8")
+
+        pilot._write_atomic(str(target), "new Ж")
+
+        assert target.read_text(encoding="utf-8") == "new Ж"
+        assert [p.name for p in tmp_path.iterdir()] == ["out.json"]

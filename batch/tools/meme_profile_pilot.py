@@ -95,14 +95,44 @@ def pick_winner(stats: dict[str, dict], min_valid_rate: float = MIN_VALID_RATE) 
     return min(eligible, key=lambda model: (-eligible[model]["mean_rating"], eligible[model]["mean_seconds"]))
 
 
+VISION_SUFFIX = "@vision"
+
+
+def split_winners(stats: dict[str, dict], min_valid_rate: float = MIN_VALID_RATE) -> tuple[str | None, str | None]:
+    """(text winner, vision winner without the suffix); vision candidates are keys ending with '@vision'."""
+    text = {m: s for m, s in stats.items() if not m.endswith(VISION_SUFFIX)}
+    vision = {m: s for m, s in stats.items() if m.endswith(VISION_SUFFIX)}
+    vision_winner = pick_winner(vision, min_valid_rate)
+    if vision_winner is not None:
+        vision_winner = vision_winner[:-len(VISION_SUFFIX)]
+    return pick_winner(text, min_valid_rate), vision_winner
+
+
+def _write_atomic(path: str, text: str) -> None:
+    """Write to a temp file in the same directory, then replace the target."""
+    directory = os.path.dirname(os.path.abspath(path))
+    temp = os.path.join(directory, f".{os.path.basename(path)}.{os.getpid()}.tmp")
+    with open(temp, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    os.replace(temp, path)
+
+
+def _read_json(path: str):
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def _render_output(run: dict) -> str:
     if not run["ok"]:
-        return f"<p class='bad'>invalid output: {html.escape(str(run.get('error')))}</p>"
+        # No error text: it can embed the model name and would unblind the sheet (it stays in results.json).
+        return "<p class='bad'>invalid output</p>"
     profile = run["profile"]
-    lines = [f"<b>situation</b>: {html.escape(profile.get('situation') or '-')}",
-             f"<b>useWhen</b>: {html.escape(run.get('use_when') or '-')}"]
+    lines = [f"<b>situation</b>: {html.escape(str(profile.get('situation') or '-'))}",
+             f"<b>useWhen</b>: {html.escape(str(run.get('use_when') or '-'))}"]
     for axis in AXES:
-        values = ", ".join(f"{html.escape(v['key'])} ({v.get('confidence', '-')})" for v in profile.get(axis, [])) or "-"
+        values = ", ".join(
+            f"{html.escape(str(v.get('key', '?')))} ({html.escape(str(v.get('confidence', '-')))})"
+            for v in profile.get(axis, [])) or "-"
         lines.append(f"<b>{axis}</b>: {values}")
     return "<br>".join(lines)
 
@@ -127,7 +157,8 @@ def render_sheet(items: list[dict], labels_by_item: dict, thumbnails: dict) -> s
         for label, model in sorted(labels_by_item[image_id].items()):
             run = item["runs"][model][0]
             radios = "".join(
-                f"<label><input type='radio' name='{html.escape(image_id)}|{label}' value='{rating}'> {rating}</label> "
+                f"<label><input type='radio' name='{html.escape(f'{image_id}|{label}')}' "
+                f"data-id='{html.escape(image_id)}' data-label='{html.escape(label)}' value='{rating}'> {rating}</label> "
                 for rating in RATING_VALUES)
             outputs.append(f"<div class='out'><h4>Output {label}</h4>{_render_output(run)}<p>{radios}</p></div>")
         blocks.append(
@@ -143,7 +174,7 @@ def render_sheet(items: list[dict], labels_by_item: dict, thumbnails: dict) -> s
         + "".join(blocks) +
         "<button onclick=\"exportRatings()\">Download ratings.json</button>"
         "<script>function exportRatings(){const out={};document.querySelectorAll('input[type=radio]:checked')"
-        ".forEach(r=>{const [id,label]=r.name.split('|');(out[id]=out[id]||{})[label]=r.value});"
+        ".forEach(r=>{const id=r.dataset.id,label=r.dataset.label;(out[id]=out[id]||{})[label]=r.value});"
         "const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],"
         "{type:'application/json'}));a.download='ratings.json';a.click();}</script></body></html>"
     )
@@ -191,8 +222,7 @@ async def _sample(args) -> None:
                     "bundle": {"note": bundle.note, "descriptions": [list(d) for d in bundle.descriptions],
                                "ocr": bundle.ocr}})
     chosen = stratify(candidates, args.seed, QUOTAS)
-    with open(args.out, "w", encoding="utf-8") as handle:
-        json.dump(chosen, handle, ensure_ascii=False, indent=1)
+    _write_atomic(args.out, json.dumps(chosen, ensure_ascii=False, indent=1))
     print(f"wrote {len(chosen)} item(s) to {args.out}")
 
 
@@ -213,41 +243,42 @@ def _run(args) -> None:
     from ai.meme_profile_extractor import OllamaProfileExtractor
     from taxonomy import load as load_taxonomy
 
-    items = json.load(open(args.sample, encoding="utf-8"))
+    items = _read_json(args.sample)
     extractor = OllamaProfileExtractor(load_taxonomy(), seed=args.seed, num_ctx=args.num_ctx)
     text_models = [m for m in args.text_models.split(",") if m]
     for index, item in enumerate(items, start=1):
         item["runs"] = {}
         if item["path"] == "text":
-            plan = [(model, None) for model in text_models]
+            plan = [(model, model, None) for model in text_models]
         else:
-            plan = [(args.vision_model, os.path.join(args.base_path, item["filename"]))]
-        for model, image_path in plan:
-            item["runs"][model] = [_run_one(extractor, model, item["bundle"], image_path) for _ in range(2)]
+            # Own key, so a model that is both a text candidate and the vision model is not mixed across paths.
+            plan = [(args.vision_model, f"{args.vision_model}{VISION_SUFFIX}",
+                     os.path.join(args.base_path, item["filename"]))]
+        for model, key, image_path in plan:
+            item["runs"][key] = [_run_one(extractor, model, item["bundle"], image_path) for _ in range(2)]
         print(f"[{index}/{len(items)}] {item['stratum']} {item['filename']}", flush=True)
-        with open(args.out, "w", encoding="utf-8") as handle:
-            json.dump(items, handle, ensure_ascii=False, indent=1)
+        _write_atomic(args.out, json.dumps(items, ensure_ascii=False, indent=1))
 
 
 def _sheet(args) -> None:
-    items = json.load(open(args.results, encoding="utf-8"))
+    items = _read_json(args.results)
     labels = {item["image_id"]: shuffled_labels(sorted(item["runs"]), args.seed, item["image_id"]) for item in items}
     thumbnails = {item["image_id"]: _thumbnail(os.path.join(args.base_path, item["filename"])) for item in items}
-    with open(args.out, "w", encoding="utf-8") as handle:
-        handle.write(render_sheet(items, labels, thumbnails))
-    with open(args.labels_out, "w", encoding="utf-8") as handle:
-        json.dump(labels, handle, indent=1)
+    _write_atomic(args.out, render_sheet(items, labels, thumbnails))
+    _write_atomic(args.labels_out, json.dumps(labels, indent=1))
     print(f"wrote {args.out} (open it in a browser) and {args.labels_out} (keep it hidden until rating is done)")
 
 
 def _decide(args) -> None:
-    results = json.load(open(args.results, encoding="utf-8"))
-    ratings = json.load(open(args.ratings, encoding="utf-8"))
-    labels = json.load(open(args.labels, encoding="utf-8"))
+    results = _read_json(args.results)
+    ratings = _read_json(args.ratings)
+    labels = _read_json(args.labels)
     stats = summarize(results, ratings, labels)
     for model, row in sorted(stats.items()):
         print(f"{model}: {row}")
-    print(f"winner: {pick_winner(stats)}")
+    text_winner, vision_winner = split_winners(stats)
+    print(f"text winner: {text_winner}")
+    print(f"vision winner: {vision_winner}")
 
 
 def main(argv=None) -> None:
