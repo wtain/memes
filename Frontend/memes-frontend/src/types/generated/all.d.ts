@@ -111,6 +111,72 @@ export interface ImageDescription {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ProfileValue".
+ */
+export interface ProfileValue {
+  /**
+   * Vocabulary key from the taxonomy (language-neutral)
+   */
+  key: string;
+  confidence: number;
+  source: "model" | "human";
+  [k: string]: unknown;
+}
+/**
+ * What a meme conveys and when it is usable as a reply, along the taxonomy axes
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "MemeProfile".
+ */
+export interface MemeProfile {
+  taxonomyVersion: number;
+  /**
+   * Short English phrase: the situation in which the meme is a fitting reply
+   */
+  situation?: string | null;
+  situationConfidence?: number | null;
+  emotion: ProfileValue[];
+  stance: ProfileValue[];
+  topic: ProfileValue[];
+  tone: ProfileValue[];
+  /**
+   * One English sentence, human-readable
+   */
+  useWhen?: string | null;
+  humanVerified: boolean;
+  /**
+   * Derived: taxonomy version, prompt version or inputs changed since extraction
+   */
+  stale: boolean;
+  [k: string]: unknown;
+}
+/**
+ * How an incoming message was understood: the situation and the reply wanted, along the taxonomy axes
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "QueryProfile".
+ */
+export interface QueryProfile {
+  taxonomyVersion: number;
+  language: "en" | "ru" | "es" | "other";
+  parserVersion: string;
+  /**
+   * True when the structured parse failed or was skipped
+   */
+  degraded: boolean;
+  /**
+   * Short English phrase describing what is happening in the message
+   */
+  situation?: string | null;
+  situationConfidence?: number | null;
+  emotion: ProfileValue[];
+  stance: ProfileValue[];
+  topic: ProfileValue[];
+  tone: ProfileValue[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DescriptionFeedbackResponse".
  */
 export interface DescriptionFeedbackResponse {

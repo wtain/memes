@@ -149,6 +149,13 @@ data class MemeTag(
 )
 
 @Serializable
+data class ProfileValue(
+    @SerialName("key") val key: String,
+    @SerialName("confidence") val confidence: Float,
+    @SerialName("source") val source: String
+)
+
+@Serializable
 data class RunStatusResponse(
     @SerialName("run_id") val run_id: String,
     @SerialName("batch_name") val batch_name: String,
@@ -379,4 +386,32 @@ data class StatisticsResponse(
     @SerialName("content") val content: StatisticsContentStats,
     @SerialName("trends") val trends: StatisticsTrendsStats,
     @SerialName("computed_at") val computed_at: String? = null
+)
+
+@Serializable
+data class MemeProfile(
+    @SerialName("taxonomyVersion") val taxonomyVersion: Int,
+    @SerialName("situation") val situation: String? = null,
+    @SerialName("situationConfidence") val situationConfidence: Float? = null,
+    @SerialName("emotion") val emotion: List<ProfileValue>,
+    @SerialName("stance") val stance: List<ProfileValue>,
+    @SerialName("topic") val topic: List<ProfileValue>,
+    @SerialName("tone") val tone: List<ProfileValue>,
+    @SerialName("useWhen") val useWhen: String? = null,
+    @SerialName("humanVerified") val humanVerified: Boolean,
+    @SerialName("stale") val stale: Boolean
+)
+
+@Serializable
+data class QueryProfile(
+    @SerialName("taxonomyVersion") val taxonomyVersion: Int,
+    @SerialName("language") val language: String,
+    @SerialName("parserVersion") val parserVersion: String,
+    @SerialName("degraded") val degraded: Boolean,
+    @SerialName("situation") val situation: String? = null,
+    @SerialName("situationConfidence") val situationConfidence: Float? = null,
+    @SerialName("emotion") val emotion: List<ProfileValue>,
+    @SerialName("stance") val stance: List<ProfileValue>,
+    @SerialName("topic") val topic: List<ProfileValue>,
+    @SerialName("tone") val tone: List<ProfileValue>
 )

@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "queryprofile.schema.json",
+  "title": "QueryProfile",
+  "description": "How an incoming message was understood: the situation and the reply wanted, along the taxonomy axes",
+  "type": "object",
+  "properties": {
+    "taxonomyVersion": { "type": "integer" },
+    "language": { "type": "string", "enum": ["en", "ru", "es", "other"] },
+    "parserVersion": { "type": "string" },
+    "degraded": { "type": "boolean", "description": "True when the structured parse failed or was skipped" },
+    "situation": { "type": ["string", "null"], "description": "Short English phrase describing what is happening in the message" },
+    "situationConfidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "emotion": { "type": "array", "items": { "$ref": "profilevalue.schema.json" } },
+    "stance": { "type": "array", "items": { "$ref": "profilevalue.schema.json" } },
+    "topic": { "type": "array", "items": { "$ref": "profilevalue.schema.json" } },
+    "tone": { "type": "array", "items": { "$ref": "profilevalue.schema.json" } }
+  },
+  "required": ["taxonomyVersion", "language", "parserVersion", "degraded", "emotion", "stance", "topic", "tone"]
+}
