@@ -76,3 +76,6 @@ description_pipeline:
 build_meme_profiles:
   module: batch.build_meme_profiles
   kind: build_meme_profiles
+build_meme_profile_embeddings:
+  module: batch.build_meme_profile_embeddings
+  kind: build_meme_profile_embeddings
