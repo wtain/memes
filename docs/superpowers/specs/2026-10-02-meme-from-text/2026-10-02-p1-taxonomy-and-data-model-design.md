@@ -329,6 +329,6 @@ Recorded 2026-10-02. Model `bge-large` (Ollama `bge-large:latest`), digest `b3d7
 ## Addendum: outcome and deviations (2026-10-02)
 
 - Vocabularies were adjusted once after the corpus coverage review (`docs/superpowers/reviews/2026-10-02-p1-vocabulary-coverage-review.md`): topic gained `music`, `religion`, `horror` (19 keys). Nothing else changed.
-- Similarity (decision 8) deviates: embedding neighbours were noise at every usable threshold (examples: agree~disagree 0.70, joy~sadness 0.65, annoyance~jealousy 0.71, while joy~amusement was missing), so 25 curated pairs in `taxonomy.yaml` `similarity_overrides` replace them and the threshold is 0.9. Taxonomy version is 2.
+- Similarity (decision 8) deviates: embedding neighbours were noise at every usable threshold (examples: agree~disagree 0.70, joy~sadness 0.65, annoyance~jealousy 0.71, while joy~amusement was missing), so 25 curated pairs in `batch/data/taxonomy/similarity_overrides.yaml` replace them and the threshold is 0.9. The overrides file sits outside the taxonomy version and lock: editing it needs only a regenerated `similarity.json` (no version bump, no lock refresh, no re-extraction). Taxonomy version is 2.
 - Generated Pydantic classes are named `Schema` in each module (repo convention). Backend code should import `memeprofile.Schema` etc., not the package-level `RootModel` wrappers.
 - `tsc -b` for the regenerated TypeScript types is verified by the controller in the final verification.

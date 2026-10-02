@@ -156,6 +156,7 @@ taxonomy:
   # Auto-neighbours from bge-large definition embeddings are effectively OFF: measured on
   # 2026-10-02, definition cosines max out at 0.81 and at every usable threshold (0.60 -> median 6
   # neighbours/key, 0.63 -> 3.5, 0.70 -> 0) they include opposites and unrelated keys. The
-  # near-synonym pairs that matter are curated in batch/data/taxonomy/taxonomy.yaml
-  # `similarity_overrides`. Lower this only after P6 shows embedding neighbours help.
+  # near-synonym pairs that matter are curated in batch/data/taxonomy/similarity_overrides.yaml
+  # (editing it needs only a regenerated similarity.json: no version bump, no lock refresh,
+  # no re-extraction). Lower this only after P6 shows embedding neighbours help.
   similarity_threshold: 0.9

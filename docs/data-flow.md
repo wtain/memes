@@ -96,7 +96,7 @@ Defined by P1 (`docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-02-p1-t
 | Meme profile (situation, use-when, versions, fingerprint, human_verified) | `meme_profiles` | P2 extraction job | Meme-from-text retrieval, UI |
 | Controlled axis values (emotion, stance, topic, tone) | `meme_profile_values` | P2 | Meme-from-text filters, facets, fusion |
 | Situation embedding (Ollama-served English model) | `meme_profile_situation_embeddings` | P2 | Meme-from-text retrieval only. Not used by duplicates or `/similar` |
-| Vocabulary similarity | `batch/data/taxonomy/similarity.json` (committed; `build_taxonomy_similarity` regenerates it from the 25 curated near-synonym pairs in `taxonomy.yaml` `similarity_overrides`, plus any embedding neighbours above `settings.TAXONOMY.SIMILARITY_THRESHOLD`, currently none) | P1 | Soft matching on controlled axes (P4) |
+| Vocabulary similarity | `batch/data/taxonomy/similarity.json` (committed; `build_taxonomy_similarity` regenerates it from the 25 curated near-synonym pairs in `batch/data/taxonomy/similarity_overrides.yaml`, plus any embedding neighbours above `settings.TAXONOMY.SIMILARITY_THRESHOLD`, currently none; editing the overrides file needs only a regenerated `similarity.json`: no version bump, no lock refresh, no re-extraction) | P1 | Soft matching on controlled axes (P4) |
 
 The taxonomy itself (`batch/data/taxonomy/`, loaded by the `taxonomy` package) is shared by all three environments. Rejected Ollama
 descriptions never feed profiles. A rejection changes the inputs fingerprint, so the profile is re-extracted by the next P2 run

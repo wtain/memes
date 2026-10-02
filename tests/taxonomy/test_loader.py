@@ -45,6 +45,40 @@ def test_similarity_overrides_are_parsed():
     assert tax.similarity_overrides == {"emotion": {"add": [["joy", "anger", 0.5]], "remove": []}}
 
 
+def test_editing_overrides_changes_overrides_hash_but_not_content_hash(tmp_path):
+    target = _copy(tmp_path)
+    before = load(target)
+    overrides = target / "similarity_overrides.yaml"
+    overrides.write_text(overrides.read_text(encoding="utf-8").replace("0.5", "0.6"), encoding="utf-8")
+    after = load(target)
+    assert after.overrides_hash != before.overrides_hash
+    assert after.content_hash == before.content_hash
+
+
+def test_missing_overrides_file_gives_empty_overrides_and_hash(tmp_path):
+    target = _copy(tmp_path)
+    (target / "similarity_overrides.yaml").unlink()
+    tax = load(target)
+    assert tax.similarity_overrides == {}
+    assert tax.overrides_hash == ""
+
+
+def test_similarity_overrides_in_taxonomy_yaml_is_rejected(tmp_path):
+    target = _copy(tmp_path)
+    taxonomy = target / "taxonomy.yaml"
+    taxonomy.write_text(taxonomy.read_text(encoding="utf-8") + "similarity_overrides: {}\n", encoding="utf-8")
+    with pytest.raises(TaxonomyError, match="moved"):
+        load(target)
+
+
+def test_overrides_hash_is_stable_across_crlf(tmp_path):
+    original = load(FIXTURE).overrides_hash
+    target = _copy(tmp_path)
+    overrides = target / "similarity_overrides.yaml"
+    overrides.write_bytes(overrides.read_bytes().replace(b"\n", b"\r\n"))
+    assert load(target).overrides_hash == original
+
+
 def test_content_hash_is_stable_across_crlf(tmp_path):
     original = load(FIXTURE).content_hash
     target = _copy(tmp_path)

@@ -49,6 +49,7 @@ def test_build_artifact_embeds_definitions_and_applies_taxonomy_overrides():
     artifact = build_artifact(tax, _FakeEmbedder(), threshold=0.9, model_name="fake", model_digest="d1")
     assert artifact["taxonomy_version"] == 7
     assert artifact["content_hash"] == tax.content_hash
+    assert artifact["overrides_hash"] == tax.overrides_hash != ""
     assert artifact["model_name"] == "fake" and artifact["model_digest"] == "d1"
     assert artifact["threshold"] == 0.9
     # joy and anger are orthogonal under the fake embedder; the fixture's override adds joy<->anger at 0.5
@@ -66,6 +67,8 @@ def test_check_artifact_accepts_a_fresh_artifact_and_flags_drift():
     assert any("version" in p for p in check_artifact(stale, tax))
     changed = {**artifact, "content_hash": "other"}
     assert any("content_hash" in p for p in check_artifact(changed, tax))
+    drifted = {**artifact, "overrides_hash": "other"}
+    assert any("overrides_hash" in p for p in check_artifact(drifted, tax))
     unknown = {**artifact, "axes": {**artifact["axes"], "emotion": {"joy": [{"key": "zzz", "score": 0.9}],
                                                                        "anger": []}}}
     assert any("zzz" in p for p in check_artifact(unknown, tax))

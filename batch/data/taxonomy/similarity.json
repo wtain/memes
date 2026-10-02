@@ -1,6 +1,7 @@
 {
   "taxonomy_version": 2,
-  "content_hash": "4260e7367ab0dcd9eea7c7dd8161f46440acbdc49f9137ad68f6dbe747e38cbd",
+  "content_hash": "0d5276c1fe69b4bdf4dcf17a1dba5f496244d4ef7b9aee1ca3d8c8c76b6a2461",
+  "overrides_hash": "842e9db15c0486ad45192203f4dfb11f2d6e1a42cb6101ca6e8128061748ffd4",
   "model_name": "bge-large",
   "model_digest": "b3d71c92805938e2c9d78e6f35e82d7cc1bd77e05b47dd2ab3016240f4021c15",
   "threshold": 0.9,

@@ -28,6 +28,7 @@ class Taxonomy:
     values: Mapping[str, Mapping[str, VocabValue]]
     content_hash: str
     similarity_overrides: Mapping[str, Mapping] = field(default_factory=dict)
+    overrides_hash: str = ""
 
     def controlled_axes(self) -> tuple[str, ...]:
         return tuple(name for name, spec in self.axes.items() if spec.type == VOCABULARY)

@@ -87,23 +87,35 @@ def _content_hash(directory: Path, vocabulary_axes: list[str]) -> str:
     return digest.hexdigest()
 
 
+def _read_overrides(directory: Path) -> tuple[dict, str]:
+    """Optional similarity_overrides.yaml: (mapping, sha256 of LF-normalised bytes); ({}, "") when absent.
+
+    Deliberately outside content_hash and the lock: tuning soft-match pairs must not change the version.
+    """
+    path = directory / "similarity_overrides.yaml"
+    if not path.is_file():
+        return {}, ""
+    return _read_yaml(path), hashlib.sha256(_normalised_bytes(path)).hexdigest()
+
+
 def _parse(directory: Path) -> Taxonomy:
     root = _read_yaml(directory / "taxonomy.yaml")
+    if "similarity_overrides" in root:
+        raise TaxonomyError("taxonomy.yaml: 'similarity_overrides' moved to similarity_overrides.yaml")
     version = root.get("version")
     if not _positive_int(version):
         raise TaxonomyError("taxonomy.yaml: 'version' must be a positive integer")
     axes = _parse_axes(root.get("axes"))
     vocabulary_axes = [name for name, spec in axes.items() if spec.type == VOCABULARY]
     values = {axis: _parse_values(axis, _read_yaml(directory / f"{axis}.yaml")) for axis in vocabulary_axes}
-    overrides = root.get("similarity_overrides") or {}
-    if not isinstance(overrides, dict):
-        raise TaxonomyError("taxonomy.yaml: 'similarity_overrides' must be a mapping")
+    overrides, overrides_hash = _read_overrides(directory)
     return Taxonomy(
         version=version,
         axes=axes,
         values=values,
         content_hash=_content_hash(directory, vocabulary_axes),
         similarity_overrides=overrides,
+        overrides_hash=overrides_hash,
     )
 
 

@@ -55,6 +55,7 @@ def build_artifact(tax: Taxonomy, embedder, *, threshold: float, model_name: str
     return {
         "taxonomy_version": tax.version,
         "content_hash": tax.content_hash,
+        "overrides_hash": tax.overrides_hash,
         "model_name": model_name,
         "model_digest": model_digest,
         "threshold": threshold,
@@ -69,6 +70,8 @@ def check_artifact(artifact: dict, tax: Taxonomy) -> list[str]:
         problems.append(f"taxonomy_version {artifact.get('taxonomy_version')} != {tax.version}")
     if artifact.get("content_hash") != tax.content_hash:
         problems.append("content_hash does not match the vocabulary files")
+    if artifact.get("overrides_hash") != tax.overrides_hash:
+        problems.append("overrides_hash does not match similarity_overrides.yaml")
     stored_axes = artifact.get("axes", {})
     for axis in tax.controlled_axes():
         stored = stored_axes.get(axis)

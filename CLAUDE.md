@@ -347,14 +347,16 @@ build_ocr_text_embeddings   → computes sentence embeddings (paraphrase-multili
                                ingest_auto_prep (see Ingestion below).
 build_taxonomy_similarity   → regenerates batch/data/taxonomy/similarity.json for the meme-from-text
                                vocabulary keys from the 25 hand-curated near-synonym pairs in
-                               taxonomy.yaml `similarity_overrides`, plus any within-axis embedding
+                               batch/data/taxonomy/similarity_overrides.yaml, plus any within-axis embedding
                                neighbours above settings.TAXONOMY.SIMILARITY_THRESHOLD (0.9, so currently
                                none: definition cosines max out at 0.81 and auto-neighbours were noise).
                                Still needs a live Ollama with settings.TAXONOMY.EMBEDDING_MODEL for the
                                model digest and definition embeddings. Manual-run only, no DB, not
                                run-tracked, not admin-triggerable. Re-run after any change under
-                               batch/data/taxonomy/ (bump `version` in taxonomy.yaml, run
-                               `python -m taxonomy.lock`, then regenerate) --
+                               batch/data/taxonomy/. A vocabulary/axis change needs a `version` bump in
+                               taxonomy.yaml and `python -m taxonomy.lock` first; editing
+                               similarity_overrides.yaml needs only a regenerated similarity.json (no
+                               version bump, no lock refresh, no re-extraction) --
                                tests/taxonomy/test_shipped_similarity.py fails when it is stale. See
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-02-p1-taxonomy-and-data-model-design.md.
 
