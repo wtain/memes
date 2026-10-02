@@ -319,3 +319,9 @@ Keys only here. Definitions and RU/ES labels are written in the YAML files durin
 - **tone (10)**: `wholesome`, `sarcastic`, `absurd`, `deadpan`, `dramatic`, `cynical`, `self_deprecating`, `dark`, `crude`, `explicit`
 - **topic (16)**: `work`, `study`, `family`, `romance`, `friends`, `money`, `health`, `technology`, `gaming`, `food`, `sleep`, `politics`,
   `animals`, `travel`, `holidays`, `weather`. Step 3 cross-checks against the existing `тема:` tag keys and adds or merges where the library clearly needs it.
+
+## Addendum: embedding probe result
+
+Recorded 2026-10-02. Model `bge-large` (Ollama `bge-large:latest`), digest `b3d71c92805938e2c9d78e6f35e82d7cc1bd77e05b47dd2ab3016240f4021c15`, dimension `1024`, pairs passed `4/4`
+(`python -m batch.tools.probe_embedding_model`; pair similarity 0.661-0.841 against closest-unrelated 0.436-0.579). `PROFILE_EMBEDDING_DIM = 1024` in `Storage/models.py`,
+`taxonomy.embedding_model` in `environments/settings.yaml`.

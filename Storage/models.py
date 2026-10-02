@@ -18,6 +18,11 @@ EMBEDDING_DIM = 512
 
 TEXT_EMBEDDING_DIM = 1024
 
+# Output size of the Ollama-served model behind meme profile vectors (P1 spec, decision 6).
+# Measured with batch/tools/probe_embedding_model.py. Independent of TEXT_EMBEDDING_DIM: the
+# vectors come from a different runtime and must never share a table or index with it.
+PROFILE_EMBEDDING_DIM = 1024
+
 
 class Image(Base):
     __tablename__ = "images"

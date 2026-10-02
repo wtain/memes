@@ -150,3 +150,6 @@ scheduler:
     # deliberately NOT scheduled -- manual trigger only, via the /admin/batches UI (each
     # still has a batch_registry.yaml entry). See
     # docs/superpowers/specs/2026-08-14-batch-scheduling-rollout-design.md.
+
+taxonomy:
+  embedding_model: bge-large   # chosen in P1 (spec 2026-10-02-p1-taxonomy-and-data-model-design.md, decision 6)
