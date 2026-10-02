@@ -733,6 +733,8 @@ async def main() -> None:
     engine = create_async_engine(os.environ["DATABASE_URL"])
     async with engine.begin() as conn:
         await conn.run_sync(lambda sync: sync.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector"))
+        # existing models carry trigram GIN indexes (gin_trgm_ops), so pg_trgm must exist before create_all
+        await conn.run_sync(lambda sync: sync.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         await conn.run_sync(
             lambda sync: models.Base.metadata.create_all(
                 sync, tables=[t for t in models.Base.metadata.sorted_tables if t.name not in SKIP]))
