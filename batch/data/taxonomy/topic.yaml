@@ -47,3 +47,12 @@ values:
   weather:
     definition: "Heat, cold, rain and seasons."
     labels: {en: Weather, ru: Погода, es: Clima}
+  music:
+    definition: "Songs, bands, instruments and concerts."
+    labels: {en: Music, ru: Музыка, es: Música}
+  religion:
+    definition: "Faith, churches, prayer and religious figures."
+    labels: {en: Religion, ru: Религия, es: Religión}
+  horror:
+    definition: "Scary, creepy or supernatural themes."
+    labels: {en: Horror, ru: Хоррор, es: Terror}

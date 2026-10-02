@@ -54,7 +54,10 @@ The alternative is to apply no changes at all and let P6 decide with a real gold
 
 ## Decisions
 
-(To be filled after the user review: each change made and each suggestion not taken, with the user's reason.)
+Decided by the user on 2026-10-02 (option "Add 3 topics"):
+
+- **Made:** `topic` gained `music`, `religion` and `horror` (16 to 19 keys), definitions and EN/RU/ES labels in the style of the existing keys. Taxonomy `version` stays 1: no lock existed yet, so nothing has been released.
+- **Not taken:** removing any unused key, splitting `amusement` or `relate`, adding `regret`, `surprise`, `affection`, `sexuality` or `art`, and rewording the five overlapping definition pairs. Reason: thin evidence from a single-probe sample. Frequency weighting for dominant values is a P4 fusion concern. Any further vocabulary change is P6's job once a gold set exists.
 
 ## Appendix: raw `python -m taxonomy.coverage` output
 
