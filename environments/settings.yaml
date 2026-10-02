@@ -160,3 +160,19 @@ taxonomy:
   # (editing it needs only a regenerated similarity.json: no version bump, no lock refresh,
   # no re-extraction). Lower this only after P6 shows embedding neighbours help.
   similarity_threshold: 0.9
+
+meme_profiles:
+  # Meme profile extraction (epic meme-from-text, P2; see
+  # docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-03-p2-meme-profile-extraction-design.md).
+  # text_model is deliberately NOT here: it lives only in settings.metal.yaml / settings.general.yaml, and
+  # its absence is how `it` opts out (both jobs then exit cleanly with "not configured").
+  vision_model: qwen2.5vl:7b
+  num_ctx: 8192
+  batch_size: 50
+  concurrent_requests: 2   # Ollama VRAM headroom, same cap as build_image_descriptions
+  min_text_chars: 40       # below this much usable text the image takes the vision path
+  max_note_chars: 600
+  max_description_chars: 800
+  max_ocr_chars: 800
+  seed: 42
+  # max_per_run: 500       # optional cap per description_pipeline run; unset = unlimited

@@ -15,7 +15,7 @@ per-step summary.
 Active images only: the description job itself never touches pending images, so new images
 join after ingest_promote. The describe step is capped per run by
 image_descriptions.max_per_run (unset means unlimited); re-trigger until the backlog is empty.
-Everything is incremental, so resuming after a failure is just triggering again.
+Everything is incremental, so resuming after a failure is just triggering again. The two meme-from-text steps (meme_profiles, meme_profile_embeddings) follow the description steps; meme_profiles is capped per run by meme_profiles.max_per_run.
 """
 import argparse
 import asyncio
@@ -26,8 +26,8 @@ from typing import Awaitable, Callable
 from batch import (
     build_description_lemmas, build_description_note_embeddings,
     build_description_note_lemmas, build_image_description_embeddings,
-    build_image_descriptions, build_tags_from_descriptions,
-    build_tags_from_notes, build_tags_from_ocr,
+    build_image_descriptions, build_meme_profile_embeddings, build_meme_profiles,
+    build_tags_from_descriptions, build_tags_from_notes, build_tags_from_ocr,
 )
 from batch.run_tracking import finish_existing_run, record_stats, tracked_run
 from config.settings import load_env, settings
@@ -50,6 +50,10 @@ async def _describe(trigger: str) -> None:
     await build_image_descriptions.main(trigger=trigger, limit=settings.get("image_descriptions.max_per_run"))
 
 
+async def _extract_profiles(trigger: str) -> None:
+    await build_meme_profiles.main(trigger=trigger, limit=settings.get("meme_profiles.max_per_run"))
+
+
 # Cheap, GPU-independent steps first: if the process is interrupted during the long describe
 # step, the independent work has already been done.
 STEPS = [
@@ -64,6 +68,9 @@ STEPS = [
          needs=("describe",)),
     Step("description_tags", lambda t: build_tags_from_descriptions.main(trigger=t, incremental=True),
          needs=("describe",)),
+    Step("meme_profiles", _extract_profiles, needs=("describe",)),
+    Step("meme_profile_embeddings", lambda t: build_meme_profile_embeddings.main(trigger=t),
+         needs=("meme_profiles",)),
 ]
 
 

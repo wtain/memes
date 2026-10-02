@@ -15,3 +15,6 @@ concepts:
 trends:
   labels: ["band", "music genre", "person"]
   model: urchade/gliner_medium-v2.1
+
+meme_profiles:
+  text_model: qwen2.5vl:7b   # provisional until the P2 pilot (plan Task 7) decides

@@ -100,6 +100,8 @@ class TestDefaultSteps:
             ("description_embeddings", ("describe",)),
             ("description_lemmas", ("describe",)),
             ("description_tags", ("describe",)),
+            ("meme_profiles", ("describe",)),
+            ("meme_profile_embeddings", ("meme_profiles",)),
         ]
 
     def test_every_dependency_is_declared_before_its_dependent(self):
@@ -119,6 +121,8 @@ class TestDefaultSteps:
             "build_image_descriptions": AsyncMock(),
             "build_image_description_embeddings": AsyncMock(),
             "build_tags_from_descriptions": AsyncMock(),
+            "build_meme_profiles": AsyncMock(),
+            "build_meme_profile_embeddings": AsyncMock(),
         }
         with ExitStack() as stack:
             for name, mock in mocks.items():
@@ -134,12 +138,15 @@ class TestDefaultSteps:
         mocks["build_image_descriptions"].assert_awaited_once_with(trigger="manual", limit=40)
         mocks["build_image_description_embeddings"].assert_awaited_once_with(trigger="manual")
         mocks["build_tags_from_descriptions"].assert_awaited_once_with(trigger="manual", incremental=True)
+        mocks["build_meme_profiles"].assert_awaited_once_with(trigger="manual", limit=40)
+        mocks["build_meme_profile_embeddings"].assert_awaited_once_with(trigger="manual")
 
     @pytest.mark.asyncio
     async def test_describe_failure_skips_lemmas_but_not_note_tags(self):
         names = ["build_tags_from_ocr", "build_description_note_lemmas", "build_description_note_embeddings",
                  "build_tags_from_notes", "build_description_lemmas", "build_image_descriptions",
-                 "build_image_description_embeddings", "build_tags_from_descriptions"]
+                 "build_image_description_embeddings", "build_tags_from_descriptions",
+                 "build_meme_profiles", "build_meme_profile_embeddings"]
         mocks = {n: AsyncMock() for n in names}
         mocks["build_image_descriptions"].side_effect = RuntimeError("ollama down")
         with ExitStack() as stack:
@@ -152,6 +159,9 @@ class TestDefaultSteps:
         assert results["description_lemmas"]["status"] == SKIPPED_DEPENDENCY
         mocks["build_description_lemmas"].assert_not_awaited()
         mocks["build_tags_from_notes"].assert_awaited_once()
+        assert results["meme_profiles"]["status"] == SKIPPED_DEPENDENCY
+        assert results["meme_profile_embeddings"]["status"] == SKIPPED_DEPENDENCY
+        mocks["build_meme_profiles"].assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_describe_is_unlimited_when_max_per_run_is_not_configured(self):
@@ -163,6 +173,37 @@ class TestDefaultSteps:
 
         get_mock.assert_called_once_with("image_descriptions.max_per_run")
         describe.assert_awaited_once_with(trigger="manual", limit=None)
+
+    @pytest.mark.asyncio
+    async def test_meme_profiles_is_unlimited_when_max_per_run_is_not_configured(self):
+        profiles = AsyncMock()
+
+        with patch.object(module.build_meme_profiles, "main", profiles), \
+             patch.object(module.settings, "get", return_value=None) as get_mock:
+            step = next(s for s in module.STEPS if s.name == "meme_profiles")
+            await step.run("manual")
+
+        get_mock.assert_called_once_with("meme_profiles.max_per_run")
+        profiles.assert_awaited_once_with(trigger="manual", limit=None)
+
+    @pytest.mark.asyncio
+    async def test_a_meme_profiles_failure_skips_the_embeddings_step_only(self):
+        names = ["build_tags_from_ocr", "build_description_note_lemmas", "build_description_note_embeddings",
+                 "build_tags_from_notes", "build_description_lemmas", "build_image_descriptions",
+                 "build_image_description_embeddings", "build_tags_from_descriptions",
+                 "build_meme_profiles", "build_meme_profile_embeddings"]
+        mocks = {n: AsyncMock() for n in names}
+        mocks["build_meme_profiles"].side_effect = RuntimeError("ollama down")
+        with ExitStack() as stack:
+            for name, mock in mocks.items():
+                stack.enter_context(patch.object(getattr(module, name), "main", mock))
+            stack.enter_context(patch.object(module.settings, "get", return_value=None))
+            results = await run_steps(module.STEPS, trigger="manual")
+
+        assert results["meme_profiles"]["status"] == FAILED
+        assert results["meme_profile_embeddings"]["status"] == SKIPPED_DEPENDENCY
+        assert results["description_tags"] == {"status": OK}
+        mocks["build_meme_profile_embeddings"].assert_not_awaited()
 
 
 class TestMain:

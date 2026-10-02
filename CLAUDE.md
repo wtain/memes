@@ -297,7 +297,8 @@ description_pipeline      → one admin-triggerable driver (manual-trigger only,
                               build_description_note_embeddings, build_tags_from_notes, build_image_descriptions
                               (capped per run by image_descriptions.max_per_run, unset = unlimited; re-trigger until
                               the backlog is empty), then build_image_description_embeddings, build_description_lemmas
-                              and build_tags_from_descriptions (all need the describe step). Active images only, so new images join after ingest_promote. A failed
+                              and build_tags_from_descriptions (all need the describe step), build_meme_profiles and
+                              build_meme_profile_embeddings (both need the describe step). Active images only, so new images join after ingest_promote. A failed
                               step only skips the steps that need it; each child self-tracks under its own kind and an
                               already-running child is skipped, not failed. Excludes tag_images_from_concepts,
                               detect_entities_and_tag and concept drafting. See
@@ -359,6 +360,26 @@ build_taxonomy_similarity   → regenerates batch/data/taxonomy/similarity.json 
                                version bump, no lock refresh, no re-extraction) --
                                tests/taxonomy/test_shipped_similarity.py fails when it is stale. See
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-02-p1-taxonomy-and-data-model-design.md.
+
+build_meme_profiles         → extracts the meme-from-text profile (situation, emotion, stance, topic, tone,
+                               "use when") for every active image with none or a stale one, with one
+                               schema-constrained Ollama call per image: text-first (note, non-rejected
+                               descriptions, filtered OCR) with a vision fallback only when there is no usable
+                               text (meme_profiles.min_text_chars). Staleness is derived: taxonomy version,
+                               prompt version (auto-derived from the prompt text), model or input fingerprint
+                               differs; human-verified profiles are never rewritten (reported as needing
+                               review). Run-tracked, admin-triggerable from /admin/batches, manual-trigger only,
+                               not scheduled; also a description_pipeline step capped by
+                               meme_profiles.max_per_run. --reset keeps human-verified profiles; --retry-failed
+                               re-attempts permanently failed images; --limit caps a run. Needs
+                               meme_profiles.text_model (metal and general only; `it` exits cleanly with "not
+                               configured"). See
+                               docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-03-p2-meme-profile-extraction-design.md.
+build_meme_profile_embeddings → embeds each profile's situation_text with the Ollama-served model from
+                               settings taxonomy.embedding_model into meme_profile_situation_embeddings;
+                               re-embeds when the stored vector's model name or digest differs. Run-tracked,
+                               admin-triggerable, manual-trigger only; the second description_pipeline step
+                               after build_meme_profiles. --reset deletes every situation embedding.
 
 build_statistics            → precomputes the statistics page's numbers into the single-row
                                statistics_snapshots table (name='corpus'), so GET

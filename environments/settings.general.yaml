@@ -33,3 +33,6 @@ trends:
 image_descriptions:
   model: qwen2.5vl:7b
   prompts_file: data/image-description-prompts.general.yaml
+
+meme_profiles:
+  text_model: qwen2.5vl:7b   # provisional until the P2 pilot (plan Task 7) decides
