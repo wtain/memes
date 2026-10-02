@@ -86,6 +86,22 @@ Notes:
 - `description_pipeline` (admin-triggerable, manual only) runs, in order: `build_tags_from_ocr`, the two note jobs, `build_tags_from_notes`, `build_image_descriptions` (capped by `image_descriptions.max_per_run`, unset means unlimited), then description embeddings, `build_description_lemmas` and `build_tags_from_descriptions`. Independent steps continue past a failure; the steps that need descriptions are skipped if `build_image_descriptions` fails. Each step self-tracks under its own kind. Active images only, so new images join after `ingest_promote`. Not in the chain: `tag_images_from_concepts`, `detect_entities_and_tag`, concept drafting.
 - Ingestion (`ingest_auto_prep`) does not cover descriptions: none of the description jobs, including `build_description_lemmas`, supports `--status pending` (board task 148).
 
+## 4b. Planned: meme profile signals (epic meme-from-text)
+
+Defined by P1 (`docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-02-p1-taxonomy-and-data-model-design.md`),
+**not populated yet** (the producer job is P2). Listed here so "does X use Y?" stays answerable.
+
+| Signal | Table (planned) | Producer (planned) | Used by (planned) |
+|---|---|---|---|
+| Meme profile (situation, use-when, versions, fingerprint, human_verified) | `meme_profiles` | P2 extraction job | Meme-from-text retrieval, UI |
+| Controlled axis values (emotion, stance, topic, tone) | `meme_profile_values` | P2 | Meme-from-text filters, facets, fusion |
+| Situation embedding (Ollama-served English model) | `meme_profile_situation_embeddings` | P2 | Meme-from-text retrieval only. Not used by duplicates or `/similar` |
+| Vocabulary similarity | `batch/data/taxonomy/similarity.json` (committed; `build_taxonomy_similarity` regenerates it from the 25 curated near-synonym pairs in `taxonomy.yaml` `similarity_overrides`, plus any embedding neighbours above `settings.TAXONOMY.SIMILARITY_THRESHOLD`, currently none) | P1 | Soft matching on controlled axes (P4) |
+
+The taxonomy itself (`batch/data/taxonomy/`, loaded by the `taxonomy` package) is shared by all three environments. Rejected Ollama
+descriptions never feed profiles. A rejection changes the inputs fingerprint, so the profile is re-extracted by the next P2 run
+and stays searchable until then (unlike tags, which are deleted immediately).
+
 ## 5. Known gaps (tracked in `board/todo`)
 
 See tasks 147-156 (index: `board/description-tagging-tracker.md`). Summary: description jobs are outside ingestion (deliberately: new images are described after promotion).

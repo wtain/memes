@@ -15,7 +15,7 @@ Epic-level ADRs (all `proposed`): ADR-001 flow style, ADR-002 taxonomy and repre
 
 | ID | Project | Delivers | Depends on | Reqs | Status | Spec / plan | Tasks |
 |---|---|---|---|---|---|---|---|
-| P1 | Taxonomy and data model | Confirmed axes, vocabularies (YAML), profile JSON schema and generated types, tables and migration design, versioning rules, embedding-model decision (measured) | none (ADR-002 input) | FR-12, OQ-1, OQ-2, OQ-4, OQ-8 | planned | `2026-10-02-p1-taxonomy-and-data-model-design.md`, plan `docs/superpowers/plans/2026-10-02-p1-taxonomy-and-data-model.md` | - |
+| P1 | Taxonomy and data model | Confirmed axes, vocabularies (YAML), profile JSON schema and generated types, tables and migration design, versioning rules, embedding-model decision (measured) | none (ADR-002 input) | FR-12, OQ-1, OQ-2, OQ-4, OQ-8 | done | `2026-10-02-p1-taxonomy-and-data-model-design.md`, plan `docs/superpowers/plans/2026-10-02-p1-taxonomy-and-data-model.md` | - |
 | P6 | Evaluation and gold set | Gold-set format and first 150-300 cases (EN/RU/ES), runner, metrics, baseline store, per-language report, optional rating capture | P1 (axis definitions) for case metadata, can start labelling earlier | FR-18, FR-24, NFR-6, OQ-5 | not started | - | - |
 | P2 | Meme profile extraction | Offline job: image + OCR + description + note to a validated profile, axis values and vectors stored, incremental, run-tracked, admin-triggerable, human override, coverage stats, measured throughput and model choice | P1 | FR-7..FR-12, FR-23, NFR-5, NFR-8, OQ-3, OQ-7 | not started | - | - |
 | P3 | Query understanding | Parse tool: text to query profile with local LLM, schema validation, retry, timeout, cache, language detection, degraded mode, tool interface | P1; P6 for prompt evaluation | FR-2..FR-4, FR-22, NFR-3, NFR-4, NFR-9 | not started | - | - |
@@ -60,5 +60,4 @@ with P3, then P4, P5. P7 is decided after P4 and P6 show where the pipeline fail
 
 ## Next step
 
-User reviews the epic. After approval (M0): pick up P1, and in parallel start the gold-set labelling for P6. Create board tasks
-for P1 (`board/todo`) at that point. No board tasks have been created yet.
+P1 is done. P2, P3 and P6 can start. Board tasks for them have not been created.

@@ -1,6 +1,6 @@
 # P1: Taxonomy and data model — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-02-p1-taxonomy-and-data-model.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P1)
 Follow-ups: none yet (P2 meme profile extraction and P3 query understanding consume this spec)
@@ -325,3 +325,10 @@ Keys only here. Definitions and RU/ES labels are written in the YAML files durin
 Recorded 2026-10-02. Model `bge-large` (Ollama `bge-large:latest`), digest `b3d71c92805938e2c9d78e6f35e82d7cc1bd77e05b47dd2ab3016240f4021c15`, dimension `1024`, pairs passed `4/4`
 (`python -m batch.tools.probe_embedding_model`; pair similarity 0.661-0.841 against closest-unrelated 0.436-0.579). `PROFILE_EMBEDDING_DIM = 1024` in `Storage/models.py`,
 `taxonomy.embedding_model` in `environments/settings.yaml`.
+
+## Addendum: outcome and deviations (2026-10-02)
+
+- Vocabularies were adjusted once after the corpus coverage review (`docs/superpowers/reviews/2026-10-02-p1-vocabulary-coverage-review.md`): topic gained `music`, `religion`, `horror` (19 keys). Nothing else changed.
+- Similarity (decision 8) deviates: embedding neighbours were noise at every usable threshold (examples: agree~disagree 0.70, joy~sadness 0.65, annoyance~jealousy 0.71, while joy~amusement was missing), so 25 curated pairs in `taxonomy.yaml` `similarity_overrides` replace them and the threshold is 0.9. Taxonomy version is 2.
+- Generated Pydantic classes are named `Schema` in each module (repo convention). Backend code should import `memeprofile.Schema` etc., not the package-level `RootModel` wrappers.
+- `tsc -b` for the regenerated TypeScript types is verified by the controller in the final verification.

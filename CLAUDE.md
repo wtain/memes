@@ -345,6 +345,18 @@ build_ocr_text_embeddings   → computes sentence embeddings (paraphrase-multili
                                defaults to active; --status pending covers an in-flight
                                ingestion batch -- also chained automatically as part of
                                ingest_auto_prep (see Ingestion below).
+build_taxonomy_similarity   → regenerates batch/data/taxonomy/similarity.json for the meme-from-text
+                               vocabulary keys from the 25 hand-curated near-synonym pairs in
+                               taxonomy.yaml `similarity_overrides`, plus any within-axis embedding
+                               neighbours above settings.TAXONOMY.SIMILARITY_THRESHOLD (0.9, so currently
+                               none: definition cosines max out at 0.81 and auto-neighbours were noise).
+                               Still needs a live Ollama with settings.TAXONOMY.EMBEDDING_MODEL for the
+                               model digest and definition embeddings. Manual-run only, no DB, not
+                               run-tracked, not admin-triggerable. Re-run after any change under
+                               batch/data/taxonomy/ (bump `version` in taxonomy.yaml, run
+                               `python -m taxonomy.lock`, then regenerate) --
+                               tests/taxonomy/test_shipped_similarity.py fails when it is stale. See
+                               docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-02-p1-taxonomy-and-data-model-design.md.
 
 build_statistics            → precomputes the statistics page's numbers into the single-row
                                statistics_snapshots table (name='corpus'), so GET
