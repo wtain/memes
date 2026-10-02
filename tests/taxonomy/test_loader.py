@@ -75,7 +75,7 @@ def test_overrides_hash_is_stable_across_crlf(tmp_path):
     original = load(FIXTURE).overrides_hash
     target = _copy(tmp_path)
     overrides = target / "similarity_overrides.yaml"
-    overrides.write_bytes(overrides.read_bytes().replace(b"\n", b"\r\n"))
+    overrides.write_bytes(overrides.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
     assert load(target).overrides_hash == original
 
 
@@ -83,7 +83,7 @@ def test_content_hash_is_stable_across_crlf(tmp_path):
     original = load(FIXTURE).content_hash
     target = _copy(tmp_path)
     for path in target.glob("*.yaml"):
-        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+        path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
     assert load(target).content_hash == original
 
 
