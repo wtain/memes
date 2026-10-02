@@ -8,6 +8,8 @@ from pydantic import ValidationError
 from Backend.app.types.generated.memeprofile import Schema as MemeProfile
 from Backend.app.types.generated.queryprofile import Schema as QueryProfile
 from taxonomy.loader import load
+from taxonomy.model import LANGUAGES
+from taxonomy.validate import SOURCES
 
 SCHEMAS = Path(__file__).resolve().parents[2] / "shared" / "schemas"
 VALUE = {"key": "joy", "confidence": 0.9, "source": "model"}
@@ -20,6 +22,16 @@ def _schema(name: str) -> dict:
 @pytest.mark.parametrize("name", ["profilevalue", "memeprofile", "queryprofile"])
 def test_schema_id_matches_filename(name):
     assert _schema(f"{name}.schema.json")["$id"] == f"{name}.schema.json"
+
+
+def test_profilevalue_source_enum_matches_validator_sources():
+    enum = _schema("profilevalue.schema.json")["properties"]["source"]["enum"]
+    assert set(enum) == set(SOURCES)
+
+
+def test_queryprofile_language_enum_matches_taxonomy_languages():
+    enum = _schema("queryprofile.schema.json")["properties"]["language"]["enum"]
+    assert set(enum) == set(LANGUAGES) | {"other"}
 
 
 def test_all_schema_registers_the_profile_schemas():

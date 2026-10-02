@@ -33,11 +33,14 @@ in P1 and reviewed by the user, using existing tags and the existing corpus to g
 ## Decision 2: representation (proposed)
 
 - **Controlled-vocabulary axes** (`emotion`, `stance`, `topic`, `tone`): store the vocabulary key(s) plus a confidence per value.
-  The vocabulary lives in a tracked YAML file per environment overlay (same convention as the tagging vocabularies), with an
+  The vocabulary lives in tracked YAML files shared across all environments (P1 spec, decision 2; only ranking weights and
+  thresholds are per environment), with an
   English label and definition per key and optional localised labels (RU, ES) for the UI. Keys are language-neutral.
   - Filtering and facets are exact on keys, and no embedding is needed for a hard filter.
-  - Soft matching uses a precomputed similarity between vocabulary keys (for example "resignation" is near "defeat"), derived from
-    embeddings of the definitions, so near-miss values still score above zero.
+  - Soft matching uses a precomputed similarity between vocabulary keys (for example "resignation" is near "defeat"), currently
+    hand-curated near-synonym pairs in `batch/data/taxonomy/similarity_overrides.yaml` with embedding neighbours switched off,
+    because definition embeddings proved noisy (see the P1 spec addendum); the generated `similarity.json` is what the backend
+    reads. Near-miss values still score above zero.
 - **Free-text axis** (`situation`): store an English phrase per meme, plus its embedding. Query side: the LLM outputs an English
   phrase for the situation regardless of input language (the LLM also acts as the translator), embedded in the same space.
 - **Always store** a short English "use when" sentence per meme, as the human-readable source for explanation and for re-extraction.

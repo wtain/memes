@@ -1,10 +1,17 @@
-"""Generates batch/data/taxonomy/similarity.json: within-axis neighbours of the vocabulary keys, from the
-Ollama embeddings of their definitions (P1 spec, decision 8).
+"""Generates batch/data/taxonomy/similarity.json: within-axis soft-match neighbours of the vocabulary keys
+(P1 spec, decision 8).
 
-    PYTHONIOENCODING=utf-8 python -m batch.build_taxonomy_similarity --env general [--threshold 0.75]
+Auto-neighbours from the Ollama embeddings of the definitions are effectively off: the settings threshold
+is 0.9, while definition cosines max out at 0.81 and were noisy at every usable threshold. The neighbour
+pairs that matter are the curated ones in batch/data/taxonomy/similarity_overrides.yaml (editing that file
+changes neither the taxonomy version nor the lock, only this output). The script still needs a live Ollama
+for the definition embeddings and the model digest.
 
-The file is committed so a bad neighbour pair shows up in a diff. Re-run after any vocabulary change or
-embedding-model change; tests/taxonomy/test_shipped_similarity.py fails when it is stale.
+    PYTHONIOENCODING=utf-8 python -m batch.build_taxonomy_similarity --env general
+
+The file is committed so a bad neighbour pair shows up in a diff. Re-run after any vocabulary change, any
+embedding-model change or any change to similarity_overrides.yaml;
+tests/taxonomy/test_shipped_similarity.py fails when it is stale.
 """
 import argparse
 import json
