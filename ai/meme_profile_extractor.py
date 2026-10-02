@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import ollama
 
-from ai.meme_profile_prompt import CONFIDENCE_LEVELS, build_messages, build_response_schema
+from ai.meme_profile_prompt import CONFIDENCE_LEVELS, RETRY_TEMPLATE, build_messages, build_response_schema
 from taxonomy.loader import load
 from taxonomy.model import Taxonomy
 from taxonomy.validate import validate_profile
@@ -44,8 +44,7 @@ class OllamaProfileExtractor:
             if attempt == 1:
                 messages = messages + [
                     {"role": "assistant", "content": raw},
-                    {"role": "user", "content": f"Your previous answer was invalid because: {last_error}. "
-                                                "Answer again with valid JSON only."},
+                    {"role": "user", "content": RETRY_TEMPLATE.format(error=last_error)},
                 ]
             response = ollama.chat(
                 model=model, messages=messages, format=self._schema,

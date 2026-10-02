@@ -5,6 +5,7 @@ version by construction and marks every stored profile stale; there is no manual
 """
 import hashlib
 import json
+import re
 
 from taxonomy.model import Taxonomy
 from taxonomy.prompt import vocabulary_prompt
@@ -28,6 +29,15 @@ AXIS_GUIDE = {
     "topic": "the domain the meme is about",
     "tone": "the register or style of the humour",
 }
+
+AXIS_LINE_TEMPLATE = "- {axis} (up to {max_values} values): {guide}"
+AXIS_GUIDE_FALLBACK = "values for {axis}"
+NOTE_LABEL = "Note from the library owner"
+DESCRIPTION_LABEL_TEMPLATE = "Description ({prompt_key})"
+OCR_LABEL = "Text in the image (OCR)"
+NO_TEXT = "(no text available)"
+IMAGE_LINE = "The meme image is attached."
+RETRY_TEMPLATE = "Your previous answer was invalid because: {error}. Answer again with valid JSON only."
 
 USER_TEMPLATE = """Label the meme described in the data block below.
 
@@ -55,6 +65,8 @@ def _version_parts() -> tuple[str, ...]:
     return (
         SYSTEM_PROMPT, SITUATION_GUIDE, USER_TEMPLATE,
         json.dumps(AXIS_GUIDE, sort_keys=True), json.dumps(CONFIDENCE_LEVELS, sort_keys=True),
+        AXIS_LINE_TEMPLATE, AXIS_GUIDE_FALLBACK, NOTE_LABEL, DESCRIPTION_LABEL_TEMPLATE,
+        OCR_LABEL, NO_TEXT, IMAGE_LINE, RETRY_TEMPLATE,
     )
 
 
@@ -86,24 +98,35 @@ def build_response_schema(tax: Taxonomy) -> dict:
 
 
 def _clean(text: str) -> str:
-    return text.replace(CLOSING_TAG, "")
+    """Remove all tag-like occurrences of meme_data case-insensitively with optional whitespace.
+    Repeated until fixed point to handle nested cases."""
+    pattern = r"<\s*/?\s*meme_data[^>]*>"
+    prev = None
+    while prev != text:
+        prev = text
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+    return text
 
 
 def _render_data(note: str | None, descriptions: list[tuple[str, str]], ocr: str | None) -> str:
     lines = []
     if note:
-        lines.append(f"Note from the library owner: {_clean(note)}")
+        lines.append(f"{NOTE_LABEL}: {_clean(note)}")
     for prompt_key, text in descriptions:
-        lines.append(f"Description ({prompt_key}): {_clean(text)}")
+        lines.append(f"{DESCRIPTION_LABEL_TEMPLATE.format(prompt_key=_clean(prompt_key))}: {_clean(text)}")
     if ocr:
-        lines.append(f"Text in the image (OCR): {_clean(ocr)}")
-    return "\n".join(lines) if lines else "(no text available)"
+        lines.append(f"{OCR_LABEL}: {_clean(ocr)}")
+    return "\n".join(lines) if lines else NO_TEXT
 
 
 def build_messages(*, note: str | None, descriptions: list[tuple[str, str]], ocr: str | None,
                    tax: Taxonomy, has_image: bool) -> list[dict]:
     axis_lines = "\n".join(
-        f"- {axis} (up to {tax.axes[axis].max_values} values): {AXIS_GUIDE.get(axis, f'values for {axis}')}"
+        AXIS_LINE_TEMPLATE.format(
+            axis=axis,
+            max_values=tax.axes[axis].max_values,
+            guide=AXIS_GUIDE.get(axis, AXIS_GUIDE_FALLBACK.format(axis=axis))
+        )
         for axis in tax.controlled_axes()
     )
     vocabularies = "\n\n".join(f"{axis}:\n{vocabulary_prompt(axis, tax)}" for axis in tax.controlled_axes())
@@ -112,6 +135,6 @@ def build_messages(*, note: str | None, descriptions: list[tuple[str, str]], ocr
         axis_lines=axis_lines,
         vocabularies=vocabularies,
         data=_render_data(note, descriptions, ocr),
-        image_line="The meme image is attached.\n" if has_image else "",
+        image_line=f"{IMAGE_LINE}\n" if has_image else "",
     )
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]

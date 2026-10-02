@@ -97,19 +97,23 @@ def test_two_invalid_answers_raise_profile_extraction_error(monkeypatch):
     assert len(calls) == 2
 
 
-@pytest.mark.parametrize("bad", [
-    {"emotion": [{"key": "euphoria", "confidence": "high"}]},            # key outside the vocabulary
-    {"stance": [{"key": "agree", "confidence": "low"}, {"key": "refuse", "confidence": "low"}]},  # over max_values
-    {"emotion": [{"key": "joy", "confidence": "certain"}]},              # confidence level not allowed
-    {"situation": "x" * 41},                                              # over max_chars
-    {"useWhen": "y" * (MAX_USE_WHEN_CHARS + 1)},                          # over the use-when limit
-    {"emotion": "joy"},                                                   # not a list
+@pytest.mark.parametrize("bad,expected_fragment", [
+    ({"emotion": [{"key": "euphoria", "confidence": "high"}]}, "unknown"),                           # key outside the vocabulary
+    ({"stance": [{"key": "agree", "confidence": "low"}, {"key": "refuse", "confidence": "low"}]}, "exceed"),  # over max_values
+    ({"emotion": [{"key": "joy", "confidence": "certain"}]}, "confidence must be one of"),          # confidence level not allowed
+    ({"situation": "x" * 41}, "longer than"),                                                       # over max_chars
+    ({"useWhen": "y" * (MAX_USE_WHEN_CHARS + 1)}, "longer than"),                                  # over the use-when limit
+    ({"emotion": "joy"}, "must be a list"),                                                         # not a list
 ])
-def test_answers_that_break_the_contract_are_rejected(monkeypatch, bad):
-    _patch_chat(monkeypatch, _answer(**bad), _answer(**bad))
+def test_answers_that_break_the_contract_are_rejected(monkeypatch, bad, expected_fragment):
+    calls = _patch_chat(monkeypatch, _answer(**bad), _answer(**bad))
 
     with pytest.raises(ProfileExtractionError):
         _extract()
+
+    # Verify the error reason is included in the retry message on the second call
+    retry_message = calls[1]["messages"][-1]["content"]
+    assert expected_fragment in retry_message
 
 
 def test_empty_situation_and_use_when_become_none(monkeypatch):
