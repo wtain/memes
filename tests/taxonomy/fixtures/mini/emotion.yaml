@@ -1,0 +1,7 @@
+values:
+  joy:
+    definition: "Plain happiness."
+    labels: {en: Joy, ru: Радость, es: Alegría}
+  anger:
+    definition: "Strong hostility."
+    labels: {en: Anger, ru: Гнев, es: Enfado}

@@ -1,0 +1,9 @@
+version: 7
+axes:
+  situation: {type: free_text, max_chars: 40}
+  emotion:   {type: vocabulary, max_values: 2}
+  stance:    {type: vocabulary, max_values: 1}
+similarity_overrides:
+  emotion:
+    add: [[joy, anger, 0.5]]
+    remove: []

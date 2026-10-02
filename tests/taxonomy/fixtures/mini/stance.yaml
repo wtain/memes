@@ -1,0 +1,7 @@
+values:
+  agree:
+    definition: "Confirms what was said."
+    labels: {en: Agree, ru: Согласиться, es: Estar de acuerdo}
+  refuse:
+    definition: "Declines a request."
+    labels: {en: Refuse, ru: Отказать, es: Rechazar}
