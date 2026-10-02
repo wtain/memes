@@ -5,7 +5,7 @@ import sqlalchemy as sa
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
     DateTime, JSON, func, Numeric, Index, Boolean,
-    BigInteger, UniqueConstraint, text
+    BigInteger, UniqueConstraint, CheckConstraint, text
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
@@ -720,3 +720,61 @@ class StatisticsSnapshot(Base):
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class MemeProfile(Base):
+    """What a meme conveys and when it is usable as a reply (epic meme-from-text, P1 spec decision 7).
+    One row per image. Staleness is derived, never stored: taxonomy_version, extractor_prompt_version,
+    extractor_model or inputs_fingerprint differs from what a fresh extraction would use."""
+    __tablename__ = "meme_profiles"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    taxonomy_version = Column(Integer, nullable=False)
+    extractor_model = Column(String, nullable=False)
+    extractor_prompt_version = Column(String, nullable=False)
+    inputs_fingerprint = Column(String(64), nullable=False)
+    situation_text = Column(Text, nullable=True)
+    situation_confidence = Column(Float, nullable=True)
+    use_when = Column(Text, nullable=True)
+    human_verified = Column(Boolean, nullable=False, server_default=sa.false(), default=False)
+    extracted_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class MemeProfileValue(Base):
+    """One controlled-vocabulary value of one axis for one meme. value_key is validated in code against
+    the YAML taxonomy (no foreign key: the vocabulary is not in the database)."""
+    __tablename__ = "meme_profile_values"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("meme_profiles.image_id", ondelete="CASCADE"), primary_key=True)
+    axis = Column(String(16), primary_key=True)
+    value_key = Column(String(48), primary_key=True)
+    confidence = Column(Float, nullable=False)
+    source = Column(String(8), nullable=False)
+
+    __table_args__ = (
+        Index("ix_meme_profile_values_axis_value_key", "axis", "value_key"),
+        CheckConstraint("axis IN ('emotion', 'stance', 'topic', 'tone')", name="ck_meme_profile_values_axis"),
+        CheckConstraint("source IN ('model', 'human')", name="ck_meme_profile_values_source"),
+    )
+
+
+class MemeProfileSituationEmbedding(Base):
+    """Embedding of MemeProfile.situation_text from the Ollama-served model chosen in P1. model_name and
+    model_digest make a model change a re-embed. Independent of the sentence-transformers vectors."""
+    __tablename__ = "meme_profile_situation_embeddings"
+
+    image_id = Column(UUID(as_uuid=True), ForeignKey("meme_profiles.image_id", ondelete="CASCADE"), primary_key=True)
+    embedding = Column(Vector(PROFILE_EMBEDDING_DIM))
+    model_name = Column(String, nullable=False)
+    model_digest = Column(String, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "ix_meme_profile_situation_embeddings_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
