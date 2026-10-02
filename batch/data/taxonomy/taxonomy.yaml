@@ -1,0 +1,10 @@
+# Meme-from-text taxonomy (epic docs/superpowers/specs/2026-10-02-meme-from-text/).
+# Bump `version` on ANY change to an axis, a key, a definition or a label, then run
+# `python -m taxonomy.lock` to refresh taxonomy.lock. Keys are immutable once released.
+version: 1
+axes:
+  situation: {type: free_text, max_chars: 160}
+  emotion:   {type: vocabulary, max_values: 3}
+  stance:    {type: vocabulary, max_values: 2}
+  topic:     {type: vocabulary, max_values: 3}
+  tone:      {type: vocabulary, max_values: 2}

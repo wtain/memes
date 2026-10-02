@@ -1,0 +1,31 @@
+values:
+  wholesome:
+    definition: "Warm, kind and sincere."
+    labels: {en: Wholesome, ru: Тёплый, es: Entrañable}
+  sarcastic:
+    definition: "Says the opposite of what is meant, mockingly."
+    labels: {en: Sarcastic, ru: Саркастичный, es: Sarcástico}
+  absurd:
+    definition: "Deliberately illogical or surreal."
+    labels: {en: Absurd, ru: Абсурдный, es: Absurdo}
+  deadpan:
+    definition: "Flat delivery with no visible emotion."
+    labels: {en: Deadpan, ru: Невозмутимый, es: Inexpresivo}
+  dramatic:
+    definition: "Exaggerated, theatrical intensity."
+    labels: {en: Dramatic, ru: Драматичный, es: Dramático}
+  cynical:
+    definition: "Distrustful, assumes the worst motives."
+    labels: {en: Cynical, ru: Циничный, es: Cínico}
+  self_deprecating:
+    definition: "Makes fun of oneself."
+    labels: {en: Self-deprecating, ru: Самоирония, es: Autocrítico}
+  dark:
+    definition: "Grim or morbid humour about death, loss or misfortune."
+    labels: {en: Dark, ru: Чёрный юмор, es: Humor negro}
+  crude:
+    definition: "Vulgar, profane or toilet humour."
+    labels: {en: Crude, ru: Грубый, es: Grosero}
+  explicit:
+    definition: "Sexual or graphic content."
+    labels: {en: Explicit, ru: Откровенный, es: Explícito}

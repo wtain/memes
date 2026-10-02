@@ -1,0 +1,79 @@
+values:
+  joy:
+    definition: "Plain happiness or delight."
+    labels: {en: Joy, ru: Радость, es: Alegría}
+  amusement:
+    definition: "Finds something funny; laughing at it."
+    labels: {en: Amusement, ru: Веселье, es: Diversión}
+  pride:
+    definition: "Satisfaction in an achievement or in oneself."
+    labels: {en: Pride, ru: Гордость, es: Orgullo}
+  relief:
+    definition: "Tension released after a worry or ordeal ends."
+    labels: {en: Relief, ru: Облегчение, es: Alivio}
+  gratitude:
+    definition: "Feeling thankful toward someone or something."
+    labels: {en: Gratitude, ru: Благодарность, es: Gratitud}
+  love:
+    definition: "Affection, adoration or devotion."
+    labels: {en: Love, ru: Любовь, es: Amor}
+  excitement:
+    definition: "Eager, energised anticipation or enthusiasm."
+    labels: {en: Excitement, ru: Восторг, es: Emoción}
+  smugness:
+    definition: "Self-satisfied pleasure at being right or ahead."
+    labels: {en: Smugness, ru: Самодовольство, es: Suficiencia}
+  hope:
+    definition: "Optimistic expectation that things will turn out well."
+    labels: {en: Hope, ru: Надежда, es: Esperanza}
+  anger:
+    definition: "Strong hostility or rage at something."
+    labels: {en: Anger, ru: Гнев, es: Enfado}
+  frustration:
+    definition: "Feeling stuck because effort keeps failing or being blocked."
+    labels: {en: Frustration, ru: Фрустрация, es: Frustración}
+  annoyance:
+    definition: "Mild irritation at something petty or repeated."
+    labels: {en: Annoyance, ru: Досада, es: Fastidio}
+  disgust:
+    definition: "Revulsion at something repellent or distasteful."
+    labels: {en: Disgust, ru: Отвращение, es: Asco}
+  contempt:
+    definition: "Looking down on someone or something as unworthy."
+    labels: {en: Contempt, ru: Презрение, es: Desprecio}
+  sadness:
+    definition: "Sorrow, grief or low mood."
+    labels: {en: Sadness, ru: Грусть, es: Tristeza}
+  disappointment:
+    definition: "Let down because expectations were not met."
+    labels: {en: Disappointment, ru: Разочарование, es: Decepción}
+  resignation:
+    definition: "Accepting an unwelcome situation without fighting it."
+    labels: {en: Resignation, ru: Смирение, es: Resignación}
+  exhaustion:
+    definition: "Drained of energy, physically or mentally tired."
+    labels: {en: Exhaustion, ru: Усталость, es: Agotamiento}
+  anxiety:
+    definition: "Nervous worry about what might go wrong."
+    labels: {en: Anxiety, ru: Тревога, es: Ansiedad}
+  fear:
+    definition: "Alarm at a threat or danger."
+    labels: {en: Fear, ru: Страх, es: Miedo}
+  embarrassment:
+    definition: "Self-conscious discomfort after a slip or exposure."
+    labels: {en: Embarrassment, ru: Смущение, es: Vergüenza}
+  confusion:
+    definition: "Not understanding what is going on."
+    labels: {en: Confusion, ru: Недоумение, es: Confusión}
+  shock:
+    definition: "Stunned disbelief at something unexpected."
+    labels: {en: Shock, ru: Шок, es: Conmoción}
+  boredom:
+    definition: "Lack of interest; time dragging."
+    labels: {en: Boredom, ru: Скука, es: Aburrimiento}
+  jealousy:
+    definition: "Resentful envy of what someone else has."
+    labels: {en: Jealousy, ru: Зависть, es: Celos}
+  indifference:
+    definition: "Not caring either way."
+    labels: {en: Indifference, ru: Безразличие, es: Indiferencia}

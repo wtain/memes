@@ -1,0 +1,49 @@
+values:
+  work:
+    definition: "Jobs, bosses, colleagues, meetings and deadlines."
+    labels: {en: Work, ru: Работа, es: Trabajo}
+  study:
+    definition: "School, university, exams and homework."
+    labels: {en: Study, ru: Учёба, es: Estudios}
+  family:
+    definition: "Parents, children, relatives and home life."
+    labels: {en: Family, ru: Семья, es: Familia}
+  romance:
+    definition: "Dating, love, relationships and breakups."
+    labels: {en: Romance, ru: Романтика, es: Romance}
+  friends:
+    definition: "Friendships and social plans."
+    labels: {en: Friends, ru: Друзья, es: Amigos}
+  money:
+    definition: "Income, prices, debt and spending."
+    labels: {en: Money, ru: Деньги, es: Dinero}
+  health:
+    definition: "Illness, doctors, fitness and mental health."
+    labels: {en: Health, ru: Здоровье, es: Salud}
+  technology:
+    definition: "Computers, phones, software and the internet."
+    labels: {en: Technology, ru: Технологии, es: Tecnología}
+  gaming:
+    definition: "Video games and tabletop games."
+    labels: {en: Gaming, ru: Игры, es: Videojuegos}
+  food:
+    definition: "Eating, cooking, drinks and diets."
+    labels: {en: Food, ru: Еда, es: Comida}
+  sleep:
+    definition: "Sleep, tiredness and early mornings."
+    labels: {en: Sleep, ru: Сон, es: Sueño}
+  politics:
+    definition: "Governments, elections and public affairs."
+    labels: {en: Politics, ru: Политика, es: Política}
+  animals:
+    definition: "Pets and wildlife as the subject."
+    labels: {en: Animals, ru: Животные, es: Animales}
+  travel:
+    definition: "Trips, transport and commuting."
+    labels: {en: Travel, ru: Путешествия, es: Viajes}
+  holidays:
+    definition: "Holidays, birthdays and celebrations."
+    labels: {en: Holidays, ru: Праздники, es: Fiestas}
+  weather:
+    definition: "Heat, cold, rain and seasons."
+    labels: {en: Weather, ru: Погода, es: Clima}

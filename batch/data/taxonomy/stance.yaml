@@ -1,0 +1,46 @@
+values:
+  agree:
+    definition: "Confirms or endorses what was said."
+    labels: {en: Agree, ru: Согласиться, es: Estar de acuerdo}
+  disagree:
+    definition: "Pushes back or says the other person is wrong."
+    labels: {en: Disagree, ru: Не согласиться, es: Discrepar}
+  refuse:
+    definition: "Declines a request, invitation or demand."
+    labels: {en: Refuse, ru: Отказать, es: Rechazar}
+  mock:
+    definition: "Ridicules or teases the situation or the person in it."
+    labels: {en: Mock, ru: Подколоть, es: Burlarse}
+  console:
+    definition: "Comforts someone who is upset."
+    labels: {en: Console, ru: Утешить, es: Consolar}
+  celebrate:
+    definition: "Marks a win or a good moment with joy."
+    labels: {en: Celebrate, ru: Отпраздновать, es: Celebrar}
+  congratulate:
+    definition: "Praises someone for an achievement."
+    labels: {en: Congratulate, ru: Поздравить, es: Felicitar}
+  deflect:
+    definition: "Dodges the topic or changes the subject."
+    labels: {en: Deflect, ru: Уйти от темы, es: Esquivar}
+  warn:
+    definition: "Cautions that trouble is coming."
+    labels: {en: Warn, ru: Предупредить, es: Advertir}
+  complain:
+    definition: "Voices dissatisfaction or grumbles."
+    labels: {en: Complain, ru: Пожаловаться, es: Quejarse}
+  apologize:
+    definition: "Says sorry or admits fault."
+    labels: {en: Apologize, ru: Извиниться, es: Disculparse}
+  thank:
+    definition: "Expresses thanks."
+    labels: {en: Thank, ru: Поблагодарить, es: Agradecer}
+  brag:
+    definition: "Shows off or boasts."
+    labels: {en: Brag, ru: Похвастаться, es: Presumir}
+  relate:
+    definition: "Says 'same here' and shares the experience."
+    labels: {en: Relate, ru: Мне это знакомо, es: Identificarse}
+  demand:
+    definition: "Insists or presses someone to act."
+    labels: {en: Demand, ru: Потребовать, es: Exigir}
