@@ -1,6 +1,7 @@
 # P2: Meme profile extraction — Design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-03-p2-meme-profile-extraction.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P2)
 Follow-ups: none yet (P4 retrieval and P5 UI consume the tables this spec creates)
 
