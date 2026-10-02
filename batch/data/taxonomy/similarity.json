@@ -1,0 +1,326 @@
+{
+  "taxonomy_version": 2,
+  "content_hash": "4260e7367ab0dcd9eea7c7dd8161f46440acbdc49f9137ad68f6dbe747e38cbd",
+  "model_name": "bge-large",
+  "model_digest": "b3d71c92805938e2c9d78e6f35e82d7cc1bd77e05b47dd2ab3016240f4021c15",
+  "threshold": 0.9,
+  "axes": {
+    "emotion": {
+      "joy": [
+        {
+          "key": "amusement",
+          "score": 0.8
+        },
+        {
+          "key": "excitement",
+          "score": 0.7
+        },
+        {
+          "key": "gratitude",
+          "score": 0.7
+        },
+        {
+          "key": "pride",
+          "score": 0.7
+        }
+      ],
+      "amusement": [
+        {
+          "key": "joy",
+          "score": 0.8
+        }
+      ],
+      "pride": [
+        {
+          "key": "smugness",
+          "score": 0.8
+        },
+        {
+          "key": "joy",
+          "score": 0.7
+        }
+      ],
+      "relief": [],
+      "gratitude": [
+        {
+          "key": "joy",
+          "score": 0.7
+        }
+      ],
+      "love": [],
+      "excitement": [
+        {
+          "key": "joy",
+          "score": 0.7
+        }
+      ],
+      "smugness": [
+        {
+          "key": "pride",
+          "score": 0.8
+        }
+      ],
+      "hope": [],
+      "anger": [
+        {
+          "key": "annoyance",
+          "score": 0.8
+        },
+        {
+          "key": "disgust",
+          "score": 0.7
+        },
+        {
+          "key": "frustration",
+          "score": 0.7
+        }
+      ],
+      "frustration": [
+        {
+          "key": "annoyance",
+          "score": 0.8
+        },
+        {
+          "key": "anger",
+          "score": 0.7
+        }
+      ],
+      "annoyance": [
+        {
+          "key": "anger",
+          "score": 0.8
+        },
+        {
+          "key": "frustration",
+          "score": 0.8
+        }
+      ],
+      "disgust": [
+        {
+          "key": "contempt",
+          "score": 0.8
+        },
+        {
+          "key": "anger",
+          "score": 0.7
+        }
+      ],
+      "contempt": [
+        {
+          "key": "disgust",
+          "score": 0.8
+        }
+      ],
+      "sadness": [
+        {
+          "key": "disappointment",
+          "score": 0.8
+        }
+      ],
+      "disappointment": [
+        {
+          "key": "sadness",
+          "score": 0.8
+        }
+      ],
+      "resignation": [],
+      "exhaustion": [],
+      "anxiety": [
+        {
+          "key": "fear",
+          "score": 0.8
+        }
+      ],
+      "fear": [
+        {
+          "key": "anxiety",
+          "score": 0.8
+        }
+      ],
+      "embarrassment": [],
+      "confusion": [
+        {
+          "key": "shock",
+          "score": 0.7
+        }
+      ],
+      "shock": [
+        {
+          "key": "confusion",
+          "score": 0.7
+        }
+      ],
+      "boredom": [
+        {
+          "key": "indifference",
+          "score": 0.7
+        }
+      ],
+      "jealousy": [],
+      "indifference": [
+        {
+          "key": "boredom",
+          "score": 0.7
+        }
+      ]
+    },
+    "stance": {
+      "agree": [
+        {
+          "key": "relate",
+          "score": 0.7
+        }
+      ],
+      "disagree": [
+        {
+          "key": "refuse",
+          "score": 0.7
+        }
+      ],
+      "refuse": [
+        {
+          "key": "disagree",
+          "score": 0.7
+        }
+      ],
+      "mock": [],
+      "console": [],
+      "celebrate": [
+        {
+          "key": "congratulate",
+          "score": 0.8
+        }
+      ],
+      "congratulate": [
+        {
+          "key": "celebrate",
+          "score": 0.8
+        }
+      ],
+      "deflect": [],
+      "warn": [],
+      "complain": [],
+      "apologize": [],
+      "thank": [],
+      "brag": [],
+      "relate": [
+        {
+          "key": "agree",
+          "score": 0.7
+        }
+      ],
+      "demand": []
+    },
+    "topic": {
+      "work": [
+        {
+          "key": "study",
+          "score": 0.7
+        }
+      ],
+      "study": [
+        {
+          "key": "work",
+          "score": 0.7
+        }
+      ],
+      "family": [
+        {
+          "key": "friends",
+          "score": 0.7
+        },
+        {
+          "key": "holidays",
+          "score": 0.7
+        }
+      ],
+      "romance": [],
+      "friends": [
+        {
+          "key": "family",
+          "score": 0.7
+        }
+      ],
+      "money": [],
+      "health": [
+        {
+          "key": "sleep",
+          "score": 0.7
+        }
+      ],
+      "technology": [
+        {
+          "key": "gaming",
+          "score": 0.7
+        }
+      ],
+      "gaming": [
+        {
+          "key": "technology",
+          "score": 0.7
+        }
+      ],
+      "food": [],
+      "sleep": [
+        {
+          "key": "health",
+          "score": 0.7
+        }
+      ],
+      "politics": [],
+      "animals": [],
+      "travel": [],
+      "holidays": [
+        {
+          "key": "family",
+          "score": 0.7
+        }
+      ],
+      "weather": [],
+      "music": [],
+      "religion": [],
+      "horror": []
+    },
+    "tone": {
+      "wholesome": [],
+      "sarcastic": [
+        {
+          "key": "cynical",
+          "score": 0.8
+        }
+      ],
+      "absurd": [],
+      "deadpan": [],
+      "dramatic": [],
+      "cynical": [
+        {
+          "key": "sarcastic",
+          "score": 0.8
+        }
+      ],
+      "self_deprecating": [],
+      "dark": [
+        {
+          "key": "crude",
+          "score": 0.7
+        }
+      ],
+      "crude": [
+        {
+          "key": "explicit",
+          "score": 0.8
+        },
+        {
+          "key": "dark",
+          "score": 0.7
+        }
+      ],
+      "explicit": [
+        {
+          "key": "crude",
+          "score": 0.8
+        }
+      ]
+    }
+  }
+}

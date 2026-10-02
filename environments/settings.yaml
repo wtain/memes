@@ -153,3 +153,9 @@ scheduler:
 
 taxonomy:
   embedding_model: bge-large   # chosen in P1 (spec 2026-10-02-p1-taxonomy-and-data-model-design.md, decision 6)
+  # Auto-neighbours from bge-large definition embeddings are effectively OFF: measured on
+  # 2026-10-02, definition cosines max out at 0.81 and at every usable threshold (0.60 -> median 6
+  # neighbours/key, 0.63 -> 3.5, 0.70 -> 0) they include opposites and unrelated keys. The
+  # near-synonym pairs that matter are curated in batch/data/taxonomy/taxonomy.yaml
+  # `similarity_overrides`. Lower this only after P6 shows embedding neighbours help.
+  similarity_threshold: 0.9

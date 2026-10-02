@@ -1,10 +1,51 @@
 # Meme-from-text taxonomy (epic docs/superpowers/specs/2026-10-02-meme-from-text/).
 # Bump `version` on ANY change to an axis, a key, a definition or a label, then run
 # `python -m taxonomy.lock` to refresh taxonomy.lock. Keys are immutable once released.
-version: 1
+version: 2
 axes:
   situation: {type: free_text, max_chars: 160}
   emotion:   {type: vocabulary, max_values: 3}
   stance:    {type: vocabulary, max_values: 2}
   topic:     {type: vocabulary, max_values: 3}
   tone:      {type: vocabulary, max_values: 2}
+
+# Soft-match pairs between near-synonym keys, hand-curated and signed off by the user on 2026-10-02
+# (docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-02-p1-taxonomy-and-data-model-design.md).
+# Auto-neighbours from definition embeddings are switched off (settings taxonomy.similarity_threshold
+# 0.9, above the observed max of 0.81): at every usable threshold they mixed in opposites and
+# unrelated keys (agree~disagree, joy~sadness, annoyance~jealousy). Scores: 0.8 strong, 0.7 related.
+# Each pair is symmetric. Regenerate similarity.json after any change here.
+similarity_overrides:
+  emotion:
+    add:
+      - [joy, amusement, 0.8]
+      - [joy, excitement, 0.7]
+      - [joy, pride, 0.7]
+      - [pride, smugness, 0.8]
+      - [joy, gratitude, 0.7]
+      - [anger, annoyance, 0.8]
+      - [anger, frustration, 0.7]
+      - [annoyance, frustration, 0.8]
+      - [anger, disgust, 0.7]
+      - [disgust, contempt, 0.8]
+      - [sadness, disappointment, 0.8]
+      - [fear, anxiety, 0.8]
+      - [confusion, shock, 0.7]
+      - [boredom, indifference, 0.7]
+  stance:
+    add:
+      - [congratulate, celebrate, 0.8]
+      - [agree, relate, 0.7]
+      - [disagree, refuse, 0.7]
+  topic:
+    add:
+      - [work, study, 0.7]
+      - [family, friends, 0.7]
+      - [family, holidays, 0.7]
+      - [gaming, technology, 0.7]
+      - [health, sleep, 0.7]
+  tone:
+    add:
+      - [crude, explicit, 0.8]
+      - [crude, dark, 0.7]
+      - [sarcastic, cynical, 0.8]
