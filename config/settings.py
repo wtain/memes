@@ -4,6 +4,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from dynaconf import Dynaconf, Validator
 
+from config.tls import use_system_trust_store
+
 _BASE_SETTINGS_FILE = "environments/settings.yaml"
 
 
@@ -79,6 +81,7 @@ def load_env(name: str | None = None, base_dir: Path = Path("environments")) -> 
     settings.general.yaml was also on disk. Loading only the two files that
     apply to the active environment avoids that.
     """
+    use_system_trust_store()
     name = name or os.environ.get("APP_ENV")
     if not name:
         raise RuntimeError(
