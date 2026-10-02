@@ -81,8 +81,20 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
         )
         metrics.add("skipped.failed", selection.skipped_failed)
 
-        total_pending = len(selection.work)
-        work = selection.work[:limit] if limit is not None else selection.work
+        # Drop unrunnable vision images BEFORE counting/limiting: they never get a profile or a failure row,
+        # so leaving them selected would burn --limit slots on every run and starve the images behind them.
+        runnable = []
+        for item in selection.work:
+            if item.path == PATH_VISION:
+                image_path = os.path.join(base_path, item.filename)
+                if has_unsupported_image_extension(image_path):
+                    print(f"Skipping {image_path}")
+                    metrics.increment("skipped.unsupported_ext")
+                    continue
+            runnable.append(item)
+
+        total_pending = len(runnable)
+        work = runnable[:limit] if limit is not None else runnable
         print(f"{len(work)} image(s) to profile this run, {total_pending - len(work)} left waiting "
               f"({len(selection.needs_review_ids)} human-verified profile(s) need review)")
 
@@ -103,12 +115,6 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
 
         async def process_image(item) -> None:
             image_path = os.path.join(base_path, item.filename) if item.path == PATH_VISION else None
-            if image_path is not None and has_unsupported_image_extension(image_path):
-                print(f"Skipping {image_path}")
-                metrics.increment("skipped.unsupported_ext")
-                tracker.skip()
-                return
-
             async with semaphore:
                 try:
                     result = await asyncio.to_thread(
@@ -140,6 +146,8 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
                     saved_ids.add(item.image_id)
                     metrics.increment("saved")
                     metrics.increment(f"path.{item.path}")
+                else:
+                    metrics.increment("skipped.not_saved")
                 await commit_if_due()
             tracker.mark_done()
 

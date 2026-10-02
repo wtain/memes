@@ -92,7 +92,7 @@ async def _run(db_session, calls, *, fail_for=(), extractor_class=None, **kwargs
 @pytest.mark.asyncio(loop_scope="session")
 async def test_collect_candidates_builds_bundles_and_excludes_rejected_descriptions(db_session):
     image = await _insert_image(db_session)
-    kept = await _add_description(db_session, image, text="kept description", prompt_key="a")
+    await _add_description(db_session, image, text="kept description", prompt_key="a")
     rejected = await _add_description(db_session, image, text="rejected description", prompt_key="b")
     db_session.add(ImageDescriptionFeedback(image_description_id=rejected.id, approved=False))
     db_session.add(DescriptionNote(image_id=image.id, text="owner note"))
@@ -106,7 +106,6 @@ async def test_collect_candidates_builds_bundles_and_excludes_rejected_descripti
     assert candidate.bundle.descriptions == (("a", "kept description"),)
     assert candidate.bundle.ocr == "HELLO"
     assert len(candidate.fingerprint) == 64
-    assert kept.id is not None
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -254,3 +253,52 @@ async def test_reset_deletes_model_profiles_and_failures_but_keeps_human_verifie
     assert [call["descriptions"] for call in calls] == [[("general_description", LONG_TEXT)]]
     kept = await db_session.get(MemeProfile, human_image.id)
     assert kept.situation_text == "kept"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_an_unsupported_extension_vision_image_does_not_starve_the_run(db_session):
+    webp_image = Image(filename=f"{uuid.uuid4()}.webp")
+    db_session.add(webp_image)
+    await db_session.flush()
+    jpg_image = await _insert_image(db_session)  # neither has any text -> both on the vision path
+    calls: list = []
+
+    stats = await _run(db_session, calls, limit=1)
+
+    assert stats["skipped.unsupported_ext"] == 1
+    assert stats["images_selected"] == 1 and stats["images_remaining"] == 0 and stats["saved"] == 1
+    assert len(calls) == 1
+    assert await db_session.get(MemeProfile, jpg_image.id) is not None
+    assert await db_session.get(MemeProfile, webp_image.id) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_coverage_reflects_a_stale_profile_the_run_fixed(db_session):
+    image = await _insert_image(db_session)
+    await _add_description(db_session, image)
+    await MemeProfileRepository(db_session).save_profile(
+        image.id, ProfileData("old situation", None, "Use when old.", {}),
+        ProfileMeta(load_taxonomy().version - 1, "text-model", PROMPT_VERSION, "stale-fingerprint", False))
+    await db_session.flush()
+
+    stats = await _run(db_session, [])
+
+    assert stats["saved"] == 1
+    assert stats["coverage"]["stale"] == 0 and stats["coverage"]["profiled"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_reset_deletes_and_rebuilds_an_existing_model_profile(db_session):
+    image = await _insert_image(db_session)
+    await _add_description(db_session, image)
+    await _run(db_session, [])
+    assert await db_session.get(MemeProfile, image.id) is not None
+
+    calls: list = []
+    await _run(db_session, calls, reset=True)
+
+    assert len(calls) == 1
+
+    rebuilt = (await db_session.execute(
+        select(MemeProfile.extractor_model).where(MemeProfile.image_id == image.id))).scalar_one_or_none()
+    assert rebuilt == "text-model"
