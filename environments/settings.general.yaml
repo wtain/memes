@@ -35,4 +35,4 @@ image_descriptions:
   prompts_file: data/image-description-prompts.general.yaml
 
 meme_profiles:
-  text_model: qwen2.5vl:7b   # provisional until the P2 pilot (plan Task 7) decides
+  text_model: qwen2.5:7b-instruct   # chosen by the P2 pilot, 2026-10-03 (docs/superpowers/reviews/2026-10-03-p2-pilot-review.md)

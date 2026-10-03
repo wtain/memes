@@ -270,3 +270,13 @@ All under the existing roots, each run as its own `pytest` command (CLAUDE.md):
 5. `build_meme_profile_embeddings` job, registry entry, tests.
 6. `description_pipeline` steps and tests; docs (`data-flow.md`, `CLAUDE.md`); run on `general` in slices with measured throughput recorded in the addendum;
    full test roots; review report.
+
+## Addendum: pilot result (2026-10-03)
+
+Full numbers, caveats and the rating breakdown are in `docs/superpowers/reviews/2026-10-03-p2-pilot-review.md`.
+
+- **Sample and method:** 40 `general` images (20 ocr+description, 10 ocr only, 5 description only, 5 vision path); candidates `qwen2:latest`, `qwen2.5vl:7b` (text only), `qwen2.5:7b-instruct` (pulled for the pilot with the user's approval) on the text path and `qwen2.5vl:7b` with the image on the vision path; production prompt and schema, `temperature 0`, `seed 42`, two runs each; blinded sheet rated by the user (best / acceptable / poor).
+- **Result:** every text model produced valid output on 100% of runs; mean ratings (0-2): `qwen2.5:7b-instruct` 0.86, `qwen2:latest` 0.77, `qwen2.5vl:7b` text-only 0.66. **Decision: `meme_profiles.text_model` is `qwen2.5:7b-instruct`** for `metal` and `general` (set in their overlay files). **`vision_model` stays `qwen2.5vl:7b`**: it was the only vision candidate, and its 6-of-10 valid runs reflect two undecodable image files, not the model.
+- **Finding for later projects:** quality is modest (the winner got 8 best, 14 acceptable, 13 poor of 35) and weakest on OCR-only images (mean 0.3-0.4 against about 1.0 with a description). `metal` has descriptions for only 7,482 of 18,088 active images, so running the description job there first would likely help its profiles more than a model change. P4 should treat profile values as a coarse, confidence-weighted signal; P6's gold set re-checks the model choice (OQ-3 stays open there).
+- **Throughput (NFR-5):** per-call means include model-load time because the pilot alternated models per image; the winner's median is 2.0 s and its mean 3.6 s. Estimated backlog for all active images: `general` (32,328) about 13.5-24.2 h at concurrency 2 (18.0-32.3 h serial), `metal` (18,088) about 7.5-13.6 h at concurrency 2 (10.0-18.1 h serial). `meme_profiles.max_per_run` of about 1,000 would keep a `description_pipeline` slice under an hour at the pessimistic mean; the setting is left unset. Concurrency 2 and VRAM behaviour were not measured by the (serial) pilot; the first rollout slice measures them.
+- **Decision-rule note:** the pilot tool keys vision runs separately (`<model>@vision`) because `qwen2.5vl:7b` is both a text candidate and the vision model, and it computes the text winner and the vision winner separately.
