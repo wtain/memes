@@ -469,7 +469,7 @@ python -m autoflake --remove-all-unused-imports --in-place --recursive \
 
 ### CPU vs CUDA (PyTorch)
 
-PyTorch CUDA builds (`+cu121`) are not published on PyPI — they live on PyTorch's own package index. The project splits this across two files:
+PyTorch CUDA builds (`+cu132`) are not published on PyPI — they live on PyTorch's own package index. The project splits this across two files:
 
 | File | Purpose |
 |------|---------|
@@ -500,7 +500,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 pip install -r requirements.txt -r requirements-cuda.txt -r requirements-dev.txt
 ```
 
-`requirements-cuda.txt` includes the `--extra-index-url` line pointing to `https://download.pytorch.org/whl/cu121`, so no extra flags are needed when installing it directly. The CUDA packages override their CPU counterparts from `requirements.txt`.
+`requirements-cuda.txt` includes the `--extra-index-url` line pointing to `https://download.pytorch.org/whl/cu132`, so no extra flags are needed when installing it directly. The CUDA packages override their CPU counterparts from `requirements.txt`.
 
 ---
 

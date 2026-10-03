@@ -38,7 +38,7 @@ This guide covers installing and running the Memes semantic search engine on you
 ### Optional Dependencies
 
 - **Ollama**: For AI image descriptions (install from https://ollama.ai)
-- **CUDA 12.1**: For GPU-accelerated embeddings (requires compatible NVIDIA GPU)
+- **CUDA 13.2** (PyTorch cu132 wheels): For GPU-accelerated embeddings (requires an NVIDIA GPU and a driver supporting CUDA 13.x; RTX 50-series needs CUDA 12.8+)
 
 ---
 
@@ -165,7 +165,7 @@ pip install -r requirements.txt
 pip install -r Backend/requirements-test.txt  # For testing
 
 # For CUDA support
-pip install -r requirements-cuda.txt --extra-index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements-cuda.txt --extra-index-url https://download.pytorch.org/whl/cu132
 ```
 
 #### 3. Configure Environment

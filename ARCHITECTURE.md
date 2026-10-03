@@ -889,7 +889,7 @@ Combined Result: Consensus across 3 paths → High confidence
 **Recommended**:
 - CPU: 8+ core
 - RAM: 16GB
-- GPU: NVIDIA (CUDA 12.1+) for 5-10x speedup
+- GPU: NVIDIA (CUDA 13.2 build of PyTorch; RTX 50-series requires CUDA 12.8+) for 5-10x speedup
 
 **Production**:
 - CPU: 16+ core
