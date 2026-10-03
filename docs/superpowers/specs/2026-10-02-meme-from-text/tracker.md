@@ -60,4 +60,4 @@ with P3, then P4, P5. P7 is decided after P4 and P6 show where the pipeline fail
 
 ## Next step
 
-P1 and P2 are done (P2: migration applied to all three environments, a 200-image slice on `general` produced 194 profiles, the full backlog run is deferred to the user). P3, P4 and P6 can proceed. No board tasks have been created.
+P1 and P2 are done (P2: migration applied to all three environments, a 200-image slice on `general` produced 194 profiles, the full backlog run, about 6.7 h on `general` and 3.8 h on `metal`, is deferred to the user and tracked as board task 158, `board/todo/158-run-meme-profile-backlog-on-general-and-metal.md`). P3, P4 and P6 can proceed. No board tasks have been created.

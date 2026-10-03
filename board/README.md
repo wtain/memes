@@ -20,6 +20,7 @@ Topic trackers with sessions and dependencies: [description-tagging-tracker.md](
 | 144 | P2 | [environments/Environments.md still has TODO placeholders for DB build and migration steps](todo/144-environments-md-todo-placeholders.md) |
 | 145 | P2 | [No process supervision / restart policy design for the VPS-hosted backend](todo/145-no-process-supervision-restart-policy.md) |
 | 146 | P2 | [No monitoring/alerting for the production service (uptime, log aggregation)](todo/146-no-monitoring-alerting.md) |
+| 158 | P2 | [Run the meme profile backlog on general and metal (about 6.7 h and 3.8 h of Ollama time)](todo/158-run-meme-profile-backlog-on-general-and-metal.md) |
 
 ## analysis
 
