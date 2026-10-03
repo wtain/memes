@@ -99,7 +99,7 @@ Defined by P1, produced by P2 (spec 2026-10-03-p2-meme-profile-extraction-design
 
 The taxonomy itself (`batch/data/taxonomy/`, loaded by the `taxonomy` package) is shared by all three environments. Rejected Ollama
 descriptions never feed profiles. A rejection changes the inputs fingerprint, so the profile is re-extracted by the next P2 run
-and stays searchable until then (unlike tags, which are deleted immediately). Staleness is derived from the taxonomy version, the prompt version, the model and an input fingerprint (note, non-rejected descriptions, filtered OCR, image content hash); human-verified profiles are never rewritten and are reported as needing review when stale.
+and stays searchable until then (unlike tags, which are deleted immediately). Staleness is derived from the taxonomy version, the prompt version, the model and an input fingerprint (note, non-rejected descriptions, filtered OCR, image content hash); human-verified profiles are never rewritten and are reported as needing review when stale. Failures are recorded with their context and expire when the inputs, prompt version or model change, and run-level errors (Ollama unreachable, model missing) are not recorded as failures.
 
 ## 5. Known gaps (tracked in `board/todo`)
 

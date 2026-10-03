@@ -1,6 +1,6 @@
 # P2: Meme profile extraction — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-03-p2-meme-profile-extraction.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P2)
 Follow-ups: none yet (P4 retrieval and P5 UI consume the tables this spec creates)
@@ -280,3 +280,36 @@ Full numbers, caveats and the rating breakdown are in `docs/superpowers/reviews/
 - **Finding for later projects:** quality is modest (the winner got 8 best, 14 acceptable, 13 poor of 35) and weakest on OCR-only images (mean 0.3-0.4 against about 1.0 with a description). `metal` has descriptions for only 7,482 of 18,088 active images, so running the description job there first would likely help its profiles more than a model change. P4 should treat profile values as a coarse, confidence-weighted signal; P6's gold set re-checks the model choice (OQ-3 stays open there).
 - **Throughput (NFR-5):** per-call means include model-load time because the pilot alternated models per image; the winner's median is 2.0 s and its mean 3.6 s. Estimated backlog for all active images: `general` (32,328) about 13.5-24.2 h at concurrency 2 (18.0-32.3 h serial), `metal` (18,088) about 7.5-13.6 h at concurrency 2 (10.0-18.1 h serial). `meme_profiles.max_per_run` of about 1,000 would keep a `description_pipeline` slice under an hour at the pessimistic mean; the setting is left unset. Concurrency 2 and VRAM behaviour were not measured by the (serial) pilot; the first rollout slice measures them.
 - **Decision-rule note:** the pilot tool keys vision runs separately (`<model>@vision`) because `qwen2.5vl:7b` is both a text candidate and the vision model, and it computes the text winner and the vision winner separately.
+
+## Addendum: as-built, rollout and notes for P4 and P5 (2026-10-03)
+
+### As built, deviating from the decisions above
+
+- **Decision 5:** `PROMPT_VERSION` is derived automatically: `p2-` plus the first 10 hex characters of a sha256 over every static prompt part (system prompt, situation guide, user template, axis guide, confidence levels, axis-line template, axis-guide fallback, the data labels, the no-text text, the image line and the retry template). It replaces the pinned-hash test and the example `"p2-v1"`. Outside the hash: the response-schema structure, the extractor's parse rules (including the empty-answer rule) and the vocabulary rendering in `taxonomy/prompt.py` (covered by `taxonomy_version`).
+- **Decision 3:** OCR lines are ordered by reading order (polygon corner, top to bottom then left to right; rows without a usable bbox after them in id order), not "by id" (ids are random UUIDs).
+- **Decision 6:** the repository method is `get_meta` (the spec said `get_profiles_meta`); `save_profile` returns False for a human-verified row.
+- `situation_confidence` is always NULL in P2 (the model is not asked for it); axis confidences are the coarse levels 0.3 / 0.6 / 0.9.
+- **Decision 7:** the embeddings job never emits `skipped.no_situation` (selection already excludes profiles without a situation); its stats are `images_selected`, `images_remaining`, `embedded`, `error.embed`.
+- **Decision 4 additions made after review:** vision-path images with an unsupported extension are dropped from the work list before `--limit` is applied (counted `skipped.unsupported_ext`). An all-empty answer (no situation, use-when or values) is a failed extraction (retried once, then recorded as failed). Every failure row now carries its context `[fingerprint(16 chars)|prompt version|model]` and is skipped only while that context is unchanged, so a new note, a new description, a prompt-version change or a model change makes the image eligible again automatically (legacy rows without a context are retried once; `--retry-failed` still overrides). Run-level errors (httpx transport errors, `ConnectionError`, an Ollama 404 model-missing response) are NOT recorded as failures, and three in a row stop the run with an error, so an outage cannot mark the backlog failed. This replaces the literal "failed images are skipped unless --retry-failed" in decision 4.
+- The pilot tool keys vision runs separately (`<model>@vision`) and computes the text winner and the vision winner separately; the blinded sheet never shows error text.
+
+### Rollout (general, 2026-10-03)
+
+- The migration (`d5a9f3c1e7b2`) is applied to metal, general and it (tables empty, readable by the read-only role); both jobs exit cleanly on `it`.
+- First slice on `general`: 200 images in 2m30s, about 0.75 s per image wall time at concurrency 2 with the model loaded (this replaces the serial pilot estimate). That is about 6.7 h for all of `general` (32,328 images) and 3.8 h for `metal` (18,088), roughly 4,800 images per hour. A `meme_profiles.max_per_run` of about 3,000 keeps a `description_pipeline` slice near 40 minutes (the pilot addendum's "about 1,000" is superseded). VRAM at concurrency 2 was not recorded (`ollama ps` was not captured).
+- Result of the slice: 194 saved, 6 empty answers (3%) which are now recorded as failures, 4 unsupported-extension images skipped. Distribution of the 194 profiles: stance `mock` 70%, tone `absurd` 52% and `sarcastic` 30%, emotion `amusement` 26%, topic `work` 31%.
+- The embeddings job embedded 193 situations (`bge-large`, digest `b3d71c92...`), a second run did nothing, and a nearest-neighbour query on the stored vectors returned sensible neighbours.
+- By the user's decision the full backlog run and an end-to-end `description_pipeline` run were NOT done (wiring is covered by unit tests). The full run is left to be triggered later (admin button or CLI), preferably after P6's gold set shows whether the prompt needs tuning, because a prompt change marks every profile stale.
+- Before the full run: confirm Ollama is up and both models are present (`qwen2.5:7b-instruct`, `qwen2.5vl:7b`), run `pip check` on `.venv311` (CLAUDE.md gotcha), run a `--limit` slice first and read its stats, remember `--reset` also clears every failure row, and on `metal` consider running `build_image_descriptions` first (OCR-only profiles are the weakest).
+
+### Notes for P4
+
+- Treat `situation_confidence` as absent and axis confidences as coarse levels.
+- Weight by value frequency (the sample is dominated by `mock`, `absurd`, `sarcastic`).
+- Images that failed (empty answers, undecodable files) have no profile.
+
+### Notes for P5
+
+- The backend cannot compute "stale" by itself yet: fingerprint and model staleness need `batch/utils/meme_profile_bundle.py`, which imports `rules.lang_plausibility` (it pulls in `wordfreq`, which is not in `Backend/requirements-backend.txt`). Options: move the bundle and fingerprint logic into a backend-importable module (`passes_language_filter` is four lines), or expose a stored stale set from the job.
+- When P5 verifies a profile it must pass the existing row's meta (read it with `get_meta` first) to `save_human_profile`; a placeholder `inputs_fingerprint` or `extractor_model` would make every human-verified profile show as needing review at the next run.
+- `save_profile` and `save_human_profile` ignore `ProfileMeta.human_verified` (the flag comes from which method is called).

@@ -298,7 +298,7 @@ description_pipeline      → one admin-triggerable driver (manual-trigger only,
                               (capped per run by image_descriptions.max_per_run, unset = unlimited; re-trigger until
                               the backlog is empty), then build_image_description_embeddings, build_description_lemmas
                               and build_tags_from_descriptions (all need the describe step), build_meme_profiles and
-                              build_meme_profile_embeddings (both need the describe step). Active images only, so new images join after ingest_promote. A failed
+                              build_meme_profile_embeddings (build_meme_profiles needs the describe step and build_meme_profile_embeddings needs build_meme_profiles). Active images only, so new images join after ingest_promote. A failed
                               step only skips the steps that need it; each child self-tracks under its own kind and an
                               already-running child is skipped, not failed. Excludes tag_images_from_concepts,
                               detect_entities_and_tag and concept drafting. See
@@ -375,7 +375,10 @@ build_meme_profiles         → extracts the meme-from-text profile (situation, 
                                meme_profiles.text_model (metal and general only; `it` exits cleanly with "not
                                configured"). An answer with no situation, no use-when and no axis values counts as
                                a failed extraction (retried once, then recorded as failed, re-attempted with
-                               --retry-failed). See
+                               --retry-failed). Failures carry a context (input fingerprint, prompt version,
+                               model) and are skipped only while it is unchanged, so new inputs or a new prompt
+                               or model retry them automatically; connection errors and a missing model are not
+                               recorded as failures and three in a row stop the run. See
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-03-p2-meme-profile-extraction-design.md.
 build_meme_profile_embeddings → embeds each profile's situation_text with the Ollama-served model from
                                settings taxonomy.embedding_model into meme_profile_situation_embeddings;

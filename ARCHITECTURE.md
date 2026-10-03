@@ -129,8 +129,14 @@ Database (Images + Embeddings + Clusters)
        ├─→ (batch/build_description_lemmas.py)
        │   └─→ Description lemmas (smart search)
        │
-       └─→ (batch/build_tags_from_notes.py)
-           └─→ ConceptTagger tagging from description notes (source "Note")
+       ├─→ (batch/build_tags_from_notes.py)
+       │   └─→ ConceptTagger tagging from description notes (source "Note")
+       │
+       ├─→ (batch/build_meme_profiles.py)
+       │   └─→ Meme profiles (situation, emotion, stance, topic, tone; metal and general only)
+       │
+       └─→ (batch/build_meme_profile_embeddings.py)
+           └─→ Situation embeddings of the meme profiles (needs build_meme_profiles)
            (see docs/data-flow.md for the full signal/consumer matrix)
        │
        ▼
