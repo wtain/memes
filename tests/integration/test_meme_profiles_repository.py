@@ -282,3 +282,16 @@ async def test_source_check_constraint_rejects_unknown_sources(db_session):
     db_session.add(MemeProfileValue(image_id=image.id, axis="emotion", value_key="joy", confidence=0.5, source="robot"))
     with pytest.raises(IntegrityError):
         await db_session.flush()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_coverage_failed_counts_only_active_images(db_session):
+    active_failed = await _insert_image(db_session)
+    pending_failed = await _insert_image(db_session, status="pending")
+    repo = MemeProfileRepository(db_session)
+
+    coverage = await repo.coverage(
+        taxonomy_version=2, prompt_version="p2-now",
+        failed_image_ids=frozenset({active_failed.id, pending_failed.id}))
+
+    assert coverage["failed"] == 1

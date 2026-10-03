@@ -159,3 +159,17 @@ async def test_delete_all_only_clears_its_own_pipeline(db_session):
 
     assert await repo_a.get_image_ids_with_status("failed") == set()
     assert await repo_b.get_image_ids_with_status("failed") == {image_b.id}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_error_messages_with_status_maps_ids_to_messages_per_pipeline(db_session):
+    image_a = await _insert_image(db_session)
+    image_b = await _insert_image(db_session)
+    repo_a = ImageProcessingStatusRepository(db_session, "image_description:general_description")
+    repo_b = ImageProcessingStatusRepository(db_session, "image_description:humor_explanation")
+    await repo_a.record_failure(image_a.id, "[ctx] boom")
+    await repo_b.record_failure(image_b.id, "other")
+    await db_session.flush()
+
+    assert await repo_a.get_error_messages_with_status("failed") == {image_a.id: "[ctx] boom"}
+    assert await repo_a.get_error_messages_with_status("done") == {}

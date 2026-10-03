@@ -1,7 +1,7 @@
 import uuid
 
 from batch.utils.meme_profile_bundle import PATH_TEXT, PATH_VISION, Bundle
-from batch.utils.meme_profile_selection import Candidate, select_work
+from batch.utils.meme_profile_selection import Candidate, failure_context, recorded_context, select_work
 from repository.meme_profiles import ProfileMeta
 
 LONG = "x" * 60
@@ -20,10 +20,10 @@ def _meta(candidate, **overrides):
     return ProfileMeta(**values)
 
 
-def _select(candidates, metas=None, failed=frozenset(), **overrides):
+def _select(candidates, metas=None, failed=None, **overrides):
     params = dict(COMMON)
     params.update(overrides)
-    return select_work(candidates, metas or {}, failed, **params)
+    return select_work(candidates, metas or {}, failed or {}, **params)
 
 
 def test_an_image_without_a_profile_is_selected_with_its_path_and_model():
@@ -95,11 +95,49 @@ def test_a_current_human_verified_profile_is_neither_stale_nor_needing_review():
     assert result.work == [] and result.stale_ids == frozenset() and result.needs_review_ids == frozenset()
 
 
-def test_failed_images_are_skipped_unless_retrying():
-    candidate = _candidate()
+def _failure(candidate, fingerprint=None, prompt_version="p2-now", model="text-model"):
+    context = failure_context(fingerprint or candidate.fingerprint, prompt_version, model)
+    return {candidate.image_id: f"{context} unusable answer"}
 
-    skipped = _select([candidate], failed=frozenset({candidate.image_id}))
-    retried = _select([candidate], failed=frozenset({candidate.image_id}), retry_failed=True)
+
+def test_a_failure_with_a_matching_context_is_skipped_unless_retrying():
+    candidate = _candidate()
+    failures = _failure(candidate)
+
+    skipped = _select([candidate], failed=failures)
+    retried = _select([candidate], failed=failures, retry_failed=True)
 
     assert skipped.work == [] and skipped.skipped_failed == 1
     assert [w.image_id for w in retried.work] == [candidate.image_id] and retried.skipped_failed == 0
+
+
+def test_a_failure_recorded_in_a_different_context_is_selected_again():
+    candidate = _candidate()
+    cases = {
+        "fingerprint": _failure(candidate, fingerprint="other-fingerprint-value"),
+        "prompt version": _failure(candidate, prompt_version="p2-old"),
+        "model": _failure(candidate, model="old-model"),
+    }
+    for name, failures in cases.items():
+        result = _select([candidate], failed=failures)
+        assert [w.image_id for w in result.work] == [candidate.image_id], name
+        assert result.skipped_failed == 0, name
+
+
+def test_a_legacy_failure_message_without_a_context_is_selected_again():
+    candidate = _candidate()
+
+    for message in ("unusable answer", None):
+        result = _select([candidate], failed={candidate.image_id: message})
+        assert [w.image_id for w in result.work] == [candidate.image_id]
+
+
+def test_failure_context_format():
+    assert failure_context("0123456789abcdef0123", "p2-now", "m") == "[0123456789abcdef|p2-now|m]"
+
+
+def test_recorded_context_edge_cases():
+    assert recorded_context(None) is None
+    assert recorded_context("no bracket [x]") is None
+    assert recorded_context("[never closed") is None
+    assert recorded_context("[a|b|c] some [other] text") == "[a|b|c]"

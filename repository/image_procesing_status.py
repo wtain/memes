@@ -124,6 +124,13 @@ class ImageProcessingStatusRepository:
         )
         return set(result.scalars().all())
 
+    async def get_error_messages_with_status(self, status: str) -> dict[uuid.UUID, str | None]:
+        result = await self.session.execute(
+            select(ImageProcessingStatus.image_id, ImageProcessingStatus.error_message)
+            .where(ImageProcessingStatus.pipeline == self.pipeline, ImageProcessingStatus.status == status)
+        )
+        return {image_id: message for image_id, message in result.all()}
+
     async def delete_all(self) -> None:
         """No commit — same convention as record_failure."""
         await self.session.execute(

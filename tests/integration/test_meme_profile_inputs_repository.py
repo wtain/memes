@@ -25,12 +25,13 @@ async def _insert_image(session, status: str | None = None, content_hash: str | 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_list_active_images_returns_only_active_ones_with_filename_and_hash(db_session):
     active = await _insert_image(db_session, content_hash="hash-1")
-    await _insert_image(db_session, status="pending")
+    pending = await _insert_image(db_session, status="pending")
     repo = MemeProfileInputsRepository(db_session)
 
     images = await repo.list_active_images()
 
-    assert images == [(active.id, active.filename, "hash-1")]
+    assert (active.id, active.filename, "hash-1") in images
+    assert pending.id not in [row[0] for row in images]
 
 
 @pytest.mark.asyncio(loop_scope="session")

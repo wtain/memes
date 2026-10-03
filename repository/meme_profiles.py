@@ -156,5 +156,12 @@ class MemeProfileRepository:
             stale += is_stale
             human += human_verified
             needs_review += is_stale and human_verified
+        failed_ids = list(failed_image_ids)
+        failed = 0
+        for start in range(0, len(failed_ids), 1000):
+            chunk = failed_ids[start:start + 1000]
+            failed += (await self.session.execute(
+                select(func.count()).select_from(Image)
+                .where(Image.status == "active", Image.id.in_(chunk)))).scalar_one()
         return {"active": active, "profiled": len(rows), "stale": stale, "needs_review": needs_review,
-                "human_verified": human, "failed": len(failed_image_ids)}
+                "human_verified": human, "failed": failed}

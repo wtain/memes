@@ -10,13 +10,16 @@ import asyncio
 import os
 import uuid
 
+import httpx
+import ollama
+
 from ai.meme_profile_extractor import OllamaProfileExtractor, ProfileExtractionError
 from ai.meme_profile_prompt import PROMPT_VERSION
 from batch.run_tracking import finish_existing_run, record_stats, tracked_run
 from batch.utils.image_format_filter import has_unsupported_image_extension
 from batch.utils.meme_profile_bundle import PATH_VISION, build_bundle, fingerprint
 from batch.utils.meme_profile_config import NOT_CONFIGURED_MESSAGE, PIPELINE, load_config
-from batch.utils.meme_profile_selection import Candidate, select_work
+from batch.utils.meme_profile_selection import Candidate, failure_context, select_work
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
@@ -27,6 +30,18 @@ from Storage.db import AsyncSessionLocal
 from taxonomy import load as load_taxonomy
 
 CHUNK_SIZE = 1000
+MAX_CONSECUTIVE_UNAVAILABLE = 3
+
+
+def is_run_level_error(error: Exception) -> bool:
+    """True for errors that say the backend is unavailable or misconfigured (not that this image is bad)."""
+    if isinstance(error, (httpx.TransportError, ConnectionError)):
+        return True
+    return isinstance(error, ollama.ResponseError) and error.status_code == 404
+
+
+def _failure_message(item, error: Exception) -> str:
+    return f"{failure_context(item.fingerprint, PROMPT_VERSION, item.model)} {error}"
 
 
 async def _collect_candidates(session, config) -> list[Candidate]:
@@ -72,9 +87,9 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
 
         candidates = await _collect_candidates(session, config)
         metas = await profiles.get_meta([candidate.image_id for candidate in candidates])
-        failed_ids = await status_repo.get_image_ids_with_status("failed")
+        failures = await status_repo.get_error_messages_with_status("failed")
         selection = select_work(
-            candidates, metas, failed_ids,
+            candidates, metas, failures,
             taxonomy_version=tax.version, prompt_version=PROMPT_VERSION,
             text_model=config.text_model, vision_model=config.vision_model,
             min_text_chars=config.min_text_chars, retry_failed=retry_failed,
@@ -113,9 +128,19 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
                 await session.commit()
                 pending = 0
 
+        consecutive_unavailable = 0
+        abort = False
+
         async def process_image(item) -> None:
+            nonlocal consecutive_unavailable, abort
+            if abort:
+                metrics.increment("skipped.aborted")
+                return
             image_path = os.path.join(base_path, item.filename) if item.path == PATH_VISION else None
             async with semaphore:
+                if abort:  # set while this task was queued on the semaphore
+                    metrics.increment("skipped.aborted")
+                    return
                 try:
                     result = await asyncio.to_thread(
                         extractor.extract, model=item.model, note=item.bundle.note,
@@ -124,20 +149,31 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
                 except ProfileExtractionError as error:
                     print(f"Unusable answer for {item.filename}: {error}")
                     metrics.increment("error.invalid_output")
+                    consecutive_unavailable = 0
                     async with db_lock:
-                        await status_repo.record_failure(item.image_id, str(error))
+                        await status_repo.record_failure(item.image_id, _failure_message(item, error))
                         await commit_if_due()
                     tracker.mark_done()
                     return
                 except Exception as error:
                     print(f"Model failed for {item.filename}: {error}")
+                    if is_run_level_error(error):
+                        # Ollama down / model missing says nothing about this image: record nothing.
+                        metrics.increment("error.unavailable")
+                        consecutive_unavailable += 1
+                        if consecutive_unavailable >= MAX_CONSECUTIVE_UNAVAILABLE:
+                            abort = True
+                        tracker.mark_done()
+                        return
+                    consecutive_unavailable = 0
                     metrics.increment("error.model")
                     async with db_lock:
-                        await status_repo.record_failure(item.image_id, str(error))
+                        await status_repo.record_failure(item.image_id, _failure_message(item, error))
                         await commit_if_due()
                     tracker.mark_done()
                     return
 
+            consecutive_unavailable = 0
             data = ProfileData.from_validated(result.profile, result.use_when)
             meta = ProfileMeta(tax.version, item.model, PROMPT_VERSION, item.fingerprint, False)
             async with db_lock:
@@ -155,10 +191,16 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
         async with db_lock:
             await commit_if_due(force=True)
 
-        failed_after = await status_repo.get_image_ids_with_status("failed")
+        if abort:
+            metrics.print()
+            raise RuntimeError(
+                "Ollama appears to be unavailable (3 consecutive connection errors); stopping the run. "
+                "Nothing was recorded as failed for these errors.")
+
+        failures_after = await status_repo.get_error_messages_with_status("failed")
         coverage = await profiles.coverage(
             taxonomy_version=tax.version, prompt_version=PROMPT_VERSION,
-            stale_image_ids=selection.stale_ids - saved_ids, failed_image_ids=failed_after,
+            stale_image_ids=selection.stale_ids - saved_ids, failed_image_ids=set(failures_after),
         )
 
     tracker.summary()

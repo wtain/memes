@@ -69,3 +69,14 @@ def test_registered_in_batch_registry():
     entry = BatchRegistry().get("build_meme_profiles")
 
     assert entry == {"module": "batch.build_meme_profiles", "kind": "build_meme_profiles"}
+
+
+def test_is_run_level_error_classifies_backend_unavailability():
+    import httpx
+    import ollama
+
+    assert module.is_run_level_error(httpx.ConnectError("refused"))
+    assert module.is_run_level_error(ConnectionRefusedError("refused"))
+    assert module.is_run_level_error(ollama.ResponseError("model not found", 404))
+    assert not module.is_run_level_error(ValueError("bad"))
+    assert not module.is_run_level_error(ollama.ResponseError("Failed to load image", 400))

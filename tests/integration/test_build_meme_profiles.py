@@ -322,3 +322,105 @@ async def test_an_empty_extraction_is_treated_as_failed(db_session):
         .where(ImageProcessingStatus.image_id == image.id))).one()
     assert tuple(status) == (PIPELINE, "failed")
     assert await db_session.get(MemeProfile, image.id) is None
+
+
+def _raising_extractor_class(calls, error_for):
+    """Fake whose extract raises error_for(description_text, call_index) when that returns an exception."""
+    base = _fake_extractor_class([])
+
+    class Raising(base):
+        def extract(self, **kwargs):
+            index = len(calls)
+            calls.append({"model": kwargs["model"], "descriptions": kwargs["descriptions"]})
+            error = error_for("".join(t for _, t in kwargs["descriptions"]), index)
+            if error is not None:
+                raise error
+            return super().extract(**kwargs)
+
+    return Raising
+
+
+async def _status_rows(db_session, image_ids):
+    return (await db_session.execute(
+        select(ImageProcessingStatus.image_id).where(ImageProcessingStatus.image_id.in_(image_ids)))).all()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_failed_image_is_skipped_again_and_re_extracted_when_its_inputs_change(db_session):
+    image = await _insert_image(db_session)
+    description = await _add_description(db_session, image, text=LONG_TEXT + " POISON")
+    await _run(db_session, [], fail_for=("POISON",))
+
+    skipped = await _run(db_session, [], fail_for=("POISON",))
+    assert skipped["skipped.failed"] == 1 and skipped["images_selected"] == 0
+
+    description.text = "a completely different description of the same meme"
+    await db_session.flush()
+    calls: list = []
+    stats = await _run(db_session, calls, fail_for=("POISON",))
+
+    assert len(calls) == 1 and stats["saved"] == 1 and stats.get("skipped.failed", 0) == 0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_repeated_connection_errors_abort_without_recording_failures(db_session):
+    images = []
+    for _ in range(5):
+        image = await _insert_image(db_session)
+        await _add_description(db_session, image)
+        images.append(image)
+    calls: list = []
+    extractor = _raising_extractor_class(calls, lambda text, index: ConnectionError("ollama down"))
+
+    with pytest.raises(RuntimeError, match="unavailable"):
+        await _run(db_session, [], extractor_class=extractor)
+
+    ids = [image.id for image in images]
+    assert len(calls) == 3
+    assert await _status_rows(db_session, ids) == []
+    assert (await db_session.execute(select(MemeProfile.image_id).where(MemeProfile.image_id.in_(ids)))).all() == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_single_connection_error_does_not_abort_or_record_a_failure(db_session):
+    images = []
+    for _ in range(3):
+        image = await _insert_image(db_session)
+        await _add_description(db_session, image)
+        images.append(image)
+    extractor = _raising_extractor_class([], lambda text, index: ConnectionError("blip") if index == 0 else None)
+
+    stats = await _run(db_session, [], extractor_class=extractor)
+
+    assert stats["error.unavailable"] == 1 and stats["saved"] == 2
+    ids = [image.id for image in images]
+    profiled = {row[0] for row in (await db_session.execute(
+        select(MemeProfile.image_id).where(MemeProfile.image_id.in_(ids)))).all()}
+    unprofiled = [i for i in ids if i not in profiled]
+    assert len(unprofiled) == 1
+    assert await _status_rows(db_session, unprofiled) == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_response_error_status_decides_between_run_level_and_per_image(db_session):
+    import ollama
+
+    missing = await _insert_image(db_session)
+    await _add_description(db_session, missing, text=LONG_TEXT + " MISSINGMODEL")
+    bad = await _insert_image(db_session)
+    await _add_description(db_session, bad, text=LONG_TEXT + " BADIMAGE")
+
+    def error_for(text, index):
+        if "MISSINGMODEL" in text:
+            return ollama.ResponseError("model not found", 404)
+        if "BADIMAGE" in text:
+            return ollama.ResponseError("Failed to load image", 400)
+        return None
+
+    stats = await _run(db_session, [], extractor_class=_raising_extractor_class([], error_for))
+
+    assert stats["error.unavailable"] == 1 and stats["error.model"] == 1
+    assert await _status_rows(db_session, [missing.id]) == []
+    message = (await db_session.execute(
+        select(ImageProcessingStatus.error_message).where(ImageProcessingStatus.image_id == bad.id))).scalar_one()
+    assert message.startswith("[") and "Failed to load image" in message
