@@ -88,7 +88,7 @@ Notes:
 
 ## 4b. Meme profile signals (epic meme-from-text)
 
-Defined by P1, produced by P2 (spec 2026-10-03-p2-meme-profile-extraction-design.md). Run on metal and general; it is out of scope and exits cleanly.
+Defined by P1, produced by P2 (spec 2026-10-03-p2-meme-profile-extraction-design.md). Run on metal and general; the `it` environment is out of scope and exits cleanly.
 
 | Signal | Table | Producer job | Used by |
 |---|---|---|---|

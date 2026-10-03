@@ -302,3 +302,23 @@ async def test_reset_deletes_and_rebuilds_an_existing_model_profile(db_session):
     rebuilt = (await db_session.execute(
         select(MemeProfile.extractor_model).where(MemeProfile.image_id == image.id))).scalar_one_or_none()
     assert rebuilt == "text-model"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_an_empty_extraction_is_treated_as_failed(db_session):
+    """Test that an empty answer (no situation, no use-when, no values) is recorded as failed."""
+    image = await _insert_image(db_session)
+    await _add_description(db_session, image)
+
+    class EmptyAnswerExtractor(_fake_extractor_class([])):
+        def extract(self, *, model, note, descriptions, ocr, image_path=None):
+            raise ProfileExtractionError("the answer is empty: no situation, use-when or values")
+
+    stats = await _run(db_session, [], extractor_class=EmptyAnswerExtractor)
+
+    assert stats["error.invalid_output"] == 1 and stats.get("saved", 0) == 0
+    status = (await db_session.execute(
+        select(ImageProcessingStatus.pipeline, ImageProcessingStatus.status)
+        .where(ImageProcessingStatus.image_id == image.id))).one()
+    assert tuple(status) == (PIPELINE, "failed")
+    assert await db_session.get(MemeProfile, image.id) is None

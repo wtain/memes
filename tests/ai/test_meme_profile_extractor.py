@@ -130,3 +130,65 @@ def test_a_non_object_answer_is_invalid(monkeypatch):
 
     with pytest.raises(ProfileExtractionError):
         _extract()
+
+
+def test_all_empty_answer_twice_raises_error(monkeypatch):
+    """Test that an answer with no situation, no use-when, and no values is treated as failed."""
+    calls = _patch_chat(monkeypatch, _answer(situation="", useWhen="", emotion=[], stance=[]),
+                                     _answer(situation="", useWhen="", emotion=[], stance=[]))
+
+    with pytest.raises(ProfileExtractionError) as exc_info:
+        _extract()
+
+    assert "empty" in str(exc_info.value)
+    assert len(calls) == 2
+
+
+def test_empty_answer_followed_by_valid_succeeds(monkeypatch):
+    """Test that an empty answer is retried with the reason in the message."""
+    calls = _patch_chat(monkeypatch, _answer(situation="", useWhen="", emotion=[], stance=[]),
+                                     _answer())
+
+    result = _extract()
+
+    assert result.profile["situation"] == "plans cancelled"
+    assert result.use_when == "Use when plans fall through."
+    assert len(calls) == 2
+    retry_message = calls[1]["messages"][-1]["content"]
+    assert "empty" in retry_message
+
+
+def test_answer_with_only_situation_is_valid(monkeypatch):
+    """Test that an answer with only a situation (no use-when, no values) is valid."""
+    _patch_chat(monkeypatch, _answer(useWhen="", emotion=[], stance=[]))
+
+    result = _extract()
+
+    assert result.profile["situation"] == "plans cancelled"
+    assert result.use_when is None
+    assert result.profile["emotion"] == []
+    assert result.profile["stance"] == []
+
+
+def test_answer_with_only_axis_values_is_valid(monkeypatch):
+    """Test that an answer with only axis values (no situation, no use-when) is valid."""
+    _patch_chat(monkeypatch, _answer(situation="", useWhen=""))
+
+    result = _extract()
+
+    assert result.profile["situation"] is None
+    assert result.use_when is None
+    assert result.profile["emotion"] == [{"key": "anger", "confidence": 0.9, "source": "model"}]
+    assert result.profile["stance"] == [{"key": "agree", "confidence": 0.3, "source": "model"}]
+
+
+def test_answer_with_only_use_when_is_valid(monkeypatch):
+    """Test that an answer with only a use-when is valid."""
+    _patch_chat(monkeypatch, _answer(situation="", emotion=[], stance=[]))
+
+    result = _extract()
+
+    assert result.profile["situation"] is None
+    assert result.use_when == "Use when plans fall through."
+    assert result.profile["emotion"] == []
+    assert result.profile["stance"] == []

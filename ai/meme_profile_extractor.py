@@ -88,4 +88,14 @@ class OllamaProfileExtractor:
         use_when = (use_when or "").strip() or None
         if use_when is not None and len(use_when) > MAX_USE_WHEN_CHARS:
             raise ProfileExtractionError(f"useWhen is longer than {MAX_USE_WHEN_CHARS} characters")
+
+        # Check if the profile is entirely empty (no situation, no use-when, no axis values)
+        is_empty = (
+            validated.profile["situation"] is None
+            and use_when is None
+            and all(not validated.profile.get(axis, []) for axis in self._tax.controlled_axes())
+        )
+        if is_empty:
+            raise ProfileExtractionError("the answer is empty: no situation, use-when or values")
+
         return ExtractionResult(profile=validated.profile, use_when=use_when)

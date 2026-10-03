@@ -373,7 +373,9 @@ build_meme_profiles         → extracts the meme-from-text profile (situation, 
                                meme_profiles.max_per_run. --reset keeps human-verified profiles; --retry-failed
                                re-attempts permanently failed images; --limit caps a run. Needs
                                meme_profiles.text_model (metal and general only; `it` exits cleanly with "not
-                               configured"). See
+                               configured"). An answer with no situation, no use-when and no axis values counts as
+                               a failed extraction (retried once, then recorded as failed, re-attempted with
+                               --retry-failed). See
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-03-p2-meme-profile-extraction-design.md.
 build_meme_profile_embeddings → embeds each profile's situation_text with the Ollama-served model from
                                settings taxonomy.embedding_model into meme_profile_situation_embeddings;
