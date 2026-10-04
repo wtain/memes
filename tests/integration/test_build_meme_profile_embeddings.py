@@ -133,3 +133,28 @@ async def test_an_embedding_error_is_counted_and_nothing_is_saved(db_session):
 
     assert stats["error.embed"] == 1 and stats.get("embedded", 0) == 0
     assert await _embeddings(db_session) == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_only_ids_restricts_embedding_to_the_listed_profiles(db_session):
+    listed = await _profile(db_session, "listed situation")
+    await _profile(db_session, "unlisted situation")
+    embedded: list = []
+
+    stats = await _run(db_session, _fake_embedder_class(embedded), only_ids=frozenset({listed.id}))
+
+    assert embedded == ["listed situation"] and stats["embedded"] == 1
+    assert [row.image_id for row in await _embeddings(db_session)] == [listed.id]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_reset_with_only_ids_deletes_only_the_listed_embeddings(db_session):
+    listed = await _profile(db_session, "listed situation")
+    other = await _profile(db_session, "other situation")
+    await _run(db_session, _fake_embedder_class([]))             # both embedded
+
+    embedded: list = []
+    await _run(db_session, _fake_embedder_class(embedded), reset=True, only_ids=frozenset({listed.id}))
+
+    assert embedded == ["listed situation"]
+    assert {row.image_id for row in await _embeddings(db_session)} == {listed.id, other.id}

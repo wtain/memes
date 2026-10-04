@@ -136,3 +136,12 @@ class ImageProcessingStatusRepository:
         await self.session.execute(
             delete(ImageProcessingStatus).where(ImageProcessingStatus.pipeline == self.pipeline)
         )
+
+    async def delete_for_images(self, image_ids) -> None:
+        """No commit -- same convention as delete_all. Only this pipeline's rows for the given images."""
+        await self.session.execute(
+            delete(ImageProcessingStatus).where(
+                ImageProcessingStatus.pipeline == self.pipeline,
+                ImageProcessingStatus.image_id.in_(list(image_ids)),
+            )
+        )

@@ -173,3 +173,22 @@ async def test_get_error_messages_with_status_maps_ids_to_messages_per_pipeline(
 
     assert await repo_a.get_error_messages_with_status("failed") == {image_a.id: "[ctx] boom"}
     assert await repo_a.get_error_messages_with_status("done") == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_delete_for_images_removes_only_the_given_images_rows_of_this_pipeline(db_session):
+    first, second = Image(filename=f"{uuid.uuid4()}.jpg"), Image(filename=f"{uuid.uuid4()}.jpg")
+    db_session.add_all([first, second])
+    await db_session.flush()
+    repo = ImageProcessingStatusRepository(db_session, "test_pipeline")
+    other = ImageProcessingStatusRepository(db_session, "other_pipeline")
+    await repo.record_failure(first.id, "boom")
+    await repo.record_failure(second.id, "boom")
+    await other.record_failure(first.id, "kept")
+    await db_session.flush()
+
+    await repo.delete_for_images({first.id})
+    await db_session.flush()
+
+    assert await repo.get_image_ids_with_status("failed") == {second.id}
+    assert await other.get_image_ids_with_status("failed") == {first.id}

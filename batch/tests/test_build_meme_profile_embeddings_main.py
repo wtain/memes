@@ -33,7 +33,7 @@ class TestMain:
             await module.main(trigger="manual", limit=5)
 
         tracked_run_mock.assert_called_once_with(kind="build_meme_profile_embeddings", trigger="manual")
-        process_mock.assert_awaited_once_with(reset=False, limit=5)
+        process_mock.assert_awaited_once_with(reset=False, limit=5, only_ids=None)
         record_mock.assert_awaited_once_with("run-1", {"images_selected": 3, "images_remaining": 0})
 
     @pytest.mark.asyncio
@@ -47,7 +47,19 @@ class TestMain:
             await module.main(trigger="manual", run_id="existing-run-1", reset=True)
 
         finish_mock.assert_called_once_with("existing-run-1")
-        process_mock.assert_awaited_once_with(reset=True, limit=None)
+        process_mock.assert_awaited_once_with(reset=True, limit=None, only_ids=None)
+
+    @pytest.mark.asyncio
+    async def test_only_ids_is_passed_through_to_process(self):
+        process_mock = AsyncMock(return_value={"images_selected": 0, "images_remaining": 0})
+        ids = frozenset({"id-1"})
+
+        with patch.object(module, "tracked_run", return_value=_ctx("run-1")), \
+             patch.object(module, "_process", process_mock), \
+             patch.object(module, "record_stats", AsyncMock()):
+            await module.main(trigger="manual", only_ids=ids)
+
+        process_mock.assert_awaited_once_with(reset=False, limit=None, only_ids=ids)
 
 
 @pytest.mark.asyncio

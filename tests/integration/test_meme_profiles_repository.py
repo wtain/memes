@@ -295,3 +295,52 @@ async def test_coverage_failed_counts_only_active_images(db_session):
         failed_image_ids=frozenset({active_failed.id, pending_failed.id}))
 
     assert coverage["failed"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_delete_model_generated_can_be_limited_to_given_images(db_session):
+    first = await _insert_image(db_session)
+    second = await _insert_image(db_session)
+    repo = MemeProfileRepository(db_session)
+    await repo.save_profile(first.id, _data(emotion=[("joy", 0.9)]), _meta())
+    await repo.save_profile(second.id, _data(emotion=[("anger", 0.9)]), _meta())
+    await db_session.flush()
+
+    deleted = await repo.delete_model_generated({first.id})
+    await db_session.flush()
+
+    assert deleted == 1
+    assert await db_session.get(MemeProfile, first.id) is None
+    assert await db_session.get(MemeProfile, second.id) is not None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_delete_all_embeddings_can_be_limited_to_given_images(db_session):
+    first = await _insert_image(db_session)
+    second = await _insert_image(db_session)
+    repo = MemeProfileRepository(db_session)
+    for image in (first, second):
+        await repo.save_profile(image.id, _data(), _meta())
+        await repo.save_situation_embedding(image.id, [0.1] * PROFILE_EMBEDDING_DIM, "bge-large", "digest-1")
+    await db_session.flush()
+
+    assert await repo.delete_all_embeddings({first.id}) == 1
+    await db_session.flush()
+
+    assert [image_id for image_id, _ in await repo.get_profiles_needing_embedding("bge-large", "digest-1")] == [first.id]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_profiles_needing_embedding_can_be_limited_to_given_images(db_session):
+    first = await _insert_image(db_session)
+    second = await _insert_image(db_session)
+    repo = MemeProfileRepository(db_session)
+    await repo.save_profile(first.id, _data(situation="one"), _meta())
+    await repo.save_profile(second.id, _data(situation="two"), _meta())
+    await db_session.flush()
+
+    only_first = await repo.get_profiles_needing_embedding("bge-large", "d1", {first.id})
+    everything = await repo.get_profiles_needing_embedding("bge-large", "d1")
+
+    assert only_first == [(first.id, "one")]
+    assert {image_id for image_id, _ in everything} == {first.id, second.id}

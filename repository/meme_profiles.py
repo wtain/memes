@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+from typing import Collection
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
@@ -100,18 +101,28 @@ class MemeProfileRepository:
                     source="human" if human else item.get("source", "model"),
                 ))
 
-    async def delete_model_generated(self) -> int:
-        """`--reset`: delete every profile that is not human-verified (child rows cascade in the database)."""
-        result = await self.session.execute(delete(MemeProfile).where(MemeProfile.human_verified.is_(False)))
+    async def delete_model_generated(self, image_ids: Collection[uuid.UUID] | None = None) -> int:
+        """`--reset`: delete every profile that is not human-verified (child rows cascade in the database),
+        optionally only those of the given images."""
+        statement = delete(MemeProfile).where(MemeProfile.human_verified.is_(False))
+        if image_ids is not None:
+            statement = statement.where(MemeProfile.image_id.in_(list(image_ids)))
+        result = await self.session.execute(statement)
         return result.rowcount
 
-    async def delete_all_embeddings(self) -> int:
-        result = await self.session.execute(delete(MemeProfileSituationEmbedding))
+    async def delete_all_embeddings(self, image_ids: Collection[uuid.UUID] | None = None) -> int:
+        statement = delete(MemeProfileSituationEmbedding)
+        if image_ids is not None:
+            statement = statement.where(MemeProfileSituationEmbedding.image_id.in_(list(image_ids)))
+        result = await self.session.execute(statement)
         return result.rowcount
 
-    async def get_profiles_needing_embedding(self, model_name: str, model_digest: str) -> list[tuple[uuid.UUID, str]]:
-        """Profiles with a non-blank situation_text and no embedding row, or one from a different model or digest."""
-        result = await self.session.execute(
+    async def get_profiles_needing_embedding(self, model_name: str, model_digest: str,
+                                             image_ids: Collection[uuid.UUID] | None = None
+                                             ) -> list[tuple[uuid.UUID, str]]:
+        """Profiles with a non-blank situation_text and no embedding row, or one from a different model or
+        digest, optionally only among the given images."""
+        statement = (
             select(MemeProfile.image_id, MemeProfile.situation_text)
             .outerjoin(MemeProfileSituationEmbedding, MemeProfileSituationEmbedding.image_id == MemeProfile.image_id)
             .where(
@@ -125,6 +136,9 @@ class MemeProfileRepository:
             )
             .order_by(MemeProfile.image_id)
         )
+        if image_ids is not None:
+            statement = statement.where(MemeProfile.image_id.in_(list(image_ids)))
+        result = await self.session.execute(statement)
         return [(image_id, text) for image_id, text in result.all()]
 
     async def save_situation_embedding(self, image_id: uuid.UUID, vector: list[float],

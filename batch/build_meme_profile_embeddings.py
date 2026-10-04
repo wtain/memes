@@ -10,6 +10,7 @@ import uuid
 
 from ai.ollama_embed import OllamaEmbedder
 from batch.run_tracking import finish_existing_run, record_stats, tracked_run
+from batch.utils.ids_file import load_ids_file
 from batch.utils.meme_profile_config import NOT_CONFIGURED_MESSAGE, load_config
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
@@ -19,7 +20,7 @@ from Storage.db import AsyncSessionLocal
 EMBED_CHUNK = 32
 
 
-async def _process(reset: bool, limit: int | None) -> dict:
+async def _process(reset: bool, limit: int | None, only_ids=None) -> dict:
     if load_config(settings.get) is None:
         print(NOT_CONFIGURED_MESSAGE)
         return {"not_configured": 1, "images_selected": 0, "images_remaining": 0}
@@ -32,11 +33,11 @@ async def _process(reset: bool, limit: int | None) -> dict:
     async with AsyncSessionLocal() as session:
         repo = MemeProfileRepository(session)
         if reset:
-            deleted = await repo.delete_all_embeddings()
+            deleted = await repo.delete_all_embeddings(only_ids)
             await session.commit()
             print(f"Deleted {deleted} situation embedding(s)")
 
-        pending = await repo.get_profiles_needing_embedding(model_name, model_digest)
+        pending = await repo.get_profiles_needing_embedding(model_name, model_digest, only_ids)
         total_pending = len(pending)
         work = pending[:limit] if limit is not None else pending
         print(f"{len(work)} profile(s) to embed this run, {total_pending - len(work)} left waiting")
@@ -63,14 +64,14 @@ async def _process(reset: bool, limit: int | None) -> dict:
 
 
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, reset: bool = False,
-               limit: int | None = None) -> None:
+               limit: int | None = None, only_ids=None) -> None:
     if run_id is not None:
         async with finish_existing_run(run_id):
-            stats = await _process(reset=reset, limit=limit)
+            stats = await _process(reset=reset, limit=limit, only_ids=only_ids)
             await record_stats(run_id, stats)
     else:
         async with tracked_run(kind="build_meme_profile_embeddings", trigger=trigger) as new_run_id:
-            stats = await _process(reset=reset, limit=limit)
+            stats = await _process(reset=reset, limit=limit, only_ids=only_ids)
             await record_stats(new_run_id, stats)
 
 
@@ -80,6 +81,9 @@ if __name__ == "__main__":
                         help="Environment to load config/secrets for (falls back to APP_ENV)")
     parser.add_argument("--reset", action="store_true", help="Delete every situation embedding before running")
     parser.add_argument("--limit", type=int, default=None, help="Embed at most this many profiles")
+    parser.add_argument("--ids-file", default=None,
+                        help="Only consider the images listed in this file (JSON list or one UUID per line); --reset then only resets those images")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(reset=args.reset, limit=args.limit))
+    only_ids = load_ids_file(args.ids_file) if args.ids_file else None
+    asyncio.run(main(reset=args.reset, limit=args.limit, only_ids=only_ids))

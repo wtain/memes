@@ -16,6 +16,7 @@ import ollama
 from ai.meme_profile_extractor import OllamaProfileExtractor, ProfileExtractionError
 from ai.meme_profile_prompt import PROMPT_VERSION
 from batch.run_tracking import finish_existing_run, record_stats, tracked_run
+from batch.utils.ids_file import load_ids_file
 from batch.utils.image_format_filter import has_unsupported_image_extension
 from batch.utils.meme_profile_bundle import PATH_VISION, build_bundle, fingerprint
 from batch.utils.meme_profile_config import NOT_CONFIGURED_MESSAGE, PIPELINE, load_config
@@ -44,10 +45,12 @@ def _failure_message(item, error: Exception) -> str:
     return f"{failure_context(item.fingerprint, PROMPT_VERSION, item.model)} {error}"
 
 
-async def _collect_candidates(session, config) -> list[Candidate]:
+async def _collect_candidates(session, config, only_ids=None) -> list[Candidate]:
     """Bundles and fingerprints for ALL active images, in chunks (text only: seconds against hours of LLM time)."""
     inputs_repo = MemeProfileInputsRepository(session)
     images = await inputs_repo.list_active_images()
+    if only_ids is not None:
+        images = [image for image in images if image[0] in only_ids]
     candidates: list[Candidate] = []
     for start in range(0, len(images), CHUNK_SIZE):
         chunk = images[start:start + CHUNK_SIZE]
@@ -63,7 +66,7 @@ async def _collect_candidates(session, config) -> list[Candidate]:
     return candidates
 
 
-async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
+async def _process(reset: bool, limit: int | None, retry_failed: bool, only_ids=None) -> dict:
     """Returns run stats: selection counts, the metrics counters and a post-run coverage snapshot."""
     config = load_config(settings.get)
     if config is None:
@@ -80,12 +83,15 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
         status_repo = ImageProcessingStatusRepository(session, PIPELINE)
 
         if reset:
-            deleted = await profiles.delete_model_generated()
-            await status_repo.delete_all()
+            deleted = await profiles.delete_model_generated(only_ids)
+            if only_ids is None:
+                await status_repo.delete_all()
+            else:
+                await status_repo.delete_for_images(only_ids)
             await session.commit()
             print(f"Deleted {deleted} model-generated profile(s) (human-verified profiles are kept)")
 
-        candidates = await _collect_candidates(session, config)
+        candidates = await _collect_candidates(session, config, only_ids)
         metas = await profiles.get_meta([candidate.image_id for candidate in candidates])
         failures = await status_repo.get_error_messages_with_status("failed")
         selection = select_work(
@@ -214,14 +220,14 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool) -> dict:
 
 
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, reset: bool = False,
-               limit: int | None = None, retry_failed: bool = False) -> None:
+               limit: int | None = None, retry_failed: bool = False, only_ids=None) -> None:
     if run_id is not None:
         async with finish_existing_run(run_id):
-            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed)
+            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed, only_ids=only_ids)
             await record_stats(run_id, stats)
     else:
         async with tracked_run(kind="build_meme_profiles", trigger=trigger) as new_run_id:
-            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed)
+            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed, only_ids=only_ids)
             await record_stats(new_run_id, stats)
 
 
@@ -235,6 +241,9 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=None, help="Process at most this many images")
     parser.add_argument("--retry-failed", action="store_true",
                         help="Re-attempt images that failed on a prior run (default: skip them)")
+    parser.add_argument("--ids-file", default=None,
+                        help="Only consider the images listed in this file (JSON list or one UUID per line); --reset then only resets those images")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(reset=args.reset, limit=args.limit, retry_failed=args.retry_failed))
+    only_ids = load_ids_file(args.ids_file) if args.ids_file else None
+    asyncio.run(main(reset=args.reset, limit=args.limit, retry_failed=args.retry_failed, only_ids=only_ids))

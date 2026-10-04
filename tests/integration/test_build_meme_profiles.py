@@ -424,3 +424,39 @@ async def test_response_error_status_decides_between_run_level_and_per_image(db_
     message = (await db_session.execute(
         select(ImageProcessingStatus.error_message).where(ImageProcessingStatus.image_id == bad.id))).scalar_one()
     assert message.startswith("[") and "Failed to load image" in message
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_only_ids_restricts_selection_to_the_listed_images(db_session):
+    listed = await _insert_image(db_session)
+    await _add_description(db_session, listed)
+    unlisted = await _insert_image(db_session)
+    await _add_description(db_session, unlisted)
+    calls: list = []
+
+    stats = await _run(db_session, calls, only_ids=frozenset({listed.id}))
+
+    assert stats["saved"] == 1 and len(calls) == 1
+    assert await db_session.get(MemeProfile, listed.id) is not None
+    assert await db_session.get(MemeProfile, unlisted.id) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_reset_with_only_ids_deletes_only_the_listed_images_profiles_and_failures(db_session):
+    listed = await _insert_image(db_session)
+    await _add_description(db_session, listed)
+    other = await _insert_image(db_session)
+    await _add_description(db_session, other)
+    await _run(db_session, [])                                   # profiles for both
+    status_repo = ImageProcessingStatusRepository(db_session, PIPELINE)
+    await status_repo.record_failure(listed.id, "old failure")
+    await status_repo.record_failure(other.id, "old failure")
+    await db_session.flush()
+
+    calls: list = []
+    await _run(db_session, calls, reset=True, only_ids=frozenset({listed.id}))
+
+    assert len(calls) == 1                                       # only the listed image was re-extracted
+    assert await db_session.get(MemeProfile, other.id) is not None
+    failed = await status_repo.get_image_ids_with_status("failed")
+    assert other.id in failed and listed.id not in failed
