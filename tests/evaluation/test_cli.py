@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -102,3 +103,36 @@ def test_a_missing_baseline_is_a_clear_error(tmp_path, capsys):
 
     assert cli.main(["--gold-dir", str(gold), "compare", "nope", "nada"]) == 1
     assert "nope" in capsys.readouterr().err
+
+
+def test_check_environment_refuses_only_a_differing_app_env():
+    assert cli.check_environment(None, "general") is None
+    assert cli.check_environment("", "general") is None
+    assert cli.check_environment("general", "general") is None
+    assert "metal" in cli.check_environment("metal", "general") and "meaningless" in cli.check_environment("metal", "general")
+
+
+def test_corpus_paths_follow_the_gold_dir_unless_given(tmp_path):
+    assert cli.resolve_corpus_paths(tmp_path, None, None) == (tmp_path / "corpus.json", cli.DEFAULT_WORK / "corpus.ids")
+    assert cli.resolve_corpus_paths(tmp_path, "x.json", "y.ids") == (Path("x.json"), Path("y.ids"))
+
+
+def test_build_pools_refuses_to_overwrite_a_round_file_without_force(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ocr_readonly:x@localhost:5432/none")
+    pools_dir = tmp_path / "work"
+    pools_dir.mkdir()
+    existing = pools_dir / "pools-r1.json"
+    existing.write_text("old", encoding="utf-8")
+
+    code = cli.main(["--gold-dir", str(_gold_dir(tmp_path)), "build-pools", "--round", "1", "--pools-dir", str(pools_dir)])
+
+    assert code == 1 and "already exists" in capsys.readouterr().err
+    assert existing.read_text(encoding="utf-8") == "old"
+
+
+@pytest.mark.parametrize("command", [["run", "--retriever", "random", "--label", "x"], ["build-corpus"], ["build-pools", "--round", "1"]])
+def test_database_commands_refuse_without_the_read_only_url(tmp_path, monkeypatch, command):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(SystemExit, match="read-only"):
+        cli.main(["--gold-dir", str(_gold_dir(tmp_path)), *command])

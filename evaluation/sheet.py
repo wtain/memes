@@ -7,12 +7,15 @@ import base64
 import html
 import io
 import json
+from pathlib import Path
 from typing import Mapping, Sequence
 
 from evaluation.gold import GoldQuery
 from evaluation.pooling import Pool
 
 GRADE_LABELS = ((2, "2 great reply"), (1, "1 acceptable"), (0, "0 wrong"))
+SKIP_VALUE = "skip"
+SKIP_LABEL = "skip (ungraded)"
 RUBRIC = ("Judge only: is this a good meme to send back as a reply to the message? The grade is about fit, "
           "not about how funny or well made the meme is. 2 = great reply (you would send it), "
           "1 = acceptable (works, not ideal), 0 = wrong (does not fit, or you cannot tell what it means). "
@@ -28,7 +31,10 @@ function count() { document.getElementById('count').textContent = Object.keys(st
 document.querySelectorAll('input[type=radio]').forEach(function (r) {
   const key = JSON.stringify([r.dataset.q, r.dataset.i]);
   if (state[key] === r.value) { r.checked = true; }
-  r.addEventListener('change', function () { state[key] = r.value; save(state); count(); });
+  r.addEventListener('change', function () {
+    if (r.value === 'skip') { delete state[key]; } else { state[key] = r.value; }
+    save(state); count();
+  });
 });
 count();
 function exportJudgments() {
@@ -58,7 +64,7 @@ def render_judging_sheet(*, language: str, queries: Sequence[GoldQuery], pools: 
                 f"<label><input type='radio' name='{html.escape(query.id + '__' + image_id, quote=True)}' "
                 f"value='{grade}' data-q='{html.escape(query.id, quote=True)}' "
                 f"data-i='{html.escape(image_id, quote=True)}'> {label}</label> "
-                for grade, label in GRADE_LABELS)
+                for grade, label in (*GRADE_LABELS, (SKIP_VALUE, SKIP_LABEL)))
             candidates.append(f"<div class='cand'>{picture}<p>{radios}</p></div>")
         blocks.append(f"<section><h3>{html.escape(query.id)}</h3>"
                       f"<blockquote>{html.escape(query.text)}</blockquote>"
@@ -86,7 +92,14 @@ def make_thumbnail(path: str, size: int = 400) -> str | None:
         with Image.open(path) as image:
             image.thumbnail((size, size))
             buffer = io.BytesIO()
-            image.convert("RGB").save(buffer, format="JPEG", quality=70)
+            has_alpha = image.mode in ("RGBA", "LA", "PA") or (image.mode == "P" and "transparency" in image.info)
+            if has_alpha:
+                rgba = image.convert("RGBA")
+                flat = Image.new("RGB", rgba.size, (255, 255, 255))
+                flat.paste(rgba, mask=rgba.getchannel("A"))
+            else:
+                flat = image.convert("RGB")
+            flat.save(buffer, format="JPEG", quality=70)
         return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
     except Exception:
         return None
@@ -114,3 +127,21 @@ def pools_from_dict(data: Mapping) -> tuple[dict[str, Pool], dict[str, str]]:
                                {image_id: tuple(sources) for image_id, sources in entry["sources"].items()})
         filenames.update(entry.get("filenames", {}))
     return pools, filenames
+
+
+def pools_round_path(pools_dir, round_number: int) -> Path:
+    return Path(pools_dir) / f"pools-r{round_number}.json"
+
+
+def load_pool_sources(pools_dir) -> dict[str, dict[str, list[str]]]:
+    """Union of the private sources over every pools-r*.json round file (pools are append-only across rounds)."""
+    merged: dict[str, dict[str, list[str]]] = {}
+    for path in sorted(Path(pools_dir).glob("pools-r*.json")):
+        with open(path, encoding="utf-8") as handle:
+            pools, _ = pools_from_dict(json.load(handle))
+        for query_id, pool in pools.items():
+            per_image = merged.setdefault(query_id, {})
+            for image_id, sources in pool.sources.items():
+                known = per_image.setdefault(image_id, [])
+                known.extend(source for source in sources if source not in known)
+    return merged

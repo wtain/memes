@@ -124,7 +124,7 @@ def compare_baselines(a: Mapping, b: Mapping, *, force: bool = False, drop_thres
     worse = []
     for query_id, new in b["queries"].items():
         old = a["queries"].get(query_id)
-        if old and old["ndcg"] is not None and new["ndcg"] is not None and new["ndcg"] - old["ndcg"] <= -drop_threshold:
+        if old and old["ndcg"] is not None and new["ndcg"] is not None and                 round(new["ndcg"] - old["ndcg"], 9) <= -drop_threshold:
             worse.append((new["ndcg"] - old["ndcg"], query_id))
     lines += ["", f"## Queries that got worse (nDCG@10 down by at least {drop_threshold})", ""]
     if not worse:

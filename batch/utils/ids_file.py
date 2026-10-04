@@ -24,6 +24,8 @@ def load_ids_file(path: str) -> frozenset[uuid.UUID]:
             ids.add(uuid.UUID(item))
         except ValueError:
             raise ValueError(f"not a UUID: {item!r}") from None
+    if not ids:
+        raise ValueError(f"ids file {path} lists no ids")
     if len(ids) > MAX_IDS:
         raise ValueError(f"an ids file may hold at most {MAX_IDS} ids, got {len(ids)}")
     return frozenset(ids)

@@ -91,3 +91,10 @@ def test_compare_refuses_different_gold_data_unless_forced():
 def test_compare_with_no_regression_says_so():
     text = compare_baselines(_baseline("a"), _baseline("b"))
     assert "No query got worse" in text
+
+
+def test_compare_threshold_is_not_defeated_by_float_noise():
+    worse = compare_baselines(_baseline("a", {"q1": 0.6, "q2": 0.5}), _baseline("b", {"q1": 0.5, "q2": 0.5}))
+    assert "- q1" in worse.split("got worse")[1]
+    fine = compare_baselines(_baseline("a", {"q1": 0.6, "q2": 0.5}), _baseline("b", {"q1": 0.51, "q2": 0.5}))
+    assert "No query got worse" in fine

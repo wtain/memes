@@ -48,3 +48,11 @@ def test_more_than_the_maximum_number_of_ids_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="at most"):
         load_ids_file(str(path))
+
+
+def test_an_empty_json_list_is_refused(tmp_path):
+    path = tmp_path / "none.json"
+    path.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="lists no ids"):
+        load_ids_file(str(path))

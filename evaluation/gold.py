@@ -134,6 +134,8 @@ def parse_corpus(data: Mapping) -> Corpus:
     _check_version(data, "corpus")
     images, seen = [], set()
     for entry in data.get("images", []):
+        if not isinstance(entry, dict):
+            raise GoldError(f"corpus: image entry {len(images)} is not an object")
         image_id = entry.get("imageId")
         if not isinstance(image_id, str) or not image_id:
             raise GoldError("corpus: every image needs an imageId")
@@ -143,6 +145,9 @@ def parse_corpus(data: Mapping) -> Corpus:
         if entry.get("stratum") not in STRATA:
             raise GoldError(f"corpus: image {image_id} has an unknown stratum {entry.get('stratum')!r}")
         images.append(CorpusImage(image_id, entry.get("contentHash"), entry["stratum"]))
+    for key in ("environment", "seed", "created"):
+        if key not in data:
+            raise GoldError(f"corpus: missing {key}")
     return Corpus(environment=data["environment"], seed=data["seed"], created=data["created"],
                   images=tuple(images), version=data["version"])
 
@@ -175,18 +180,26 @@ def queries_to_dict(queries: Sequence[GoldQuery]) -> dict:
 def parse_queries(data: Mapping) -> list[GoldQuery]:
     _check_version(data, "queries")
     queries = []
-    for entry in data.get("queries", []):
+    for index, entry in enumerate(data.get("queries", [])):
+        if not isinstance(entry, dict):
+            raise GoldError(f"queries: entry #{index} is not an object")
+        name = entry.get("id", f"#{index}")
         profile = entry.get("expectedProfile")
         if not isinstance(profile, dict):
-            raise GoldError(f"{entry.get('id')}: expectedProfile is required")
+            raise GoldError(f"{name}: expectedProfile is required")
         tags = entry.get("tags") or {}
-        queries.append(GoldQuery(
-            id=entry["id"], language=entry["language"], text=entry["text"],
-            length=tags.get("length", ""), difficulty=tags.get("difficulty", ""),
-            expected=ExpectedProfile(
-                situation=profile.get("situation", ""),
-                **{axis: tuple(profile.get(axis, [])) for axis in CONTROLLED_AXES}),
-            reviewed=bool(entry.get("reviewed", False)), pair_id=entry.get("pairId")))
+        try:
+            queries.append(GoldQuery(
+                id=entry["id"], language=entry["language"], text=entry["text"],
+                length=tags.get("length", ""), difficulty=tags.get("difficulty", ""),
+                expected=ExpectedProfile(
+                    situation=profile.get("situation", ""),
+                    **{axis: tuple(profile.get(axis, [])) for axis in CONTROLLED_AXES}),
+                reviewed=bool(entry.get("reviewed", False)), pair_id=entry.get("pairId")))
+        except KeyError as error:
+            raise GoldError(f"queries: entry {name} is missing {error.args[0]}") from None
+        except (TypeError, AttributeError) as error:
+            raise GoldError(f"queries: entry {name} is malformed ({error})") from None
     return queries
 
 
@@ -279,11 +292,17 @@ def judgments_to_dict(judgments: Sequence[Judgment]) -> dict:
 def parse_judgments(data: Mapping) -> list[Judgment]:
     _check_version(data, "judgments")
     judgments = []
-    for entry in data.get("judgments", []):
+    for index, entry in enumerate(data.get("judgments", [])):
+        if not isinstance(entry, dict):
+            raise GoldError(f"judgments: entry #{index} is not an object")
+        name = f"{entry.get('queryId', '#' + str(index))}/{entry.get('imageId', '?')}"
         if entry.get("grade") not in GRADES:
-            raise GoldError(f"judgment {entry.get('queryId')}/{entry.get('imageId')}: grade must be one of {GRADES}")
-        judgments.append(Judgment(entry["queryId"], entry["imageId"], entry["grade"], entry["rater"],
-                                  entry["date"], entry["round"]))
+            raise GoldError(f"judgment {name}: grade must be one of {GRADES}")
+        try:
+            judgments.append(Judgment(entry["queryId"], entry["imageId"], entry["grade"], entry["rater"],
+                                      entry["date"], entry["round"]))
+        except KeyError as error:
+            raise GoldError(f"judgment {name}: missing {error.args[0]}") from None
     return judgments
 
 
@@ -326,7 +345,9 @@ def parse_export(data: Mapping, *, valid_query_ids: set[str], valid_image_ids: s
         if field not in data:
             raise GoldError(f"export: missing {field}")
     judgments, seen = [], set()
-    for entry in data.get("judgments", []):
+    for index, entry in enumerate(data.get("judgments", [])):
+        if not isinstance(entry, dict):
+            raise GoldError(f"export: entry #{index} is not an object")
         query_id, image_id, grade = entry.get("queryId"), entry.get("imageId"), entry.get("grade")
         if query_id not in valid_query_ids:
             raise GoldError(f"export: unknown query {query_id!r}")

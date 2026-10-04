@@ -239,3 +239,19 @@ def test_file_sha256_ignores_crlf(tmp_path):
 
     assert file_sha256(lf) == file_sha256(crlf)
     assert len(file_sha256(lf)) == 64
+
+
+def test_malformed_entries_raise_gold_error_naming_the_entry():
+    entry = {"id": "q001", "text": "t", "expectedProfile": {"situation": "s"}}      # no language
+    with pytest.raises(GoldError, match="q001.*language"):
+        gold.parse_queries({"version": 1, "queries": [entry]})
+
+    with pytest.raises(GoldError, match="environment"):
+        gold.parse_corpus({"version": 1, "seed": 1, "created": "d", "images": []})
+
+    with pytest.raises(GoldError, match="queryId|#0"):
+        gold.parse_judgments({"version": 1, "judgments": [{"imageId": "i", "grade": 1, "rater": "r",
+                                                           "date": "d", "round": 1}]})
+    with pytest.raises(GoldError, match="not an object"):
+        gold.parse_export({"rater": "r", "date": "d", "round": 1, "judgments": ["x"]},
+                          valid_query_ids=set(), valid_image_ids=set())

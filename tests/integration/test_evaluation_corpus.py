@@ -97,3 +97,23 @@ async def test_profile_state_counts_versions_models_and_embeddings_for_the_corpu
         "extractorModels": {"text-model": 1, "vision-model": 1}, "embedded": 1,
         "embeddingModels": {"bge-large digest-1": 1},
     }
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_corpus_drift_counts_missing_inactive_and_changed_hash_images(db_session):
+    from evaluation.gold import Corpus, CorpusImage
+    from evaluation.state import collect_corpus_drift
+
+    same = Image(filename=f"{uuid.uuid4()}.jpg", content_hash="h-same")
+    changed = Image(filename=f"{uuid.uuid4()}.jpg", content_hash="h-new")
+    inactive = Image(filename=f"{uuid.uuid4()}.jpg", content_hash="h-inactive", status="pending")
+    db_session.add_all([same, changed, inactive])
+    await db_session.flush()
+    gone = str(uuid.uuid4())
+    corpus = Corpus("general", 7, "2026-10-04", (
+        CorpusImage(str(same.id), "h-same", "ocr only"), CorpusImage(str(changed.id), "h-old", "ocr only"),
+        CorpusImage(str(inactive.id), "h-inactive", "ocr only"), CorpusImage(gone, "h-gone", "ocr only")))
+
+    drift = await collect_corpus_drift(db_session, corpus)
+
+    assert drift == {"missing": 1, "inactive": 1, "hashChanged": 1}

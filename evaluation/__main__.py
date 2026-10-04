@@ -40,6 +40,22 @@ def _error(message: str) -> int:
     return 1
 
 
+def check_environment(app_env: str | None, corpus_environment: str) -> str | None:
+    """A refusal message when the shell's APP_ENV names a different environment than the corpus was frozen for."""
+    if app_env and app_env != corpus_environment:
+        return (f"APP_ENV is {app_env!r} but the corpus was built for {corpus_environment!r}; scoring a different "
+                "database than the one the gold data was judged against is meaningless")
+    return None
+
+
+def resolve_corpus_paths(gold: Path, out: str | None, ids_file: str | None) -> tuple[Path, Path]:
+    return (Path(out) if out else gold / "corpus.json"), (Path(ids_file) if ids_file else DEFAULT_WORK / "corpus.ids")
+
+
+def _warn(message: str) -> None:
+    print(f"WARNING: {message}", file=sys.stderr)
+
+
 def _baseline_path(gold: Path, label_or_path: str) -> Path:
     candidate = Path(label_or_path)
     if candidate.suffix == ".json" and candidate.exists():
@@ -88,8 +104,11 @@ def cmd_list_baselines(args, gold: Path) -> int:
 
 def cmd_sheet(args, gold: Path) -> int:
     import json
-    from evaluation.sheet import make_thumbnail, pools_from_dict, render_judging_sheet
-    with open(args.pools, encoding="utf-8") as handle:
+    from evaluation.sheet import make_thumbnail, pools_from_dict, pools_round_path, render_judging_sheet
+    pools_file = pools_round_path(args.pools_dir, args.round)
+    if not pools_file.exists():
+        return _error(f"{pools_file} does not exist; run build-pools --round {args.round} first")
+    with open(pools_file, encoding="utf-8") as handle:
         data = json.load(handle)
     pools, filenames = pools_from_dict(data)
     queries = load_queries(gold / "queries.json")
@@ -106,6 +125,10 @@ def cmd_sheet(args, gold: Path) -> int:
         with open(target, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(html)
         print(f"wrote {target}")
+    missing = sum(1 for thumbnail in thumbnails.values() if thumbnail is None)
+    if missing:
+        _warn(f"{missing} of {len(thumbnails)} candidate images have no thumbnail (file missing or unreadable); "
+              "the sheet shows '(no image)' for them")
     return 0
 
 
@@ -146,13 +169,28 @@ def _make_retriever(name: str, session, seed: int):
     raise ValueError(f"unknown retriever {name!r}")
 
 
-async def _require_profiled(session, corpus: Corpus) -> dict:
-    from evaluation.state import collect_profile_state
+async def _check_corpus(session, corpus: Corpus, *, check_digest: bool = False) -> dict:
+    from evaluation.state import collect_corpus_drift, collect_profile_state, embedding_digest_warnings
+    refusal = check_environment(os.environ.get("APP_ENV"), corpus.environment)
+    if refusal:
+        sys.exit(refusal)
+    drift = await collect_corpus_drift(session, corpus)
+    if any(drift.values()):
+        _warn(f"the database has moved from the frozen corpus: {drift['missing']} images missing, "
+              f"{drift['inactive']} no longer active, {drift['hashChanged']} with a changed content hash")
     state = await collect_profile_state(session, list(corpus.image_ids()))
     if state["profiled"] < MIN_PROFILED_SHARE * len(corpus.images):
         sys.exit(f"Only {state['profiled']} of {len(corpus.images)} corpus images have a profile (need "
                  f"{MIN_PROFILED_SHARE:.0%}). Profile them with: python -m batch.build_meme_profiles --env general "
                  "--ids-file <corpus.ids>, then python -m batch.build_meme_profile_embeddings --ids-file <corpus.ids>")
+    if state["embedded"] < MIN_PROFILED_SHARE * state["profiled"]:
+        _warn(f"only {state['embedded']} of {state['profiled']} profiled images have a situation embedding; "
+              "situation_embedding results will be incomplete. Fix: python -m batch.build_meme_profile_embeddings "
+              "--env general --ids-file <corpus.ids>")
+    if check_digest:
+        embedder, model_name = _embedder_and_model()
+        for message in embedding_digest_warnings(state["embeddingModels"], model_name, embedder.model_digest()):
+            _warn(message)
     return state
 
 
@@ -160,7 +198,7 @@ async def cmd_build_corpus(args, gold: Path) -> int:
     require_readonly()
     from evaluation.corpus import load_candidates, quotas_for, select_corpus, write_ids_file
     from Storage.db import AsyncSessionLocal
-    target = Path(args.out)
+    target, ids_target = resolve_corpus_paths(gold, args.out, args.ids_file)
     if target.exists() and not args.force:
         return _error(f"{target} already exists; the corpus is frozen (use --force to replace it deliberately)")
     config = _settings_config()
@@ -170,17 +208,24 @@ async def cmd_build_corpus(args, gold: Path) -> int:
     corpus = Corpus(environment=args.environment, seed=args.seed, created=date_class.today().isoformat(),
                     images=tuple(images))
     save_corpus(corpus, target)
-    Path(args.ids_file).parent.mkdir(parents=True, exist_ok=True)
-    write_ids_file(Path(args.ids_file), list(corpus.image_ids()))
+    ids_target.parent.mkdir(parents=True, exist_ok=True)
+    write_ids_file(ids_target, list(corpus.image_ids()))
+    if len(images) < args.size:
+        _warn(f"only {len(images)} eligible images could be selected, fewer than the requested {args.size}")
     counts: dict[str, int] = {}
     for image in images:
         counts[image.stratum] = counts.get(image.stratum, 0) + 1
-    print(f"{len(candidates)} eligible images; corpus of {len(images)}: {counts}; wrote {target} and {args.ids_file}")
+    print(f"{len(candidates)} eligible images; corpus of {len(images)}: {counts}; wrote {target} and {ids_target}")
     return 0
 
 
 async def cmd_build_pools(args, gold: Path) -> int:
     require_readonly()
+    from evaluation.sheet import pools_round_path
+    pools_file = pools_round_path(args.pools_dir, args.round)
+    if pools_file.exists() and not args.force:
+        return _error(f"{pools_file} already exists; pools are append-only across rounds (use --force to replace "
+                      "this round's file deliberately)")
     import json
     from sqlalchemy import select
     from evaluation.pooling import build_pool
@@ -194,7 +239,7 @@ async def cmd_build_pools(args, gold: Path) -> int:
     corpus_ids = list(corpus.image_ids())
     pools = {}
     async with AsyncSessionLocal() as session:
-        await _require_profiled(session, corpus)
+        await _check_corpus(session, corpus, check_digest=True)
         retrievers = {name: _make_retriever(name, session, args.seed) for name in POOL_SOURCES}
         randomiser = RandomRetriever(args.seed)
         for retriever in retrievers.values():
@@ -211,17 +256,16 @@ async def cmd_build_pools(args, gold: Path) -> int:
         wanted = {uuid.UUID(image_id) for pool in pools.values() for image_id in pool.candidates}
         rows = await session.execute(select(Image.id, Image.filename).where(Image.id.in_(wanted)))
         filenames = {str(image_id): filename for image_id, filename in rows.all()}
-    Path(args.pools).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.pools, "w", encoding="utf-8", newline="\n") as handle:
+    pools_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(pools_file, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(pools_to_dict(args.round, args.per_query, pools, filenames), indent=2,
                                 ensure_ascii=False) + "\n")
-    print(f"wrote {args.pools}: {sum(len(p.candidates) for p in pools.values())} candidates for {len(pools)} queries")
+    print(f"wrote {pools_file}: {sum(len(p.candidates) for p in pools.values())} candidates for {len(pools)} queries")
     return 0
 
 
 async def cmd_run(args, gold: Path) -> int:
     require_readonly()
-    import json
     from evaluation.runner import run_retriever, summarize
     from Storage.db import AsyncSessionLocal
     corpus = load_corpus(gold / "corpus.json")
@@ -231,7 +275,7 @@ async def cmd_run(args, gold: Path) -> int:
     if target.exists() and not args.force:
         return _error(f"{target} already exists (use --force to replace it)")
     async with AsyncSessionLocal() as session:
-        state = await _require_profiled(session, corpus)
+        state = await _check_corpus(session, corpus, check_digest=args.retriever == "situation_embedding")
         retriever = _make_retriever(args.retriever, session, args.seed)
         results = await run_retriever(retriever, queries, list(corpus.image_ids()), judgments_by_query(judgments),
                                       k=args.k)
@@ -245,12 +289,10 @@ async def cmd_run(args, gold: Path) -> int:
     target.parent.mkdir(parents=True, exist_ok=True)
     save_baseline(target, baseline)
     bias = None
-    pools_path = Path(args.pools)
-    if pools_path.exists():
-        from evaluation.sheet import pools_from_dict
-        with open(pools_path, encoding="utf-8") as handle:
-            pools, _ = pools_from_dict(json.load(handle))
-        bias = pooling_bias(results, {qid: pool.sources for qid, pool in pools.items()})
+    from evaluation.sheet import load_pool_sources
+    sources = load_pool_sources(args.pools_dir)
+    if sources:
+        bias = pooling_bias(results, sources)
     print(format_report(baseline, bias))
     print(f"wrote {target}")
     return 0
@@ -267,18 +309,20 @@ def build_parser() -> argparse.ArgumentParser:
     corpus.add_argument("--size", type=int, default=1500)
     corpus.add_argument("--seed", type=int, default=7)
     corpus.add_argument("--environment", default="general")
-    corpus.add_argument("--out", default=str(DEFAULT_GOLD / "corpus.json"))
-    corpus.add_argument("--ids-file", default=str(DEFAULT_WORK / "corpus.ids"))
+    corpus.add_argument("--out", default=None, help="default: <gold-dir>/corpus.json")
+    corpus.add_argument("--ids-file", default=None, help=f"default: {DEFAULT_WORK / 'corpus.ids'}")
     corpus.add_argument("--force", action="store_true")
 
     pools = commands.add_parser("build-pools")
     pools.add_argument("--round", type=int, required=True)
     pools.add_argument("--per-query", type=int, default=12)
     pools.add_argument("--seed", type=int, default=7)
-    pools.add_argument("--pools", default=str(DEFAULT_WORK / "pools.json"))
+    pools.add_argument("--pools-dir", default=str(DEFAULT_WORK))
+    pools.add_argument("--force", action="store_true")
 
     sheet = commands.add_parser("sheet")
-    sheet.add_argument("--pools", default=str(DEFAULT_WORK / "pools.json"))
+    sheet.add_argument("--round", type=int, required=True)
+    sheet.add_argument("--pools-dir", default=str(DEFAULT_WORK))
     sheet.add_argument("--out-dir", default=str(DEFAULT_WORK / "sheets"))
     sheet.add_argument("--base-path", required=True)
     sheet.add_argument("--rater", required=True)
@@ -292,7 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--label", required=True)
     run.add_argument("--k", type=int, default=10)
     run.add_argument("--seed", type=int, default=0)
-    run.add_argument("--pools", default=str(DEFAULT_WORK / "pools.json"))
+    run.add_argument("--pools-dir", default=str(DEFAULT_WORK))
     run.add_argument("--force", action="store_true")
 
     compare = commands.add_parser("compare")

@@ -4,7 +4,8 @@ from typing import Sequence
 
 from sqlalchemy import func, select
 
-from Storage.models import MemeProfile, MemeProfileSituationEmbedding
+from evaluation.gold import Corpus
+from Storage.models import Image, MemeProfile, MemeProfileSituationEmbedding
 
 
 async def collect_profile_state(session, corpus_ids: Sequence[str]) -> dict:
@@ -33,3 +34,27 @@ async def collect_profile_state(session, corpus_ids: Sequence[str]) -> dict:
         "embedded": embedded,
         "embeddingModels": {f"{name} {digest}": count for name, digest, count in embedding_rows.all()},
     }
+
+
+async def collect_corpus_drift(session, corpus: Corpus) -> dict:
+    """How far the database has moved from the frozen corpus (read-only): ids gone, no longer active, hash changed."""
+    stored = {image.image_id: image.content_hash for image in corpus.images}
+    rows = await session.execute(
+        select(Image.id, Image.content_hash, Image.status).where(Image.id.in_([uuid.UUID(i) for i in stored])))
+    found = {str(image_id): (content_hash, status) for image_id, content_hash, status in rows.all()}
+    missing = sum(1 for image_id in stored if image_id not in found)
+    inactive = sum(1 for _, status in found.values() if status != "active")
+    changed = sum(1 for image_id, (content_hash, _) in found.items()
+                  if stored[image_id] is not None and stored[image_id] != content_hash)
+    return {"missing": missing, "inactive": inactive, "hashChanged": changed}
+
+
+def embedding_digest_warnings(state_embedding_models: dict, model_name: str, current_digest: str) -> list[str]:
+    """Warnings when stored situation embeddings for `model_name` were made with a different model digest."""
+    warnings = []
+    for key, count in sorted(state_embedding_models.items()):
+        name, _, digest = key.partition(" ")
+        if name == model_name and digest != current_digest:
+            warnings.append(f"{count} situation embeddings were made with {model_name} digest {digest!r}, but the "
+                            f"current digest is {current_digest!r}; re-embed with build_meme_profile_embeddings")
+    return warnings
