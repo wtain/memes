@@ -1,0 +1,1656 @@
+{
+  "version": 1,
+  "queries": [
+    {
+      "id": "q001",
+      "language": "en",
+      "text": "Guess who got the promotion!",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "Someone announces that they just got promoted at work.",
+        "emotion": [
+          "joy",
+          "excitement"
+        ],
+        "stance": [
+          "congratulate"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p1"
+    },
+    {
+      "id": "q002",
+      "language": "en",
+      "text": "Can't sleep again, it's 4am.",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "It is 4am and I cannot fall asleep again.",
+        "emotion": [
+          "exhaustion",
+          "frustration"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "sleep"
+        ],
+        "tone": [
+          "deadpan"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p2"
+    },
+    {
+      "id": "q003",
+      "language": "en",
+      "text": "Sure, take all the credit.",
+      "tags": {
+        "length": "short",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "A coworker took the credit for my work and I am sarcastically letting them.",
+        "emotion": [
+          "annoyance",
+          "contempt"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p3"
+    },
+    {
+      "id": "q004",
+      "language": "en",
+      "text": "Pizza or tacos tonight?",
+      "tags": {
+        "length": "short",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "Someone asks me to choose between pizza and tacos for dinner.",
+        "emotion": [
+          "excitement",
+          "confusion"
+        ],
+        "stance": [
+          "deflect"
+        ],
+        "topic": [
+          "food"
+        ],
+        "tone": [
+          "absurd"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p4"
+    },
+    {
+      "id": "q005",
+      "language": "en",
+      "text": "I passed my exam!",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "A friend says they passed their exam.",
+        "emotion": [
+          "joy",
+          "pride"
+        ],
+        "stance": [
+          "congratulate",
+          "celebrate"
+        ],
+        "topic": [
+          "study"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p5"
+    },
+    {
+      "id": "q006",
+      "language": "en",
+      "text": "My landlord says the rent goes up again but the heating still doesn't work.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "The landlord is raising the rent again while the heating is still broken.",
+        "emotion": [
+          "frustration",
+          "anger"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "money"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p6"
+    },
+    {
+      "id": "q007",
+      "language": "en",
+      "text": "Mom just called to ask if I'm eating enough vegetables again.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "A parent keeps checking up on my diet.",
+        "emotion": [
+          "embarrassment",
+          "exhaustion"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "family",
+          "food"
+        ],
+        "tone": [
+          "self_deprecating"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q008",
+      "language": "en",
+      "text": "He texted me good morning with three heart emojis and I'm melting.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "Someone I like sent a sweet good-morning message and I am delighted.",
+        "emotion": [
+          "love",
+          "excitement"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "romance"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q009",
+      "language": "en",
+      "text": "Oh great, another group chat I never asked to be added to.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "I was added to yet another group chat without being asked.",
+        "emotion": [
+          "annoyance"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "friends",
+          "technology"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q010",
+      "language": "en",
+      "text": "Doctor says I should exercise more, so I walked to the fridge twice.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "I joke that my exercise today was walking to the fridge.",
+        "emotion": [
+          "amusement",
+          "smugness"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "health",
+          "food"
+        ],
+        "tone": [
+          "self_deprecating",
+          "deadpan"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q011",
+      "language": "en",
+      "text": "I died to the very first enemy in the tutorial. Again.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "I lost to the first enemy in a game tutorial, again.",
+        "emotion": [
+          "embarrassment",
+          "amusement"
+        ],
+        "stance": [
+          "mock",
+          "console"
+        ],
+        "topic": [
+          "gaming"
+        ],
+        "tone": [
+          "self_deprecating"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q012",
+      "language": "en",
+      "text": "Did you see what happened at the election debate last night?",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "Someone asks if I saw the shocking election debate.",
+        "emotion": [
+          "shock",
+          "contempt"
+        ],
+        "stance": [
+          "relate",
+          "mock"
+        ],
+        "topic": [
+          "politics"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q013",
+      "language": "en",
+      "text": "My cat has decided that 3am is the perfect time for zoomies.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "My cat is racing around the house in the middle of the night.",
+        "emotion": [
+          "amusement",
+          "exhaustion"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "animals",
+          "sleep"
+        ],
+        "tone": [
+          "absurd"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q014",
+      "language": "en",
+      "text": "Our flight got delayed by five hours and the airport is freezing.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "A long flight delay in a cold airport.",
+        "emotion": [
+          "frustration",
+          "exhaustion"
+        ],
+        "stance": [
+          "complain",
+          "console"
+        ],
+        "topic": [
+          "travel",
+          "weather"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q015",
+      "language": "en",
+      "text": "Family wants to host Christmas at my place again this year.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "Relatives expect me to host the Christmas gathering again.",
+        "emotion": [
+          "anxiety",
+          "resignation"
+        ],
+        "stance": [
+          "complain",
+          "deflect"
+        ],
+        "topic": [
+          "holidays",
+          "family"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q016",
+      "language": "en",
+      "text": "I finally got tickets to see my favourite band after trying for six hours in the online queue. I can't believe it actually worked.",
+      "tags": {
+        "length": "long",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "I finally got concert tickets after hours in an online queue.",
+        "emotion": [
+          "excitement",
+          "joy"
+        ],
+        "stance": [
+          "celebrate",
+          "congratulate"
+        ],
+        "topic": [
+          "music"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q017",
+      "language": "en",
+      "text": "It has been raining for nine days straight and my mood is officially the same as the sky. Everything is grey and I just want the sun back.",
+      "tags": {
+        "length": "long",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "Nine days of rain have made me gloomy and I miss the sun.",
+        "emotion": [
+          "sadness",
+          "boredom"
+        ],
+        "stance": [
+          "relate",
+          "console"
+        ],
+        "topic": [
+          "weather"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q018",
+      "language": "en",
+      "text": "My grandmother keeps telling me to pray for good grades instead of studying, and honestly I'm starting to think she might have a point at this stage.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "My grandmother says to pray instead of study and I half agree.",
+        "emotion": [
+          "amusement",
+          "resignation"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "religion",
+          "study",
+          "family"
+        ],
+        "tone": [
+          "self_deprecating",
+          "deadpan"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q019",
+      "language": "en",
+      "text": "Watched a horror movie alone at night because someone said it wasn't that scary, and now I'm checking every shadow in the apartment twice.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "A horror movie watched alone left me scared of every shadow.",
+        "emotion": [
+          "fear",
+          "embarrassment"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "horror",
+          "sleep"
+        ],
+        "tone": [
+          "dramatic",
+          "self_deprecating"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q020",
+      "language": "en",
+      "text": "The company announced another round of layoffs by sending a cheerful email about new opportunities, while the CEO bought a third yacht.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "The company announced layoffs in a cheerful email while the CEO buys yachts.",
+        "emotion": [
+          "anger",
+          "contempt"
+        ],
+        "stance": [
+          "complain",
+          "mock"
+        ],
+        "topic": [
+          "work",
+          "money"
+        ],
+        "tone": [
+          "cynical",
+          "dark"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q021",
+      "language": "ru",
+      "text": "Угадайте, кого повысили!",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "Someone announces that they just got promoted at work.",
+        "emotion": [
+          "joy",
+          "excitement"
+        ],
+        "stance": [
+          "congratulate"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p1"
+    },
+    {
+      "id": "q022",
+      "language": "ru",
+      "text": "Опять не могу уснуть, уже четыре утра.",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "It is 4am and I cannot fall asleep again.",
+        "emotion": [
+          "exhaustion",
+          "frustration"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "sleep"
+        ],
+        "tone": [
+          "deadpan"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p2"
+    },
+    {
+      "id": "q023",
+      "language": "ru",
+      "text": "Конечно, забирай все лавры себе.",
+      "tags": {
+        "length": "short",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "A coworker took the credit for my work and I am sarcastically letting them.",
+        "emotion": [
+          "annoyance",
+          "contempt"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p3"
+    },
+    {
+      "id": "q024",
+      "language": "ru",
+      "text": "Пицца или тако сегодня вечером?",
+      "tags": {
+        "length": "short",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "Someone asks me to choose between pizza and tacos for dinner.",
+        "emotion": [
+          "excitement",
+          "confusion"
+        ],
+        "stance": [
+          "deflect"
+        ],
+        "topic": [
+          "food"
+        ],
+        "tone": [
+          "absurd"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p4"
+    },
+    {
+      "id": "q025",
+      "language": "ru",
+      "text": "Я сдал экзамен!",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "A friend says they passed their exam.",
+        "emotion": [
+          "joy",
+          "pride"
+        ],
+        "stance": [
+          "congratulate",
+          "celebrate"
+        ],
+        "topic": [
+          "study"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p5"
+    },
+    {
+      "id": "q026",
+      "language": "ru",
+      "text": "Хозяин снова поднимает аренду, а отопление так и не починил.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "The landlord is raising the rent again while the heating is still broken.",
+        "emotion": [
+          "frustration",
+          "anger"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "money"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p6"
+    },
+    {
+      "id": "q027",
+      "language": "ru",
+      "text": "Коллега принёс домашний пирог и угостил весь офис, это было так мило.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "A coworker baked a pie for the whole office.",
+        "emotion": [
+          "gratitude",
+          "joy"
+        ],
+        "stance": [
+          "thank"
+        ],
+        "topic": [
+          "work",
+          "food"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q028",
+      "language": "ru",
+      "text": "Сегодня наконец-то пришла посылка, которую я ждал целых два месяца.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "A parcel I waited two months for has finally arrived.",
+        "emotion": [
+          "excitement",
+          "relief"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "money"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q029",
+      "language": "ru",
+      "text": "Мой начальник написал «срочно» в письме, которое я прочитал в воскресенье вечером.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "My boss sent an urgent work email that I read on Sunday evening.",
+        "emotion": [
+          "frustration",
+          "anxiety"
+        ],
+        "stance": [
+          "complain",
+          "refuse"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic",
+          "cynical"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q030",
+      "language": "ru",
+      "text": "Сказал, что бросаю сладкое с понедельника, и уже купил торт на вторник.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "I swore off sweets from Monday and already bought a cake for Tuesday.",
+        "emotion": [
+          "embarrassment",
+          "amusement"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "food",
+          "health"
+        ],
+        "tone": [
+          "self_deprecating"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q031",
+      "language": "ru",
+      "text": "Мой друг в третий раз отменил встречу в последнюю минуту и пишет «давай потом».",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "A friend cancelled our plans at the last minute for the third time.",
+        "emotion": [
+          "disappointment",
+          "annoyance"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "friends"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q032",
+      "language": "ru",
+      "text": "Что вы думаете о новом сезоне сериала, который все обсуждают?",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "Someone asks what I think of the new season of a show everyone talks about.",
+        "emotion": [
+          "confusion",
+          "shock"
+        ],
+        "stance": [
+          "relate",
+          "disagree"
+        ],
+        "topic": [
+          "friends"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q033",
+      "language": "ru",
+      "text": "Завтра первый рабочий день после отпуска, и я совершенно не готов морально.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "Tomorrow is the first workday after a holiday and I dread it.",
+        "emotion": [
+          "anxiety",
+          "resignation"
+        ],
+        "stance": [
+          "relate",
+          "console"
+        ],
+        "topic": [
+          "work",
+          "holidays"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q034",
+      "language": "ru",
+      "text": "Соседи сверху опять делают ремонт в восемь утра в субботу.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "The upstairs neighbours start drilling at eight on Saturday morning.",
+        "emotion": [
+          "anger",
+          "exhaustion"
+        ],
+        "stance": [
+          "complain",
+          "demand"
+        ],
+        "topic": [
+          "sleep"
+        ],
+        "tone": [
+          "dramatic",
+          "cynical"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q035",
+      "language": "ru",
+      "text": "Стоит ли мне вообще покупать эту видеокарту по такой цене?",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "I wonder whether a graphics card is worth its price.",
+        "emotion": [
+          "confusion",
+          "anxiety"
+        ],
+        "stance": [
+          "warn",
+          "deflect"
+        ],
+        "topic": [
+          "gaming",
+          "money",
+          "technology"
+        ],
+        "tone": [
+          "deadpan"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q036",
+      "language": "ru",
+      "text": "Сегодня я впервые за год сходил на пробежку и не умер, поэтому считаю этот день одним из самых успешных в моей жизни.",
+      "tags": {
+        "length": "long",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "I went for my first run in a year and survived, a personal triumph.",
+        "emotion": [
+          "pride",
+          "amusement"
+        ],
+        "stance": [
+          "congratulate"
+        ],
+        "topic": [
+          "health"
+        ],
+        "tone": [
+          "self_deprecating",
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q037",
+      "language": "ru",
+      "text": "Мы с семьёй собрались на дачу, в машине играет любимая музыка, и всё вокруг пахнет шашлыком и летом. Это идеальные выходные.",
+      "tags": {
+        "length": "long",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "A family trip to the country house with music and barbecue, perfect weekend.",
+        "emotion": [
+          "joy",
+          "love"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "family",
+          "food",
+          "music"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q038",
+      "language": "ru",
+      "text": "Политики снова пообещали снизить цены и повысить зарплаты, а я уже третий год слышу одно и то же и ничего не меняется.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "Politicians again promise lower prices and higher wages and nothing changes.",
+        "emotion": [
+          "contempt",
+          "resignation"
+        ],
+        "stance": [
+          "mock",
+          "disagree"
+        ],
+        "topic": [
+          "politics",
+          "money"
+        ],
+        "tone": [
+          "cynical",
+          "sarcastic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q039",
+      "language": "ru",
+      "text": "Моя кошка принесла мне дохлую мышь в подарок и смотрит с таким гордым видом, что мне даже неловко её ругать за это.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "My cat brought me a dead mouse as a gift and looks proud.",
+        "emotion": [
+          "disgust",
+          "amusement"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "animals"
+        ],
+        "tone": [
+          "absurd"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q040",
+      "language": "ru",
+      "text": "Ночью читал страшные истории про лес, а теперь утром мне нужно идти в поход вместе с друзьями, и каждая ветка по дороге кажется мне очень подозрительной.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "After reading scary forest stories I must go hiking and every branch looks suspicious.",
+        "emotion": [
+          "fear",
+          "anxiety"
+        ],
+        "stance": [
+          "relate",
+          "warn"
+        ],
+        "topic": [
+          "horror",
+          "travel",
+          "friends"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q041",
+      "language": "es",
+      "text": "¡Adivina quién consiguió el ascenso!",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "Someone announces that they just got promoted at work.",
+        "emotion": [
+          "joy",
+          "excitement"
+        ],
+        "stance": [
+          "congratulate"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p1"
+    },
+    {
+      "id": "q042",
+      "language": "es",
+      "text": "Otra vez sin poder dormir, son las cuatro.",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "It is 4am and I cannot fall asleep again.",
+        "emotion": [
+          "exhaustion",
+          "frustration"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "sleep"
+        ],
+        "tone": [
+          "deadpan"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p2"
+    },
+    {
+      "id": "q043",
+      "language": "es",
+      "text": "Claro, quédate con todo el mérito.",
+      "tags": {
+        "length": "short",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "A coworker took the credit for my work and I am sarcastically letting them.",
+        "emotion": [
+          "annoyance",
+          "contempt"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p3"
+    },
+    {
+      "id": "q044",
+      "language": "es",
+      "text": "¿Pizza o tacos esta noche?",
+      "tags": {
+        "length": "short",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "Someone asks me to choose between pizza and tacos for dinner.",
+        "emotion": [
+          "excitement",
+          "confusion"
+        ],
+        "stance": [
+          "deflect"
+        ],
+        "topic": [
+          "food"
+        ],
+        "tone": [
+          "absurd"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p4"
+    },
+    {
+      "id": "q045",
+      "language": "es",
+      "text": "¡Aprobé mi examen!",
+      "tags": {
+        "length": "short",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "A friend says they passed their exam.",
+        "emotion": [
+          "joy",
+          "pride"
+        ],
+        "stance": [
+          "congratulate",
+          "celebrate"
+        ],
+        "topic": [
+          "study"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p5"
+    },
+    {
+      "id": "q046",
+      "language": "es",
+      "text": "El casero sube el alquiler otra vez y la calefacción sigue sin funcionar.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "The landlord is raising the rent again while the heating is still broken.",
+        "emotion": [
+          "frustration",
+          "anger"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "money"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      },
+      "reviewed": true,
+      "pairId": "p6"
+    },
+    {
+      "id": "q047",
+      "language": "es",
+      "text": "Mi hermana me preparó el desayuno sin que yo se lo pidiera.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "My sister made me breakfast without being asked.",
+        "emotion": [
+          "gratitude",
+          "love"
+        ],
+        "stance": [
+          "thank"
+        ],
+        "topic": [
+          "family",
+          "food"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q048",
+      "language": "es",
+      "text": "Por fin es viernes y tengo el fin de semana completamente libre.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "It is finally Friday and the weekend is completely free.",
+        "emotion": [
+          "relief",
+          "joy"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "work",
+          "holidays"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q049",
+      "language": "es",
+      "text": "Mi jefe dice que somos como una familia, pero me niega el aumento.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "My boss says we are like a family yet refuses me a raise.",
+        "emotion": [
+          "contempt",
+          "frustration"
+        ],
+        "stance": [
+          "mock",
+          "complain"
+        ],
+        "topic": [
+          "work",
+          "money"
+        ],
+        "tone": [
+          "sarcastic",
+          "cynical"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q050",
+      "language": "es",
+      "text": "Dije que dormiría temprano y son las tres de la mañana viendo vídeos de gatos.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "I promised to sleep early and it is 3am watching cat videos.",
+        "emotion": [
+          "embarrassment",
+          "amusement"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "sleep",
+          "animals",
+          "technology"
+        ],
+        "tone": [
+          "self_deprecating"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q051",
+      "language": "es",
+      "text": "Mi equipo perdió otra vez en el último minuto y yo ya no sé qué sentir.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "My team lost again in the last minute and I do not know what to feel.",
+        "emotion": [
+          "disappointment",
+          "resignation"
+        ],
+        "stance": [
+          "console",
+          "relate"
+        ],
+        "topic": [
+          "friends"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q052",
+      "language": "es",
+      "text": "¿Qué opinas de que ahora todo el mundo trabaje desde casa?",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "Someone asks my opinion about everyone working from home now.",
+        "emotion": [
+          "indifference",
+          "confusion"
+        ],
+        "stance": [
+          "disagree",
+          "relate"
+        ],
+        "topic": [
+          "work",
+          "technology"
+        ],
+        "tone": [
+          "deadpan"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q053",
+      "language": "es",
+      "text": "Mañana tengo una cita a ciegas y estoy muy nervioso.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "I have a blind date tomorrow and I am nervous.",
+        "emotion": [
+          "anxiety",
+          "excitement"
+        ],
+        "stance": [
+          "relate",
+          "console"
+        ],
+        "topic": [
+          "romance"
+        ],
+        "tone": [
+          "wholesome",
+          "absurd"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q054",
+      "language": "es",
+      "text": "Hace tanto calor en la ciudad que los pájaros caminan en vez de volar.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "The heat is so extreme that even birds walk instead of flying.",
+        "emotion": [
+          "exhaustion",
+          "amusement"
+        ],
+        "stance": [
+          "complain",
+          "relate"
+        ],
+        "topic": [
+          "weather",
+          "animals"
+        ],
+        "tone": [
+          "dramatic",
+          "absurd"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q055",
+      "language": "es",
+      "text": "Mi abuela quiere que le explique cómo funciona la inteligencia artificial.",
+      "tags": {
+        "length": "medium",
+        "difficulty": "ambiguous"
+      },
+      "expectedProfile": {
+        "situation": "My grandmother wants me to explain how artificial intelligence works.",
+        "emotion": [
+          "confusion",
+          "amusement"
+        ],
+        "stance": [
+          "relate",
+          "deflect"
+        ],
+        "topic": [
+          "family",
+          "technology"
+        ],
+        "tone": [
+          "absurd",
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q056",
+      "language": "es",
+      "text": "Hoy mi hija dio sus primeros pasos en la sala delante de toda la familia, y todos empezamos a aplaudir y a llorar de la emoción.",
+      "tags": {
+        "length": "long",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "My daughter took her first steps in front of the whole family.",
+        "emotion": [
+          "joy",
+          "pride",
+          "love"
+        ],
+        "stance": [
+          "congratulate",
+          "celebrate"
+        ],
+        "topic": [
+          "family"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q057",
+      "language": "es",
+      "text": "Llevo toda la semana estudiando para el examen final, casi sin dormir ni comer bien, y hoy por fin llegó el gran día.",
+      "tags": {
+        "length": "long",
+        "difficulty": "easy"
+      },
+      "expectedProfile": {
+        "situation": "After a week of exhausting study the final exam day has arrived.",
+        "emotion": [
+          "anxiety",
+          "exhaustion"
+        ],
+        "stance": [
+          "relate",
+          "console"
+        ],
+        "topic": [
+          "study",
+          "sleep"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q058",
+      "language": "es",
+      "text": "El gobierno anunció una nueva ley para ayudar a los jóvenes a comprar vivienda, pero el precio mínimo de los pisos sigue superando mi sueldo de tres años.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "A new housing law for young people changes nothing since flats cost years of salary.",
+        "emotion": [
+          "contempt",
+          "resignation"
+        ],
+        "stance": [
+          "mock",
+          "complain"
+        ],
+        "topic": [
+          "politics",
+          "money"
+        ],
+        "tone": [
+          "cynical",
+          "sarcastic"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q059",
+      "language": "es",
+      "text": "Le dije a mi perro que no se subiera al sofá y me miró directamente a los ojos mientras subía una pata, luego la otra, muy despacio.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "My dog stared at me while slowly climbing onto the forbidden sofa.",
+        "emotion": [
+          "amusement",
+          "frustration"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "animals"
+        ],
+        "tone": [
+          "deadpan",
+          "absurd"
+        ]
+      },
+      "reviewed": true
+    },
+    {
+      "id": "q060",
+      "language": "es",
+      "text": "En Nochebuena mi tío empezó a discutir de política con mi primo y al final terminaron los dos hablando del fútbol como si nada hubiera pasado.",
+      "tags": {
+        "length": "long",
+        "difficulty": "hard"
+      },
+      "expectedProfile": {
+        "situation": "At Christmas Eve dinner a political argument ended in friendly football talk.",
+        "emotion": [
+          "amusement",
+          "relief"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "holidays",
+          "family",
+          "politics"
+        ],
+        "tone": [
+          "deadpan",
+          "absurd"
+        ]
+      },
+      "reviewed": true
+    }
+  ]
+}
