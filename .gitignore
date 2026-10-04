@@ -106,3 +106,5 @@ logs/
 
 # Superpowers subagent-driven-development scratch state
 .superpowers/
+# Local evaluation work files (pools, judging sheets, thumbnails): contain library file names
+evaluation/work/
