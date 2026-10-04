@@ -1,6 +1,7 @@
 # P6: Evaluation and gold set — Design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-04-p6-evaluation-and-gold-set.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P6)
 Follow-ups: none yet (P3 query understanding and P4 retrieval plug into the interface this spec defines)
 
