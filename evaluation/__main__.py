@@ -1,0 +1,322 @@
+"""Evaluation CLI (P6 spec, decision 1).
+
+    python -m evaluation <command> ...
+
+Database commands read only. They require APP_ENV and the READ-ONLY DATABASE_URL (role ocr_readonly) to be set in
+the shell BEFORE starting, and deliberately never call config.settings.load_env(): that function loads
+environments/.env.<env> with override=True and would replace the read-only URL with the write-capable one.
+"""
+import argparse
+import asyncio
+import os
+import sys
+from datetime import date as date_class
+from pathlib import Path
+
+from evaluation.gold import (
+    GoldError, Judgment, file_sha256, judgments_by_query, load_corpus, load_judgments, load_queries,
+    merge_judgments, parse_export, save_corpus, save_judgments, Corpus,
+)
+from evaluation.report import (
+    CompareError, compare_baselines, format_report, git_commit, load_baseline, make_baseline, pooling_bias,
+    save_baseline,
+)
+
+DEFAULT_GOLD = Path("evaluation/gold")
+DEFAULT_WORK = Path("evaluation/work")
+MIN_PROFILED_SHARE = 0.95
+RETRIEVER_NAMES = ("random", "lexical_and", "lexical_or", "situation_embedding", "axis_match")
+POOL_SOURCES = ("lexical_or", "situation_embedding", "axis_match")
+POOL_DEPTH = 30
+
+
+def require_readonly() -> None:
+    if "ocr_readonly" not in os.environ.get("DATABASE_URL", ""):
+        sys.exit("Refusing to run: DATABASE_URL must be the read-only URL (role ocr_readonly) and APP_ENV must be set.")
+
+
+def _error(message: str) -> int:
+    print(f"error: {message}", file=sys.stderr)
+    return 1
+
+
+def _baseline_path(gold: Path, label_or_path: str) -> Path:
+    candidate = Path(label_or_path)
+    if candidate.suffix == ".json" and candidate.exists():
+        return candidate
+    return gold / "baselines" / f"{label_or_path}.json"
+
+
+# ------------------------------------------------------------------ commands without a database
+
+def cmd_import_judgments(args, gold: Path) -> int:
+    queries = load_queries(gold / "queries.json")
+    corpus = load_corpus(gold / "corpus.json")
+    existing = load_judgments(gold / "judgments.json")
+    incoming: list[Judgment] = []
+    import json
+    for name in args.files:
+        with open(name, encoding="utf-8") as handle:
+            data = json.load(handle)
+        incoming.extend(parse_export(data, valid_query_ids={q.id for q in queries},
+                                     valid_image_ids=set(corpus.image_ids())))
+    result = merge_judgments(existing, incoming)
+    save_judgments(result.merged, gold / "judgments.json")
+    print(f"added {result.added}, overwritten {result.overwritten}, unchanged {result.unchanged}; "
+          f"{len(result.merged)} judgments in total")
+    return 0
+
+
+def cmd_compare(args, gold: Path) -> int:
+    paths = [_baseline_path(gold, args.a), _baseline_path(gold, args.b)]
+    for name, path in zip((args.a, args.b), paths):
+        if not path.exists():
+            return _error(f"no baseline named {name!r} ({path})")
+    queries = {q.id: q.text for q in load_queries(gold / "queries.json")} if (gold / "queries.json").exists() else {}
+    print(compare_baselines(load_baseline(paths[0]), load_baseline(paths[1]), force=args.force, query_texts=queries))
+    return 0
+
+
+def cmd_list_baselines(args, gold: Path) -> int:
+    for path in sorted((gold / "baselines").glob("*.json")):
+        baseline = load_baseline(path)
+        ndcg = baseline["summary"]["overall"]["ndcg"]
+        shown = "-" if ndcg is None else f"{ndcg:.3f}"
+        print(f"{baseline['label']}\t{baseline['retriever']['name']}\t{baseline['date']}\tnDCG@10 {shown}")
+    return 0
+
+
+def cmd_sheet(args, gold: Path) -> int:
+    import json
+    from evaluation.sheet import make_thumbnail, pools_from_dict, render_judging_sheet
+    with open(args.pools, encoding="utf-8") as handle:
+        data = json.load(handle)
+    pools, filenames = pools_from_dict(data)
+    queries = load_queries(gold / "queries.json")
+    thumbnails = {image_id: make_thumbnail(os.path.join(args.base_path, name)) for image_id, name in filenames.items()}
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    languages = sorted({q.language for q in queries if q.id in pools})
+    for language in languages:
+        html = render_judging_sheet(
+            language=language, queries=queries, pools={qid: pool.candidates for qid, pool in pools.items()},
+            thumbnails=thumbnails, rater=args.rater, date=args.date or date_class.today().isoformat(),
+            round_number=data["round"])
+        target = out_dir / f"judging-{language}-r{data['round']}.html"
+        with open(target, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(html)
+        print(f"wrote {target}")
+    return 0
+
+
+# ------------------------------------------------------------------ database commands
+
+def _settings_config():
+    from batch.utils.meme_profile_config import load_config
+    from config.settings import settings
+    config = load_config(settings.get)
+    if config is None:
+        sys.exit("meme_profiles is not configured for this environment (set APP_ENV to general or metal)")
+    return config
+
+
+def _embedder_and_model():
+    from ai.ollama_embed import OllamaEmbedder
+    from config.settings import settings
+    model_name = settings.TAXONOMY.EMBEDDING_MODEL
+    return OllamaEmbedder(model_name), model_name
+
+
+def _make_retriever(name: str, session, seed: int):
+    from evaluation.retrievers.axis_match import AxisMatchRetriever
+    from evaluation.retrievers.lexical import LexicalRetriever
+    from evaluation.retrievers.random_retriever import RandomRetriever
+    from evaluation.retrievers.situation_embedding import SituationEmbeddingRetriever
+    if name == "random":
+        return RandomRetriever(seed)
+    if name == "lexical_and":
+        return LexicalRetriever(session, "and")
+    if name == "lexical_or":
+        return LexicalRetriever(session, "or")
+    if name == "axis_match":
+        return AxisMatchRetriever(session)
+    if name == "situation_embedding":
+        embedder, model_name = _embedder_and_model()
+        return SituationEmbeddingRetriever(session, embedder, model_name)
+    raise ValueError(f"unknown retriever {name!r}")
+
+
+async def _require_profiled(session, corpus: Corpus) -> dict:
+    from evaluation.state import collect_profile_state
+    state = await collect_profile_state(session, list(corpus.image_ids()))
+    if state["profiled"] < MIN_PROFILED_SHARE * len(corpus.images):
+        sys.exit(f"Only {state['profiled']} of {len(corpus.images)} corpus images have a profile (need "
+                 f"{MIN_PROFILED_SHARE:.0%}). Profile them with: python -m batch.build_meme_profiles --env general "
+                 "--ids-file <corpus.ids>, then python -m batch.build_meme_profile_embeddings --ids-file <corpus.ids>")
+    return state
+
+
+async def cmd_build_corpus(args, gold: Path) -> int:
+    require_readonly()
+    from evaluation.corpus import load_candidates, quotas_for, select_corpus, write_ids_file
+    from Storage.db import AsyncSessionLocal
+    target = Path(args.out)
+    if target.exists() and not args.force:
+        return _error(f"{target} already exists; the corpus is frozen (use --force to replace it deliberately)")
+    config = _settings_config()
+    async with AsyncSessionLocal() as session:
+        candidates = await load_candidates(session, config)
+    images = select_corpus(candidates, quotas_for(args.size), args.seed)
+    corpus = Corpus(environment=args.environment, seed=args.seed, created=date_class.today().isoformat(),
+                    images=tuple(images))
+    save_corpus(corpus, target)
+    Path(args.ids_file).parent.mkdir(parents=True, exist_ok=True)
+    write_ids_file(Path(args.ids_file), list(corpus.image_ids()))
+    counts: dict[str, int] = {}
+    for image in images:
+        counts[image.stratum] = counts.get(image.stratum, 0) + 1
+    print(f"{len(candidates)} eligible images; corpus of {len(images)}: {counts}; wrote {target} and {args.ids_file}")
+    return 0
+
+
+async def cmd_build_pools(args, gold: Path) -> int:
+    require_readonly()
+    import json
+    from sqlalchemy import select
+    from evaluation.pooling import build_pool
+    from evaluation.retrievers.random_retriever import RandomRetriever
+    from evaluation.sheet import pools_to_dict
+    from Storage.db import AsyncSessionLocal
+    from Storage.models import Image
+    corpus = load_corpus(gold / "corpus.json")
+    queries = [q for q in load_queries(gold / "queries.json") if q.reviewed]
+    judged = judgments_by_query(load_judgments(gold / "judgments.json"))
+    corpus_ids = list(corpus.image_ids())
+    pools = {}
+    async with AsyncSessionLocal() as session:
+        await _require_profiled(session, corpus)
+        retrievers = {name: _make_retriever(name, session, args.seed) for name in POOL_SOURCES}
+        randomiser = RandomRetriever(args.seed)
+        for retriever in retrievers.values():
+            if hasattr(retriever, "prepare"):
+                await retriever.prepare(queries)
+        for query in queries:
+            ranked = {name: [image_id for image_id, _ in await retriever.retrieve(query, corpus_ids, POOL_DEPTH)]
+                      for name, retriever in retrievers.items()}
+            random_ids = [image_id for image_id, _ in await randomiser.retrieve(query, corpus_ids, 50)]
+            ranked_target = args.per_query - 3
+            pools[query.id] = build_pool(query.id, ranked, random_ids, exclude=set(judged.get(query.id, {})),
+                                         ranked_target=ranked_target, random_target=3, seed=args.seed)
+        import uuid
+        wanted = {uuid.UUID(image_id) for pool in pools.values() for image_id in pool.candidates}
+        rows = await session.execute(select(Image.id, Image.filename).where(Image.id.in_(wanted)))
+        filenames = {str(image_id): filename for image_id, filename in rows.all()}
+    Path(args.pools).parent.mkdir(parents=True, exist_ok=True)
+    with open(args.pools, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(pools_to_dict(args.round, args.per_query, pools, filenames), indent=2,
+                                ensure_ascii=False) + "\n")
+    print(f"wrote {args.pools}: {sum(len(p.candidates) for p in pools.values())} candidates for {len(pools)} queries")
+    return 0
+
+
+async def cmd_run(args, gold: Path) -> int:
+    require_readonly()
+    import json
+    from evaluation.runner import run_retriever, summarize
+    from Storage.db import AsyncSessionLocal
+    corpus = load_corpus(gold / "corpus.json")
+    queries = load_queries(gold / "queries.json")
+    judgments = load_judgments(gold / "judgments.json")
+    target = gold / "baselines" / f"{args.label}.json"
+    if target.exists() and not args.force:
+        return _error(f"{target} already exists (use --force to replace it)")
+    async with AsyncSessionLocal() as session:
+        state = await _require_profiled(session, corpus)
+        retriever = _make_retriever(args.retriever, session, args.seed)
+        results = await run_retriever(retriever, queries, list(corpus.image_ids()), judgments_by_query(judgments),
+                                      k=args.k)
+    summary = summarize(results, corpus.strata(), judgments_by_query(judgments), k=args.k)
+    baseline = make_baseline(
+        label=args.label, retriever_name=retriever.name, retriever_config=retriever.config,
+        date=date_class.today().isoformat(), git_commit=git_commit(),
+        gold_hashes={"corpusSha": file_sha256(gold / "corpus.json"), "queriesSha": file_sha256(gold / "queries.json"),
+                     "judgmentsSha": file_sha256(gold / "judgments.json")},
+        profile_state=state, results=results, summary=summary)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    save_baseline(target, baseline)
+    bias = None
+    pools_path = Path(args.pools)
+    if pools_path.exists():
+        from evaluation.sheet import pools_from_dict
+        with open(pools_path, encoding="utf-8") as handle:
+            pools, _ = pools_from_dict(json.load(handle))
+        bias = pooling_bias(results, {qid: pool.sources for qid, pool in pools.items()})
+    print(format_report(baseline, bias))
+    print(f"wrote {target}")
+    return 0
+
+
+# ------------------------------------------------------------------ entry point
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="python -m evaluation")
+    parser.add_argument("--gold-dir", default=str(DEFAULT_GOLD))
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    corpus = commands.add_parser("build-corpus")
+    corpus.add_argument("--size", type=int, default=1500)
+    corpus.add_argument("--seed", type=int, default=7)
+    corpus.add_argument("--environment", default="general")
+    corpus.add_argument("--out", default=str(DEFAULT_GOLD / "corpus.json"))
+    corpus.add_argument("--ids-file", default=str(DEFAULT_WORK / "corpus.ids"))
+    corpus.add_argument("--force", action="store_true")
+
+    pools = commands.add_parser("build-pools")
+    pools.add_argument("--round", type=int, required=True)
+    pools.add_argument("--per-query", type=int, default=12)
+    pools.add_argument("--seed", type=int, default=7)
+    pools.add_argument("--pools", default=str(DEFAULT_WORK / "pools.json"))
+
+    sheet = commands.add_parser("sheet")
+    sheet.add_argument("--pools", default=str(DEFAULT_WORK / "pools.json"))
+    sheet.add_argument("--out-dir", default=str(DEFAULT_WORK / "sheets"))
+    sheet.add_argument("--base-path", required=True)
+    sheet.add_argument("--rater", required=True)
+    sheet.add_argument("--date", default=None)
+
+    imports = commands.add_parser("import-judgments")
+    imports.add_argument("files", nargs="+")
+
+    run = commands.add_parser("run")
+    run.add_argument("--retriever", required=True, choices=RETRIEVER_NAMES)
+    run.add_argument("--label", required=True)
+    run.add_argument("--k", type=int, default=10)
+    run.add_argument("--seed", type=int, default=0)
+    run.add_argument("--pools", default=str(DEFAULT_WORK / "pools.json"))
+    run.add_argument("--force", action="store_true")
+
+    compare = commands.add_parser("compare")
+    compare.add_argument("a")
+    compare.add_argument("b")
+    compare.add_argument("--force", action="store_true")
+
+    commands.add_parser("list-baselines")
+    return parser
+
+
+def main(argv=None) -> int:
+    args = build_parser().parse_args(argv)
+    gold = Path(args.gold_dir)
+    handlers = {"import-judgments": cmd_import_judgments, "compare": cmd_compare, "list-baselines": cmd_list_baselines,
+                "sheet": cmd_sheet}
+    async_handlers = {"build-corpus": cmd_build_corpus, "build-pools": cmd_build_pools, "run": cmd_run}
+    try:
+        if args.command in handlers:
+            return handlers[args.command](args, gold)
+        return asyncio.run(async_handlers[args.command](args, gold))
+    except (GoldError, CompareError) as error:
+        return _error(str(error))
+
+
+if __name__ == "__main__":
+    sys.exit(main())
