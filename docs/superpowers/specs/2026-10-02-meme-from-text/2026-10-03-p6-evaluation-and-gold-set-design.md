@@ -205,13 +205,15 @@ Per difficulty (nDCG@10): axis_match ambiguous 0.421, easy 0.350, hard 0.277; si
 
 **(b) How large is the raw RU/ES gap for the English embedding (OQ-4)?** Large for Russian: `situation_embedding` nDCG@10 is 0.525 in English, 0.384 in Spanish (ratio 0.73) and 0.081 in Russian (ratio 0.15; hit@10 0.40 against 1.00). English-only bge-large cannot be fed raw Russian messages. `axis_match`, which works on the English profile of the query, is language-robust (ratio es 0.89, ru 1.01), so the design route of ADR-001 (the P3 parser turns the message into an English situation text and axis values, then retrieval runs in English) is supported, provided the P3 parse quality holds; P3 is measured separately as agreement with `expectedProfile`. `lexical_or` is relatively strongest in Russian (0.319, ratio 1.57), because OCR text of the corpus memes matches Russian words directly. The comparison with a multilingual embedding model (for example `bge-m3`) was not run: it needs a model pull, which waits for the user's approval; the harness supports it (set `taxonomy.embedding_model`, `build_meme_profile_embeddings --ids-file --reset`, run `situation_embedding` under a new label, `compare`).
 
-### Proposed acceptance thresholds for P4 (for the user's approval, not a decision)
+### Acceptance thresholds for P4 (approved by the user on 2026-10-05)
 
 On the same gold data (hashes in the baselines), evaluated after a second judging round that pools P4's own top ten, so that its unjudged results are not scored as zero:
 1. Overall nDCG@10 at least 0.37 (the best baseline 0.339 plus a 0.03 margin) and hit@10 at least 0.87 (the best baseline).
 2. Per language nDCG@10 at least 0.85 of English and at least 0.30 in every language.
 3. No query class (difficulty, length) below the best baseline's score for that class (difficulty: ambiguous 0.421, easy 0.350, hard 0.350; length: short 0.402, medium 0.326, long 0.329 taking the best baseline per class).
 4. P3 parse agreement with `expectedProfile` is reported separately (per axis, per language) and gates P3, not P4.
+
+These four are binding for P4's acceptance. The thresholds are relative to the 1,500-image corpus, so they are re-based (new baselines, same rules) if the gold data is extended.
 
 ### Deviations from this spec
 
