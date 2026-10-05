@@ -18,3 +18,6 @@ trends:
 
 meme_profiles:
   text_model: qwen2.5:7b-instruct   # chosen by the P2 pilot, 2026-10-03 (docs/superpowers/reviews/2026-10-03-p2-pilot-review.md)
+
+parse:
+  model: qwen2.5:7b-instruct   # placeholder until the P3 model comparison (docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-05-p3-query-understanding-design.md)

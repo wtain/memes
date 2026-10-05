@@ -32,6 +32,9 @@ batch/*
 !batch/clusterize.py
 !batch/run_tracking.py
 !batch/registry.py
+!batch/data
+batch/data/*
+!batch/data/taxonomy
 
 # Storage/backups/ is local Postgres dump storage (gitignored, see
 # Storage/.gitignore) -- 33GB on a real dev machine. .dockerignore doesn't

@@ -68,6 +68,19 @@ def test_image_imports_app_main(built_image):
     )
 
 
+def test_image_can_import_the_parser_and_load_the_taxonomy(built_image):
+    result = _run([
+        "docker", "run", "--rm", *DUMMY_ENV, built_image,
+        "python", "-c",
+        "from taxonomy import load; from parse.parser import QueryParser; print(load().version)",
+    ])
+    assert result.returncode == 0, (
+        f"the image cannot import parse/taxonomy or find the taxonomy YAML (missing COPY or .dockerignore rule?):\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    assert result.stdout.strip().isdigit()
+
+
 def test_container_boots_and_stays_running(built_image):
     container_name = f"memes-backend-smoketest-{uuid.uuid4().hex[:8]}"
     run = _run(["docker", "run", "-d", "--name", container_name, *DUMMY_ENV, built_image])
