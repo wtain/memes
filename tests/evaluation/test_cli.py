@@ -167,3 +167,45 @@ def test_parse_eval_options():
     args = cli.build_parser().parse_args(["parse-eval", "--model", "m", "--label", "l", "--max-queries", "5",
                                           "--timeout-seconds", "9", "--force"])
     assert (args.model, args.label, args.max_queries, args.timeout_seconds, args.force) == ("m", "l", 5, 9.0, True)
+
+
+def _pool_args(**overrides):
+    base = ["build-pools", "--round", "2"]
+    for key, value in overrides.items():
+        base += [f"--{key.replace('_', '-')}", str(value)]
+    return cli.build_parser().parse_args(base)
+
+
+def test_build_pools_defaults_keep_the_round_one_behaviour():
+    args = _pool_args()
+    assert args.sources == "lexical_or,situation_embedding,axis_match"
+    assert (args.random, args.depth, args.per_query, args.parse_model) == (3, 30, 12, None)
+    assert cli.validate_pool_args(args) is None
+    assert cli.pool_source_names(args.sources) == ["lexical_or", "situation_embedding", "axis_match"]
+
+
+def test_a_parser_only_pool_of_exactly_the_top_ten_is_valid():
+    args = _pool_args(sources="parsed_axis_match", parse_model="m", random=0, depth=10, per_query=10)
+    assert cli.validate_pool_args(args) is None
+    assert cli.pool_source_names("parsed_axis_match, axis_match ") == ["parsed_axis_match", "axis_match"]
+
+
+@pytest.mark.parametrize("overrides, fragment", [
+    ({"sources": "parsed_axis_match"}, "--parse-model"),
+    ({"sources": "nope"}, "unknown pool source"),
+    ({"sources": ","}, "at least one source"),
+    ({"random": -1}, "--random"),
+    ({"per_query": 3, "random": 3}, "--per-query"),
+    ({"depth": 0}, "--depth"),
+])
+def test_validate_pool_args_rejects_bad_options(overrides, fragment):
+    assert fragment in cli.validate_pool_args(_pool_args(**overrides))
+
+
+def test_build_pools_validates_its_options_before_requiring_the_read_only_url(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    gold = _gold_dir(tmp_path)
+
+    code = cli.main(["--gold-dir", str(gold), "build-pools", "--round", "2", "--sources", "parsed_axis_match"])
+
+    assert code == 1 and "--parse-model" in capsys.readouterr().err

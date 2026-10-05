@@ -28,6 +28,30 @@ MIN_PROFILED_SHARE = 0.95
 RETRIEVER_NAMES = ("random", "lexical_and", "lexical_or", "situation_embedding", "axis_match", "parsed_axis_match")
 POOL_SOURCES = ("lexical_or", "situation_embedding", "axis_match")
 POOL_DEPTH = 30
+POOL_SOURCE_CHOICES = POOL_SOURCES + ("parsed_axis_match",)
+DEFAULT_POOL_SOURCES = ",".join(POOL_SOURCES)
+
+
+def pool_source_names(sources_arg: str) -> list[str]:
+    return [name.strip() for name in sources_arg.split(",") if name.strip()]
+
+
+def validate_pool_args(args) -> str | None:
+    names = pool_source_names(args.sources)
+    if not names:
+        return "--sources must name at least one source"
+    unknown = [name for name in names if name not in POOL_SOURCE_CHOICES]
+    if unknown:
+        return f"unknown pool source(s): {', '.join(unknown)} (choose from {', '.join(POOL_SOURCE_CHOICES)})"
+    if "parsed_axis_match" in names and not args.parse_model:
+        return "--parse-model is required when parsed_axis_match is a pool source"
+    if args.random < 0:
+        return "--random cannot be negative"
+    if args.per_query - args.random < 1:
+        return "--per-query must be larger than --random"
+    if args.depth < 1:
+        return "--depth must be at least 1"
+    return None
 
 
 def require_readonly() -> None:
@@ -240,6 +264,9 @@ async def cmd_build_corpus(args, gold: Path) -> int:
 
 
 async def cmd_build_pools(args, gold: Path) -> int:
+    error = validate_pool_args(args)
+    if error:
+        return _error(error)
     require_readonly()
     from evaluation.sheet import pools_round_path
     pools_file = pools_round_path(args.pools_dir, args.round)
@@ -258,20 +285,21 @@ async def cmd_build_pools(args, gold: Path) -> int:
     judged = judgments_by_query(load_judgments(gold / "judgments.json"))
     corpus_ids = list(corpus.image_ids())
     pools = {}
+    names = pool_source_names(args.sources)
     async with AsyncSessionLocal() as session:
-        await _check_corpus(session, corpus, check_digest=True)
-        retrievers = {name: _make_retriever(name, session, args.seed) for name in POOL_SOURCES}
+        await _check_corpus(session, corpus, check_digest="situation_embedding" in names)
+        retrievers = {name: _make_retriever(name, session, args.seed, args.parse_model) for name in names}
         randomiser = RandomRetriever(args.seed)
         for retriever in retrievers.values():
             if hasattr(retriever, "prepare"):
                 await retriever.prepare(queries)
         for query in queries:
-            ranked = {name: [image_id for image_id, _ in await retriever.retrieve(query, corpus_ids, POOL_DEPTH)]
+            ranked = {name: [image_id for image_id, _ in await retriever.retrieve(query, corpus_ids, args.depth)]
                       for name, retriever in retrievers.items()}
             random_ids = [image_id for image_id, _ in await randomiser.retrieve(query, corpus_ids, 50)]
-            ranked_target = args.per_query - 3
+            ranked_target = args.per_query - args.random
             pools[query.id] = build_pool(query.id, ranked, random_ids, exclude=set(judged.get(query.id, {})),
-                                         ranked_target=ranked_target, random_target=3, seed=args.seed)
+                                         ranked_target=ranked_target, random_target=args.random, seed=args.seed)
         import uuid
         wanted = {uuid.UUID(image_id) for pool in pools.values() for image_id in pool.candidates}
         rows = await session.execute(select(Image.id, Image.filename).where(Image.id.in_(wanted)))
@@ -389,6 +417,11 @@ def build_parser() -> argparse.ArgumentParser:
     pools.add_argument("--seed", type=int, default=7)
     pools.add_argument("--pools-dir", default=str(DEFAULT_WORK))
     pools.add_argument("--force", action="store_true")
+    pools.add_argument("--sources", default=DEFAULT_POOL_SOURCES,
+                       help="comma-separated pool sources: " + ", ".join(POOL_SOURCE_CHOICES))
+    pools.add_argument("--parse-model", default=None, help="model for the parsed_axis_match pool source")
+    pools.add_argument("--random", type=int, default=3, help="number of random candidates per query")
+    pools.add_argument("--depth", type=int, default=POOL_DEPTH, help="ranks of each source that are considered")
 
     sheet = commands.add_parser("sheet")
     sheet.add_argument("--round", type=int, required=True)
