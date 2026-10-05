@@ -1,0 +1,571 @@
+{
+  "label": "lexical_or",
+  "date": "2026-10-05",
+  "retriever": {
+    "name": "lexical_or",
+    "config": {
+      "mode": "or"
+    }
+  },
+  "gitCommit": "20433ca578593f09ff965adc40d2a9c5ed30dce1",
+  "gold": {
+    "corpusSha": "da9de2c79938aa9c46a31b0c0eb432998cc0810f628de2832ad86da88a790ea8",
+    "queriesSha": "5299d18171682186e54aee387a8dd7265de0b4468715c412922676e0adc7a70b",
+    "judgmentsSha": "28817839e40aa52d7c3380fe3bf2ee49bf6b90ace8c81fd46bbe1a83fc5ca328"
+  },
+  "profileState": {
+    "corpusImages": 1500,
+    "profiled": 1455,
+    "taxonomyVersions": {
+      "2": 1455
+    },
+    "promptVersions": {
+      "p2-5d149de262": 1455
+    },
+    "extractorModels": {
+      "qwen2.5:7b-instruct": 1453,
+      "qwen2.5vl:7b": 2
+    },
+    "embedded": 1454,
+    "embeddingModels": {
+      "bge-large b3d71c92805938e2c9d78e6f35e82d7cc1bd77e05b47dd2ab3016240f4021c15": 1454
+    }
+  },
+  "summary": {
+    "overall": {
+      "queries": 60,
+      "noPositive": 0,
+      "ndcg": 0.25856014549040546,
+      "recall": 0.23428571428571435,
+      "hit": 0.75,
+      "judged": 0.34047619047619077
+    },
+    "byLanguage": {
+      "en": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.2029464544498008,
+        "recall": 0.17642857142857143,
+        "hit": 0.75,
+        "judged": 0.31499999999999995
+      },
+      "es": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.254181250596566,
+        "recall": 0.2263095238095238,
+        "hit": 0.6,
+        "judged": 0.3664285714285714
+      },
+      "ru": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.3185527314248494,
+        "recall": 0.30011904761904773,
+        "hit": 0.9,
+        "judged": 0.33999999999999986
+      }
+    },
+    "byDifficulty": {
+      "ambiguous": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.41737864522968937,
+        "recall": 0.36031746031746026,
+        "hit": 0.9333333333333333,
+        "judged": 0.3866666666666666
+      },
+      "easy": {
+        "queries": 21,
+        "noPositive": 0,
+        "ndcg": 0.2159952490443922,
+        "recall": 0.20408163265306123,
+        "hit": 0.6666666666666666,
+        "judged": 0.34421768707482986
+      },
+      "hard": {
+        "queries": 24,
+        "noPositive": 0,
+        "ndcg": 0.19654286754361447,
+        "recall": 0.18194444444444444,
+        "hit": 0.7083333333333334,
+        "judged": 0.3083333333333332
+      }
+    },
+    "byLength": {
+      "long": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.1536354485434021,
+        "recall": 0.16634920634920633,
+        "hit": 0.6,
+        "judged": 0.3219047619047618
+      },
+      "medium": {
+        "queries": 30,
+        "noPositive": 0,
+        "ndcg": 0.29530289672221016,
+        "recall": 0.2532539682539683,
+        "hit": 0.7666666666666667,
+        "judged": 0.3366666666666666
+      },
+      "short": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.28999933997379923,
+        "recall": 0.2642857142857143,
+        "hit": 0.8666666666666667,
+        "judged": 0.3666666666666666
+      }
+    },
+    "byStratum": {
+      "description only": {
+        "retrievedShare": 0.021666666666666664,
+        "meanGradeJudged": 2.0,
+        "judgedCount": 2
+      },
+      "no usable text": {
+        "retrievedShare": 0.0,
+        "meanGradeJudged": null,
+        "judgedCount": 0
+      },
+      "ocr only": {
+        "retrievedShare": 0.0016666666666666668,
+        "meanGradeJudged": 1.0,
+        "judgedCount": 1
+      },
+      "ocr+description": {
+        "retrievedShare": 0.9766666666666666,
+        "meanGradeJudged": 0.5193370165745856,
+        "judgedCount": 181
+      }
+    },
+    "languageRatio": {
+      "en": 1.0,
+      "es": 1.252454748646216,
+      "ru": 1.5696393035712977
+    }
+  },
+  "queries": {
+    "q001": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q002": {
+      "language": "en",
+      "ndcg": 0.200213067895604,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q003": {
+      "language": "en",
+      "ndcg": 0.18979187714092388,
+      "recall": 0.14285714285714285,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q004": {
+      "language": "en",
+      "ndcg": 0.6937826342677155,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.4
+    },
+    "q005": {
+      "language": "en",
+      "ndcg": 0.1192595584682712,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q006": {
+      "language": "en",
+      "ndcg": 0.25326335410655304,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q007": {
+      "language": "en",
+      "ndcg": 0.36794492785807026,
+      "recall": 0.16666666666666666,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q008": {
+      "language": "en",
+      "ndcg": 0.13603488629504498,
+      "recall": 0.14285714285714285,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q009": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q010": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q011": {
+      "language": "en",
+      "ndcg": 0.21398626473452756,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q012": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q013": {
+      "language": "en",
+      "ndcg": 0.23230604393401819,
+      "recall": 0.16666666666666666,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q014": {
+      "language": "en",
+      "ndcg": 0.46927872602275644,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q015": {
+      "language": "en",
+      "ndcg": 0.6387878864795979,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q016": {
+      "language": "en",
+      "ndcg": 0.2385191169365424,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q017": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q018": {
+      "language": "en",
+      "ndcg": 0.09614715734857855,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.4
+    },
+    "q019": {
+      "language": "en",
+      "ndcg": 0.0898682452334257,
+      "recall": 0.16666666666666666,
+      "hit": 1.0,
+      "judged": 0.4
+    },
+    "q020": {
+      "language": "en",
+      "ndcg": 0.11974534227438745,
+      "recall": 0.14285714285714285,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q021": {
+      "language": "ru",
+      "ndcg": 0.25326335410655304,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q022": {
+      "language": "ru",
+      "ndcg": 0.4625216930130168,
+      "recall": 0.6,
+      "hit": 1.0,
+      "judged": 0.4
+    },
+    "q023": {
+      "language": "ru",
+      "ndcg": 0.38356636737133565,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q024": {
+      "language": "ru",
+      "ndcg": 0.18148604814387062,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q025": {
+      "language": "ru",
+      "ndcg": 0.2385191169365424,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 1.0
+    },
+    "q026": {
+      "language": "ru",
+      "ndcg": 0.21398626473452756,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q027": {
+      "language": "ru",
+      "ndcg": 0.6131471927654584,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q028": {
+      "language": "ru",
+      "ndcg": 0.5807651098350455,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q029": {
+      "language": "ru",
+      "ndcg": 0.15979138559512832,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q030": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q031": {
+      "language": "ru",
+      "ndcg": 0.1968740777898919,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q032": {
+      "language": "ru",
+      "ndcg": 0.33044230805979385,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q033": {
+      "language": "ru",
+      "ndcg": 0.5216366673490151,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q034": {
+      "language": "ru",
+      "ndcg": 0.49392169351461673,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q035": {
+      "language": "ru",
+      "ndcg": 0.45791971679717963,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q036": {
+      "language": "ru",
+      "ndcg": 0.23981246656813146,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q037": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q038": {
+      "language": "ru",
+      "ndcg": 0.4333559712275566,
+      "recall": 0.2857142857142857,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q039": {
+      "language": "ru",
+      "ndcg": 0.5087403079104241,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q040": {
+      "language": "ru",
+      "ndcg": 0.1013048867789007,
+      "recall": 0.16666666666666666,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q041": {
+      "language": "es",
+      "ndcg": 0.27206977259008996,
+      "recall": 0.14285714285714285,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q042": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q043": {
+      "language": "es",
+      "ndcg": 0.5857421563596757,
+      "recall": 0.42857142857142855,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q044": {
+      "language": "es",
+      "ndcg": 0.5926269253823541,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.4
+    },
+    "q045": {
+      "language": "es",
+      "ndcg": 0.17714752793103522,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q046": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q047": {
+      "language": "es",
+      "ndcg": 0.6366824387328317,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q048": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q049": {
+      "language": "es",
+      "ndcg": 0.2807721888661444,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q050": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q051": {
+      "language": "es",
+      "ndcg": 0.4130547397016814,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q052": {
+      "language": "es",
+      "ndcg": 0.45945017664631393,
+      "recall": 0.42857142857142855,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q053": {
+      "language": "es",
+      "ndcg": 0.10176933156101466,
+      "recall": 0.14285714285714285,
+      "hit": 1.0,
+      "judged": 1.0
+    },
+    "q054": {
+      "language": "es",
+      "ndcg": 0.3354350434265105,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q055": {
+      "language": "es",
+      "ndcg": 0.7518364768605831,
+      "recall": 1.0,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q056": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.42857142857142855
+    },
+    "q057": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q058": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q059": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q060": {
+      "language": "es",
+      "ndcg": 0.4770382338730848,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.3
+    }
+  }
+}

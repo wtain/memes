@@ -1,6 +1,6 @@
 # P6: Evaluation and gold set — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-04-p6-evaluation-and-gold-set.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P6)
 Follow-ups: none yet (P3 query understanding and P4 retrieval plug into the interface this spec defines)
@@ -176,3 +176,48 @@ Each root as its own `pytest` command (CLAUDE.md); the whole `tests/integration/
 6. Draft the 60 queries and expected profiles; the user reviews them.
 7. `build-pools`, `sheet`, `import-judgments` with tests; the user judges the sheets (human step).
 8. Baseline runs for all retrievers, the experiment workflow checks, the addendum with the numbers, the two gate answers and proposed thresholds; docs (`CLAUDE.md`, epic tracker); review report.
+
+## Addendum: result (2026-10-05)
+
+### What was built and drawn
+
+- `evaluation/` package with the CLI (`build-corpus`, `build-pools`, `sheet`, `import-judgments`, `run`, `compare`, `list-baselines`), the five baseline retrievers, the metrics, baselines with gold hashes and the blinded sheet; `--ids-file` on the two P2 jobs. Tests: `tests/evaluation` 90, whole `tests/integration` 509, `batch/tests` 268, `tests/taxonomy` 83, `tests/ai` 66.
+- Corpus: 1,500 `general` images (seed 7). Strata: 1,322 `ocr+description`, 150 `description only`, 26 `ocr only`, 2 `no usable text`. The library has descriptions for almost every image, so the two weak strata are tiny (all available images were taken, the shortfall went to `ocr+description`); per-stratum numbers for them rest on very few images. Profiling the corpus took 17 min 11 s (0.7 s per image), 1,446 saved, 45 empty answers; 1,455 of 1,500 profiled (97%), 1,454 embedded, no drift (0 missing, 0 inactive, 0 hash changed), one embedding digest.
+- Queries: 60 reviewed (20 per language, six near-translated pairs, drafting lint clean). Judgments: 718 from one rater (en 238, ru 240, es 240; two English candidates skipped). Grades 0/1/2: en 120/72/46, ru 145/65/30, es 144/62/34. Every query has at least one positive.
+
+### Baselines (nDCG@10 / hit@10, 60 queries, `evaluation/gold/baselines/`)
+
+| retriever | nDCG@10 | recall@10 | hit@10 | judged@10 | en | es | ru |
+|---|---|---|---|---|---|---|---|
+| random | 0.006 | 0.010 | 0.050 | 0.015 | 0.000 | 0.018 | 0.000 |
+| lexical_and (production search today) | 0.000 | 0.000 | 0.000 | - | 0.000 | 0.000 | 0.000 |
+| lexical_or | 0.259 | 0.234 | 0.750 | 0.340 | 0.203 | 0.254 | 0.319 |
+| situation_embedding (raw query, English bge-large) | 0.330 | 0.296 | 0.750 | 0.267 | 0.525 | 0.384 | 0.081 |
+| axis_match (gold expected profile, no parsing) | 0.339 | 0.314 | 0.867 | 0.322 | 0.349 | 0.312 | 0.354 |
+
+Per difficulty (nDCG@10): axis_match ambiguous 0.421, easy 0.350, hard 0.277; situation_embedding 0.335 / 0.303 / 0.350; lexical_or 0.417 / 0.216 / 0.197. Per length: axis_match short 0.402, medium 0.323, long 0.307; lexical_or short 0.290, medium 0.295, long 0.154.
+
+**How to read the numbers.** `judged@10` is only 0.27 to 0.34: about two thirds of every retriever's top ten was never shown to the judge and counts as grade 0 (pooling bias note in each report: unpooled top results 407 of 600 for axis_match, 438 of 600 for situation_embedding, 392 of 576 for lexical_or). All scores are therefore lower bounds, and a retriever whose top ten differs from the three pool sources is penalised the most. Absolute values are also optimistic relative to the full library (a 1,500-image sample); only the ordering and the gaps are used for decisions.
+
+### Gate answers
+
+**(a) Does the prompt need tuning before the full backlog run (board task 158)?** No, the evidence does not block it. With the gold expected profile (so no parsing), `axis_match` over the current profiles reaches hit@10 0.867 and beats the keyword-OR search (0.259 / 0.75) and random (0.006 / 0.05) by a wide margin, and the production search returns nothing for a full message (0.000). The skew seen in the first 200 profiles (stance `mock` 70%) did not show up as a retrieval failure. Weak spots: `hard` queries (0.277 against 0.350 for easy), and OCR-only memes (mean grade of judged results 0.25 for `ocr only`, n=12, against 0.73 for `ocr+description`, n=168, in `axis_match`), consistent with the P2 pilot but resting on very few images. Recommendation: run the `general` backlog in slices (first `--limit 200`, then about 3,000 per slice), run `build_image_descriptions` before profiling `metal` (OCR-only profiles are the weakest), and treat prompt tuning as a later experiment evaluated on the corpus with the experiment loop of decision 10 (a prompt change re-profiles the corpus in about 17 minutes and `compare` shows the effect). The cost of being wrong: a later prompt change marks every profile stale and the backlog is paid for a second time.
+
+**(b) How large is the raw RU/ES gap for the English embedding (OQ-4)?** Large for Russian: `situation_embedding` nDCG@10 is 0.525 in English, 0.384 in Spanish (ratio 0.73) and 0.081 in Russian (ratio 0.15; hit@10 0.40 against 1.00). English-only bge-large cannot be fed raw Russian messages. `axis_match`, which works on the English profile of the query, is language-robust (ratio es 0.89, ru 1.01), so the design route of ADR-001 (the P3 parser turns the message into an English situation text and axis values, then retrieval runs in English) is supported, provided the P3 parse quality holds; P3 is measured separately as agreement with `expectedProfile`. `lexical_or` is relatively strongest in Russian (0.319, ratio 1.57), because OCR text of the corpus memes matches Russian words directly. The comparison with a multilingual embedding model (for example `bge-m3`) was not run: it needs a model pull, which waits for the user's approval; the harness supports it (set `taxonomy.embedding_model`, `build_meme_profile_embeddings --ids-file --reset`, run `situation_embedding` under a new label, `compare`).
+
+### Proposed acceptance thresholds for P4 (for the user's approval, not a decision)
+
+On the same gold data (hashes in the baselines), evaluated after a second judging round that pools P4's own top ten, so that its unjudged results are not scored as zero:
+1. Overall nDCG@10 at least 0.37 (the best baseline 0.339 plus a 0.03 margin) and hit@10 at least 0.87 (the best baseline).
+2. Per language nDCG@10 at least 0.85 of English and at least 0.30 in every language.
+3. No query class (difficulty, length) below the best baseline's score for that class (difficulty: ambiguous 0.421, easy 0.350, hard 0.350; length: short 0.402, medium 0.326, long 0.329 taking the best baseline per class).
+4. P3 parse agreement with `expectedProfile` is reported separately (per axis, per language) and gates P3, not P4.
+
+### Deviations from this spec
+
+- Pools are stored per round (`evaluation/work/pools-r<N>.json`, never overwritten without `--force`) and `run` merges the private sources of all rounds, instead of a single `pools.json` (final review finding: append-only pools).
+- The judging sheet shows only the meme image (inputs are not shown, not even behind a toggle) and thumbnails are 400 px instead of about 320 px; transparent images are composited onto white; a "skip (ungraded)" control was added.
+- `judged@10` divides by the number of results returned (up to 10), not by 10.
+- `build-corpus` does not create the output directory (found when drawing the corpus; the directory was created by hand).
+- Corpus drift and environment checks (spec decision 2) and embedding coverage/digest warnings were added after the final review.
+- The multilingual embedding experiment (OQ-4) was not run (needs a model pull and the user's approval).

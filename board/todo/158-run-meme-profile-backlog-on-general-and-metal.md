@@ -22,12 +22,18 @@ run over the real libraries. P4 (retrieval) and P6 (evaluation) need profiles fo
 About 4,800 images per hour; a `meme_profiles.max_per_run` of about 3,000 keeps one `description_pipeline` slice near 40 minutes.
 The embeddings job afterwards is a few minutes per environment.
 
-## When to run it (decision gate)
+## When to run it (decision gate, answered by P6 on 2026-10-05)
 
-Not yet by default. The first 200 profiles were skewed (stance `mock` 70%, tone `absurd` 52% and `sarcastic` 30%),
-and any prompt change marks every profile stale, so a full run before the prompt is settled would be paid for twice.
-Run it after one of: P6's gold set shows the prompt is good enough, or a decision to accept the current quality to unblock P4.
-Re-evaluate when P6 has results.
+The first 200 profiles were skewed (stance `mock` 70%, tone `absurd` 52% and `sarcastic` 30%), and any prompt change
+marks every profile stale, so a full run before the prompt is settled would be paid for twice. P6's gold set
+(`evaluation/gold/`, baselines in `evaluation/gold/baselines/`, spec addendum "result (2026-10-05)") answers it:
+the current profiles carry real signal (`axis_match` over the profiles of the 1,500-image corpus: nDCG@10 0.339,
+hit@10 0.867, against 0.006 / 0.05 for random and 0.259 / 0.75 for keyword-OR search), and the skew did not show up as
+a retrieval failure. **Recommendation: run it** (the decision is the user's), `general` first in slices, `metal` after
+`build_image_descriptions` (OCR-only profiles are the weakest: mean grade 0.25 for `ocr only`, n=12, against 0.73 for
+`ocr+description`). If the prompt is tuned later, evaluate the change on the corpus first (re-profile the 1,500 images
+in about 17 minutes with `--ids-file`, then `python -m evaluation run` and `compare`); a prompt change after the full
+run costs the run again.
 
 ## Before the run
 

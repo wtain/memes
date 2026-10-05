@@ -1,0 +1,571 @@
+{
+  "label": "random",
+  "date": "2026-10-05",
+  "retriever": {
+    "name": "random",
+    "config": {
+      "seed": 0
+    }
+  },
+  "gitCommit": "20433ca578593f09ff965adc40d2a9c5ed30dce1",
+  "gold": {
+    "corpusSha": "da9de2c79938aa9c46a31b0c0eb432998cc0810f628de2832ad86da88a790ea8",
+    "queriesSha": "5299d18171682186e54aee387a8dd7265de0b4468715c412922676e0adc7a70b",
+    "judgmentsSha": "28817839e40aa52d7c3380fe3bf2ee49bf6b90ace8c81fd46bbe1a83fc5ca328"
+  },
+  "profileState": {
+    "corpusImages": 1500,
+    "profiled": 1455,
+    "taxonomyVersions": {
+      "2": 1455
+    },
+    "promptVersions": {
+      "p2-5d149de262": 1455
+    },
+    "extractorModels": {
+      "qwen2.5:7b-instruct": 1453,
+      "qwen2.5vl:7b": 2
+    },
+    "embedded": 1454,
+    "embeddingModels": {
+      "bge-large b3d71c92805938e2c9d78e6f35e82d7cc1bd77e05b47dd2ab3016240f4021c15": 1454
+    }
+  },
+  "summary": {
+    "overall": {
+      "queries": 60,
+      "noPositive": 0,
+      "ndcg": 0.005938037048805643,
+      "recall": 0.009880952380952381,
+      "hit": 0.05,
+      "judged": 0.014999999999999998
+    },
+    "byLanguage": {
+      "en": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.0,
+        "recall": 0.0,
+        "hit": 0.0,
+        "judged": 0.005
+      },
+      "es": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.017814111146416928,
+        "recall": 0.029642857142857144,
+        "hit": 0.15,
+        "judged": 0.025
+      },
+      "ru": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.0,
+        "recall": 0.0,
+        "hit": 0.0,
+        "judged": 0.015000000000000003
+      }
+    },
+    "byDifficulty": {
+      "ambiguous": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.0045344962098348325,
+        "recall": 0.009523809523809523,
+        "hit": 0.06666666666666667,
+        "judged": 0.020000000000000004
+      },
+      "easy": {
+        "queries": 21,
+        "noPositive": 0,
+        "ndcg": 0.0,
+        "recall": 0.0,
+        "hit": 0.0,
+        "judged": 0.004761904761904762
+      },
+      "hard": {
+        "queries": 24,
+        "noPositive": 0,
+        "ndcg": 0.012011032490867338,
+        "recall": 0.01875,
+        "hit": 0.08333333333333333,
+        "judged": 0.020833333333333332
+      }
+    },
+    "byLength": {
+      "long": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.01921765198538774,
+        "recall": 0.030000000000000002,
+        "hit": 0.13333333333333333,
+        "judged": 0.04
+      },
+      "medium": {
+        "queries": 30,
+        "noPositive": 0,
+        "ndcg": 0.0022672481049174163,
+        "recall": 0.0047619047619047615,
+        "hit": 0.03333333333333333,
+        "judged": 0.010000000000000002
+      },
+      "short": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.0,
+        "recall": 0.0,
+        "hit": 0.0,
+        "judged": 0.0
+      }
+    },
+    "byStratum": {
+      "description only": {
+        "retrievedShare": 0.09,
+        "meanGradeJudged": 2.0,
+        "judgedCount": 1
+      },
+      "no usable text": {
+        "retrievedShare": 0.0033333333333333335,
+        "meanGradeJudged": 0.0,
+        "judgedCount": 1
+      },
+      "ocr only": {
+        "retrievedShare": 0.02,
+        "meanGradeJudged": null,
+        "judgedCount": 0
+      },
+      "ocr+description": {
+        "retrievedShare": 0.8866666666666662,
+        "meanGradeJudged": 0.42857142857142855,
+        "judgedCount": 7
+      }
+    },
+    "languageRatio": {
+      "en": null,
+      "es": null,
+      "ru": null
+    }
+  },
+  "queries": {
+    "q001": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q002": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q003": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q004": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q005": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q006": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q007": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q008": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q009": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q010": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q011": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q012": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q013": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.1
+    },
+    "q014": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q015": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q016": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q017": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q018": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q019": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q020": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q021": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q022": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q023": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q024": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q025": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q026": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q027": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q028": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q029": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q030": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q031": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q032": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q033": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q034": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q035": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.1
+    },
+    "q036": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q037": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q038": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.1
+    },
+    "q039": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q040": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.1
+    },
+    "q041": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q042": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q043": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q044": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q045": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q046": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q047": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q048": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q049": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q050": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q051": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q052": {
+      "language": "es",
+      "ndcg": 0.06801744314752249,
+      "recall": 0.14285714285714285,
+      "hit": 1.0,
+      "judged": 0.1
+    },
+    "q053": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q054": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q055": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q056": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.1
+    },
+    "q057": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q058": {
+      "language": "es",
+      "ndcg": 0.13777597210996176,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.1
+    },
+    "q059": {
+      "language": "es",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.1
+    },
+    "q060": {
+      "language": "es",
+      "ndcg": 0.15048880767085435,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.1
+    }
+  }
+}

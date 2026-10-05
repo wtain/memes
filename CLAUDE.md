@@ -385,6 +385,21 @@ build_meme_profile_embeddings → embeds each profile's situation_text with the 
                                re-embeds when the stored vector's model name or digest differs. Run-tracked,
                                admin-triggerable, manual-trigger only; the second description_pipeline step
                                after build_meme_profiles. --reset deletes every situation embedding.
+                               Both meme-profile jobs accept --ids-file PATH (JSON list or one UUID per line,
+                               at most 20000) to restrict them to those images; --reset then only resets those.
+
+python -m evaluation        → meme-from-text evaluation harness (P6): frozen 1,500-image corpus,
+                               60 reviewed queries, human judgments and stored baselines under
+                               evaluation/gold/ (committed; sheets, pools and thumbnails stay in
+                               evaluation/work/, gitignored). Commands: build-corpus, build-pools --round N,
+                               sheet --round N, import-judgments, run --retriever {random,lexical_and,
+                               lexical_or,situation_embedding,axis_match} --label L, compare A B, list-baselines.
+                               Database commands read only: set APP_ENV and DATABASE_URL to the READ-ONLY URL
+                               (role ocr_readonly) in the shell first; the CLI refuses otherwise and never calls
+                               load_env() (it would swap in the write-capable URL). Profile the corpus with the
+                               P2 jobs and --ids-file evaluation/work/corpus.ids, not with this CLI. See
+                               evaluation/gold/README.md and
+                               docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-03-p6-evaluation-and-gold-set-design.md.
 
 build_statistics            → precomputes the statistics page's numbers into the single-row
                                statistics_snapshots table (name='corpus'), so GET
