@@ -1,6 +1,7 @@
 # P3: Query understanding (parse) — Design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-05-p3-query-understanding.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P3)
 Follow-ups: none yet (P4 retrieval and fusion consumes the parse tool defined here)
 
