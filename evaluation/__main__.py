@@ -25,7 +25,7 @@ from evaluation.report import (
 DEFAULT_GOLD = Path("evaluation/gold")
 DEFAULT_WORK = Path("evaluation/work")
 MIN_PROFILED_SHARE = 0.95
-RETRIEVER_NAMES = ("random", "lexical_and", "lexical_or", "situation_embedding", "axis_match")
+RETRIEVER_NAMES = ("random", "lexical_and", "lexical_or", "situation_embedding", "axis_match", "parsed_axis_match")
 POOL_SOURCES = ("lexical_or", "situation_embedding", "axis_match")
 POOL_DEPTH = 30
 
@@ -150,7 +150,24 @@ def _embedder_and_model():
     return OllamaEmbedder(model_name), model_name
 
 
-def _make_retriever(name: str, session, seed: int):
+def _build_parser(model: str, timeout: float | None = None):
+    """A QueryParser for `model` using the tracked parse.* settings; `timeout` overrides parse.timeout_seconds
+    (used to diagnose slow models). Experiments never edit settings: the model comes from the command line."""
+    from config.settings import settings
+    from parse.config import load_config
+    from parse.parser import QueryParser
+
+    def get(key, default=None):
+        if key == "parse.model":
+            return model
+        if key == "parse.timeout_seconds" and timeout is not None:
+            return timeout
+        return settings.get(key, default)
+
+    return QueryParser(load_config(get))
+
+
+def _make_retriever(name: str, session, seed: int, parse_model: str | None = None):
     from evaluation.retrievers.axis_match import AxisMatchRetriever
     from evaluation.retrievers.lexical import LexicalRetriever
     from evaluation.retrievers.random_retriever import RandomRetriever
@@ -166,6 +183,9 @@ def _make_retriever(name: str, session, seed: int):
     if name == "situation_embedding":
         embedder, model_name = _embedder_and_model()
         return SituationEmbeddingRetriever(session, embedder, model_name)
+    if name == "parsed_axis_match":
+        from evaluation.retrievers.parsed_axis_match import ParsedAxisMatchRetriever
+        return ParsedAxisMatchRetriever(session, _build_parser(parse_model))
     raise ValueError(f"unknown retriever {name!r}")
 
 
@@ -265,6 +285,8 @@ async def cmd_build_pools(args, gold: Path) -> int:
 
 
 async def cmd_run(args, gold: Path) -> int:
+    if args.retriever == "parsed_axis_match" and not args.parse_model:
+        return _error("--parse-model is required for the parsed_axis_match retriever")
     require_readonly()
     from evaluation.runner import run_retriever, summarize
     from Storage.db import AsyncSessionLocal
@@ -276,7 +298,7 @@ async def cmd_run(args, gold: Path) -> int:
         return _error(f"{target} already exists (use --force to replace it)")
     async with AsyncSessionLocal() as session:
         state = await _check_corpus(session, corpus, check_digest=args.retriever == "situation_embedding")
-        retriever = _make_retriever(args.retriever, session, args.seed)
+        retriever = _make_retriever(args.retriever, session, args.seed, args.parse_model)
         results = await run_retriever(retriever, queries, list(corpus.image_ids()), judgments_by_query(judgments),
                                       k=args.k)
     summary = summarize(results, corpus.strata(), judgments_by_query(judgments), k=args.k)
@@ -294,6 +316,54 @@ async def cmd_run(args, gold: Path) -> int:
     if sources:
         bias = pooling_bias(results, sources)
     print(format_report(baseline, bias))
+    print(f"wrote {target}")
+    return 0
+
+
+async def cmd_parse_eval(args, gold: Path) -> int:
+    """Runs the query parser over the reviewed gold queries and scores it against their expected profiles. Needs a
+    live Ollama (parser and embedding model); does not touch the database."""
+    import asyncio as _asyncio
+    from evaluation.parse_scoring import build_parse_report, format_parse_report, save_parse_report, score_query
+    from parse.parser import meta_to_dict
+    from parse.prompt import PARSER_VERSION
+
+    target = gold / "parse" / f"{args.label}.json"
+    if target.exists() and not args.force:
+        return _error(f"{target} already exists (use --force to replace it)")
+    queries = [q for q in load_queries(gold / "queries.json") if q.reviewed]
+    if args.max_queries:
+        queries = queries[:args.max_queries]
+    parser = _build_parser(args.model, args.timeout_seconds)
+    await parser.parse("warm up the model before measuring latency")      # not scored: loads the model
+
+    results = []
+    for query in queries:
+        results.append(await parser.parse(query.text))
+
+    similarity: dict[int, float] = {}
+    embedder, _model_name = _embedder_and_model()
+    indexed = [(i, r.profile["situation"]) for i, r in enumerate(results) if r.profile.get("situation")]
+    if indexed:
+        parsed_vectors = await _asyncio.to_thread(embedder.embed, [text for _, text in indexed])
+        expected_vectors = await _asyncio.to_thread(embedder.embed, [queries[i].expected.situation for i, _ in indexed])
+        for k, (i, _text) in enumerate(indexed):
+            similarity[i] = float(parsed_vectors[k] @ expected_vectors[k])
+
+    scores, parsed = [], {}
+    for i, (query, result) in enumerate(zip(queries, results)):
+        scores.append(score_query(query.id, query.language, query.expected, result.profile,
+                                  meta_to_dict(result.meta), similarity.get(i)))
+        parsed[query.id] = {"situation": result.profile.get("situation"),
+                            **{axis: [v["key"] for v in result.profile[axis]]
+                               for axis in ("emotion", "stance", "topic", "tone")}}
+    report = build_parse_report(
+        label=args.label, date=date_class.today().isoformat(), model=args.model, parser_version=PARSER_VERSION,
+        taxonomy_version=results[0].profile["taxonomyVersion"] if results else 0,
+        queries_sha=file_sha256(gold / "queries.json"), scores=scores, parsed=parsed)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    save_parse_report(target, report)
+    print(format_parse_report(report))
     print(f"wrote {target}")
     return 0
 
@@ -338,11 +408,19 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--seed", type=int, default=0)
     run.add_argument("--pools-dir", default=str(DEFAULT_WORK))
     run.add_argument("--force", action="store_true")
+    run.add_argument("--parse-model", default=None, help="model for the parsed_axis_match retriever")
 
     compare = commands.add_parser("compare")
     compare.add_argument("a")
     compare.add_argument("b")
     compare.add_argument("--force", action="store_true")
+
+    parse_eval = commands.add_parser("parse-eval")
+    parse_eval.add_argument("--model", required=True)
+    parse_eval.add_argument("--label", required=True)
+    parse_eval.add_argument("--max-queries", type=int, default=None)
+    parse_eval.add_argument("--timeout-seconds", type=float, default=None)
+    parse_eval.add_argument("--force", action="store_true")
 
     commands.add_parser("list-baselines")
     return parser
@@ -353,7 +431,8 @@ def main(argv=None) -> int:
     gold = Path(args.gold_dir)
     handlers = {"import-judgments": cmd_import_judgments, "compare": cmd_compare, "list-baselines": cmd_list_baselines,
                 "sheet": cmd_sheet}
-    async_handlers = {"build-corpus": cmd_build_corpus, "build-pools": cmd_build_pools, "run": cmd_run}
+    async_handlers = {"build-corpus": cmd_build_corpus, "build-pools": cmd_build_pools, "run": cmd_run,
+                      "parse-eval": cmd_parse_eval}
     try:
         if args.command in handlers:
             return handlers[args.command](args, gold)

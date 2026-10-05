@@ -156,3 +156,72 @@ async def test_situation_embedding_without_prepare_embeds_on_demand(db_session):
     result = await retriever.retrieve(_query("hello"), [str(image.id)], 10)
 
     assert [image_id for image_id, _ in result] == [str(image.id)]
+
+
+class FakeParser:
+    model = "fake-model"
+
+    def __init__(self, profile):
+        self.profile = profile
+        self.calls = []
+
+    async def parse(self, text, language_hint=None):
+        from parse.parser import ParseMeta, ParseResult
+        self.calls.append(text)
+        return ParseResult(self.profile, ParseMeta("fake-model", "p3-fake", 1, False, 1, "none"))
+
+
+def _parsed_profile(**axes):
+    profile = {"language": "en", "degraded": False, "situation": "parsed situation",
+               "emotion": [], "stance": [], "topic": [], "tone": []}
+    for axis, pairs in axes.items():
+        profile[axis] = [{"key": key, "confidence": confidence, "source": "model"} for key, confidence in pairs]
+    return profile
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_parsed_axis_match_ranks_like_axis_match_given_the_same_profile(db_session):
+    from evaluation.retrievers.parsed_axis_match import ParsedAxisMatchRetriever
+
+    strong = await _image(db_session)
+    weak = await _image(db_session)
+    await _profile(db_session, strong, emotion=[("anger", 0.9)], stance=[("mock", 0.9)])
+    await _profile(db_session, weak, emotion=[("anger", 0.3)], stance=[("refuse", 0.9)])
+    corpus = [str(strong.id), str(weak.id)]
+    parser = FakeParser(_parsed_profile(emotion=[("anger", 0.9)], stance=[("mock", 0.9)]))
+    retriever = ParsedAxisMatchRetriever(db_session, parser)
+    gold_like = _query(emotion=("anger",), stance=("mock",))
+
+    await retriever.prepare([_query("some message text")])
+    parsed_result = await retriever.retrieve(_query("some message text"), corpus, 10)
+    gold_result = await AxisMatchRetriever(db_session).retrieve(gold_like, corpus, 10)
+
+    assert parsed_result == gold_result and len(parsed_result) == 2
+    assert retriever.name == "parsed_axis_match"
+    assert retriever.config["parseModel"] == "fake-model" and retriever.config["parserVersion"].startswith("p3-")
+    assert parser.calls == ["some message text"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_parsed_axis_match_returns_nothing_for_a_degraded_parse(db_session):
+    from evaluation.retrievers.parsed_axis_match import ParsedAxisMatchRetriever
+
+    image = await _image(db_session)
+    await _profile(db_session, image, emotion=[("anger", 0.9)])
+    retriever = ParsedAxisMatchRetriever(db_session, FakeParser(_parsed_profile()))
+
+    assert await retriever.retrieve(_query("anything"), [str(image.id)], 10) == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_parsed_axis_match_parses_on_demand_when_prepare_was_skipped(db_session):
+    from evaluation.retrievers.parsed_axis_match import ParsedAxisMatchRetriever
+
+    image = await _image(db_session)
+    await _profile(db_session, image, emotion=[("anger", 0.9)])
+    parser = FakeParser(_parsed_profile(emotion=[("anger", 0.9)]))
+    retriever = ParsedAxisMatchRetriever(db_session, parser)
+
+    result = await retriever.retrieve(_query("on demand"), [str(image.id)], 10)
+
+    assert [image_id for image_id, _ in result] == [str(image.id)] and parser.calls == ["on demand"]

@@ -136,3 +136,34 @@ def test_database_commands_refuse_without_the_read_only_url(tmp_path, monkeypatc
 
     with pytest.raises(SystemExit, match="read-only"):
         cli.main(["--gold-dir", str(_gold_dir(tmp_path)), *command])
+
+
+def test_run_parsed_axis_match_requires_a_parse_model(tmp_path, capsys):
+    gold = _gold_dir(tmp_path)
+
+    code = cli.main(["--gold-dir", str(gold), "run", "--retriever", "parsed_axis_match", "--label", "x"])
+
+    assert code == 1 and "--parse-model" in capsys.readouterr().err
+
+
+def test_parsed_axis_match_is_a_retriever_choice_and_parse_model_is_an_option():
+    args = cli.build_parser().parse_args(
+        ["run", "--retriever", "parsed_axis_match", "--label", "l", "--parse-model", "m"])
+    assert args.retriever == "parsed_axis_match" and args.parse_model == "m"
+
+
+def test_parse_eval_refuses_to_overwrite_a_stored_report_without_force(tmp_path, capsys):
+    gold = _gold_dir(tmp_path)
+    (gold / "parse").mkdir()
+    (gold / "parse" / "m1.json").write_text("{}", encoding="utf-8")
+
+    code = cli.main(["--gold-dir", str(gold), "parse-eval", "--model", "qwen", "--label", "m1"])
+
+    assert code == 1 and "already exists" in capsys.readouterr().err
+    assert (gold / "parse" / "m1.json").read_text(encoding="utf-8") == "{}"
+
+
+def test_parse_eval_options():
+    args = cli.build_parser().parse_args(["parse-eval", "--model", "m", "--label", "l", "--max-queries", "5",
+                                          "--timeout-seconds", "9", "--force"])
+    assert (args.model, args.label, args.max_queries, args.timeout_seconds, args.force) == ("m", "l", 5, 9.0, True)
