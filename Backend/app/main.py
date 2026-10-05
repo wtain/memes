@@ -20,6 +20,7 @@ from Backend.app.api.bug_reports import router as bug_reports_router
 from Backend.app.api.ingestion import router as ingestion_router
 from Backend.app.api.admin import router as admin_router
 from Backend.app.scheduler import start_scheduler, stop_scheduler
+from Backend.app.services.query_parser import get_query_parser
 from config.settings import settings
 
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
@@ -64,6 +65,10 @@ def _configure_logging() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _configure_logging()
+    try:
+        get_query_parser()      # builds and registers the parser (no Ollama call); a failure must not stop the app
+    except Exception as error:
+        logging.getLogger(__name__).warning("query parser could not be built: %s", type(error).__name__)
     scheduler_tasks = await start_scheduler()
     yield
     await stop_scheduler(scheduler_tasks)

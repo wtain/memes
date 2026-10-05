@@ -16,9 +16,15 @@ class ParsedAxisMatchRetriever:
         self._inner = AxisMatchRetriever(session)
         self._parser = parser
         self._parsed: dict[str, ExpectedProfile] = {}
+        self._warmed = False
         self.config = {"parseModel": getattr(parser, "model", ""), "parserVersion": PARSER_VERSION}
 
     async def prepare(self, queries: Sequence[GoldQuery]) -> None:
+        if not self._warmed:
+            self._warmed = True
+            warm_up = getattr(self._parser, "warm_up", None)
+            if warm_up is not None:
+                await warm_up()
         for query in queries:
             result = await self._parser.parse(query.text)
             profile = result.profile

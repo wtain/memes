@@ -2,7 +2,7 @@ import pytest
 
 from evaluation.gold import ExpectedProfile
 from evaluation.parse_scoring import (
-    AxisScore, QueryParseScore, aggregate_parse, build_parse_report, format_parse_report, load_parse_report,
+    AxisScore, aggregate_parse, build_parse_report, format_parse_report, load_parse_report,
     percentile, save_parse_report, score_axis, score_query, summarize_parse,
 )
 

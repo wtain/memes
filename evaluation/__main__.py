@@ -335,7 +335,7 @@ async def cmd_parse_eval(args, gold: Path) -> int:
     if args.max_queries:
         queries = queries[:args.max_queries]
     parser = _build_parser(args.model, args.timeout_seconds)
-    await parser.parse("warm up the model before measuring latency")      # not scored: loads the model
+    await parser.warm_up()      # not scored: loads the model
 
     results = []
     for query in queries:

@@ -250,3 +250,59 @@ def test_degraded_result_and_meta_dict_shapes():
 
 def test_degraded_result_uses_the_hint_only_when_nothing_can_be_guessed():
     assert degraded_result("123", "es", TAX, "unavailable", model="", parser_version="v").profile["language"] == "es"
+
+
+@pytest.mark.asyncio
+async def test_warm_up_makes_one_long_timeout_call_and_caches_nothing():
+    parser, client = _parser(VALID, VALID)
+
+    assert await parser.warm_up() is True
+    assert len(client.calls) == 1 and client.calls[0]["timeout"] == 120.0
+
+    result = await parser.parse("warm up the model")
+
+    assert len(client.calls) == 2 and result.meta.cache_hit is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [ParserTimeout("slow"), ParserUnavailable("down"), RuntimeError("SECRET-MARKER-777")])
+async def test_warm_up_returns_false_and_never_raises(error, caplog):
+    parser, _client = _parser(error)
+    caplog.set_level(logging.DEBUG)
+
+    assert await parser.warm_up() is False
+    assert "SECRET-MARKER-777" not in caplog.text and "warm up the model" not in caplog.text
+
+
+def test_a_semaphore_is_not_bound_to_the_first_event_loop():
+    parser = QueryParser(_config(max_concurrent=1), client=None, tax=TAX)
+
+    async def slow():
+        await asyncio.sleep(0.05)
+        return VALID
+
+    for run in range(2):
+        parser._client = FakeClient(slow, slow)
+        parser._cache = type(parser._cache)(10)
+
+        async def both():
+            return await asyncio.gather(parser.parse(f"first {run}"), parser.parse(f"second {run}"))
+
+        results = asyncio.run(both())
+        assert [r.profile["degraded"] for r in results] == [False, False]
+
+
+@pytest.mark.asyncio
+async def test_a_parse_waits_for_a_free_slot_and_then_succeeds():
+    async def slow():
+        await asyncio.sleep(0.2)
+        return VALID
+
+    parser, _client = _parser(slow, VALID, max_concurrent=1, timeout_seconds=5.0)
+    first = asyncio.create_task(parser.parse("first message"))
+    await asyncio.sleep(0.02)
+
+    second = await parser.parse("second message")
+
+    assert second.profile["degraded"] is False and second.meta.latency_ms >= 150
+    assert (await first).profile["degraded"] is False

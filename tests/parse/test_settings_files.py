@@ -13,7 +13,7 @@ def test_common_file_has_every_parse_key_with_the_expected_value_types():
     parse = _load("settings.yaml")["parse"]
 
     assert parse["timeout_seconds"] == 5.0 and parse["retry_min_seconds"] == 1.5
-    assert parse["max_concurrent"] == 2 and parse["num_ctx"] == 4096 and parse["seed"] == 42
+    assert parse["max_concurrent"] == 2 and parse["num_ctx"] == 8192 and parse["seed"] == 42
     assert parse["keep_alive"] == "30m" and parse["cache_size"] == 500 and parse["max_input_chars"] == 600
     assert parse["ollama_url"] == "http://127.0.0.1:11434"
     assert "model" not in parse, "the model lives only in the general and metal overlays"

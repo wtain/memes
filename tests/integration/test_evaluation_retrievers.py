@@ -225,3 +225,23 @@ async def test_parsed_axis_match_parses_on_demand_when_prepare_was_skipped(db_se
     result = await retriever.retrieve(_query("on demand"), [str(image.id)], 10)
 
     assert [image_id for image_id, _ in result] == [str(image.id)] and parser.calls == ["on demand"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_parsed_axis_match_warms_the_parser_up_exactly_once(db_session):
+    from evaluation.retrievers.parsed_axis_match import ParsedAxisMatchRetriever
+
+    class WarmParser(FakeParser):
+        warm_ups = 0
+
+        async def warm_up(self):
+            self.warm_ups += 1
+            return True
+
+    parser = WarmParser(_parsed_profile())
+    retriever = ParsedAxisMatchRetriever(db_session, parser)
+
+    await retriever.prepare([_query("one")])
+    await retriever.prepare([_query("two")])
+
+    assert parser.warm_ups == 1 and parser.calls == ["one", "two"]

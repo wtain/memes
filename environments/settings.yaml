@@ -185,7 +185,7 @@ parse:
   timeout_seconds: 5.0     # total budget for one parse including queueing (NFR-1: p95 8 s with retrieval)
   retry_min_seconds: 1.5   # retry an unusable answer only if at least this much of the budget remains
   max_concurrent: 2
-  num_ctx: 4096
+  num_ctx: 8192            # keep equal to meme_profiles.num_ctx while both use the same model (Ollama reloads the model when num_ctx differs)
   seed: 42
   keep_alive: 30m          # keeps the model loaded between queries
   cache_size: 500

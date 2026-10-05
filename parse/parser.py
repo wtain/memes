@@ -61,6 +61,15 @@ def meta_to_dict(meta: ParseMeta) -> dict:
             "cacheHit": meta.cache_hit, "attempts": meta.attempts, "fallback": meta.fallback}
 
 
+def log_result(result: ParseResult) -> None:
+    meta, profile = result.meta, result.profile
+    logger.info(
+        "parse model=%s parser_version=%s taxonomy_version=%s language=%s degraded=%s fallback=%s "
+        "attempts=%s cache_hit=%s latency_ms=%s",
+        meta.model, meta.parser_version, profile["taxonomyVersion"], profile["language"], profile["degraded"],
+        meta.fallback, meta.attempts, meta.cache_hit, meta.latency_ms)
+
+
 class QueryParser:
     def __init__(self, config: ParseConfig, client=None, tax: Taxonomy | None = None, *,
                  parser_version: str = PARSER_VERSION, clock=time.monotonic):
@@ -71,8 +80,25 @@ class QueryParser:
         self._client = client or OllamaChatClient(
             config.ollama_url, seed=config.seed, num_ctx=config.num_ctx, keep_alive=config.keep_alive)
         self._cache = ParseCache(config.cache_size)
-        self._gate = asyncio.Semaphore(config.max_concurrent)
+        self._gate_state: tuple | None = None      # (loop, semaphore): a semaphore binds to one event loop
         self._clock = clock
+
+    def _gate_for_running_loop(self) -> asyncio.Semaphore:
+        loop = asyncio.get_running_loop()
+        if self._gate_state is None or self._gate_state[0] is not loop:
+            self._gate_state = (loop, asyncio.Semaphore(self._config.max_concurrent))
+        return self._gate_state[1]
+
+    async def warm_up(self, timeout_seconds: float = 120.0) -> bool:
+        """One fixed, harmless call that loads the model. Caches nothing, never raises, logs no text."""
+        text = "warm up the model"
+        try:
+            await self._client.achat(self._config.model, build_messages(text, self._tax), self._schema,
+                                     timeout_seconds)
+        except Exception as error:
+            logger.warning("warm-up failed: %s", type(error).__name__)
+            return False
+        return True
 
     @property
     def model(self) -> str:
@@ -103,13 +129,14 @@ class QueryParser:
 
         deadline = start + self._config.timeout_seconds
         try:
-            await asyncio.wait_for(self._gate.acquire(), timeout=max(deadline - self._clock(), 0))
+            gate = self._gate_for_running_loop()
+            await asyncio.wait_for(gate.acquire(), timeout=max(deadline - self._clock(), 0))
         except asyncio.TimeoutError:
             return self._degraded(normalised, hint, "timeout", 0, start)
         try:
             profile, fallback, attempts = await self._attempts(normalised, deadline)
         finally:
-            self._gate.release()
+            gate.release()
         if profile is None:
             return self._degraded(normalised, hint, fallback, attempts, start)
         result = ParseResult(profile, ParseMeta(
@@ -150,9 +177,4 @@ class QueryParser:
         return int((self._clock() - start) * 1000)
 
     def _log(self, result: ParseResult) -> None:
-        meta, profile = result.meta, result.profile
-        logger.info(
-            "parse model=%s parser_version=%s taxonomy_version=%s language=%s degraded=%s fallback=%s "
-            "attempts=%s cache_hit=%s latency_ms=%s",
-            meta.model, meta.parser_version, profile["taxonomyVersion"], profile["language"], profile["degraded"],
-            meta.fallback, meta.attempts, meta.cache_hit, meta.latency_ms)
+        log_result(result)

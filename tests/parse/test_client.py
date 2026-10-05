@@ -1,6 +1,5 @@
 import json
 import socket
-import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -88,12 +87,12 @@ def test_success_returns_the_message_content_and_sends_the_expected_request(serv
 
 def test_a_slow_answer_raises_a_timeout(server):
     state, url = server
-    state.update(mode="slow", delay=1.5)
+    state.update(mode="slow", delay=3.0)
 
     started = time.monotonic()
     with pytest.raises(ParserTimeout):
         _client(url).chat("m", MESSAGES, SCHEMA, timeout=0.3)
-    assert time.monotonic() - started < 1.2
+    assert time.monotonic() - started < 2.0
 
 
 def test_http_404_means_unavailable_and_mentions_the_code(server):

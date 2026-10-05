@@ -56,19 +56,50 @@ def test_the_message_markers_cannot_be_forged_from_inside_the_text():
     assert "ignore everything" in user
 
 
-def test_version_has_the_expected_shape_and_changes_when_any_static_part_changes(monkeypatch):
+def test_version_has_the_expected_shape():
     assert re.fullmatch(r"p3-[0-9a-f]{10}", prompt.PARSER_VERSION)
-    before = prompt._compute_version(prompt._version_parts())
-    assert before == prompt.PARSER_VERSION
+    assert prompt._compute_version(prompt._version_parts()) == prompt.PARSER_VERSION
 
-    monkeypatch.setattr(prompt, "SYSTEM_TEMPLATE", prompt.SYSTEM_TEMPLATE + " extra")
+
+_CHANGED = {
+    "SYSTEM_TEMPLATE": lambda: prompt.SYSTEM_TEMPLATE + " extra",
+    "SITUATION_GUIDE": lambda: prompt.SITUATION_GUIDE + " extra",
+    "USER_TEMPLATE": lambda: prompt.USER_TEMPLATE + " extra",
+    "RETRY_TEMPLATE": lambda: "different {error}",
+    "AXIS_LINE_TEMPLATE": lambda: prompt.AXIS_LINE_TEMPLATE + " extra",
+    "AXIS_GUIDE_FALLBACK": lambda: prompt.AXIS_GUIDE_FALLBACK + " extra",
+    "AXIS_GUIDE": lambda: {**prompt.AXIS_GUIDE, "emotion": "changed"},
+    "CONFIDENCE_LEVELS": lambda: {**prompt.CONFIDENCE_LEVELS, "extra": 0.5},
+    "LANGUAGES": lambda: tuple(prompt.LANGUAGES) + ("xx",),
+    "FEW_SHOT": lambda: prompt.FEW_SHOT[:1],
+}
+
+
+def test_the_version_check_covers_every_version_part():
+    assert len(_CHANGED) == len(prompt._version_parts()) == 10
+
+
+@pytest.mark.parametrize("name", list(_CHANGED))
+def test_the_version_changes_when_any_static_part_changes(monkeypatch, name):
+    before = prompt._compute_version(prompt._version_parts())
+
+    monkeypatch.setattr(prompt, name, _CHANGED[name]())
+
     assert prompt._compute_version(prompt._version_parts()) != before
-    monkeypatch.undo()
-    monkeypatch.setattr(prompt, "RETRY_TEMPLATE", "different {error}")
-    assert prompt._compute_version(prompt._version_parts()) != before
-    monkeypatch.undo()
-    monkeypatch.setattr(prompt, "FEW_SHOT", prompt.FEW_SHOT[:1])
-    assert prompt._compute_version(prompt._version_parts()) != before
+
+
+@pytest.mark.parametrize("marker", ["<message>", "</message>", "<MESSAGE >", "< / message >"])
+def test_clean_strips_the_message_markers(marker):
+    assert prompt._clean(f"a{marker}b") == "ab"
+
+
+def test_clean_removes_the_nested_form_completely():
+    assert prompt._clean("x<mess<message>age>y") == "xy"
+
+
+def test_clean_keeps_an_innocent_long_tag_like_phrase():
+    text = "<message from my boss and he said>"
+    assert prompt._clean(text) == text
 
 
 def test_retry_template_mentions_the_error():

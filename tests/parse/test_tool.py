@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,10 @@ def _assert_matches_queryprofile(profile):
     assert profile["language"] in schema["properties"]["language"]["enum"]
     for axis in ("emotion", "stance", "topic", "tone"):
         assert isinstance(profile[axis], list)
+        for item in profile[axis]:
+            assert isinstance(item["key"], str)
+            assert isinstance(item["confidence"], (int, float)) and 0 <= item["confidence"] <= 1
+            assert item["source"] in ("model", "human")
 
 
 @pytest.mark.asyncio
@@ -35,6 +40,7 @@ async def test_parse_query_returns_profile_and_camel_case_meta():
 
     assert set(output) == {"profile", "meta"}
     _assert_matches_queryprofile(output["profile"])
+    assert output["profile"]["emotion"], "a non-degraded profile has axis items to check"
     assert set(output["meta"]) == {"model", "parserVersion", "latencyMs", "cacheHit", "attempts", "fallback"}
     assert output["meta"]["fallback"] == "none" and output["profile"]["degraded"] is False
 
@@ -68,3 +74,15 @@ def test_get_parser_returns_what_was_set():
     parser = QueryParser(BASE, client=FakeClient(), tax=TAX)
     tool.set_parser(parser)
     assert tool.get_parser() is parser
+
+
+@pytest.mark.asyncio
+async def test_the_unconfigured_path_logs_one_info_line_and_never_the_text(caplog):
+    caplog.set_level(logging.DEBUG)
+
+    await tool.parse_query({"text": "SECRET-MARKER-42 hello"})
+
+    records = [r for r in caplog.records if r.name == "parse"]
+    assert len(records) == 1 and records[0].levelno == logging.INFO
+    assert "fallback=unavailable" in records[0].getMessage()
+    assert "SECRET-MARKER-42" not in caplog.text

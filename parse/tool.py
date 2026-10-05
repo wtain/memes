@@ -2,7 +2,7 @@
 cache and the local LLM call) that P4 and a later agent layer call. Pure: stdlib and parse/taxonomy only."""
 from taxonomy.loader import load
 
-from parse.parser import QueryParser, degraded_result, meta_to_dict
+from parse.parser import QueryParser, degraded_result, log_result, meta_to_dict
 from parse.prompt import PARSER_VERSION
 from parse.schema import LANGUAGES
 
@@ -59,6 +59,7 @@ async def parse_query(arguments) -> dict:
     parser = _parser
     if parser is None:
         result = degraded_result(text, hint, load(), "unavailable", model="", parser_version=PARSER_VERSION)
+        log_result(result)
     else:
         result = await parser.parse(text, hint)
     return {"profile": result.profile, "meta": meta_to_dict(result.meta)}

@@ -91,7 +91,7 @@ PARSER_VERSION = _compute_version(_version_parts())
 def _clean(text: str) -> str:
     """Remove every tag-like occurrence of the message markers (case-insensitive, optional spaces), repeated to a
     fixed point, so the text cannot close or reopen the delimited block."""
-    pattern = r"<\s*/?\s*message[^>]*>"
+    pattern = r"<\s*/?\s*message\b[^>]{0,20}>"
     previous = None
     while previous != text:
         previous = text
