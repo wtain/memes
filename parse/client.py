@@ -5,6 +5,7 @@ socket operation); the response is not streamed, so a normal answer arrives in o
 later changes only this file. The error messages never contain the user's text.
 """
 import asyncio
+import http.client
 import json
 import urllib.error
 import urllib.request
@@ -54,6 +55,8 @@ class OllamaChatClient:
             if isinstance(error.reason, TimeoutError):
                 raise ParserTimeout("Ollama did not answer in time") from None
             raise ParserUnavailable("Ollama is not reachable") from None
+        except http.client.HTTPException:
+            raise ParserUnavailable("Ollama closed the connection or sent a malformed response") from None
         except TimeoutError:
             raise ParserTimeout("Ollama did not answer in time") from None
         except OSError:

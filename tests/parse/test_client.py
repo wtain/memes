@@ -1,5 +1,6 @@
 import json
 import socket
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -47,6 +48,17 @@ def server():
                 return self._send(200, b'{"done": true}')
             if state["mode"] == "bad_content":
                 return self._send(200, b'{"message": {"content": 5}}')
+            if state["mode"] == "incomplete_read":
+                # Send Content-Length > actual body, then close connection (triggers IncompleteRead)
+                try:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", "1000")  # Promise 1000 bytes
+                    self.end_headers()
+                    self.wfile.write(b'{"message": {"content": "x"}')  # Send less, close connection
+                except OSError:
+                    pass
+                return
             self._send(200, json.dumps({"message": {"role": "assistant", "content": state["content"]}}).encode())
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -106,15 +118,25 @@ def test_a_malformed_response_is_a_bad_response(server, mode):
         _client(url).chat("m", MESSAGES, SCHEMA, timeout=2.0)
 
 
+def test_incomplete_read_means_unavailable(server):
+    state, url = server
+    state["mode"] = "incomplete_read"
+    with pytest.raises(ParserUnavailable):
+        _client(url).chat("m", MESSAGES, SCHEMA, timeout=2.0)
+
+
 def test_connection_refused_means_unavailable():
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     sock.close()
 
-    # On Windows, a closed port may timeout instead of refuse; both are unavailable
+    # On Windows, a closed loopback port may be reported as a timeout instead of an immediate refusal
+    started = time.monotonic()
     with pytest.raises((ParserUnavailable, ParserTimeout)):
-        _client(f"http://127.0.0.1:{port}").chat("m", MESSAGES, SCHEMA, timeout=2.0)
+        _client(f"http://127.0.0.1:{port}").chat("m", MESSAGES, SCHEMA, timeout=0.3)
+    elapsed = time.monotonic() - started
+    assert elapsed < 1.3
 
 
 def test_no_time_left_raises_a_timeout_without_calling_the_server(server):
