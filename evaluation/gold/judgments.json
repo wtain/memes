@@ -11,6 +11,62 @@
     },
     {
       "queryId": "q001",
+      "imageId": "0a5a483f-f7c3-4cbb-a726-faceb63fd8bc",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
+      "imageId": "0f17cc05-5a88-4099-93af-ebae120b1269",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
+      "imageId": "11ad1eac-ecce-4c28-8863-e2ccc217fc6f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
+      "imageId": "13677d5f-3abd-490d-a2bd-33826ff32809",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
+      "imageId": "44cb3773-f13f-4192-bcac-165e32066adc",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
+      "imageId": "45421c17-c140-4ce5-96c8-75b3c3634442",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
+      "imageId": "468afce6-18a0-406c-b721-e14234a78553",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
       "imageId": "4cc876c2-ad26-4c16-a98b-0ea4051cb9da",
       "grade": 1,
       "rater": "ramiz",
@@ -32,6 +88,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q001",
+      "imageId": "77983b93-2424-4f2f-a8a4-9d45f2fccfdf",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q001",
@@ -83,6 +147,14 @@
     },
     {
       "queryId": "q001",
+      "imageId": "ce9cc15b-474e-45c9-aa3a-c5b9f1191e30",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
       "imageId": "d3ce3620-bc32-4360-a685-c037dc656f13",
       "grade": 1,
       "rater": "ramiz",
@@ -91,11 +163,27 @@
     },
     {
       "queryId": "q001",
+      "imageId": "d578a85d-646d-4495-acbb-fde2ff976042",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q001",
       "imageId": "f28c797b-e37a-40c3-96ca-686f2cce6516",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q002",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q002",
@@ -115,11 +203,35 @@
     },
     {
       "queryId": "q002",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q002",
       "imageId": "1c892f21-f4ad-47a6-b7b9-d91eb8339464",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q002",
+      "imageId": "2cfb2b4f-5559-4fa2-856d-e98f5a9c02e1",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q002",
+      "imageId": "37ad6db6-024c-4da9-b74b-ec97bfc56c25",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q002",
@@ -136,6 +248,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q002",
+      "imageId": "61d5cab0-554c-4017-a675-b2c092551729",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q002",
+      "imageId": "7652d717-2027-4174-86f6-1bb9cfda1116",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q002",
@@ -219,6 +347,54 @@
     },
     {
       "queryId": "q003",
+      "imageId": "0a5a483f-f7c3-4cbb-a726-faceb63fd8bc",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
+      "imageId": "0f165de9-7920-4910-b680-2be7f9fe804f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
+      "imageId": "0f17cc05-5a88-4099-93af-ebae120b1269",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
+      "imageId": "104b5124-0f4d-44e4-b34a-2c7e8bdd810d",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
+      "imageId": "11ad1eac-ecce-4c28-8863-e2ccc217fc6f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
+      "imageId": "12459a20-4fa0-4a39-9633-68ef621db62b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
       "imageId": "26ae386c-9c47-42a6-9371-2b3bdfc7ec14",
       "grade": 0,
       "rater": "ramiz",
@@ -227,11 +403,35 @@
     },
     {
       "queryId": "q003",
+      "imageId": "2b9e4884-97c5-4bbb-8c6c-19d4745fb80f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
       "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q003",
+      "imageId": "406dd0ea-e1e3-4dd1-a4c9-b97d4b0cbc06",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
+      "imageId": "40d6e41f-0f68-4580-b909-f125d3b968d1",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q003",
@@ -275,6 +475,14 @@
     },
     {
       "queryId": "q003",
+      "imageId": "b4788f8f-d67c-4af3-abc0-9711960b00e0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q003",
       "imageId": "cd1d529c-13ca-400d-a28f-611bb605798f",
       "grade": 0,
       "rater": "ramiz",
@@ -307,11 +515,67 @@
     },
     {
       "queryId": "q004",
+      "imageId": "06121aa0-2e0c-48e7-a27b-06799bf64481",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q004",
+      "imageId": "09673297-dfb0-4e82-84ae-68c4d9dd6840",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q004",
+      "imageId": "12fabac6-d46a-46cc-99bf-cb52b0bebb48",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q004",
       "imageId": "15a788ab-37ee-4d3c-b391-c93cd93c55ea",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q004",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q004",
+      "imageId": "1b0641fd-c950-4c34-b15b-209512228a0c",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q004",
+      "imageId": "2a008682-c738-45fc-af43-519288c95830",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q004",
+      "imageId": "305831b7-9d23-42e5-bb91-52cdc94ffc5c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q004",
@@ -419,11 +683,43 @@
     },
     {
       "queryId": "q005",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q005",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q005",
       "imageId": "7795ec2a-1fe5-4ad8-80a9-f39a4da4d3b7",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q005",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q005",
+      "imageId": "89dc864d-aa2a-4b40-9439-bc51f9466eb6",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q005",
@@ -443,11 +739,27 @@
     },
     {
       "queryId": "q005",
+      "imageId": "93a34fc6-e18f-4d5e-881f-cc2d90a8bd9e",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q005",
       "imageId": "993f1dbd-3938-45f9-870b-417030e758c7",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q005",
+      "imageId": "b892585c-ccab-414a-8e5f-579694135695",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q005",
@@ -483,6 +795,14 @@
     },
     {
       "queryId": "q006",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q006",
       "imageId": "0a22ffec-87d1-4fb1-a8c2-85be7843ef9a",
       "grade": 0,
       "rater": "ramiz",
@@ -499,6 +819,22 @@
     },
     {
       "queryId": "q006",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q006",
+      "imageId": "3bcd9cd8-8436-4acc-be29-568da6af4c51",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q006",
       "imageId": "3f754c8f-a333-4c12-87a5-b45ffab6ccaa",
       "grade": 1,
       "rater": "ramiz",
@@ -512,6 +848,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q006",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q006",
@@ -547,6 +891,14 @@
     },
     {
       "queryId": "q006",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q006",
       "imageId": "9b27844e-3fda-4c76-bece-7bd35551a66e",
       "grade": 1,
       "rater": "ramiz",
@@ -563,11 +915,43 @@
     },
     {
       "queryId": "q006",
+      "imageId": "c1d9e2a3-77ce-4228-92fc-09fe09af0640",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q006",
       "imageId": "dcdd35d8-1d52-4de8-964e-368756e42b69",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q006",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q007",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q007",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q007",
@@ -587,6 +971,14 @@
     },
     {
       "queryId": "q007",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q007",
       "imageId": "255dc67e-af00-48a0-95e8-02e2bb3f09ab",
       "grade": 2,
       "rater": "ramiz",
@@ -603,6 +995,14 @@
     },
     {
       "queryId": "q007",
+      "imageId": "42c81738-6839-44f1-9fc2-02bc817148ce",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q007",
       "imageId": "4b02c144-c607-4311-a234-4ed1fe2dad3b",
       "grade": 0,
       "rater": "ramiz",
@@ -611,11 +1011,35 @@
     },
     {
       "queryId": "q007",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q007",
+      "imageId": "54136ade-cd63-40fc-912d-d1d5e44529d0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q007",
       "imageId": "661b99a3-7e67-4e59-9a2b-6c856565467b",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q007",
+      "imageId": "66894282-b1a1-4ece-9f04-8cbddde03d7b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q007",
@@ -643,6 +1067,14 @@
     },
     {
       "queryId": "q007",
+      "imageId": "887c84c5-4f8e-4434-91fb-b56d668bff54",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q007",
       "imageId": "9955d874-7735-4138-8bc3-3131ff416260",
       "grade": 0,
       "rater": "ramiz",
@@ -664,6 +1096,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q007",
+      "imageId": "c9bd5d17-a9e6-411c-a062-15cd46490b89",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q008",
@@ -691,6 +1131,14 @@
     },
     {
       "queryId": "q008",
+      "imageId": "357b4632-6b1f-47d2-80fa-564dd0077e7d",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q008",
       "imageId": "39154153-3ded-49f1-abf5-293a75f7705d",
       "grade": 1,
       "rater": "ramiz",
@@ -707,11 +1155,27 @@
     },
     {
       "queryId": "q008",
+      "imageId": "6751cab4-35c6-49a5-bb01-0ae2fe70be15",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q008",
       "imageId": "6bd5cd9d-e851-413b-8257-ab534c60356b",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q008",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q008",
@@ -723,11 +1187,35 @@
     },
     {
       "queryId": "q008",
+      "imageId": "84b223d2-ea4d-4d51-ac8e-e4392ffb49d4",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q008",
+      "imageId": "86446085-be71-4867-a4e0-cd20fea8c4cd",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q008",
       "imageId": "8b10b735-4479-44fc-95ec-ccd3b4144951",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q008",
+      "imageId": "8cbd64aa-bae8-489f-aacf-228bc34c6cce",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q008",
@@ -755,11 +1243,35 @@
     },
     {
       "queryId": "q008",
+      "imageId": "f5246cf8-f117-449c-8db1-25ff1f6f4b80",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q008",
       "imageId": "fa1bdcf4-7054-46c3-a747-81417956f00a",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q009",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q009",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q009",
@@ -779,6 +1291,14 @@
     },
     {
       "queryId": "q009",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q009",
       "imageId": "45985cd2-bda3-4487-9522-5a4b44603a9b",
       "grade": 0,
       "rater": "ramiz",
@@ -787,11 +1307,35 @@
     },
     {
       "queryId": "q009",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q009",
       "imageId": "73673a1a-bff4-4e6d-ba63-d6c4225fab1e",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q009",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q009",
+      "imageId": "8a947736-3d5c-4567-8013-081346acf5b3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q009",
@@ -819,6 +1363,14 @@
     },
     {
       "queryId": "q009",
+      "imageId": "c1d9e2a3-77ce-4228-92fc-09fe09af0640",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q009",
       "imageId": "c9bd5d17-a9e6-411c-a062-15cd46490b89",
       "grade": 2,
       "rater": "ramiz",
@@ -832,6 +1384,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q009",
+      "imageId": "d7ca586c-7406-4e17-9665-427854d1de3d",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q009",
@@ -859,6 +1419,46 @@
     },
     {
       "queryId": "q010",
+      "imageId": "00f81da1-7ca9-4cc8-9369-e5312f464c88",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q010",
+      "imageId": "02e0466b-a353-40a2-bb6a-e15ab7cd6e5e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q010",
+      "imageId": "06121aa0-2e0c-48e7-a27b-06799bf64481",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q010",
+      "imageId": "07699f55-3bfc-4258-ab79-820a24ec8039",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q010",
+      "imageId": "09b94202-027f-4649-849a-40e932a35ad2",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q010",
       "imageId": "0a46bdcc-c605-4824-b661-6683b3f6d8b1",
       "grade": 0,
       "rater": "ramiz",
@@ -867,11 +1467,43 @@
     },
     {
       "queryId": "q010",
+      "imageId": "0a5a483f-f7c3-4cbb-a726-faceb63fd8bc",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q010",
       "imageId": "0eeeac0a-3bc2-4fe1-b3d2-b513f8520917",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q010",
+      "imageId": "20eebf1f-953c-43eb-b130-c9848ad581f0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q010",
+      "imageId": "33a2ec53-61d1-4271-860a-3c10673feed7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q010",
+      "imageId": "426c45c1-3535-411b-97f3-44117f3ae762",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q010",
@@ -955,6 +1587,22 @@
     },
     {
       "queryId": "q011",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q011",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q011",
       "imageId": "07699f55-3bfc-4258-ab79-820a24ec8039",
       "grade": 2,
       "rater": "ramiz",
@@ -979,6 +1627,14 @@
     },
     {
       "queryId": "q011",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q011",
       "imageId": "1c892f21-f4ad-47a6-b7b9-d91eb8339464",
       "grade": 0,
       "rater": "ramiz",
@@ -987,11 +1643,43 @@
     },
     {
       "queryId": "q011",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q011",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q011",
       "imageId": "57877387-c732-4c9a-9cd9-bc1a1b5e1040",
       "grade": 2,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q011",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q011",
+      "imageId": "8a947736-3d5c-4567-8013-081346acf5b3",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q011",
@@ -1027,11 +1715,27 @@
     },
     {
       "queryId": "q011",
+      "imageId": "baaa8fed-8c48-40a5-84ce-e74ce27415c6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q011",
       "imageId": "baef5b96-baad-439f-b5fc-37f74643938d",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q011",
+      "imageId": "d7ca586c-7406-4e17-9665-427854d1de3d",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q011",
@@ -1056,6 +1760,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q012",
+      "imageId": "0dd4737c-2fec-4c93-974f-8f85a1f60fde",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q012",
@@ -1099,6 +1811,22 @@
     },
     {
       "queryId": "q012",
+      "imageId": "4cb10563-7433-43be-9bbc-e5f86376ad02",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q012",
+      "imageId": "7efd7b3f-d9f5-4704-96a6-510f3f67e6b9",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q012",
       "imageId": "977defc8-813b-4d3c-84f0-b13719180984",
       "grade": 0,
       "rater": "ramiz",
@@ -1107,11 +1835,35 @@
     },
     {
       "queryId": "q012",
+      "imageId": "aa56c42d-d33d-46f0-b05a-d3fbd28deb38",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q012",
       "imageId": "aac5cfe2-9502-4df4-858d-48f0530ee446",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q012",
+      "imageId": "b68e7578-8f31-46e0-b45f-5df0093fda33",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q012",
+      "imageId": "c241ea54-9150-41c1-b933-4f1d8b360fe7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q012",
@@ -1139,6 +1891,14 @@
     },
     {
       "queryId": "q012",
+      "imageId": "da45e3d3-4abb-442a-b1c9-87735fb2b05f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q012",
       "imageId": "f8755d47-9b81-42e0-bb01-2458f026411e",
       "grade": 0,
       "rater": "ramiz",
@@ -1147,11 +1907,35 @@
     },
     {
       "queryId": "q013",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q013",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q013",
       "imageId": "124facde-e3e9-4c8c-bf06-7e3b9f102dd9",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q013",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q013",
@@ -1171,6 +1955,14 @@
     },
     {
       "queryId": "q013",
+      "imageId": "42c81738-6839-44f1-9fc2-02bc817148ce",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q013",
       "imageId": "46a22f33-c926-48dc-acf1-081e2e173b50",
       "grade": 0,
       "rater": "ramiz",
@@ -1179,11 +1971,43 @@
     },
     {
       "queryId": "q013",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q013",
+      "imageId": "54136ade-cd63-40fc-912d-d1d5e44529d0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q013",
+      "imageId": "66894282-b1a1-4ece-9f04-8cbddde03d7b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q013",
       "imageId": "712eadf5-e7b9-409c-88f9-b6d61373ac5d",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q013",
+      "imageId": "7322a39c-7c49-48af-b2c5-d93b8c8ba68c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q013",
@@ -1203,6 +2027,14 @@
     },
     {
       "queryId": "q013",
+      "imageId": "b04e63f2-28b7-458c-b3a0-dc1285caac63",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q013",
       "imageId": "bf07c26f-df9a-4f2a-8d7b-e912d3e070d9",
       "grade": 1,
       "rater": "ramiz",
@@ -1216,6 +2048,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q013",
+      "imageId": "c9bd5d17-a9e6-411c-a062-15cd46490b89",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q013",
@@ -1240,6 +2080,30 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q014",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q014",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q014",
+      "imageId": "0cb687be-08e2-4537-b2c4-3511fd07f099",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q014",
@@ -1291,11 +2155,27 @@
     },
     {
       "queryId": "q014",
+      "imageId": "62c588d6-e47d-4e6e-8462-f6b3fd2dc761",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q014",
       "imageId": "665ea4b8-6709-4fae-9742-8e7c073bc1f7",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q014",
+      "imageId": "7652d717-2027-4174-86f6-1bb9cfda1116",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q014",
@@ -1307,11 +2187,27 @@
     },
     {
       "queryId": "q014",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q014",
       "imageId": "94e26a73-b814-4e4a-a106-87bef4abc6b0",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q014",
+      "imageId": "dcdd35d8-1d52-4de8-964e-368756e42b69",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q014",
@@ -1328,6 +2224,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q014",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q014",
@@ -1355,6 +2259,22 @@
     },
     {
       "queryId": "q015",
+      "imageId": "4808d19e-866a-43fd-a36d-f5d7ff3f004b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q015",
+      "imageId": "4d3581c2-2c75-4319-997e-ce7569305137",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q015",
       "imageId": "5625a14b-9914-4983-ad6d-580dc843f4c9",
       "grade": 0,
       "rater": "ramiz",
@@ -1363,11 +2283,51 @@
     },
     {
       "queryId": "q015",
+      "imageId": "5f72179d-cf93-49e4-bc0a-cc52061d1e6c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q015",
+      "imageId": "606fadb6-35cf-4689-9207-d432282baaf1",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q015",
       "imageId": "60e7590b-ddbf-44f5-9bf8-603037b3138a",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q015",
+      "imageId": "763ca7dd-3099-4f2b-9d7d-b28664576e64",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q015",
+      "imageId": "78eb9d41-81fe-468e-a187-5db73ba940eb",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q015",
+      "imageId": "7be35976-da28-4252-9240-981988b49f63",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q015",
@@ -1411,6 +2371,14 @@
     },
     {
       "queryId": "q015",
+      "imageId": "c620fbbb-3ea5-4853-a9c4-a7ce78871669",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q015",
       "imageId": "cd1d529c-13ca-400d-a28f-611bb605798f",
       "grade": 1,
       "rater": "ramiz",
@@ -1424,6 +2392,30 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q015",
+      "imageId": "db2c5dfd-b011-4e0c-8bb2-7196b7475b46",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q015",
+      "imageId": "eb4d4934-81a1-44b7-88f5-fd4a71a79ce9",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q016",
+      "imageId": "1a9abf2f-1a64-4806-ae5c-1e6566660613",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q016",
@@ -1467,6 +2459,30 @@
     },
     {
       "queryId": "q016",
+      "imageId": "71d86a73-a3cb-4bed-98d7-561172557d34",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q016",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q016",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q016",
       "imageId": "93a34fc6-e18f-4d5e-881f-cc2d90a8bd9e",
       "grade": 1,
       "rater": "ramiz",
@@ -1488,6 +2504,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q016",
+      "imageId": "b892585c-ccab-414a-8e5f-579694135695",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q016",
@@ -1522,12 +2546,44 @@
       "round": 1
     },
     {
+      "queryId": "q016",
+      "imageId": "f5246cf8-f117-449c-8db1-25ff1f6f4b80",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
       "queryId": "q017",
       "imageId": "00448012-535f-4896-96ca-8767189b11f4",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q017",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q017",
+      "imageId": "06a68865-1ddc-4624-83b8-12c12f507273",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q017",
+      "imageId": "0cb687be-08e2-4537-b2c4-3511fd07f099",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q017",
@@ -1560,6 +2616,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q017",
+      "imageId": "60e7590b-ddbf-44f5-9bf8-603037b3138a",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q017",
+      "imageId": "7322a39c-7c49-48af-b2c5-d93b8c8ba68c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q017",
@@ -1619,6 +2691,22 @@
     },
     {
       "queryId": "q018",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q018",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q018",
       "imageId": "051c9411-3013-4d44-a262-357a3ef4b238",
       "grade": 0,
       "rater": "ramiz",
@@ -1640,6 +2728,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q018",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q018",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q018",
@@ -1675,6 +2779,14 @@
     },
     {
       "queryId": "q018",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q018",
       "imageId": "8a947736-3d5c-4567-8013-081346acf5b3",
       "grade": 1,
       "rater": "ramiz",
@@ -1683,11 +2795,35 @@
     },
     {
       "queryId": "q018",
+      "imageId": "94e26a73-b814-4e4a-a106-87bef4abc6b0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q018",
       "imageId": "b3e77817-6711-4328-bdff-a15f974d2084",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q018",
+      "imageId": "baaa8fed-8c48-40a5-84ce-e74ce27415c6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q018",
+      "imageId": "d7ca586c-7406-4e17-9665-427854d1de3d",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q018",
@@ -1747,11 +2883,43 @@
     },
     {
       "queryId": "q019",
+      "imageId": "17bbdba1-a575-465c-9e7f-ec3f5f2f1b05",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q019",
       "imageId": "1b5d09a2-2c8b-407e-b129-8a79bfdd6858",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q019",
+      "imageId": "1cae0727-026d-4f79-9bec-60f4d910360f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q019",
+      "imageId": "2998d74b-b071-4ed0-9211-7032be73dd1c",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q019",
+      "imageId": "3f5b90b1-ee2a-4ea7-8caa-dc1ecb3a46ce",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q019",
@@ -1771,6 +2939,22 @@
     },
     {
       "queryId": "q019",
+      "imageId": "5d3fd9ab-2542-4d6e-aac7-6d1cf10a7c24",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q019",
+      "imageId": "60e7590b-ddbf-44f5-9bf8-603037b3138a",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q019",
       "imageId": "64ba876b-e819-40ca-887a-8432c01c199a",
       "grade": 1,
       "rater": "ramiz",
@@ -1779,11 +2963,35 @@
     },
     {
       "queryId": "q019",
+      "imageId": "791fde3c-b463-48a0-acae-11455664ce12",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q019",
+      "imageId": "7970efd0-8532-40fb-ac4b-fbf2933ce468",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q019",
       "imageId": "8a8686ec-aaf4-4baf-abd7-cf86bdbec841",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q019",
+      "imageId": "945f4b15-107b-4223-94df-8c42d18c053d",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q019",
@@ -1811,11 +3019,35 @@
     },
     {
       "queryId": "q020",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q020",
       "imageId": "011000fd-070f-4914-860a-0d0abdf07407",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q020",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q020",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q020",
@@ -1843,6 +3075,14 @@
     },
     {
       "queryId": "q020",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q020",
       "imageId": "3c524761-722e-470f-aa6e-06af8c6a4850",
       "grade": 2,
       "rater": "ramiz",
@@ -1859,11 +3099,27 @@
     },
     {
       "queryId": "q020",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q020",
       "imageId": "5da27d08-9431-41bc-926b-3cdabb7c9af5",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q020",
+      "imageId": "62c588d6-e47d-4e6e-8462-f6b3fd2dc761",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q020",
@@ -1875,11 +3131,43 @@
     },
     {
       "queryId": "q020",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q020",
+      "imageId": "94e26a73-b814-4e4a-a106-87bef4abc6b0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q020",
       "imageId": "a81e19a3-cca2-439f-97f3-0d1b7113431d",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q020",
+      "imageId": "ae1d1c3a-afc6-4de1-9416-350b5b092294",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q020",
+      "imageId": "baaa8fed-8c48-40a5-84ce-e74ce27415c6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q020",
@@ -1931,6 +3219,30 @@
     },
     {
       "queryId": "q021",
+      "imageId": "1a9abf2f-1a64-4806-ae5c-1e6566660613",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q021",
+      "imageId": "3554b308-af3b-43b7-a934-856622074364",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q021",
+      "imageId": "475e6ea5-afa1-414c-a0df-ddb5aeaeb08f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q021",
       "imageId": "508efeaa-972c-456d-b634-d4399f387efa",
       "grade": 0,
       "rater": "ramiz",
@@ -1963,6 +3275,22 @@
     },
     {
       "queryId": "q021",
+      "imageId": "63e491e4-126a-4f30-afb6-d886a3870d6b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q021",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q021",
       "imageId": "77926a29-2620-427f-8854-092d2ad03aca",
       "grade": 0,
       "rater": "ramiz",
@@ -1971,11 +3299,27 @@
     },
     {
       "queryId": "q021",
+      "imageId": "7c9af4ce-0ed9-4dbb-8e14-4877c902e563",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q021",
       "imageId": "89dc864d-aa2a-4b40-9439-bc51f9466eb6",
       "grade": 2,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q021",
+      "imageId": "93a34fc6-e18f-4d5e-881f-cc2d90a8bd9e",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q021",
@@ -2027,6 +3371,14 @@
     },
     {
       "queryId": "q022",
+      "imageId": "092f5cb4-a7c2-4c51-b970-ef324dfe4077",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q022",
       "imageId": "1dfc7478-7996-46e1-a0d3-c0b4affa90b3",
       "grade": 0,
       "rater": "ramiz",
@@ -2051,11 +3403,51 @@
     },
     {
       "queryId": "q022",
+      "imageId": "2cfb2b4f-5559-4fa2-856d-e98f5a9c02e1",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q022",
+      "imageId": "37ad6db6-024c-4da9-b74b-ec97bfc56c25",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q022",
       "imageId": "3929810a-1559-4952-bc66-332fd8bbad59",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q022",
+      "imageId": "4a1f8477-1e3d-427f-a22c-392b0114a2ca",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q022",
+      "imageId": "4b02c144-c607-4311-a234-4ed1fe2dad3b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q022",
+      "imageId": "5b4150c5-1eda-426e-bc06-e22aca9f7d22",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q022",
@@ -2091,6 +3483,14 @@
     },
     {
       "queryId": "q022",
+      "imageId": "e8d0521d-5a47-405e-9235-3afdf715070f",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q022",
       "imageId": "fcbe73f1-ef9a-4488-b5e4-bc9b11417d55",
       "grade": 1,
       "rater": "ramiz",
@@ -2104,6 +3504,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q023",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q023",
+      "imageId": "12459a20-4fa0-4a39-9633-68ef621db62b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q023",
@@ -2139,11 +3555,35 @@
     },
     {
       "queryId": "q023",
+      "imageId": "40d6e41f-0f68-4580-b909-f125d3b968d1",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q023",
       "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q023",
+      "imageId": "5027ef6d-3c84-44b7-804d-33999086e8a3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q023",
+      "imageId": "52e2fefc-7463-490b-96c4-42ab7a78a3a7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q023",
@@ -2163,6 +3603,22 @@
     },
     {
       "queryId": "q023",
+      "imageId": "77983b93-2424-4f2f-a8a4-9d45f2fccfdf",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q023",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q023",
       "imageId": "8a2648d8-0f41-4132-bf34-fe055ca5c034",
       "grade": 1,
       "rater": "ramiz",
@@ -2179,6 +3635,14 @@
     },
     {
       "queryId": "q023",
+      "imageId": "a6475858-73e1-4f90-a024-ab63d1e24852",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q023",
       "imageId": "c4a6b3cb-a321-4b72-9fab-96a70bb9c22a",
       "grade": 0,
       "rater": "ramiz",
@@ -2192,6 +3656,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q023",
+      "imageId": "eb2a1e22-8351-4ddb-a9fd-fac81113d19f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q024",
@@ -2211,11 +3683,35 @@
     },
     {
       "queryId": "q024",
+      "imageId": "06121aa0-2e0c-48e7-a27b-06799bf64481",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q024",
+      "imageId": "09673297-dfb0-4e82-84ae-68c4d9dd6840",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q024",
       "imageId": "12e7cbb1-8e9b-4b87-b2ba-af83ec473d25",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q024",
+      "imageId": "12fabac6-d46a-46cc-99bf-cb52b0bebb48",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q024",
@@ -2227,11 +3723,43 @@
     },
     {
       "queryId": "q024",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q024",
+      "imageId": "1b0641fd-c950-4c34-b15b-209512228a0c",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q024",
       "imageId": "20d67861-ef78-41d6-8383-b68df5c5a55f",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q024",
+      "imageId": "2a008682-c738-45fc-af43-519288c95830",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q024",
+      "imageId": "305831b7-9d23-42e5-bb91-52cdc94ffc5c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q024",
@@ -2331,11 +3859,27 @@
     },
     {
       "queryId": "q025",
+      "imageId": "475e6ea5-afa1-414c-a0df-ddb5aeaeb08f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q025",
       "imageId": "5f8599c0-5ddb-42e6-8c37-cf7cca0fb5a6",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q025",
+      "imageId": "63e491e4-126a-4f30-afb6-d886a3870d6b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q025",
@@ -2347,11 +3891,35 @@
     },
     {
       "queryId": "q025",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q025",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q025",
       "imageId": "76f6b5f1-a5b3-4e10-98b4-ee3f4129be22",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q025",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q025",
@@ -2368,6 +3936,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q025",
+      "imageId": "b892585c-ccab-414a-8e5f-579694135695",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q025",
@@ -2411,6 +3987,14 @@
     },
     {
       "queryId": "q026",
+      "imageId": "0cb687be-08e2-4537-b2c4-3511fd07f099",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q026",
       "imageId": "0e2d3187-41bc-49f1-8304-0ba78ce4e559",
       "grade": 0,
       "rater": "ramiz",
@@ -2427,6 +4011,14 @@
     },
     {
       "queryId": "q026",
+      "imageId": "124facde-e3e9-4c8c-bf06-7e3b9f102dd9",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q026",
       "imageId": "20d67861-ef78-41d6-8383-b68df5c5a55f",
       "grade": 1,
       "rater": "ramiz",
@@ -2435,11 +4027,35 @@
     },
     {
       "queryId": "q026",
+      "imageId": "3bcd9cd8-8436-4acc-be29-568da6af4c51",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q026",
       "imageId": "62c588d6-e47d-4e6e-8462-f6b3fd2dc761",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q026",
+      "imageId": "7652d717-2027-4174-86f6-1bb9cfda1116",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q026",
+      "imageId": "8a947736-3d5c-4567-8013-081346acf5b3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q026",
@@ -2467,11 +4083,27 @@
     },
     {
       "queryId": "q026",
+      "imageId": "d7ca586c-7406-4e17-9665-427854d1de3d",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q026",
       "imageId": "dcdd35d8-1d52-4de8-964e-368756e42b69",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q026",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q026",
@@ -2483,11 +4115,27 @@
     },
     {
       "queryId": "q027",
+      "imageId": "1a9abf2f-1a64-4806-ae5c-1e6566660613",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q027",
       "imageId": "1b0641fd-c950-4c34-b15b-209512228a0c",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q027",
+      "imageId": "475e6ea5-afa1-414c-a0df-ddb5aeaeb08f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q027",
@@ -2507,11 +4155,43 @@
     },
     {
       "queryId": "q027",
+      "imageId": "63e491e4-126a-4f30-afb6-d886a3870d6b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q027",
+      "imageId": "71d86a73-a3cb-4bed-98d7-561172557d34",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q027",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q027",
       "imageId": "7521a600-3285-42f9-986e-7376f44504ca",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q027",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q027",
@@ -2563,11 +4243,27 @@
     },
     {
       "queryId": "q027",
+      "imageId": "b892585c-ccab-414a-8e5f-579694135695",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q027",
       "imageId": "c3778983-3aa8-42e5-bcd2-68f05928f361",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q027",
+      "imageId": "ca4fa68c-f28c-4b34-88ea-749fd6574bae",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q027",
@@ -2592,6 +4288,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q028",
+      "imageId": "1a9abf2f-1a64-4806-ae5c-1e6566660613",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q028",
@@ -2635,11 +4339,43 @@
     },
     {
       "queryId": "q028",
+      "imageId": "5f8599c0-5ddb-42e6-8c37-cf7cca0fb5a6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q028",
+      "imageId": "63e491e4-126a-4f30-afb6-d886a3870d6b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q028",
       "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q028",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q028",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q028",
@@ -2659,11 +4395,35 @@
     },
     {
       "queryId": "q028",
+      "imageId": "93a34fc6-e18f-4d5e-881f-cc2d90a8bd9e",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q028",
+      "imageId": "993f1dbd-3938-45f9-870b-417030e758c7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q028",
       "imageId": "a5b7c20f-5390-4165-ad12-afc8446d864b",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q028",
+      "imageId": "b892585c-ccab-414a-8e5f-579694135695",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q028",
@@ -2674,12 +4434,60 @@
       "round": 1
     },
     {
+      "queryId": "q028",
+      "imageId": "f5246cf8-f117-449c-8db1-25ff1f6f4b80",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q029",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q029",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q029",
+      "imageId": "0f165de9-7920-4910-b680-2be7f9fe804f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q029",
+      "imageId": "0f17cc05-5a88-4099-93af-ebae120b1269",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
       "queryId": "q029",
       "imageId": "0ff8b2c9-42bf-49fd-ad3f-cf2d238285b8",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q029",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q029",
@@ -2739,6 +4547,14 @@
     },
     {
       "queryId": "q029",
+      "imageId": "5ddbdf18-cb8a-4e98-8c42-c6d4dbfcabf7",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q029",
       "imageId": "72c94045-ecd0-4ac3-8e9a-ad3297624cd5",
       "grade": 0,
       "rater": "ramiz",
@@ -2763,6 +4579,14 @@
     },
     {
       "queryId": "q029",
+      "imageId": "c1d9e2a3-77ce-4228-92fc-09fe09af0640",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q029",
       "imageId": "fcbe73f1-ef9a-4488-b5e4-bc9b11417d55",
       "grade": 0,
       "rater": "ramiz",
@@ -2779,6 +4603,14 @@
     },
     {
       "queryId": "q030",
+      "imageId": "12459a20-4fa0-4a39-9633-68ef621db62b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q030",
       "imageId": "20d67861-ef78-41d6-8383-b68df5c5a55f",
       "grade": 0,
       "rater": "ramiz",
@@ -2787,11 +4619,43 @@
     },
     {
       "queryId": "q030",
+      "imageId": "20eebf1f-953c-43eb-b130-c9848ad581f0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q030",
+      "imageId": "32c32549-b5a5-4809-97cb-55b1ae8ec6d6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q030",
       "imageId": "4b02c144-c607-4311-a234-4ed1fe2dad3b",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q030",
+      "imageId": "5027ef6d-3c84-44b7-804d-33999086e8a3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q030",
+      "imageId": "52e2fefc-7463-490b-96c4-42ab7a78a3a7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q030",
@@ -2827,6 +4691,14 @@
     },
     {
       "queryId": "q030",
+      "imageId": "77983b93-2424-4f2f-a8a4-9d45f2fccfdf",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q030",
       "imageId": "7ec9c979-c3e0-4d38-81df-3b56711be089",
       "grade": 1,
       "rater": "ramiz",
@@ -2835,11 +4707,27 @@
     },
     {
       "queryId": "q030",
+      "imageId": "833bce66-ceb9-47fd-a0b7-8979b9782520",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q030",
       "imageId": "9267d0f2-5501-4615-bfd3-ce935b99fd3d",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q030",
+      "imageId": "a6475858-73e1-4f90-a024-ab63d1e24852",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q030",
@@ -2856,6 +4744,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q030",
+      "imageId": "e56f2f4a-f6dd-4ae4-8c03-f704fc9b43c6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q030",
+      "imageId": "eb2a1e22-8351-4ddb-a9fd-fac81113d19f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q030",
@@ -2899,11 +4803,43 @@
     },
     {
       "queryId": "q031",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q031",
       "imageId": "20d67861-ef78-41d6-8383-b68df5c5a55f",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q031",
+      "imageId": "386481a4-cae1-4ec8-93c0-35e6458690cf",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q031",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q031",
+      "imageId": "7322a39c-7c49-48af-b2c5-d93b8c8ba68c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q031",
@@ -2915,11 +4851,27 @@
     },
     {
       "queryId": "q031",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q031",
       "imageId": "900fad9b-6f39-4d52-a31b-a2feff2838eb",
       "grade": 2,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q031",
+      "imageId": "94e26a73-b814-4e4a-a106-87bef4abc6b0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q031",
@@ -2939,6 +4891,14 @@
     },
     {
       "queryId": "q031",
+      "imageId": "baaa8fed-8c48-40a5-84ce-e74ce27415c6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q031",
       "imageId": "c0544f25-ce10-42e0-bbb7-c2195b7f5500",
       "grade": 2,
       "rater": "ramiz",
@@ -2955,11 +4915,35 @@
     },
     {
       "queryId": "q031",
+      "imageId": "d7ca586c-7406-4e17-9665-427854d1de3d",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q031",
       "imageId": "fcbe73f1-ef9a-4488-b5e4-bc9b11417d55",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q032",
+      "imageId": "05e22f73-5a81-4ed3-bf21-4941d0d3fa94",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q032",
+      "imageId": "06c6ebe5-268c-4159-b787-54cf67ace52e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q032",
@@ -2979,11 +4963,51 @@
     },
     {
       "queryId": "q032",
+      "imageId": "0af1435a-966c-42d8-8cb4-b6523646a0a0",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q032",
+      "imageId": "12e7cbb1-8e9b-4b87-b2ba-af83ec473d25",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q032",
+      "imageId": "19fc6d8a-f4dd-4aab-b771-4fa337800510",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q032",
+      "imageId": "1cf13dae-c0ed-4c20-8da2-3fc50593489e",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q032",
       "imageId": "2460326a-f4f1-4640-9aa2-f3696b224001",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q032",
+      "imageId": "28314522-5c42-475a-b0e8-94949dd3eee5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q032",
@@ -3000,6 +5024,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q032",
+      "imageId": "50f19c47-a0de-433b-b2dd-855928894ebb",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q032",
+      "imageId": "57877387-c732-4c9a-9cd9-bc1a1b5e1040",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q032",
@@ -3035,6 +5075,14 @@
     },
     {
       "queryId": "q032",
+      "imageId": "b8ac76b4-d0ae-40e3-90bb-8e9937c2b448",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q032",
       "imageId": "eb285048-5bb2-44f2-a636-bb1ad5cec971",
       "grade": 2,
       "rater": "ramiz",
@@ -3059,11 +5107,43 @@
     },
     {
       "queryId": "q033",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q033",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q033",
+      "imageId": "11a0da4c-ec6d-4a44-8a4f-86825c7d5447",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q033",
       "imageId": "20d67861-ef78-41d6-8383-b68df5c5a55f",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q033",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q033",
@@ -3075,6 +5155,14 @@
     },
     {
       "queryId": "q033",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q033",
       "imageId": "60e7590b-ddbf-44f5-9bf8-603037b3138a",
       "grade": 2,
       "rater": "ramiz",
@@ -3083,11 +5171,27 @@
     },
     {
       "queryId": "q033",
+      "imageId": "62c588d6-e47d-4e6e-8462-f6b3fd2dc761",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q033",
       "imageId": "7c9af4ce-0ed9-4dbb-8e14-4877c902e563",
       "grade": 2,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q033",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q033",
@@ -3112,6 +5216,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q033",
+      "imageId": "94e26a73-b814-4e4a-a106-87bef4abc6b0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q033",
@@ -3154,6 +5266,22 @@
       "round": 1
     },
     {
+      "queryId": "q033",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q034",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
       "queryId": "q034",
       "imageId": "005ac16a-189f-4592-a5d7-2e46166875b4",
       "grade": 1,
@@ -3171,11 +5299,27 @@
     },
     {
       "queryId": "q034",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q034",
       "imageId": "04b61c4d-d349-46a9-b30f-15bb79d5db69",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q034",
+      "imageId": "0cb687be-08e2-4537-b2c4-3511fd07f099",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q034",
@@ -3187,11 +5331,27 @@
     },
     {
       "queryId": "q034",
+      "imageId": "11a0da4c-ec6d-4a44-8a4f-86825c7d5447",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q034",
       "imageId": "15e2d241-9256-422a-a2d9-6248235f166b",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q034",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q034",
@@ -3208,6 +5368,30 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q034",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q034",
+      "imageId": "3bcd9cd8-8436-4acc-be29-568da6af4c51",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q034",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q034",
@@ -3235,11 +5419,27 @@
     },
     {
       "queryId": "q034",
+      "imageId": "dcdd35d8-1d52-4de8-964e-368756e42b69",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q034",
       "imageId": "e8d0521d-5a47-405e-9235-3afdf715070f",
       "grade": 2,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q034",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q034",
@@ -3256,6 +5456,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q035",
+      "imageId": "0cb687be-08e2-4537-b2c4-3511fd07f099",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q035",
+      "imageId": "0d02e074-9ba7-4098-91ea-33a58ffb5ebf",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q035",
@@ -3283,6 +5499,14 @@
     },
     {
       "queryId": "q035",
+      "imageId": "36ba41d5-43b8-4c71-91b2-ab6f835a8cea",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q035",
       "imageId": "479981f7-8b1c-4493-a89c-7df4ac606e72",
       "grade": 1,
       "rater": "ramiz",
@@ -3296,6 +5520,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q035",
+      "imageId": "6a9db18d-e392-47f1-a7b6-8fc7df297c0f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q035",
@@ -3339,11 +5571,51 @@
     },
     {
       "queryId": "q035",
+      "imageId": "baaa8fed-8c48-40a5-84ce-e74ce27415c6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q035",
+      "imageId": "c1d9e2a3-77ce-4228-92fc-09fe09af0640",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q035",
       "imageId": "c4a6b3cb-a321-4b72-9fab-96a70bb9c22a",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q035",
+      "imageId": "c9bd5d17-a9e6-411c-a062-15cd46490b89",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q035",
+      "imageId": "dcdd35d8-1d52-4de8-964e-368756e42b69",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q035",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q036",
@@ -3360,6 +5632,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q036",
+      "imageId": "1a9abf2f-1a64-4806-ae5c-1e6566660613",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q036",
@@ -3403,6 +5683,54 @@
     },
     {
       "queryId": "q036",
+      "imageId": "475e6ea5-afa1-414c-a0df-ddb5aeaeb08f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q036",
+      "imageId": "5f8599c0-5ddb-42e6-8c37-cf7cca0fb5a6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q036",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q036",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q036",
+      "imageId": "7795ec2a-1fe5-4ad8-80a9-f39a4da4d3b7",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q036",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q036",
       "imageId": "86a8b571-3b03-4b79-bb43-595e03c69773",
       "grade": 0,
       "rater": "ramiz",
@@ -3427,6 +5755,14 @@
     },
     {
       "queryId": "q036",
+      "imageId": "993f1dbd-3938-45f9-870b-417030e758c7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q036",
       "imageId": "a441c220-1db9-42db-8be6-82a91b641d11",
       "grade": 1,
       "rater": "ramiz",
@@ -3435,11 +5771,35 @@
     },
     {
       "queryId": "q036",
+      "imageId": "b892585c-ccab-414a-8e5f-579694135695",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q036",
       "imageId": "c97fa395-f0cd-463f-89cb-940f38f8cd90",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q036",
+      "imageId": "f5246cf8-f117-449c-8db1-25ff1f6f4b80",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q037",
+      "imageId": "0ae8ad9d-5b25-4562-8176-d5fd7c80c17c",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q037",
@@ -3467,11 +5827,27 @@
     },
     {
       "queryId": "q037",
+      "imageId": "2cfb2b4f-5559-4fa2-856d-e98f5a9c02e1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q037",
       "imageId": "38324ce1-7b61-4059-8cdd-36783c7ec68e",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q037",
+      "imageId": "4d3581c2-2c75-4319-997e-ce7569305137",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q037",
@@ -3483,11 +5859,43 @@
     },
     {
       "queryId": "q037",
+      "imageId": "63e491e4-126a-4f30-afb6-d886a3870d6b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q037",
       "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q037",
+      "imageId": "705dc11b-7c39-49d3-904c-38179e44b69c",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q037",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q037",
+      "imageId": "8865b4fe-b713-494c-b850-3886e14f927e",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q037",
@@ -3504,6 +5912,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q037",
+      "imageId": "a3c5269d-a148-4b74-9aff-5a0245bffdc6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q037",
@@ -3539,6 +5955,22 @@
     },
     {
       "queryId": "q038",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q038",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q038",
       "imageId": "0c401a39-d002-4d0e-bd25-eaa94356435a",
       "grade": 0,
       "rater": "ramiz",
@@ -3547,11 +5979,27 @@
     },
     {
       "queryId": "q038",
+      "imageId": "0cb687be-08e2-4537-b2c4-3511fd07f099",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q038",
       "imageId": "0f165de9-7920-4910-b680-2be7f9fe804f",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q038",
+      "imageId": "11a0da4c-ec6d-4a44-8a4f-86825c7d5447",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q038",
@@ -3576,6 +6024,30 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q038",
+      "imageId": "7652d717-2027-4174-86f6-1bb9cfda1116",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q038",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q038",
+      "imageId": "94e26a73-b814-4e4a-a106-87bef4abc6b0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q038",
@@ -3611,6 +6083,14 @@
     },
     {
       "queryId": "q038",
+      "imageId": "dcdd35d8-1d52-4de8-964e-368756e42b69",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q038",
       "imageId": "e10993c4-f064-4f7d-86f7-e238ef34c2cf",
       "grade": 0,
       "rater": "ramiz",
@@ -3627,11 +6107,27 @@
     },
     {
       "queryId": "q038",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q038",
       "imageId": "fcbe73f1-ef9a-4488-b5e4-bc9b11417d55",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q039",
+      "imageId": "1502c18f-4c5c-4ecb-982e-914397962f5a",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q039",
@@ -3651,11 +6147,35 @@
     },
     {
       "queryId": "q039",
+      "imageId": "220a67fd-49ac-4f1a-97a6-c87242f3413f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q039",
       "imageId": "343a24cd-4ac6-4b4d-a27a-a680890c48a1",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q039",
+      "imageId": "357b4632-6b1f-47d2-80fa-564dd0077e7d",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q039",
+      "imageId": "36730efc-8fdc-4c6e-bd45-bc6b7bd8e224",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q039",
@@ -3675,11 +6195,27 @@
     },
     {
       "queryId": "q039",
+      "imageId": "67a46f06-d3c0-4ec3-bc0f-ff9fe11d4981",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q039",
       "imageId": "712eadf5-e7b9-409c-88f9-b6d61373ac5d",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q039",
+      "imageId": "78eb9d41-81fe-468e-a187-5db73ba940eb",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q039",
@@ -3691,11 +6227,43 @@
     },
     {
       "queryId": "q039",
+      "imageId": "7ee9741e-d220-40b6-a945-fa7302f53c65",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q039",
+      "imageId": "8ad8e86e-6c76-4b54-b743-96029f649adf",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q039",
+      "imageId": "91d57cbd-67f9-4668-85f9-76526e0419c9",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q039",
       "imageId": "9a2fa4b7-9986-4157-ae6b-15d918fd7466",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q039",
+      "imageId": "ad33b12d-df29-4efa-8e9b-dfd5604301a2",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q039",
@@ -3739,6 +6307,14 @@
     },
     {
       "queryId": "q040",
+      "imageId": "17bbdba1-a575-465c-9e7f-ec3f5f2f1b05",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q040",
       "imageId": "18a10a14-cf52-4873-9f69-ce1aa14cabe9",
       "grade": 2,
       "rater": "ramiz",
@@ -3755,11 +6331,27 @@
     },
     {
       "queryId": "q040",
+      "imageId": "1cae0727-026d-4f79-9bec-60f4d910360f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q040",
       "imageId": "20d67861-ef78-41d6-8383-b68df5c5a55f",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q040",
+      "imageId": "2998d74b-b071-4ed0-9211-7032be73dd1c",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q040",
@@ -3776,6 +6368,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q040",
+      "imageId": "5d3fd9ab-2542-4d6e-aac7-6d1cf10a7c24",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q040",
@@ -3811,6 +6411,30 @@
     },
     {
       "queryId": "q040",
+      "imageId": "77ef0bfa-3492-464c-a182-209842812b02",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q040",
+      "imageId": "791fde3c-b463-48a0-acae-11455664ce12",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q040",
+      "imageId": "7970efd0-8532-40fb-ac4b-fbf2933ce468",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q040",
       "imageId": "903d5113-4679-4bd5-8178-19338ecab5f1",
       "grade": 0,
       "rater": "ramiz",
@@ -3826,6 +6450,14 @@
       "round": 1
     },
     {
+      "queryId": "q040",
+      "imageId": "945f4b15-107b-4223-94df-8c42d18c053d",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
       "queryId": "q041",
       "imageId": "00b98402-8521-4ce6-aaf8-75bfa353d2b8",
       "grade": 0,
@@ -3835,11 +6467,43 @@
     },
     {
       "queryId": "q041",
+      "imageId": "0a5a483f-f7c3-4cbb-a726-faceb63fd8bc",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q041",
       "imageId": "0d5bc0c0-4cb8-4430-85ba-389f88f7f053",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q041",
+      "imageId": "0f17cc05-5a88-4099-93af-ebae120b1269",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q041",
+      "imageId": "11ad1eac-ecce-4c28-8863-e2ccc217fc6f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q041",
+      "imageId": "13677d5f-3abd-490d-a2bd-33826ff32809",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q041",
@@ -3856,6 +6520,30 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q041",
+      "imageId": "44cb3773-f13f-4192-bcac-165e32066adc",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q041",
+      "imageId": "45421c17-c140-4ce5-96c8-75b3c3634442",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q041",
+      "imageId": "468afce6-18a0-406c-b721-e14234a78553",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q041",
@@ -3880,6 +6568,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q041",
+      "imageId": "77983b93-2424-4f2f-a8a4-9d45f2fccfdf",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q041",
@@ -3922,6 +6618,22 @@
       "round": 1
     },
     {
+      "queryId": "q041",
+      "imageId": "ce9cc15b-474e-45c9-aa3a-c5b9f1191e30",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q041",
+      "imageId": "d578a85d-646d-4495-acbb-fde2ff976042",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
       "queryId": "q042",
       "imageId": "005ac16a-189f-4592-a5d7-2e46166875b4",
       "grade": 1,
@@ -3947,6 +6659,14 @@
     },
     {
       "queryId": "q042",
+      "imageId": "092f5cb4-a7c2-4c51-b970-ef324dfe4077",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q042",
       "imageId": "0a0a4022-7c14-4cfd-a74d-37654cf97a71",
       "grade": 1,
       "rater": "ramiz",
@@ -3955,11 +6675,27 @@
     },
     {
       "queryId": "q042",
+      "imageId": "28da59e4-49d4-4c89-b6d1-9c4a8ea70ff2",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q042",
       "imageId": "295f6cfd-b7fc-4370-8c68-f3734cc3d364",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q042",
+      "imageId": "2cfb2b4f-5559-4fa2-856d-e98f5a9c02e1",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q042",
@@ -3987,6 +6723,22 @@
     },
     {
       "queryId": "q042",
+      "imageId": "4a1f8477-1e3d-427f-a22c-392b0114a2ca",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q042",
+      "imageId": "5b4150c5-1eda-426e-bc06-e22aca9f7d22",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q042",
       "imageId": "6b235203-8c06-4842-9b82-df212c1054c2",
       "grade": 1,
       "rater": "ramiz",
@@ -4000,6 +6752,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q042",
+      "imageId": "a425ceea-16cf-4703-9c98-c3786c238cac",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q042",
@@ -4018,6 +6778,14 @@
       "round": 1
     },
     {
+      "queryId": "q042",
+      "imageId": "e8d0521d-5a47-405e-9235-3afdf715070f",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
       "queryId": "q043",
       "imageId": "00448012-535f-4896-96ca-8767189b11f4",
       "grade": 0,
@@ -4027,11 +6795,67 @@
     },
     {
       "queryId": "q043",
+      "imageId": "0a5a483f-f7c3-4cbb-a726-faceb63fd8bc",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q043",
       "imageId": "0b616cbd-dd08-4aca-8847-8e4d9294fc66",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q043",
+      "imageId": "0f165de9-7920-4910-b680-2be7f9fe804f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q043",
+      "imageId": "0f17cc05-5a88-4099-93af-ebae120b1269",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q043",
+      "imageId": "104b5124-0f4d-44e4-b34a-2c7e8bdd810d",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q043",
+      "imageId": "11ad1eac-ecce-4c28-8863-e2ccc217fc6f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q043",
+      "imageId": "12459a20-4fa0-4a39-9633-68ef621db62b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q043",
+      "imageId": "2b9e4884-97c5-4bbb-8c6c-19d4745fb80f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q043",
@@ -4048,6 +6872,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q043",
+      "imageId": "406dd0ea-e1e3-4dd1-a4c9-b97d4b0cbc06",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q043",
+      "imageId": "40d6e41f-0f68-4580-b909-f125d3b968d1",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q043",
@@ -4107,6 +6947,14 @@
     },
     {
       "queryId": "q043",
+      "imageId": "b4788f8f-d67c-4af3-abc0-9711960b00e0",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q043",
       "imageId": "d7dd7508-3287-46ec-b230-545a121b438b",
       "grade": 0,
       "rater": "ramiz",
@@ -4139,6 +6987,14 @@
     },
     {
       "queryId": "q044",
+      "imageId": "1b0641fd-c950-4c34-b15b-209512228a0c",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q044",
       "imageId": "24af8027-b5b8-4b0c-9014-bb0f846215cd",
       "grade": 0,
       "rater": "ramiz",
@@ -4160,6 +7016,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q044",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q044",
@@ -4187,6 +7051,46 @@
     },
     {
       "queryId": "q044",
+      "imageId": "89dc864d-aa2a-4b40-9439-bc51f9466eb6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q044",
+      "imageId": "8cbd64aa-bae8-489f-aacf-228bc34c6cce",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q044",
+      "imageId": "8e490fec-edf6-494e-8cd0-fb7ae6f3ec2f",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q044",
+      "imageId": "93a34fc6-e18f-4d5e-881f-cc2d90a8bd9e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q044",
+      "imageId": "993f1dbd-3938-45f9-870b-417030e758c7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q044",
       "imageId": "9d3eded5-fd40-4b45-b1af-8ba943f7d60d",
       "grade": 2,
       "rater": "ramiz",
@@ -4200,6 +7104,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q044",
+      "imageId": "b26812f7-4128-4055-9df6-c5f01201c830",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q044",
+      "imageId": "bba5fe13-aec4-4d49-ba95-69687a3e56c2",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q044",
@@ -4243,6 +7163,30 @@
     },
     {
       "queryId": "q045",
+      "imageId": "475e6ea5-afa1-414c-a0df-ddb5aeaeb08f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q045",
+      "imageId": "5f8599c0-5ddb-42e6-8c37-cf7cca0fb5a6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q045",
+      "imageId": "63e491e4-126a-4f30-afb6-d886a3870d6b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q045",
       "imageId": "6bbc764e-9da1-47ee-b30e-636ce227ad11",
       "grade": 1,
       "rater": "ramiz",
@@ -4256,6 +7200,30 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q045",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q045",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q045",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q045",
@@ -4299,6 +7267,14 @@
     },
     {
       "queryId": "q045",
+      "imageId": "b892585c-ccab-414a-8e5f-579694135695",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q045",
       "imageId": "f5246cf8-f117-449c-8db1-25ff1f6f4b80",
       "grade": 0,
       "rater": "ramiz",
@@ -4323,11 +7299,27 @@
     },
     {
       "queryId": "q046",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q046",
       "imageId": "0ab183ff-5abc-4362-be52-5429e5eda0fd",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q046",
+      "imageId": "11a0da4c-ec6d-4a44-8a4f-86825c7d5447",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q046",
@@ -4355,6 +7347,30 @@
     },
     {
       "queryId": "q046",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q046",
+      "imageId": "3bcd9cd8-8436-4acc-be29-568da6af4c51",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q046",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q046",
       "imageId": "5d1ebd2f-810b-454a-be2d-9cb18d0133e0",
       "grade": 0,
       "rater": "ramiz",
@@ -4368,6 +7384,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q046",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q046",
@@ -4387,6 +7411,14 @@
     },
     {
       "queryId": "q046",
+      "imageId": "c1d9e2a3-77ce-4228-92fc-09fe09af0640",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q046",
       "imageId": "dcdd35d8-1d52-4de8-964e-368756e42b69",
       "grade": 0,
       "rater": "ramiz",
@@ -4400,6 +7432,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q047",
+      "imageId": "0ae8ad9d-5b25-4562-8176-d5fd7c80c17c",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q047",
@@ -4467,11 +7507,51 @@
     },
     {
       "queryId": "q047",
+      "imageId": "5f72179d-cf93-49e4-bc0a-cc52061d1e6c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q047",
+      "imageId": "5f8599c0-5ddb-42e6-8c37-cf7cca0fb5a6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q047",
+      "imageId": "63e491e4-126a-4f30-afb6-d886a3870d6b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q047",
       "imageId": "669016a2-be29-47d9-a314-479b52d8fe1c",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q047",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q047",
+      "imageId": "7795ec2a-1fe5-4ad8-80a9-f39a4da4d3b7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q047",
@@ -4498,12 +7578,44 @@
       "round": 1
     },
     {
+      "queryId": "q047",
+      "imageId": "bba5fe13-aec4-4d49-ba95-69687a3e56c2",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q047",
+      "imageId": "fea22991-0b06-4db8-9777-b79c38c17a47",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q048",
+      "imageId": "0ae8ad9d-5b25-4562-8176-d5fd7c80c17c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
       "queryId": "q048",
       "imageId": "0bdf895e-4357-4a40-ba83-1b6ebb959fd2",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q048",
+      "imageId": "1a9abf2f-1a64-4806-ae5c-1e6566660613",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q048",
@@ -4555,11 +7667,27 @@
     },
     {
       "queryId": "q048",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q048",
       "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q048",
+      "imageId": "89dc864d-aa2a-4b40-9439-bc51f9466eb6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q048",
@@ -4571,6 +7699,14 @@
     },
     {
       "queryId": "q048",
+      "imageId": "93a34fc6-e18f-4d5e-881f-cc2d90a8bd9e",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q048",
       "imageId": "993f1dbd-3938-45f9-870b-417030e758c7",
       "grade": 0,
       "rater": "ramiz",
@@ -4579,11 +7715,27 @@
     },
     {
       "queryId": "q048",
+      "imageId": "a10a94c1-c422-4a41-a7de-6d96f9062cfe",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q048",
       "imageId": "b0758da7-f09b-4d6a-8cd3-a993d7202c55",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q048",
+      "imageId": "bba5fe13-aec4-4d49-ba95-69687a3e56c2",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q048",
@@ -4603,6 +7755,14 @@
     },
     {
       "queryId": "q049",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q049",
       "imageId": "0f165de9-7920-4910-b680-2be7f9fe804f",
       "grade": 1,
       "rater": "ramiz",
@@ -4619,11 +7779,51 @@
     },
     {
       "queryId": "q049",
+      "imageId": "11a0da4c-ec6d-4a44-8a4f-86825c7d5447",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q049",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q049",
+      "imageId": "3bcd9cd8-8436-4acc-be29-568da6af4c51",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q049",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q049",
       "imageId": "5d1ebd2f-810b-454a-be2d-9cb18d0133e0",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q049",
+      "imageId": "62c588d6-e47d-4e6e-8462-f6b3fd2dc761",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q049",
@@ -4643,6 +7843,14 @@
     },
     {
       "queryId": "q049",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q049",
       "imageId": "91df9102-8e69-4b03-a001-1247f9303397",
       "grade": 0,
       "rater": "ramiz",
@@ -4656,6 +7864,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q049",
+      "imageId": "c1d9e2a3-77ce-4228-92fc-09fe09af0640",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q049",
@@ -4690,6 +7906,22 @@
       "round": 1
     },
     {
+      "queryId": "q049",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q050",
+      "imageId": "07699f55-3bfc-4258-ab79-820a24ec8039",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
       "queryId": "q050",
       "imageId": "1502c18f-4c5c-4ecb-982e-914397962f5a",
       "grade": 2,
@@ -4715,6 +7947,14 @@
     },
     {
       "queryId": "q050",
+      "imageId": "40654831-f672-48e5-8d97-1e22e07abc88",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q050",
       "imageId": "4b02c144-c607-4311-a234-4ed1fe2dad3b",
       "grade": 0,
       "rater": "ramiz",
@@ -4731,6 +7971,22 @@
     },
     {
       "queryId": "q050",
+      "imageId": "57877387-c732-4c9a-9cd9-bc1a1b5e1040",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q050",
+      "imageId": "5b4150c5-1eda-426e-bc06-e22aca9f7d22",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q050",
       "imageId": "5d1ebd2f-810b-454a-be2d-9cb18d0133e0",
       "grade": 0,
       "rater": "ramiz",
@@ -4744,6 +8000,30 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q050",
+      "imageId": "6f49f7b9-950d-4b2d-9f87-674b71f5bb0b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q050",
+      "imageId": "833bce66-ceb9-47fd-a0b7-8979b9782520",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q050",
+      "imageId": "8feb29de-9100-4a8e-adb2-2e02fccf6f07",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q050",
@@ -4771,6 +8051,14 @@
     },
     {
       "queryId": "q050",
+      "imageId": "c0cbb439-3034-4654-b4fa-1575a0bf05b1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q050",
       "imageId": "d143af46-cf78-46f0-abba-3db012d7b2e5",
       "grade": 0,
       "rater": "ramiz",
@@ -4787,6 +8075,22 @@
     },
     {
       "queryId": "q051",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q051",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q051",
       "imageId": "08426f57-dbbf-4f29-8611-c0977d59ada0",
       "grade": 1,
       "rater": "ramiz",
@@ -4800,6 +8104,30 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q051",
+      "imageId": "0cb687be-08e2-4537-b2c4-3511fd07f099",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q051",
+      "imageId": "11a0da4c-ec6d-4a44-8a4f-86825c7d5447",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q051",
+      "imageId": "1960bcba-660a-4145-b282-509c01bcb400",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q051",
@@ -4835,6 +8163,30 @@
     },
     {
       "queryId": "q051",
+      "imageId": "62c588d6-e47d-4e6e-8462-f6b3fd2dc761",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q051",
+      "imageId": "7652d717-2027-4174-86f6-1bb9cfda1116",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q051",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q051",
       "imageId": "91df9102-8e69-4b03-a001-1247f9303397",
       "grade": 0,
       "rater": "ramiz",
@@ -4848,6 +8200,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q051",
+      "imageId": "94e26a73-b814-4e4a-a106-87bef4abc6b0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q051",
@@ -4875,6 +8235,14 @@
     },
     {
       "queryId": "q051",
+      "imageId": "d7ca586c-7406-4e17-9665-427854d1de3d",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q051",
       "imageId": "f762db0a-c53c-4acf-83cc-7f82390b31dc",
       "grade": 0,
       "rater": "ramiz",
@@ -4883,11 +8251,83 @@
     },
     {
       "queryId": "q052",
+      "imageId": "00e1ae8e-bede-4653-bcd9-4908f25f546c",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q052",
+      "imageId": "0259f17c-866f-41a8-b12f-fcd200a341ba",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q052",
+      "imageId": "03cb14a3-1e7e-42c7-9a78-5696295a60e6",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q052",
+      "imageId": "091a25c8-24f7-4fcd-b21d-96d979d89723",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q052",
+      "imageId": "0a5a483f-f7c3-4cbb-a726-faceb63fd8bc",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q052",
+      "imageId": "0b5ba5f5-79e4-4562-9511-425fc15fc4df",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q052",
+      "imageId": "0f165de9-7920-4910-b680-2be7f9fe804f",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q052",
+      "imageId": "0f17cc05-5a88-4099-93af-ebae120b1269",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q052",
       "imageId": "0f43c09e-157b-4925-911f-20cf8ec58db2",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q052",
+      "imageId": "104b5124-0f4d-44e4-b34a-2c7e8bdd810d",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q052",
@@ -4979,6 +8419,14 @@
     },
     {
       "queryId": "q053",
+      "imageId": "11029222-3234-45e3-95e0-512fd539498b",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q053",
       "imageId": "1c70f4e5-270d-4dd4-840a-f86c1884183c",
       "grade": 0,
       "rater": "ramiz",
@@ -5003,6 +8451,22 @@
     },
     {
       "queryId": "q053",
+      "imageId": "43b5e0fb-ca97-45ea-945b-34a1ba9c1ab2",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q053",
+      "imageId": "4fff82c9-ee52-464c-8186-5b37a8da7e72",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q053",
       "imageId": "5d1ebd2f-810b-454a-be2d-9cb18d0133e0",
       "grade": 0,
       "rater": "ramiz",
@@ -5019,11 +8483,35 @@
     },
     {
       "queryId": "q053",
+      "imageId": "75e9868c-4685-4a0c-98df-10b94f00e104",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q053",
       "imageId": "77906058-a1e1-4318-aa2e-e85ad2043822",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q053",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q053",
+      "imageId": "7ee9741e-d220-40b6-a945-fa7302f53c65",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q053",
@@ -5051,11 +8539,27 @@
     },
     {
       "queryId": "q053",
+      "imageId": "ac6c3f02-6466-49b4-a66c-5478c5e7f349",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q053",
       "imageId": "b26812f7-4128-4055-9df6-c5f01201c830",
       "grade": 2,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q053",
+      "imageId": "b39cedb0-4f7a-472c-8920-bb8405870ff1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q053",
@@ -5067,11 +8571,27 @@
     },
     {
       "queryId": "q053",
+      "imageId": "f762db0a-c53c-4acf-83cc-7f82390b31dc",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q053",
       "imageId": "fdcff091-a340-430b-819e-6fab035d1bfc",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q054",
+      "imageId": "00e1ae8e-bede-4653-bcd9-4908f25f546c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q054",
@@ -5083,11 +8603,67 @@
     },
     {
       "queryId": "q054",
+      "imageId": "01ca52d3-7e2c-4f6a-a6c5-15af5bc4a0f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q054",
+      "imageId": "04b61c4d-d349-46a9-b30f-15bb79d5db69",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q054",
+      "imageId": "0740c4ce-32d0-48cf-be82-934b801cd870",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q054",
+      "imageId": "07c6ddfb-0ffb-4221-9b44-66e1c66a8f22",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q054",
+      "imageId": "092f5cb4-a7c2-4c51-b970-ef324dfe4077",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q054",
+      "imageId": "0d5bc0c0-4cb8-4430-85ba-389f88f7f053",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q054",
       "imageId": "11a0da4c-ec6d-4a44-8a4f-86825c7d5447",
       "grade": 2,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q054",
+      "imageId": "1503c954-d0e4-462b-9728-8d70f6786307",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q054",
@@ -5112,6 +8688,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q054",
+      "imageId": "52e62ab7-cd58-4e2a-9a2d-398a9775a458",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q054",
+      "imageId": "5655be08-9f54-40e2-974b-dcbf142e2884",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q054",
@@ -5171,6 +8763,14 @@
     },
     {
       "queryId": "q055",
+      "imageId": "1a9abf2f-1a64-4806-ae5c-1e6566660613",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q055",
       "imageId": "1d59a020-fdef-48bf-9fbb-210a21fb15e1",
       "grade": 2,
       "rater": "ramiz",
@@ -5187,11 +8787,51 @@
     },
     {
       "queryId": "q055",
+      "imageId": "475e6ea5-afa1-414c-a0df-ddb5aeaeb08f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q055",
+      "imageId": "4d3581c2-2c75-4319-997e-ce7569305137",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q055",
+      "imageId": "5109ae35-6096-4d99-8997-fac1d2a13298",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q055",
+      "imageId": "542a2041-0614-4538-abf1-2859e862e1bb",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q055",
       "imageId": "5d1ebd2f-810b-454a-be2d-9cb18d0133e0",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q055",
+      "imageId": "5f72179d-cf93-49e4-bc0a-cc52061d1e6c",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q055",
@@ -5227,6 +8867,14 @@
     },
     {
       "queryId": "q055",
+      "imageId": "b6dc9514-6a05-428e-a405-e565ec46ce0a",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q055",
       "imageId": "c496df1a-ca41-4ae9-b28e-bf84caded3d2",
       "grade": 0,
       "rater": "ramiz",
@@ -5248,6 +8896,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q055",
+      "imageId": "ec5fd23b-87b5-4efa-9543-e3192e58f36f",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q055",
+      "imageId": "f20ef2f6-ce1c-4065-89ce-fc442a83ebbd",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q055",
@@ -5283,6 +8947,14 @@
     },
     {
       "queryId": "q056",
+      "imageId": "1a9abf2f-1a64-4806-ae5c-1e6566660613",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q056",
       "imageId": "206fc568-5978-4d7f-9b59-7dca005643db",
       "grade": 0,
       "rater": "ramiz",
@@ -5315,11 +8987,35 @@
     },
     {
       "queryId": "q056",
+      "imageId": "5f8599c0-5ddb-42e6-8c37-cf7cca0fb5a6",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q056",
       "imageId": "60e7590b-ddbf-44f5-9bf8-603037b3138a",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q056",
+      "imageId": "6cf6ae80-ee84-4ff9-abd0-975e34b8bcd5",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q056",
+      "imageId": "739a90ac-c4a3-4886-bbad-854a09d22239",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q056",
@@ -5331,11 +9027,43 @@
     },
     {
       "queryId": "q056",
+      "imageId": "794d1942-9426-4d15-beaa-f36b14608369",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q056",
       "imageId": "7be35976-da28-4252-9240-981988b49f63",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q056",
+      "imageId": "93a34fc6-e18f-4d5e-881f-cc2d90a8bd9e",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q056",
+      "imageId": "993f1dbd-3938-45f9-870b-417030e758c7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q056",
+      "imageId": "b892585c-ccab-414a-8e5f-579694135695",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q056",
@@ -5363,6 +9091,14 @@
     },
     {
       "queryId": "q057",
+      "imageId": "0184c38e-04f7-40d2-aebf-721a8459a532",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q057",
       "imageId": "06a68865-1ddc-4624-83b8-12c12f507273",
       "grade": 0,
       "rater": "ramiz",
@@ -5376,6 +9112,22 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q057",
+      "imageId": "1cf13dae-c0ed-4c20-8da2-3fc50593489e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q057",
+      "imageId": "27f8302c-ed92-4398-9787-29ba4b41ab47",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q057",
@@ -5419,11 +9171,51 @@
     },
     {
       "queryId": "q057",
+      "imageId": "8020f218-24ed-4fdf-9e0f-fb13552714e4",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q057",
       "imageId": "80ef4f81-40ce-4aca-abdf-033d2f616f68",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q057",
+      "imageId": "89dc864d-aa2a-4b40-9439-bc51f9466eb6",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q057",
+      "imageId": "993f1dbd-3938-45f9-870b-417030e758c7",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q057",
+      "imageId": "9955d874-7735-4138-8bc3-3131ff416260",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q057",
+      "imageId": "a3f3a282-0a0b-4e36-a9a9-af4b101fc706",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q057",
@@ -5440,6 +9232,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q057",
+      "imageId": "c886b54e-7623-48db-94e3-ecef7c5bc58d",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q057",
@@ -5467,11 +9267,43 @@
     },
     {
       "queryId": "q058",
+      "imageId": "00448012-535f-4896-96ca-8767189b11f4",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q058",
+      "imageId": "03ca2d85-3256-4952-b8b4-a3e7d880f57b",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q058",
+      "imageId": "11a0da4c-ec6d-4a44-8a4f-86825c7d5447",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q058",
       "imageId": "24167418-eccb-4819-9446-8fe89cdda296",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q058",
+      "imageId": "39fa40ea-1ff2-4f05-813e-ea82cb5b947e",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q058",
@@ -5491,11 +9323,27 @@
     },
     {
       "queryId": "q058",
+      "imageId": "4cefa089-1c2c-4c01-ac7c-663486930de1",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q058",
       "imageId": "52e2fefc-7463-490b-96c4-42ab7a78a3a7",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q058",
+      "imageId": "62c588d6-e47d-4e6e-8462-f6b3fd2dc761",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q058",
@@ -5515,11 +9363,27 @@
     },
     {
       "queryId": "q058",
+      "imageId": "82f110c0-e764-4d65-aaa0-41b764fc1135",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q058",
       "imageId": "88b63724-a509-4666-9c3e-87ec0ebbd675",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q058",
+      "imageId": "94e26a73-b814-4e4a-a106-87bef4abc6b0",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q058",
@@ -5547,11 +9411,35 @@
     },
     {
       "queryId": "q058",
+      "imageId": "dcdd35d8-1d52-4de8-964e-368756e42b69",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q058",
       "imageId": "e60a91b7-fded-4df1-9419-28efee98c134",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q058",
+      "imageId": "f5ef335f-57b3-49bf-b2e0-0eefc32513f3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q059",
+      "imageId": "0740c4ce-32d0-48cf-be82-934b801cd870",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q059",
@@ -5587,6 +9475,22 @@
     },
     {
       "queryId": "q059",
+      "imageId": "3d2f3130-6eb1-4e82-a128-5d7ea47b044c",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q059",
+      "imageId": "3fc70688-8649-40cb-8dde-5a2768be8f86",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q059",
       "imageId": "576ad070-436f-44f1-b42c-3d1fd8eee21a",
       "grade": 0,
       "rater": "ramiz",
@@ -5603,11 +9507,27 @@
     },
     {
       "queryId": "q059",
+      "imageId": "70dea56d-9c39-4e1c-834c-f41ab335a7f9",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q059",
       "imageId": "712eadf5-e7b9-409c-88f9-b6d61373ac5d",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q059",
+      "imageId": "7430e376-09d8-4c41-a7dc-e5300e7071e8",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q059",
@@ -5627,6 +9547,14 @@
     },
     {
       "queryId": "q059",
+      "imageId": "a4ae6818-8207-433f-adba-53cf0b305921",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q059",
       "imageId": "b8ac76b4-d0ae-40e3-90bb-8e9937c2b448",
       "grade": 0,
       "rater": "ramiz",
@@ -5643,6 +9571,14 @@
     },
     {
       "queryId": "q059",
+      "imageId": "c0cbb439-3034-4654-b4fa-1575a0bf05b1",
+      "grade": 2,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q059",
       "imageId": "f6290218-14c7-4b2a-9a63-3c152538ca5e",
       "grade": 2,
       "rater": "ramiz",
@@ -5651,11 +9587,27 @@
     },
     {
       "queryId": "q060",
+      "imageId": "031c655d-7908-4bc3-a57e-d57b05c8383b",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q060",
       "imageId": "0f40dda2-3720-46c1-a0da-92a17368d871",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q060",
+      "imageId": "1b0641fd-c950-4c34-b15b-209512228a0c",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q060",
@@ -5683,11 +9635,27 @@
     },
     {
       "queryId": "q060",
+      "imageId": "3c5873d2-fd60-43ea-9e41-912ba11885b3",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q060",
       "imageId": "64d4e0eb-6473-4bd2-ac0c-888110266a6e",
       "grade": 0,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q060",
+      "imageId": "6c5c8b04-8fef-4278-a660-86e359d7ffb4",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q060",
@@ -5715,6 +9683,30 @@
     },
     {
       "queryId": "q060",
+      "imageId": "78eb9d41-81fe-468e-a187-5db73ba940eb",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q060",
+      "imageId": "7be35976-da28-4252-9240-981988b49f63",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q060",
+      "imageId": "86446085-be71-4867-a4e0-cd20fea8c4cd",
+      "grade": 1,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q060",
       "imageId": "878fe245-e373-4fe2-97b4-c5f684a18020",
       "grade": 2,
       "rater": "ramiz",
@@ -5723,11 +9715,27 @@
     },
     {
       "queryId": "q060",
+      "imageId": "8ad8e86e-6c76-4b54-b743-96029f649adf",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
+    },
+    {
+      "queryId": "q060",
       "imageId": "ae1d1c3a-afc6-4de1-9416-350b5b092294",
       "grade": 1,
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q060",
+      "imageId": "b26812f7-4128-4055-9df6-c5f01201c830",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     },
     {
       "queryId": "q060",
@@ -5744,6 +9752,14 @@
       "rater": "ramiz",
       "date": "2026-10-04",
       "round": 1
+    },
+    {
+      "queryId": "q060",
+      "imageId": "f15652aa-4ed8-4165-9af4-961d4aab1dc3",
+      "grade": 0,
+      "rater": "ramiz",
+      "date": "2026-10-05",
+      "round": 2
     }
   ]
 }

@@ -1,6 +1,6 @@
 # P3: Query understanding (parse) — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-05-p3-query-understanding.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P3)
 Follow-ups: none yet (P4 retrieval and fusion consumes the parse tool defined here)
@@ -140,3 +140,74 @@ Each root as its own `pytest` command (CLAUDE.md). The whole `tests/integration/
 5. Evaluation extension: `parse_scoring`, `parse-eval`, `parsed_axis_match` and their tests.
 6. Controller steps (live Ollama, consent for any pull): run the candidates, ask before pulling the larger model, store the results.
 7. Choose the model, set `parse.model`, write the addendum and the handoff notes, update the tracker, `CLAUDE.md` and the review report.
+
+## Addendum: result (2026-10-06)
+
+### What was built
+
+- `parse/` (config, schema, answer interpretation, prompt with an auto-derived version, script-based language fallback, `urllib` Ollama client, LRU cache, `QueryParser`, the `parse_query` tool), the backend wiring (`Backend/app/services/query_parser.py`, registered in the `lifespan`), the `parse.*` settings, the image packaging (`parse/`, `taxonomy/` and `batch/data/taxonomy` are now in `Dockerfile.backend`, with a docker check), and the evaluation extension (`parse_scoring`, `parse-eval`, the `parsed_axis_match` retriever, `build-pools --sources/--random/--depth/--parse-model`). Tests at the end of the branch: `tests/parse` 117, `tests/evaluation` 111, whole `tests/integration` and Backend roots green, `tests/docker` 3 passed.
+- Quality process: seven code tasks plus a plan task 8, a task review each, one final whole-branch review on the most capable model (4 Important findings, all fixed in one wave: `parse.num_ctx` aligned with `meme_profiles.num_ctx`, a model warm-up, startup registration of the parser, a per-loop semaphore), and scoped re-reviews.
+
+### Model comparison (60 gold queries, `evaluation/gold/parse/`, live Ollama, parser `p3-7d04a3472a`)
+
+| model | language accuracy | degraded | retries | parse p50 / p95 | macro F1 vs expected profile | situation similarity |
+|---|---|---|---|---|---|---|
+| `qwen2.5:7b-instruct` | 1.000 | 0.0% | 0 of 60 | 655 / 891 ms | 0.498 (en 0.435, es 0.540, ru 0.518) | 0.843 |
+| `qwen2:latest` | 1.000 | 0.0% | 0 of 60 | 702 / 905 ms | 0.491 (en 0.479, es 0.508, ru 0.486) | 0.850 |
+
+Per axis (`qwen2.5:7b-instruct`, F1): topic 0.838, tone 0.500, emotion 0.375, stance 0.278 (stance is the weakest, it is also the most subjective axis: what kind of reply the user wants). `qwen2:latest`: topic 0.817, stance 0.422, emotion 0.364, tone 0.361. The larger model comparison was not run: the installed 7B models already pass every operational criterion and the retrieval result below, so the user's option "installed plus one larger model" was not exercised (nothing was pulled).
+
+### Retrieval effect (`parsed_axis_match`, same scoring as the gold-profile `axis_match`, round-2 judgments)
+
+The first measurement (round-1 judgments only) gave `parsed_axis_match` nDCG@10 0.138 with only 16% of its top ten judged, because round 1 had pooled the other retrievers: the number was not assessable. The user therefore judged a **round 2**: the 506 unjudged members of the `qwen2.5:7b-instruct` parser's top ten (502 graded; EN 161, RU 168, ES 173; grades 0/1/2 EN 99/45/17, RU 92/48/28, ES 93/54/26). All baselines were then re-run against the 1,220 judgments (gold hashes changed, so the earlier baselines were replaced):
+
+| retriever | nDCG@10 | recall@10 | hit@10 | judged@10 | en | es | ru |
+|---|---|---|---|---|---|---|---|
+| random | 0.004 | 0.005 | 0.050 | 0.022 | 0.000 | 0.012 | 0.000 |
+| lexical_and | 0.000 | 0.000 | 0.000 | - | 0.000 | 0.000 | 0.000 |
+| lexical_or | 0.196 | 0.143 | 0.767 | 0.345 | 0.165 | 0.200 | 0.224 |
+| situation_embedding | 0.252 | 0.183 | 0.767 | 0.282 | 0.426 | 0.280 | 0.052 |
+| axis_match (gold profile) | 0.295 | 0.259 | 0.933 | 0.473 | 0.322 | 0.262 | 0.301 |
+| **parsed_axis_match, qwen2.5:7b-instruct** | **0.468** | 0.503 | **1.000** | 0.993 | 0.429 | 0.511 | 0.463 |
+| parsed_axis_match, qwen2:latest (its own top ten only 49% judged) | 0.277 | 0.284 | 0.800 | 0.488 | 0.249 | 0.317 | 0.267 |
+
+By difficulty (nDCG@10) `parsed_axis_match` (`qwen2.5:7b-instruct`): ambiguous 0.462, easy 0.530, hard 0.417; by length: short 0.591, medium 0.378, long 0.525.
+
+**How to read it (the caveat that matters):** pooling favours the retriever whose results were pooled. `parsed_axis_match` is now 99% judged, while the other retrievers (including the gold-profile `axis_match`, 47% judged) still count their unjudged results as grade 0, so their scores are lower bounds and the gap to `parsed_axis_match` is overstated. What the data supports without that bias: (1) with complete judgments, the parsed profile retrieves an acceptable-or-better meme in the top ten for **every one of the 60 queries** (hit@10 1.000); (2) the per-language ratio of the fully judged retriever to English is 1.19 (es) and 1.08 (ru), so the criterion "every language at least 0.85 of English" holds; (3) in the first measurement the results that were judged were as good for the parser (mean grade 0.80) as for the gold profile (0.72), which says the parse costs little. The criterion "at least 0.9 times the gold-profile score" is met against the measured gold value (0.295, a lower bound) but is **not rigorously settled**: to settle it, the unjudged part of the gold-profile `axis_match` top ten (about 320 pairs) would have to be judged in a round 3.
+
+### Choice
+
+`parse.model: qwen2.5:7b-instruct` (already the value in the general and metal overlays since the settings task, unchanged): it passes language accuracy, degraded rate and latency with a wide margin, wins the tie on agreement and speed, and is the model already loaded for the P2 profile jobs (no second model competing for VRAM; `parse.num_ctx` equals `meme_profiles.num_ctx`, 8192). Acceptance criteria 1-8: see the review report.
+
+### Answer on OQ-3
+
+A local 7B instruct model parses English, Russian and Spanish messages into the taxonomy well enough: 100% language detection, 0% degraded, no retries, topic F1 0.84 and, more importantly, retrieval quality with the parsed profile that is as good in Russian (0.463) and Spanish (0.511) as in English (0.429). The remaining weakness is stance (F1 0.28, top-1 0.35): the parser often names a different kind of reply than the gold profile; retrieval does not suffer visibly (stance is one of four axes in the score), but a later prompt or model experiment should start there.
+
+### Proposed regression floors for the parser (for the user's approval, not a decision)
+
+On the 60 gold queries, so that a prompt, taxonomy or model change can be compared with `parse-eval`: language accuracy at least 0.95; degraded rate at most 2%; parse p50 at most 2.0 s and p95 at most 5.0 s; macro F1 at least 0.45 overall and at least 0.40 per language; per-axis F1 at least topic 0.75, tone 0.45, emotion 0.33, stance 0.25 (about 10% under the measured values); `parsed_axis_match` nDCG@10 not below 0.42 with the same judgments. These floors replace the P3 acceptance numbers only as a regression gate; they do not change the approved P4 thresholds.
+
+### Consequence for the approved P4 thresholds (needs a decision)
+
+The P4 thresholds approved on 2026-10-05 (overall nDCG@10 at least 0.37 and hit@10 at least 0.87) were calibrated on round-1 judgments, where the best baseline reached 0.339. With the round-2 judgments a single-signal `parsed_axis_match` already reaches nDCG@10 0.468 and hit@10 1.000, so those absolute numbers would be met by a one-axis baseline. The rule behind them ("beat the best baseline by a margin of 0.03") now implies nDCG@10 at least about 0.50. Proposal: re-base to the new best baseline (nDCG@10 at least 0.50, hit@10 at least 0.95), keep the per-language (at least 0.85 of English and at least 0.30) and per-class rules, and evaluate P4 after a round that pools P4's own top ten.
+
+### Handoff notes for P4
+
+- Build the parser at startup: the backend `lifespan` already calls `get_query_parser()` (it loads the taxonomy and makes no Ollama call) and registers the instance with the `parse_query` tool. Call `await parser.warm_up()` as a background task at startup and consider re-warming after long idle periods: `keep_alive` is 30 minutes, and the first parse after an unload or after another model evicted it can exceed the 5 s budget and degrade (a degraded result is never cached, so the next request retries).
+- Treat `profile.degraded` as the trigger for the embedding-only path (ADR-003); `meta.fallback` gives the reason (`unavailable`, `timeout`, `invalid_output`, `empty_input`). When Ollama is down on Windows a closed port can take about 2 s to fail (reported as `timeout` or `unavailable`); consider a small circuit breaker after N consecutive failures.
+- In Docker the default `parse.ollama_url` (127.0.0.1) points at the container itself: set `OLLAMA_HOST` (for example `host.docker.internal:11434`) in the deployment or every parse degrades.
+- The cache is per process; identical concurrent queries are not deduplicated; a cache hit reports the original `attempts` and `fallback` (count retries only where `cacheHit` is false). The concurrency gate (`parse.max_concurrent`, 2) counts against the 5 s budget.
+- `situation` is untrusted free text of up to 160 characters shaped by the user's message: fine as an embedding query; escape it in any UI; never put it into another LLM prompt without the untrusted-data framing. An edited profile can be validated with `taxonomy.validate_profile`.
+- Keep `parse.num_ctx` equal to `meme_profiles.num_ctx` while both use the same model (Ollama reloads the model when `num_ctx` differs).
+- Round 1 and round 2 judgments are in `evaluation/gold/judgments.json`; a P4 evaluation round should pool P4's own top ten with `build-pools --round N --sources <retriever> ...`.
+
+### Deviations from this spec and plan
+
+- The response schema has no `maxLength` on `situation` (P2's finding); `validate_profile` enforces the 160 characters and a violation costs a retry.
+- The process-wide parser is created in `Backend/app/services/query_parser.py` (the pure package cannot import `config.settings`) and registered in the backend `lifespan`; `parse/tool.py` exposes `set_parser`.
+- Added after the final review: `QueryParser.warm_up`, `log_result` (a log line on the tool's no-parser path), a per-event-loop semaphore, a tighter message-marker pattern, `parse.num_ctx` 8192.
+- `--timeout-seconds` on `parse-eval` (diagnostics); plan task 8 (`build-pools` pool options) was added after the measurement; round 2 judgments were collected (the retrieval criterion could not be assessed without them).
+- `guess_language` (degraded results only) needs two Spanish function words and uses a shorter word list than the spec text, so short Spanish sentences can be labelled `en` when the model call fails.
+- A situation longer than 160 characters or more values than the axis allows is rejected (retry) rather than truncated; the measured retry rate was 0 of 60.
+- The larger-model comparison was not run (no pull needed).
+- Process incident: two subagents wrote into the main checkout instead of the worktree (stray files and one commit); recovered by cherry-pick and a clean-up before the merge.

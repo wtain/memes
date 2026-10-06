@@ -2510,6 +2510,135 @@ git add evaluation/gold environments docs CLAUDE.md
 git commit -m "docs: record the P3 model comparison, choice, handoff notes, review and tracker status"
 ```
 
+### Task 8: Pool a parser's results for a judging round (added 2026-10-05, after the Task 7 measurement)
+
+Why: the Task 7 run showed the retrieval criterion cannot be assessed with the round-1 judgments: only about 16% of `parsed_axis_match`'s top ten was ever judged, because round 1 pooled the other retrievers. The user chose a round 2 that judges the unjudged top-10 of the chosen parser. `build-pools` must therefore be able to pool a parser's results only, at exactly the top ten, without random fillers.
+
+**Files:**
+- Modify: `evaluation/__main__.py`, `evaluation/gold/README.md` (one sentence), `tests/evaluation/test_cli.py`
+
+**Interfaces:**
+- Consumes: Task 6 (`_make_retriever(name, session, seed, parse_model)`, `ParsedAxisMatchRetriever`), P6 `build_pool(query_id, ranked, random_candidates, *, exclude, ranked_target, random_target, seed)`.
+- Produces: `python -m evaluation build-pools --round N [--sources a,b] [--parse-model M] [--random R] [--depth D] [--per-query P] [--pools-dir DIR] [--force]` where `--sources` defaults to `lexical_or,situation_embedding,axis_match` (the round-1 behaviour), may also name `parsed_axis_match` (then `--parse-model` is required), `--random` defaults to 3 (the number of random candidates, may be 0), `--depth` defaults to 30 (how many ranks of each source are considered). Pure helpers `pool_source_names(sources_arg) -> list[str]` and `validate_pool_args(args) -> str | None` (an error message or None).
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `tests/evaluation/test_cli.py`:
+
+```python
+def _pool_args(**overrides):
+    base = ["build-pools", "--round", "2"]
+    for key, value in overrides.items():
+        base += [f"--{key.replace('_', '-')}", str(value)]
+    return cli.build_parser().parse_args(base)
+
+
+def test_build_pools_defaults_keep_the_round_one_behaviour():
+    args = _pool_args()
+    assert args.sources == "lexical_or,situation_embedding,axis_match"
+    assert (args.random, args.depth, args.per_query, args.parse_model) == (3, 30, 12, None)
+    assert cli.validate_pool_args(args) is None
+    assert cli.pool_source_names(args.sources) == ["lexical_or", "situation_embedding", "axis_match"]
+
+
+def test_a_parser_only_pool_of_exactly_the_top_ten_is_valid():
+    args = _pool_args(sources="parsed_axis_match", parse_model="m", random=0, depth=10, per_query=10)
+    assert cli.validate_pool_args(args) is None
+    assert cli.pool_source_names("parsed_axis_match, axis_match ") == ["parsed_axis_match", "axis_match"]
+
+
+@pytest.mark.parametrize("overrides, fragment", [
+    ({"sources": "parsed_axis_match"}, "--parse-model"),
+    ({"sources": "nope"}, "unknown pool source"),
+    ({"sources": ","}, "at least one source"),
+    ({"random": -1}, "--random"),
+    ({"per_query": 3, "random": 3}, "--per-query"),
+    ({"depth": 0}, "--depth"),
+])
+def test_validate_pool_args_rejects_bad_options(overrides, fragment):
+    assert fragment in cli.validate_pool_args(_pool_args(**overrides))
+
+
+def test_build_pools_validates_its_options_before_requiring_the_read_only_url(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    gold = _gold_dir(tmp_path)
+
+    code = cli.main(["--gold-dir", str(gold), "build-pools", "--round", "2", "--sources", "parsed_axis_match"])
+
+    assert code == 1 and "--parse-model" in capsys.readouterr().err
+```
+
+- [ ] **Step 2: Run to verify failure**
+
+Run: `/h/workspace_sandbox/memes/.venv311/Scripts/python.exe -m pytest tests/evaluation/test_cli.py -q` -> the new tests FAIL (`build-pools` has no `--sources`, `validate_pool_args` missing).
+
+- [ ] **Step 3: Implement**
+
+In `evaluation/__main__.py`:
+
+(a) After `POOL_DEPTH = 30` add:
+
+```python
+POOL_SOURCE_CHOICES = POOL_SOURCES + ("parsed_axis_match",)
+DEFAULT_POOL_SOURCES = ",".join(POOL_SOURCES)
+
+
+def pool_source_names(sources_arg: str) -> list[str]:
+    return [name.strip() for name in sources_arg.split(",") if name.strip()]
+
+
+def validate_pool_args(args) -> str | None:
+    names = pool_source_names(args.sources)
+    if not names:
+        return "--sources must name at least one source"
+    unknown = [name for name in names if name not in POOL_SOURCE_CHOICES]
+    if unknown:
+        return f"unknown pool source(s): {', '.join(unknown)} (choose from {', '.join(POOL_SOURCE_CHOICES)})"
+    if "parsed_axis_match" in names and not args.parse_model:
+        return "--parse-model is required when parsed_axis_match is a pool source"
+    if args.random < 0:
+        return "--random cannot be negative"
+    if args.per_query - args.random < 1:
+        return "--per-query must be larger than --random"
+    if args.depth < 1:
+        return "--depth must be at least 1"
+    return None
+```
+
+(b) In `cmd_build_pools`: make the first statements
+
+```python
+    error = validate_pool_args(args)
+    if error:
+        return _error(error)
+    require_readonly()
+```
+
+then change the body as follows: `names = pool_source_names(args.sources)`; the corpus check becomes `await _check_corpus(session, corpus, check_digest="situation_embedding" in names)`; the retrievers dict becomes `{name: _make_retriever(name, session, args.seed, args.parse_model) for name in names}`; the ranked lists use `args.depth` instead of `POOL_DEPTH`; and the `build_pool` call uses `ranked_target=args.per_query - args.random, random_target=args.random`. Keep everything else (exclusion of judged images, the filenames lookup, the round file refusal) unchanged.
+
+(c) In `build_parser`, after the existing `pools.add_argument("--force", ...)` line add:
+
+```python
+    pools.add_argument("--sources", default=DEFAULT_POOL_SOURCES,
+                       help="comma-separated pool sources: " + ", ".join(POOL_SOURCE_CHOICES))
+    pools.add_argument("--parse-model", default=None, help="model for the parsed_axis_match pool source")
+    pools.add_argument("--random", type=int, default=3, help="number of random candidates per query")
+    pools.add_argument("--depth", type=int, default=POOL_DEPTH, help="ranks of each source that are considered")
+```
+
+(d) In `evaluation/gold/README.md`, in the bullet about new judging rounds, add one sentence: "`build-pools` takes `--sources`, `--random` and `--depth`; a round that only judges the unjudged top ten of a parser uses `--sources parsed_axis_match --parse-model M --random 0 --depth 10 --per-query 10`."
+
+- [ ] **Step 4: Run the tests**
+
+Run each as its own command: `/h/workspace_sandbox/memes/.venv311/Scripts/python.exe -m pytest tests/evaluation -q` (all PASS); `/h/workspace_sandbox/memes/.venv311/Scripts/python.exe -m evaluation build-pools --help` (exit 0, lists the new options). Do not run `build-pools` for real (the controller does).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add evaluation/__main__.py evaluation/gold/README.md tests/evaluation/test_cli.py
+git commit -m "feat(evaluation): let build-pools pool a parser's results (sources, random, depth)"
+```
+
 ---
 
 ## Self-review (plan against spec)

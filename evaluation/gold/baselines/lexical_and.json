@@ -1,17 +1,17 @@
 {
   "label": "lexical_and",
-  "date": "2026-10-05",
+  "date": "2026-10-06",
   "retriever": {
     "name": "lexical_and",
     "config": {
       "mode": "and"
     }
   },
-  "gitCommit": "20433ca578593f09ff965adc40d2a9c5ed30dce1",
+  "gitCommit": "a3650ce4a87885c8944b978519e337d78e2a8886",
   "gold": {
     "corpusSha": "da9de2c79938aa9c46a31b0c0eb432998cc0810f628de2832ad86da88a790ea8",
     "queriesSha": "5299d18171682186e54aee387a8dd7265de0b4468715c412922676e0adc7a70b",
-    "judgmentsSha": "28817839e40aa52d7c3380fe3bf2ee49bf6b90ace8c81fd46bbe1a83fc5ca328"
+    "judgmentsSha": "a90d2909e5c5a52d64d3424fd18d5b5deb7b9b02a8afe730f7257c53ad338289"
   },
   "profileState": {
     "corpusImages": 1500,

@@ -401,6 +401,30 @@ python -m evaluation        → meme-from-text evaluation harness (P6): frozen 1
                                evaluation/gold/README.md and
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-03-p6-evaluation-and-gold-set-design.md.
 
+parse (package parse/)       → the meme-from-text query parser (P3): turns a pasted message (EN/RU/ES) into a
+                               schema-valid query profile (language, English situation phrase, emotion, stance,
+                               topic, tone as taxonomy keys with coarse confidences) with one schema-constrained
+                               Ollama call (temperature 0, fixed seed, model from parse.model, only set for general
+                               and metal). Standard library plus taxonomy only (an AST test enforces it); the
+                               backend has no HTTP client dependency, so the client uses urllib in a worker thread.
+                               `parse_query` (parse/tool.py) is the typed tool; the backend builds the process-wide
+                               parser in Backend/app/services/query_parser.py (get_query_parser(), called in the
+                               lifespan). The parser never raises: failures return a degraded profile
+                               (degraded true, empty axes, meta.fallback unavailable | timeout | invalid_output |
+                               empty_input), never cached; one retry only after an unusable answer and only if
+                               parse.retry_min_seconds of the parse.timeout_seconds budget remain. The user's text is
+                               never logged. Settings: parse.* in environments/settings*.yaml (parse.num_ctx must equal
+                               meme_profiles.num_ctx while both use the same model, otherwise Ollama reloads the model;
+                               OLLAMA_HOST wins over parse.ollama_url; in Docker set it, 127.0.0.1 is the container).
+                               The backend image needs parse/, taxonomy/ and batch/data/taxonomy (.dockerignore has
+                               the matching re-include rules). Measured on the gold set with python -m evaluation
+                               parse-eval --model M --label L (live Ollama, no database; reports in
+                               evaluation/gold/parse/) and the parsed_axis_match retriever (run --retriever
+                               parsed_axis_match --parse-model M, read-only database); build-pools accepts
+                               --sources/--random/--depth/--parse-model to pool a parser's own top ten for a judging
+                               round. See docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-05-p3-query-understanding-design.md
+                               (addendum: model comparison, handoff notes for P4).
+
 build_statistics            → precomputes the statistics page's numbers into the single-row
                                statistics_snapshots table (name='corpus'), so GET
                                /api/diagnostics/statistics is a row read instead of ~28

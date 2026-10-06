@@ -1,0 +1,1912 @@
+{
+  "version": 1,
+  "label": "qwen25-7b",
+  "date": "2026-10-05",
+  "model": "qwen2.5:7b-instruct",
+  "parserVersion": "p3-7d04a3472a",
+  "taxonomyVersion": 2,
+  "queriesSha": "5299d18171682186e54aee387a8dd7265de0b4468715c412922676e0adc7a70b",
+  "summary": {
+    "overall": {
+      "queries": 60,
+      "languageAccuracy": 1.0,
+      "degradedRate": 0.0,
+      "macroF1": 0.4977777777777778,
+      "axes": {
+        "emotion": {
+          "precision": 0.4305555555555555,
+          "recall": 0.3472222222222222,
+          "f1": 0.375,
+          "top1": 0.5
+        },
+        "stance": {
+          "precision": 0.35,
+          "recall": 0.24166666666666667,
+          "f1": 0.27777777777777773,
+          "top1": 0.35
+        },
+        "topic": {
+          "precision": 0.8888888888888888,
+          "recall": 0.8499999999999999,
+          "f1": 0.8383333333333329,
+          "top1": 0.95
+        },
+        "tone": {
+          "precision": 0.55,
+          "recall": 0.475,
+          "f1": 0.5000000000000001,
+          "top1": 0.55
+        }
+      },
+      "situationSimilarity": 0.8426806539297104,
+      "latencyP50": 655,
+      "latencyP95": 891
+    },
+    "byLanguage": {
+      "en": {
+        "queries": 20,
+        "languageAccuracy": 1.0,
+        "degradedRate": 0.0,
+        "macroF1": 0.43499999999999994,
+        "axes": {
+          "emotion": {
+            "precision": 0.3,
+            "recall": 0.275,
+            "f1": 0.2833333333333333,
+            "top1": 0.35
+          },
+          "stance": {
+            "precision": 0.3,
+            "recall": 0.2,
+            "f1": 0.2333333333333333,
+            "top1": 0.3
+          },
+          "topic": {
+            "precision": 0.95,
+            "recall": 0.8583333333333332,
+            "f1": 0.8733333333333333,
+            "top1": 1.0
+          },
+          "tone": {
+            "precision": 0.35,
+            "recall": 0.35,
+            "f1": 0.35,
+            "top1": 0.35
+          }
+        },
+        "situationSimilarity": 0.8421354442834854,
+        "latencyP50": 641,
+        "latencyP95": 766
+      },
+      "es": {
+        "queries": 20,
+        "languageAccuracy": 1.0,
+        "degradedRate": 0.0,
+        "macroF1": 0.54,
+        "axes": {
+          "emotion": {
+            "precision": 0.5166666666666667,
+            "recall": 0.36666666666666664,
+            "f1": 0.4166666666666667,
+            "top1": 0.6
+          },
+          "stance": {
+            "precision": 0.45,
+            "recall": 0.3,
+            "f1": 0.35,
+            "top1": 0.45
+          },
+          "topic": {
+            "precision": 0.8916666666666668,
+            "recall": 0.825,
+            "f1": 0.8266666666666665,
+            "top1": 1.0
+          },
+          "tone": {
+            "precision": 0.65,
+            "recall": 0.525,
+            "f1": 0.5666666666666667,
+            "top1": 0.65
+          }
+        },
+        "situationSimilarity": 0.828389847278595,
+        "latencyP50": 625,
+        "latencyP95": 922
+      },
+      "ru": {
+        "queries": 20,
+        "languageAccuracy": 1.0,
+        "degradedRate": 0.0,
+        "macroF1": 0.5183333333333333,
+        "axes": {
+          "emotion": {
+            "precision": 0.475,
+            "recall": 0.4,
+            "f1": 0.425,
+            "top1": 0.55
+          },
+          "stance": {
+            "precision": 0.3,
+            "recall": 0.225,
+            "f1": 0.25,
+            "top1": 0.3
+          },
+          "topic": {
+            "precision": 0.825,
+            "recall": 0.8666666666666668,
+            "f1": 0.8150000000000001,
+            "top1": 0.85
+          },
+          "tone": {
+            "precision": 0.65,
+            "recall": 0.55,
+            "f1": 0.5833333333333333,
+            "top1": 0.65
+          }
+        },
+        "situationSimilarity": 0.8575166702270508,
+        "latencyP50": 733,
+        "latencyP95": 891
+      }
+    }
+  },
+  "queries": {
+    "q001": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 545,
+      "situationSimilarity": 0.8929564952850342,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Someone received a promotion.",
+        "emotion": [
+          "amusement"
+        ],
+        "stance": [
+          "mock"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q002": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 688,
+      "situationSimilarity": 0.778355598449707,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "The person is awake at 4am and can't sleep.",
+        "emotion": [
+          "frustration",
+          "anxiety"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "sleep"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q003": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 608,
+      "situationSimilarity": 0.813681960105896,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Someone is taking credit for work not done by them.",
+        "emotion": [
+          "anger"
+        ],
+        "stance": [
+          "disagree"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q004": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 327,
+      "situationSimilarity": 0.933438777923584,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Choosing between pizza and tacos for dinner.",
+        "emotion": [],
+        "stance": [],
+        "topic": [
+          "food"
+        ],
+        "tone": []
+      }
+    },
+    "q005": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 641,
+      "situationSimilarity": 0.8918251395225525,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.6666666666666666,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The person passed an exam.",
+        "emotion": [
+          "excitement",
+          "joy"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "study"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q006": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 733,
+      "situationSimilarity": 0.9265974760055542,
+      "f1": {
+        "emotion": 1.0,
+        "stance": 1.0,
+        "topic": 0.6666666666666666,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Landlord increases rent despite broken heating.",
+        "emotion": [
+          "frustration",
+          "anger"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "money",
+          "work"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      }
+    },
+    "q007": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 579,
+      "situationSimilarity": 0.7140994071960449,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Mother inquires about vegetable consumption.",
+        "emotion": [
+          "annoyance"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "family"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q008": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 656,
+      "situationSimilarity": 0.7278409600257874,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "A person sent a text with hearts and expressed affection.",
+        "emotion": [
+          "joy",
+          "love"
+        ],
+        "stance": [
+          "agree"
+        ],
+        "topic": [
+          "romance"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q009": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 655,
+      "situationSimilarity": 0.858874499797821,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 1.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Added to an unwanted group chat.",
+        "emotion": [
+          "frustration"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "friends",
+          "technology"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q010": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 608,
+      "situationSimilarity": 0.7112106084823608,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "The user tried to follow the doctor's advice by walking to the fridge twice.",
+        "emotion": [
+          "amusement"
+        ],
+        "stance": [
+          "mock"
+        ],
+        "topic": [
+          "health"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q011": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 610,
+      "situationSimilarity": 0.8414086103439331,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Failed the tutorial level in a game for the second time.",
+        "emotion": [
+          "frustration"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "gaming"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q012": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 358,
+      "situationSimilarity": 0.8516769409179688,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Asked about an event that occurred during a political debate.",
+        "emotion": [],
+        "stance": [],
+        "topic": [
+          "politics"
+        ],
+        "tone": []
+      }
+    },
+    "q013": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 593,
+      "situationSimilarity": 0.7475245594978333,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "The cat is being active at an inconvenient hour.",
+        "emotion": [
+          "annoyance"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "animals"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q014": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 766,
+      "situationSimilarity": 0.9381632804870605,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.6666666666666666,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "The flight was delayed and the airport is cold.",
+        "emotion": [
+          "frustration",
+          "disappointment"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "travel",
+          "weather"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      }
+    },
+    "q015": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 592,
+      "situationSimilarity": 0.883495569229126,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Family wants to host Christmas at my place again.",
+        "emotion": [
+          "relief"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "family"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q016": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 766,
+      "situationSimilarity": 0.8791673183441162,
+      "f1": {
+        "emotion": 1.0,
+        "stance": 0.6666666666666666,
+        "topic": 0.6666666666666666,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The user successfully got concert tickets after a long online wait.",
+        "emotion": [
+          "excitement",
+          "joy"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "music",
+          "gaming"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q017": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 672,
+      "situationSimilarity": 0.7382148504257202,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Continuous rain has negatively affected the user's mood.",
+        "emotion": [
+          "sadness",
+          "anxiety"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "weather"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      }
+    },
+    "q018": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 750,
+      "situationSimilarity": 0.86030113697052,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 0.8,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "A grandmother advises praying for good grades instead of studying.",
+        "emotion": [
+          "frustration",
+          "disappointment"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "study",
+          "religion"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q019": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 686,
+      "situationSimilarity": 0.9042308330535889,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Watched a horror movie alone and is now paranoid about shadows.",
+        "emotion": [
+          "fear",
+          "anxiety"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "horror"
+        ],
+        "tone": [
+          "dark"
+        ]
+      }
+    },
+    "q020": {
+      "language": "en",
+      "detectedLanguage": "en",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 797,
+      "situationSimilarity": 0.9496448636054993,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.6666666666666666,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "The company announced layoffs via a positive email about opportunities while the CEO bought a yacht.",
+        "emotion": [
+          "disappointment",
+          "frustration"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "work",
+          "money"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q021": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 562,
+      "situationSimilarity": 0.8149791359901428,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Guess who got a promotion!",
+        "emotion": [
+          "excitement"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q022": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 625,
+      "situationSimilarity": 0.9119427800178528,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Can't fall asleep again, it's already 4 AM.",
+        "emotion": [
+          "frustration",
+          "anxiety"
+        ],
+        "stance": [],
+        "topic": [
+          "sleep"
+        ],
+        "tone": [
+          "self_deprecating"
+        ]
+      }
+    },
+    "q023": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 608,
+      "situationSimilarity": 0.7290188074111938,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Someone is taking all the credit for themselves.",
+        "emotion": [
+          "disappointment"
+        ],
+        "stance": [
+          "disagree"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q024": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 313,
+      "situationSimilarity": 0.7412804365158081,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Asking about dinner options.",
+        "emotion": [],
+        "stance": [],
+        "topic": [
+          "food"
+        ],
+        "tone": []
+      }
+    },
+    "q025": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 640,
+      "situationSimilarity": 0.8918251395225525,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.6666666666666666,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The person passed an exam.",
+        "emotion": [
+          "joy",
+          "relief"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "study"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q026": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 905,
+      "situationSimilarity": 0.9575369358062744,
+      "f1": {
+        "emotion": 1.0,
+        "stance": 1.0,
+        "topic": 0.5,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The landlord raises the rent again and the heating is still not fixed.",
+        "emotion": [
+          "frustration",
+          "anger"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "money",
+          "health",
+          "study"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      }
+    },
+    "q027": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 766,
+      "situationSimilarity": 0.9267101287841797,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "A coworker brought a homemade pie and shared it with the whole office.",
+        "emotion": [
+          "joy",
+          "amusement"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "work",
+          "food"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q028": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 891,
+      "situationSimilarity": 0.9006808400154114,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 1.0,
+        "topic": 0.5,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The package the person has been waiting for two months finally arrived.",
+        "emotion": [
+          "joy",
+          "relief"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "technology",
+          "money",
+          "study"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q029": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 608,
+      "situationSimilarity": 0.9032083749771118,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.6666666666666666,
+        "topic": 1.0,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "The boss marked an urgent email as important on a Sunday evening.",
+        "emotion": [
+          "frustration"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q030": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 733,
+      "situationSimilarity": 0.8389063477516174,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Someone said they would quit sweets on Monday but bought a cake for Tuesday.",
+        "emotion": [
+          "disappointment"
+        ],
+        "stance": [
+          "mock"
+        ],
+        "topic": [
+          "food",
+          "health"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q031": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 766,
+      "situationSimilarity": 0.9233888387680054,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 1.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "A friend cancels plans for the third time at the last minute and says 'let's do it another time'.",
+        "emotion": [
+          "frustration",
+          "disappointment"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "friends"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q032": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 516,
+      "situationSimilarity": 0.882422685623169,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 0.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Asking about opinions on a popular new TV season.",
+        "emotion": [],
+        "stance": [],
+        "topic": [
+          "gaming",
+          "study",
+          "work"
+        ],
+        "tone": []
+      }
+    },
+    "q033": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 781,
+      "situationSimilarity": 0.8713850975036621,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The first workday after vacation is tomorrow, and I'm not mentally prepared.",
+        "emotion": [
+          "anxiety",
+          "disappointment"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "work",
+          "holidays"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      }
+    },
+    "q034": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 891,
+      "situationSimilarity": 0.7751394510269165,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.6666666666666666,
+        "topic": 0.6666666666666666,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "Neighbours are doing repairs at 8 AM on Saturday.",
+        "emotion": [
+          "annoyance",
+          "frustration"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "sleep",
+          "animals"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      }
+    },
+    "q035": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 592,
+      "situationSimilarity": 0.8738583326339722,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.0,
+        "topic": 0.5,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Considering whether to buy a video card at this price.",
+        "emotion": [
+          "anxiety"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "technology"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      }
+    },
+    "q036": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 688,
+      "situationSimilarity": 0.8617005348205566,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "The user went running for the first time in a year and survived.",
+        "emotion": [
+          "joy",
+          "pride"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "health"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q037": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 811,
+      "situationSimilarity": 0.7210052609443665,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 0.3333333333333333,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The family is enjoying a weekend at the cottage with music and the smell of shashlik.",
+        "emotion": [
+          "joy",
+          "relief"
+        ],
+        "stance": [],
+        "topic": [
+          "holidays",
+          "music",
+          "travel"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q038": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 797,
+      "situationSimilarity": 0.866564929485321,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "Politicians promise to lower prices and raise wages, but nothing changes for the user.",
+        "emotion": [
+          "disappointment",
+          "frustration"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "politics",
+          "money"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      }
+    },
+    "q039": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 734,
+      "situationSimilarity": 0.9418123960494995,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "My cat brought a dead mouse as a gift and looks so proud that I don't want to scold her.",
+        "emotion": [
+          "amusement",
+          "love"
+        ],
+        "stance": [
+          "console"
+        ],
+        "topic": [
+          "animals"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q040": {
+      "language": "ru",
+      "detectedLanguage": "ru",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 795,
+      "situationSimilarity": 0.8169669508934021,
+      "f1": {
+        "emotion": 1.0,
+        "stance": 0.0,
+        "topic": 0.8,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Read scary stories about the forest and now have to go on a hike with friends.",
+        "emotion": [
+          "fear",
+          "anxiety"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "travel",
+          "horror"
+        ],
+        "tone": [
+          "dark"
+        ]
+      }
+    },
+    "q041": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 625,
+      "situationSimilarity": 0.7988479137420654,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Someone got a promotion and the user is surprised or curious.",
+        "emotion": [
+          "amusement"
+        ],
+        "stance": [
+          "mock"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q042": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 579,
+      "situationSimilarity": 0.8901815414428711,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Can't sleep at 4 AM again.",
+        "emotion": [
+          "frustration",
+          "anxiety"
+        ],
+        "stance": [],
+        "topic": [
+          "sleep"
+        ],
+        "tone": [
+          "deadpan"
+        ]
+      }
+    },
+    "q043": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 592,
+      "situationSimilarity": 0.7388695478439331,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Someone is taking all the credit.",
+        "emotion": [
+          "anger"
+        ],
+        "stance": [
+          "disagree"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "sarcastic"
+        ]
+      }
+    },
+    "q044": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 484,
+      "situationSimilarity": 0.933438777923584,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Choosing between pizza and tacos for dinner.",
+        "emotion": [
+          "excitement"
+        ],
+        "stance": [],
+        "topic": [
+          "food"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q045": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 625,
+      "situationSimilarity": 0.8228138089179993,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.6666666666666666,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Passed the exam.",
+        "emotion": [
+          "joy",
+          "relief"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "study"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q046": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 812,
+      "situationSimilarity": 0.9458056688308716,
+      "f1": {
+        "emotion": 1.0,
+        "stance": 1.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "The landlord raises the rent again and the heating still doesn't work.",
+        "emotion": [
+          "frustration",
+          "anger"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "money",
+          "work"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      }
+    },
+    "q047": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 780,
+      "situationSimilarity": 0.4688567519187927,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 1.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Mi hermana me preparó el desayuno sin que yo se lo pidiera.",
+        "emotion": [
+          "joy",
+          "gratitude"
+        ],
+        "stance": [
+          "thank"
+        ],
+        "topic": [
+          "family",
+          "food"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q048": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 672,
+      "situationSimilarity": 0.9347123503684998,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Finally it's Friday and the weekend is free.",
+        "emotion": [
+          "joy",
+          "excitement"
+        ],
+        "stance": [],
+        "topic": [
+          "work",
+          "holidays"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q049": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 688,
+      "situationSimilarity": 0.8467534780502319,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.6666666666666666,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "The boss says the team is like a family but denies a raise.",
+        "emotion": [
+          "frustration",
+          "disappointment"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "work"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      }
+    },
+    "q050": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 764,
+      "situationSimilarity": 0.8919453620910645,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.0,
+        "topic": 0.4,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "Told I would go to bed early but ended up watching cat videos until 3 AM.",
+        "emotion": [
+          "embarrassment"
+        ],
+        "stance": [
+          "mock"
+        ],
+        "topic": [
+          "sleep",
+          "gaming"
+        ],
+        "tone": [
+          "self_deprecating"
+        ]
+      }
+    },
+    "q051": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 813,
+      "situationSimilarity": 0.8416383862495422,
+      "f1": {
+        "emotion": 0.5,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The team lost again at the last minute.",
+        "emotion": [
+          "disappointment",
+          "frustration"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "friends",
+          "gaming"
+        ],
+        "tone": [
+          "dramatic"
+        ]
+      }
+    },
+    "q052": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 311,
+      "situationSimilarity": 0.6915348172187805,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "Discussing remote work.",
+        "emotion": [],
+        "stance": [],
+        "topic": [
+          "work"
+        ],
+        "tone": []
+      }
+    },
+    "q053": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 594,
+      "situationSimilarity": 0.8528487682342529,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.6666666666666666,
+        "topic": 1.0,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "The user is anxious about a blind date tomorrow.",
+        "emotion": [
+          "anxiety"
+        ],
+        "stance": [
+          "console"
+        ],
+        "topic": [
+          "romance"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q054": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 530,
+      "situationSimilarity": 0.8846569061279297,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "It's so hot that birds are walking instead of flying in the city.",
+        "emotion": [
+          "amusement"
+        ],
+        "stance": [],
+        "topic": [
+          "weather"
+        ],
+        "tone": [
+          "absurd"
+        ]
+      }
+    },
+    "q055": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 641,
+      "situationSimilarity": 0.9658103585243225,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.6666666666666666,
+        "topic": 0.6666666666666666,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "Grandmother wants an explanation about how artificial intelligence works.",
+        "emotion": [
+          "pride"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "technology"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q056": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 922,
+      "situationSimilarity": 0.9527245759963989,
+      "f1": {
+        "emotion": 0.3333333333333333,
+        "stance": 0.6666666666666666,
+        "topic": 1.0,
+        "tone": 1.0
+      },
+      "parsed": {
+        "situation": "The daughter took her first steps in front of the whole family.",
+        "emotion": [
+          "excitement",
+          "joy",
+          "embarrassment"
+        ],
+        "stance": [
+          "celebrate"
+        ],
+        "topic": [
+          "family"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q057": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 608,
+      "situationSimilarity": 0.9416041374206543,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "The day of the final exam after weeks of studying has arrived.",
+        "emotion": [
+          "excitement",
+          "relief"
+        ],
+        "stance": [],
+        "topic": [
+          "study"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    },
+    "q058": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 968,
+      "situationSimilarity": 0.6318877339363098,
+      "f1": {
+        "emotion": 0.0,
+        "stance": 0.6666666666666666,
+        "topic": 0.8,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "A new law to help young people buy homes was announced, but the minimum price is still above my three-year salary.",
+        "emotion": [
+          "frustration",
+          "disappointment"
+        ],
+        "stance": [
+          "complain"
+        ],
+        "topic": [
+          "money",
+          "politics",
+          "work"
+        ],
+        "tone": [
+          "cynical"
+        ]
+      }
+    },
+    "q059": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 500,
+      "situationSimilarity": 0.7296554446220398,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 0.0,
+        "topic": 1.0,
+        "tone": 0.6666666666666666
+      },
+      "parsed": {
+        "situation": "The dog ignored the command and climbed onto the sofa.",
+        "emotion": [
+          "amusement"
+        ],
+        "stance": [],
+        "topic": [
+          "animals"
+        ],
+        "tone": [
+          "absurd"
+        ]
+      }
+    },
+    "q060": {
+      "language": "es",
+      "detectedLanguage": "es",
+      "degraded": false,
+      "fallback": "none",
+      "latencyMs": 828,
+      "situationSimilarity": 0.8032106161117554,
+      "f1": {
+        "emotion": 0.6666666666666666,
+        "stance": 1.0,
+        "topic": 0.6666666666666666,
+        "tone": 0.0
+      },
+      "parsed": {
+        "situation": "On Christmas Eve, an argument about politics between a cousin and an uncle ended up with them talking about football.",
+        "emotion": [
+          "amusement"
+        ],
+        "stance": [
+          "relate"
+        ],
+        "topic": [
+          "family",
+          "politics",
+          "gaming"
+        ],
+        "tone": [
+          "wholesome"
+        ]
+      }
+    }
+  }
+}

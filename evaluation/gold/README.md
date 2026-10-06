@@ -11,6 +11,7 @@ Tool: `python -m evaluation --help`.
 | `queries.json` | 60 test messages (20 EN, 20 RU, 20 ES) with tags (length, difficulty), an optional `pairId` for the six near-translated situations, and an `expectedProfile` (English situation plus taxonomy keys for emotion, stance, topic, tone: the reply wanted). Only queries with `reviewed: true` take part in runs. |
 | `judgments.json` | Human grades per (query, image): 0 wrong, 1 acceptable, 2 great, with rater, date and round. |
 | `baselines/<label>.json` | Stored results of a retriever run: metrics overall and per language, difficulty, length and input stratum, the gold-file hashes, the retriever config and the profile state of the corpus. No file names. |
+| `parse/<label>.json` | Stored evaluations of the query parser (`python -m evaluation parse-eval`): language accuracy, degraded rate, per-axis agreement with the expected profiles, latency, and the parsed keys per query (no file names). |
 
 Not committed (kept in `evaluation/work/`, gitignored): the candidate pools (`pools-r<N>.json`, they hold the private pool sources and library file names), the judging sheets and thumbnails, the corpus ids file for the P2 jobs.
 
