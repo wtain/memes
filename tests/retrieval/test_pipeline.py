@@ -420,3 +420,7 @@ async def test_the_result_cache_evicts_the_oldest_entry_at_fifty():
     assert len(repository.calls) == 51
     await pipeline.search(SearchRequest(text="text 0"), repository)
     assert len(repository.calls) == 52
+
+def test_config_property_exposes_the_retrieval_config():
+    pipeline = _pipeline()
+    assert pipeline.config is pipeline._config

@@ -426,6 +426,8 @@ async def cmd_tune_weights(args, gold: Path) -> int:
     target = gold / "tuning" / f"{args.label}.json"
     if target.exists() and not args.force:
         return _error(f"{target} already exists (use --force to replace it)")
+    if args.folds < 2:
+        return _error("--folds must be at least 2")
     require_readonly()
     import json
     import uuid
@@ -449,7 +451,7 @@ async def cmd_tune_weights(args, gold: Path) -> int:
                                                         restrict_ids=corpus_ids), repository)
             prepared.append(PreparedQuery(query.id, query.language, item.view, tuple(item.candidates),
                                           item.lexical_active, judged.get(query.id, {})))
-    report = tune(prepared, pipeline._config, load_similarity(), folds=args.folds, seed=args.seed)
+    report = tune(prepared, pipeline.config, load_similarity(), folds=args.folds, seed=args.seed)
     report.update({"label": args.label, "date": date_class.today().isoformat(), "parseModel": args.parse_model,
                    "queries": len(prepared), "queriesSha": file_sha256(gold / "queries.json"),
                    "judgmentsSha": file_sha256(gold / "judgments.json")})

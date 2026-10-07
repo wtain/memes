@@ -233,3 +233,9 @@ def test_tune_weights_options_and_refusal_to_overwrite(tmp_path, capsys):
     (gold / "tuning" / "l.json").write_text("{}", encoding="utf-8")
     code = cli.main(["--gold-dir", str(gold), "tune-weights", "--parse-model", "m", "--label", "l"])
     assert code == 1 and "already exists" in capsys.readouterr().err
+
+def test_tune_weights_rejects_fewer_than_two_folds_before_touching_the_database(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    code = cli.main(["--gold-dir", str(_gold_dir(tmp_path)), "tune-weights", "--parse-model", "m", "--label", "l",
+                     "--folds", "1"])
+    assert code == 1 and "--folds must be at least 2" in capsys.readouterr().err

@@ -31,9 +31,12 @@ def evaluate_weights(prepared: Sequence[PreparedQuery], config: RetrievalConfig,
     tuned = config.with_weights(weights)
     scores = []
     for item in prepared:
-        scored = [fuse(candidate, item.view, tuned, similarity, lexical_active=item.lexical_active)
-                  for candidate in item.candidates]
-        ids = [entry.scored.candidate.image_id for entry in collapse_clusters(rank_candidates(scored))][:k]
+        if not item.view.present_axes(lexical_active=item.lexical_active):
+            ids = []        # production answers such a query with an empty ranking (MemeFromTextPipeline.rank)
+        else:
+            scored = [fuse(candidate, item.view, tuned, similarity, lexical_active=item.lexical_active)
+                      for candidate in item.candidates]
+            ids = [entry.scored.candidate.image_id for entry in collapse_clusters(rank_candidates(scored))][:k]
         metrics = query_metrics(ids, item.grades, k=k)
         if metrics.ndcg is not None:
             scores.append(metrics.ndcg)
@@ -64,6 +67,8 @@ def coordinate_ascent(prepared, config, similarity, start: Mapping[str, float], 
 
 def stratified_folds(items: Sequence, folds: int, seed: int) -> list[list]:
     """Shuffle (seeded) within each language and deal round-robin so every fold has every language."""
+    if folds < 2:
+        raise ValueError("folds must be at least 2")
     rng = random.Random(seed)
     by_language: dict[str, list] = {}
     for item in items:
@@ -85,7 +90,11 @@ def cross_validate(prepared, config, similarity, *, folds: int = 5, seed: int = 
     for index, held_out in enumerate(parts):
         training = [item for other, part in enumerate(parts) if other != index for item in part]
         weights, _score = coordinate_ascent(training, config, similarity, config.weights, k=k)
-        scores.append(evaluate_weights(held_out, config, similarity, weights, k) or 0.0)
+        score = evaluate_weights(held_out, config, similarity, weights, k)
+        if score is not None:       # a fold without a judged positive says nothing; it is skipped, not a zero
+            scores.append(score)
+    if not scores:
+        return {"foldScores": [], "cvScore": 0.0, "foldSpread": 0.0}
     return {"foldScores": scores, "cvScore": sum(scores) / len(scores), "foldSpread": max(scores) - min(scores)}
 
 

@@ -77,3 +77,37 @@ def test_tune_returns_recommended_weights_with_in_sample_and_cross_validated_sco
                            "foldScores", "foldSpread"}
     assert report["inSampleScore"] >= report["defaultScore"] and report["cvScore"] > 0.5
     assert report["defaultWeights"] == WEIGHTS
+
+
+def _unscorable_view_query():
+    view = QueryView(situation=None, axes={}, language="en", degraded=False)
+    return PreparedQuery("qe", "en", view, (make_candidate("e1"),), False, {"e1": 2})
+
+
+def test_a_query_with_no_present_axis_gets_an_empty_ranking_like_production():
+    empty = _unscorable_view_query()
+    perfect = _query(0)
+    emotion_heavy = {**WEIGHTS, "situation": 0.0, "emotion": 1.0}
+
+    assert evaluate_weights([empty], CONFIG, SIM, emotion_heavy) == pytest.approx(0.0)
+    assert evaluate_weights([perfect], CONFIG, SIM, emotion_heavy) == pytest.approx(1.0)
+    assert evaluate_weights([empty, perfect], CONFIG, SIM, emotion_heavy) == pytest.approx(0.5)
+
+
+def test_cross_validation_skips_held_out_folds_without_a_judged_positive():
+    judged = _prepared(2)
+    unjudged = [PreparedQuery(f"u{i}", "en", judged[0].view, judged[0].candidates, False, {}) for i in range(4)]
+
+    report = cross_validate(judged + unjudged, CONFIG, SIM, folds=5, seed=7)
+
+    assert len(report["foldScores"]) == 2
+    assert report["cvScore"] == pytest.approx(sum(report["foldScores"]) / 2)
+    none_judged = cross_validate(unjudged, CONFIG, SIM, folds=5, seed=7)
+    assert none_judged == {"foldScores": [], "cvScore": 0.0, "foldSpread": 0.0}
+
+
+def test_fewer_than_two_folds_is_rejected():
+    with pytest.raises(ValueError):
+        stratified_folds(_prepared(4), 1, seed=7)
+    with pytest.raises(ValueError):
+        cross_validate(_prepared(4), CONFIG, SIM, folds=1)

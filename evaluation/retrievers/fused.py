@@ -18,7 +18,7 @@ class FusedRetriever:
         self._session = session
         self._pipeline = pipeline
         self._repository_factory = repository_factory
-        config = getattr(pipeline, "_config", None)
+        config = getattr(pipeline, "config", None)
         self.config = {"weights": dict(config.weights) if config is not None else {},
                        "embeddingModel": getattr(config, "embedding_model", "")}
 

@@ -100,6 +100,10 @@ class MemeFromTextPipeline:
 
     # ------------------------------------------------------------------ public
 
+    @property
+    def config(self) -> RetrievalConfig:
+        return self._config
+
     async def search(self, request: SearchRequest, repository) -> SearchResult:
         started = self._clock()
         limit = request.limit if request.limit else self._config.default_limit

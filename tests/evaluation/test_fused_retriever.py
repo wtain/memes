@@ -15,7 +15,7 @@ IMG_A, IMG_B = str(uuid.uuid4()), str(uuid.uuid4())
 class FakePipeline:
     def __init__(self):
         self.requests = []
-        self._config = make_config()
+        self.config = make_config()
 
     async def search(self, request, repository):
         self.requests.append((request, repository))
