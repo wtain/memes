@@ -1,11 +1,8 @@
-import re
 import uuid
 from typing import Sequence
 
 from evaluation.gold import GoldQuery
-from repository.ocr_lemmas import scored_image_matches
-
-TOKEN = re.compile(r"\w+", re.UNICODE)
+from repository.ocr_lemmas import lexical_or_scores, scored_image_matches
 
 
 class LexicalRetriever:
@@ -25,11 +22,7 @@ class LexicalRetriever:
         if self.mode == "and":
             scores = await scored_image_matches(self.session, query.text) or {}
         else:
-            scores = {}
-            for token in dict.fromkeys(token.lower() for token in TOKEN.findall(query.text)):
-                token_scores = await scored_image_matches(self.session, token)
-                for image_id, score in (token_scores or {}).items():
-                    scores[image_id] = scores.get(image_id, 0.0) + score
+            scores = await lexical_or_scores(self.session, query.text, corpus)
         ranked = sorted(((str(image_id), score) for image_id, score in scores.items() if image_id in corpus),
                         key=lambda pair: (-pair[1], pair[0]))
         return ranked[:k]

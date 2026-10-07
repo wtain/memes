@@ -1,4 +1,5 @@
 from functools import lru_cache
+import re
 from typing import Optional
 import uuid
 
@@ -18,6 +19,9 @@ from Storage.models import DescriptionLemma, DescriptionNoteLemma, ImageDescript
 @lru_cache(maxsize=1)
 def _get_morph():
     return make_morph()
+
+
+_LEXICAL_TOKEN = re.compile(r"\w+", re.UNICODE)
 
 
 def _description_image_ids(*lemma_filters):
@@ -265,6 +269,24 @@ async def scored_image_matches(
             return {}
 
     return score_images(token_hits)
+
+
+async def lexical_or_scores(
+    session: AsyncSession, text: Optional[str], restrict_ids=None,
+) -> dict[uuid.UUID, float]:
+    """Any-token variant of scored_image_matches for long messages (shared by the meme-from-text retrieval and
+    the evaluation harness): each distinct lower-cased token is matched on its own with the same source and tier
+    weights, and the per-token scores are summed per image. {} when nothing matches. `restrict_ids` (a
+    collection of UUIDs) limits the result to those images."""
+    allowed = None if restrict_ids is None else set(restrict_ids)
+    scores: dict[uuid.UUID, float] = {}
+    for token in dict.fromkeys(token.lower() for token in _LEXICAL_TOKEN.findall(text or "")):
+        token_scores = await scored_image_matches(session, token)
+        for image_id, score in (token_scores or {}).items():
+            if allowed is not None and image_id not in allowed:
+                continue
+            scores[image_id] = scores.get(image_id, 0.0) + score
+    return scores
 
 
 async def matching_image_ids(session: AsyncSession, q: Optional[str]) -> Optional[set]:
