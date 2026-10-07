@@ -49,6 +49,7 @@ COPY embeddingutils ./embeddingutils
 COPY repository ./repository
 COPY rules ./rules
 COPY parse ./parse
+COPY retrieval ./retrieval
 COPY taxonomy ./taxonomy
 # taxonomy.loader reads the vocabulary YAML from <repo>/batch/data/taxonomy (P3 parser needs it at query time).
 COPY batch/data/taxonomy ./batch/data/taxonomy

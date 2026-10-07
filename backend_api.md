@@ -663,6 +663,48 @@ Retrieve the actual image file.
 
 ---
 
+### Meme From Text
+
+#### Search Memes From A Message
+
+Finds memes that make a good reply to a pasted message (English, Russian or Spanish). The message is parsed into a query profile (situation phrase plus emotion, stance, topic and tone as taxonomy keys), then matched against the stored meme profiles. The message text is neither stored nor logged.
+
+- **URL**: `/api/meme-from-text/search`
+- **Method**: `POST`
+- **Request Body** (`MemeFromTextRequest`):
+  - `text` (string, required, min length 1): the message to reply to
+  - `languageHint` (string, optional): `en`, `ru`, `es` or `other`; skips language detection
+  - `profile` (`QueryProfile`, optional): an edited query profile. When present the message is not parsed and the profile is validated against the taxonomy
+  - `filters` (object, optional): `emotion`, `stance`, `topic`, `tone` (arrays of taxonomy keys) and `tags` (array of `{ "key", "value" }`). Values within one axis are OR-ed, different axes are AND-ed; a tag filter matches any of the listed pairs
+  - `cursor` (string, optional): opaque cursor from a previous response; it is tied to the same request (text, profile and filters)
+  - `limit` (integer, optional, 1 to 50, default 20)
+- **Response**: `MemeFromTextResponse`
+  - `items` (array of `MemeFromTextResult`):
+    - `meme`: the existing `Meme` object
+    - `score` (number): fused relevance score
+    - `axisPath` (boolean): `false` for a lexical-only hit on an image that has no meme profile
+    - `explanation`: `axes[]` (`axis` one of situation, emotion, stance, topic, tone, lexical; `score`, `weight`, `contribution`, `neutral`, `queryValues`, `matched[]` with `queryKey`, `memeKey`, `similarity`, `memeConfidence`), `situationText`, `useWhen` (both nullable)
+    - `clusterId` (integer, optional) and `clusterSize` (integer, optional): the duplicate cluster collapsed into this result, the result itself included
+  - `facets` (array of `Facet`): one per axis, counted over the collapsed, filtered candidate set
+  - `nextCursor` (string, optional) and `hasNext` (boolean): `nextCursor` addresses the last returned item
+  - `profile` (`QueryProfile`): how the message was understood (echo of the edited profile when one was sent)
+  - `degraded` (boolean) and `fallback` (string): `none`, or the reason (`unavailable`, `timeout`, `invalid_output`, `empty_input`, `breaker_open`, `embed_unavailable`, or several joined with `+`)
+  - `meta`: `available`, `parseMs`, `embedMs`, `retrievalMs`, `candidates`, `cacheHit`, `parserVersion`, `model`
+- **Behavior**:
+  - Results are cached for 120 seconds per request (the response carries `Cache-Control: no-store`; the cache is server side and `meta.cacheHit` reports it)
+  - Flagged, inactive and profile-less images never appear on the axis path; a profile-less image can only appear as a lexical-only hit with `axisPath: false`
+  - The endpoint never fails because a model failed: it answers with `degraded: true` and a `fallback` reason (a failed parse falls back to lexical retrieval, a failed embedding to the axes without the situation)
+  - An environment without meme profiles or without a parser (`it`) answers `200` with `items: []`, `degraded: true`, `fallback: "unavailable"` and `meta.available: false`
+- **Error Responses**:
+  - `422`: malformed request (missing or empty `text`, `limit` outside 1 to 50, unknown `languageHint`, wrongly typed `filters`) or an invalid edited `profile`; for an invalid profile `detail` is the list of error strings
+- **Example**: `POST /api/meme-from-text/search`
+
+```json
+{ "text": "My boss just moved the deadline up again", "languageHint": "en", "filters": { "emotion": ["anger"] }, "limit": 10 }
+```
+
+---
+
 ### Recommendations
 
 #### Get Random Recommendations
