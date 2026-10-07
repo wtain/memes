@@ -1,6 +1,7 @@
 # P4: Retrieval, fusion and API — Design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-07-p4-retrieval-fusion-and-api.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P4)
 Follow-ups: none yet (P5, the web UI, consumes the endpoint defined here)
 
