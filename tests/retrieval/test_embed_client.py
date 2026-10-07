@@ -41,6 +41,8 @@ def server():
                 return self._send(200, b"not json")
             if mode == "no_embeddings":
                 return self._send(200, b'{"done": true}')
+            if mode == "nan":
+                return self._send(200, b'{"embeddings": [[NaN, 1.0]]}')
             if mode == "wrong_count":
                 return self._send(200, json.dumps({"embeddings": [[1.0, 0.0]]}).encode())
             if mode == "incomplete_read":
@@ -134,3 +136,10 @@ async def test_aembed_runs_in_a_thread(server):
     _state, url = server
     vectors = await OllamaEmbedClient(url).aembed("m", ["a", "b"], timeout=2.0)
     assert len(vectors) == 2
+
+
+def test_non_finite_values_are_a_bad_response(server):
+    state, url = server
+    state["mode"] = "nan"
+    with pytest.raises(EmbedBadResponse, match="non-finite"):
+        OllamaEmbedClient(url).embed("m", ["a"], 2.0)

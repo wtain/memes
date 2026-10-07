@@ -65,6 +65,8 @@ class OllamaEmbedClient:
             vectors = [[float(value) for value in vector] for vector in embeddings]
         except (ValueError, KeyError, TypeError):
             raise EmbedBadResponse("the Ollama response has no embeddings") from None
+        if any(not math.isfinite(value) for vector in vectors for value in vector):
+            raise EmbedBadResponse("the Ollama response has non-finite values")
         if len(vectors) != len(texts):
             raise EmbedBadResponse("the Ollama response has the wrong number of embeddings")
         return [normalise(vector) for vector in vectors]

@@ -3,6 +3,8 @@
 Eligible set (axis path): active, not flagged, has a meme profile, inside the optional restriction, passing the
 hard filters. The lexical source may additionally return images WITHOUT a profile (labelled axis_path False),
 never when an axis filter is present."""
+import logging
+import math
 import uuid
 from collections import defaultdict
 from typing import Collection, Mapping, Sequence
@@ -22,6 +24,11 @@ from Storage.models import (
 )
 
 MAX_EF_SEARCH = 1000
+logger = logging.getLogger(__name__)
+
+# SQLSTATEs of "this configuration parameter does not exist": invalid_name (what asyncpg reports for an unknown
+# hnsw.* name, found by experiment), undefined_object and invalid_parameter_value.
+_UNKNOWN_SETTING_SQLSTATES = {"42602", "42704", "22023"}
 ITERATIVE_SCAN_SETTING = "hnsw.iterative_scan"
 # None = not probed yet in this process; True/False = the server accepts / rejects hnsw.iterative_scan.
 _iterative_scan_supported: bool | None = None
@@ -29,7 +36,14 @@ _iterative_scan_supported: bool | None = None
 
 def _vector_literal(vector: Sequence[float]) -> str:
     """pgvector text form with %.9g per element: lossless for float32 and about half the size of repr()."""
+    if not all(math.isfinite(value) for value in vector):
+        raise ValueError("query vector contains a non-finite value")
     return "[" + ",".join("%.9g" % value for value in vector) + "]"
+
+
+def _is_unknown_setting_error(error: DBAPIError) -> bool:
+    sqlstate = getattr(error.orig, "sqlstate", None) or getattr(getattr(error.orig, "__cause__", None), "sqlstate", None)
+    return sqlstate in _UNKNOWN_SETTING_SQLSTATES or "invalid configuration parameter name" in str(error.orig)
 
 
 def _in_ids(column, ids: Collection[uuid.UUID]):
@@ -39,8 +53,9 @@ def _in_ids(column, ids: Collection[uuid.UUID]):
 
 def _cosine_distance(vector: Sequence[float], *, binary: bool = False):
     """Embedding <=> query. By default the query vector is one compact text literal cast to vector (~14 KB).
-    With binary=True it travels as a float4 array (4 KB, same float32 values): used by the statement that also
-    carries an id array, which would otherwise pass the 16,384-byte request size (see the module notes)."""
+    With binary=True it travels as a float4 array (4 KB, same float32 values). The cosine lookup uses that form
+    because it also carries an id array: the 14 KB text literal plus the ids would exceed 16,384 bytes, the request
+    size above which this machine's IPv6 loopback connection stalls ~44 ms."""
     if binary:
         query = cast(cast(bindparam("query_vector", [float(value) for value in vector], type_=ARRAY(REAL)),
                           ARRAY(REAL)), Vector(PROFILE_EMBEDDING_DIM))
@@ -106,8 +121,12 @@ class MemeRetrievalRepository:
                     await self.session.execute(both, {"ef": ef_search})
                 _iterative_scan_supported = True
                 return
-            except DBAPIError:
-                _iterative_scan_supported = False
+            except DBAPIError as error:
+                if _is_unknown_setting_error(error):
+                    _iterative_scan_supported = False
+                    logger.warning("iterative_scan unsupported: continuing with ef_search only (%s)",
+                                   type(error.orig).__name__)
+                # any other error (timeout, dropped connection): leave the cache unknown, probe again next time
         try:
             async with self.session.begin_nested():
                 await self.session.execute(only_ef, {"ef": ef_search})
@@ -118,6 +137,8 @@ class MemeRetrievalRepository:
                              eligible) -> dict[uuid.UUID, float]:
         """Nearest eligible ids in rank order, mapped to their cosine similarity (1 - cosine distance)."""
         await self._prepare_vector_search(k)
+        # This statement carries the ~14 KB text literal plus the restrict_ids array (inside `eligible`), so a large
+        # restriction can approach the 16,384-byte request size (a speed matter only, never correctness).
         distance = _cosine_distance(vector)
         rows = await self.session.execute(
             select(Embedding.image_id, distance)

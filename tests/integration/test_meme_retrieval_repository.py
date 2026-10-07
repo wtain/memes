@@ -309,6 +309,8 @@ async def test_an_unsupported_iterative_scan_setting_keeps_the_session_usable_an
     monkeypatch.setattr(meme_retrieval, "_iterative_scan_supported", None)
     monkeypatch.setattr(meme_retrieval, "ITERATIVE_SCAN_SETTING", "hnsw.no_such_setting")
     repo = MemeRetrievalRepository(db_session)
+    await repo._situation_ids(_vec(1.0), MODEL, 5, MemeRetrievalRepository._eligible_ids(repo, Filters(), None))
+    monkeypatch.setattr(meme_retrieval, "_iterative_scan_supported", None)
 
     await repo._prepare_vector_search(123)
 
@@ -316,3 +318,67 @@ async def test_an_unsupported_iterative_scan_setting_keeps_the_session_usable_an
     assert (await db_session.execute(text("SHOW hnsw.ef_search"))).scalar_one() == "123"
     await repo._prepare_vector_search(77)      # later calls skip the failing setting without a probe
     assert (await db_session.execute(text("SHOW hnsw.ef_search"))).scalar_one() == "77"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_another_error_does_not_cache_iterative_scan_as_unsupported(db_session, monkeypatch):
+    from sqlalchemy import text
+    monkeypatch.setattr(meme_retrieval, "_iterative_scan_supported", None)
+    repo = MemeRetrievalRepository(db_session)
+    real_execute = db_session.execute
+    calls = {"both": 0}
+
+    async def flaky(statement, *args, **kwargs):
+        if "hnsw.iterative_scan" in str(statement):
+            calls["both"] += 1
+            if calls["both"] == 1:
+                await real_execute(text("SET LOCAL statement_timeout = 1"))
+                return await real_execute(text("SELECT pg_sleep(0.5)"))   # 57014 query_canceled
+        return await real_execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db_session, "execute", flaky)
+
+    await repo._prepare_vector_search(150)       # first probe fails with a timeout: not cached, ef_search still set
+
+    assert meme_retrieval._iterative_scan_supported is None
+    assert (await real_execute(text("SHOW hnsw.ef_search"))).scalar_one() == "150"
+    await repo._prepare_vector_search(160)       # probes again and succeeds
+    assert meme_retrieval._iterative_scan_supported is True
+    assert calls["both"] == 2
+    assert (await real_execute(text("SHOW hnsw.ef_search"))).scalar_one() == "160"
+    monkeypatch.setattr(meme_retrieval, "_iterative_scan_supported", None)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_empty_restrict_ids_returns_nothing_while_none_is_unrestricted(db_session):
+    profiled = await _image(db_session)
+    await _profile(db_session, profiled, vector=_vec(1.0), emotion=[("joy", 0.9)])
+    db_session.add(OCRLemma(image_id=profiled.id, lemma="deadline"))
+    await db_session.flush()
+    axes = {"emotion": (("joy", 0.9),)}
+
+    assert await _search(db_session, query_axes=axes, restrict_ids=set()) == []
+    assert await _search(db_session, lexical_text="deadline", query_vector=None, restrict_ids=set()) == []
+    assert str(profiled.id) in _ids(await _search(db_session, query_axes=axes, restrict_ids=None))
+    assert str(profiled.id) in _ids(await _search(db_session, lexical_text="deadline", restrict_ids=None))
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_lexical_with_an_axis_filter_keeps_only_profiled_hits(db_session):
+    profiled = await _image(db_session)
+    await _profile(db_session, profiled, emotion=[("joy", 0.9)])
+    unprofiled = await _image(db_session)
+    for image in (profiled, unprofiled):
+        db_session.add(OCRLemma(image_id=image.id, lemma="deadline"))
+    await db_session.flush()
+
+    result = await _search(db_session, query_vector=None, lexical_text="deadline",
+                           filters=Filters(axes={"emotion": ("joy",)}), restrict_ids={profiled.id, unprofiled.id})
+
+    assert _ids(result) == [str(profiled.id)]
+
+
+def test_vector_literal_rejects_non_finite_values():
+    for bad in (float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="non-finite"):
+            meme_retrieval._vector_literal([0.5, bad])
