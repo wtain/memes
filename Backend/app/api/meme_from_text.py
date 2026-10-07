@@ -36,3 +36,8 @@ async def search_memes_from_text(
         return await service.search(request)
     except InvalidProfile as error:
         raise HTTPException(status_code=422, detail=error.errors) from None
+    except Exception as error:
+        # A database error on the lexical path carries the user's lemmas as statement parameters, and uvicorn logs
+        # an escaping exception with them: log the type name only and raise a generic error without a chain.
+        logger.warning("meme-from-text search failed: %s", type(error).__name__)
+        raise HTTPException(status_code=500, detail="meme-from-text search failed") from None
