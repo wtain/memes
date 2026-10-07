@@ -25,10 +25,11 @@ from evaluation.report import (
 DEFAULT_GOLD = Path("evaluation/gold")
 DEFAULT_WORK = Path("evaluation/work")
 MIN_PROFILED_SHARE = 0.95
-RETRIEVER_NAMES = ("random", "lexical_and", "lexical_or", "situation_embedding", "axis_match", "parsed_axis_match")
+RETRIEVER_NAMES = ("random", "lexical_and", "lexical_or", "situation_embedding", "axis_match", "parsed_axis_match",
+                   "fused")
 POOL_SOURCES = ("lexical_or", "situation_embedding", "axis_match")
 POOL_DEPTH = 30
-POOL_SOURCE_CHOICES = POOL_SOURCES + ("parsed_axis_match",)
+POOL_SOURCE_CHOICES = POOL_SOURCES + ("parsed_axis_match", "fused")
 DEFAULT_POOL_SOURCES = ",".join(POOL_SOURCES)
 
 
@@ -43,8 +44,8 @@ def validate_pool_args(args) -> str | None:
     unknown = [name for name in names if name not in POOL_SOURCE_CHOICES]
     if unknown:
         return f"unknown pool source(s): {', '.join(unknown)} (choose from {', '.join(POOL_SOURCE_CHOICES)})"
-    if "parsed_axis_match" in names and not args.parse_model:
-        return "--parse-model is required when parsed_axis_match is a pool source"
+    if ("parsed_axis_match" in names or "fused" in names) and not args.parse_model:
+        return "--parse-model is required when parsed_axis_match or fused is a pool source"
     if args.random < 0:
         return "--random cannot be negative"
     if args.per_query - args.random < 1:
@@ -191,6 +192,26 @@ def _build_parser(model: str, timeout: float | None = None):
     return QueryParser(load_config(get))
 
 
+def _build_pipeline(parse_model: str):
+    """The production pipeline for evaluation: the tracked parse.* and search.meme_from_text.* settings with the
+    parser model taken from the command line."""
+    from config.settings import settings
+    from parse.config import load_config as load_parse_config
+    from parse.parser import QueryParser
+    from retrieval.config import load_config
+    from retrieval.embed import OllamaEmbedClient
+    from retrieval.pipeline import MemeFromTextPipeline
+    from retrieval.similarity import load_similarity
+
+    def get(key, default=None):
+        return parse_model if key == "parse.model" else settings.get(key, default)
+
+    parser = QueryParser(load_parse_config(get))
+    config = load_config(settings.get)
+    return MemeFromTextPipeline(config, parser, OllamaEmbedClient(config.ollama_url), load_similarity(),
+                                max_input_chars=int(settings.get("parse.max_input_chars")))
+
+
 def _make_retriever(name: str, session, seed: int, parse_model: str | None = None):
     from evaluation.retrievers.axis_match import AxisMatchRetriever
     from evaluation.retrievers.lexical import LexicalRetriever
@@ -210,6 +231,9 @@ def _make_retriever(name: str, session, seed: int, parse_model: str | None = Non
     if name == "parsed_axis_match":
         from evaluation.retrievers.parsed_axis_match import ParsedAxisMatchRetriever
         return ParsedAxisMatchRetriever(session, _build_parser(parse_model))
+    if name == "fused":
+        from evaluation.retrievers.fused import FusedRetriever
+        return FusedRetriever(session, _build_pipeline(parse_model))
     raise ValueError(f"unknown retriever {name!r}")
 
 
@@ -313,8 +337,8 @@ async def cmd_build_pools(args, gold: Path) -> int:
 
 
 async def cmd_run(args, gold: Path) -> int:
-    if args.retriever == "parsed_axis_match" and not args.parse_model:
-        return _error("--parse-model is required for the parsed_axis_match retriever")
+    if args.retriever in ("parsed_axis_match", "fused") and not args.parse_model:
+        return _error("--parse-model is required for the parsed_axis_match and fused retrievers")
     require_readonly()
     from evaluation.runner import run_retriever, summarize
     from Storage.db import AsyncSessionLocal
@@ -396,6 +420,51 @@ async def cmd_parse_eval(args, gold: Path) -> int:
     return 0
 
 
+async def cmd_tune_weights(args, gold: Path) -> int:
+    """Collect the candidates of every reviewed query once (live Ollama and the read-only database), then tune
+    the six weights with cross-validation. Prints the recommended settings; committing them is a human step."""
+    target = gold / "tuning" / f"{args.label}.json"
+    if target.exists() and not args.force:
+        return _error(f"{target} already exists (use --force to replace it)")
+    require_readonly()
+    import json
+    import uuid
+    from evaluation.tuning import PreparedQuery, tune
+    from repository.meme_retrieval import MemeRetrievalRepository
+    from retrieval.pipeline import SearchRequest
+    from retrieval.similarity import load_similarity
+    from Storage.db import AsyncSessionLocal
+    corpus = load_corpus(gold / "corpus.json")
+    queries = [q for q in load_queries(gold / "queries.json") if q.reviewed]
+    judged = judgments_by_query(load_judgments(gold / "judgments.json"))
+    corpus_ids = frozenset(uuid.UUID(image_id) for image_id in corpus.image_ids())
+    pipeline = _build_pipeline(args.parse_model)
+    prepared = []
+    async with AsyncSessionLocal() as session:
+        await _check_corpus(session, corpus, check_digest=True)
+        repository = MemeRetrievalRepository(session)
+        await pipeline.warm_up()
+        for query in queries:
+            item = await pipeline.prepare(SearchRequest(text=query.text, language_hint=query.language,
+                                                        restrict_ids=corpus_ids), repository)
+            prepared.append(PreparedQuery(query.id, query.language, item.view, tuple(item.candidates),
+                                          item.lexical_active, judged.get(query.id, {})))
+    report = tune(prepared, pipeline._config, load_similarity(), folds=args.folds, seed=args.seed)
+    report.update({"label": args.label, "date": date_class.today().isoformat(), "parseModel": args.parse_model,
+                   "queries": len(prepared), "queriesSha": file_sha256(gold / "queries.json"),
+                   "judgmentsSha": file_sha256(gold / "judgments.json")})
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    weights = report["recommendedWeights"]
+    print(f"default weights nDCG@10 {report['defaultScore']:.3f}; tuned in-sample {report['inSampleScore']:.3f}; "
+          f"cross-validated {report['cvScore']:.3f} (folds {', '.join(f'{s:.3f}' for s in report['foldScores'])}, "
+          f"spread {report['foldSpread']:.3f})")
+    print("settings.yaml snippet:\n  weights: {" + ", ".join(f"{name}: {weights[name]}" for name in weights) + "}")
+    print(f"wrote {target}")
+    return 0
+
+
 # ------------------------------------------------------------------ entry point
 
 def build_parser() -> argparse.ArgumentParser:
@@ -455,6 +524,13 @@ def build_parser() -> argparse.ArgumentParser:
     parse_eval.add_argument("--timeout-seconds", type=float, default=None)
     parse_eval.add_argument("--force", action="store_true")
 
+    tune_cmd = commands.add_parser("tune-weights")
+    tune_cmd.add_argument("--parse-model", required=True)
+    tune_cmd.add_argument("--label", required=True)
+    tune_cmd.add_argument("--folds", type=int, default=5)
+    tune_cmd.add_argument("--seed", type=int, default=7)
+    tune_cmd.add_argument("--force", action="store_true")
+
     commands.add_parser("list-baselines")
     return parser
 
@@ -465,7 +541,7 @@ def main(argv=None) -> int:
     handlers = {"import-judgments": cmd_import_judgments, "compare": cmd_compare, "list-baselines": cmd_list_baselines,
                 "sheet": cmd_sheet}
     async_handlers = {"build-corpus": cmd_build_corpus, "build-pools": cmd_build_pools, "run": cmd_run,
-                      "parse-eval": cmd_parse_eval}
+                      "parse-eval": cmd_parse_eval, "tune-weights": cmd_tune_weights}
     try:
         if args.command in handlers:
             return handlers[args.command](args, gold)

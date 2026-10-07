@@ -38,3 +38,5 @@ The image ids are database-local UUIDs of the `general` environment. The gold da
 
 - The judging sheet shows only the meme image (no input texts, not even behind a toggle), and thumbnails are 400 px instead of about 320 px.
 - The `general` library has descriptions for almost every image, so the input strata `ocr only` (26) and `no usable text` (2) are tiny; their shortfall went to `ocr+description`. Per-stratum numbers for those two strata rest on very few images.
+
+`tune-weights` collects the fused pipeline's candidates once and searches the fusion weights with cross-validation (`tuning/<label>.json`); `run --retriever fused --parse-model M` evaluates the production pipeline restricted to the corpus.

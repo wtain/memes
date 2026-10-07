@@ -209,3 +209,27 @@ def test_build_pools_validates_its_options_before_requiring_the_read_only_url(tm
     code = cli.main(["--gold-dir", str(gold), "build-pools", "--round", "2", "--sources", "parsed_axis_match"])
 
     assert code == 1 and "--parse-model" in capsys.readouterr().err
+
+
+def test_fused_is_a_retriever_and_a_pool_source_that_need_a_parse_model(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    gold = _gold_dir(tmp_path)
+
+    assert cli.main(["--gold-dir", str(gold), "run", "--retriever", "fused", "--label", "x"]) == 1
+    assert "--parse-model" in capsys.readouterr().err
+    args = cli.build_parser().parse_args(["build-pools", "--round", "3", "--sources", "fused", "--parse-model", "m"])
+    assert cli.validate_pool_args(args) is None
+    args = cli.build_parser().parse_args(["build-pools", "--round", "3", "--sources", "fused"])
+    assert "--parse-model" in cli.validate_pool_args(args)
+
+
+def test_tune_weights_options_and_refusal_to_overwrite(tmp_path, capsys):
+    args = cli.build_parser().parse_args(["tune-weights", "--parse-model", "m", "--label", "l", "--folds", "3",
+                                          "--seed", "9", "--force"])
+    assert (args.parse_model, args.label, args.folds, args.seed, args.force) == ("m", "l", 3, 9, True)
+
+    gold = _gold_dir(tmp_path)
+    (gold / "tuning").mkdir()
+    (gold / "tuning" / "l.json").write_text("{}", encoding="utf-8")
+    code = cli.main(["--gold-dir", str(gold), "tune-weights", "--parse-model", "m", "--label", "l"])
+    assert code == 1 and "already exists" in capsys.readouterr().err
