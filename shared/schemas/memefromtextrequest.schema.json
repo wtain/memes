@@ -4,27 +4,28 @@
   "title": "MemeFromTextRequest",
   "type": "object",
   "properties": {
-    "text": { "type": "string", "minLength": 1 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 8000 },
     "languageHint": { "type": "string", "enum": ["en", "ru", "es", "other"] },
     "profile": { "$ref": "./queryprofile.schema.json", "description": "An edited query profile; when present the message is not parsed" },
     "filters": {
       "type": "object",
       "properties": {
-        "emotion": { "type": "array", "items": { "type": "string" } },
-        "stance": { "type": "array", "items": { "type": "string" } },
-        "topic": { "type": "array", "items": { "type": "string" } },
-        "tone": { "type": "array", "items": { "type": "string" } },
+        "emotion": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 128 } },
+        "stance": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 128 } },
+        "topic": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 128 } },
+        "tone": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 128 } },
         "tags": {
           "type": "array",
+          "maxItems": 64,
           "items": {
             "type": "object",
-            "properties": { "key": { "type": "string" }, "value": { "type": "string" } },
+            "properties": { "key": { "type": "string", "maxLength": 128 }, "value": { "type": "string", "maxLength": 128 } },
             "required": ["key", "value"]
           }
         }
       }
     },
-    "cursor": { "type": "string" },
+    "cursor": { "type": "string", "maxLength": 512 },
     "limit": { "type": "integer", "minimum": 1, "maximum": 50 }
   },
   "required": ["text"]

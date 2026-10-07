@@ -672,31 +672,33 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
 - **URL**: `/api/meme-from-text/search`
 - **Method**: `POST`
 - **Request Body** (`MemeFromTextRequest`):
-  - `text` (string, required, min length 1): the message to reply to
+  - `text` (string, required, 1 to 8000 characters): the message to reply to (the server uses the first 600 characters)
   - `languageHint` (string, optional): `en`, `ru`, `es` or `other`; skips language detection
-  - `profile` (`QueryProfile`, optional): an edited query profile. When present the message is not parsed and the profile is validated against the taxonomy
-  - `filters` (object, optional): `emotion`, `stance`, `topic`, `tone` (arrays of taxonomy keys) and `tags` (array of `{ "key", "value" }`). Values within one axis are OR-ed, different axes are AND-ed; a tag filter matches any of the listed pairs
-  - `cursor` (string, optional): opaque cursor from a previous response; it is tied to the same request (text, profile and filters)
+  - `profile` (`QueryProfile`, optional): an edited query profile. When present the message is not parsed and the profile is validated against the taxonomy. It must be a full `QueryProfile`: send back the `profile` object returned by a previous response with your edits (required fields `taxonomyVersion`, `language`, `parserVersion`, `degraded` and the four axis lists `emotion`, `stance`, `topic`, `tone`)
+  - `filters` (object, optional): `emotion`, `stance`, `topic`, `tone` (arrays of taxonomy keys) and `tags` (array of `{ "key", "value" }`). Values within one axis are OR-ed, different axes are AND-ed; a tag filter matches any of the listed pairs. Each array holds at most 64 entries and every key, value or tag string is at most 128 characters
+  - `cursor` (string, optional): opaque cursor from a previous response; it is tied to the same request (text, profile and filters); at most 512 characters
   - `limit` (integer, optional, 1 to 50, default 20)
 - **Response**: `MemeFromTextResponse`
   - `items` (array of `MemeFromTextResult`):
     - `meme`: the existing `Meme` object
     - `score` (number): fused relevance score
     - `axisPath` (boolean): `false` for a lexical-only hit on an image that has no meme profile
-    - `explanation`: `axes[]` (`axis` one of situation, emotion, stance, topic, tone, lexical; `score`, `weight`, `contribution`, `neutral`, `queryValues`, `matched[]` with `queryKey`, `memeKey`, `similarity`, `memeConfidence`), `situationText`, `useWhen` (both nullable)
+    - `explanation`: `axes[]` (`axis` one of situation, emotion, stance, topic, tone, lexical; `score`, `weight`, `contribution`, `neutral`, `queryValues`, `matched[]` with `queryKey`, `memeKey`, `similarity`, `memeConfidence`), `situationText`, `useWhen` (both optional). On the degraded path (the parse failed) the situation axis's `queryValues` holds the raw message text
     - `clusterId` (integer, optional) and `clusterSize` (integer, optional): the duplicate cluster collapsed into this result, the result itself included
+    - Fields whose value is null (`situationText`, `useWhen`, `profile.situation`, `nextCursor`, `clusterId`, `clusterSize`) are omitted from the response; clients must treat them as optional
   - `facets` (array of `Facet`): one per axis, counted over the collapsed, filtered candidate set
   - `nextCursor` (string, optional) and `hasNext` (boolean): `nextCursor` addresses the last returned item
   - `profile` (`QueryProfile`): how the message was understood (echo of the edited profile when one was sent)
   - `degraded` (boolean) and `fallback` (string): `none`, or the reason (`unavailable`, `timeout`, `invalid_output`, `empty_input`, `breaker_open`, `embed_unavailable`, or several joined with `+`)
-  - `meta`: `available`, `parseMs`, `embedMs`, `retrievalMs`, `candidates`, `cacheHit`, `parserVersion`, `model`
+  - `meta`: `available`, `parseMs`, `embedMs`, `retrievalMs`, `candidates`, `cacheHit`, `parserVersion`, `model`. `retrievalMs` is the time from the end of the embedding to the end of the response work (candidate generation, scoring, fusion, duplicate collapse and facets); on a cache hit `parseMs` and `embedMs` are 0 and `retrievalMs` is the time the hit itself took
 - **Behavior**:
-  - Results are cached for 120 seconds per request (the response carries `Cache-Control: no-store`; the cache is server side and `meta.cacheHit` reports it)
+  - Results are cached per request for 120 seconds when healthy and 10 seconds when degraded (the response carries `Cache-Control: no-store`; the cache is server side and `meta.cacheHit` reports it)
   - Flagged, inactive and profile-less images never appear on the axis path; a profile-less image can only appear as a lexical-only hit with `axisPath: false`
   - The endpoint never fails because a model failed: it answers with `degraded: true` and a `fallback` reason (a failed parse falls back to lexical retrieval, a failed embedding to the axes without the situation)
-  - An environment without meme profiles or without a parser (`it`) answers `200` with `items: []`, `degraded: true`, `fallback: "unavailable"` and `meta.available: false`
+  - An environment without a parser (no `parse.model`, the `it` environment), or whose pipeline could not be built at startup (a misconfigured key shows as this answer plus one startup warning), answers `200` with `items: []`, `degraded: true`, `fallback: "unavailable"` and `meta.available: false`. An environment with a parser but no profiles answers `meta.available: true` with empty or lexical-only results
 - **Error Responses**:
-  - `422`: malformed request (missing or empty `text`, `limit` outside 1 to 50, unknown `languageHint`, wrongly typed `filters`) or an invalid edited `profile`; for an invalid profile `detail` is the list of error strings
+  - `422`: malformed request (missing or empty `text`, `limit` outside 1 to 50, unknown `languageHint`, wrongly typed `filters`) or an invalid edited `profile`; for an invalid profile `detail` is the list of error strings. Request limits: `text` 8000 characters, filter arrays 64 entries, filter and tag strings 128 characters, `cursor` 512 characters
+  - `500`: the search failed unexpectedly (for example a database error); the body is the generic `{"detail": "meme-from-text search failed"}` and neither the body nor the server log contains the message text
 - **Example**: `POST /api/meme-from-text/search`
 
 ```json

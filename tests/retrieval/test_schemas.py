@@ -26,6 +26,18 @@ def test_the_request_schema_requires_text_and_bounds_the_limit():
     assert set(schema["properties"]["filters"]["properties"]) == {"emotion", "stance", "topic", "tone", "tags"}
 
 
+def test_the_request_schema_bounds_every_user_supplied_size():
+    props = _load("memefromtextrequest")["properties"]
+    assert props["text"]["maxLength"] == 8000 and props["cursor"]["maxLength"] == 512
+    for axis in ("emotion", "stance", "topic", "tone"):
+        assert props["filters"]["properties"][axis]["maxItems"] == 64
+        assert props["filters"]["properties"][axis]["items"]["maxLength"] == 128
+    tags = props["filters"]["properties"]["tags"]
+    assert tags["maxItems"] == 64
+    assert tags["items"]["properties"]["key"]["maxLength"] == 128
+    assert tags["items"]["properties"]["value"]["maxLength"] == 128
+
+
 def test_the_response_schema_has_the_documented_fields():
     schema = _load("memefromtextresponse")
     assert set(schema["required"]) == {"items", "hasNext", "profile", "degraded", "fallback", "meta"}

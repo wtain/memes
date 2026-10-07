@@ -215,10 +215,25 @@ export interface MemeFromTextRequest {
   languageHint?: "en" | "ru" | "es" | "other";
   profile?: QueryProfile1;
   filters?: {
+    /**
+     * @maxItems 64
+     */
     emotion?: string[];
+    /**
+     * @maxItems 64
+     */
     stance?: string[];
+    /**
+     * @maxItems 64
+     */
     topic?: string[];
+    /**
+     * @maxItems 64
+     */
     tone?: string[];
+    /**
+     * @maxItems 64
+     */
     tags?: {
       key: string;
       value: string;

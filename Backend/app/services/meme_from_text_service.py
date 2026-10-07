@@ -24,7 +24,7 @@ def _filters(request: MemeFromTextRequest) -> Filters:
     raw = request.filters
     if raw is None:
         return Filters()
-    axes = {axis: tuple(getattr(raw, axis) or ()) for axis in ("emotion", "stance", "topic", "tone")
+    axes = {axis: tuple(getattr(value, "root", value) for value in getattr(raw, axis) or ()) for axis in ("emotion", "stance", "topic", "tone")
             if getattr(raw, axis)}
     tags: dict[str, list[str]] = {}
     for pair in raw.tags or []:

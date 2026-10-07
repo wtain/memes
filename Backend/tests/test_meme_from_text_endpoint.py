@@ -46,6 +46,26 @@ def test_a_malformed_request_is_a_422(client_and_service, payload):
     assert client.post("/api/meme-from-text/search", json=payload).status_code == 422
 
 
+@pytest.mark.parametrize("payload", [
+    {"text": "x" * 8001},
+    {"text": "x", "cursor": "c" * 513},
+    {"text": "x", "filters": {"emotion": ["joy"] * 65}},
+    {"text": "x", "filters": {"emotion": ["j" * 129]}},
+    {"text": "x", "filters": {"tags": [{"key": "k", "value": "v"}] * 65}},
+    {"text": "x", "filters": {"tags": [{"key": "k" * 129, "value": "v"}]}},
+])
+def test_an_oversized_request_is_a_422(client_and_service, payload):
+    client, service = client_and_service
+    assert client.post("/api/meme-from-text/search", json=payload).status_code == 422
+    service.search.assert_not_awaited()
+
+
+def test_a_request_at_the_limits_is_accepted(client_and_service):
+    client, _service = client_and_service
+    payload = {"text": "x" * 8000, "cursor": "c" * 512, "filters": {"emotion": ["j" * 128] * 64}}
+    assert client.post("/api/meme-from-text/search", json=payload).status_code == 200
+
+
 def test_an_invalid_edited_profile_is_a_422_with_the_errors(client_and_service):
     client, service = client_and_service
     service.search.side_effect = InvalidProfile(["emotion: unknown key 'x'"])
