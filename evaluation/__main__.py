@@ -461,7 +461,7 @@ async def cmd_tune_weights(args, gold: Path) -> int:
             prepared.append(PreparedQuery(query.id, query.language, item.view, tuple(item.candidates),
                                           item.lexical_active, judged.get(query.id, {}), item.degraded,
                                           item.fallback))
-            if item.fallback == "breaker_open":
+            if "breaker_open" in item.fallback:
                 return _error("the parser circuit breaker opened during collection; the remaining queries would "
                               "all degrade. Fix the parser model or Ollama and run again (nothing was written)")
     prepared, degraded = split_degraded(prepared)
@@ -472,6 +472,8 @@ async def cmd_tune_weights(args, gold: Path) -> int:
                           "on degraded profiles would corrupt the weights. Fix the parser or pass --allow-degraded "
                           "to exclude them (nothing was written)")
         _warn(f"excluding {len(degraded)} degraded queries from the tuning: {listing}")
+    if not prepared:
+        return _error("no clean query is left to tune on (nothing was written)")
     report = tune(prepared, pipeline.config, load_similarity(), folds=args.folds, seed=args.seed)
     report.update({"label": args.label, "date": date_class.today().isoformat(), "parseModel": args.parse_model,
                    "queries": len(prepared),
