@@ -693,6 +693,7 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
   - `meta`: `available`, `parseMs`, `embedMs`, `retrievalMs`, `candidates`, `cacheHit`, `parserVersion`, `model`. `retrievalMs` is the time from the end of the embedding to the end of the response work (candidate generation, scoring, fusion, duplicate collapse and facets); on a cache hit `parseMs` and `embedMs` are 0 and `retrievalMs` is the time the hit itself took
 - **Behavior**:
   - Results are cached per request for 120 seconds when healthy and 10 seconds when degraded (the response carries `Cache-Control: no-store`; the cache is server side and `meta.cacheHit` reports it)
+  - Only the 20 longest distinct tokens of a message are matched lexically (`search.meme_from_text.lexical.max_tokens`)
   - Flagged, inactive and profile-less images never appear on the axis path; a profile-less image can only appear as a lexical-only hit with `axisPath: false`
   - The endpoint never fails because a model failed: it answers with `degraded: true` and a `fallback` reason (a failed parse falls back to lexical retrieval, a failed embedding to the axes without the situation)
   - An environment without a parser (no `parse.model`, the `it` environment), or whose pipeline could not be built at startup (a misconfigured key shows as this answer plus one startup warning), answers `200` with `items: []`, `degraded: true`, `fallback: "unavailable"` and `meta.available: false`. An environment with a parser but no profiles answers `meta.available: true` with empty or lexical-only results

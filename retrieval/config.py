@@ -21,6 +21,7 @@ _SPEC = (
     ("situation_ceil", "situation.ceil", float),
     ("use_neighbours", "similarity.use_neighbours", bool),
     ("lexical_enabled", "lexical.enabled", bool),
+    ("lexical_max_tokens", "lexical.max_tokens", int),
     ("cache_ttl_seconds", "cache_ttl_seconds", float),
     ("embed_timeout_seconds", "embed_timeout_seconds", float),
     ("warm_interval_minutes", "warm_interval_minutes", float),
@@ -43,6 +44,7 @@ class RetrievalConfig:
     situation_ceil: float
     use_neighbours: bool
     lexical_enabled: bool
+    lexical_max_tokens: int
     cache_ttl_seconds: float
     embed_timeout_seconds: float
     warm_interval_minutes: float
@@ -85,7 +87,7 @@ def _problems(values: dict, weights: dict) -> list[str]:
     if values.get("lexical_enabled") and weights.get("lexical", 1.0) <= 0:
         problems.append("weights.lexical must be > 0 while lexical.enabled is true")
     for attribute in ("situation_k", "axis_k", "lexical_k", "total_cap", "breaker_failures", "default_limit",
-                      "max_limit"):
+                      "max_limit", "lexical_max_tokens"):
         if values[attribute] < 1:
             problems.append(f"{attribute} must be >= 1")
     if not 0.0 <= values["neutral_score"] <= 1.0:

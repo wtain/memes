@@ -10,7 +10,9 @@ VALUES = {
     "search.meme_from_text.candidates.lexical_k": 100, "search.meme_from_text.candidates.total_cap": 600,
     "search.meme_from_text.neutral_score": 0.3, "search.meme_from_text.situation.floor": 0.45,
     "search.meme_from_text.situation.ceil": 0.85, "search.meme_from_text.similarity.use_neighbours": True,
-    "search.meme_from_text.lexical.enabled": True, "search.meme_from_text.cache_ttl_seconds": 120,
+    "search.meme_from_text.lexical.enabled": True, "search.meme_from_text.lexical.max_tokens": 20,
+    "search.meme_from_text.lexical.max_tokens": 20,
+    "search.meme_from_text.cache_ttl_seconds": 120,
     "search.meme_from_text.embed_timeout_seconds": 2.0, "search.meme_from_text.warm_interval_minutes": 20,
     "search.meme_from_text.parser_breaker.failures": 3, "search.meme_from_text.parser_breaker.open_seconds": 30,
     "search.meme_from_text.page.default_limit": 20, "search.meme_from_text.page.max_limit": 50,
@@ -95,3 +97,13 @@ def test_zero_lexical_weight_is_rejected_only_while_lexical_is_enabled():
         load_config(_get(values), environ={})
     disabled = load_config(_get({**values, "search.meme_from_text.lexical.enabled": False}), environ={})
     assert disabled.weights["lexical"] == 0
+
+
+def test_lexical_max_tokens_is_read_and_must_be_a_positive_integer():
+    values = {**VALUES, "search.meme_from_text.lexical.max_tokens": 20}
+    assert load_config(_get(values), environ={}).lexical_max_tokens == 20
+    with pytest.raises(ValueError, match="lexical.max_tokens"):
+        load_config(_get({**values, "search.meme_from_text.lexical.max_tokens": 0}), environ={})
+    missing = {k: v for k, v in values.items() if not k.endswith("lexical.max_tokens")}
+    with pytest.raises(ValueError, match="lexical.max_tokens"):
+        load_config(_get(missing), environ={})

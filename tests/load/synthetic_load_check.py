@@ -74,7 +74,7 @@ def _config() -> RetrievalConfig:
     return RetrievalConfig(
         weights={"situation": 0.40, "emotion": 0.15, "stance": 0.10, "topic": 0.15, "tone": 0.10, "lexical": 0.10},
         situation_k=300, axis_k=300, lexical_k=100, total_cap=600, neutral_score=0.3, situation_floor=0.45,
-        situation_ceil=0.85, use_neighbours=True, lexical_enabled=True, cache_ttl_seconds=120.0,
+        situation_ceil=0.85, use_neighbours=True, lexical_enabled=True, lexical_max_tokens=20, cache_ttl_seconds=120.0,
         embed_timeout_seconds=2.0, warm_interval_minutes=20.0, breaker_failures=3, breaker_open_seconds=30.0,
         default_limit=20, max_limit=50, embedding_model=MODEL, ollama_url="http://127.0.0.1:11434")
 
@@ -192,6 +192,9 @@ async def main(images: int, queries: int, keep: bool, lexical_text: str | None =
                 await session.execute(text(f'ANALYZE "{model.__tablename__}"'))
             await session.commit()
 
+        candidate_ms: list[float] = []      # candidate generation (SQL, including the lexical source and loading)
+        scoring_ms: list[float] = []        # scoring, fusion, collapse, facets
+
         async def one_query(repository: MemeRetrievalRepository) -> tuple[float, int]:
             vector = _query_vector(np_rng, sample)
             axes = {axis: tuple((key, rng.choice([0.3, 0.6, 0.9])) for key in rng.sample(keys[axis], 2))
@@ -206,12 +209,16 @@ async def main(images: int, queries: int, keep: bool, lexical_text: str | None =
                 query_vector=vector, query_axes=axes, neighbours=similarity.neighbours_for(axes),
                 lexical_text=text_for_query, filters=Filters(), restrict_ids=None, model_name=MODEL,
                 situation_k=config.situation_k, axis_k=config.axis_k, lexical_k=config.lexical_k,
-                total_cap=config.total_cap)
+                total_cap=config.total_cap,
+                lexical_max_tokens=config.lexical_max_tokens)
+            generated = time.perf_counter()
+            candidate_ms.append((generated - started) * 1000)
             lexical_active = text_for_query is not None and any(c.lexical > 0 for c in candidates)
             scored = [fuse(c, view, config, similarity, lexical_active=lexical_active)
                       for c in candidates]
             items = collapse_clusters(rank_candidates(scored))
             facet_counts(items)
+            scoring_ms.append((time.perf_counter() - generated) * 1000)
             return (time.perf_counter() - started) * 1000, len(candidates)
 
         timings, counts = [], []
@@ -219,6 +226,8 @@ async def main(images: int, queries: int, keep: bool, lexical_text: str | None =
             repository = MemeRetrievalRepository(session)
             for _ in range(WARMUP_QUERIES):
                 await one_query(repository)
+            candidate_ms.clear()
+            scoring_ms.clear()
             for _ in range(queries):
                 elapsed, count = await one_query(repository)
                 timings.append(elapsed)
@@ -228,7 +237,7 @@ async def main(images: int, queries: int, keep: bool, lexical_text: str | None =
             async with AsyncSessionLocal() as session:        # the lexical source alone, same texts
                 for text_value in lexical_texts[WARMUP_QUERIES:]:
                     started = time.perf_counter()
-                    await lexical_or_scores(session, text_value)
+                    await lexical_or_scores(session, text_value, max_tokens=config.lexical_max_tokens)
                     lexical_timings.append((time.perf_counter() - started) * 1000)
         timings.sort()
         p50 = timings[len(timings) // 2]
@@ -236,6 +245,8 @@ async def main(images: int, queries: int, keep: bool, lexical_text: str | None =
         verdict = "PASS" if p95 < BUDGET_MS else "FAIL"
         print(f"{images} images, {queries} queries: retrieval p50 {p50:.0f} ms, p95 {p95:.0f} ms "
               f"(candidates median {statistics.median(counts):.0f}) -> {verdict} (budget: p95 under {BUDGET_MS} ms)")
+        print(f"stage split p50: candidate generation {statistics.median(candidate_ms):.0f} ms, "
+              f"scoring/fusion/collapse/facets {statistics.median(scoring_ms):.0f} ms")
         if lexical_timings:
             lexical_timings.sort()
             tokens = len(set(lexical_texts[-1].split()))

@@ -47,3 +47,16 @@ async def test_no_text_or_no_match_gives_an_empty_dict(db_session):
     assert await lexical_or_scores(db_session, "") == {}
     assert await lexical_or_scores(db_session, None) == {}
     assert await lexical_or_scores(db_session, "zzzqqqxx") == {}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_the_token_cap_keeps_the_longest_tokens_and_none_changes_nothing(db_session):
+    short_only = await _image(db_session, "pizza")
+    long_hit = await _image(db_session, "wwwwwwwwwwwwwww")
+    filler = " ".join(f"zzfiller{index:02d}xx" for index in range(28))      # 28 long non-matching tokens
+    text = f"pizza {filler} wwwwwwwwwwwwwww"
+
+    assert short_only.id in await lexical_or_scores(db_session, text)
+    capped = await lexical_or_scores(db_session, text, max_tokens=5)
+    assert short_only.id not in capped and long_hit.id in capped
+    assert await lexical_or_scores(db_session, text, max_tokens=None) == await lexical_or_scores(db_session, text)

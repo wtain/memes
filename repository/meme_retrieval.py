@@ -173,8 +173,9 @@ class MemeRetrievalRepository:
         )
         return [row[0] for row in rows.all()]
 
-    async def _lexical(self, text_value: str, filters: Filters, restrict_ids, eligible, k: int) -> dict[uuid.UUID, float]:
-        scores = await lexical_or_scores(self.session, text_value, restrict_ids)
+    async def _lexical(self, text_value: str, filters: Filters, restrict_ids, eligible, k: int,
+                       max_tokens: int | None = None) -> dict[uuid.UUID, float]:
+        scores = await lexical_or_scores(self.session, text_value, restrict_ids, max_tokens=max_tokens)
         if not scores:
             return {}
         if filters.has_axis_filters():
@@ -205,7 +206,7 @@ class MemeRetrievalRepository:
         self, *, query_vector: list[float] | None, query_axes: Mapping[str, AxisValues],
         neighbours: Mapping[str, Mapping[str, Sequence[tuple[str, float]]]] | None, lexical_text: str | None,
         filters: Filters, restrict_ids: Collection[uuid.UUID] | None, model_name: str, situation_k: int,
-        axis_k: int, lexical_k: int, total_cap: int,
+        axis_k: int, lexical_k: int, total_cap: int, lexical_max_tokens: int | None = None,
     ) -> list[Candidate]:
         eligible = self._eligible_ids(filters, restrict_ids)
         sources: list[list[uuid.UUID]] = []
@@ -217,7 +218,7 @@ class MemeRetrievalRepository:
             sources.append(await self._axis_ids(query_axes, neighbours, axis_k, eligible))
         lexical: dict[uuid.UUID, float] = {}
         if lexical_text:
-            lexical = await self._lexical(lexical_text, filters, restrict_ids, eligible, lexical_k)
+            lexical = await self._lexical(lexical_text, filters, restrict_ids, eligible, lexical_k, lexical_max_tokens)
             sources.append(sorted(lexical, key=lambda image_id: (-lexical[image_id], str(image_id))))
         ids = merge_ranked(sources, total_cap)
         if not ids:

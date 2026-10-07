@@ -163,7 +163,8 @@ class MemeFromTextPipeline:
             neighbours=self._similarity.neighbours_for(scoring_view.axes) if self._config.use_neighbours else None,
             lexical_text=lexical_text, filters=request.filters, restrict_ids=request.restrict_ids,
             model_name=self._config.embedding_model, situation_k=self._config.situation_k,
-            axis_k=self._config.axis_k, lexical_k=self._config.lexical_k, total_cap=self._config.total_cap)
+            axis_k=self._config.axis_k, lexical_k=self._config.lexical_k, total_cap=self._config.total_cap,
+            lexical_max_tokens=self._config.lexical_max_tokens)
         t3 = self._clock()
         lexical_active = lexical_text is not None and any(candidate.lexical > 0 for candidate in candidates)
         fallback = parse_fallback if parse_fallback not in ("none", "retry") else "none"

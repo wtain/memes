@@ -271,16 +271,27 @@ async def scored_image_matches(
     return score_images(token_hits)
 
 
+def select_tokens(text: Optional[str], max_tokens: Optional[int] = None) -> list[str]:
+    """Distinct lower-cased tokens of `text` in first-occurrence order. With `max_tokens`, only the `max_tokens`
+    longest are kept (ties: the earlier occurrence wins), still in their original order."""
+    tokens = list(dict.fromkeys(token.lower() for token in _LEXICAL_TOKEN.findall(text or "")))
+    if max_tokens is None or len(tokens) <= max_tokens:
+        return tokens
+    keep = sorted(range(len(tokens)), key=lambda index: (-len(tokens[index]), index))[:max(max_tokens, 0)]
+    return [tokens[index] for index in sorted(keep)]
+
+
 async def lexical_or_scores(
-    session: AsyncSession, text: Optional[str], restrict_ids=None,
+    session: AsyncSession, text: Optional[str], restrict_ids=None, *, max_tokens: Optional[int] = None,
 ) -> dict[uuid.UUID, float]:
     """Any-token variant of scored_image_matches for long messages (shared by the meme-from-text retrieval and
     the evaluation harness): each distinct lower-cased token is matched on its own with the same source and tier
     weights, and the per-token scores are summed per image. {} when nothing matches. `restrict_ids` (a
-    collection of UUIDs) limits the result to those images."""
+    collection of UUIDs) limits the result to those images. `max_tokens` (None = no cap) keeps only that many of the
+    longest distinct tokens (see select_tokens)."""
     allowed = None if restrict_ids is None else set(restrict_ids)
     scores: dict[uuid.UUID, float] = {}
-    for token in dict.fromkeys(token.lower() for token in _LEXICAL_TOKEN.findall(text or "")):
+    for token in select_tokens(text, max_tokens):
         token_scores = await scored_image_matches(session, token)
         for image_id, score in (token_scores or {}).items():
             if allowed is not None and image_id not in allowed:

@@ -31,7 +31,7 @@ def test_the_shipped_settings_load_and_match_the_documented_defaults(flat):
     assert set(config.weights) == set(WEIGHT_KEYS)
     assert (config.situation_k, config.axis_k, config.lexical_k, config.total_cap) == (300, 300, 100, 600)
     assert (config.neutral_score, config.situation_floor, config.situation_ceil) == (0.3, 0.45, 0.85)
-    assert config.use_neighbours is True and config.lexical_enabled is True
+    assert config.use_neighbours is True and config.lexical_enabled is True and config.lexical_max_tokens == 20
     assert (config.cache_ttl_seconds, config.embed_timeout_seconds, config.warm_interval_minutes) == (120, 2.0, 20)
     assert (config.breaker_failures, config.breaker_open_seconds, config.default_limit, config.max_limit) == (3, 30, 20, 50)
     assert config.embedding_model == "bge-large"

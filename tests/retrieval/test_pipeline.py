@@ -96,6 +96,7 @@ async def test_a_normal_search_ranks_explains_and_reports_meta():
     assert kwargs["query_axes"] == {"emotion": (("joy", 0.9),), "stance": (("congratulate", 0.9),)}
     assert kwargs["lexical_text"] == "My friend got promoted!" and kwargs["restrict_ids"] is None
     assert (kwargs["situation_k"], kwargs["axis_k"], kwargs["lexical_k"], kwargs["total_cap"]) == (300, 300, 100, 600)
+    assert kwargs["lexical_max_tokens"] == 20
     assert kwargs["neighbours"]["emotion"]["joy"] == ()
 
 
