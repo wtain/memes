@@ -82,3 +82,19 @@ def test_summarize_groups_by_language_difficulty_length_and_stratum():
     assert ocr_only["meanGradeJudged"] == pytest.approx((2 + 1) / 2)
     assert ocr_only["judgedCount"] == 2
     assert summary["byStratum"]["ocr+description"]["meanGradeJudged"] == 0.0
+
+
+def test_latency_summary_reports_percentiles_and_degraded_queries():
+    from evaluation.runner import format_latency, latency_summary
+    meta = [{"queryId": f"q{i}", "parseMs": 100 + i, "embedMs": 10, "retrievalMs": i, "fallback": "none",
+             "degraded": False, "candidates": 5} for i in range(20)]
+    meta.append({"queryId": "bad", "parseMs": 5000, "embedMs": 0, "retrievalMs": 7, "fallback": "timeout",
+                 "degraded": True, "candidates": 0})
+
+    summary = latency_summary(meta)
+
+    assert summary["queries"] == 21 and summary["retrievalMs"] == {"p50": 9, "p95": 18}
+    assert summary["parseMs"]["p95"] == 119 and summary["embedMs"] == {"p50": 10, "p95": 10}
+    assert summary["degraded"] == [{"queryId": "bad", "fallback": "timeout"}]
+    assert "degraded queries: 1 (bad: timeout)" in format_latency(summary)
+    assert latency_summary([])["retrievalMs"] is None

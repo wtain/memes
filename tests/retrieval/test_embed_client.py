@@ -143,3 +143,12 @@ def test_non_finite_values_are_a_bad_response(server):
     state["mode"] = "nan"
     with pytest.raises(EmbedBadResponse, match="non-finite"):
         OllamaEmbedClient(url).embed("m", ["a"], 2.0)
+
+
+def test_a_vector_of_another_dimension_is_a_bad_response_when_a_dimension_is_expected(server):
+    _state, url = server
+
+    with pytest.raises(EmbedBadResponse, match="unexpected embedding dimension"):
+        OllamaEmbedClient(url, expected_dim=3).embed("m", ["a", "b"], timeout=2.0)
+    assert len(OllamaEmbedClient(url, expected_dim=2).embed("m", ["a", "b"], timeout=2.0)) == 2
+    assert len(OllamaEmbedClient(url).embed("m", ["a", "b"], timeout=2.0)) == 2

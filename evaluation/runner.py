@@ -34,6 +34,32 @@ async def run_retriever(retriever, queries: Sequence[GoldQuery], corpus_ids: Seq
     return results
 
 
+def _percentile(sorted_values: Sequence[float], fraction: float) -> int:
+    return int(sorted_values[min(len(sorted_values) - 1, int(len(sorted_values) * fraction))])
+
+
+def latency_summary(query_meta: Sequence[Mapping]) -> dict:
+    """p50/p95 of the per-query timings of a fused run plus the degraded queries with their fallback reasons."""
+    summary: dict = {"queries": len(query_meta)}
+    for field in ("retrievalMs", "parseMs", "embedMs"):
+        values = sorted(item.get(field, 0) for item in query_meta)
+        summary[field] = {"p50": _percentile(values, 0.5), "p95": _percentile(values, 0.95)} if values else None
+    summary["degraded"] = [{"queryId": item["queryId"], "fallback": item["fallback"]}
+                           for item in query_meta if item.get("degraded")]
+    return summary
+
+
+def format_latency(summary: Mapping) -> str:
+    lines = [f"latency over {summary['queries']} queries (ms, p50 / p95):"]
+    for field in ("retrievalMs", "parseMs", "embedMs"):
+        stats = summary[field]
+        lines.append(f"  {field}: " + ("-" if stats is None else f"{stats['p50']} / {stats['p95']}"))
+    degraded = summary["degraded"]
+    lines.append(f"  degraded queries: {len(degraded)}"
+                 + ("" if not degraded else " (" + ", ".join(f"{d['queryId']}: {d['fallback']}" for d in degraded) + ")"))
+    return "\n".join(lines)
+
+
 def summarize(results: Sequence[QueryResult], strata: Mapping[str, str],
               judgments: Mapping[str, Mapping[str, int]], k: int = 10) -> dict:
     def group(key) -> dict:

@@ -424,3 +424,34 @@ async def test_the_result_cache_evicts_the_oldest_entry_at_fifty():
 def test_config_property_exposes_the_retrieval_config():
     pipeline = _pipeline()
     assert pipeline.config is pipeline._config
+
+
+class _SlowRankPipeline(MemeFromTextPipeline):
+    def rank(self, prepared, config=None):
+        self._clock.now += 0.5          # 500 ms of scoring, fusion, collapse and facets
+        return super().rank(prepared, config)
+
+
+class _SlowRepository(FakeRepository):
+    def __init__(self, candidates, clock):
+        super().__init__(candidates)
+        self.clock = clock
+
+    async def generate_candidates(self, **kwargs):
+        self.clock.now += 0.25          # 250 ms of candidate generation
+        return await super().generate_candidates(**kwargs)
+
+
+@pytest.mark.asyncio
+async def test_retrieval_ms_covers_candidates_and_ranking_and_a_cache_hit_reports_its_own_elapsed_time():
+    clock = Clock()
+    pipeline = _SlowRankPipeline(make_config(), FakeParser(), FakeEmbedder(), make_similarity(), TAX, clock=clock)
+    repository = _SlowRepository(_candidates(), clock)
+    request = SearchRequest(text="My friend got promoted!")
+
+    first = await pipeline.search(request, repository)
+    second = await pipeline.search(request, repository)
+
+    assert first.meta["retrievalMs"] == 750 and first.meta["cacheHit"] is False
+    assert second.meta["cacheHit"] is True and second.meta["retrievalMs"] == 0
+    assert second.meta["parseMs"] == 0 and second.meta["embedMs"] == 0

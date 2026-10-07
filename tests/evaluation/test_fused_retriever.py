@@ -37,3 +37,23 @@ async def test_retrieve_runs_the_pipeline_restricted_to_the_corpus_and_returns_s
     assert request.text == "привет" and request.language_hint == "ru" and request.limit == 1
     assert request.restrict_ids == frozenset({uuid.UUID(IMG_A), uuid.UUID(IMG_B)}) and repository == "repo"
     assert retriever.name == "fused" and "weights" in retriever.config
+
+
+class MetaPipeline(FakePipeline):
+    async def search(self, request, repository):
+        result = await super().search(request, repository)
+        meta = {"parseMs": 12, "embedMs": 3, "retrievalMs": 40, "candidates": 2}
+        return SearchResult(result.items, {}, None, False, {}, True, "timeout", meta)
+
+
+@pytest.mark.asyncio
+async def test_retrieve_keeps_per_query_metadata_and_prepare_resets_it():
+    retriever = FusedRetriever(object(), MetaPipeline(), repository_factory=lambda session: "repo")
+    query = GoldQuery("q1", "ru", "привет", "short", "easy", ExpectedProfile("s", (), (), (), ()), True)
+
+    await retriever.retrieve(query, [IMG_A], 1)
+
+    assert retriever.query_meta == [{"queryId": "q1", "parseMs": 12, "embedMs": 3, "retrievalMs": 40,
+                                     "fallback": "timeout", "degraded": True, "candidates": 2}]
+    await retriever.prepare([query])
+    assert retriever.query_meta == []

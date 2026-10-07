@@ -112,9 +112,13 @@ class MemeFromTextPipeline:
         fp = self._fingerprint(request, text)
         entry = self._cache_get(fp)
         cache_hit = entry is not None
+        computed_retrieval_ms = 0
         if entry is None:
             prepared = await self.prepare(request, repository, text=text)
+            ranking_started = self._clock()
             entry = self.rank(prepared)
+            # candidate generation plus scoring, fusion, collapse and facets (everything after the embedding)
+            computed_retrieval_ms = prepared.retrieval_ms + int((self._clock() - ranking_started) * 1000)
             self._cache_put(fp, entry)
         page, next_cursor, has_next = paginate(entry.items, request.cursor, fp, limit)
         prepared = entry.prepared
@@ -122,7 +126,7 @@ class MemeFromTextPipeline:
             "available": True,
             "parseMs": 0 if cache_hit else prepared.parse_ms,
             "embedMs": 0 if cache_hit else prepared.embed_ms,
-            "retrievalMs": int((self._clock() - started) * 1000) if cache_hit else prepared.retrieval_ms,
+            "retrievalMs": int((self._clock() - started) * 1000) if cache_hit else computed_retrieval_ms,
             "candidates": len(prepared.candidates),
             "cacheHit": cache_hit,
             "parserVersion": prepared.parser_version,

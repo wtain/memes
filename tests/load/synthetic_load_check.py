@@ -3,8 +3,10 @@
     DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test" PYTHONPATH=. \
         python tests/load/synthetic_load_check.py --images 25000 --queries 50
 
-Fills ocrdb_test with synthetic images, profiles and normalised random situation vectors, measures the retrieval
-stage (candidate SQL, scoring, fusion, collapse, facets; no parsing, no embedding call) and removes its rows.
+Fills ocrdb_test with synthetic images, profiles, normalised random situation vectors and a few OCR lemmas per
+image, measures the retrieval stage (candidate SQL, scoring, fusion, collapse, facets; no parsing, no embedding
+call) and removes its rows. `--lexical-tokens N` (or `--lexical-text TEXT`) switches the lexical source on, and
+the lexical source is then also timed on its own.
 It never runs against anything but a database named exactly `ocrdb_test`, and it never drops the schema."""
 import argparse
 import asyncio
@@ -31,6 +33,7 @@ if not _database_is_test():
     sys.exit("Refusing to run: DATABASE_URL must point at the test database (ocrdb_test).")
 
 from repository.meme_retrieval import MemeRetrievalRepository                      # noqa: E402
+from repository.ocr_lemmas import lexical_or_scores                                  # noqa: E402
 from retrieval.config import AXES, RetrievalConfig                                   # noqa: E402
 from retrieval.facets import collapse_clusters, facet_counts                         # noqa: E402
 from retrieval.fusion import fuse, rank_candidates                                   # noqa: E402
@@ -38,7 +41,8 @@ from retrieval.model import Filters, QueryView                                  
 from retrieval.similarity import load_similarity                                     # noqa: E402
 from Storage.db import AsyncSessionLocal, engine                                     # noqa: E402
 from Storage.models import (                                                         # noqa: E402
-    PROFILE_EMBEDDING_DIM, Base, Image, MemeProfile, MemeProfileSituationEmbedding, MemeProfileValue, TmpImageClusters,
+    PROFILE_EMBEDDING_DIM, Base, Image, MemeProfile, MemeProfileSituationEmbedding, MemeProfileValue, OCRLemma,
+    TmpImageClusters,
 )
 from taxonomy import load                                                            # noqa: E402
 
@@ -50,7 +54,19 @@ SAMPLE_VECTORS = 200
 WARMUP_QUERIES = 3
 BUDGET_MS = 300
 INT_MAX_SAFE = 2_147_000_000   # tmp_clusters.cluster_id is a 32-bit Integer
-ANALYZED = (Image, MemeProfile, MemeProfileValue, MemeProfileSituationEmbedding, TmpImageClusters)
+ANALYZED = (Image, MemeProfile, MemeProfileValue, MemeProfileSituationEmbedding, TmpImageClusters, OCRLemma)
+VOCABULARY_SIZE = 3000
+LEMMAS_PER_IMAGE = 5
+_CONSONANTS, _VOWELS = "bdfgklmnprstvz", "aeiou"
+
+
+def _vocabulary(rng: random.Random) -> list[str]:
+    """3000 distinct pronounceable pseudo-words (three consonant-vowel syllables), language-agnostic."""
+    syllables = [c + v for c in _CONSONANTS for v in _VOWELS]
+    words: set[str] = set()
+    while len(words) < VOCABULARY_SIZE:
+        words.add("".join(rng.choice(syllables) for _ in range(3)))
+    return sorted(words)
 
 
 def _config() -> RetrievalConfig:
@@ -63,7 +79,8 @@ def _config() -> RetrievalConfig:
         default_limit=20, max_limit=50, embedding_model=MODEL, ollama_url="http://127.0.0.1:11434")
 
 
-async def _populate(session, count: int, rng: random.Random, np_rng, tax, cluster_base: int) -> list[np.ndarray]:
+async def _populate(session, count: int, rng: random.Random, np_rng, tax, cluster_base: int,
+                    vocabulary: list[str]) -> list[np.ndarray]:
     """Inserts the rows and returns a small sample of the inserted situation vectors (for realistic queries)."""
     keys = {axis: list(tax.values[axis]) for axis in AXES}
     sample: list[np.ndarray] = []
@@ -83,6 +100,9 @@ async def _populate(session, count: int, rng: random.Random, np_rng, tax, cluste
                     values.append({"image_id": image_id, "axis": axis, "value_key": key,
                                    "confidence": rng.choice([0.3, 0.6, 0.9]), "source": "model"})
         await session.execute(insert(MemeProfileValue), values)
+        await session.execute(insert(OCRLemma), [
+            {"image_id": image_id, "lemma": lemma}
+            for image_id in ids for lemma in rng.sample(vocabulary, LEMMAS_PER_IMAGE)])
         vectors = np_rng.standard_normal((size, PROFILE_EMBEDDING_DIM)).astype(np.float32)
         vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
         await session.execute(insert(MemeProfileSituationEmbedding), [
@@ -147,9 +167,13 @@ def _query_vector(np_rng, sample: list[np.ndarray]) -> list[float]:
     return (mixed / np.linalg.norm(mixed)).tolist()
 
 
-async def main(images: int, queries: int, keep: bool) -> int:
+async def main(images: int, queries: int, keep: bool, lexical_text: str | None = None,
+               lexical_tokens: int | None = None) -> int:
     tax, similarity, config = load(), load_similarity(), _config()
     rng, np_rng = random.Random(7), np.random.default_rng(7)
+    vocabulary = _vocabulary(random.Random(11))
+    lexical_on = bool(lexical_text) or bool(lexical_tokens)
+    lexical_texts: list[str] = []
     keys = {axis: list(tax.values[axis]) for axis in AXES}
     try:
         await _ensure_tables()
@@ -162,7 +186,7 @@ async def main(images: int, queries: int, keep: bool) -> int:
             raise RuntimeError("cluster ids would overflow tmp_clusters.cluster_id")
         async with AsyncSessionLocal() as session:
             print(f"populating {images} synthetic images")
-            sample = await _populate(session, images, rng, np_rng, tax, cluster_base)
+            sample = await _populate(session, images, rng, np_rng, tax, cluster_base, vocabulary)
         async with AsyncSessionLocal() as session:
             for model in ANALYZED:
                 await session.execute(text(f'ANALYZE "{model.__tablename__}"'))
@@ -173,13 +197,19 @@ async def main(images: int, queries: int, keep: bool) -> int:
             axes = {axis: tuple((key, rng.choice([0.3, 0.6, 0.9])) for key in rng.sample(keys[axis], 2))
                     for axis in AXES}
             view = QueryView("synthetic query", axes, "en", False)
+            text_for_query = None
+            if lexical_on:
+                text_for_query = lexical_text or " ".join(rng.sample(vocabulary, lexical_tokens))
+                lexical_texts.append(text_for_query)
             started = time.perf_counter()
             candidates = await repository.generate_candidates(
                 query_vector=vector, query_axes=axes, neighbours=similarity.neighbours_for(axes),
-                lexical_text=None, filters=Filters(), restrict_ids=None, model_name=MODEL,
+                lexical_text=text_for_query, filters=Filters(), restrict_ids=None, model_name=MODEL,
                 situation_k=config.situation_k, axis_k=config.axis_k, lexical_k=config.lexical_k,
                 total_cap=config.total_cap)
-            scored = [fuse(c, view, config, similarity, lexical_active=False) for c in candidates]
+            lexical_active = text_for_query is not None and any(c.lexical > 0 for c in candidates)
+            scored = [fuse(c, view, config, similarity, lexical_active=lexical_active)
+                      for c in candidates]
             items = collapse_clusters(rank_candidates(scored))
             facet_counts(items)
             return (time.perf_counter() - started) * 1000, len(candidates)
@@ -193,12 +223,25 @@ async def main(images: int, queries: int, keep: bool) -> int:
                 elapsed, count = await one_query(repository)
                 timings.append(elapsed)
                 counts.append(count)
+        lexical_timings: list[float] = []
+        if lexical_on:
+            async with AsyncSessionLocal() as session:        # the lexical source alone, same texts
+                for text_value in lexical_texts[WARMUP_QUERIES:]:
+                    started = time.perf_counter()
+                    await lexical_or_scores(session, text_value)
+                    lexical_timings.append((time.perf_counter() - started) * 1000)
         timings.sort()
         p50 = timings[len(timings) // 2]
         p95 = timings[min(len(timings) - 1, int(len(timings) * 0.95))]
         verdict = "PASS" if p95 < BUDGET_MS else "FAIL"
         print(f"{images} images, {queries} queries: retrieval p50 {p50:.0f} ms, p95 {p95:.0f} ms "
               f"(candidates median {statistics.median(counts):.0f}) -> {verdict} (budget: p95 under {BUDGET_MS} ms)")
+        if lexical_timings:
+            lexical_timings.sort()
+            tokens = len(set(lexical_texts[-1].split()))
+            print(f"lexical source alone ({tokens} tokens in the last message): "
+                  f"p50 {lexical_timings[len(lexical_timings) // 2]:.0f} ms, "
+                  f"p95 {lexical_timings[min(len(lexical_timings) - 1, int(len(lexical_timings) * 0.95))]:.0f} ms")
         return 0 if verdict == "PASS" else 1
     finally:
         if not keep:
@@ -211,5 +254,10 @@ if __name__ == "__main__":
     parser.add_argument("--images", type=int, default=25000)
     parser.add_argument("--queries", type=int, default=50)
     parser.add_argument("--keep", action="store_true", help="leave the synthetic rows in place")
+    parser.add_argument("--lexical-text", default=None, help="message for the lexical source (default: off)")
+    parser.add_argument("--lexical-tokens", type=int, default=None,
+                        help="without --lexical-text: a synthetic message of this many distinct tokens per query, "
+                             "sampled from the lemmas of the synthetic images")
     arguments = parser.parse_args()
-    sys.exit(asyncio.run(main(arguments.images, arguments.queries, arguments.keep)))
+    sys.exit(asyncio.run(main(arguments.images, arguments.queries, arguments.keep, arguments.lexical_text,
+                              arguments.lexical_tokens)))

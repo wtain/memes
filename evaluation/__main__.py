@@ -208,7 +208,9 @@ def _build_pipeline(parse_model: str):
 
     parser = QueryParser(load_parse_config(get))
     config = load_config(settings.get)
-    return MemeFromTextPipeline(config, parser, OllamaEmbedClient(config.ollama_url), load_similarity(),
+    from Storage.models import PROFILE_EMBEDDING_DIM
+    return MemeFromTextPipeline(config, parser, OllamaEmbedClient(config.ollama_url, PROFILE_EMBEDDING_DIM),
+                                load_similarity(),
                                 max_input_chars=int(settings.get("parse.max_input_chars")))
 
 
@@ -311,7 +313,7 @@ async def cmd_build_pools(args, gold: Path) -> int:
     pools = {}
     names = pool_source_names(args.sources)
     async with AsyncSessionLocal() as session:
-        await _check_corpus(session, corpus, check_digest="situation_embedding" in names)
+        await _check_corpus(session, corpus, check_digest=bool({"situation_embedding", "fused"} & set(names)))
         retrievers = {name: _make_retriever(name, session, args.seed, args.parse_model) for name in names}
         randomiser = RandomRetriever(args.seed)
         for retriever in retrievers.values():
@@ -349,7 +351,7 @@ async def cmd_run(args, gold: Path) -> int:
     if target.exists() and not args.force:
         return _error(f"{target} already exists (use --force to replace it)")
     async with AsyncSessionLocal() as session:
-        state = await _check_corpus(session, corpus, check_digest=args.retriever == "situation_embedding")
+        state = await _check_corpus(session, corpus, check_digest=args.retriever in ("situation_embedding", "fused"))
         retriever = _make_retriever(args.retriever, session, args.seed, args.parse_model)
         results = await run_retriever(retriever, queries, list(corpus.image_ids()), judgments_by_query(judgments),
                                       k=args.k)
@@ -360,6 +362,11 @@ async def cmd_run(args, gold: Path) -> int:
         gold_hashes={"corpusSha": file_sha256(gold / "corpus.json"), "queriesSha": file_sha256(gold / "queries.json"),
                      "judgmentsSha": file_sha256(gold / "judgments.json")},
         profile_state=state, results=results, summary=summary)
+    latency = None
+    if args.retriever == "fused":
+        from evaluation.runner import format_latency, latency_summary
+        latency = latency_summary(retriever.query_meta)
+        baseline["latency"] = latency
     target.parent.mkdir(parents=True, exist_ok=True)
     save_baseline(target, baseline)
     bias = None
@@ -368,6 +375,8 @@ async def cmd_run(args, gold: Path) -> int:
     if sources:
         bias = pooling_bias(results, sources)
     print(format_report(baseline, bias))
+    if latency is not None:
+        print(format_latency(latency))
     print(f"wrote {target}")
     return 0
 
@@ -431,7 +440,7 @@ async def cmd_tune_weights(args, gold: Path) -> int:
     require_readonly()
     import json
     import uuid
-    from evaluation.tuning import PreparedQuery, tune
+    from evaluation.tuning import PreparedQuery, split_degraded, tune
     from repository.meme_retrieval import MemeRetrievalRepository
     from retrieval.pipeline import SearchRequest
     from retrieval.similarity import load_similarity
@@ -450,10 +459,24 @@ async def cmd_tune_weights(args, gold: Path) -> int:
             item = await pipeline.prepare(SearchRequest(text=query.text, language_hint=query.language,
                                                         restrict_ids=corpus_ids), repository)
             prepared.append(PreparedQuery(query.id, query.language, item.view, tuple(item.candidates),
-                                          item.lexical_active, judged.get(query.id, {})))
+                                          item.lexical_active, judged.get(query.id, {}), item.degraded,
+                                          item.fallback))
+            if item.fallback == "breaker_open":
+                return _error("the parser circuit breaker opened during collection; the remaining queries would "
+                              "all degrade. Fix the parser model or Ollama and run again (nothing was written)")
+    prepared, degraded = split_degraded(prepared)
+    if degraded:
+        listing = ", ".join(f"{item.query_id}: {item.fallback}" for item in degraded)
+        if not args.allow_degraded:
+            return _error(f"{len(degraded)} of {len(degraded) + len(prepared)} queries degraded ({listing}); tuning "
+                          "on degraded profiles would corrupt the weights. Fix the parser or pass --allow-degraded "
+                          "to exclude them (nothing was written)")
+        _warn(f"excluding {len(degraded)} degraded queries from the tuning: {listing}")
     report = tune(prepared, pipeline.config, load_similarity(), folds=args.folds, seed=args.seed)
     report.update({"label": args.label, "date": date_class.today().isoformat(), "parseModel": args.parse_model,
-                   "queries": len(prepared), "queriesSha": file_sha256(gold / "queries.json"),
+                   "queries": len(prepared),
+                   "degradedQueries": [{"queryId": item.query_id, "fallback": item.fallback} for item in degraded],
+                   "queriesSha": file_sha256(gold / "queries.json"),
                    "judgmentsSha": file_sha256(gold / "judgments.json")})
     target.parent.mkdir(parents=True, exist_ok=True)
     with open(target, "w", encoding="utf-8", newline="\n") as handle:
@@ -532,6 +555,9 @@ def build_parser() -> argparse.ArgumentParser:
     tune_cmd.add_argument("--folds", type=int, default=5)
     tune_cmd.add_argument("--seed", type=int, default=7)
     tune_cmd.add_argument("--force", action="store_true")
+    tune_cmd.add_argument("--allow-degraded", action="store_true",
+                          help="exclude queries whose profile degraded (parser failure, open breaker) instead of "
+                               "refusing to tune")
 
     commands.add_parser("list-baselines")
     return parser

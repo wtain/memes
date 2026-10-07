@@ -32,8 +32,9 @@ def normalise(vector: list[float]) -> list[float]:
 
 
 class OllamaEmbedClient:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, expected_dim: int | None = None):
         self._url = base_url.rstrip("/") + "/api/embed"
+        self._expected_dim = expected_dim
 
     def embed(self, model: str, texts: list[str], timeout: float) -> list[list[float]]:
         if not texts:
@@ -67,6 +68,8 @@ class OllamaEmbedClient:
             raise EmbedBadResponse("the Ollama response has no embeddings") from None
         if any(not math.isfinite(value) for vector in vectors for value in vector):
             raise EmbedBadResponse("the Ollama response has non-finite values")
+        if self._expected_dim is not None and any(len(vector) != self._expected_dim for vector in vectors):
+            raise EmbedBadResponse("the Ollama response has an unexpected embedding dimension")
         if len(vectors) != len(texts):
             raise EmbedBadResponse("the Ollama response has the wrong number of embeddings")
         return [normalise(vector) for vector in vectors]
