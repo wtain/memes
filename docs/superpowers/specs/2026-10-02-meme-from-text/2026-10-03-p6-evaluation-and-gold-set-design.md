@@ -213,6 +213,8 @@ On the same gold data (hashes in the baselines), evaluated after a second judgin
 3. No query class (difficulty, length) below the best baseline's score for that class (difficulty: ambiguous 0.421, easy 0.350, hard 0.350; length: short 0.402, medium 0.326, long 0.329 taking the best baseline per class).
 4. P3 parse agreement with `expectedProfile` is reported separately (per axis, per language) and gates P3, not P4.
 
+**Re-based on 2026-10-07 (approved by the user):** after the round-2 judgments (see the update at the end of this addendum and the P3 addendum) the best baseline is `parsed_axis_match` with nDCG@10 0.468 and hit@10 1.000, so item 1 becomes **overall nDCG@10 at least 0.50 and hit@10 at least 0.95** (the old absolute numbers 0.37 and 0.87 would be met by a one-signal baseline); items 2 to 4 are unchanged. As before, P4 is evaluated after a judging round that pools P4's own top ten.
+
 These four are binding for P4's acceptance. The thresholds are relative to the 1,500-image corpus, so they are re-based (new baselines, same rules) if the gold data is extended.
 
 ### Deviations from this spec

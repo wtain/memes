@@ -187,9 +187,9 @@ A local 7B instruct model parses English, Russian and Spanish messages into the 
 
 On the 60 gold queries, so that a prompt, taxonomy or model change can be compared with `parse-eval`: language accuracy at least 0.95; degraded rate at most 2%; parse p50 at most 2.0 s and p95 at most 5.0 s; macro F1 at least 0.45 overall and at least 0.40 per language; per-axis F1 at least topic 0.75, tone 0.45, emotion 0.33, stance 0.25 (about 10% under the measured values); `parsed_axis_match` nDCG@10 not below 0.42 with the same judgments. These floors replace the P3 acceptance numbers only as a regression gate; they do not change the approved P4 thresholds.
 
-### Consequence for the approved P4 thresholds (needs a decision)
+### Consequence for the approved P4 thresholds (re-basing approved by the user on 2026-10-07)
 
-The P4 thresholds approved on 2026-10-05 (overall nDCG@10 at least 0.37 and hit@10 at least 0.87) were calibrated on round-1 judgments, where the best baseline reached 0.339. With the round-2 judgments a single-signal `parsed_axis_match` already reaches nDCG@10 0.468 and hit@10 1.000, so those absolute numbers would be met by a one-axis baseline. The rule behind them ("beat the best baseline by a margin of 0.03") now implies nDCG@10 at least about 0.50. Proposal: re-base to the new best baseline (nDCG@10 at least 0.50, hit@10 at least 0.95), keep the per-language (at least 0.85 of English and at least 0.30) and per-class rules, and evaluate P4 after a round that pools P4's own top ten.
+The P4 thresholds approved on 2026-10-05 (overall nDCG@10 at least 0.37 and hit@10 at least 0.87) were calibrated on round-1 judgments, where the best baseline reached 0.339. With the round-2 judgments a single-signal `parsed_axis_match` already reaches nDCG@10 0.468 and hit@10 1.000, so those absolute numbers would be met by a one-axis baseline. The rule behind them ("beat the best baseline by a margin of 0.03") now implies nDCG@10 at least about 0.50. Approved on 2026-10-07: re-base to the new best baseline (nDCG@10 at least 0.50, hit@10 at least 0.95), keep the per-language (at least 0.85 of English and at least 0.30) and per-class rules, and evaluate P4 after a round that pools P4's own top ten.
 
 ### Handoff notes for P4
 
