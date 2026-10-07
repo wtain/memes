@@ -104,6 +104,10 @@ class MemeFromTextPipeline:
     def config(self) -> RetrievalConfig:
         return self._config
 
+    @property
+    def parser(self):
+        return self._parser
+
     async def search(self, request: SearchRequest, repository) -> SearchResult:
         started = self._clock()
         limit = request.limit if request.limit else self._config.default_limit
@@ -157,7 +161,11 @@ class MemeFromTextPipeline:
             scoring_view = QueryView(situation=None, axes=view.axes, language=view.language, degraded=view.degraded)
         elif parse_degraded:
             scoring_view = QueryView(situation=text, axes={}, language=view.language, degraded=True)
-        lexical_text = text if (self._config.lexical_enabled and text) else None
+        # lexical matching is a fallback source: it runs when the parse or the embedding fell back (or always, if
+        # configured so), because it is by far the most expensive source and adds little on healthy requests
+        fallback_needed = parse_degraded or embed_failed or vector is None
+        lexical_text = text if (self._config.lexical_enabled and text and
+                                (not self._config.lexical_only_when_degraded or fallback_needed)) else None
         candidates = await repository.generate_candidates(
             query_vector=vector, query_axes=scoring_view.axes,
             neighbours=self._similarity.neighbours_for(scoring_view.axes) if self._config.use_neighbours else None,
@@ -184,6 +192,16 @@ class MemeFromTextPipeline:
                   for candidate in prepared.candidates]
         items = collapse_clusters(rank_candidates(scored))
         return _Entry(items, facet_counts(items), prepared)
+
+    async def warm_up_models(self) -> None:
+        """Warm the parser model (when it can be) and the embedding model; never raises."""
+        warm_parser = getattr(self._parser, "warm_up", None)
+        if warm_parser is not None:
+            try:
+                await warm_parser()
+            except Exception as error:
+                logger.info("parser warm-up failed: %s", type(error).__name__)
+        await self.warm_up()
 
     async def warm_up(self) -> bool:
         """One embedding call so the model is loaded; never raises."""

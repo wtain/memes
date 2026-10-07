@@ -22,6 +22,7 @@ _SPEC = (
     ("use_neighbours", "similarity.use_neighbours", bool),
     ("lexical_enabled", "lexical.enabled", bool),
     ("lexical_max_tokens", "lexical.max_tokens", int),
+    ("lexical_only_when_degraded", "lexical.only_when_degraded", bool),
     ("cache_ttl_seconds", "cache_ttl_seconds", float),
     ("embed_timeout_seconds", "embed_timeout_seconds", float),
     ("warm_interval_minutes", "warm_interval_minutes", float),
@@ -45,6 +46,7 @@ class RetrievalConfig:
     use_neighbours: bool
     lexical_enabled: bool
     lexical_max_tokens: int
+    lexical_only_when_degraded: bool
     cache_ttl_seconds: float
     embed_timeout_seconds: float
     warm_interval_minutes: float

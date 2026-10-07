@@ -66,7 +66,7 @@ search:
     neutral_score: 0.3            # score of an axis the meme has no value on (FR-15): neutral, not a mismatch
     situation: {floor: 0.45, ceil: 0.85}   # cosine range rescaled to 0..1 (unrelated pairs 0.44-0.58, related 0.66-0.84)
     similarity: {use_neighbours: true}
-    lexical: {enabled: true, max_tokens: 20}   # only the longest distinct tokens of a message are matched lexically
+    lexical: {enabled: true, max_tokens: 20, only_when_degraded: true}   # only the longest distinct tokens of a message are matched lexically; lexical matching costs ~250 ms p50 and over a second at p95 per request on the real library, so it runs only when the parse was degraded or the embedding failed, where it is the only signal left
     cache_ttl_seconds: 120
     embed_timeout_seconds: 2.0
     warm_interval_minutes: 20     # below parse.keep_alive (30m) so the models stay loaded

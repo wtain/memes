@@ -18,6 +18,7 @@ class FusedRetriever:
         self._session = session
         self._pipeline = pipeline
         self._repository_factory = repository_factory
+        self._warmed = False
         self.query_meta: list[dict] = []     # per query of the current run: timings, fallback, candidate count
         config = getattr(pipeline, "config", None)
         self.config = {"weights": dict(config.weights) if config is not None else {},
@@ -25,6 +26,9 @@ class FusedRetriever:
 
     async def prepare(self, queries) -> None:
         self.query_meta = []        # one run, one list
+        if not self._warmed:        # evaluation runs start cold otherwise and the first queries degrade
+            self._warmed = True
+            await self._pipeline.warm_up_models()
 
     async def retrieve(self, query: GoldQuery, corpus_ids: Sequence[str], k: int) -> list[tuple[str, float]]:
         from retrieval.pipeline import SearchRequest

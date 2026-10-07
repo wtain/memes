@@ -682,7 +682,7 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
   - `items` (array of `MemeFromTextResult`):
     - `meme`: the existing `Meme` object
     - `score` (number): fused relevance score
-    - `axisPath` (boolean): `false` for a lexical-only hit on an image that has no meme profile
+    - `axisPath` (boolean): `false` for a lexical-only hit on an image that has no meme profile (appears only in degraded responses, unless `lexical.only_when_degraded` is switched off)
     - `explanation`: `axes[]` (`axis` one of situation, emotion, stance, topic, tone, lexical; `score`, `weight`, `contribution`, `neutral`, `queryValues`, `matched[]` with `queryKey`, `memeKey`, `similarity`, `memeConfidence`), `situationText`, `useWhen` (both optional). On the degraded path (the parse failed) the situation axis's `queryValues` holds the raw message text
     - `clusterId` (integer, optional) and `clusterSize` (integer, optional): the duplicate cluster collapsed into this result, the result itself included
     - Fields whose value is null (`situationText`, `useWhen`, `profile.situation`, `nextCursor`, `clusterId`, `clusterSize`) are omitted from the response; clients must treat them as optional
@@ -693,8 +693,8 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
   - `meta`: `available`, `parseMs`, `embedMs`, `retrievalMs`, `candidates`, `cacheHit`, `parserVersion`, `model`. `retrievalMs` is the time from the end of the embedding to the end of the response work (candidate generation, scoring, fusion, duplicate collapse and facets); on a cache hit `parseMs` and `embedMs` are 0 and `retrievalMs` is the time the hit itself took
 - **Behavior**:
   - Results are cached per request for 120 seconds when healthy and 10 seconds when degraded (the response carries `Cache-Control: no-store`; the cache is server side and `meta.cacheHit` reports it)
-  - Only the 20 longest distinct tokens of a message are matched lexically (`search.meme_from_text.lexical.max_tokens`)
-  - Flagged, inactive and profile-less images never appear on the axis path; a profile-less image can only appear as a lexical-only hit with `axisPath: false`
+  - Lexical matching of the message text (only the 20 longest distinct tokens, `search.meme_from_text.lexical.max_tokens`) runs only when the parse or the embedding fell back (`degraded: true`); healthy requests do not use it, so `explanation` has no `lexical` axis then (`search.meme_from_text.lexical.only_when_degraded`, default true)
+  - Flagged, inactive and profile-less images never appear on the axis path; a profile-less image can only appear as a lexical-only hit with `axisPath: false`, which therefore happens only in degraded responses (unless `lexical.only_when_degraded` is switched off)
   - The endpoint never fails because a model failed: it answers with `degraded: true` and a `fallback` reason (a failed parse falls back to lexical retrieval, a failed embedding to the axes without the situation)
   - An environment without a parser (no `parse.model`, the `it` environment), or whose pipeline could not be built at startup (a misconfigured key shows as this answer plus one startup warning), answers `200` with `items: []`, `degraded: true`, `fallback: "unavailable"` and `meta.available: false`. An environment with a parser but no profiles answers `meta.available: true` with empty or lexical-only results
 - **Error Responses**:

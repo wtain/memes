@@ -16,6 +16,10 @@ class FakePipeline:
     def __init__(self):
         self.requests = []
         self.config = make_config()
+        self.warmed = 0
+
+    async def warm_up_models(self):
+        self.warmed += 1
 
     async def search(self, request, repository):
         self.requests.append((request, repository))
@@ -57,3 +61,12 @@ async def test_retrieve_keeps_per_query_metadata_and_prepare_resets_it():
                                      "fallback": "timeout", "degraded": True, "candidates": 2}]
     await retriever.prepare([query])
     assert retriever.query_meta == []
+
+
+@pytest.mark.asyncio
+async def test_prepare_warms_the_models_once_per_retriever():
+    pipeline = FakePipeline()
+    retriever = FusedRetriever(object(), pipeline, repository_factory=lambda session: "repo")
+    await retriever.prepare([])
+    await retriever.prepare([])
+    assert pipeline.warmed == 1

@@ -94,7 +94,7 @@ async def test_a_normal_search_ranks_explains_and_reports_meta():
     kwargs = repository.calls[0]
     assert kwargs["query_vector"] == [1.0, 0.0] and kwargs["model_name"] == "bge-large"
     assert kwargs["query_axes"] == {"emotion": (("joy", 0.9),), "stance": (("congratulate", 0.9),)}
-    assert kwargs["lexical_text"] == "My friend got promoted!" and kwargs["restrict_ids"] is None
+    assert kwargs["lexical_text"] is None and kwargs["restrict_ids"] is None
     assert (kwargs["situation_k"], kwargs["axis_k"], kwargs["lexical_k"], kwargs["total_cap"]) == (300, 300, 100, 600)
     assert kwargs["lexical_max_tokens"] == 20
     assert kwargs["neighbours"]["emotion"]["joy"] == ()
@@ -288,8 +288,67 @@ async def test_the_restriction_and_filters_reach_the_repository():
 @pytest.mark.asyncio
 async def test_lexical_can_be_disabled_by_configuration():
     repository = FakeRepository(_candidates())
-    await _pipeline(lexical_enabled=False).search(SearchRequest(text="hello"), repository)
+    await _pipeline(lexical_enabled=False, lexical_only_when_degraded=False).search(
+        SearchRequest(text="hello"), repository)
     assert repository.calls[0]["lexical_text"] is None
+    degraded = FakeRepository(_candidates())
+    await _pipeline(parser=FakeParser(degraded=True), lexical_enabled=False).search(SearchRequest(text="hello"), degraded)
+    assert degraded.calls[0]["lexical_text"] is None
+
+
+@pytest.mark.asyncio
+async def test_healthy_request_skips_lexical_when_only_when_degraded():
+    repository = FakeRepository(_candidates())
+    result = await _pipeline().search(SearchRequest(text="My friend got promoted!"), repository)
+    assert repository.calls[0]["lexical_text"] is None
+    assert result.degraded is False and result.fallback == "none"
+
+
+@pytest.mark.asyncio
+async def test_degraded_parse_runs_lexical():
+    repository = FakeRepository(_candidates())
+    await _pipeline(parser=FakeParser(degraded=True, fallback="timeout")).search(SearchRequest(text="hello"), repository)
+    assert repository.calls[0]["lexical_text"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_failed_embedding_runs_lexical():
+    repository = FakeRepository(_candidates())
+    await _pipeline(embedder=FakeEmbedder(fail=True)).search(SearchRequest(text="hello"), repository)
+    assert repository.calls[0]["lexical_text"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_lexical_is_always_on_when_only_when_degraded_is_off():
+    repository = FakeRepository(_candidates())
+    await _pipeline(lexical_only_when_degraded=False).search(SearchRequest(text="hello"), repository)
+    assert repository.calls[0]["lexical_text"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_warm_up_models_warms_parser_and_embedder_and_never_raises():
+    class WarmParser(FakeParser):
+        warmed = 0
+
+        async def warm_up(self):
+            self.warmed += 1
+
+    class BrokenParser(FakeParser):
+        async def warm_up(self):
+            raise RuntimeError("boom")
+
+    parser, embedder = WarmParser(), FakeEmbedder()
+    pipeline = _pipeline(parser=parser, embedder=embedder)
+    await pipeline.warm_up_models()
+    assert parser.warmed == 1 and len(embedder.calls) == 1 and pipeline.parser is parser
+
+    embedder = FakeEmbedder()
+    await _pipeline(parser=BrokenParser(), embedder=embedder).warm_up_models()
+    assert len(embedder.calls) == 1
+
+    embedder = FakeEmbedder()
+    await _pipeline(parser=FakeParser(), embedder=embedder).warm_up_models()
+    assert len(embedder.calls) == 1
 
 
 @pytest.mark.asyncio

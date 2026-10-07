@@ -454,7 +454,7 @@ async def cmd_tune_weights(args, gold: Path) -> int:
     async with AsyncSessionLocal() as session:
         await _check_corpus(session, corpus, check_digest=True)
         repository = MemeRetrievalRepository(session)
-        await pipeline.warm_up()
+        await pipeline.warm_up_models()
         for query in queries:
             item = await pipeline.prepare(SearchRequest(text=query.text, language_hint=query.language,
                                                         restrict_ids=corpus_ids), repository)
