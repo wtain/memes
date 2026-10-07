@@ -1,0 +1,37 @@
+{
+  "defaultWeights": {
+    "situation": 0.4,
+    "emotion": 0.15,
+    "stance": 0.1,
+    "topic": 0.15,
+    "tone": 0.1,
+    "lexical": 0.1
+  },
+  "defaultScore": 0.3548705912278577,
+  "recommendedWeights": {
+    "situation": 0.1,
+    "emotion": 0.15,
+    "stance": 0.1,
+    "topic": 0.15,
+    "tone": 0.1,
+    "lexical": 0.1
+  },
+  "inSampleScore": 0.3977809586478601,
+  "startedFrom": "default",
+  "foldScores": [
+    0.31367019828926257,
+    0.4010580592176938,
+    0.4143722570382478,
+    0.3678781317339472,
+    0.43190510995332504
+  ],
+  "cvScore": 0.3857767512464953,
+  "foldSpread": 0.11823491166406247,
+  "label": "tune-1",
+  "date": "2026-10-07",
+  "parseModel": "qwen2.5:7b-instruct",
+  "queries": 60,
+  "degradedQueries": [],
+  "queriesSha": "5299d18171682186e54aee387a8dd7265de0b4468715c412922676e0adc7a70b",
+  "judgmentsSha": "a90d2909e5c5a52d64d3424fd18d5b5deb7b9b02a8afe730f7257c53ad338289"
+}

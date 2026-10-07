@@ -59,9 +59,11 @@ search:
     warn_match_count: 10000
   # Meme from text retrieval and fusion (epic meme-from-text, P4; see
   # docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-07-p4-retrieval-fusion-and-api-design.md).
-  # A missing key is a startup error. The weights are the documented defaults until the P4 tuning on the gold set.
+  # A missing key is a startup error. The weights come from `python -m evaluation tune-weights` on the gold set
+  # (evaluation/gold/tuning/tune-1.json: cross-validated nDCG@10 0.386 against 0.355 for the former defaults, which
+  # had situation 0.40); lexical only matters on degraded requests.
   meme_from_text:
-    weights: {situation: 0.40, emotion: 0.15, stance: 0.10, topic: 0.15, tone: 0.10, lexical: 0.10}
+    weights: {situation: 0.10, emotion: 0.15, stance: 0.10, topic: 0.15, tone: 0.10, lexical: 0.10}
     candidates: {situation_k: 300, axis_k: 300, lexical_k: 100, total_cap: 600}
     neutral_score: 0.3            # score of an axis the meme has no value on (FR-15): neutral, not a mismatch
     situation: {floor: 0.45, ceil: 0.85}   # cosine range rescaled to 0..1 (unrelated pairs 0.44-0.58, related 0.66-0.84)

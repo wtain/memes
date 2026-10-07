@@ -26,7 +26,7 @@ def flat():
 def test_the_shipped_settings_load_and_match_the_documented_defaults(flat):
     config = load_config(lambda key, default=None: flat.get(key, default), environ={})
 
-    assert config.weights == {"situation": 0.40, "emotion": 0.15, "stance": 0.10, "topic": 0.15, "tone": 0.10,
+    assert config.weights == {"situation": 0.10, "emotion": 0.15, "stance": 0.10, "topic": 0.15, "tone": 0.10,
                               "lexical": 0.10}
     assert set(config.weights) == set(WEIGHT_KEYS)
     assert (config.situation_k, config.axis_k, config.lexical_k, config.total_cap) == (300, 300, 100, 600)

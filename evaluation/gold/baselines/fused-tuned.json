@@ -1,0 +1,595 @@
+{
+  "label": "fused-tuned",
+  "date": "2026-10-07",
+  "retriever": {
+    "name": "fused",
+    "config": {
+      "weights": {
+        "situation": 0.1,
+        "emotion": 0.15,
+        "stance": 0.1,
+        "topic": 0.15,
+        "tone": 0.1,
+        "lexical": 0.1
+      },
+      "embeddingModel": "bge-large"
+    }
+  },
+  "gitCommit": "b9c861c3a34961ecbd15db5d9c84ef3522e9e06b",
+  "gold": {
+    "corpusSha": "da9de2c79938aa9c46a31b0c0eb432998cc0810f628de2832ad86da88a790ea8",
+    "queriesSha": "5299d18171682186e54aee387a8dd7265de0b4468715c412922676e0adc7a70b",
+    "judgmentsSha": "a90d2909e5c5a52d64d3424fd18d5b5deb7b9b02a8afe730f7257c53ad338289"
+  },
+  "profileState": {
+    "corpusImages": 1500,
+    "profiled": 1455,
+    "taxonomyVersions": {
+      "2": 1455
+    },
+    "promptVersions": {
+      "p2-5d149de262": 1455
+    },
+    "extractorModels": {
+      "qwen2.5:7b-instruct": 1453,
+      "qwen2.5vl:7b": 2
+    },
+    "embedded": 1454,
+    "embeddingModels": {
+      "bge-large b3d71c92805938e2c9d78e6f35e82d7cc1bd77e05b47dd2ab3016240f4021c15": 1454
+    }
+  },
+  "summary": {
+    "overall": {
+      "queries": 60,
+      "noPositive": 0,
+      "ndcg": 0.3977809586478601,
+      "recall": 0.37136446886446867,
+      "hit": 0.95,
+      "judged": 0.6283333333333334
+    },
+    "byLanguage": {
+      "en": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.4019247177579004,
+        "recall": 0.39247835497835487,
+        "hit": 0.95,
+        "judged": 0.6500000000000001
+      },
+      "es": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.43468173336687244,
+        "recall": 0.39493423243423237,
+        "hit": 1.0,
+        "judged": 0.6700000000000002
+      },
+      "ru": {
+        "queries": 20,
+        "noPositive": 0,
+        "ndcg": 0.35673642481880763,
+        "recall": 0.3266808191808192,
+        "hit": 0.9,
+        "judged": 0.565
+      }
+    },
+    "byDifficulty": {
+      "ambiguous": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.33597472754265034,
+        "recall": 0.28215007215007215,
+        "hit": 0.8666666666666667,
+        "judged": 0.4666666666666667
+      },
+      "easy": {
+        "queries": 21,
+        "noPositive": 0,
+        "ndcg": 0.4357664981742482,
+        "recall": 0.4075406075406076,
+        "hit": 1.0,
+        "judged": 0.657142857142857
+      },
+      "hard": {
+        "queries": 24,
+        "noPositive": 0,
+        "ndcg": 0.4031725060030267,
+        "recall": 0.3954693454693455,
+        "hit": 0.9583333333333334,
+        "judged": 0.7041666666666667
+      }
+    },
+    "byLength": {
+      "long": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.48951380234037173,
+        "recall": 0.4912959262959263,
+        "hit": 1.0,
+        "judged": 0.74
+      },
+      "medium": {
+        "queries": 30,
+        "noPositive": 0,
+        "ndcg": 0.32980611466510285,
+        "recall": 0.3293867243867244,
+        "hit": 0.9333333333333333,
+        "judged": 0.6033333333333333
+      },
+      "short": {
+        "queries": 15,
+        "noPositive": 0,
+        "ndcg": 0.44199780292086294,
+        "recall": 0.3353885003885004,
+        "hit": 0.9333333333333333,
+        "judged": 0.5666666666666665
+      }
+    },
+    "byStratum": {
+      "description only": {
+        "retrievedShare": 0.06500000000000002,
+        "meanGradeJudged": 1.1176470588235294,
+        "judgedCount": 17
+      },
+      "no usable text": {
+        "retrievedShare": 0.0033333333333333335,
+        "meanGradeJudged": 1.0,
+        "judgedCount": 2
+      },
+      "ocr only": {
+        "retrievedShare": 0.03000000000000001,
+        "meanGradeJudged": 0.75,
+        "judgedCount": 16
+      },
+      "ocr+description": {
+        "retrievedShare": 0.9016666666666665,
+        "meanGradeJudged": 0.7222222222222222,
+        "judgedCount": 342
+      }
+    },
+    "languageRatio": {
+      "en": 1.0,
+      "es": 1.0815003759701667,
+      "ru": 0.8875702564620274
+    }
+  },
+  "queries": {
+    "q001": {
+      "language": "en",
+      "ndcg": 0.6966106302128979,
+      "recall": 0.42857142857142855,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q002": {
+      "language": "en",
+      "ndcg": 0.5455455518684295,
+      "recall": 0.2857142857142857,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q003": {
+      "language": "en",
+      "ndcg": 0.2921185851480025,
+      "recall": 0.3,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q004": {
+      "language": "en",
+      "ndcg": 0.49233032709598,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q005": {
+      "language": "en",
+      "ndcg": 0.38585166519465824,
+      "recall": 0.5714285714285714,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q006": {
+      "language": "en",
+      "ndcg": 0.24741520279732956,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q007": {
+      "language": "en",
+      "ndcg": 0.13888706065282164,
+      "recall": 0.2222222222222222,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q008": {
+      "language": "en",
+      "ndcg": 0.4637291255142503,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q009": {
+      "language": "en",
+      "ndcg": 0.38769730543564906,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q010": {
+      "language": "en",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q011": {
+      "language": "en",
+      "ndcg": 0.3759932936329323,
+      "recall": 0.4444444444444444,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q012": {
+      "language": "en",
+      "ndcg": 0.4959005331634628,
+      "recall": 0.45454545454545453,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q013": {
+      "language": "en",
+      "ndcg": 0.1364535127595331,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q014": {
+      "language": "en",
+      "ndcg": 0.19519002499605084,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q015": {
+      "language": "en",
+      "ndcg": 0.7226795924881118,
+      "recall": 0.5714285714285714,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q016": {
+      "language": "en",
+      "ndcg": 0.26652604080879766,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q017": {
+      "language": "en",
+      "ndcg": 0.6252635660115496,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q018": {
+      "language": "en",
+      "ndcg": 0.5536907199267804,
+      "recall": 0.8,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q019": {
+      "language": "en",
+      "ndcg": 0.5940497794524959,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q020": {
+      "language": "en",
+      "ndcg": 0.4225618379982757,
+      "recall": 0.45454545454545453,
+      "hit": 1.0,
+      "judged": 0.9
+    },
+    "q021": {
+      "language": "ru",
+      "ndcg": 0.26442830106365794,
+      "recall": 0.375,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q022": {
+      "language": "ru",
+      "ndcg": 0.6353249115205709,
+      "recall": 0.45454545454545453,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q023": {
+      "language": "ru",
+      "ndcg": 0.3576083164503281,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q024": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.0
+    },
+    "q025": {
+      "language": "ru",
+      "ndcg": 0.25841422958028537,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q026": {
+      "language": "ru",
+      "ndcg": 0.13032376591037062,
+      "recall": 0.16666666666666666,
+      "hit": 1.0,
+      "judged": 0.4
+    },
+    "q027": {
+      "language": "ru",
+      "ndcg": 0.36325017760194966,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q028": {
+      "language": "ru",
+      "ndcg": 0.3259363302399438,
+      "recall": 0.36363636363636365,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q029": {
+      "language": "ru",
+      "ndcg": 0.666482158039102,
+      "recall": 0.6666666666666666,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q030": {
+      "language": "ru",
+      "ndcg": 0.3391602052736161,
+      "recall": 0.2,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q031": {
+      "language": "ru",
+      "ndcg": 0.36794492785807026,
+      "recall": 0.16666666666666666,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q032": {
+      "language": "ru",
+      "ndcg": 0.04068375609634695,
+      "recall": 0.1,
+      "hit": 1.0,
+      "judged": 0.1
+    },
+    "q033": {
+      "language": "ru",
+      "ndcg": 0.41853180162957876,
+      "recall": 0.36363636363636365,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q034": {
+      "language": "ru",
+      "ndcg": 0.4560516474361741,
+      "recall": 0.2857142857142857,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q035": {
+      "language": "ru",
+      "ndcg": 0.0,
+      "recall": 0.0,
+      "hit": 0.0,
+      "judged": 0.3
+    },
+    "q036": {
+      "language": "ru",
+      "ndcg": 0.7576108763654414,
+      "recall": 0.6666666666666666,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q037": {
+      "language": "ru",
+      "ndcg": 0.45308953967008864,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q038": {
+      "language": "ru",
+      "ndcg": 0.42275691544120364,
+      "recall": 0.45454545454545453,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q039": {
+      "language": "ru",
+      "ndcg": 0.261847869624114,
+      "recall": 0.375,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q040": {
+      "language": "ru",
+      "ndcg": 0.6152827665753094,
+      "recall": 0.46153846153846156,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q041": {
+      "language": "es",
+      "ndcg": 0.6223488873872297,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q042": {
+      "language": "es",
+      "ndcg": 0.6608899932673501,
+      "recall": 0.38461538461538464,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q043": {
+      "language": "es",
+      "ndcg": 0.5077181160122074,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q044": {
+      "language": "es",
+      "ndcg": 0.5541432109622958,
+      "recall": 0.2857142857142857,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q045": {
+      "language": "es",
+      "ndcg": 0.3566343180490508,
+      "recall": 0.42857142857142855,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q046": {
+      "language": "es",
+      "ndcg": 0.3434775810703913,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.9
+    },
+    "q047": {
+      "language": "es",
+      "ndcg": 0.16945984979943973,
+      "recall": 0.2857142857142857,
+      "hit": 1.0,
+      "judged": 0.5
+    },
+    "q048": {
+      "language": "es",
+      "ndcg": 0.1842445960959078,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q049": {
+      "language": "es",
+      "ndcg": 0.4242150959057485,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.9
+    },
+    "q050": {
+      "language": "es",
+      "ndcg": 0.5361025868094468,
+      "recall": 0.25,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q051": {
+      "language": "es",
+      "ndcg": 0.43671680223463893,
+      "recall": 0.2857142857142857,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q052": {
+      "language": "es",
+      "ndcg": 0.223580089685508,
+      "recall": 0.13333333333333333,
+      "hit": 1.0,
+      "judged": 0.3
+    },
+    "q053": {
+      "language": "es",
+      "ndcg": 0.5616435580576769,
+      "recall": 0.45454545454545453,
+      "hit": 1.0,
+      "judged": 0.7
+    },
+    "q054": {
+      "language": "es",
+      "ndcg": 0.3241336346258775,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.4
+    },
+    "q055": {
+      "language": "es",
+      "ndcg": 0.41829922414315807,
+      "recall": 0.5,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q056": {
+      "language": "es",
+      "ndcg": 0.46927872602275644,
+      "recall": 0.3333333333333333,
+      "hit": 1.0,
+      "judged": 0.6
+    },
+    "q057": {
+      "language": "es",
+      "ndcg": 0.5077720847321355,
+      "recall": 0.625,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q058": {
+      "language": "es",
+      "ndcg": 0.41933150573478933,
+      "recall": 0.4,
+      "hit": 1.0,
+      "judged": 0.8
+    },
+    "q059": {
+      "language": "es",
+      "ndcg": 0.755225167030113,
+      "recall": 0.8571428571428571,
+      "hit": 1.0,
+      "judged": 1.0
+    },
+    "q060": {
+      "language": "es",
+      "ndcg": 0.2184196397117259,
+      "recall": 0.375,
+      "hit": 1.0,
+      "judged": 0.8
+    }
+  },
+  "latency": {
+    "queries": 60,
+    "retrievalMs": {
+      "p50": 124,
+      "p95": 264
+    },
+    "parseMs": {
+      "p50": 717,
+      "p95": 968
+    },
+    "embedMs": {
+      "p50": 16,
+      "p95": 32
+    },
+    "degraded": []
+  }
+}
