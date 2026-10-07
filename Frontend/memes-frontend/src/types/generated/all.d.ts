@@ -176,6 +176,138 @@ export interface QueryProfile {
   [k: string]: unknown;
 }
 /**
+ * How one axis contributed to a result's score
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "AxisExplanation".
+ */
+export interface AxisExplanation {
+  axis: "situation" | "emotion" | "stance" | "topic" | "tone" | "lexical";
+  score: number;
+  /**
+   * The renormalised share of this axis among the axes present in the query
+   */
+  weight: number;
+  /**
+   * weight x score
+   */
+  contribution: number;
+  /**
+   * True when the meme has no value on this axis and the neutral score was used
+   */
+  neutral: boolean;
+  queryValues: string[];
+  matched: {
+    queryKey: string;
+    memeKey: string;
+    similarity: number;
+    memeConfidence: number;
+    [k: string]: unknown;
+  }[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "MemeFromTextRequest".
+ */
+export interface MemeFromTextRequest {
+  text: string;
+  languageHint?: "en" | "ru" | "es" | "other";
+  profile?: QueryProfile1;
+  filters?: {
+    emotion?: string[];
+    stance?: string[];
+    topic?: string[];
+    tone?: string[];
+    tags?: {
+      key: string;
+      value: string;
+      [k: string]: unknown;
+    }[];
+    [k: string]: unknown;
+  };
+  cursor?: string;
+  limit?: number;
+  [k: string]: unknown;
+}
+/**
+ * How an incoming message was understood: the situation and the reply wanted, along the taxonomy axes
+ */
+export interface QueryProfile1 {
+  taxonomyVersion: number;
+  language: "en" | "ru" | "es" | "other";
+  parserVersion: string;
+  /**
+   * True when the structured parse failed or was skipped
+   */
+  degraded: boolean;
+  /**
+   * Short English phrase describing what is happening in the message
+   */
+  situation?: string | null;
+  situationConfidence?: number | null;
+  emotion: ProfileValue[];
+  stance: ProfileValue[];
+  topic: ProfileValue[];
+  tone: ProfileValue[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "MemeFromTextResult".
+ */
+export interface MemeFromTextResult {
+  meme: Meme;
+  score: number;
+  /**
+   * False for a lexical-only hit on an image without a meme profile
+   */
+  axisPath: boolean;
+  explanation: {
+    axes: AxisExplanation[];
+    situationText?: string | null;
+    useWhen?: string | null;
+    [k: string]: unknown;
+  };
+  clusterId?: number;
+  /**
+   * Candidates of the duplicate cluster collapsed into this result, itself included
+   */
+  clusterSize?: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "MemeFromTextResponse".
+ */
+export interface MemeFromTextResponse {
+  items: MemeFromTextResult[];
+  facets?: Facet[];
+  nextCursor?: string;
+  hasNext: boolean;
+  profile: QueryProfile;
+  degraded: boolean;
+  /**
+   * none, or the reason: unavailable, timeout, invalid_output, empty_input, breaker_open, embed_unavailable, or a combination joined with +
+   */
+  fallback: string;
+  meta: {
+    /**
+     * False when this environment has no meme profiles or no parser (it)
+     */
+    available: boolean;
+    parseMs: number;
+    embedMs: number;
+    retrievalMs: number;
+    candidates: number;
+    cacheHit: boolean;
+    parserVersion: string;
+    model: string;
+    [k: string]: unknown;
+  };
+  [k: string]: unknown;
+}
+/**
  * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DescriptionFeedbackResponse".
  */

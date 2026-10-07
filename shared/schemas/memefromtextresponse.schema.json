@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memefromtextresponse.schema.json",
+  "title": "MemeFromTextResponse",
+  "type": "object",
+  "properties": {
+    "items": { "type": "array", "items": { "$ref": "./memefromtextresult.schema.json" } },
+    "facets": { "type": "array", "items": { "$ref": "./facet.schema.json" } },
+    "nextCursor": { "type": "string" },
+    "hasNext": { "type": "boolean" },
+    "profile": { "$ref": "./queryprofile.schema.json" },
+    "degraded": { "type": "boolean" },
+    "fallback": { "type": "string", "description": "none, or the reason: unavailable, timeout, invalid_output, empty_input, breaker_open, embed_unavailable, or a combination joined with +" },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "available": { "type": "boolean", "description": "False when this environment has no meme profiles or no parser (it)" },
+        "parseMs": { "type": "integer" },
+        "embedMs": { "type": "integer" },
+        "retrievalMs": { "type": "integer" },
+        "candidates": { "type": "integer" },
+        "cacheHit": { "type": "boolean" },
+        "parserVersion": { "type": "string" },
+        "model": { "type": "string" }
+      },
+      "required": ["available", "parseMs", "embedMs", "retrievalMs", "candidates", "cacheHit", "parserVersion", "model"]
+    }
+  },
+  "required": ["items", "hasNext", "profile", "degraded", "fallback", "meta"]
+}

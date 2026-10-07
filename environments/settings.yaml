@@ -57,6 +57,21 @@ search:
     # Log a warning when one query matches more than this many images: the trigger to revisit
     # Python-side scoring (docs/adr/adr-2026-10-01-search-ranking-in-python.md).
     warn_match_count: 10000
+  # Meme from text retrieval and fusion (epic meme-from-text, P4; see
+  # docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-07-p4-retrieval-fusion-and-api-design.md).
+  # A missing key is a startup error. The weights are the documented defaults until the P4 tuning on the gold set.
+  meme_from_text:
+    weights: {situation: 0.40, emotion: 0.15, stance: 0.10, topic: 0.15, tone: 0.10, lexical: 0.10}
+    candidates: {situation_k: 300, axis_k: 300, lexical_k: 100, total_cap: 600}
+    neutral_score: 0.3            # score of an axis the meme has no value on (FR-15): neutral, not a mismatch
+    situation: {floor: 0.45, ceil: 0.85}   # cosine range rescaled to 0..1 (unrelated pairs 0.44-0.58, related 0.66-0.84)
+    similarity: {use_neighbours: true}
+    lexical: {enabled: true}
+    cache_ttl_seconds: 120
+    embed_timeout_seconds: 2.0
+    warm_interval_minutes: 20     # below parse.keep_alive (30m) so the models stay loaded
+    parser_breaker: {failures: 3, open_seconds: 30}
+    page: {default_limit: 20, max_limit: 50}
 
 duplicates:
   # Candidate cutoff for rebuild_duplicates.py's KNN search -- cheap/loose, decides what's

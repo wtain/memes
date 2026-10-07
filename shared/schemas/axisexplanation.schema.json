@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "axisexplanation.schema.json",
+  "title": "AxisExplanation",
+  "description": "How one axis contributed to a result's score",
+  "type": "object",
+  "properties": {
+    "axis": { "type": "string", "enum": ["situation", "emotion", "stance", "topic", "tone", "lexical"] },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "weight": { "type": "number", "description": "The renormalised share of this axis among the axes present in the query" },
+    "contribution": { "type": "number", "description": "weight x score" },
+    "neutral": { "type": "boolean", "description": "True when the meme has no value on this axis and the neutral score was used" },
+    "queryValues": { "type": "array", "items": { "type": "string" } },
+    "matched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "queryKey": { "type": "string" },
+          "memeKey": { "type": "string" },
+          "similarity": { "type": "number" },
+          "memeConfidence": { "type": "number" }
+        },
+        "required": ["queryKey", "memeKey", "similarity", "memeConfidence"]
+      }
+    }
+  },
+  "required": ["axis", "score", "weight", "contribution", "neutral", "queryValues", "matched"]
+}

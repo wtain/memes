@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memefromtextresult.schema.json",
+  "title": "MemeFromTextResult",
+  "type": "object",
+  "properties": {
+    "meme": { "$ref": "./meme.schema.json" },
+    "score": { "type": "number" },
+    "axisPath": { "type": "boolean", "description": "False for a lexical-only hit on an image without a meme profile" },
+    "explanation": {
+      "type": "object",
+      "properties": {
+        "axes": { "type": "array", "items": { "$ref": "./axisexplanation.schema.json" } },
+        "situationText": { "type": ["string", "null"] },
+        "useWhen": { "type": ["string", "null"] }
+      },
+      "required": ["axes"]
+    },
+    "clusterId": { "type": "integer" },
+    "clusterSize": { "type": "integer", "description": "Candidates of the duplicate cluster collapsed into this result, itself included" }
+  },
+  "required": ["meme", "score", "axisPath", "explanation"]
+}

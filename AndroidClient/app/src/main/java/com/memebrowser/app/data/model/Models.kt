@@ -10,6 +10,17 @@ import kotlinx.serialization.json.JsonObject
 
 
 @Serializable
+data class AxisExplanation(
+    @SerialName("axis") val axis: String,
+    @SerialName("score") val score: Float,
+    @SerialName("weight") val weight: Float,
+    @SerialName("contribution") val contribution: Float,
+    @SerialName("neutral") val neutral: Boolean,
+    @SerialName("queryValues") val queryValues: List<String>,
+    @SerialName("matched") val matched: List<Any>
+)
+
+@Serializable
 data class BatchNamesResponse(
     @SerialName("names") val names: List<String>
 )
@@ -311,6 +322,26 @@ data class Meme(
 )
 
 @Serializable
+data class MemeFromTextRequest(
+    @SerialName("text") val text: String,
+    @SerialName("languageHint") val languageHint: String? = null,
+    @SerialName("profile") val profile: QueryProfile? = null,
+    @SerialName("filters") val filters: JsonObject? = null,
+    @SerialName("cursor") val cursor: String? = null,
+    @SerialName("limit") val limit: Int? = null
+)
+
+@Serializable
+data class MemeFromTextResult(
+    @SerialName("meme") val meme: Meme,
+    @SerialName("score") val score: Float,
+    @SerialName("axisPath") val axisPath: Boolean,
+    @SerialName("explanation") val explanation: JsonObject,
+    @SerialName("clusterId") val clusterId: Int? = null,
+    @SerialName("clusterSize") val clusterSize: Int? = null
+)
+
+@Serializable
 data class MemeSearchRequest(
     @SerialName("query") val query: String? = null,
     @SerialName("cursor") val cursor: String? = null,
@@ -378,6 +409,18 @@ data class UploadResponse(
     @SerialName("failed") val failed: List<FailedFile>,
     @SerialName("total_accepted") val total_accepted: Int,
     @SerialName("total_failed") val total_failed: Int
+)
+
+@Serializable
+data class MemeFromTextResponse(
+    @SerialName("items") val items: List<MemeFromTextResult>,
+    @SerialName("facets") val facets: List<Facet>? = null,
+    @SerialName("nextCursor") val nextCursor: String? = null,
+    @SerialName("hasNext") val hasNext: Boolean,
+    @SerialName("profile") val profile: QueryProfile,
+    @SerialName("degraded") val degraded: Boolean,
+    @SerialName("fallback") val fallback: String,
+    @SerialName("meta") val meta: JsonObject
 )
 
 @Serializable

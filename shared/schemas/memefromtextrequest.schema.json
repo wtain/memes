@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memefromtextrequest.schema.json",
+  "title": "MemeFromTextRequest",
+  "type": "object",
+  "properties": {
+    "text": { "type": "string", "minLength": 1 },
+    "languageHint": { "type": "string", "enum": ["en", "ru", "es", "other"] },
+    "profile": { "$ref": "./queryprofile.schema.json", "description": "An edited query profile; when present the message is not parsed" },
+    "filters": {
+      "type": "object",
+      "properties": {
+        "emotion": { "type": "array", "items": { "type": "string" } },
+        "stance": { "type": "array", "items": { "type": "string" } },
+        "topic": { "type": "array", "items": { "type": "string" } },
+        "tone": { "type": "array", "items": { "type": "string" } },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "key": { "type": "string" }, "value": { "type": "string" } },
+            "required": ["key", "value"]
+          }
+        }
+      }
+    },
+    "cursor": { "type": "string" },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 50 }
+  },
+  "required": ["text"]
+}
