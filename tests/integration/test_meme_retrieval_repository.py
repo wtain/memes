@@ -245,3 +245,74 @@ async def test_load_basics_returns_filename_and_flagged(db_session):
 
 def test_the_repository_never_commits():
     assert "commit(" not in inspect.getsource(meme_retrieval)
+
+
+# ----------------------------------------------------------------- Task 8b: result-preserving latency changes
+
+def test_vector_literal_round_trips_float32_and_stays_compact():
+    import numpy as np
+    rng = np.random.default_rng(3)
+    vector = rng.standard_normal(PROFILE_EMBEDDING_DIM).astype(np.float32)
+    vector = (vector / np.linalg.norm(vector)).tolist()
+
+    literal = meme_retrieval._vector_literal(vector)
+
+    parsed = np.array(literal.strip("[]").split(","), dtype=np.float32)
+    assert parsed.shape == (PROFILE_EMBEDDING_DIM,)
+    assert np.allclose(parsed, np.array(vector, dtype=np.float32), atol=1e-6, rtol=0)
+    assert literal.startswith("[") and literal.endswith("]")
+    assert len(literal.encode()) < 15_000   # leaves the situation statement under the 16,384-byte request size
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_more_than_600_ids_load_through_the_array_parameter(db_session):
+    images = [await _image(db_session) for _ in range(700)]
+    for image in images:
+        await _profile(db_session, image, vector=_vec(1.0, 0.1), emotion=[("joy", 0.9)])
+    repo = MemeRetrievalRepository(db_session)
+
+    basics = await repo.load_basics([str(image.id) for image in images])
+    candidates = await repo._load([image.id for image in images], _vec(1.0), MODEL, {})
+    restricted = await _search(db_session, restrict_ids={image.id for image in images}, situation_k=700,
+                               axis_k=10, total_cap=700)
+
+    assert len(basics) == 700
+    assert [c.image_id for c in candidates] == [str(image.id) for image in images]
+    assert all(c.cosine is not None and c.axis_path for c in candidates)
+    assert len(restricted) == 700
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cosines_are_filled_for_axis_only_candidates_and_none_without_an_embedding(db_session):
+    near = await _image(db_session)
+    await _profile(db_session, near, vector=_vec(1.0, 0.0), emotion=[("joy", 0.9)])
+    axis_only = await _image(db_session)       # embedding exists, but is not among the single situation hit
+    await _profile(db_session, axis_only, vector=_vec(0.6, 0.8), emotion=[("joy", 0.9)])
+    other_model = await _image(db_session)
+    await _profile(db_session, other_model, vector=_vec(1.0, 0.0), model="another-model", emotion=[("joy", 0.9)])
+    no_embedding = await _image(db_session)
+    await _profile(db_session, no_embedding, emotion=[("joy", 0.9)])
+
+    result = {c.image_id: c for c in await _search(
+        db_session, query_vector=_vec(1.0), query_axes={"emotion": (("joy", 0.9),)}, situation_k=1)}
+
+    assert result[str(near.id)].cosine == pytest.approx(1.0, abs=1e-6)
+    assert result[str(axis_only.id)].cosine == pytest.approx(0.6, abs=1e-6)
+    assert result[str(other_model.id)].cosine is None
+    assert result[str(no_embedding.id)].cosine is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_an_unsupported_iterative_scan_setting_keeps_the_session_usable_and_ef_search_applied(
+        db_session, monkeypatch):
+    from sqlalchemy import text
+    monkeypatch.setattr(meme_retrieval, "_iterative_scan_supported", None)
+    monkeypatch.setattr(meme_retrieval, "ITERATIVE_SCAN_SETTING", "hnsw.no_such_setting")
+    repo = MemeRetrievalRepository(db_session)
+
+    await repo._prepare_vector_search(123)
+
+    assert meme_retrieval._iterative_scan_supported is False
+    assert (await db_session.execute(text("SHOW hnsw.ef_search"))).scalar_one() == "123"
+    await repo._prepare_vector_search(77)      # later calls skip the failing setting without a probe
+    assert (await db_session.execute(text("SHOW hnsw.ef_search"))).scalar_one() == "77"

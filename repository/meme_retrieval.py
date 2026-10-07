@@ -7,7 +7,9 @@ import uuid
 from collections import defaultdict
 from typing import Collection, Mapping, Sequence
 
-from sqlalchemy import and_, case, exists, func, or_, select, text
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Float, String, and_, any_, bindparam, case, cast, exists, func, or_, select, text
+from sqlalchemy.dialects.postgresql import ARRAY, REAL, UUID as PG_UUID
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,11 +17,36 @@ from repository.ocr_lemmas import lexical_or_scores
 from retrieval.candidates import merge_ranked
 from retrieval.model import AxisValues, Candidate, Filters
 from Storage.models import (
-    Image, ImageExtras, ImageTag, MemeProfile, MemeProfileSituationEmbedding as Embedding,
+    PROFILE_EMBEDDING_DIM, Image, ImageExtras, ImageTag, MemeProfile, MemeProfileSituationEmbedding as Embedding,
     MemeProfileValue as Value, TmpImageClusters,
 )
 
 MAX_EF_SEARCH = 1000
+ITERATIVE_SCAN_SETTING = "hnsw.iterative_scan"
+# None = not probed yet in this process; True/False = the server accepts / rejects hnsw.iterative_scan.
+_iterative_scan_supported: bool | None = None
+
+
+def _vector_literal(vector: Sequence[float]) -> str:
+    """pgvector text form with %.9g per element: lossless for float32 and about half the size of repr()."""
+    return "[" + ",".join("%.9g" % value for value in vector) + "]"
+
+
+def _in_ids(column, ids: Collection[uuid.UUID]):
+    """`column = ANY(:ids)` with one array parameter instead of an expanded IN list."""
+    return column == any_(bindparam("ids", list(ids), type_=ARRAY(PG_UUID(as_uuid=True)), unique=True))
+
+
+def _cosine_distance(vector: Sequence[float], *, binary: bool = False):
+    """Embedding <=> query. By default the query vector is one compact text literal cast to vector (~14 KB).
+    With binary=True it travels as a float4 array (4 KB, same float32 values): used by the statement that also
+    carries an id array, which would otherwise pass the 16,384-byte request size (see the module notes)."""
+    if binary:
+        query = cast(cast(bindparam("query_vector", [float(value) for value in vector], type_=ARRAY(REAL)),
+                          ARRAY(REAL)), Vector(PROFILE_EMBEDDING_DIM))
+    else:
+        query = cast(bindparam("query_vector", _vector_literal(vector), type_=String), Vector(PROFILE_EMBEDDING_DIM))
+    return Embedding.embedding.op("<=>", return_type=Float)(query)
 
 
 class MemeRetrievalRepository:
@@ -48,7 +75,7 @@ class MemeRetrievalRepository:
             .where(*self._active_unflagged())
         )
         if restrict_ids is not None:
-            statement = statement.where(Image.id.in_(list(restrict_ids)))
+            statement = statement.where(_in_ids(Image.id, restrict_ids))
         tag_condition = self._tag_condition(filters.tags)
         if tag_condition is not None:
             statement = statement.where(tag_condition)
@@ -61,25 +88,44 @@ class MemeRetrievalRepository:
     # ----------------------------------------------------------------- sources
 
     async def _prepare_vector_search(self, k: int) -> None:
-        """pgvector 0.8: let a filtered HNSW scan keep going and return up to k rows. Ignored when unsupported."""
-        ef_search = min(max(int(k), 40), MAX_EF_SEARCH)
-        for statement in (f"SET LOCAL hnsw.ef_search = {ef_search}", "SET LOCAL hnsw.iterative_scan = relaxed_order"):
+        """pgvector 0.8: let a filtered HNSW scan keep going and return up to k rows, in one round trip.
+
+        The first call of the process probes hnsw.iterative_scan inside a savepoint (an unsupported setting fails
+        the statement); later calls reuse the answer and need no savepoint."""
+        global _iterative_scan_supported
+        ef_search = str(min(max(int(k), 40), MAX_EF_SEARCH))
+        both = text(f"SELECT set_config('hnsw.ef_search', :ef, true), set_config('{ITERATIVE_SCAN_SETTING}', "
+                    f"'relaxed_order', true)")
+        only_ef = text("SELECT set_config('hnsw.ef_search', :ef, true)")
+        if _iterative_scan_supported:
+            await self.session.execute(both, {"ef": ef_search})
+            return
+        if _iterative_scan_supported is None:
             try:
                 async with self.session.begin_nested():
-                    await self.session.execute(text(statement))
+                    await self.session.execute(both, {"ef": ef_search})
+                _iterative_scan_supported = True
+                return
             except DBAPIError:
-                pass
+                _iterative_scan_supported = False
+        try:
+            async with self.session.begin_nested():
+                await self.session.execute(only_ef, {"ef": ef_search})
+        except DBAPIError:
+            pass
 
-    async def _situation_ids(self, vector: list[float], model_name: str, k: int, eligible) -> list[uuid.UUID]:
+    async def _situation_ids(self, vector: list[float], model_name: str, k: int,
+                             eligible) -> dict[uuid.UUID, float]:
+        """Nearest eligible ids in rank order, mapped to their cosine similarity (1 - cosine distance)."""
         await self._prepare_vector_search(k)
-        distance = Embedding.embedding.cosine_distance(vector)
+        distance = _cosine_distance(vector)
         rows = await self.session.execute(
-            select(Embedding.image_id)
+            select(Embedding.image_id, distance)
             .where(Embedding.model_name == model_name, Embedding.image_id.in_(eligible))
             .order_by(distance, Embedding.image_id)
             .limit(k)
         )
-        return [row[0] for row in rows.all()]
+        return {image_id: 1.0 - float(value) for image_id, value in rows.all()}
 
     async def _axis_ids(self, query_axes: Mapping[str, AxisValues],
                         neighbours: Mapping[str, Mapping[str, Sequence[tuple[str, float]]]] | None,
@@ -112,13 +158,13 @@ class MemeRetrievalRepository:
             return {}
         if filters.has_axis_filters():
             allowed_rows = await self.session.execute(
-                select(MemeProfile.image_id).where(MemeProfile.image_id.in_(list(scores)),
+                select(MemeProfile.image_id).where(_in_ids(MemeProfile.image_id, scores),
                                                    MemeProfile.image_id.in_(eligible)))
         else:
             statement = (
                 select(Image.id)
                 .outerjoin(ImageExtras, ImageExtras.image_id == Image.id)
-                .where(*self._active_unflagged(), Image.id.in_(list(scores)))
+                .where(*self._active_unflagged(), _in_ids(Image.id, scores))
             )
             tag_condition = self._tag_condition(filters.tags)
             if tag_condition is not None:
@@ -142,8 +188,10 @@ class MemeRetrievalRepository:
     ) -> list[Candidate]:
         eligible = self._eligible_ids(filters, restrict_ids)
         sources: list[list[uuid.UUID]] = []
+        situation_cosines: dict[uuid.UUID, float] = {}
         if query_vector is not None:
-            sources.append(await self._situation_ids(query_vector, model_name, situation_k, eligible))
+            situation_cosines = await self._situation_ids(query_vector, model_name, situation_k, eligible)
+            sources.append(list(situation_cosines))
         if query_axes:
             sources.append(await self._axis_ids(query_axes, neighbours, axis_k, eligible))
         lexical: dict[uuid.UUID, float] = {}
@@ -153,32 +201,37 @@ class MemeRetrievalRepository:
         ids = merge_ranked(sources, total_cap)
         if not ids:
             return []
-        return await self._load(ids, query_vector, model_name, lexical)
+        return await self._load(ids, query_vector, model_name, lexical, situation_cosines)
 
     async def _load(self, ids: list[uuid.UUID], vector: list[float] | None, model_name: str,
-                    lexical: Mapping[uuid.UUID, float]) -> list[Candidate]:
+                    lexical: Mapping[uuid.UUID, float],
+                    known_cosines: Mapping[uuid.UUID, float] | None = None) -> list[Candidate]:
         profiles = {
             row.image_id: row for row in (await self.session.execute(
                 select(MemeProfile.image_id, MemeProfile.situation_text, MemeProfile.use_when)
-                .where(MemeProfile.image_id.in_(ids)))).all()
+                .where(_in_ids(MemeProfile.image_id, ids)))).all()
         }
         values: dict[uuid.UUID, dict[str, list[tuple[str, float]]]] = defaultdict(lambda: defaultdict(list))
         for image_id, axis, key, confidence in (await self.session.execute(
                 select(Value.image_id, Value.axis, Value.value_key, Value.confidence)
-                .where(Value.image_id.in_(ids))
+                .where(_in_ids(Value.image_id, ids))
                 .order_by(Value.image_id, Value.axis, Value.confidence.desc(), Value.value_key))).all():
             values[image_id][axis].append((key, float(confidence)))
         cosines: dict[uuid.UUID, float] = {}
         if vector is not None:
-            distance = Embedding.embedding.cosine_distance(vector)
-            for image_id, value in (await self.session.execute(
-                    select(Embedding.image_id, distance)
-                    .where(Embedding.image_id.in_(ids), Embedding.model_name == model_name))).all():
-                cosines[image_id] = 1.0 - float(value)
+            wanted = set(ids)
+            cosines.update({image_id: value for image_id, value in (known_cosines or {}).items() if image_id in wanted})
+            missing = [image_id for image_id in ids if image_id not in cosines]
+            if missing:
+                distance = _cosine_distance(vector, binary=True)
+                for image_id, value in (await self.session.execute(
+                        select(Embedding.image_id, distance)
+                        .where(_in_ids(Embedding.image_id, missing), Embedding.model_name == model_name))).all():
+                    cosines[image_id] = 1.0 - float(value)
         clusters = {
             image_id: cluster_id for image_id, cluster_id in (await self.session.execute(
                 select(TmpImageClusters.image_id, TmpImageClusters.cluster_id)
-                .where(TmpImageClusters.image_id.in_(ids)))).all()
+                .where(_in_ids(TmpImageClusters.image_id, ids)))).all()
         }
         candidates = []
         for image_id in ids:
@@ -203,5 +256,5 @@ class MemeRetrievalRepository:
         rows = await self.session.execute(
             select(Image.id, Image.filename, ImageExtras.flagged)
             .outerjoin(ImageExtras, ImageExtras.image_id == Image.id)
-            .where(Image.id.in_(ids)))
+            .where(_in_ids(Image.id, ids)))
         return {str(image_id): (filename, bool(flagged)) for image_id, filename, flagged in rows.all()}
