@@ -5,19 +5,29 @@
 
 Fills ocrdb_test with synthetic images, profiles and normalised random situation vectors, measures the retrieval
 stage (candidate SQL, scoring, fusion, collapse, facets; no parsing, no embedding call) and removes its rows.
-It never runs against anything but a database whose URL contains `ocrdb_test`."""
+It never runs against anything but a database named exactly `ocrdb_test`, and it never drops the schema."""
 import argparse
 import asyncio
 import os
 import random
+import statistics
 import sys
 import time
 import uuid
 
 import numpy as np
-from sqlalchemy import delete, func, insert, inspect, select
+from sqlalchemy import delete, func, insert, select, text
+from sqlalchemy.engine import make_url
 
-if "ocrdb_test" not in os.environ.get("DATABASE_URL", ""):
+
+def _database_is_test() -> bool:
+    try:
+        return make_url(os.environ["DATABASE_URL"]).database == "ocrdb_test"
+    except Exception:
+        return False
+
+
+if not _database_is_test():
     sys.exit("Refusing to run: DATABASE_URL must point at the test database (ocrdb_test).")
 
 from repository.meme_retrieval import MemeRetrievalRepository                      # noqa: E402
@@ -26,7 +36,7 @@ from retrieval.facets import collapse_clusters, facet_counts                    
 from retrieval.fusion import fuse, rank_candidates                                   # noqa: E402
 from retrieval.model import Filters, QueryView                                       # noqa: E402
 from retrieval.similarity import load_similarity                                     # noqa: E402
-from Storage.db import AsyncSessionLocal, engine                                             # noqa: E402
+from Storage.db import AsyncSessionLocal, engine                                     # noqa: E402
 from Storage.models import (                                                         # noqa: E402
     PROFILE_EMBEDDING_DIM, Base, Image, MemeProfile, MemeProfileSituationEmbedding, MemeProfileValue, TmpImageClusters,
 )
@@ -34,8 +44,13 @@ from taxonomy import load                                                       
 
 PREFIX = "synthetic-load-"
 MODEL = "bge-large"
-BATCH = 1000
+BATCH = 1000            # must stay a multiple of CLUSTER_BLOCK
+CLUSTER_BLOCK = 10      # every fifth block of ten images forms one duplicate cluster of exactly ten
+SAMPLE_VECTORS = 200
+WARMUP_QUERIES = 3
 BUDGET_MS = 300
+INT_MAX_SAFE = 2_147_000_000   # tmp_clusters.cluster_id is a 32-bit Integer
+ANALYZED = (Image, MemeProfile, MemeProfileValue, MemeProfileSituationEmbedding, TmpImageClusters)
 
 
 def _config() -> RetrievalConfig:
@@ -48,8 +63,10 @@ def _config() -> RetrievalConfig:
         default_limit=20, max_limit=50, embedding_model=MODEL, ollama_url="http://127.0.0.1:11434")
 
 
-async def _populate(session, count: int, rng: random.Random, np_rng, tax) -> None:
+async def _populate(session, count: int, rng: random.Random, np_rng, tax, cluster_base: int) -> list[np.ndarray]:
+    """Inserts the rows and returns a small sample of the inserted situation vectors (for realistic queries)."""
     keys = {axis: list(tax.values[axis]) for axis in AXES}
+    sample: list[np.ndarray] = []
     for start in range(0, count, BATCH):
         size = min(BATCH, count - start)
         ids = [uuid.uuid4() for _ in range(size)]
@@ -71,28 +88,37 @@ async def _populate(session, count: int, rng: random.Random, np_rng, tax) -> Non
         await session.execute(insert(MemeProfileSituationEmbedding), [
             {"image_id": image_id, "embedding": vector.tolist(), "model_name": MODEL, "model_digest": "synthetic"}
             for image_id, vector in zip(ids, vectors)])
-        # every tenth image and its successor share a cluster: a duplicate pair per ten images
-        await session.execute(insert(TmpImageClusters), [
-            {"cluster_id": 990000 + (start + index) // 10, "image_id": image_id}
-            for index, image_id in enumerate(ids) if index % 10 in (0, 1)])
+        clustered = []
+        for index, image_id in enumerate(ids):
+            block = (start + index) // CLUSTER_BLOCK
+            if block % 5 == 0:
+                clustered.append({"cluster_id": cluster_base + block, "image_id": image_id})
+        await session.execute(insert(TmpImageClusters), clustered)
         await session.commit()
+        wanted = SAMPLE_VECTORS - len(sample)
+        if wanted > 0:
+            sample.extend(vectors[:min(wanted, size, 40)])
         print(f"  inserted {start + size} / {count}", flush=True)
+    return sample
 
 
-async def _ensure_schema() -> bool:
-    """The test database only has tables while a pytest run is active (tests/integration/conftest.py creates and
-    drops them), so create them when absent. Returns True when this call created them (to drop them again)."""
+async def _ensure_tables() -> None:
+    """The test database only has tables while a pytest run is active. create_all checks first, so it only adds
+    what is missing and never touches existing tables. The script never drops anything."""
     async with engine.begin() as connection:
-        present = await connection.run_sync(lambda sync: inspect(sync).has_table("images"))
-        if not present:
-            await connection.run_sync(Base.metadata.create_all)
-        return not present
+        await connection.run_sync(Base.metadata.create_all)
 
 
 async def _count() -> int:
     async with AsyncSessionLocal() as session:
         return (await session.execute(
             select(func.count()).select_from(Image).where(Image.filename.like(f"{PREFIX}%")))).scalar_one()
+
+
+async def _cluster_base() -> int:
+    async with AsyncSessionLocal() as session:
+        highest = (await session.execute(select(func.max(TmpImageClusters.cluster_id)))).scalar_one()
+    return max(highest or 0, 0) + 1_000_000
 
 
 async def _cleanup() -> None:
@@ -103,57 +129,81 @@ async def _cleanup() -> None:
         await session.commit()
 
 
+async def _safe_cleanup() -> None:
+    """Cleanup that cannot mask the original error: a failure here is printed, not raised."""
+    try:
+        await _cleanup()
+        print(f"synthetic rows remaining: {await _count()}")
+    except Exception as error:  # noqa: BLE001
+        print(f"WARNING: cleanup failed ({type(error).__name__}: {error}); synthetic rows may remain")
+
+
+def _query_vector(np_rng, sample: list[np.ndarray]) -> list[float]:
+    """0.6 x a random inserted vector + 0.8 x noise, normalised, so some memes clear the situation floor."""
+    noise = np_rng.standard_normal(PROFILE_EMBEDDING_DIM).astype(np.float32)
+    noise /= np.linalg.norm(noise)
+    base = sample[int(np_rng.integers(len(sample)))]
+    mixed = 0.6 * base + 0.8 * noise
+    return (mixed / np.linalg.norm(mixed)).tolist()
+
+
 async def main(images: int, queries: int, keep: bool) -> int:
     tax, similarity, config = load(), load_similarity(), _config()
     rng, np_rng = random.Random(7), np.random.default_rng(7)
-    created_schema = await _ensure_schema()
-    if created_schema:
-        print("created the schema in the empty test database")
-    existing = await _count()
-    if existing:
-        print(f"removing {existing} leftover synthetic rows")
-        await _cleanup()
+    keys = {axis: list(tax.values[axis]) for axis in AXES}
     try:
+        await _ensure_tables()
+        existing = await _count()
+        if existing:
+            print(f"removing {existing} leftover synthetic rows")
+            await _cleanup()
+        cluster_base = await _cluster_base()
+        if cluster_base + images // CLUSTER_BLOCK >= INT_MAX_SAFE:
+            raise RuntimeError("cluster ids would overflow tmp_clusters.cluster_id")
         async with AsyncSessionLocal() as session:
             print(f"populating {images} synthetic images")
-            await _populate(session, images, rng, np_rng, tax)
-        timings = []
-        keys = {axis: list(tax.values[axis]) for axis in AXES}
-        candidates = []
+            sample = await _populate(session, images, rng, np_rng, tax, cluster_base)
+        async with AsyncSessionLocal() as session:
+            for model in ANALYZED:
+                await session.execute(text(f'ANALYZE "{model.__tablename__}"'))
+            await session.commit()
+
+        async def one_query(repository: MemeRetrievalRepository) -> tuple[float, int]:
+            vector = _query_vector(np_rng, sample)
+            axes = {axis: tuple((key, rng.choice([0.3, 0.6, 0.9])) for key in rng.sample(keys[axis], 2))
+                    for axis in AXES}
+            view = QueryView("synthetic query", axes, "en", False)
+            started = time.perf_counter()
+            candidates = await repository.generate_candidates(
+                query_vector=vector, query_axes=axes, neighbours=similarity.neighbours_for(axes),
+                lexical_text=None, filters=Filters(), restrict_ids=None, model_name=MODEL,
+                situation_k=config.situation_k, axis_k=config.axis_k, lexical_k=config.lexical_k,
+                total_cap=config.total_cap)
+            scored = [fuse(c, view, config, similarity, lexical_active=False) for c in candidates]
+            items = collapse_clusters(rank_candidates(scored))
+            facet_counts(items)
+            return (time.perf_counter() - started) * 1000, len(candidates)
+
+        timings, counts = [], []
         async with AsyncSessionLocal() as session:
             repository = MemeRetrievalRepository(session)
+            for _ in range(WARMUP_QUERIES):
+                await one_query(repository)
             for _ in range(queries):
-                vector = np_rng.standard_normal(PROFILE_EMBEDDING_DIM).astype(np.float32)
-                vector = (vector / np.linalg.norm(vector)).tolist()
-                axes = {axis: tuple((key, rng.choice([0.3, 0.6, 0.9])) for key in rng.sample(keys[axis], 2))
-                        for axis in AXES}
-                view = QueryView("synthetic query", axes, "en", False)
-                started = time.perf_counter()
-                candidates = await repository.generate_candidates(
-                    query_vector=vector, query_axes=axes, neighbours=similarity.neighbours_for(axes),
-                    lexical_text=None, filters=Filters(), restrict_ids=None, model_name=MODEL,
-                    situation_k=config.situation_k, axis_k=config.axis_k, lexical_k=config.lexical_k,
-                    total_cap=config.total_cap)
-                scored = [fuse(c, view, config, similarity, lexical_active=False) for c in candidates]
-                items = collapse_clusters(rank_candidates(scored))
-                facet_counts(items)
-                timings.append((time.perf_counter() - started) * 1000)
+                elapsed, count = await one_query(repository)
+                timings.append(elapsed)
+                counts.append(count)
         timings.sort()
         p50 = timings[len(timings) // 2]
         p95 = timings[min(len(timings) - 1, int(len(timings) * 0.95))]
         verdict = "PASS" if p95 < BUDGET_MS else "FAIL"
         print(f"{images} images, {queries} queries: retrieval p50 {p50:.0f} ms, p95 {p95:.0f} ms "
-              f"(candidates {len(candidates)}) -> {verdict} (budget: p95 under {BUDGET_MS} ms)")
+              f"(candidates median {statistics.median(counts):.0f}) -> {verdict} (budget: p95 under {BUDGET_MS} ms)")
         return 0 if verdict == "PASS" else 1
     finally:
         if not keep:
             print("removing synthetic rows")
-            await _cleanup()
-            print(f"synthetic rows remaining: {await _count()}")
-        if created_schema and not keep:
-            async with engine.begin() as connection:
-                await connection.run_sync(Base.metadata.drop_all)
-            print("dropped the schema this run created")
+            await _safe_cleanup()
 
 
 if __name__ == "__main__":
