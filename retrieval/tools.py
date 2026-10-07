@@ -32,7 +32,7 @@ SEARCH_OUTPUT_SCHEMA = {
     "properties": {
         "items": {"type": "array", "items": {"type": "object"}},
         "facets": {"type": "array", "items": {"$ref": "facet.schema.json"}},
-        "nextCursor": {"type": "string"},
+        "nextCursor": {"type": ["string", "null"]},
         "hasNext": {"type": "boolean"},
         "profile": {"$ref": "queryprofile.schema.json"},
         "degraded": {"type": "boolean"},
@@ -67,7 +67,10 @@ def _filters(raw) -> Filters:
             raise ValueError(f"filters.{axis} must be a list of strings")
         axes[axis] = tuple(keys)
     tags: dict[str, list[str]] = {}
-    for pair in raw.get("tags") or []:
+    raw_tags = raw.get("tags")
+    if raw_tags is not None and not isinstance(raw_tags, list):
+        raise ValueError("filters.tags must be a list of {key, value} objects")
+    for pair in raw_tags or []:
         if not isinstance(pair, Mapping) or not isinstance(pair.get("key"), str) or not isinstance(pair.get("value"), str):
             raise ValueError("filters.tags must be a list of {key, value} objects")
         tags.setdefault(pair["key"], []).append(pair["value"])

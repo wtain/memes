@@ -1,11 +1,10 @@
-import dataclasses
 import logging
 
 import pytest
 
 from parse.parser import ParseMeta, ParseResult
 from retrieval.embed import EmbedUnavailable
-from retrieval.model import Candidate, Filters
+from retrieval.model import Filters
 from retrieval.pipeline import InvalidProfile, MemeFromTextPipeline, SearchRequest
 from taxonomy import load
 from tests.retrieval.helpers import make_candidate, make_config, make_similarity
@@ -334,3 +333,90 @@ async def test_the_text_is_never_logged(caplog):
 
     assert marker not in caplog.text
     assert any(record.name == "retrieval" for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_a_degraded_result_is_cached_briefly_and_a_healthy_one_for_the_full_ttl():
+    clock = Clock()
+    parser = FakeParser(fallback="unavailable", degraded=True)
+    repository = FakeRepository(_candidates())
+    pipeline = _pipeline(parser=parser, clock=clock)
+
+    await pipeline.search(SearchRequest(text="hello"), repository)
+    clock.now += 9
+    await pipeline.search(SearchRequest(text="hello"), repository)
+    assert len(repository.calls) == 1
+    clock.now += 2                                           # 11 s after the first call
+    await pipeline.search(SearchRequest(text="hello"), repository)
+    assert len(repository.calls) == 2
+
+    healthy_repository = FakeRepository(_candidates())
+    healthy = _pipeline(clock=clock)
+    await healthy.search(SearchRequest(text="hello"), healthy_repository)
+    clock.now += 60
+    await healthy.search(SearchRequest(text="hello"), healthy_repository)
+    assert len(healthy_repository.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_language_hint_is_part_of_the_cache_key():
+    repository = FakeRepository(_candidates())
+    pipeline = _pipeline()
+    await pipeline.search(SearchRequest(text="hello", language_hint="en"), repository)
+    await pipeline.search(SearchRequest(text="hello", language_hint="ru"), repository)
+    assert len(repository.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_the_breaker_reopens_immediately_after_a_failed_half_open_call():
+    clock = Clock()
+    parser = FakeParser(fallback="unavailable", degraded=True)
+    pipeline = _pipeline(parser=parser, clock=clock)
+    repository = FakeRepository([])
+    for index in range(3):
+        await pipeline.search(SearchRequest(text=f"message {index}"), repository)
+    clock.now += 31
+    await pipeline.search(SearchRequest(text="probe"), repository)
+    assert len(parser.calls) == 4
+
+    blocked = await pipeline.search(SearchRequest(text="after the probe"), repository)
+
+    assert len(parser.calls) == 4 and blocked.fallback == "breaker_open"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_embedding_is_not_stored_in_the_vector_cache():
+    embedder = FakeEmbedder(fail=True)
+    pipeline = _pipeline(embedder=embedder, cache_ttl_seconds=0.0)
+    repository = FakeRepository(_candidates())
+    await pipeline.search(SearchRequest(text="one"), repository)
+    embedder.fail = False
+    await pipeline.search(SearchRequest(text="two"), repository)
+    assert len(embedder.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_an_invalid_profile_is_not_cached():
+    repository = FakeRepository(_candidates())
+    pipeline = _pipeline()
+    bad = {**GOOD_PROFILE, "emotion": [{"key": "not_a_key", "confidence": 0.9, "source": "human"}]}
+    with pytest.raises(InvalidProfile):
+        await pipeline.search(SearchRequest(text="hello", profile=bad), repository)
+
+    await pipeline.search(SearchRequest(text="hello"), repository)
+
+    assert len(repository.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_result_cache_evicts_the_oldest_entry_at_fifty():
+    repository = FakeRepository(_candidates())
+    pipeline = _pipeline(cache_ttl_seconds=100000.0)
+    for index in range(51):
+        await pipeline.search(SearchRequest(text=f"text {index}"), repository)
+    assert len(repository.calls) == 51
+
+    await pipeline.search(SearchRequest(text="text 50"), repository)
+    assert len(repository.calls) == 51
+    await pipeline.search(SearchRequest(text="text 0"), repository)
+    assert len(repository.calls) == 52

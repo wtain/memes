@@ -33,7 +33,8 @@ async def test_search_tool_returns_the_output_shape():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("arguments", [None, "text", {}, {"text": 5}, {"text": "x", "limit": "many"},
-                                       {"text": "x", "languageHint": "fr"}, {"text": "x", "filters": {"emotion": "joy"}}])
+                                       {"text": "x", "languageHint": "fr"}, {"text": "x", "filters": {"emotion": "joy"}},
+                                       {"text": "x", "filters": {"tags": 5}}])
 async def test_a_malformed_call_raises_value_error(arguments):
     with pytest.raises(ValueError):
         await tools.search_memes_from_text(arguments, _pipeline(), FakeRepository([]))

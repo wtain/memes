@@ -4,7 +4,6 @@ Services are injected: a parser with `async parse(text, hint)`, an embedder with
 `async aembed(model, texts, timeout)`, and, per call, a repository with `async generate_candidates(**kwargs)`.
 The user's text is never logged; only the structured line below and exception type names are."""
 import hashlib
-import json
 import logging
 import time
 from collections import OrderedDict
@@ -29,7 +28,8 @@ logger = logging.getLogger("retrieval")
 CACHE_ENTRIES = 50
 VECTOR_CACHE_ENTRIES = 200
 WARM_TIMEOUT_SECONDS = 120.0
-BREAKER_FAILURES_FALLBACKS = ("unavailable", "timeout")
+DEGRADED_CACHE_TTL_SECONDS = 10.0   # a degraded answer must not outlive a transient failure for long
+BREAKER_FALLBACKS = ("unavailable", "timeout")
 
 
 class InvalidProfile(ValueError):
@@ -210,7 +210,7 @@ class MemeFromTextPipeline:
         return dict(parsed.profile), False, parsed.meta.fallback
 
     def _record(self, fallback: str) -> None:
-        if fallback in BREAKER_FAILURES_FALLBACKS:
+        if fallback in BREAKER_FALLBACKS:
             self._failures += 1
             if self._failures >= self._config.breaker_failures:
                 self._open_until = self._clock() + self._config.breaker_open_seconds
@@ -243,7 +243,7 @@ class MemeFromTextPipeline:
             restriction = hashlib.sha256(",".join(sorted(str(i) for i in request.restrict_ids)).encode()).hexdigest()
         config_hash = hashlib.sha256(repr(self._config).encode()).hexdigest()
         return fingerprint({
-            "t": text, "p": request.profile, "f": request.filters.to_dict(), "r": restriction,
+            "t": text, "h": request.language_hint, "p": request.profile, "f": request.filters.to_dict(), "r": restriction,
             "pv": PARSER_VERSION, "tv": self._tax.version, "c": config_hash,
         })
 
@@ -259,9 +259,12 @@ class MemeFromTextPipeline:
         return entry
 
     def _cache_put(self, fp: str, entry: _Entry) -> None:
-        if self._config.cache_ttl_seconds <= 0:
+        ttl = self._config.cache_ttl_seconds
+        if ttl <= 0:
             return
-        self._cache[fp] = (self._clock() + self._config.cache_ttl_seconds, entry)
+        if entry.prepared.degraded:
+            ttl = min(ttl, DEGRADED_CACHE_TTL_SECONDS)
+        self._cache[fp] = (self._clock() + ttl, entry)
         self._cache.move_to_end(fp)
         while len(self._cache) > CACHE_ENTRIES:
             self._cache.popitem(last=False)
