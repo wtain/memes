@@ -79,6 +79,11 @@ def _problems(values: dict, weights: dict) -> list[str]:
             problems.append(f"weights.{name} must be >= 0")
     if sum(weights.values()) <= 0:
         problems.append("weights must not all be zero")
+    # the degraded paths score only the situation (parse failed) or only the lexical source (no query vector)
+    if weights.get("situation", 1.0) <= 0:
+        problems.append("weights.situation must be > 0 (the degraded paths rely on it)")
+    if values.get("lexical_enabled") and weights.get("lexical", 1.0) <= 0:
+        problems.append("weights.lexical must be > 0 while lexical.enabled is true")
     for attribute in ("situation_k", "axis_k", "lexical_k", "total_cap", "breaker_failures", "default_limit",
                       "max_limit"):
         if values[attribute] < 1:

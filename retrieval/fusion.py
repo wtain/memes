@@ -10,14 +10,17 @@ from retrieval.similarity import SimilarityIndex
 def fuse(candidate: Candidate, query: QueryView, config: RetrievalConfig, similarity: SimilarityIndex, *,
          lexical_active: bool) -> ScoredCandidate:
     """score = sum over present axes of (w_a / sum of w over present axes) x s_a. Absent query axes are not
-    scored (FR-15); a meme with no profile is neutral on every present axis but keeps its real lexical score."""
+    scored (FR-15); a meme with no profile is neutral on every present axis but keeps its real lexical score.
+    When the present axes carry no weight at all (a zero-weight fallback axis), they are weighted equally
+    instead of everything scoring 0.0, so the ranking still follows the real signal."""
     present = query.present_axes(lexical_active=lexical_active)
-    total_weight = sum(config.weights[axis] for axis in present)
-    if not present or total_weight <= 0:
+    if not present:
         return ScoredCandidate(candidate, 0.0, ())
+    total_weight = sum(config.weights[axis] for axis in present)
+    equal = total_weight <= 0
     explanations, score = [], 0.0
     for axis in present:
-        weight = config.weights[axis] / total_weight
+        weight = 1.0 / len(present) if equal else config.weights[axis] / total_weight
         matched = ()
         if axis == "situation":
             if candidate.axis_path:

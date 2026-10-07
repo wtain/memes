@@ -81,3 +81,17 @@ def test_with_weights_replaces_only_the_weights():
     changed = config.with_weights({**config.weights, "situation": 0.9})
     assert changed.weights["situation"] == 0.9 and changed.neutral_score == config.neutral_score
     assert config.weights["situation"] == 0.4
+
+
+def test_zero_situation_weight_is_rejected():
+    values = {**VALUES, "search.meme_from_text.weights.situation": 0}
+    with pytest.raises(ValueError, match="weights.situation must be > 0"):
+        load_config(_get(values), environ={})
+
+
+def test_zero_lexical_weight_is_rejected_only_while_lexical_is_enabled():
+    values = {**VALUES, "search.meme_from_text.weights.lexical": 0}
+    with pytest.raises(ValueError, match="weights.lexical must be > 0"):
+        load_config(_get(values), environ={})
+    disabled = load_config(_get({**values, "search.meme_from_text.lexical.enabled": False}), environ={})
+    assert disabled.weights["lexical"] == 0

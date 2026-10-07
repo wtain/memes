@@ -98,3 +98,27 @@ def test_query_view_from_a_queryprofile_dict():
     assert view.axes == {"emotion": (("joy", 0.9),)}
     assert view.present_axes(lexical_active=True) == ("situation", "emotion", "lexical")
     assert QueryView.from_profile({"situation": None, "emotion": []}).present_axes(lexical_active=False) == ()
+
+
+def test_zero_weight_on_every_present_axis_falls_back_to_equal_weights():
+    config = make_config(weights={**CONFIG.weights, "lexical": 0.0})
+    strong = make_candidate("z", cosine=0.45, lexical=1.0)
+    weak = make_candidate("a", cosine=0.45, lexical=0.1)
+
+    scored = [fuse(c, QueryView(situation=None, axes={}, language="en", degraded=True), config, SIM,
+                   lexical_active=True) for c in (weak, strong)]
+
+    assert [s.candidate.image_id for s in rank_candidates(scored)] == ["z", "a"]
+    assert scored[1].score == pytest.approx(1.0) and scored[1].axes[0].weight == pytest.approx(1.0)
+
+
+def test_zero_situation_weight_with_only_the_situation_present_still_ranks_by_the_signal():
+    config = make_config(weights={**CONFIG.weights, "situation": 0.0})
+    near = make_candidate("z", cosine=0.85)
+    far = make_candidate("a", cosine=0.5)
+
+    scored = [fuse(c, _view(), config, SIM, lexical_active=False) for c in (far, near)]
+
+    assert [s.candidate.image_id for s in rank_candidates(scored)] == ["z", "a"]
+    assert scored[1].score > scored[0].score
+    assert scored[1].axes[0].weight == pytest.approx(1.0)

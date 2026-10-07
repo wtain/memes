@@ -1,7 +1,8 @@
 import pytest
 
 from evaluation.tuning import (
-    GRID, PreparedQuery, coordinate_ascent, cross_validate, evaluate_weights, stratified_folds, tune,
+    GRID, PreparedQuery, coarse_start, coordinate_ascent, cross_validate, evaluate_weights, simplex_points,
+    split_degraded, stratified_folds, tune, valid_weights,
 )
 from retrieval.model import QueryView
 from tests.retrieval.helpers import WEIGHTS, make_candidate, make_config, make_similarity
@@ -74,7 +75,7 @@ def test_tune_returns_recommended_weights_with_in_sample_and_cross_validated_sco
     report = tune(_prepared(10), CONFIG, SIM, folds=5, seed=7)
 
     assert set(report) == {"defaultWeights", "defaultScore", "recommendedWeights", "inSampleScore", "cvScore",
-                           "foldScores", "foldSpread"}
+                           "foldScores", "foldSpread", "startedFrom"}
     assert report["inSampleScore"] >= report["defaultScore"] and report["cvScore"] > 0.5
     assert report["defaultWeights"] == WEIGHTS
 
@@ -111,3 +112,53 @@ def test_fewer_than_two_folds_is_rejected():
         stratified_folds(_prepared(4), 1, seed=7)
     with pytest.raises(ValueError):
         cross_validate(_prepared(4), CONFIG, SIM, folds=1)
+
+
+def _lexical_trap_query():
+    """The right meme wins on the situation, the wrong one only on the lexical source."""
+    view = QueryView(situation="x", axes={}, language="en", degraded=False)
+    right = make_candidate("r", cosine=0.85, lexical=0.0)
+    wrong = make_candidate("w", cosine=0.45, lexical=1.0)
+    return PreparedQuery("q", "en", view, (wrong, right), True, {"r": 2, "w": 0})
+
+
+def test_coordinate_ascent_never_proposes_a_zero_situation_or_lexical_weight():
+    prepared = [_lexical_trap_query()]
+    start = {**WEIGHTS, "situation": 0.05, "emotion": 0.0, "stance": 0.0, "topic": 0.0, "tone": 0.0, "lexical": 0.6}
+    # zeroing lexical would be the winning move if it were allowed
+    assert evaluate_weights(prepared, CONFIG, SIM, {**start, "lexical": 0.0}) == pytest.approx(1.0)
+
+    weights, score = coordinate_ascent(prepared, CONFIG, SIM, start)
+
+    assert weights["lexical"] > 0 and weights["situation"] > 0 and score == pytest.approx(1.0)
+
+
+def test_valid_weights_allows_a_zero_lexical_weight_only_when_lexical_is_disabled():
+    zero_lexical = {**WEIGHTS, "lexical": 0.0}
+    assert valid_weights(CONFIG, zero_lexical) is False
+    assert valid_weights(make_config(lexical_enabled=False), zero_lexical) is True
+    assert valid_weights(CONFIG, {**WEIGHTS, "situation": 0.0}) is False
+
+
+def test_simplex_points_enumerates_252_vectors_summing_to_one():
+    points = list(simplex_points(0.2))
+    assert len(points) == 252 and all(set(p) == set(WEIGHTS) for p in points)
+    assert all(sum(p.values()) == pytest.approx(1.0) for p in points)
+    assert len({tuple(p.values()) for p in points}) == 252
+
+
+def test_coarse_start_finds_the_obviously_best_simplex_point_and_is_deterministic():
+    prepared = _prepared(4)
+
+    best = coarse_start(prepared, CONFIG, SIM)
+
+    assert best == coarse_start(prepared, CONFIG, SIM)
+    assert best["situation"] > 0 and best["lexical"] > 0
+    assert evaluate_weights(prepared, CONFIG, SIM, best) == pytest.approx(1.0)
+
+
+def test_split_degraded_separates_degraded_queries():
+    clean = _query(0)
+    bad = PreparedQuery("qd", "en", clean.view, clean.candidates, False, clean.grades, True, "timeout")
+    assert split_degraded([clean, bad]) == ([clean], [bad])
+    assert clean.degraded is False and clean.fallback == "none"
