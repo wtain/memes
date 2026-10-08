@@ -706,6 +706,15 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
 { "text": "My boss just moved the deadline up again", "languageHint": "en", "filters": { "emotion": ["anger"] }, "limit": 10 }
 ```
 
+#### Get The Vocabulary
+
+The vocabulary behind query profiles, for the chips editor and facet labels of the web UI.
+
+- **URL**: `/api/meme-from-text/taxonomy`
+- **Method**: `GET`
+- **Response** `200`: `{"version": 2, "axes": [...]}` where each axis has `name` (`situation`, `emotion`, `stance`, `topic`, `tone`), `type` (`free_text` or `vocabulary`), `maxChars` (free-text axes) or `maxValues` (vocabulary axes), and for vocabulary axes `values`: a list of `{key, definition, labels: {en, ru, es}}`. `version` equals the `taxonomyVersion` of query profiles; a client that sees a different version in a search response should refetch.
+- **Caching**: `Cache-Control: public, max-age=300`. The data does not depend on the database and is identical in every environment.
+
 ---
 
 ### Recommendations

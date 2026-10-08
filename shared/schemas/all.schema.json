@@ -15,6 +15,7 @@
     "MemeFromTextRequest": { "$ref": "memefromtextrequest.schema.json" },
     "MemeFromTextResult":  { "$ref": "memefromtextresult.schema.json" },
     "MemeFromTextResponse": { "$ref": "memefromtextresponse.schema.json" },
+    "TaxonomyResponse": { "$ref": "taxonomyresponse.schema.json" },
     "DescriptionFeedbackResponse": { "$ref": "descriptionfeedbackresponse.schema.json" },
     "Concept": { "$ref": "concept.schema.json" },
     "TrendsRun": { "$ref": "trendsrun.schema.json" },

@@ -228,6 +228,12 @@ data class StatisticsTrendsStats(
 )
 
 @Serializable
+data class TaxonomyResponse(
+    @SerialName("version") val version: Int,
+    @SerialName("axes") val axes: List<Any>
+)
+
+@Serializable
 data class TrendEntry(
     @SerialName("label") val label: String,
     @SerialName("name") val name: String,

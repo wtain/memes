@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from Backend.app.repositories.image_repository import ImageRepository
 from Backend.app.services.cache import no_cache_headers
 from Backend.app.services.meme_from_text_pipeline import get_pipeline
+from Backend.app.services.meme_from_text_taxonomy import cached_taxonomy_payload
 from Backend.app.services.meme_from_text_service import MemeFromTextService
 from Backend.app.types.generated.memefromtextrequest import Schema as MemeFromTextRequest
 from Backend.app.types.generated.memefromtextresponse import Schema as MemeFromTextResponse
+from Backend.app.types.generated.taxonomyresponse import Schema as TaxonomyResponse
 from repository.meme_retrieval import MemeRetrievalRepository
 from retrieval.pipeline import InvalidProfile
 from Storage.db import get_async_db
@@ -41,3 +43,10 @@ async def search_memes_from_text(
         # an escaping exception with them: log the type name only and raise a generic error without a chain.
         logger.warning("meme-from-text search failed: %s", type(error).__name__)
         raise HTTPException(status_code=500, detail="meme-from-text search failed") from None
+
+
+@router.get("/taxonomy", response_model=TaxonomyResponse, response_model_exclude_none=True)
+async def get_taxonomy(response: Response):
+    """The vocabulary for the chips editor and the facet labels (read-only, safe to cache briefly)."""
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return TaxonomyResponse.model_validate(cached_taxonomy_payload())

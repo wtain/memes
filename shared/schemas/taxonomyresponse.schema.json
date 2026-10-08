@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "taxonomyresponse.schema.json",
+  "title": "TaxonomyResponse",
+  "description": "The meme-from-text vocabulary served to the web UI: axes, value keys, definitions and labels",
+  "type": "object",
+  "properties": {
+    "version": { "type": "integer", "description": "The taxonomy version (equals the taxonomyVersion of query profiles)" },
+    "axes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["free_text", "vocabulary"] },
+          "maxValues": { "type": "integer", "description": "Vocabulary axes: how many values a profile may hold" },
+          "maxChars": { "type": "integer", "description": "Free-text axes: maximum length" },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" },
+                "definition": { "type": "string" },
+                "labels": {
+                  "type": "object",
+                  "properties": { "en": { "type": "string" }, "ru": { "type": "string" }, "es": { "type": "string" } },
+                  "required": ["en", "ru", "es"]
+                }
+              },
+              "required": ["key", "definition", "labels"]
+            }
+          }
+        },
+        "required": ["name", "type"]
+      }
+    }
+  },
+  "required": ["version", "axes"]
+}

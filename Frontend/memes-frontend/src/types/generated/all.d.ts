@@ -323,6 +323,43 @@ export interface MemeFromTextResponse {
   [k: string]: unknown;
 }
 /**
+ * The meme-from-text vocabulary served to the web UI: axes, value keys, definitions and labels
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "TaxonomyResponse".
+ */
+export interface TaxonomyResponse {
+  /**
+   * The taxonomy version (equals the taxonomyVersion of query profiles)
+   */
+  version: number;
+  axes: {
+    name: string;
+    type: "free_text" | "vocabulary";
+    /**
+     * Vocabulary axes: how many values a profile may hold
+     */
+    maxValues?: number;
+    /**
+     * Free-text axes: maximum length
+     */
+    maxChars?: number;
+    values?: {
+      key: string;
+      definition: string;
+      labels: {
+        en: string;
+        ru: string;
+        es: string;
+        [k: string]: unknown;
+      };
+      [k: string]: unknown;
+    }[];
+    [k: string]: unknown;
+  }[];
+  [k: string]: unknown;
+}
+/**
  * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DescriptionFeedbackResponse".
  */
