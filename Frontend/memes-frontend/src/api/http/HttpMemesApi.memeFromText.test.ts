@@ -66,6 +66,11 @@ describe("searchMemeFromText", () => {
     expect(isAbortError(new Error("other"))).toBe(false)
   })
 
+  it("recognises a real DOMException abort as the browser raises it", () => {
+    expect(isAbortError(new DOMException("aborted", "AbortError"))).toBe(true)
+    expect(isAbortError(new DOMException("nope", "NetworkError"))).toBe(false)
+  })
+
   it("survives a 422 whose body is not JSON", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 422, json: async () => { throw new Error("bad json") } })
     vi.stubGlobal("fetch", fetchMock)
