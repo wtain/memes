@@ -85,6 +85,17 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
     void execute("find")
   }
 
+  // "Try again": keeps the current reading, edits and filters when there is a reading; otherwise re-sends the text.
+  function retry() {
+    const current = stateRef.current
+    if (current.submitted && (current.originalProfile || current.editedProfile)) {
+      cancelTimer()
+      void execute("refine")
+      return
+    }
+    find()
+  }
+
   function editProfile(update: (profile: QueryProfile) => QueryProfile) {
     const current = stateRef.current
     const base = activeProfile(current)
@@ -134,6 +145,6 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
 
   return {
     state, activeProfile: activeProfile(state),
-    setText, find, editProfile, resetProfile, setFilter, clearFilters, loadMore,
+    setText, find, retry, editProfile, resetProfile, setFilter, clearFilters, loadMore,
   }
 }

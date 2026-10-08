@@ -24,6 +24,36 @@ beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
 
 describe("useMessageSearch", () => {
+  it("retry after a failed refine re-sends the same edited profile and filters", async () => {
+    const { api, result } = setup()
+    await find(result)
+    const calls = api.searchMemeFromText as ReturnType<typeof vi.fn>
+    calls.mockRejectedValueOnce(new MessageSearchFailedError(500))
+    await act(async () => { result.current.setFilter("emotion", ["joy"]) })
+    expect(result.current.state.status).toBe("error")
+
+    await act(async () => { result.current.retry() })
+
+    expect(calls).toHaveBeenCalledTimes(3)
+    const request = calls.mock.calls[2][0]
+    expect(request.filters).toEqual({ emotion: ["joy"] })
+    expect(request.profile).toBeDefined()
+    expect(request).toEqual(calls.mock.calls[1][0])
+  })
+
+  it("retry after a failed first search re-sends the text only", async () => {
+    const { api, result } = setup()
+    const calls = api.searchMemeFromText as ReturnType<typeof vi.fn>
+    calls.mockRejectedValueOnce(new MessageSearchFailedError(500))
+    await find(result)
+    expect(result.current.state.status).toBe("error")
+
+    await act(async () => { result.current.retry() })
+
+    expect(calls).toHaveBeenCalledTimes(2)
+    expect(calls.mock.calls[1][0]).toEqual({ text: "hello", limit: 20 })
+  })
+
   it("find sends only the text and stores the reading and results", async () => {
     const { api, result } = setup()
     await find(result)

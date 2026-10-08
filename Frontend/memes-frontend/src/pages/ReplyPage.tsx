@@ -30,6 +30,7 @@ export default function ReplyPage({ memesApi }: Props) {
   const labelOf = (axis: string, key: string) => labelFor(taxonomy, axis, key)
   const finished = state.status === "ready" || state.status === "degraded"
   const busy = state.status === "reading" || state.status === "refining"
+  const showResults = finished || (busy && state.items.length > 0) || (state.status === "error" && state.items.length > 0)
   const filterCount = countFilters(state.filters)
 
   function removeFilter(axis: AxisName, value: string) {
@@ -42,7 +43,7 @@ export default function ReplyPage({ memesApi }: Props) {
 
       <MessageBox value={state.text} onChange={search.setText} onSubmit={search.find} />
 
-      <StatusBanner status={state.status} fallback={state.fallback} error={state.error} onRetry={search.find} />
+      <StatusBanner status={state.status} fallback={state.fallback} error={state.error} onRetry={search.retry} />
 
       {profile && state.status !== "unavailable" && (
         <ReadingPanel
@@ -56,9 +57,9 @@ export default function ReplyPage({ memesApi }: Props) {
         />
       )}
 
-      <p role="status" className="sr-only">{finished ? `${state.items.length} memes found` : ""}</p>
+      <p role="status" className="sr-only">{finished ? `${state.items.length} ${state.items.length === 1 ? "meme" : "memes"} found` : ""}</p>
 
-      {(finished || (busy && state.items.length > 0)) && (
+      {showResults && (
         <div className="flex flex-col gap-6 md:flex-row" aria-busy={busy}>
           <aside className="md:w-64 md:shrink-0">
             <button

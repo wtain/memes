@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { StrictMode } from "react"
 import { MemoryRouter } from "react-router-dom"
@@ -26,6 +26,8 @@ describe("ReplyPage", () => {
     const api = renderPage()
     expect(screen.getByRole("button", { name: "Find a meme" })).toBeDisabled()
     expect(api.searchMemeFromText).not.toHaveBeenCalled()
+    await waitFor(() => expect(api.getTaxonomy).toHaveBeenCalled())
+    await act(async () => {})
   })
 
   it("searches with the text only and shows the reading, the results and the result count", async () => {
@@ -44,6 +46,50 @@ describe("ReplyPage", () => {
     expect(screen.getAllByRole("img", { name: /^[ab]$/ })).toHaveLength(2)
     expect(screen.getByText("2 memes found")).toBeInTheDocument()
     expect(screen.getByRole("group", { name: "Emotion" })).toBeInTheDocument()
+  })
+
+  it("announces a single result as '1 meme found'", async () => {
+    const user = userEvent.setup()
+    renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")] })),
+    }))
+    await search(user)
+    expect(await screen.findByText("1 meme found")).toBeInTheDocument()
+  })
+
+  it("keeps results, facets and filter chips after a failed refine, and Try again keeps the filter", async () => {
+    const user = userEvent.setup()
+    const search_ = vi.fn()
+      .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], facets: [{ name: "emotion", buckets: [{ value: "joy", count: 1 }] }] }))
+      .mockRejectedValueOnce(new MessageSearchFailedError(500))
+      .mockResolvedValue(makeResponse({ items: [makeResult("a")], facets: [{ name: "emotion", buckets: [{ value: "joy", count: 1 }] }] }))
+    const api = renderPage(makeMockApi({ searchMemeFromText: search_ }))
+    await search(user)
+    await user.click(await screen.findByLabelText("Joy (1)"))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/something went wrong/i)
+    expect(screen.getByRole("img", { name: "a" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Joy (1)")).toBeChecked()
+    expect(screen.getByRole("button", { name: "Remove filter emotion: Joy" })).toBeInTheDocument()
+
+    await user.click(within(screen.getByRole("alert")).getByRole("button"))
+    await waitFor(() => expect(calls(api)).toHaveLength(3))
+    expect(calls(api)[2][0].filters).toEqual({ emotion: ["joy"] })
+    expect(calls(api)[2][0].profile).toBeDefined()
+  })
+
+  it("keeps the list and still offers Show more after a failed Show more", async () => {
+    const user = userEvent.setup()
+    const search_ = vi.fn()
+      .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" }))
+      .mockRejectedValueOnce(new MessageSearchFailedError(500))
+    renderPage(makeMockApi({ searchMemeFromText: search_ }))
+    await search(user)
+    await user.click(await screen.findByRole("button", { name: "Show more" }))
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "a" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
   })
 
   it("removing a chip re-runs retrieval with the edited profile after the debounce", async () => {
