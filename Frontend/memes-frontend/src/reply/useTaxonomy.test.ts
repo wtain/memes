@@ -65,4 +65,22 @@ describe("useTaxonomy", () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect((api.getTaxonomy as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(5)
   })
+
+  it("retries a failed load when the retry key changes, once per key and never in a loop", async () => {
+    let down = true
+    const api = makeMockApi({ getTaxonomy: vi.fn().mockImplementation(() => (down ? Promise.reject(new Error("down")) : Promise.resolve(TEST_TAXONOMY))) })
+    const { result, rerender } = renderHook(({ k }) => useTaxonomy(api, null, k), { wrapper: StrictMode, initialProps: { k: 0 } })
+    await waitFor(() => expect(api.getTaxonomy).toHaveBeenCalled())
+    expect(result.current).toBeNull()
+
+    down = false
+    rerender({ k: 1 })
+    await waitFor(() => expect(result.current).toEqual(TEST_TAXONOMY))
+    const loaded = (api.getTaxonomy as ReturnType<typeof vi.fn>).mock.calls.length
+
+    rerender({ k: 2 })
+    rerender({ k: 1 })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect((api.getTaxonomy as ReturnType<typeof vi.fn>).mock.calls.length).toBe(loaded)
+  })
 })

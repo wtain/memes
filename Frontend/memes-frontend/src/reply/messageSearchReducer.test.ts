@@ -81,4 +81,54 @@ describe("messageSearchReducer", () => {
     state = reducer(state, { type: "filters", filters: { ...EMPTY_FILTERS, tone: ["wholesome"] } })
     expect(state.filters.tone).toEqual(["wholesome"])
   })
+
+  describe("expired server cache and availability", () => {
+    const more = (state: State, response: ReturnType<typeof makeResponse>) =>
+      reducer(state, { type: "succeeded", mode: "more", response, request: { text: "t", cursor: "c1" } })
+    const listed = (status: "ready" | "degraded"): State => ({
+      ...base, status, items: [makeResult("a"), makeResult("b")], nextCursor: "c1", hasNext: true, fallback: status === "degraded" ? "unavailable" : "none",
+    })
+
+    it("show more drops items that are already in the list", () => {
+      const next = more(listed("ready"), makeResponse({ items: [makeResult("b"), makeResult("c")] }))
+      expect(next.items.map((r) => r.meme.id)).toEqual(["a", "b", "c"])
+    })
+
+    it("a normal page does not change the status, the fallback or the meta", () => {
+      const start = listed("degraded")
+      const response = makeResponse({ items: [makeResult("c")], degraded: true, fallback: "timeout" })
+      response.meta.parseMs = 1
+      const next = more(start, response)
+      expect(next.status).toBe("degraded")
+      expect(next.fallback).toBe("unavailable")
+      expect(next.meta).toBe(start.meta)
+      expect(next.nextCursor).toBeNull()
+    })
+
+    it("a degraded page after a healthy list replaces the list and takes the new status", () => {
+      const next = more(listed("ready"), makeResponse({ items: [makeResult("x"), makeResult("y")], degraded: true, fallback: "timeout" }))
+      expect(next.items.map((r) => r.meme.id)).toEqual(["x", "y"])
+      expect(next.status).toBe("degraded")
+      expect(next.fallback).toBe("timeout")
+    })
+
+    it("a healthy page after a degraded list replaces the list and takes the new status", () => {
+      const next = more(listed("degraded"), makeResponse({ items: [makeResult("x")] }))
+      expect(next.items.map((r) => r.meme.id)).toEqual(["x"])
+      expect(next.status).toBe("ready")
+      expect(next.fallback).toBe("none")
+    })
+
+    it("tracks whether a list exists and counts responses", () => {
+      expect(base.hasList).toBe(false)
+      const done = reducer({ ...base, status: "reading" }, { type: "succeeded", mode: "find", response: makeResponse(), request: { text: "t" } })
+      expect(done).toMatchObject({ hasList: true, searchCount: 1 })
+      expect(reducer(done, { type: "failed", error: "failed" }).hasList).toBe(true)
+      expect(reducer(done, { type: "findStarted", submitted: "n" }).hasList).toBe(false)
+    })
+
+    it("unavailable sets the status without an error", () => {
+      expect(reducer({ ...base, status: "refining", loadingMore: true }, { type: "unavailable" })).toMatchObject({ status: "unavailable", error: null, loadingMore: false })
+    })
+  })
 })

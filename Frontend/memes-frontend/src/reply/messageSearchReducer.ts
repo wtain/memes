@@ -23,6 +23,10 @@ export type State = {
   status: Status
   error: ErrorKind | null
   loadingMore: boolean
+  /** True once a find/refine response produced a list on screen (even an empty one); false for a new find and for a restored session until its first response. */
+  hasList: boolean
+  /** Bumped on every successful response; the page uses it to retry a vocabulary load that failed. */
+  searchCount: number
 }
 
 export type Action =
@@ -32,6 +36,7 @@ export type Action =
   | { type: "moreStarted" }
   | { type: "succeeded"; mode: Mode; response: MemeFromTextResponse; request: MemeFromTextRequest }
   | { type: "failed"; error: ErrorKind }
+  | { type: "unavailable" }
   | { type: "edited"; profile: QueryProfile }
   | { type: "resetEdit" }
   | { type: "filters"; filters: Filters }
@@ -45,7 +50,7 @@ export function initialState(saved: Saved | null): State {
     filters: saved?.filters ?? { ...EMPTY_FILTERS },
     items: [], facets: [], nextCursor: null, hasNext: false, fallback: "none", meta: null, lastRequest: null,
     status: saved?.submitted ? "refining" : "idle",
-    error: null, loadingMore: false,
+    error: null, loadingMore: false, hasList: false, searchCount: 0,
   }
 }
 
@@ -66,7 +71,7 @@ export function reducer(state: State, action: Action): State {
       return {
         ...state, submitted: action.submitted, originalProfile: null, editedProfile: null, filters: { ...EMPTY_FILTERS },
         items: [], facets: [], nextCursor: null, hasNext: false, fallback: "none", meta: null, lastRequest: null,
-        status: "reading", error: null, loadingMore: false,
+        status: "reading", error: null, loadingMore: false, hasList: false,
       }
     case "refineStarted":
       return { ...state, status: "refining", error: null }
@@ -79,12 +84,22 @@ export function reducer(state: State, action: Action): State {
       const common = {
         facets: response.facets ?? [], nextCursor: response.nextCursor ?? null, hasNext: response.hasNext,
         fallback: response.fallback, meta: response.meta, status: statusFor(response), error: null, loadingMore: false,
-        lastRequest: requestWithoutCursor,
+        lastRequest: requestWithoutCursor, hasList: true, searchCount: state.searchCount + 1,
       }
       if (mode === "more") {
-        // A stale cursor restarts the list server-side: its first item is then the one already shown first.
+        // When the cached list expires the server recomputes it, and the positional cursor then pages a different
+        // ranking. Either its first item is the one already shown first (a restart), or the degraded state flipped.
+        const listShown = state.status === "ready" || state.status === "degraded"
         const restarted = state.items.length > 0 && response.items.length > 0 && state.items[0].meme.id === response.items[0].meme.id
-        return { ...state, ...common, items: restarted ? response.items : [...state.items, ...response.items] }
+        const reranked = listShown && statusFor(response) !== state.status
+        if (restarted || reranked) return { ...state, ...common, items: response.items }
+        // A normal page: append without repeats; the list's status, fallback, meta and facets stay as they are.
+        const shown = new Set(state.items.map((r) => r.meme.id))
+        return {
+          ...state, nextCursor: common.nextCursor, hasNext: common.hasNext, error: null, loadingMore: false,
+          lastRequest: requestWithoutCursor, hasList: true, searchCount: common.searchCount,
+          items: [...state.items, ...response.items.filter((r) => !shown.has(r.meme.id))],
+        }
       }
       return {
         ...state, ...common, items: response.items,
@@ -93,6 +108,8 @@ export function reducer(state: State, action: Action): State {
     }
     case "failed":
       return { ...state, status: "error", error: action.error, loadingMore: false }
+    case "unavailable":
+      return { ...state, status: "unavailable", error: null, loadingMore: false }
     case "edited":
       return { ...state, editedProfile: action.profile }
     case "resetEdit":

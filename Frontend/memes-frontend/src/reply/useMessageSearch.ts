@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
-import { MessageSearchValidationError, isAbortError } from "../api/errors"
+import { MessageSearchFailedError, MessageSearchValidationError, isAbortError } from "../api/errors"
 import { activeProfile, initialState, reducer } from "./messageSearchReducer"
 import { toEditedProfile } from "./profile"
 import { buildRequest } from "./requests"
@@ -45,7 +45,9 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
       dispatch({ type: "succeeded", mode, response, request })
     } catch (error) {
       if (isAbortError(error) || seq !== seqRef.current) return
-      dispatch({ type: "failed", error: error instanceof MessageSearchValidationError ? "validation" : "failed" })
+      // A backend that was not restarted answers 404/405: a retry can never succeed, so the feature is unavailable.
+      if (error instanceof MessageSearchFailedError && (error.status === 404 || error.status === 405)) dispatch({ type: "unavailable" })
+      else dispatch({ type: "failed", error: error instanceof MessageSearchValidationError ? "validation" : "failed" })
     }
   }, [memesApi])
 
@@ -88,6 +90,11 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
   // "Try again": keeps the current reading, edits and filters when there is a reading; otherwise re-sends the text.
   function retry() {
     const current = stateRef.current
+    // The server rejected the stored reading (422): re-sending it would be rejected again, so read the text anew.
+    if (current.error === "validation") {
+      find()
+      return
+    }
     if (current.submitted && (current.originalProfile || current.editedProfile)) {
       cancelTimer()
       void execute("refine")
@@ -139,7 +146,7 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
     const current = stateRef.current
     if (!current.hasNext || !current.nextCursor || current.loadingMore) return
     // The list is about to change (a refine is running or an edit is waiting to be sent): its cursor is stale.
-    if (current.status === "reading" || current.status === "refining" || timerRef.current !== null) return
+    if (current.status === "reading" || current.status === "refining" || current.status === "error" || timerRef.current !== null) return
     void execute("more")
   }
 

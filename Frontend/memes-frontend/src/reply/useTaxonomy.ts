@@ -6,7 +6,7 @@ import type { TaxonomyResponse } from "./types"
  * Loads the vocabulary once per mount. When a search response reports another taxonomy version
  * (`expectedVersion`), it loads again (the effect re-runs only when the mismatching version changes).
  */
-export function useTaxonomy(memesApi: MemesApi, expectedVersion: number | null): TaxonomyResponse | null {
+export function useTaxonomy(memesApi: MemesApi, expectedVersion: number | null, retryKey = 0): TaxonomyResponse | null {
   const [taxonomy, setTaxonomy] = useState<TaxonomyResponse | null>(null)
   const refetchFor = taxonomy && expectedVersion !== null && taxonomy.version !== expectedVersion ? expectedVersion : null
 
@@ -27,7 +27,7 @@ export function useTaxonomy(memesApi: MemesApi, expectedVersion: number | null):
       () => { /* the chips still render from their keys; only the picker is empty */ },
     )
     return () => { cancelled = true }
-  }, [memesApi, refetchFor])
+  }, [memesApi, refetchFor, retryKey])
 
   return taxonomy
 }

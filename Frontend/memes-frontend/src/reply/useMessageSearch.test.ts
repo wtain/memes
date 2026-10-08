@@ -259,4 +259,49 @@ describe("useMessageSearch", () => {
     expect(result.current.state.status).toBe("ready")
     expect(result.current.state.items.map((r) => r.meme.id)).toEqual(["a"])
   })
+
+  it("a 404 or 405 from the endpoint makes message search unavailable instead of an error", async () => {
+    for (const status of [404, 405]) {
+      const { result } = setup({ searchMemeFromText: vi.fn().mockRejectedValue(new MessageSearchFailedError(status)) })
+      await find(result)
+      expect(result.current.state).toMatchObject({ status: "unavailable", error: null })
+    }
+  })
+
+  it("other HTTP failures stay a retryable error", async () => {
+    const { result } = setup({ searchMemeFromText: vi.fn().mockRejectedValue(new MessageSearchFailedError(503)) })
+    await find(result)
+    expect(result.current.state).toMatchObject({ status: "error", error: "failed" })
+  })
+
+  it("retry after a rejected (422) reading starts a new reading from the text, dropping profile and filters", async () => {
+    const search = vi.fn()
+      .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")] }))
+      .mockRejectedValueOnce(new MessageSearchValidationError(["bad"]))
+      .mockResolvedValueOnce(makeResponse({ items: [makeResult("n")] }))
+    const { result } = setup({ searchMemeFromText: search })
+    await find(result)
+    await act(async () => { result.current.setFilter("tone", ["x"]) })
+    expect(result.current.state.error).toBe("validation")
+
+    await act(async () => { result.current.retry() })
+
+    expect(search.mock.calls[2][0]).toEqual({ text: "hello", limit: 20 })
+    expect(result.current.state.filters).toEqual({ emotion: [], stance: [], topic: [], tone: [] })
+    expect(result.current.state.items.map((r) => r.meme.id)).toEqual(["n"])
+  })
+
+  it("show more is ignored while the list is in error", async () => {
+    const search = vi.fn()
+      .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" }))
+      .mockRejectedValueOnce(new MessageSearchFailedError(500))
+    const { result } = setup({ searchMemeFromText: search })
+    await find(result)
+    await act(async () => { result.current.setFilter("tone", ["x"]) })
+    expect(result.current.state.status).toBe("error")
+
+    await act(async () => { result.current.loadMore() })
+
+    expect(search).toHaveBeenCalledTimes(2)
+  })
 })
