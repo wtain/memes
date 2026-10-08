@@ -34,6 +34,14 @@ describe("reply storage", () => {
     expect(loadSaved(storage)?.filters).toEqual({ emotion: ["joy"], stance: [], topic: [], tone: [] })
   })
 
+  it("treats corrupt profiles as null and keeps the rest of the saved search", () => {
+    const stored = { text: "a", submitted: "a", originalProfile: "x", editedProfile: { emotion: "joy", stance: [], topic: [], tone: [], degraded: false, taxonomyVersion: 2 }, filters: {} }
+    const loaded = loadSaved(memoryStorage({ "reply.v1": JSON.stringify(stored) }))
+    expect(loaded).toMatchObject({ text: "a", submitted: "a", originalProfile: null, editedProfile: null })
+    const noArrays = loadSaved(memoryStorage({ "reply.v1": JSON.stringify({ text: "a", originalProfile: { degraded: false } }) }))
+    expect(noArrays?.originalProfile).toBeNull()
+  })
+
   it("never throws when storage throws", () => {
     const throwing = { getItem: () => { throw new Error("blocked") }, setItem: () => { throw new Error("quota") } } as unknown as Storage
     expect(loadSaved(throwing)).toBeNull()

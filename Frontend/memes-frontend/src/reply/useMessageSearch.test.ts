@@ -105,6 +105,57 @@ describe("useMessageSearch", () => {
     expect(result.current.state.hasNext).toBe(false)
   })
 
+  it("show more is ignored while a refine is in flight", async () => {
+    const first = makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" })
+    const search = vi.fn().mockResolvedValueOnce(first).mockImplementationOnce(() => new Promise(() => {}))
+    const { result } = setup({ searchMemeFromText: search })
+    await find(result)
+    await act(async () => { result.current.setFilter("tone", ["x"]) })
+    expect(result.current.state.status).toBe("refining")
+
+    await act(async () => { result.current.loadMore() })
+
+    expect(search).toHaveBeenCalledTimes(2)
+    expect(result.current.state.items.map((r) => r.meme.id)).toEqual(["a"])
+  })
+
+  it("show more is ignored while an edit's debounce is pending", async () => {
+    const first = makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" })
+    const search = vi.fn().mockResolvedValue(first)
+    const { result } = setup({ searchMemeFromText: search })
+    await find(result)
+    act(() => result.current.editProfile((p) => addValue(p, "emotion", "joy", 3)))
+
+    await act(async () => { result.current.loadMore() })
+
+    expect(search).toHaveBeenCalledTimes(1)
+  })
+
+  it("clear filters re-runs with the original reading and no filters", async () => {
+    const { api, result } = setup()
+    await find(result)
+    await act(async () => { result.current.setFilter("tone", ["wholesome"]) })
+    await act(async () => { result.current.clearFilters() })
+
+    const calls = (api.searchMemeFromText as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls).toHaveLength(3)
+    expect(calls[2][0].filters).toBeUndefined()
+    expect(calls[2][0].profile).toEqual(result.current.state.originalProfile)
+    expect(result.current.state.filters).toEqual({ emotion: [], stance: [], topic: [], tone: [] })
+  })
+
+  it("show more replaces the list when the server restarted it", async () => {
+    const first = makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" })
+    const restarted = makeResponse({ items: [makeResult("a"), makeResult("b")], hasNext: false })
+    const search = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(restarted)
+    const { result } = setup({ searchMemeFromText: search })
+    await find(result)
+
+    await act(async () => { result.current.loadMore() })
+
+    expect(result.current.state.items.map((r) => r.meme.id)).toEqual(["a", "b"])
+  })
+
   it("drops a response that arrives after a newer request began", async () => {
     let resolveFirst: (value: unknown) => void = () => {}
     const search = vi.fn()

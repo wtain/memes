@@ -28,6 +28,13 @@ function cleanFilters(raw: unknown): Filters {
   return filters
 }
 
+function cleanProfile(raw: unknown): QueryProfile | null {
+  if (typeof raw !== "object" || raw === null) return null
+  const p = raw as Record<string, unknown>
+  const ok = AXES.every((axis) => Array.isArray(p[axis])) && typeof p.degraded === "boolean" && typeof p.taxonomyVersion === "number"
+  return ok ? (raw as QueryProfile) : null
+}
+
 export function loadSaved(storage: Storage | null): Saved | null {
   if (!storage) return null
   try {
@@ -38,8 +45,8 @@ export function loadSaved(storage: Storage | null): Saved | null {
     return {
       text: data.text,
       submitted: typeof data.submitted === "string" ? data.submitted : null,
-      originalProfile: data.originalProfile ?? null,
-      editedProfile: data.editedProfile ?? null,
+      originalProfile: cleanProfile(data.originalProfile),
+      editedProfile: cleanProfile(data.editedProfile),
       filters: data.filters ? cleanFilters(data.filters) : { ...EMPTY_FILTERS },
     }
   } catch {

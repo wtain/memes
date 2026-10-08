@@ -28,6 +28,7 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
 
   const execute = useCallback(async (mode: Mode, overrides: Overrides = {}) => {
     const current = stateRef.current
+    if (mode === "more" && (!current.lastRequest || !current.nextCursor)) return
     const request = buildRequest(current, mode, overrides)
     const seq = ++seqRef.current
     abortRef.current?.abort()
@@ -126,6 +127,8 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
   function loadMore() {
     const current = stateRef.current
     if (!current.hasNext || !current.nextCursor || current.loadingMore) return
+    // The list is about to change (a refine is running or an edit is waiting to be sent): its cursor is stale.
+    if (current.status === "reading" || current.status === "refining" || timerRef.current !== null) return
     void execute("more")
   }
 

@@ -20,12 +20,24 @@ describe("useTaxonomy", () => {
   })
 
   it("refetches once when a response reports another version", async () => {
+    const api = makeMockApi({ getTaxonomy: vi.fn().mockResolvedValueOnce(TEST_TAXONOMY).mockResolvedValue({ ...TEST_TAXONOMY, version: 3 }) })
+    const { result, rerender } = renderHook(({ v }) => useTaxonomy(api, v), { initialProps: { v: null as number | null } })
+    await waitFor(() => expect(result.current).not.toBeNull())
+    rerender({ v: 3 })
+    await waitFor(() => expect(result.current?.version).toBe(3))
+    rerender({ v: 3 })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(api.getTaxonomy).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not loop when the backend keeps returning the old version", async () => {
     const api = makeMockApi()
     const { result, rerender } = renderHook(({ v }) => useTaxonomy(api, v), { initialProps: { v: null as number | null } })
     await waitFor(() => expect(result.current).not.toBeNull())
     rerender({ v: 3 })
     await waitFor(() => expect(api.getTaxonomy).toHaveBeenCalledTimes(2))
-    rerender({ v: 3 })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(result.current?.version).toBe(2)
     expect(api.getTaxonomy).toHaveBeenCalledTimes(2)
   })
 

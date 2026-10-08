@@ -18,7 +18,8 @@ export function buildRequest(state: State, mode: Mode, overrides: Overrides = {}
   if (mode === "find") return { text: state.text.trim(), limit: PAGE_SIZE }
 
   // "Show more" replays the exact request that produced the list: the server ties a cursor to the request.
-  if (mode === "more" && state.lastRequest && state.nextCursor) {
+  if (mode === "more") {
+    if (!state.lastRequest || !state.nextCursor) throw new Error("Show more needs the current list's request and cursor")
     return { ...state.lastRequest, cursor: state.nextCursor }
   }
 

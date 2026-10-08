@@ -35,4 +35,9 @@ describe("buildRequest", () => {
     const s = state({ lastRequest: last, nextCursor: "c9", originalProfile: makeProfile() })
     expect(buildRequest(s, "more")).toEqual({ text: "hello", limit: 20, cursor: "c9" })
   })
+
+  it("show more throws when the list's request or cursor is missing", () => {
+    expect(() => buildRequest(state({ nextCursor: "c9" }), "more")).toThrow("Show more needs")
+    expect(() => buildRequest(state({ lastRequest: { text: "hello" } }), "more")).toThrow("Show more needs")
+  })
 })
