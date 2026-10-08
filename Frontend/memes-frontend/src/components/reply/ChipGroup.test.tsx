@@ -102,9 +102,10 @@ describe("ChipGroup", () => {
     const user = userEvent.setup()
     const { rerender } = render(<Stateful initial={["a", "b"]} removes={false} />)
     await user.click(removeBtn("a"))
-    removeBtn("b").focus()
+    // the removal changed nothing; focus an element other than the pending target ("b")
+    removeBtn("a").focus()
     rerender(<Stateful initial={["a", "b"]} removes={false} />)
-    expect(removeBtn("b")).toHaveFocus()
+    expect(removeBtn("a")).toHaveFocus()
   })
 
   it("moves focus to the new chip when picking fills the axis", async () => {

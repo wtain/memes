@@ -63,6 +63,7 @@ describe("ValuePicker", () => {
     await user.click(button)
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
     expect(button).toHaveAttribute("aria-expanded", "false")
+    expect(button).toHaveFocus()
   })
 
   it("toggles from the keyboard with Enter and Space on the button", async () => {

@@ -60,8 +60,12 @@ export default function ValuePicker({ axisLabel, options, disabled = false, onPi
           if (open) e.preventDefault()
         }}
         onClick={() => {
+          if (open) {
+            close()
+            return
+          }
           setActive(0)
-          setOpen((o) => !o)
+          setOpen(true)
         }}
         className="min-h-11 rounded-full border border-dashed px-3 text-sm text-blue-700 disabled:opacity-40"
       >
