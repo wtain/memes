@@ -56,7 +56,7 @@ describe("searchMemeFromText", () => {
   })
 
   it("lets an abort through so the caller can recognise it", async () => {
-    const abortError = new Error("aborted") as unknown as { name: string }
+    const abortError = new Error("aborted")
     Object.defineProperty(abortError, "name", { value: "AbortError" })
     stubFetch(abortError)
 
