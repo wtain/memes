@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom"
 import AppLayout from "./AppLayout"
 import ExplorePage from "../pages/ExplorePage"
 import SearchPage from "../pages/SearchPage"
+import ReplyPage from "../pages/ReplyPage"
 import type { MemesApi } from "../api/MemesApi";
 import { HttpMemesApi } from "../api/http/HttpMemesApi";
 import ConceptsPage from "../pages/ConceptsPage";
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: "/trends", element: <TrendsPage memesApi={memesApi} /> },
       { path: "/trends/date/:date", element: <TrendsDatePage memesApi={memesApi} /> },
       { path: "/trends/history/:label/:name", element: <TrendHistoryPage memesApi={memesApi} /> },
+      { path: "/reply", element: <ReplyPage memesApi={memesApi} /> },
       { path: "/search", element: <SearchPage memesApi={memesApi} /> },
       { path: "/recommendations", element: <RecommendationsPage memesApi={memesApi} /> },
       { path: "/concepts", element: <ConceptsPage memesApi={memesApi} /> },

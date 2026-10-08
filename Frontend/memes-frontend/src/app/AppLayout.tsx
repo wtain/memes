@@ -82,6 +82,15 @@ export default function AppLayout() {
           </NavLink>
 
           <NavLink
+            to="/reply"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Reply
+          </NavLink>
+
+          <NavLink
             to="/search"
             onClick={handleListNavClick("/search")}
             className={({ isActive }) =>
