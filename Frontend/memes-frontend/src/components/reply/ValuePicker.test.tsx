@@ -53,4 +53,28 @@ describe("ValuePicker", () => {
     render(<ValuePicker axisLabel="emotion" options={options} disabled onPick={vi.fn()} />)
     expect(screen.getByRole("button", { name: /add emotion/i })).toBeDisabled()
   })
+
+  it("closes when the button is clicked again", async () => {
+    const user = userEvent.setup()
+    render(<ValuePicker axisLabel="emotion" options={options} onPick={vi.fn()} />)
+    const button = screen.getByRole("button", { name: /add emotion/i })
+    await user.click(button)
+    expect(screen.getByRole("listbox")).toBeInTheDocument()
+    await user.click(button)
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+    expect(button).toHaveAttribute("aria-expanded", "false")
+  })
+
+  it("toggles from the keyboard with Enter and Space on the button", async () => {
+    const user = userEvent.setup()
+    render(<ValuePicker axisLabel="emotion" options={options} onPick={vi.fn()} />)
+    const button = screen.getByRole("button", { name: /add emotion/i })
+    button.focus()
+    await user.keyboard("{Enter}")
+    expect(screen.getByRole("listbox")).toBeInTheDocument()
+    await user.keyboard("{Escape}")
+    expect(button).toHaveFocus()
+    await user.keyboard(" ")
+    expect(screen.getByRole("listbox")).toBeInTheDocument()
+  })
 })

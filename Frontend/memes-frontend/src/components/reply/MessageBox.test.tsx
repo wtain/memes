@@ -43,4 +43,11 @@ describe("MessageBox", () => {
     setup("x".repeat(600))
     expect(screen.getByRole("status")).toHaveTextContent("Limit of 600 characters reached")
   })
+
+  it("does not submit a blank or whitespace message with Ctrl+Enter", async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = setup("   ")
+    await user.type(screen.getByLabelText("Message to reply to"), "{Control>}{Enter}{/Control}")
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
 })

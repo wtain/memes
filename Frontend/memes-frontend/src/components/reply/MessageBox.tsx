@@ -7,6 +7,7 @@ type Props = {
 }
 
 export default function MessageBox({ value, onChange, onSubmit }: Props) {
+  const blank = value.trim() === ""
   const atLimit = value.length >= MESSAGE_LIMIT
 
   return (
@@ -14,7 +15,7 @@ export default function MessageBox({ value, onChange, onSubmit }: Props) {
       className="rounded-xl bg-white p-4 shadow-sm"
       onSubmit={(e) => {
         e.preventDefault()
-        onSubmit()
+        if (!blank) onSubmit()
       }}
     >
       <label htmlFor="reply-message" className="mb-1 block font-medium">
@@ -29,7 +30,7 @@ export default function MessageBox({ value, onChange, onSubmit }: Props) {
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
             e.preventDefault()
-            onSubmit()
+            if (!blank) onSubmit()
           }
         }}
         aria-describedby="reply-message-hint reply-message-count"
@@ -45,7 +46,7 @@ export default function MessageBox({ value, onChange, onSubmit }: Props) {
       <p role="status" className="sr-only">{atLimit ? `Limit of ${MESSAGE_LIMIT} characters reached` : ""}</p>
       <button
         type="submit"
-        disabled={value.trim() === ""}
+        disabled={blank}
         className="mt-3 min-h-11 rounded-md bg-blue-600 px-4 py-2 font-medium text-white disabled:opacity-50"
       >
         Find a meme

@@ -55,6 +55,10 @@ export default function ValuePicker({ axisLabel, options, disabled = false, onPi
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
+        onMouseDown={(e) => {
+          // keep focus on the open list so its blur does not close it before the click toggles it
+          if (open) e.preventDefault()
+        }}
         onClick={() => {
           setActive(0)
           setOpen((o) => !o)
