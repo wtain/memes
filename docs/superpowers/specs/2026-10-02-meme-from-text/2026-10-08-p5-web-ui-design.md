@@ -1,6 +1,7 @@
 # P5: Web UI (searcher experience) — Design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-08-p5-web-ui.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P5, narrowed to the searcher UI on 2026-10-08)
 Follow-ups: none yet (P5b rating widget and P5c curator tools are separate specs, see Out of scope)
 
