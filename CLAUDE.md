@@ -393,7 +393,8 @@ python -m evaluation        → meme-from-text evaluation harness (P6): frozen 1
                                evaluation/gold/ (committed; sheets, pools and thumbnails stay in
                                evaluation/work/, gitignored). Commands: build-corpus, build-pools --round N,
                                sheet --round N, import-judgments, run --retriever {random,lexical_and,
-                               lexical_or,situation_embedding,axis_match} --label L, compare A B, list-baselines.
+                               lexical_or,situation_embedding,axis_match,parsed_axis_match,fused} --label L, compare A B, list-baselines,
+                               tune-weights (P4: fusion-weight search, see the retrieval entry).
                                Database commands read only: set APP_ENV and DATABASE_URL to the READ-ONLY URL
                                (role ocr_readonly) in the shell first; the CLI refuses otherwise and never calls
                                load_env() (it would swap in the write-capable URL). Profile the corpus with the
@@ -424,6 +425,33 @@ parse (package parse/)       → the meme-from-text query parser (P3): turns a p
                                --sources/--random/--depth/--parse-model to pool a parser's own top ten for a judging
                                round. See docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-05-p3-query-understanding-design.md
                                (addendum: model comparison, handoff notes for P4).
+
+retrieval (package retrieval/) → the meme-from-text retrieval stage (P4): turns the P3 query profile into a ranked,
+                               explained, paginated page of memes. Pure modules (stdlib, taxonomy, parse and retrieval
+                               only, an AST test enforces it): config, scoring, weighted-sum fusion, duplicate-cluster
+                               collapse and facets, cursor, the Ollama embedding client (urllib, like parse/), the
+                               pipeline (result cache, parser circuit breaker, degraded paths) and the typed tools.
+                               SQL lives in repository/meme_retrieval.py (eligible set: active, not flagged, has a
+                               profile; three candidate sources: situation-embedding top-K, axis overlap, lexical;
+                               never commits). Endpoint POST /api/meme-from-text/search (Backend/app/api/meme_from_text.py,
+                               service Backend/app/services/meme_from_text_service.py; process-wide pipeline in
+                               meme_from_text_pipeline.py, built at startup with a model warm-up task every 20 minutes;
+                               `it` has no parser and answers `meta.available: false`). Never fails because a model
+                               failed (degraded: unavailable, timeout, invalid_output, breaker_open, embed_unavailable;
+                               lexical matching only runs in that case, lexical.only_when_degraded). The user's text is
+                               never logged. Settings: search.meme_from_text.* (every key required; weights from
+                               `python -m evaluation tune-weights --parse-model M --label L`, which collects the
+                               candidates once and runs coordinate ascent with cross-validation, then you commit the
+                               printed weights; situation and lexical weights must stay above 0). Evaluate with
+                               `python -m evaluation run --retriever fused --parse-model M --label L` (read-only DB,
+                               prints retrieval/parse/embed latency and degraded queries) and pool its top ten with
+                               `build-pools --sources fused`. tests/load/synthetic_load_check.py fills the TEST database
+                               (ocrdb_test only, never drops the schema) with 25,000 synthetic profiles and times the
+                               retrieval stage (p95 budget 300 ms). Windows gotcha: a client request over 16,384 bytes
+                               over the IPv6 loopback stalls ~44 ms, hence the compact vector literal and the array
+                               parameters in the repository. The backend image needs retrieval/. See
+                               docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-07-p4-retrieval-fusion-and-api-design.md
+                               (addendum: results, decisions, handoff notes for P5).
 
 build_statistics            → precomputes the statistics page's numbers into the single-row
                                statistics_snapshots table (name='corpus'), so GET

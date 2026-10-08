@@ -40,3 +40,7 @@ The image ids are database-local UUIDs of the `general` environment. The gold da
 - The `general` library has descriptions for almost every image, so the input strata `ocr only` (26) and `no usable text` (2) are tiny; their shortfall went to `ocr+description`. Per-stratum numbers for those two strata rest on very few images.
 
 `tune-weights` collects the fused pipeline's candidates once and searches the fusion weights with cross-validation (`tuning/<label>.json`); `run --retriever fused --parse-model M` evaluates the production pipeline restricted to the corpus.
+
+## Round 3 (P4) and the fused retriever
+
+Round 3 pooled the unjudged members of the tuned `fused` pipeline's top ten (`build-pools --round 3 --sources fused --parse-model M --random 0 --depth 10`; 223 pairs, 216 judged, 7 repeats of the same images left unjudged). `python -m evaluation tune-weights --parse-model M --label L` collects the fused pipeline's candidates once and searches the fusion weights with cross-validation (`tuning/<label>.json`, refuses degraded profiles unless `--allow-degraded`); `run --retriever fused --parse-model M` evaluates the production pipeline restricted to the corpus. After a new judging round re-run every baseline with `--force` so all share one gold fingerprint (the stored `parsed_qwen2-latest` baseline predates round 3 and is kept only as history).

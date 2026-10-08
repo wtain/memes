@@ -1,6 +1,6 @@
 # P4: Retrieval, fusion and API — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-07-p4-retrieval-fusion-and-api.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P4)
 Follow-ups: none yet (P5, the web UI, consumes the endpoint defined here)
@@ -169,3 +169,64 @@ Each root as its own `pytest` command (CLAUDE.md); the **whole** `tests/integrat
 6. Evaluation extension: the `fused` retriever, `tune-weights`, `build-pools --sources fused`.
 7. The synthetic load check (test database only).
 8. Controller steps: run `fused` with the defaults, tune the weights, review and commit them, build the round-3 pools, the user judges, import, final baseline and threshold check, the latency measurements, then the addendum, tracker, `CLAUDE.md` and review report.
+
+## Addendum: result (2026-10-08)
+
+Implemented on branch `p4-retrieval-fusion-and-api` (eight plan tasks, task 8b, the review fix rounds, the final fix wave and the live steps). Every approved threshold holds on the final judgments.
+
+### Tuned weights and what they mean
+
+`python -m evaluation tune-weights --parse-model qwen2.5:7b-instruct --label tune-1` (`evaluation/gold/tuning/tune-1.json`; coordinate ascent with 5-fold leave-queries-out cross-validation stratified by language): the former defaults scored nDCG@10 0.355, the tuned weights 0.398 in-sample and **0.386 cross-validated** (folds 0.314 to 0.432, so the 60-query set is noisy). The only change was `situation` 0.40 -> 0.10; emotion 0.15, stance 0.10, topic 0.15, tone 0.10 and lexical 0.10 stayed (lexical only matters on degraded requests, see below). The situation embedding is the weakest single signal (baseline 0.251) while the controlled axes carry the match, so the fusion leans on them and uses the situation similarity as a tie-breaker. These weights are in `environments/settings.yaml` (`search.meme_from_text.weights`).
+
+### Results on the final judgments
+
+Round 3 imported: 216 judgments, 0 overwritten, 1,436 judgments in total; judged@10 of the fused top ten 0.988.
+
+| baseline | nDCG@10 |
+|---|---|
+| random | 0.004 |
+| lexical_and | 0.000 |
+| lexical_or | 0.187 |
+| situation_embedding | 0.251 |
+| axis_match (gold profiles) | 0.286 |
+| parsed_axis_match (qwen2.5:7b-instruct) | 0.424 (0.468 on the round-2 judgments; the ideal ranking grew when round 3 found more relevant memes) |
+| **fused (this feature)** | **0.526**, hit@10 1.000 |
+
+Threshold check (spec decision 10, approved 2026-10-07):
+
+| criterion | required | result |
+|---|---|---|
+| overall nDCG@10 | at least 0.50 | 0.526 |
+| overall hit@10 | at least 0.95 | 1.000 |
+| per language vs English | at least 0.85 of en, at least 0.30 | en 0.529; es 0.555 (1.049); ru 0.494 (0.934); hit@10 1.00 each |
+| difficulty | not below the best baseline's class score | ambiguous 0.539 (best baseline 0.416); easy 0.540 (0.466); hard 0.506 (0.391) |
+| length | not below the best baseline's class score | long 0.547 (0.477); medium 0.445 (0.340); short 0.668 (0.538) |
+
+Caveat: the weights were tuned and the final numbers measured on the same 60 queries, so the final figure is mildly optimistic (the cross-validated estimate 0.386 and the in-sample 0.398 were measured before round 3, on partly unjudged top tens). Round 3 judged the tuned pipeline's own top ten, which removes the pooling bias against it.
+
+### Latency
+
+- Retrieval on the gold corpus (restricted to 1,500 images, real `general` database): p50 109 ms, p95 234 ms; embedding p50 about 16 ms; parse p50 702 ms, p95 937 ms (warm models, 0 degraded queries). The sum of the stage percentiles is about 0.83 s at p50 and about 1.2 s at p95, far inside the 3 s / 8 s budget.
+- Unrestricted candidate generation against the 1,640 real profiles: p50 108 ms, p95 142 ms.
+- Synthetic check, 25,000 profiles in the test database (`tests/load/synthetic_load_check.py`): p50 107 ms, p95 132 ms. The run-to-run spread on this machine was large (earlier measurements p95 143 to 310 ms) until task 8b removed the 16 KB-request stall described below.
+- Degraded smoke test with Ollama unreachable (pointed at a closed port): every request answered, ranked by lexical scores (not by id), the circuit breaker opened after three failures (`breaker_open`), 2 to 5.6 s per degraded request (mostly the 2 s embedding timeout on Windows).
+
+### Decisions made during the live steps and review (deviations from the text above)
+
+1. **Lexical matching is a fallback, not a source for every request** (new required setting `search.meme_from_text.lexical.only_when_degraded: true`). Measured on the real library it cost about 250 ms at p50 and over a second at p95 per request (several statements per token over the whole library) for +0.01 nDCG@10, so it now runs only when the parse was degraded or the embedding failed, where it is the only signal left; `lexical.max_tokens: 20` additionally caps it to the 20 longest distinct tokens. Setting `only_when_degraded: false` restores the always-on behaviour (the synthetic load check does that when `--lexical-tokens` is given: 15 tokens gave p95 328 ms there, harsher than real messages).
+2. **A latency stall found by profiling** (task 8b): on this Windows machine every client request over 16,384 bytes over the IPv6 loopback connection stalls about 44 ms. The query vector was sent as 21 KB of text and the cosine lookup carried 600 UUIDs, about 88 ms of a 210 ms p50. Fixes, results unchanged (36 queries, 14,756 candidates compared, 0 differences): `%.9g` vector literals, `= ANY(:ids)` array parameters (this also removes the asyncpg 32,767 bind-parameter limit risk), one `set_config` round trip for the HNSW settings with the support probe cached only for unknown-setting errors. If the real backends connect over `localhost` the same applies there; `127.0.0.1` in the DSN avoids it altogether.
+3. Degraded results are cached for 10 s (healthy ones 120 s) so a transient Ollama blip cannot outlive itself; the cache key includes `languageHint`.
+4. `fuse` falls back to equal weights over the present axes when their summed weight is 0, and `load_config` requires `weights.situation > 0` and (when lexical is enabled) `weights.lexical > 0`, because a tuned zero would turn the degraded paths into results ordered by id; the tuning never proposes such vectors.
+5. Request bounds were added to the public schema (text 8,000 characters, filter arrays and tags 64 items, strings 128, cursor 512). A database error on the search path returns a generic 500 and logs only the exception type (the engine does not hide SQL parameters, which would have logged lemmas of the message). `tune-weights` refuses to run on degraded profiles unless `--allow-degraded`, and aborts when the parser breaker opens.
+6. Decision 8 (tools) is implemented as `search_memes_from_text`, `score_candidates` and `explain_results`; the separate `generate_candidates` / `fuse_and_rank` / `filter_and_facet` tool functions of the spec text are not exposed (the pipeline's `prepare` and `rank` are the equivalents, used by the tuning).
+7. The risk-table mitigation "digest mismatch at startup logged and counted" is not implemented at startup; the evaluation commands do check the embedding digest (`run`, `build-pools`, `tune-weights`).
+8. `meta.retrievalMs` covers candidate generation plus scoring, fusion, duplicate collapse and facets for a computed request (not the parse or the embedding).
+
+### Handoff notes for P5 (web UI)
+
+- Endpoint `POST /api/meme-from-text/search`, documented in `backend_api.md`: request `text` (up to 8,000 characters; the backend uses the first 600), optional `languageHint`, optional edited `profile`, `filters`, `cursor`, `limit` (1 to 50, default 20). To re-search with an edited profile send back the profile object of the previous response with the edits (it must be a full query profile; the message is then not parsed again and `parserVersion` becomes `edited`).
+- The response never fails because a model failed: `degraded: true` with `fallback` (`unavailable`, `timeout`, `invalid_output`, `empty_input`, `breaker_open`, `embed_unavailable`, joined with `+`) shows a degraded state; `meta.available: false` means this environment has no parser (`it`), with an empty page. Fields whose value is null are omitted (`nextCursor`, `clusterId`, `clusterSize`, `situationText`, `useWhen`, `profile.situation`).
+- Cursors are opaque and tied to the request; a cursor of another request restarts at the first page. Results are cached server-side for 120 s (degraded 10 s), so paging is stable. Facets count the filtered, duplicate-collapsed candidate set (up to the 600-candidate cap), one list per axis; filters are OR within an axis and AND across axes; tag filters match any listed pair.
+- Each item has `explanation.axes[]` (score, renormalised weight, contribution, `neutral` when the meme has no value on a queried axis, matched pairs with curated-neighbour similarity), `situationText`, `useWhen`, `clusterSize` (duplicates collapsed into it) and `axisPath` (false only for lexical-only hits on images without a profile, which appear in degraded responses).
+- Breaker note: while the parser breaker is open (30 s after three consecutive unavailable/timeout parses) a message that the parser already knows still answers degraded, because the breaker bypasses the parse cache; waits for a free parser slot that time out under load count as `timeout`, so heavy concurrent load alone can open the breaker for everyone. Operational note: the backend now warms the parse and embedding models every 20 minutes (`warm_interval_minutes`), so on the always-on `metal` and `general` environments `qwen2.5:7b` and `bge-large` stay loaded in GPU memory next to batch jobs such as `build_image_descriptions`; there is no opt-out setting yet.
+- Coverage: only about 1,640 of 32,000 `general` images are profiled (`meme_profiles`); the backlog run (board task 158, about 6.7 h on `general`, 3.8 h on `metal`) must happen before P5 or any rollout. Quality was measured on the 1,500-image gold corpus, not on the full library.
