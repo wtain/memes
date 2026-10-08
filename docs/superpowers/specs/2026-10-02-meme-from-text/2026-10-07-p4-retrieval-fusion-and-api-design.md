@@ -3,7 +3,7 @@
 Status: done
 Plan: docs/superpowers/plans/2026-10-07-p4-retrieval-fusion-and-api.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P4)
-Follow-ups: none yet (P5, the web UI, consumes the endpoint defined here)
+Follow-ups: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-08-p5-web-ui-design.md (P5, the web UI, consumes the endpoint defined here)
 
 Epic: `docs/superpowers/specs/2026-10-02-meme-from-text/README.md`. Inherited contracts: ADR-003 (candidate union, per-axis scores, weighted-sum fusion, filters, facets, diversity, cursor, explanations, fallbacks), P1 (`queryprofile`/`memeprofile` schemas, vocabulary similarity artifact), P2 (profile tables and the situation embeddings), P3 (`parse_query`, `QueryParser`, the degraded contract and its handoff notes), P6 (the gold set, the harness and the **re-based acceptance thresholds approved on 2026-10-07**).
 Requirements covered: FR-6, FR-13 to FR-17, FR-19 to FR-22, NFR-1, OQ-6; it also provides the evidence for NFR-6 on the gold set.
