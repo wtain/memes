@@ -661,6 +661,8 @@ Two implementations coexist:
 
 Vite reads env files from `../../environments/` (relative to `Frontend/memes-frontend/`). The `VITE_BACKEND_API_URL` var must be set per environment. TypeScript types for API responses are generated from `shared/schemas/` — do not hand-write them.
 
+The meme-from-text page is `/reply` (`src/pages/ReplyPage.tsx`): logic lives in `src/reply/` (pure helpers, a reducer, `useMessageSearch`, `useTaxonomy`, sessionStorage persistence), presentational components in `src/components/reply/`, and the vocabulary comes from `GET /api/meme-from-text/taxonomy`. The app renders in `StrictMode` and uses the React Compiler ESLint rules, so every effect must survive a double mount and refs are only touched in handlers and effects. A paging cursor is tied to the exact request that produced it: "Show more" replays the request of the current list. See `docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-08-p5-web-ui-design.md` (addendum: live check, deviations, handoff).
+
 ### Android
 
 `imageUrl` from the API is a relative path (`/api/images/{id}`). Coil requires absolute URLs; callers prepend `http://localhost` and the OkHttp interceptor in `NetworkModule` rewrites the host at request time. All navigation is wired through `NavGraph.kt`; screens receive callbacks and never touch `NavController` directly.

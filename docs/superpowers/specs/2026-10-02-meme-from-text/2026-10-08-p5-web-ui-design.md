@@ -1,6 +1,6 @@
 # P5: Web UI (searcher experience) — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-08-p5-web-ui.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P5, narrowed to the searcher UI on 2026-10-08)
 Follow-ups: none yet (P5b rating widget and P5c curator tools are separate specs, see Out of scope)
@@ -110,3 +110,42 @@ The rating widget (US-5, P5b; needs a database table, an endpoint and a gold-set
 5. Components: result card with the explanation, the notices, the facets and filters, "Show more", tests.
 6. The page, route, nav entry and responsive layout.
 7. Controller step: a real-browser check against a restarted backend, accessibility pass, docs, review report and tracker.
+
+## Addendum: result (2026-10-09)
+
+Implemented on branch `p5-web-ui` (six plan tasks, their fix rounds, one whole-branch review with a final fix wave and a small focus follow-up, then a live check). `/reply` works end to end against the real backend.
+
+### What was built
+
+- **Backend:** `GET /api/meme-from-text/taxonomy` (schema `taxonomyresponse.schema.json`, `Backend/app/services/meme_from_text_taxonomy.py`, regenerated TypeScript, Kotlin and Python types, `backend_api.md`). The Kotlin generator now emits `List<JsonObject>` for arrays of inline objects (it emitted `List<Any>`, which kotlinx.serialization cannot serialise; P4's `AxisExplanation.matched` already had it on `main`).
+- **Frontend:** `src/reply/` (types, pure helpers, reducer, `useMessageSearch`, `useTaxonomy`, storage), `src/components/reply/` (`MessageBox`, `ValuePicker`, `ChipGroup`, `ReadingPanel`, `ResultCard`, `ExplanationPanel`, `AxisFacets`, `ActiveFilters`, `StatusBanner`), `src/pages/ReplyPage.tsx`, the `/reply` route and a "Reply" nav link; two new `MemesApi` methods.
+- Gates on the final commit: `tsc -b`, `eslint src/ --max-warnings 0`, `vitest run` (443 tests, 165 of them new) and `vite build` all pass; Backend root 394 tests.
+
+### Live verification (2026-10-09, real `general` database via the read-only role, real Ollama, a minimal backend on a free port without the scheduler)
+
+- An English message returned a parsed reading with vocabulary labels (Frustration / Complain / Work), 20 results, facets, and "Why this meme" explanations in about 1.2 s end to end.
+- Russian and Spanish messages were detected (`ru`, `es`) and parsed to the same English reading; 20 results each.
+- Removing a chip re-ran retrieval only: the server accepted the edited profile (HTTP 200) and reported `parseMs: 0`, `embedMs: 0`.
+- Show more replayed the same request body plus the cursor: HTTP 200, 40 unique cards, `cacheHit: true`, focus stayed inside the results, the hidden count line read "40 memes shown, more available".
+- A facet filter re-ran with the same reading and no parse (`parseMs: 0`), showed the active-filter chip and "16 memes found".
+- With Ollama unreachable the page showed "Limited understanding ... the language model is not reachable; the similarity model is not reachable", explained that the message could not be read structurally, and kept the reading panel editable.
+- **Not verified:** the narrow-window layout (the browser tool could not change the viewport; the disclosure is tested by roles and attributes only), screen-reader announcements, the `it` unavailable state and the real 404 of a not-yet-restarted backend (both covered by tests only), and the Gradle compile of `Models.kt` (the wrapper cannot download its distribution here; the change is verified by regeneration, and `Models.kt` already used `JsonObject` fields under `@Serializable`).
+
+### Deviations from the spec text (decided during planning and review)
+
+1. "Show more" replays the exact request body of the list being paged (`lastRequest`) plus the cursor: the server ties a cursor to the whole request fingerprint, so rebuilding the request with the returned profile would restart the list.
+2. A degraded original reading is never sent back as `profile` (it is empty and would be treated as an edited profile that ranks nothing).
+3. `AxisFacets` is a new component (taxonomy labels, native checkboxes, selected values kept with count 0) instead of reusing `MultiSelectFacet`.
+4. Abort handling lives in the hook; the API client rethrows `AbortError`.
+5. sessionStorage also keeps the original reading and the submitted text, so a restore is one retrieval-only request.
+6. The nav link reads "Reply" (spec decision 1 said "Find a meme for a message"; the page title carries that text).
+7. A failed refine keeps the results, facets and filters on screen, and "Try again" re-runs with the current edits and filters (it falls back to a text-only search after a validation error); Show more is hidden while the status is `error`.
+8. A 404 or 405 on the search call is shown as "unavailable" (a backend that has not been restarted), not as an error.
+9. A "Show more" response whose degraded state differs from the list's, or whose first item equals the first item shown, replaces the list instead of appending; appended items are de-duplicated (the server cache expires after 120 s healthy, 10 s degraded, and the cursor is positional).
+10. Beyond the spec: a visible hint at the 600-character limit, busy styling and restore skeletons, focus targets after self-removing controls and after Show more, one always-mounted polite live region for the banner texts, count wording "N memes shown, more available".
+
+### Handoff notes for P5b (rating) and P5c (curator tools)
+
+- Rating (US-5) needs a database table with a migration, an endpoint that stores query hash, parse version, meme id and rank, and an export into the gold-set format; the result card already has a place for a control next to "Why this meme".
+- The meme-profile editor (US-9) and the coverage view (US-8) need new backend endpoints (profile read and edit with human-verified marking and vector refresh, coverage counts); the taxonomy endpoint and the chips components (`ChipGroup`, `ValuePicker`) are reusable for the editor.
+- Known gaps: the existing `MemeCard` image is not keyboard-focusable, so after "Show more" focus lands on the first button inside the new card; two polite live regions (banner and result count) can announce together; on `general` only about 5% of the library has profiles until the backlog run (board task 158).
