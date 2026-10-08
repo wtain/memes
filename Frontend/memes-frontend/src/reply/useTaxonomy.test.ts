@@ -1,3 +1,4 @@
+import { StrictMode } from "react"
 import { renderHook, waitFor } from "@testing-library/react"
 import { useTaxonomy } from "./useTaxonomy"
 import { makeMockApi } from "../test/mockApi"
@@ -46,5 +47,22 @@ describe("useTaxonomy", () => {
     const { result } = renderHook(() => useTaxonomy(api, null))
     await waitFor(() => expect(api.getTaxonomy).toHaveBeenCalled())
     expect(result.current).toBeNull()
+  })
+
+  it("loads the vocabulary under StrictMode (effect, cleanup, effect)", async () => {
+    const api = makeMockApi()
+    const { result } = renderHook(() => useTaxonomy(api, null), { wrapper: StrictMode })
+    await waitFor(() => expect(result.current).toEqual(TEST_TAXONOMY))
+    expect((api.getTaxonomy as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("refetches a mismatching version under StrictMode without looping", async () => {
+    const api = makeMockApi({ getTaxonomy: vi.fn().mockResolvedValueOnce(TEST_TAXONOMY).mockResolvedValue({ ...TEST_TAXONOMY, version: 3 }) })
+    const { result, rerender } = renderHook(({ v }) => useTaxonomy(api, v), { wrapper: StrictMode, initialProps: { v: null as number | null } })
+    await waitFor(() => expect(result.current).not.toBeNull())
+    rerender({ v: 3 })
+    await waitFor(() => expect(result.current?.version).toBe(3))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect((api.getTaxonomy as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(5)
   })
 })

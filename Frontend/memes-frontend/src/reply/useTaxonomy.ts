@@ -16,10 +16,14 @@ export function useTaxonomy(memesApi: MemesApi, expectedVersion: number | null):
 
   useEffect(() => {
     if (loadedForApi.current === memesApi && refetchFor === null) return
-    loadedForApi.current = memesApi
     let cancelled = false
     memesApi.getTaxonomy().then(
-      (loaded) => { if (!cancelled) setTaxonomy(loaded) },
+      (loaded) => {
+        if (cancelled) return
+        // Marked only once a load succeeded: StrictMode's effect/cleanup/effect must not skip the real load.
+        loadedForApi.current = memesApi
+        setTaxonomy(loaded)
+      },
       () => { /* the chips still render from their keys; only the picker is empty */ },
     )
     return () => { cancelled = true }

@@ -1,3 +1,4 @@
+import { StrictMode } from "react"
 import { act, renderHook } from "@testing-library/react"
 import { useMessageSearch } from "./useMessageSearch"
 import { makeMockApi } from "../test/mockApi"
@@ -212,5 +213,20 @@ describe("useMessageSearch", () => {
     const { result } = setup({}, { storage })
     await find(result)
     expect(JSON.parse(store["reply.v1"])).toMatchObject({ text: "hello", submitted: "hello" })
+  })
+
+  it("restores a saved search under StrictMode and ends with the results applied", async () => {
+    const profile = makeProfile()
+    const store: Record<string, string> = {
+      "reply.v1": JSON.stringify({ text: "hello", submitted: "hello", originalProfile: profile, editedProfile: null, filters: {} }),
+    }
+    const storage = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v } } as unknown as Storage
+    const api = makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")] })) })
+    const { result } = renderHook(() => useMessageSearch(api, { debounceMs: 400, storage }), { wrapper: StrictMode })
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+
+    expect(result.current.state.status).toBe("ready")
+    expect(result.current.state.items.map((r) => r.meme.id)).toEqual(["a"])
   })
 })
