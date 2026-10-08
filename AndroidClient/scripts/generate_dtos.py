@@ -81,8 +81,15 @@ def resolve_kotlin_type(
         if "$ref" in items:
             inner = ref_to_class_name(items["$ref"], schemas_by_id)
         else:
-            inner_type = items.get("type", "Any")
-            inner = "String" if inner_type == "string" else "Any"
+            # Inline-object items map to JsonObject (serializable); "Any" has no
+            # kotlinx.serialization serializer and fails to compile.
+            inner = {
+                "string": "String",
+                "object": "JsonObject",
+                "integer": "Int",
+                "number": "Float",
+                "boolean": "Boolean",
+            }.get(items.get("type", "Any"), "Any")
         kt = f"List<{inner}>"
     elif json_type == "object":
         # Free-form JSON object (e.g. additionalProperties: true). "Map<String,

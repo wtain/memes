@@ -17,7 +17,7 @@ data class AxisExplanation(
     @SerialName("contribution") val contribution: Float,
     @SerialName("neutral") val neutral: Boolean,
     @SerialName("queryValues") val queryValues: List<String>,
-    @SerialName("matched") val matched: List<Any>
+    @SerialName("matched") val matched: List<JsonObject>
 )
 
 @Serializable
@@ -230,7 +230,7 @@ data class StatisticsTrendsStats(
 @Serializable
 data class TaxonomyResponse(
     @SerialName("version") val version: Int,
-    @SerialName("axes") val axes: List<Any>
+    @SerialName("axes") val axes: List<JsonObject>
 )
 
 @Serializable
