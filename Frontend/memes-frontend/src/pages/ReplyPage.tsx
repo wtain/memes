@@ -32,13 +32,21 @@ export default function ReplyPage({ memesApi }: Props) {
   const focusFromRef = useRef<number | null>(null)
 
   // After a "Show more" load completes, keyboard focus moves to the first new card.
+  // When there is nothing new to land on (failure, unavailable, a page without new cards), focus goes to the
+  // error's "Try again" button when present, otherwise to the Results section: never to the body.
   useEffect(() => {
     const from = focusFromRef.current
     if (from === null || state.loadingMore) return
     focusFromRef.current = null
-    const card = gridRef.current?.children[from]
-    if (state.items.length > from) card?.querySelector<HTMLElement>("button, a[href]")?.focus()
-  }, [state.items.length, state.loadingMore])
+    if (state.status === "error" || state.status === "unavailable") {
+      const retry = document.querySelector<HTMLElement>('[role="alert"] button')
+      if (retry) retry.focus()
+      else resultsRef.current?.focus()
+      return
+    }
+    if (state.items.length > from) gridRef.current?.children[from]?.querySelector<HTMLElement>("button, a[href]")?.focus()
+    else resultsRef.current?.focus()
+  }, [state.items.length, state.loadingMore, state.status])
 
   const labelOf = (axis: string, key: string) => labelFor(taxonomy, axis, key)
   const finished = state.status === "ready" || state.status === "degraded"
@@ -62,8 +70,8 @@ export default function ReplyPage({ memesApi }: Props) {
   }
 
   function showMore() {
-    if (state.hasNext && !state.loadingMore && finished) focusFromRef.current = state.items.length
-    search.loadMore()
+    const from = state.items.length
+    if (search.loadMore()) focusFromRef.current = from
   }
 
   return (

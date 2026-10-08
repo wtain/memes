@@ -142,12 +142,14 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
     void execute("refine", { filters: { ...EMPTY_FILTERS } })
   }
 
-  function loadMore() {
+  /** Returns true only when a request was actually started. */
+  function loadMore(): boolean {
     const current = stateRef.current
-    if (!current.hasNext || !current.nextCursor || current.loadingMore) return
+    if (!current.hasNext || !current.nextCursor || current.loadingMore || !current.lastRequest) return false
     // The list is about to change (a refine is running or an edit is waiting to be sent): its cursor is stale.
-    if (current.status === "reading" || current.status === "refining" || current.status === "error" || timerRef.current !== null) return
+    if (current.status === "reading" || current.status === "refining" || current.status === "error" || timerRef.current !== null) return false
     void execute("more")
+    return true
   }
 
   return {

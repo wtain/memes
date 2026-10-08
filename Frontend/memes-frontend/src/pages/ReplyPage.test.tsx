@@ -380,6 +380,54 @@ describe("ReplyPage", () => {
       expect(await screen.findByText("1 meme shown, more available")).toBeInTheDocument()
     })
 
+    it("does not steal focus when Show more was ignored during an edit debounce and the refine then replaces the list", async () => {
+      const user = userEvent.setup()
+      const search_ = vi.fn()
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" }))
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a"), makeResult("b")], hasNext: true, nextCursor: "c2" }))
+      const api = renderPage(makeMockApi({ searchMemeFromText: search_ }))
+      await search(user)
+      await user.click(await screen.findByRole("button", { name: "Remove emotion: Annoyance" }))
+      const more = screen.getByRole("button", { name: "Show more" })
+      await user.click(more)
+      expect(calls(api)).toHaveLength(1)
+
+      await waitFor(() => expect(screen.getAllByRole("img", { name: /^[ab]$/ })).toHaveLength(2), { timeout: 2000 })
+
+      expect(calls(api)).toHaveLength(2)
+      for (const img of screen.getAllByRole("img", { name: /^[ab]$/ })) {
+        expect(img.closest("div.flex.flex-col")).not.toContainElement(document.activeElement as HTMLElement)
+      }
+    })
+
+    it("moves focus to Try again when a keyboard-activated Show more fails", async () => {
+      const user = userEvent.setup()
+      const search_ = vi.fn()
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" }))
+        .mockRejectedValueOnce(new MessageSearchFailedError(500))
+      renderPage(makeMockApi({ searchMemeFromText: search_ }))
+      await search(user)
+      ;(await screen.findByRole("button", { name: "Show more" })).focus()
+      await user.keyboard("{Enter}")
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus()
+    })
+
+    it("moves focus to the Results section when the last page adds no new cards", async () => {
+      const user = userEvent.setup()
+      const search_ = vi.fn()
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" }))
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")] }))
+      renderPage(makeMockApi({ searchMemeFromText: search_ }))
+      await search(user)
+      ;(await screen.findByRole("button", { name: "Show more" })).focus()
+      await user.keyboard("{Enter}")
+
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument())
+      expect(screen.getByRole("region", { name: "Results" })).toHaveFocus()
+    })
+
     it("retries the vocabulary after a search response when its first load failed", async () => {
       const user = userEvent.setup()
       let down = true
