@@ -19,7 +19,7 @@ const REASONS: Record<string, string> = {
 function reasonsFor(fallback: string): string {
   return fallback
     .split("+")
-    .map((part) => REASONS[part])
+    .map((part) => (Object.hasOwn(REASONS, part) ? REASONS[part] : ""))
     .filter(Boolean)
     .join("; ")
 }

@@ -46,4 +46,19 @@ describe("ResultCard", () => {
     await user.click(screen.getByRole("img", { name: "a" }))
     expect(onOpen).toHaveBeenCalled()
   })
+
+  it("shows no words-only note when the axis path matched", () => {
+    setup(makeResult("a", { axisPath: true }))
+    expect(screen.queryByText("Matched by words only")).not.toBeInTheDocument()
+  })
+
+  it("points aria-controls at the opened panel", async () => {
+    const user = userEvent.setup()
+    setup()
+    const toggle = screen.getByRole("button", { name: "Why this meme" })
+    await user.click(toggle)
+    const panel = screen.getByText("Use when plans change at the last minute.").closest("[id]")
+    expect(panel).not.toBeNull()
+    expect(toggle.getAttribute("aria-controls")).toBe(panel!.id)
+  })
 })

@@ -29,14 +29,16 @@ export default function ExplanationPanel({ result, labelOf }: Props) {
     <div className="mt-2 space-y-2 rounded-md bg-gray-50 p-3 text-sm">
       <ul className="space-y-1">
         {axes.map((axis) => {
-          const percent = Math.round(axis.score * 100)
+          const percent = Number.isFinite(axis.score) ? Math.max(0, Math.min(100, Math.round(axis.score * 100))) : 0
           return (
             <li key={axis.axis}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{AXIS_NAMES[axis.axis] ?? axis.axis}</span>
-                <span>{percent}%</span>
+                <span>
+                  {percent}%<span className="sr-only"> score</span>
+                </span>
               </div>
-              <div className="h-1.5 rounded bg-gray-200" aria-hidden="true">
+              <div data-testid="score-bar" className="h-1.5 rounded bg-gray-200" aria-hidden="true">
                 <div className="h-1.5 rounded bg-blue-500" style={{ width: `${percent}%` }} />
               </div>
               <div className="text-gray-600">{describe(axis, labelOf)}</div>

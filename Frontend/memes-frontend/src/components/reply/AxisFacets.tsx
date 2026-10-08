@@ -24,7 +24,7 @@ export default function AxisFacets({ facets, selected, taxonomy, onChange, onCle
         const counts = new Map(buckets.map((bucket) => [bucket.value, bucket.count]))
         // A selected value that the filtered results no longer contain stays visible (count 0) so it can be unchecked.
         for (const value of selected[axis]) if (!counts.has(value)) counts.set(value, 0)
-        const rows = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        const rows = [...counts.entries()].sort((a, b) => b[1] - a[1] || labelFor(taxonomy, axis, a[0]).localeCompare(labelFor(taxonomy, axis, b[0])))
         if (rows.length === 0) return null
         return (
           <fieldset key={axis} className="mb-4">

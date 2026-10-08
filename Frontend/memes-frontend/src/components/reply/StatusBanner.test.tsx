@@ -42,4 +42,14 @@ describe("StatusBanner", () => {
     render(<StatusBanner status="error" fallback="none" error="failed" onRetry={vi.fn()} />)
     expect(screen.getByRole("alert")).toHaveTextContent(/something went wrong/i)
   })
+
+  it("renders a degraded banner without reasons for unknown, empty or prototype tokens", () => {
+    for (const fallback of ["bogus", "", "none", "constructor", "toString+__proto__"]) {
+      const { unmount } = render(<StatusBanner status="degraded" fallback={fallback} error={null} onRetry={vi.fn()} />)
+      const banner = screen.getByRole("status")
+      expect(banner).toHaveTextContent("Limited understanding. A simpler match was used. Results may be less precise.")
+      expect(banner).not.toHaveTextContent(/function|object/i)
+      unmount()
+    }
+  })
 })

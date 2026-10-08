@@ -57,4 +57,25 @@ describe("AxisFacets", () => {
     setup()
     expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument()
   })
+
+  it("orders equal counts by label, not by key", () => {
+    const taxonomy = {
+      ...TEST_TAXONOMY,
+      axes: TEST_TAXONOMY.axes.map((a) =>
+        a.name === "emotion" && a.type === "vocabulary"
+          ? {
+              ...a,
+              values: [
+                { key: "aaa", definition: "d", labels: { en: "Zebra", ru: "Z", es: "Z" } },
+                { key: "zzz", definition: "d", labels: { en: "Apple", ru: "A", es: "A" } },
+              ],
+            }
+          : a,
+      ),
+    }
+    const tied = [{ name: "emotion", buckets: [{ value: "aaa", count: 3 }, { value: "zzz", count: 3 }] }]
+    render(<AxisFacets facets={tied} selected={EMPTY_FILTERS} taxonomy={taxonomy} onChange={vi.fn()} onClear={vi.fn()} />)
+    const text = screen.getByRole("group", { name: "Emotion" }).textContent as string
+    expect(text.indexOf("Apple")).toBeLessThan(text.indexOf("Zebra"))
+  })
 })
