@@ -1,5 +1,6 @@
 import type { MemesApi } from '../api/MemesApi'
 import type { Meme } from '../types/generated/all'
+import { makeResponse, TEST_TAXONOMY } from '../reply/fixtures'
 
 export const DEFAULT_MOCK_MEME: Meme = {
   id: 'meme-1',
@@ -46,6 +47,8 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     }),
     triggerBatchRun: vi.fn().mockResolvedValue({ run_id: 'run-1', status: 'running' }),
     listBatchRuns: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    searchMemeFromText: vi.fn().mockResolvedValue(makeResponse()),
+    getTaxonomy: vi.fn().mockResolvedValue(TEST_TAXONOMY),
     ...overrides,
   } as MemesApi
 }

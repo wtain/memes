@@ -5,12 +5,17 @@ import type {
   IngestionResolveResponse, IngestionUndoRejectResponse, IngestionTierBReviewPage,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
+  MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
 } from "../types/generated/all";
 
 export type IngestionTier = "tier_a" | "tier_b"
 
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>
+
+  searchMemeFromText(request: MemeFromTextRequest, signal?: AbortSignal): Promise<MemeFromTextResponse>
+
+  getTaxonomy(): Promise<TaxonomyResponse>
 
   iterateUntaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>
 

@@ -6,7 +6,9 @@ import type {
   IngestionResolveResponse, IngestionUndoRejectResponse, IngestionTierBReviewPage,
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
+  MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
 } from "../../types/generated/all"
+import { MessageSearchFailedError, MessageSearchValidationError } from "../errors"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -39,6 +41,33 @@ export class HttpMemesApi implements MemesApi {
       throw new Error(`Search failed: ${response.status}`)
     }
 
+    return response.json()
+  }
+
+  async searchMemeFromText(request: MemeFromTextRequest, signal?: AbortSignal): Promise<MemeFromTextResponse> {
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/search`, {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal,
+    })
+
+    if (response.status === 422) {
+      throw new MessageSearchValidationError(await readValidationMessages(response))
+    }
+    if (!response.ok) {
+      throw new MessageSearchFailedError(response.status)
+    }
+    return response.json()
+  }
+
+  async getTaxonomy(): Promise<TaxonomyResponse> {
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/taxonomy`, {
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) {
+      throw new Error(`Taxonomy failed: ${response.status}`)
+    }
     return response.json()
   }
 
@@ -467,5 +496,19 @@ export class HttpMemesApi implements MemesApi {
     })
     if (!res.ok) throw new Error(`Failed to fetch batch runs: ${res.status}`)
     return res.json()
+  }
+}
+
+/** Server messages only: FastAPI's 422 items also echo the rejected `input`, which must never reach the UI. */
+async function readValidationMessages(response: Response): Promise<string[]> {
+  try {
+    const body = await response.json()
+    const detail = body?.detail
+    if (!Array.isArray(detail)) return typeof detail === "string" ? [detail] : []
+    return detail
+      .map((item: unknown) => (typeof item === "string" ? item : (item as { msg?: unknown })?.msg))
+      .filter((message): message is string => typeof message === "string")
+  } catch {
+    return []
   }
 }
