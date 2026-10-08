@@ -39,8 +39,11 @@ export default function MessageBox({ value, onChange, onSubmit }: Props) {
       />
       <div className="mt-1 flex items-center justify-between text-sm">
         <span id="reply-message-hint" className="text-gray-500">Press Ctrl+Enter to search.</span>
-        <span id="reply-message-count" className={atLimit ? "font-medium text-red-600" : "text-gray-500"}>
-          {value.length}/{MESSAGE_LIMIT}
+        <span>
+          {atLimit && <span className="mr-2 text-red-600">Only the first {MESSAGE_LIMIT} characters are read.</span>}
+          <span id="reply-message-count" className={atLimit ? "font-medium text-red-600" : "text-gray-500"}>
+            {value.length}/{MESSAGE_LIMIT}
+          </span>
         </span>
       </div>
       <p role="status" className="sr-only">{atLimit ? `Limit of ${MESSAGE_LIMIT} characters reached` : ""}</p>

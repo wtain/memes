@@ -4,7 +4,7 @@ import { StrictMode } from "react"
 import { MemoryRouter } from "react-router-dom"
 import ReplyPage from "./ReplyPage"
 import { makeMockApi } from "../test/mockApi"
-import { makeProfile, makeResponse, makeResult } from "../reply/fixtures"
+import { TEST_TAXONOMY, makeProfile, makeResponse, makeResult } from "../reply/fixtures"
 import { MessageSearchFailedError } from "../api/errors"
 
 beforeEach(() => window.sessionStorage.clear())
@@ -78,18 +78,22 @@ describe("ReplyPage", () => {
     expect(calls(api)[2][0].profile).toBeDefined()
   })
 
-  it("keeps the list and still offers Show more after a failed Show more", async () => {
+  it("keeps the list after a failed Show more, hides Show more while in error, and Try again recovers", async () => {
     const user = userEvent.setup()
     const search_ = vi.fn()
       .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" }))
       .mockRejectedValueOnce(new MessageSearchFailedError(500))
+      .mockResolvedValue(makeResponse({ items: [makeResult("a")] }))
     renderPage(makeMockApi({ searchMemeFromText: search_ }))
     await search(user)
     await user.click(await screen.findByRole("button", { name: "Show more" }))
 
     expect(await screen.findByRole("alert")).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "a" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+
+    await user.click(within(screen.getByRole("alert")).getByRole("button"))
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument())
   })
 
   it("removing a chip re-runs retrieval with the edited profile after the debounce", async () => {
@@ -220,5 +224,169 @@ describe("ReplyPage", () => {
     await search(user)
     expect(await screen.findByRole("img", { name: "a" })).toBeInTheDocument()
     expect(await screen.findByText("Annoyance")).toBeInTheDocument()
+  })
+
+  describe("final fix wave", () => {
+    const facetsJoy = [{ name: "emotion", buckets: [{ value: "joy", count: 1 }] }]
+
+    it("keeps Show more focusable (aria-disabled, not disabled) while loading and moves focus to the first new card", async () => {
+      const user = userEvent.setup()
+      let resolveMore: (value: unknown) => void = () => {}
+      const search_ = vi.fn()
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a"), makeResult("b")], hasNext: true, nextCursor: "c1" }))
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveMore = resolve }))
+      renderPage(makeMockApi({ searchMemeFromText: search_ }))
+      await search(user)
+      const more = await screen.findByRole("button", { name: "Show more" })
+      more.focus()
+      await user.keyboard("{Enter}")
+
+      const loading = await screen.findByRole("button", { name: "Loading…" })
+      expect(loading).not.toBeDisabled()
+      expect(loading).toHaveAttribute("aria-disabled", "true")
+      expect(loading).toHaveFocus()
+
+      await act(async () => { resolveMore(makeResponse({ items: [makeResult("c"), makeResult("d")] })) })
+
+      const newCard = screen.getByRole("img", { name: "c" }).closest("div.flex.flex-col") as HTMLElement
+      expect(newCard).not.toBeNull()
+      expect(newCard).toContainElement(document.activeElement as HTMLElement)
+      expect(document.activeElement).not.toBe(document.body)
+      expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+    })
+
+    it("shows the unavailable text, no reading and no Try again, when the endpoint answers 404", async () => {
+      const user = userEvent.setup()
+      renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockRejectedValue(new MessageSearchFailedError(404)) }))
+      await search(user)
+      expect(await screen.findByText("Message search isn't available in this environment.")).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+      expect(screen.queryByRole("heading", { name: "How I read your message" })).not.toBeInTheDocument()
+    })
+
+    it("keeps the results area mounted when a filter is removed from the empty state, and focus is not lost", async () => {
+      const user = userEvent.setup()
+      let resolveRefine: (value: unknown) => void = () => {}
+      const search_ = vi.fn()
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], facets: facetsJoy }))
+        .mockResolvedValueOnce(makeResponse({ items: [] }))
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveRefine = resolve }))
+      renderPage(makeMockApi({ searchMemeFromText: search_ }))
+      await search(user)
+      await user.click(await screen.findByLabelText("Joy (1)"))
+      expect(await screen.findByText("No memes fit")).toBeInTheDocument()
+
+      await user.click(screen.getByRole("button", { name: "Remove filter emotion: Joy" }))
+
+      const results = screen.getByRole("region", { name: "Results" })
+      expect(results).toHaveFocus()
+      expect(screen.getByRole("region", { name: "Filters" })).toBeInTheDocument()
+      expect(document.activeElement).not.toBe(document.body)
+      await act(async () => { resolveRefine(makeResponse({ items: [makeResult("a")], facets: facetsJoy })) })
+      expect(await screen.findByRole("img", { name: "a" })).toBeInTheDocument()
+    })
+
+    it("a failed refine from an empty list keeps the facets and the filters", async () => {
+      const user = userEvent.setup()
+      const search_ = vi.fn()
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], facets: facetsJoy }))
+        .mockResolvedValueOnce(makeResponse({ items: [] }))
+        .mockRejectedValueOnce(new MessageSearchFailedError(500))
+      renderPage(makeMockApi({ searchMemeFromText: search_ }))
+      await search(user)
+      await user.click(await screen.findByLabelText("Joy (1)"))
+      await screen.findByText("No memes fit")
+
+      await user.click(screen.getByRole("button", { name: "Remove filter emotion: Joy" }))
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument()
+      expect(screen.getByRole("region", { name: "Filters" })).toBeInTheDocument()
+      expect(screen.getByRole("region", { name: "Results" })).toBeInTheDocument()
+    })
+
+    it("a failed first search shows only the banner", async () => {
+      const user = userEvent.setup()
+      renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockRejectedValue(new MessageSearchFailedError(500)) }))
+      await search(user)
+      expect(await screen.findByRole("alert")).toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "Results" })).not.toBeInTheDocument()
+    })
+
+    it("shows skeleton cards while a restored session waits for its first response", async () => {
+      window.sessionStorage.setItem("reply.v1", JSON.stringify({
+        text: "hello", submitted: "hello", originalProfile: makeProfile(), editedProfile: null, filters: {},
+      }))
+      const { container } = render(
+        <MemoryRouter><ReplyPage memesApi={makeMockApi({ searchMemeFromText: vi.fn().mockImplementation(() => new Promise(() => {})) })} /></MemoryRouter>,
+      )
+      await waitFor(() => expect(container.querySelectorAll(".animate-pulse")).toHaveLength(3))
+      expect(screen.queryByRole("region", { name: "Results" })).not.toBeInTheDocument()
+    })
+
+    it("dims the results and marks them busy while refining", async () => {
+      const user = userEvent.setup()
+      const search_ = vi.fn()
+        .mockResolvedValueOnce(makeResponse({ items: [makeResult("a")], facets: facetsJoy }))
+        .mockImplementationOnce(() => new Promise(() => {}))
+      renderPage(makeMockApi({ searchMemeFromText: search_ }))
+      await search(user)
+      await user.click(await screen.findByLabelText("Joy (1)"))
+      const area = screen.getByRole("region", { name: "Results" }).parentElement as HTMLElement
+      expect(area).toHaveAttribute("aria-busy", "true")
+      expect(area.className).toContain("opacity-60")
+    })
+
+    it("Reset to original reading moves focus to the Situation input", async () => {
+      const user = userEvent.setup()
+      renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")] })) }))
+      await search(user)
+      await user.click(await screen.findByRole("button", { name: "Remove emotion: Annoyance" }))
+      const reset = await screen.findByRole("button", { name: "Reset to original reading" })
+
+      await user.click(reset)
+
+      expect(screen.queryByRole("button", { name: "Reset to original reading" })).not.toBeInTheDocument()
+      expect(screen.getByLabelText("Situation")).toHaveFocus()
+    })
+
+    it("Clear filters moves focus to the results section", async () => {
+      const user = userEvent.setup()
+      renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")], facets: facetsJoy })) }))
+      await search(user)
+      await user.click(await screen.findByLabelText("Joy (1)"))
+      await waitFor(() => expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument())
+
+      await user.click(screen.getByRole("button", { name: "Clear filters" }))
+
+      expect(screen.getByRole("region", { name: "Results" })).toHaveFocus()
+    })
+
+    it("removing the last filter chip moves focus to the results section", async () => {
+      const user = userEvent.setup()
+      renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")], facets: facetsJoy })) }))
+      await search(user)
+      await user.click(await screen.findByLabelText("Joy (1)"))
+      await user.click(await screen.findByRole("button", { name: "Remove filter emotion: Joy" }))
+      expect(screen.getByRole("region", { name: "Results" })).toHaveFocus()
+    })
+
+    it("announces '1 meme shown, more available' while more pages exist", async () => {
+      const user = userEvent.setup()
+      renderPage(makeMockApi({
+        searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")], hasNext: true, nextCursor: "c1" })),
+      }))
+      await search(user)
+      expect(await screen.findByText("1 meme shown, more available")).toBeInTheDocument()
+    })
+
+    it("retries the vocabulary after a search response when its first load failed", async () => {
+      const user = userEvent.setup()
+      let down = true
+      const getTaxonomy = vi.fn().mockImplementation(() => (down ? Promise.reject(new Error("down")) : Promise.resolve(TEST_TAXONOMY)))
+      render(<StrictMode><MemoryRouter><ReplyPage memesApi={makeMockApi({ getTaxonomy, searchMemeFromText: vi.fn().mockImplementation(async () => { down = false; return makeResponse({ items: [makeResult("a")] }) }) })} /></MemoryRouter></StrictMode>)
+      await search(user)
+      expect(await screen.findByText("Annoyance")).toBeInTheDocument()
+    })
   })
 })

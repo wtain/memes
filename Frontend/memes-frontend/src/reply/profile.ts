@@ -14,7 +14,8 @@ export function removeValue(profile: QueryProfile, axis: AxisName, key: string):
 }
 
 export function setSituation(profile: QueryProfile, text: string): QueryProfile {
-  const next = text.trim() === "" ? null : text.slice(0, SITUATION_LIMIT)
+  // Only the empty string means "no situation". Nothing is trimmed here: a typed leading space must survive (the server strips).
+  const next = text === "" ? null : text.slice(0, SITUATION_LIMIT)
   if ((profile.situation ?? null) === next) return profile
   return { ...profile, situation: next, situationConfidence: null }
 }
@@ -25,5 +26,5 @@ export function toEditedProfile(profile: QueryProfile): QueryProfile {
 }
 
 export function hasAnyValue(profile: QueryProfile): boolean {
-  return Boolean(profile.situation) || profile.emotion.length + profile.stance.length + profile.topic.length + profile.tone.length > 0
+  return Boolean(profile.situation?.trim()) || profile.emotion.length + profile.stance.length + profile.topic.length + profile.tone.length > 0
 }

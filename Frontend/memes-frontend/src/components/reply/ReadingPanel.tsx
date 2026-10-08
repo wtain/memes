@@ -1,3 +1,4 @@
+import { useRef } from "react"
 import { labelFor, maxValuesFor, optionsFor } from "../../reply/taxonomy"
 import type { AxisName, QueryProfile, TaxonomyResponse } from "../../reply/types"
 import { AXES, AXIS_LABELS, SITUATION_LIMIT } from "../../reply/types"
@@ -15,6 +16,7 @@ type Props = {
 }
 
 export default function ReadingPanel({ profile, edited, taxonomy, onSituation, onAdd, onRemove, onReset }: Props) {
+  const situationRef = useRef<HTMLInputElement>(null)
   const unreadable = profile.degraded && !hasAnyValue(profile)
 
   return (
@@ -24,7 +26,14 @@ export default function ReadingPanel({ profile, edited, taxonomy, onSituation, o
         <span className="text-sm text-gray-500">Language: {profile.language}</span>
         {edited && <span className="rounded bg-yellow-100 px-2 py-0.5 text-sm">Edited</span>}
         {edited && (
-          <button type="button" onClick={onReset} className="min-h-11 text-sm text-blue-600 hover:underline">
+          <button
+            type="button"
+            onClick={() => {
+              // This button unmounts once the edit is gone: keep focus inside the panel.
+              situationRef.current?.focus()
+              onReset()
+            }}
+            className="min-h-11 text-sm text-blue-600 hover:underline">
             Reset to original reading
           </button>
         )}
@@ -38,6 +47,7 @@ export default function ReadingPanel({ profile, edited, taxonomy, onSituation, o
 
       <label htmlFor="reading-situation" className="mb-1 block text-sm font-medium text-gray-700">Situation</label>
       <input
+        ref={situationRef}
         id="reading-situation"
         value={profile.situation ?? ""}
         maxLength={SITUATION_LIMIT}

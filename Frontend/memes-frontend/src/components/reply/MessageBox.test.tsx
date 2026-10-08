@@ -50,4 +50,12 @@ describe("MessageBox", () => {
     await user.type(screen.getByLabelText("Message to reply to"), "{Control>}{Enter}{/Control}")
     expect(onSubmit).not.toHaveBeenCalled()
   })
+
+  it("shows a visible hint next to the counter when the limit is reached, and not before", () => {
+    const { unmount } = render(<MessageBox value="x" onChange={vi.fn()} onSubmit={vi.fn()} />)
+    expect(screen.queryByText("Only the first 600 characters are read.")).not.toBeInTheDocument()
+    unmount()
+    render(<MessageBox value={"x".repeat(600)} onChange={vi.fn()} onSubmit={vi.fn()} />)
+    expect(screen.getByText("Only the first 600 characters are read.")).toBeVisible()
+  })
 })

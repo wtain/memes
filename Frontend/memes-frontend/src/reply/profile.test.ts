@@ -20,10 +20,12 @@ describe("profile edits", () => {
     expect(removeValue(profile, "emotion", "nothing")).toBe(profile)
   })
 
-  it("sets the situation, caps it at 160 characters and treats blank as none", () => {
+  it("sets the situation, caps it at 160 characters and treats only the empty string as none", () => {
     const profile = makeProfile()
     expect(setSituation(profile, "x".repeat(300)).situation).toHaveLength(160)
-    expect(setSituation(profile, "   ").situation).toBeNull()
+    expect(setSituation(profile, "").situation).toBeNull()
+    expect(setSituation(profile, " ").situation).toBe(" ")
+    expect(setSituation(profile, " leading").situation).toBe(" leading")
     expect(setSituation(profile, profile.situation as string)).toBe(profile)
   })
 
@@ -33,6 +35,7 @@ describe("profile edits", () => {
 
   it("knows whether a profile holds anything", () => {
     expect(hasAnyValue(makeProfile())).toBe(true)
+    expect(hasAnyValue(makeProfile({ situation: "  ", emotion: [], stance: [], topic: [], tone: [] }))).toBe(false)
     expect(hasAnyValue(makeProfile({ situation: null, emotion: [], stance: [], topic: [], tone: [] }))).toBe(false)
   })
 })

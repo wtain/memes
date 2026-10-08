@@ -9,9 +9,11 @@ type Props = {
   taxonomy: TaxonomyResponse | null
   onChange: (axis: (typeof AXES)[number], values: string[]) => void
   onClear: () => void
+  /** Called when the checkbox just toggled vanished along with its whole fieldset, so focus needs a new home. */
+  onRowRemoved?: () => void
 }
 
-export default function AxisFacets({ facets, selected, taxonomy, onChange, onClear }: Props) {
+export default function AxisFacets({ facets, selected, taxonomy, onChange, onClear, onRowRemoved }: Props) {
   return (
     <div>
       {hasFilters(selected) && (
@@ -28,7 +30,7 @@ export default function AxisFacets({ facets, selected, taxonomy, onChange, onCle
         if (rows.length === 0) return null
         return (
           <fieldset key={axis} className="mb-4">
-            <legend className="mb-1 font-medium">{AXIS_LABELS[axis]}</legend>
+            <legend tabIndex={-1} className="mb-1 font-medium focus:outline-none">{AXIS_LABELS[axis]}</legend>
             {rows.map(([value, count]) => {
               const checked = selected[axis].includes(value)
               return (
@@ -36,9 +38,14 @@ export default function AxisFacets({ facets, selected, taxonomy, onChange, onCle
                   <input
                     type="checkbox"
                     checked={checked}
-                    onChange={() =>
+                    onChange={(e) => {
+                      // Unchecking a value with no results removes its row: keep focus in the group (or hand it over).
+                      if (checked && count === 0) {
+                        if (rows.length > 1) e.currentTarget.closest("fieldset")?.querySelector("legend")?.focus()
+                        else onRowRemoved?.()
+                      }
                       onChange(axis, checked ? selected[axis].filter((v) => v !== value) : [...selected[axis], value])
-                    }
+                    }}
                   />
                   <span>{`${labelFor(taxonomy, axis, value)} (${count})`}</span>
                 </label>

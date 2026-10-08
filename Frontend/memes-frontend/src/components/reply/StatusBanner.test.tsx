@@ -3,12 +3,23 @@ import userEvent from "@testing-library/user-event"
 import StatusBanner from "./StatusBanner"
 
 describe("StatusBanner", () => {
-  it("shows nothing when idle, ready or refining", () => {
+  it("keeps an always-mounted, empty polite live region when idle, ready or refining", () => {
     for (const status of ["idle", "ready", "refining"] as const) {
-      const { container, unmount } = render(<StatusBanner status={status} fallback="none" error={null} onRetry={vi.fn()} />)
-      expect(container).toBeEmptyDOMElement()
+      const { unmount } = render(<StatusBanner status={status} fallback="none" error={null} onRetry={vi.fn()} />)
+      const region = screen.getByRole("status")
+      expect(region).toHaveAttribute("aria-live", "polite")
+      expect(region).toBeEmptyDOMElement()
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument()
       unmount()
     }
+  })
+
+  it("fills the same live region element when the message changes, instead of mounting a new one", () => {
+    const { rerender } = render(<StatusBanner status="idle" fallback="none" error={null} onRetry={vi.fn()} />)
+    const region = screen.getByRole("status")
+    rerender(<StatusBanner status="reading" fallback="none" error={null} onRetry={vi.fn()} />)
+    expect(screen.getByRole("status")).toBe(region)
+    expect(region).toHaveTextContent("Reading your message")
   })
 
   it("announces the first reading", () => {

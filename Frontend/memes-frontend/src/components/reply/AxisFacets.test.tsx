@@ -78,4 +78,18 @@ describe("AxisFacets", () => {
     const text = screen.getByRole("group", { name: "Emotion" }).textContent as string
     expect(text.indexOf("Apple")).toBeLessThan(text.indexOf("Zebra"))
   })
+
+  it("moves focus to the group legend when unchecking a zero-count value removes its row", async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <AxisFacets
+        facets={facets} selected={{ ...EMPTY_FILTERS, emotion: ["pride"] }} taxonomy={TEST_TAXONOMY}
+        onChange={onChange} onClear={vi.fn()}
+      />,
+    )
+    await user.click(screen.getByLabelText("Pride (0)"))
+    expect(screen.getByText("Emotion")).toHaveFocus()
+    expect(onChange).toHaveBeenCalledWith("emotion", [])
+  })
 })

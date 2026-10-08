@@ -1,4 +1,5 @@
 import type { MemeFromTextResult } from "../../reply/types"
+import { AXIS_LABELS } from "../../reply/types"
 import type { AxisExplanation } from "../../types/generated/all"
 
 type Props = {
@@ -6,9 +7,7 @@ type Props = {
   labelOf: (axis: string, key: string) => string
 }
 
-const AXIS_NAMES: Record<string, string> = {
-  situation: "Situation", emotion: "Emotion", stance: "Stance", topic: "Topic", tone: "Tone", lexical: "Word match",
-}
+const AXIS_NAMES: Record<string, string> = { ...AXIS_LABELS, situation: "Situation", lexical: "Word match" }
 
 function describe(axis: AxisExplanation, labelOf: Props["labelOf"]): string {
   if (axis.neutral) return "no value on this axis (neutral)"
