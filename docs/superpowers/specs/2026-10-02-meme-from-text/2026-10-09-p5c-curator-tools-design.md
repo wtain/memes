@@ -1,6 +1,6 @@
 # P5c: Curator tools (profile editor and coverage view) — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-09-p5c-curator-tools.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-08-p5-web-ui-design.md (Out of scope and handoff notes: the meme-profile editor US-9 and the coverage view US-8)
 Follow-ups: none yet
@@ -100,3 +100,45 @@ No migration. Restart the backends to expose the new routes. Until the `metal` p
 4. Frontend API layer and the curator panel with tests.
 5. Coverage page, route and admin link with tests; `MemePage` mounting.
 6. Controller steps: seeded-database live check including the race, docs addendum, tracker, `CLAUDE.md`, review report.
+
+## Addendum: result (2026-10-09)
+
+Implemented on branch `p5c-curator` (six plan tasks, their fix rounds, one whole-branch review on the most capable model with one fix wave in two halves, then a live check). No migration.
+
+### What was built
+
+- **Repository and rule:** `repository/meme_profiles.py` gained the curator read view, vector status, confirm, reset (profile plus this pipeline's failure row), live counts, per-category keyset lists and `clear_failure`; a human-verified profile is now stale **only on a taxonomy version change** in `select_work` and `coverage()` (decision 2). Both writers (`save_profile`, `save_human_profile`) now serialise per image through one helper: a placeholder `INSERT ... ON CONFLICT DO NOTHING`, then `SELECT ... FOR UPDATE` with a refreshed row, and the batch's human-verified check runs after the lock. The curator path sets `lock_timeout` 10 s.
+- **Service and API:** `OllamaEmbedClient.model_digest` (urllib `GET /api/tags`), `profile_editor.embed_timeout_seconds` (8), `MemeProfileService` (validation, human save with the vector computed before the write and stored in the same transaction, confirm with full re-validation, reset), `GET/PUT/POST confirm/DELETE /api/meme-from-text/profiles/{imageId}` and `GET /api/admin/profile-coverage[/images]`, four shared schemas (`additionalProperties: false`) with regenerated Python, TypeScript and Kotlin types, `backend_api.md`.
+- **Frontend:** the curator panel on `MemePage` (`useProfileEditor`, `useUnsavedGuard`, `ProfileEditor`: chips with each value's source and confidence, marked removed-vocabulary keys, Save / Confirm as correct / Reset to model with a two-step confirm, an always-mounted status line, an unsaved-changes guard) and `/admin/profiles` (`useProfileCoverage`, `ProfileCoveragePage`: category cards as filters, live counts, the as-of numbers of both jobs' last runs, a paged thumbnail grid linking to the meme pages) with a "Profiles" nav link.
+- Gates on the final commit: Backend root 466, `tests/retrieval` 140, `tests/evaluation` 145, `tests/taxonomy` 83, `batch/tests` 270, whole `tests/integration` 580 (test database, including two real-session concurrency tests), frontend `tsc -b`, `eslint src/ --max-warnings 0`, `vitest run` (59 files) and `vite build`; regenerated types have no diff.
+
+### Live verification (2026-10-09, test database `ocrdb_test` with 13 seeded images, the real `bge-large` embedding model, a minimal backend and the Vite dev server on free ports, no scheduler)
+
+- 21 API checks passed. The vector a curator save stores has the same `model_name` and `model_digest` (`b3d71c928059...`) that `ai.ollama_embed.OllamaEmbedder` reports for the batch job, so the job will not re-embed it. With Ollama unreachable a save still returns 200 and reports `vector: "pending"`. Confirm on a profile of an old taxonomy clears the review flag; Confirm with a removed vocabulary key is 422 with a fixed message; a save on a failed image clears its failure record; reset is idempotent; invalid and over-long bodies are 422 and the situation text is not echoed (and not in the server logs); every category total equals its count and its list, and paging has no duplicates.
+- Race simulation on the test database: a batch-style `save_profile` after a human save returns `False` and changes nothing; after a reset it writes the model profile. (The concurrent-transaction case is covered by the two real-session integration tests.)
+- In the browser: the panel shows each value's source and confidence; removing a chip enables Save and Discard and hides Confirm; navigating away is blocked with the inline "You have unsaved changes" bar and "Stay" keeps the edit; Save announces "Saved", the profile becomes Human-verified with every value `human, 1.00`; a needs-review profile shows its banner and the removed key marked "no longer in the vocabulary", Confirm explains the refusal, and removing the key then saving clears the banner; `/admin/profiles` shows the live counts, both runs with the real nested stats, category cards that filter the grid, and thumbnails that link to their meme pages.
+- **Not verified:** screen-reader announcements and the narrow layout (roles and attributes are tested only), the beforeunload prompt, and a curator save during a real long batch run (covered by the lock tests and the race simulation).
+
+### Real rollout on `metal` (the same day, outside this feature's code)
+
+`build_meme_profiles` ran on the real `metal` database before this branch merged: 17,787 images in 354 minutes (15,639 on the text path, 2,115 on the slower vision path; 32 invalid model answers and 1 model error recorded as failures), then `build_meme_profile_embeddings` embedded 18,041 situations. `metal` now has 18,052 profiles for 18,088 active images and 18,041 search vectors. Those jobs ran with the previous staleness rule; no profile on `metal` is human-verified yet, so the rule change does not affect them.
+
+### Deviations from the spec text (decided during planning, review and the live check)
+
+1. The situation vector is computed before the write and stored in the same transaction as the profile (the spec said a second transaction).
+2. The batch keeps its own embedder; the backend client got `model_digest`. Both read the same Ollama `digest`, verified live.
+3. The situation limit is the taxonomy's 160 characters (the spec said 600).
+4. The `failed` category counts failure rows of the profile pipeline whether or not the image also has a profile; a curator save or confirm clears the failure row so the category drains.
+5. The save-request schema no longer states `maxItems` on the value lists (the TypeScript generator turned it into huge tuple types); the service still enforces the per-axis maximum with a 422.
+6. The coverage numbers "as of the last run" come from `stats.coverage.*` of the latest run of each job; a run still in progress shows "in progress" instead of numbers (no schema change).
+7. Concurrent curator and batch writes to one image are serialised by a row lock (found by the whole-branch review); a curator request waits at most 10 seconds.
+8. Confirm re-validates the whole stored profile (unknown keys, per-axis maximum, situation length), not only the vocabulary keys.
+
+### Rollout (per environment)
+
+No migration. Restart the backends to expose the new routes. `metal` and `general` need the profile data for the page to be useful: `metal` is done; `general` has 1,640 of 32,328 profiled (run `build_meme_profiles` and `build_meme_profile_embeddings` there, about 6.7 hours at the measured rate).
+
+### Handoff notes
+
+- Known gaps: M1 a repeated identical search can be served from the 120-second result cache after an edit; `vector` and the pending-vector count compare the model name only (a changed model digest is detected by the embeddings job); a failed image without a profile has no Reset button (saving a profile by hand clears the failure); the failure alerts are mounted on demand rather than always-mounted.
+- Candidates for later: bulk review of profiles by category, a per-curator audit, per-image lists for non-taxonomy staleness, and clearing the search cache on edits.

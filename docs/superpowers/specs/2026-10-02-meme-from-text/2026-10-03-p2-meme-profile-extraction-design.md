@@ -113,7 +113,7 @@ Every run recomputes bundles and fingerprints for **all** active images in chunk
 - its `inputs_fingerprint` differs from the freshly computed one.
 
 Excluded from selection: images whose pair is recorded as permanently failed (unless `--retry-failed`), and rows with
-`human_verified = true` (never rewritten; reported as **needs review** when stale). Because the fingerprint is the source of truth, no
+`human_verified = true` (never rewritten; reported as **needs review** when stale; since P5c a human-verified profile is stale only when its taxonomy version differs, see `2026-10-09-p5c-curator-tools-design.md`, decision 2). Because the fingerprint is the source of truth, no
 timestamp heuristics are needed and a cleared feedback row, a rejected or re-approved description, an edited note and re-OCR text are
 all detected by the same comparison, and only the three conditions above select an image. `--limit` caps images processed per run; the
 stats carry `images_selected` and `images_remaining`.

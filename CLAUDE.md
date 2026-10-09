@@ -470,6 +470,22 @@ ratings (P5b)                → the /reply page lets the owner rate each result
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5b-rating-widget-design.md
                                (addendum: live check, migration commands, handoff).
 
+curator tools (P5c)          → the meme page (`MemePage`) has a curator panel and `/admin/profiles` shows coverage. Endpoints:
+                               GET/PUT /api/meme-from-text/profiles/{imageId} (PUT = save as human-verified: every value
+                               source `human`, confidence 1, meta `human/human/human`), POST .../confirm (mark a model profile
+                               verified without touching values; refuses 409 without a profile and 422 when the stored profile no
+                               longer validates), DELETE (reset to model: deletes the profile and this pipeline's failure row so
+                               the next build_meme_profiles run re-extracts it), GET /api/admin/profile-coverage and
+                               /images?category= (live counts, last runs of the two jobs, keyset-paged lists). A human save
+                               embeds the new situation inline (profile_editor.embed_timeout_seconds, computed before the write,
+                               stored in the same transaction; failure = saved with vector `pending`, the embeddings job
+                               refreshes it). A human-verified profile is stale ONLY when its taxonomy version differs
+                               (select_work and coverage()); the batch never overwrites it. Curator and batch writers of one
+                               image are serialised by a row lock (MemeProfileRepository._lock_profile); the curator path waits
+                               at most 10 s. No migration. See
+                               docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5c-curator-tools-design.md
+                               (addendum: live check, deviations, handoff).
+
 build_statistics            → precomputes the statistics page's numbers into the single-row
                                statistics_snapshots table (name='corpus'), so GET
                                /api/diagnostics/statistics is a row read instead of ~28
