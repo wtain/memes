@@ -3,7 +3,7 @@
 Status: done
 Plan: docs/superpowers/plans/2026-10-08-p5-web-ui.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/tracker.md (project P5, narrowed to the searcher UI on 2026-10-08)
-Follow-ups: none yet (P5b rating widget and P5c curator tools are separate specs, see Out of scope)
+Follow-ups: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5b-rating-widget-design.md (P5b rating widget); P5c curator tools is a separate spec, not started
 
 Epic: `docs/superpowers/specs/2026-10-02-meme-from-text/README.md`. Inherited contracts: the P4 endpoint `POST /api/meme-from-text/search` and its handoff notes (`2026-10-07-p4-retrieval-fusion-and-api-design.md`, addendum), the generated types in `Frontend/memes-frontend/src/types/generated/all.d.ts`, the P1 taxonomy (`batch/data/taxonomy/`), and the existing frontend conventions (React 19, React Router 7, Tailwind 4, `MemesApi` injection, vitest with Testing Library).
 
