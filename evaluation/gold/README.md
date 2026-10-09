@@ -44,3 +44,13 @@ The image ids are database-local UUIDs of the `general` environment. The gold da
 ## Round 3 (P4) and the fused retriever
 
 Round 3 pooled the unjudged members of the tuned `fused` pipeline's top ten (`build-pools --round 3 --sources fused --parse-model M --random 0 --depth 10`; 223 pairs, 216 judged, 7 repeats of the same images left unjudged). `python -m evaluation tune-weights --parse-model M --label L` collects the fused pipeline's candidates once and searches the fusion weights with cross-validation (`tuning/<label>.json`, refuses degraded profiles unless `--allow-degraded`); `run --retriever fused --parse-model M` evaluates the production pipeline restricted to the corpus. After a new judging round re-run every baseline with `--force` so all share one gold fingerprint (the stored `parsed_qwen2-latest` baseline predates round 3 and is kept only as history).
+
+## Ratings export (P5b)
+
+`python -m evaluation export-ratings --round N [--out DIR] [--force]` reads every rating stored by the web UI's rating widget (`meme_text_ratings`, read-only database role, same environment rules as the other database commands) and writes three files to `--out` (default `evaluation/work/ratings-export`, git-ignored; it refuses to overwrite a non-empty directory without `--force`):
+
+- `judgments-<lang>.json`: import-ready judgments (rater `rating-ui`, round `N`) for ratings whose message matches a gold query (same normalisation and hash as the rating store). Import them like any sheet export: `python -m evaluation import-judgments judgments-en.json ...`.
+- `candidate-queries.json`: ratings of messages that are not gold queries, grouped by message (the text is only present when the owner kept it). For review only: turning a candidate into a gold query is a deliberate step with an expected profile and a new frozen fingerprint.
+- `summary.json`: counts by grade, language, reading and parser version, plus the pairs that were excluded: pairs already judged (with both grades and whether they agree) and images outside the frozen corpus.
+
+Ratings only cover results the owner was shown, so they are biased toward what the system already ranks well; do not mix them into metrics without a judging round.

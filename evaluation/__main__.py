@@ -14,7 +14,7 @@ from datetime import date as date_class
 from pathlib import Path
 
 from evaluation.gold import (
-    GoldError, Judgment, file_sha256, judgments_by_query, load_corpus, load_judgments, load_queries,
+    GoldError, Judgment, dump_json, file_sha256, judgments_by_query, load_corpus, load_judgments, load_queries,
     merge_judgments, parse_export, save_corpus, save_judgments, Corpus,
 )
 from evaluation.report import (
@@ -492,6 +492,35 @@ async def cmd_tune_weights(args, gold: Path) -> int:
     return 0
 
 
+async def cmd_export_ratings(args, gold: Path) -> int:
+    """Turn the owner's ratings into review files (never an automatic merge into the frozen gold set)."""
+    require_readonly()
+    out = Path(args.out)
+    if out.exists() and any(out.iterdir()) and not args.force:
+        return _error(f"{out} already contains an export (use --force to replace it)")
+    from config.settings import settings
+    from evaluation.ratings_export import build_export
+    from repository.meme_text_ratings import MemeTextRatingRepository
+    from Storage.db import AsyncSessionLocal
+    max_chars = int(settings.get("parse.max_input_chars", 600))
+    async with AsyncSessionLocal() as session:
+        ratings = await MemeTextRatingRepository(session).all_ratings()
+    result = build_export(ratings, load_queries(gold / "queries.json"), load_judgments(gold / "judgments.json"),
+                          set(load_corpus(gold / "corpus.json").image_ids()), max_chars=max_chars,
+                          round_number=args.round, today=date_class.today().isoformat())
+    out.mkdir(parents=True, exist_ok=True)
+    for language, data in result.judgments_by_language.items():
+        (out / f"judgments-{language}.json").write_text(dump_json(data), encoding="utf-8", newline="\n")
+    (out / "candidate-queries.json").write_text(dump_json(result.candidates), encoding="utf-8", newline="\n")
+    (out / "summary.json").write_text(dump_json(result.report), encoding="utf-8", newline="\n")
+    summary = result.report["summary"]
+    print(f"{summary['total']} ratings: {result.report['importable']} importable judgments in "
+          f"{len(result.judgments_by_language)} file(s), {len(result.report['alreadyJudged'])} already judged, "
+          f"{len(result.report['outsideCorpus'])} outside the corpus, {result.report['candidateMessages']} new "
+          f"message(s); wrote {out}")
+    return 0
+
+
 # ------------------------------------------------------------------ entry point
 
 def build_parser() -> argparse.ArgumentParser:
@@ -561,6 +590,11 @@ def build_parser() -> argparse.ArgumentParser:
                           help="exclude queries whose profile degraded (parser failure, open breaker) instead of "
                                "refusing to tune")
 
+    export = commands.add_parser("export-ratings")
+    export.add_argument("--round", type=int, required=True)
+    export.add_argument("--out", default=str(DEFAULT_WORK / "ratings-export"))
+    export.add_argument("--force", action="store_true")
+
     commands.add_parser("list-baselines")
     return parser
 
@@ -571,7 +605,8 @@ def main(argv=None) -> int:
     handlers = {"import-judgments": cmd_import_judgments, "compare": cmd_compare, "list-baselines": cmd_list_baselines,
                 "sheet": cmd_sheet}
     async_handlers = {"build-corpus": cmd_build_corpus, "build-pools": cmd_build_pools, "run": cmd_run,
-                      "parse-eval": cmd_parse_eval, "tune-weights": cmd_tune_weights}
+                      "parse-eval": cmd_parse_eval, "tune-weights": cmd_tune_weights,
+                      "export-ratings": cmd_export_ratings}
     try:
         if args.command in handlers:
             return handlers[args.command](args, gold)

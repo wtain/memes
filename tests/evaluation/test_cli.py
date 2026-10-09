@@ -246,3 +246,20 @@ def test_tune_weights_allow_degraded_flag_defaults_to_off():
     base = ["tune-weights", "--parse-model", "m", "--label", "l"]
     assert parser.parse_args(base).allow_degraded is False
     assert parser.parse_args(base + ["--allow-degraded"]).allow_degraded is True
+
+
+def test_export_ratings_options_and_refusal_without_the_read_only_url(tmp_path, monkeypatch):
+    args = cli.build_parser().parse_args(["export-ratings", "--round", "4", "--out", str(tmp_path / "x"), "--force"])
+    assert (args.round, args.out, args.force) == (4, str(tmp_path / "x"), True)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ocr:ocr@localhost/ocrdb")
+    with pytest.raises(SystemExit):
+        cli.main(["--gold-dir", str(_gold_dir(tmp_path)), "export-ratings", "--round", "4"])
+
+
+def test_export_ratings_refuses_to_overwrite_an_existing_export(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ocr_readonly:x@localhost/ocrdb")
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "summary.json").write_text("{}", encoding="utf-8")
+    code = cli.main(["--gold-dir", str(_gold_dir(tmp_path)), "export-ratings", "--round", "4", "--out", str(out)])
+    assert code == 1 and "already contains an export" in capsys.readouterr().err
