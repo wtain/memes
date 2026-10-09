@@ -8,9 +8,12 @@ type Loaded = { hash: string | null; grades: Record<string, Grade> }
 
 export function useRatings(memesApi: MemesApi, queryHash: string | null) {
   const [loaded, setLoaded] = useState<Loaded>({ hash: null, grades: {} })
+  const [saved, setSaved] = useState<{ hash: string | null; count: number }>({ hash: null, count: 0 })
   const [lastEvent, setLastEvent] = useState<RatingEvent | null>(null)
   // Grades of the message on screen; a different message starts empty (derived, no setState in an effect).
   const grades = loaded.hash === queryHash ? loaded.grades : {}
+  // Successful saves for the message on screen: a save stores the text again, so a "forgotten" notice resets on it.
+  const savedCount = saved.hash === queryHash ? saved.count : 0
 
   const confirmed = useRef<Record<string, Grade | null>>({})
   const chains = useRef(new Map<string, Promise<void>>())
@@ -63,6 +66,7 @@ export function useRatings(memesApi: MemesApi, queryHash: string | null) {
         if (hashRef.current === hash) {
           confirmed.current[imageId] = grade
           setGrade(hash, imageId, grade)
+          if (grade !== null) setSaved((previous) => ({ hash, count: (previous.hash === hash ? previous.count : 0) + 1 }))
           setLastEvent({ imageId, kind: grade === null ? "cleared" : "saved" })
         }
       } catch {
@@ -86,5 +90,5 @@ export function useRatings(memesApi: MemesApi, queryHash: string | null) {
     }
   }
 
-  return { grades, hasRatings: Object.keys(grades).length > 0, lastEvent, rate, forgetText }
+  return { grades, hasRatings: Object.keys(grades).length > 0, savedCount, lastEvent, rate, forgetText }
 }

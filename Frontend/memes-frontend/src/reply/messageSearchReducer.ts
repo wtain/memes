@@ -25,6 +25,8 @@ export type State = {
   loadingMore: boolean
   /** True once a find/refine response produced a list on screen (even an empty one); false for a new find and for a restored session until its first response. */
   hasList: boolean
+  /** Which reading produced the list on screen (taken from the request that produced it, not from the current edit state). */
+  listReading: "parsed" | "edited"
   /** Bumped on every successful response; the page uses it to retry a vocabulary load that failed. */
   searchCount: number
 }
@@ -34,7 +36,7 @@ export type Action =
   | { type: "findStarted"; submitted: string }
   | { type: "refineStarted" }
   | { type: "moreStarted" }
-  | { type: "succeeded"; mode: Mode; response: MemeFromTextResponse; request: MemeFromTextRequest }
+  | { type: "succeeded"; mode: Mode; response: MemeFromTextResponse; request: MemeFromTextRequest; reading?: "parsed" | "edited" }
   | { type: "failed"; error: ErrorKind }
   | { type: "unavailable" }
   | { type: "edited"; profile: QueryProfile }
@@ -50,7 +52,7 @@ export function initialState(saved: Saved | null): State {
     filters: saved?.filters ?? { ...EMPTY_FILTERS },
     items: [], facets: [], nextCursor: null, hasNext: false, fallback: "none", meta: null, lastRequest: null,
     status: saved?.submitted ? "refining" : "idle",
-    error: null, loadingMore: false, hasList: false, searchCount: 0,
+    error: null, loadingMore: false, hasList: false, listReading: "parsed", searchCount: 0,
   }
 }
 
@@ -71,7 +73,7 @@ export function reducer(state: State, action: Action): State {
       return {
         ...state, submitted: action.submitted, originalProfile: null, editedProfile: null, filters: { ...EMPTY_FILTERS },
         items: [], facets: [], nextCursor: null, hasNext: false, fallback: "none", meta: null, lastRequest: null,
-        status: "reading", error: null, loadingMore: false, hasList: false,
+        status: "reading", error: null, loadingMore: false, hasList: false, listReading: "parsed",
       }
     case "refineStarted":
       return { ...state, status: "refining", error: null }
@@ -79,12 +81,13 @@ export function reducer(state: State, action: Action): State {
       return { ...state, loadingMore: true, error: null }
     case "succeeded": {
       const { response, mode, request } = action
+      const listReading = mode === "more" ? state.listReading : mode === "find" ? "parsed" : (action.reading ?? "parsed")
       const { cursor: _cursor, ...requestWithoutCursor } = request
       void _cursor
       const common = {
         facets: response.facets ?? [], nextCursor: response.nextCursor ?? null, hasNext: response.hasNext,
         fallback: response.fallback, meta: response.meta, status: statusFor(response), error: null, loadingMore: false,
-        lastRequest: requestWithoutCursor, hasList: true, searchCount: state.searchCount + 1,
+        lastRequest: requestWithoutCursor, hasList: true, listReading, searchCount: state.searchCount + 1,
       }
       if (mode === "more") {
         // When the cached list expires the server recomputes it, and the positional cursor then pages a different

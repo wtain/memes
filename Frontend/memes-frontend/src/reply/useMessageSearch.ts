@@ -30,6 +30,9 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
     const current = stateRef.current
     if (mode === "more" && (!current.lastRequest || !current.nextCursor)) return
     const request = buildRequest(current, mode, overrides)
+    // The reading this request sends: the user's edited profile (override or current) or the parsed one.
+    const edited = overrides.editedProfile !== undefined ? overrides.editedProfile : current.editedProfile
+    const reading = edited ? "edited" : "parsed"
     const seq = ++seqRef.current
     abortRef.current?.abort()
     const controller = new AbortController()
@@ -42,7 +45,7 @@ export function useMessageSearch(memesApi: MemesApi, options: Options = {}) {
     try {
       const response = await memesApi.searchMemeFromText(request, controller.signal)
       if (seq !== seqRef.current) return
-      dispatch({ type: "succeeded", mode, response, request })
+      dispatch({ type: "succeeded", mode, response, request, reading })
     } catch (error) {
       if (isAbortError(error) || seq !== seqRef.current) return
       // A backend that was not restarted answers 404/405: a retry can never succeed, so the feature is unavailable.

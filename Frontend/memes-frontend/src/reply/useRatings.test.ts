@@ -189,3 +189,17 @@ describe("useRatings", () => {
     expect(result.current.grades.a).toBeUndefined()
   })
 })
+
+describe("useRatings load failure", () => {
+  it("swallows a failing getRatings and rating still works afterwards", async () => {
+    const api = makeMockApi({ getRatings: vi.fn().mockRejectedValue(new Error("relation does not exist")) })
+    const { result } = renderHook(() => useRatings(api, HASH))
+    await waitFor(() => expect(api.getRatings).toHaveBeenCalled())
+    expect(result.current.grades).toEqual({})
+    act(() => result.current.rate(CONTEXT, "a", 2))
+    await waitFor(() => expect(api.putRating).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(result.current.lastEvent).toEqual({ imageId: "a", kind: "saved" }))
+    expect(result.current.grades).toEqual({ a: 2 })
+    expect(result.current.savedCount).toBe(1)
+  })
+})

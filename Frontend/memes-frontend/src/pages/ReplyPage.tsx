@@ -62,11 +62,11 @@ export default function ReplyPage({ memesApi }: Props) {
   const noun = count === 1 ? "meme" : "memes"
   const countText = finished ? (state.hasNext ? `${count} ${noun} shown, more available` : `${count} ${noun} found`) : ""
 
-  // The text that was searched (never the box's current text), the list as shown and the reading in force.
+  // The text that was searched (never the box's current text), the list as shown and the reading that produced it.
   const ratingContext = (rank: number): RatingContext => ({
     text: state.submitted ?? "",
     rank,
-    reading: state.editedProfile !== null ? "edited" : "parsed",
+    reading: state.listReading,
     parserVersion: state.meta?.parserVersion ?? "",
     taxonomyVersion: profile?.taxonomyVersion ?? 0,
     degraded: state.fallback !== "none",
@@ -147,7 +147,7 @@ export default function ReplyPage({ memesApi }: Props) {
           <section ref={resultsRef} tabIndex={-1} className="flex-1 focus:outline-none" aria-label="Results">
             <ActiveFilters filters={state.filters} taxonomy={taxonomy} onRemove={removeFilter} />
 
-            {ratings.hasRatings && <div className="mb-3"><ForgetTextButton onConfirm={ratings.forgetText} /></div>}
+            {ratings.hasRatings && <div className="mb-3"><ForgetTextButton key={ratings.savedCount} onConfirm={ratings.forgetText} /></div>}
 
             {state.items.length === 0 && finished && (
               <div className="rounded-xl bg-white p-6 text-center shadow-sm">

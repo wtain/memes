@@ -471,6 +471,9 @@ describe("ReplyPage ratings", () => {
     await user.type(screen.getByLabelText("Message to reply to"), " and more typed afterwards")
     await user.click(screen.getByRole("button", { name: "Remove emotion: Annoyance" }))
     await waitFor(() => expect(screen.getByText("Edited")).toBeInTheDocument())
+    // the edited reading counts once the refine that used it has returned
+    await waitFor(() => expect(api.searchMemeFromText).toHaveBeenCalledTimes(2), { timeout: 2000 })
+    await waitFor(() => expect(screen.getByText("2 memes found")).toBeInTheDocument())
 
     await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[0]).getByRole("button", { name: "Acceptable" }))
 
@@ -550,5 +553,104 @@ describe("ReplyPage ratings", () => {
     await search(user)
     await screen.findAllByRole("img", { name: /^[ab]$/ })
     expect(screen.queryByRole("group", { name: "Rate this result" })).not.toBeInTheDocument()
+  })
+})
+
+describe("ReplyPage ratings (fix wave)", () => {
+  it("rates with the reading that produced the list: parsed until the edited refine returns", async () => {
+    const user = userEvent.setup()
+    const api = renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()) }))
+    await search(user)
+    await screen.findAllByRole("group", { name: "Rate this result" })
+    await user.click(screen.getByRole("button", { name: "Remove emotion: Annoyance" }))
+    await waitFor(() => expect(screen.getByText("Edited")).toBeInTheDocument())
+    expect(calls(api)).toHaveLength(1)
+
+    await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[0]).getByRole("button", { name: "Acceptable" }))
+    await waitFor(() => expect(api.putRating).toHaveBeenCalledTimes(1))
+    expect(api.putRating).toHaveBeenLastCalledWith(expect.objectContaining({ reading: "parsed" }))
+
+    await waitFor(() => expect(calls(api)).toHaveLength(2), { timeout: 2000 })
+    await waitFor(() => expect(screen.getByText("2 memes found")).toBeInTheDocument())
+    await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[1]).getByRole("button", { name: "Good fit" }))
+    await waitFor(() => expect(api.putRating).toHaveBeenCalledTimes(2))
+    expect(api.putRating).toHaveBeenLastCalledWith(expect.objectContaining({ reading: "edited" }))
+  })
+
+  it("after reset to the original reading, ratings stay 'edited' until the refine returns", async () => {
+    const user = userEvent.setup()
+    let resolveRefine!: (value: ReturnType<typeof ratedResponse>) => void
+    const pending = new Promise<ReturnType<typeof ratedResponse>>((res) => { resolveRefine = res })
+    const search_ = vi.fn()
+      .mockResolvedValueOnce(ratedResponse())
+      .mockResolvedValueOnce(ratedResponse())
+      .mockReturnValueOnce(pending)
+    const api = renderPage(makeMockApi({ searchMemeFromText: search_ }))
+    await search(user)
+    await screen.findAllByRole("group", { name: "Rate this result" })
+    await user.click(screen.getByRole("button", { name: "Remove emotion: Annoyance" }))
+    await waitFor(() => expect(calls(api)).toHaveLength(2), { timeout: 2000 })
+    await waitFor(() => expect(screen.getByText("2 memes found")).toBeInTheDocument())
+
+    await user.click(screen.getByRole("button", { name: /reset to original/i }))
+    await waitFor(() => expect(calls(api)).toHaveLength(3))
+    await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[0]).getByRole("button", { name: "Acceptable" }))
+    await waitFor(() => expect(api.putRating).toHaveBeenCalledTimes(1))
+    expect(api.putRating).toHaveBeenLastCalledWith(expect.objectContaining({ reading: "edited" }))
+
+    await act(async () => { resolveRefine(ratedResponse()) })
+    await waitFor(() => expect(screen.getByText("2 memes found")).toBeInTheDocument())
+    await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[1]).getByRole("button", { name: "Good fit" }))
+    await waitFor(() => expect(api.putRating).toHaveBeenCalledTimes(2))
+    expect(api.putRating).toHaveBeenLastCalledWith(expect.objectContaining({ reading: "parsed" }))
+  })
+
+  it("clears the 'Text forgotten' notice when a later rating stores the text again", async () => {
+    const user = userEvent.setup()
+    renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()) }))
+    await search(user)
+    const groups = await screen.findAllByRole("group", { name: "Rate this result" })
+    await user.click(within(groups[0]).getByRole("button", { name: "Acceptable" }))
+    await user.click(await screen.findByRole("button", { name: "Forget this message's text" }))
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(await screen.findByText("Text forgotten", { selector: '[aria-hidden="true"]' })).toBeInTheDocument()
+
+    await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[1]).getByRole("button", { name: "Good fit" }))
+
+    await waitFor(() => expect(screen.queryByText("Text forgotten", { selector: '[aria-hidden="true"]' })).not.toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Forget this message's text" })).toBeInTheDocument()
+  })
+
+  it("continues the rank across Show more", async () => {
+    const user = userEvent.setup()
+    const search_ = vi.fn()
+      .mockResolvedValueOnce(makeResponse({ items: [makeResult("a"), makeResult("b")], hasNext: true, nextCursor: "c1" }))
+      .mockResolvedValueOnce(makeResponse({ items: [makeResult("c")] }))
+    const api = renderPage(makeMockApi({ searchMemeFromText: search_ }))
+    await search(user)
+    await user.click(await screen.findByRole("button", { name: "Show more" }))
+    await waitFor(() => expect(screen.getAllByRole("group", { name: "Rate this result" })).toHaveLength(3))
+
+    await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[2]).getByRole("button", { name: "Good fit" }))
+
+    await waitFor(() => expect(api.putRating).toHaveBeenCalled())
+    expect(api.putRating).toHaveBeenCalledWith(expect.objectContaining({ imageId: "c", rank: 3 }))
+  })
+
+  it("shows the ratings again after re-searching the same text", async () => {
+    const user = userEvent.setup()
+    const api = renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()),
+      getRatings: vi.fn().mockResolvedValue({ queryHash: HASH, ratings: [{ imageId: "a", grade: 1 }] }),
+    }))
+    await search(user)
+    const first = (await screen.findAllByRole("group", { name: "Rate this result" }))[0]
+    await waitFor(() => expect(within(first).getByRole("button", { name: "Acceptable" })).toHaveAttribute("aria-pressed", "true"))
+
+    await user.click(screen.getByRole("button", { name: "Find a meme" }))
+    await waitFor(() => expect(calls(api)).toHaveLength(2))
+    const again = (await screen.findAllByRole("group", { name: "Rate this result" }))[0]
+    await waitFor(() => expect(within(again).getByRole("button", { name: "Acceptable" })).toHaveAttribute("aria-pressed", "true"))
+    expect(api.getRatings).toHaveBeenCalledWith(HASH)
   })
 })

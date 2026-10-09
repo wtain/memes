@@ -132,3 +132,21 @@ describe("messageSearchReducer", () => {
     })
   })
 })
+
+describe("listReading", () => {
+  const ok = (state: State, mode: "find" | "refine" | "more", reading?: "parsed" | "edited") =>
+    reducer(state, { type: "succeeded", mode, response: makeResponse({ items: [makeResult("x")], hasNext: true, nextCursor: "c" }), request: { text: "t" }, reading })
+
+  it("starts parsed, is set from the request on success, and kept on Show more", () => {
+    expect(base.listReading).toBe("parsed")
+    const edited = ok({ ...base, status: "refining" }, "refine", "edited")
+    expect(edited.listReading).toBe("edited")
+    expect(ok({ ...edited, nextCursor: "c", lastRequest: { text: "t" } }, "more").listReading).toBe("edited")
+  })
+
+  it("is unchanged by a failure and reset by a new find", () => {
+    const edited = ok({ ...base, status: "refining" }, "refine", "edited")
+    expect(reducer(edited, { type: "failed", error: "failed" }).listReading).toBe("edited")
+    expect(reducer(edited, { type: "findStarted", submitted: "n" }).listReading).toBe("parsed")
+  })
+})
