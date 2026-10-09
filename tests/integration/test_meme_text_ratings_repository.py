@@ -4,9 +4,10 @@ see tests/integration/conftest.py.
 """
 import inspect
 import uuid
+from datetime import datetime
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from repository import meme_text_ratings
@@ -135,19 +136,30 @@ async def test_all_ratings_returns_plain_rows_oldest_first(db_session):
     await repo.upsert(**_fields(image, query_hash="1" * 64))
     await repo.upsert(**_fields(image, query_hash="2" * 64, grade=0))
 
+    # rated_at is the primary key of the order: the later time goes to the smaller hash, so a hash order would fail
+    await db_session.execute(update(MemeTextRating).where(
+        MemeTextRating.image_id == image.id, MemeTextRating.query_hash == "1" * 64).values(rated_at=datetime(2030, 1, 2)))
+    await db_session.execute(update(MemeTextRating).where(
+        MemeTextRating.image_id == image.id, MemeTextRating.query_hash == "2" * 64).values(rated_at=datetime(2030, 1, 1)))
+
     rows = [row for row in await repo.all_ratings() if row.image_id == image.id]
 
-    assert [row.query_hash for row in rows] == ["1" * 64, "2" * 64]
-    assert rows[0].grade == 2 and rows[1].grade == 0 and rows[0].language == "en"
+    assert [row.query_hash for row in rows] == ["2" * 64, "1" * 64]
+    assert rows[0].grade == 0 and rows[1].grade == 2 and rows[0].language == "en"
     assert isinstance(rows[0].rated_at, str)
 
 
 @pytest.mark.asyncio(loop_scope="session")
-@pytest.mark.parametrize("overrides", [{"grade": 3}, {"grade": -1}, {"rank": 0}, {"reading": "guessed"}])
-async def test_the_database_rejects_invalid_values(db_session, overrides):
+@pytest.mark.parametrize("overrides, constraint", [
+    ({"grade": 3}, "ck_meme_text_ratings_grade"),
+    ({"grade": -1}, "ck_meme_text_ratings_grade"),
+    ({"rank": 0}, "ck_meme_text_ratings_rank"),
+    ({"reading": "guessed"}, "ck_meme_text_ratings_reading"),
+])
+async def test_the_database_rejects_invalid_values(db_session, overrides, constraint):
     image = await _image(db_session)
     repo = MemeTextRatingRepository(db_session)
-    with pytest.raises(IntegrityError):
+    with pytest.raises(IntegrityError, match=constraint):
         async with db_session.begin_nested():
             await repo.upsert(**_fields(image, **overrides))
 
