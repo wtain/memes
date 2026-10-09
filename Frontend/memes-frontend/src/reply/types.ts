@@ -15,7 +15,18 @@ export const GRADE_CHOICES = [
 ] as const
 
 /** Everything a rating records about the search besides which meme and which grade. */
-export type RatingContext = Omit<RatingRequest, "imageId" | "grade">
+// Explicit (not Omit<RatingRequest, ...>): the generated request type has an index signature, which would make an
+// Omit collapse to an untyped object and hide a missing or misspelled field.
+export interface RatingContext {
+  text: string
+  rank: number
+  reading: "parsed" | "edited"
+  parserVersion: string
+  taxonomyVersion: number
+  degraded: boolean
+  fallback: string
+  language: "en" | "ru" | "es" | "other"
+}
 
 export const AXES = ["emotion", "stance", "topic", "tone"] as const
 export type AxisName = (typeof AXES)[number]

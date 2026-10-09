@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
-import type { Grade, RatingContext, RatingRequest } from "./types"
+import type { Grade, RatingContext } from "./types"
 
 export type RatingEvent = { imageId: string; kind: "saved" | "cleared" | "failed" }
 
@@ -56,7 +56,7 @@ export function useRatings(memesApi: MemesApi, queryHash: string | null) {
       if (hashRef.current !== hash) return                      // the message changed while this click waited
       try {
         if (grade === null) await memesApi.deleteRating(hash, imageId)
-        else await memesApi.putRating({ ...context, imageId, grade } as RatingRequest)
+        else await memesApi.putRating({ ...context, imageId, grade })
         confirmed.current[imageId] = grade
         if (hashRef.current === hash) {
           setGrade(hash, imageId, grade)
