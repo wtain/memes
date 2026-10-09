@@ -6,6 +6,7 @@ import type {
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
+  RatingRequest, RatingResponse, RatingsResponse,
 } from "../types/generated/all";
 
 export type IngestionTier = "tier_a" | "tier_b"
@@ -85,4 +86,9 @@ export interface MemesApi {
   listBatchNames(): Promise<BatchNamesResponse>;
   triggerBatchRun(batchName: string): Promise<RunTriggerResponse>;
   listBatchRuns(limit?: number, offset?: number): Promise<RunListResponse>;
+
+  putRating(request: RatingRequest): Promise<RatingResponse>;
+  deleteRating(queryHash: string, imageId: string): Promise<void>;
+  getRatings(queryHash: string): Promise<RatingsResponse>;
+  forgetRatingText(queryHash: string): Promise<void>;
 }

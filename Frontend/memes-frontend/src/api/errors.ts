@@ -18,6 +18,16 @@ export class MessageSearchFailedError extends Error {
   }
 }
 
+/** A rating call failed. The message is fixed text: it never contains the user's message. */
+export class RatingFailedError extends Error {
+  readonly status: number
+  constructor(status: number) {
+    super(`Rating request failed (HTTP ${status})`)
+    this.name = "RatingFailedError"
+    this.status = status
+  }
+}
+
 export function isAbortError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === "AbortError") return true
   if (error && typeof error === "object") {

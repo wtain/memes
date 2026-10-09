@@ -59,7 +59,7 @@ export function makeResult(id: string, overrides: Partial<MemeFromTextResult> = 
 export function makeResponse(overrides: Partial<MemeFromTextResponse> = {}): MemeFromTextResponse {
   return {
     items: [], facets: [], hasNext: false, profile: makeProfile(), degraded: false, fallback: "none",
-    meta: { available: true, parseMs: 700, embedMs: 15, retrievalMs: 110, candidates: 12, cacheHit: false, parserVersion: "p3-test", model: "m" },
+    meta: { available: true, parseMs: 700, embedMs: 15, retrievalMs: 110, candidates: 12, cacheHit: false, parserVersion: "p3-test", model: "m", queryHash: "a".repeat(64) },
     ...overrides,
   }
 }

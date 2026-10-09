@@ -7,8 +7,9 @@ import type {
   RunTriggerResponse, RunListResponse, BatchNamesResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
+  RatingRequest, RatingResponse, RatingsResponse,
 } from "../../types/generated/all"
-import { MessageSearchFailedError, MessageSearchValidationError } from "../errors"
+import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError } from "../errors"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -496,6 +497,37 @@ export class HttpMemesApi implements MemesApi {
     })
     if (!res.ok) throw new Error(`Failed to fetch batch runs: ${res.status}`)
     return res.json()
+  }
+
+  async putRating(request: RatingRequest): Promise<RatingResponse> {
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/ratings`, {
+      method: "PUT",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw new RatingFailedError(response.status)
+    return response.json()
+  }
+
+  async deleteRating(queryHash: string, imageId: string): Promise<void> {
+    const params = new URLSearchParams({ queryHash, imageId })
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/ratings?${params.toString()}`, { method: "DELETE" })
+    if (!response.ok) throw new RatingFailedError(response.status)
+  }
+
+  async getRatings(queryHash: string): Promise<RatingsResponse> {
+    const params = new URLSearchParams({ queryHash })
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/ratings?${params.toString()}`, {
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) throw new RatingFailedError(response.status)
+    return response.json()
+  }
+
+  async forgetRatingText(queryHash: string): Promise<void> {
+    const params = new URLSearchParams({ queryHash })
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/ratings/text?${params.toString()}`, { method: "DELETE" })
+    if (!response.ok) throw new RatingFailedError(response.status)
   }
 }
 

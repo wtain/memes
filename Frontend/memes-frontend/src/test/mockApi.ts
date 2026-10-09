@@ -49,6 +49,10 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     listBatchRuns: vi.fn().mockResolvedValue({ items: [], total: 0 }),
     searchMemeFromText: vi.fn().mockResolvedValue(makeResponse()),
     getTaxonomy: vi.fn().mockResolvedValue(TEST_TAXONOMY),
+    putRating: vi.fn().mockResolvedValue({ queryHash: "a".repeat(64), imageId: "img", grade: 2 }),
+    deleteRating: vi.fn().mockResolvedValue(undefined),
+    getRatings: vi.fn().mockResolvedValue({ queryHash: "a".repeat(64), ratings: [] }),
+    forgetRatingText: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as MemesApi
 }
