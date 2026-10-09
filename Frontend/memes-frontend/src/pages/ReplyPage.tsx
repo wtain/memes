@@ -147,7 +147,12 @@ export default function ReplyPage({ memesApi }: Props) {
           <section ref={resultsRef} tabIndex={-1} className="flex-1 focus:outline-none" aria-label="Results">
             <ActiveFilters filters={state.filters} taxonomy={taxonomy} onRemove={removeFilter} />
 
-            {ratings.hasRatings && <div className="mb-3"><ForgetTextButton key={ratings.savedCount} onConfirm={ratings.forgetText} /></div>}
+            {/* The slot is always there while results show, so the first rating cannot push the cards down under the pointer. */}
+            {queryHash && state.items.length > 0 && (
+              <div data-testid="forget-slot" className="mb-3 min-h-11">
+                {ratings.hasRatings && <ForgetTextButton key={ratings.savedCount} onConfirm={ratings.forgetText} />}
+              </div>
+            )}
 
             {state.items.length === 0 && finished && (
               <div className="rounded-xl bg-white p-6 text-center shadow-sm">

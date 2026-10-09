@@ -537,9 +537,14 @@ describe("ReplyPage ratings", () => {
     await search(user)
     await screen.findAllByRole("group", { name: "Rate this result" })
     expect(screen.queryByRole("button", { name: "Forget this message's text" })).not.toBeInTheDocument()
+    // the space is reserved from the start, so the first rating does not shift the cards
+    const slot = screen.getByTestId("forget-slot")
+    expect(slot).toBeEmptyDOMElement()
+    expect(slot.className).toContain("min-h-11")
 
     await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[0]).getByRole("button", { name: "Acceptable" }))
     await user.click(await screen.findByRole("button", { name: "Forget this message's text" }))
+    expect(screen.getByTestId("forget-slot")).toBe(slot)
     await user.click(screen.getByRole("button", { name: "Confirm" }))
 
     await waitFor(() => expect(api.forgetRatingText).toHaveBeenCalledWith(HASH))
