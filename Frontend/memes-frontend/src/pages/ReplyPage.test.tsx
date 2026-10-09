@@ -438,3 +438,117 @@ describe("ReplyPage", () => {
     })
   })
 })
+
+const HASH = "a".repeat(64)
+
+function ratedResponse(extra = {}) {
+  return makeResponse({ items: [makeResult("a"), makeResult("b")], ...extra })
+}
+
+describe("ReplyPage ratings", () => {
+  it("rates a result with the text that was searched, its rank and the parsed reading", async () => {
+    const user = userEvent.setup()
+    const api = renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()) }))
+    await search(user, "my manager moved the meeting")
+    await screen.findAllByRole("group", { name: "Rate this result" })
+
+    const groups = screen.getAllByRole("group", { name: "Rate this result" })
+    await user.click(within(groups[1]).getByRole("button", { name: "Good fit" }))
+
+    await waitFor(() => expect(api.putRating).toHaveBeenCalledTimes(1))
+    expect(api.putRating).toHaveBeenCalledWith(expect.objectContaining({
+      text: "my manager moved the meeting", imageId: "b", grade: 2, rank: 2, reading: "parsed",
+      parserVersion: "p3-test", taxonomyVersion: 2, degraded: false, fallback: "none", language: "en",
+    }))
+    expect(within(groups[1]).getByRole("button", { name: "Good fit" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("uses the submitted text, not the box's current text, and marks an edited reading", async () => {
+    const user = userEvent.setup()
+    const api = renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()) }))
+    await search(user, "first message")
+    await screen.findAllByRole("group", { name: "Rate this result" })
+    await user.type(screen.getByLabelText("Message to reply to"), " and more typed afterwards")
+    await user.click(screen.getByRole("button", { name: "Remove emotion: Annoyance" }))
+    await waitFor(() => expect(screen.getByText("Edited")).toBeInTheDocument())
+
+    await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[0]).getByRole("button", { name: "Acceptable" }))
+
+    await waitFor(() => expect(api.putRating).toHaveBeenCalled())
+    expect(api.putRating).toHaveBeenCalledWith(expect.objectContaining({ text: "first message", reading: "edited", grade: 1 }))
+  })
+
+  it("shows grades loaded for the message and keeps them after a refine", async () => {
+    const user = userEvent.setup()
+    const api = renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()),
+      getRatings: vi.fn().mockResolvedValue({ queryHash: HASH, ratings: [{ imageId: "a", grade: 0 }] }),
+    }))
+    await search(user)
+    const first = (await screen.findAllByRole("group", { name: "Rate this result" }))[0]
+    await waitFor(() => expect(within(first).getByRole("button", { name: "Not a fit" })).toHaveAttribute("aria-pressed", "true"))
+    expect(api.getRatings).toHaveBeenCalledWith(HASH)
+
+    await user.click(screen.getByRole("button", { name: "Remove emotion: Annoyance" }))
+    await waitFor(() => expect(calls(api).length).toBeGreaterThanOrEqual(2), { timeout: 2000 })
+
+    const again = (await screen.findAllByRole("group", { name: "Rate this result" }))[0]
+    expect(within(again).getByRole("button", { name: "Not a fit" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("clicking the active grade clears the rating", async () => {
+    const user = userEvent.setup()
+    const api = renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()),
+      getRatings: vi.fn().mockResolvedValue({ queryHash: HASH, ratings: [{ imageId: "a", grade: 2 }] }),
+    }))
+    await search(user)
+    const first = (await screen.findAllByRole("group", { name: "Rate this result" }))[0]
+    await waitFor(() => expect(within(first).getByRole("button", { name: "Good fit" })).toHaveAttribute("aria-pressed", "true"))
+
+    await user.click(within(first).getByRole("button", { name: "Good fit" }))
+
+    await waitFor(() => expect(api.deleteRating).toHaveBeenCalledWith(HASH, "a"))
+  })
+
+  it("shows an inline error and rolls back when saving fails", async () => {
+    const user = userEvent.setup()
+    renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()),
+      putRating: vi.fn().mockRejectedValue(new Error("down")),
+    }))
+    await search(user)
+    const first = (await screen.findAllByRole("group", { name: "Rate this result" }))[0]
+    await user.click(within(first).getByRole("button", { name: "Good fit" }))
+
+    expect(await within(first).findByRole("alert")).toHaveTextContent("Couldn't save the rating")
+    expect(within(first).getByRole("button", { name: "Good fit" })).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("offers to forget the text only once a message has ratings, and forgets it after confirmation", async () => {
+    const user = userEvent.setup()
+    const api = renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(ratedResponse()),
+      getRatings: vi.fn().mockResolvedValue({ queryHash: HASH, ratings: [] }),
+    }))
+    await search(user)
+    await screen.findAllByRole("group", { name: "Rate this result" })
+    expect(screen.queryByRole("button", { name: "Forget this message's text" })).not.toBeInTheDocument()
+
+    await user.click(within(screen.getAllByRole("group", { name: "Rate this result" })[0]).getByRole("button", { name: "Acceptable" }))
+    await user.click(await screen.findByRole("button", { name: "Forget this message's text" }))
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => expect(api.forgetRatingText).toHaveBeenCalledWith(HASH))
+  })
+
+  it("shows no rating bar when the response carries no query hash or the page is unavailable", async () => {
+    const user = userEvent.setup()
+    const response = ratedResponse()
+    delete (response.meta as { queryHash?: string }).queryHash
+    renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(response) }))
+    await search(user)
+    await screen.findAllByRole("img", { name: /^[ab]$/ })
+    expect(screen.queryByRole("group", { name: "Rate this result" })).not.toBeInTheDocument()
+  })
+})

@@ -4,6 +4,7 @@ import ActiveFilters from "../components/reply/ActiveFilters"
 import AxisFacets from "../components/reply/AxisFacets"
 import MessageBox from "../components/reply/MessageBox"
 import ReadingPanel from "../components/reply/ReadingPanel"
+import ForgetTextButton from "../components/reply/ForgetTextButton"
 import ResultCard from "../components/reply/ResultCard"
 import StatusBanner from "../components/reply/StatusBanner"
 import { MemeDetailsModal } from "../components/MemeDetailsModal"
@@ -11,8 +12,9 @@ import { countFilters, hasFilters } from "../reply/filters"
 import { addValue, removeValue, setSituation } from "../reply/profile"
 import { labelFor, maxValuesFor } from "../reply/taxonomy"
 import { useMessageSearch } from "../reply/useMessageSearch"
+import { useRatings } from "../reply/useRatings"
 import { useTaxonomy } from "../reply/useTaxonomy"
-import type { AxisName } from "../reply/types"
+import type { AxisName, RatingContext } from "../reply/types"
 import type { Meme } from "../types/generated/all"
 
 type Props = {
@@ -24,6 +26,8 @@ export default function ReplyPage({ memesApi }: Props) {
   const { state } = search
   const profile = search.activeProfile
   const taxonomy = useTaxonomy(memesApi, profile?.taxonomyVersion ?? null, state.searchCount)
+  const queryHash = state.meta?.queryHash ?? null
+  const ratings = useRatings(memesApi, state.status === "unavailable" ? null : queryHash)
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const resultsRef = useRef<HTMLElement>(null)
@@ -57,6 +61,18 @@ export default function ReplyPage({ memesApi }: Props) {
   const count = state.items.length
   const noun = count === 1 ? "meme" : "memes"
   const countText = finished ? (state.hasNext ? `${count} ${noun} shown, more available` : `${count} ${noun} found`) : ""
+
+  // The text that was searched (never the box's current text), the list as shown and the reading in force.
+  const ratingContext = (rank: number): RatingContext => ({
+    text: state.submitted ?? "",
+    rank,
+    reading: state.editedProfile !== null ? "edited" : "parsed",
+    parserVersion: state.meta?.parserVersion ?? "",
+    taxonomyVersion: profile?.taxonomyVersion ?? 0,
+    degraded: state.fallback !== "none",
+    fallback: state.fallback,
+    language: profile?.language ?? "other",
+  })
 
   function removeFilter(axis: AxisName, value: string) {
     // The last chip unmounts itself: move focus to the stable results section first.
@@ -131,6 +147,8 @@ export default function ReplyPage({ memesApi }: Props) {
           <section ref={resultsRef} tabIndex={-1} className="flex-1 focus:outline-none" aria-label="Results">
             <ActiveFilters filters={state.filters} taxonomy={taxonomy} onRemove={removeFilter} />
 
+            {ratings.hasRatings && <div className="mb-3"><ForgetTextButton onConfirm={ratings.forgetText} /></div>}
+
             {state.items.length === 0 && finished && (
               <div className="rounded-xl bg-white p-6 text-center shadow-sm">
                 <p className="font-medium">No memes fit</p>
@@ -139,13 +157,18 @@ export default function ReplyPage({ memesApi }: Props) {
             )}
 
             <div ref={gridRef} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {state.items.map((result) => (
+              {state.items.map((result, index) => (
                 <ResultCard
                   key={result.meme.id}
                   result={result}
                   memesApi={memesApi}
                   labelOf={labelOf}
                   onOpen={() => setSelectedMeme(result.meme)}
+                  rating={queryHash ? {
+                    grade: ratings.grades[result.meme.id] ?? null,
+                    event: ratings.lastEvent?.imageId === result.meme.id ? ratings.lastEvent.kind : null,
+                    onRate: (grade) => ratings.rate(ratingContext(index + 1), result.meme.id, grade),
+                  } : undefined}
                 />
               ))}
             </div>
