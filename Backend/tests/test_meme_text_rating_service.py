@@ -55,6 +55,14 @@ async def test_blank_text_is_rejected_without_touching_the_repository():
     repository.upsert.assert_not_called()
 
 
+async def test_a_nul_character_is_rejected_with_a_fixed_message():
+    service, repository = _service()
+    with pytest.raises(RatingValidationError) as raised:
+        await service.put(_request(text="hello\x00SECRET"))
+    assert str(raised.value) == "the message contains an invalid character"
+    repository.upsert.assert_not_called()
+
+
 async def test_an_unknown_or_inactive_image_is_rejected():
     service, repository = _service(active=False)
     with pytest.raises(UnknownImageError):

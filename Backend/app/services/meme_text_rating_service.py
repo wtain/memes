@@ -40,6 +40,8 @@ class MemeTextRatingService:
         text = normalised_query(request.text, self.max_chars)
         if not text:
             raise RatingValidationError("the message is empty")
+        if "\x00" in text:
+            raise RatingValidationError("the message contains an invalid character")
         image_id = _image_id(request.imageId)
         if not await self.repository.image_is_active(image_id):
             raise UnknownImageError()

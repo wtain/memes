@@ -4,12 +4,14 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
 
 from Storage.db import get_async_db
 
+from Backend.app.error_handlers import validation_error_handler
 from Backend.app.api.diagnostics import router as diagnostics_router
 from Backend.app.api.history import router as history_router
 from Backend.app.api.images import router as images_router
@@ -110,6 +112,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 app.add_middleware(
     CORSMiddleware,

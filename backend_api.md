@@ -698,7 +698,7 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
   - The endpoint never fails because a model failed: it answers with `degraded: true` and a `fallback` reason (a failed parse falls back to lexical retrieval, a failed embedding to the axes without the situation)
   - An environment without a parser (no `parse.model`, the `it` environment), or whose pipeline could not be built at startup (a misconfigured key shows as this answer plus one startup warning), answers `200` with `items: []`, `degraded: true`, `fallback: "unavailable"` and `meta.available: false`. An environment with a parser but no profiles answers `meta.available: true` with empty or lexical-only results
 - **Error Responses**:
-  - `422`: malformed request (missing or empty `text`, `limit` outside 1 to 50, unknown `languageHint`, wrongly typed `filters`) or an invalid edited `profile`; for an invalid profile `detail` is the list of error strings. Request limits: `text` 8000 characters, filter arrays 64 entries, filter and tag strings 128 characters, `cursor` 512 characters
+  - `422`: malformed request (missing or empty `text`, `limit` outside 1 to 50, unknown `languageHint`, wrongly typed `filters`) or an invalid edited `profile`; for an invalid profile `detail` is the list of error strings. Request limits: `text` 8000 characters, filter arrays 64 entries, filter and tag strings 128 characters, `cursor` 512 characters. For request validation errors `detail` is a list of `{ "loc", "msg", "type" }` objects only; the rejected input is never echoed (no `input`, no `ctx`), so the message text cannot appear in the body
   - `500`: the search failed unexpectedly (for example a database error); the body is the generic `{"detail": "meme-from-text search failed"}` and neither the body nor the server log contains the message text
 - **Example**: `POST /api/meme-from-text/search`
 
@@ -754,7 +754,7 @@ Lets a person grade how well a result fits a message (0 not a fit, 1 acceptable,
 
 **Error Responses** (all four calls):
   - `404`: unknown or inactive image (`PUT`), `{"detail": "image not found"}`
-  - `422`: malformed request, a blank message after normalisation, an `imageId` that is not a valid id or a `queryHash` that is not 64 lowercase hex characters; for validation errors raised by the service `detail` is a fixed string that never contains the message text
+  - `422`: malformed request, a blank message after normalisation, an `imageId` that is not a valid id or a `queryHash` that is not 64 lowercase hex characters, or a message containing a NUL character; for request validation errors `detail` is a list of `{ "loc", "msg", "type" }` objects only (no `input`, no `ctx`, the rejected input is never echoed), and for errors raised by the service it is a fixed string; neither contains the message text
   - `500`: unexpected failure; the body is the generic `{"detail": "rating request failed"}` and neither the body nor the server log contains the message text
 
 ---
