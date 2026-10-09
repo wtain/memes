@@ -33,7 +33,8 @@ def normalise(vector: list[float]) -> list[float]:
 
 class OllamaEmbedClient:
     def __init__(self, base_url: str, expected_dim: int | None = None):
-        self._url = base_url.rstrip("/") + "/api/embed"
+        self._base = base_url.rstrip("/")
+        self._url = self._base + "/api/embed"
         self._expected_dim = expected_dim
 
     def embed(self, model: str, texts: list[str], timeout: float) -> list[list[float]]:
@@ -44,6 +45,22 @@ class OllamaEmbedClient:
         body = json.dumps({"model": model, "input": list(texts)}).encode("utf-8")
         request = urllib.request.Request(
             self._url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+        payload = self._send(request, timeout)
+        try:
+            embeddings = json.loads(payload)["embeddings"]
+            vectors = [[float(value) for value in vector] for vector in embeddings]
+        except (ValueError, KeyError, TypeError):
+            raise EmbedBadResponse("the Ollama response has no embeddings") from None
+        if any(not math.isfinite(value) for vector in vectors for value in vector):
+            raise EmbedBadResponse("the Ollama response has non-finite values")
+        if self._expected_dim is not None and any(len(vector) != self._expected_dim for vector in vectors):
+            raise EmbedBadResponse("the Ollama response has an unexpected embedding dimension")
+        if len(vectors) != len(texts):
+            raise EmbedBadResponse("the Ollama response has the wrong number of embeddings")
+        return [normalise(vector) for vector in vectors]
+
+    @staticmethod
+    def _send(request: urllib.request.Request, timeout: float) -> bytes:
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 payload = response.read()
@@ -61,18 +78,23 @@ class OllamaEmbedClient:
             raise EmbedTimeout("Ollama did not answer in time") from None
         except OSError:
             raise EmbedUnavailable("Ollama is not reachable") from None
+        return payload
+
+    def model_digest(self, model: str, timeout: float) -> str:
+        """The digest of an Ollama model, as `ollama list` reports it (GET /api/tags)."""
+        if timeout <= 0:
+            raise EmbedTimeout("no time left for the call")
+        request = urllib.request.Request(self._base + "/api/tags", method="GET")
+        payload = self._send(request, timeout)
         try:
-            embeddings = json.loads(payload)["embeddings"]
-            vectors = [[float(value) for value in vector] for vector in embeddings]
-        except (ValueError, KeyError, TypeError):
-            raise EmbedBadResponse("the Ollama response has no embeddings") from None
-        if any(not math.isfinite(value) for vector in vectors for value in vector):
-            raise EmbedBadResponse("the Ollama response has non-finite values")
-        if self._expected_dim is not None and any(len(vector) != self._expected_dim for vector in vectors):
-            raise EmbedBadResponse("the Ollama response has an unexpected embedding dimension")
-        if len(vectors) != len(texts):
-            raise EmbedBadResponse("the Ollama response has the wrong number of embeddings")
-        return [normalise(vector) for vector in vectors]
+            models = json.loads(payload)["models"]
+            wanted = {model, f"{model}:latest"}
+            for entry in models:
+                if entry.get("model") in wanted or entry.get("name") in wanted:
+                    return str(entry["digest"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            raise EmbedBadResponse("the Ollama response has no model list") from None
+        raise EmbedUnavailable("the embedding model is not installed in Ollama")
 
     async def aembed(self, model: str, texts: list[str], timeout: float) -> list[list[float]]:
         return await asyncio.to_thread(self.embed, model, texts, timeout)

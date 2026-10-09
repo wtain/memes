@@ -152,3 +152,56 @@ def test_a_vector_of_another_dimension_is_a_bad_response_when_a_dimension_is_exp
         OllamaEmbedClient(url, expected_dim=3).embed("m", ["a", "b"], timeout=2.0)
     assert len(OllamaEmbedClient(url, expected_dim=2).embed("m", ["a", "b"], timeout=2.0)) == 2
     assert len(OllamaEmbedClient(url).embed("m", ["a", "b"], timeout=2.0)) == 2
+
+
+@pytest.fixture
+def tags_server():
+    state = {"body": b"{}", "paths": []}
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            state["paths"].append(self.path)
+            body = state["body"]
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    httpd.daemon_threads = True
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    yield state, f"http://127.0.0.1:{httpd.server_address[1]}"
+    httpd.shutdown()
+    httpd.server_close()
+
+
+def test_model_digest_reads_the_matching_model_from_api_tags(tags_server):
+    state, url = tags_server
+    state["body"] = json.dumps({"models": [
+        {"model": "other:latest", "digest": "aaa"}, {"model": "bge-large:latest", "digest": "b3d71c92"}]}).encode()
+
+    assert OllamaEmbedClient(url, 1024).model_digest("bge-large", 3.0) == "b3d71c92"
+    assert state["paths"] == ["/api/tags"]
+
+
+def test_model_digest_accepts_a_fully_qualified_name(tags_server):
+    state, url = tags_server
+    state["body"] = json.dumps({"models": [{"model": "bge-large", "digest": "d1"}]}).encode()
+    assert OllamaEmbedClient(url).model_digest("bge-large", 3.0) == "d1"
+
+
+def test_model_digest_errors_are_typed_and_carry_no_text(tags_server):
+    state, url = tags_server
+    client = OllamaEmbedClient(url)
+    state["body"] = json.dumps({"models": []}).encode()
+    with pytest.raises(EmbedUnavailable):
+        client.model_digest("bge-large", 3.0)
+    state["body"] = b"not json"
+    with pytest.raises(EmbedBadResponse):
+        client.model_digest("bge-large", 3.0)
+    with pytest.raises(EmbedTimeout):
+        client.model_digest("bge-large", 0)

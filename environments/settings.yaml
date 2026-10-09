@@ -194,6 +194,11 @@ meme_profiles:
   seed: 42
   # max_per_run: 500       # optional cap per description_pipeline run; unset = unlimited
 
+profile_editor:
+  # Meme-profile curator (epic meme-from-text, P5c). Time budget of the inline situation-vector refresh on save;
+  # when it is exceeded the profile is still saved and the vector is refreshed by build_meme_profile_embeddings.
+  embed_timeout_seconds: 8
+
 parse:
   # Query understanding (epic meme-from-text, P3; see
   # docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-05-p3-query-understanding-design.md).
