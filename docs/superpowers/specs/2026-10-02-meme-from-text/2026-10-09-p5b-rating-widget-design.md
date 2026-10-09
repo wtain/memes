@@ -3,7 +3,7 @@
 Status: done
 Plan: docs/superpowers/plans/2026-10-09-p5b-rating-widget.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-08-p5-web-ui-design.md (Out of scope: the rating widget, US-5)
-Follow-ups: none yet (P5c curator tools is a separate spec)
+Follow-ups: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5c-curator-tools-design.md (P5c curator tools)
 
 Epic: `docs/superpowers/specs/2026-10-02-meme-from-text/README.md`. Inherited contracts: the P5 page and handoff notes (`2026-10-08-p5-web-ui-design.md`, addendum), the P4 endpoint (`POST /api/meme-from-text/search`), the P6 gold set and its import format (`evaluation/gold/`), NFR-2 (privacy: query text goes only to the local Ollama and the local database, and is stored only if search history already stores it).
 
