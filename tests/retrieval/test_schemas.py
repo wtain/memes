@@ -42,7 +42,9 @@ def test_the_response_schema_has_the_documented_fields():
     schema = _load("memefromtextresponse")
     assert set(schema["required"]) == {"items", "hasNext", "profile", "degraded", "fallback", "meta"}
     assert set(schema["properties"]["meta"]["properties"]) == {
-        "available", "parseMs", "embedMs", "retrievalMs", "candidates", "cacheHit", "parserVersion", "model"}
+        "available", "parseMs", "embedMs", "retrievalMs", "candidates", "cacheHit", "parserVersion", "model",
+        "queryHash"}
+    assert "queryHash" not in schema["properties"]["meta"]["required"]
 
 
 def test_the_result_schema_carries_meme_score_explanation_and_cluster_info():

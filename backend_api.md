@@ -667,7 +667,7 @@ Retrieve the actual image file.
 
 #### Search Memes From A Message
 
-Finds memes that make a good reply to a pasted message (English, Russian or Spanish). The message is parsed into a query profile (situation phrase plus emotion, stance, topic and tone as taxonomy keys), then matched against the stored meme profiles. The message text is neither stored nor logged.
+Finds memes that make a good reply to a pasted message (English, Russian or Spanish). The message is parsed into a query profile (situation phrase plus emotion, stance, topic and tone as taxonomy keys), then matched against the stored meme profiles. The search neither stores nor logs the message text (only an explicit rating stores it, see Rate A Result).
 
 - **URL**: `/api/meme-from-text/search`
 - **Method**: `POST`
@@ -690,7 +690,7 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
   - `nextCursor` (string, optional) and `hasNext` (boolean): `nextCursor` addresses the last returned item
   - `profile` (`QueryProfile`): how the message was understood (echo of the edited profile when one was sent)
   - `degraded` (boolean) and `fallback` (string): `none`, or the reason (`unavailable`, `timeout`, `invalid_output`, `empty_input`, `breaker_open`, `embed_unavailable`, or several joined with `+`)
-  - `meta`: `available`, `parseMs`, `embedMs`, `retrievalMs`, `candidates`, `cacheHit`, `parserVersion`, `model`. `retrievalMs` is the time from the end of the embedding to the end of the response work (candidate generation, scoring, fusion, duplicate collapse and facets); on a cache hit `parseMs` and `embedMs` are 0 and `retrievalMs` is the time the hit itself took
+  - `meta`: `available`, `parseMs`, `embedMs`, `retrievalMs`, `candidates`, `cacheHit`, `parserVersion`, `model`, `queryHash` (optional string: the sha256 of the normalised message, the key of its ratings, see Rate A Result; present on every computed or cached answer, absent when `meta.available` is `false`). `retrievalMs` is the time from the end of the embedding to the end of the response work (candidate generation, scoring, fusion, duplicate collapse and facets); on a cache hit `parseMs` and `embedMs` are 0 and `retrievalMs` is the time the hit itself took
 - **Behavior**:
   - Results are cached per request for 120 seconds when healthy and 10 seconds when degraded (the response carries `Cache-Control: no-store`; the cache is server side and `meta.cacheHit` reports it)
   - Lexical matching of the message text (only the 20 longest distinct tokens, `search.meme_from_text.lexical.max_tokens`) runs only when the parse or the embedding fell back (`degraded: true`); healthy requests do not use it, so `explanation` has no `lexical` axis then (`search.meme_from_text.lexical.only_when_degraded`, default true)
@@ -714,6 +714,48 @@ The vocabulary behind query profiles, for the chips editor and facet labels of t
 - **Method**: `GET`
 - **Response** `200`: `{"version": 2, "axes": [...]}` where each axis has `name` (`situation`, `emotion`, `stance`, `topic`, `tone`), `type` (`free_text` or `vocabulary`), `maxChars` (free-text axes) or `maxValues` (vocabulary axes), and for vocabulary axes `values`: a list of `{key, definition, labels: {en, ru, es}}`. `version` equals the `taxonomyVersion` of query profiles; a client that sees a different version in a search response should refetch.
 - **Caching**: `Cache-Control: public, max-age=300`. The data does not depend on the database and is identical in every environment.
+
+#### Rate A Result
+
+Lets a person grade how well a result fits a message (0 not a fit, 1 acceptable, 2 good fit). Ratings are for evaluation only and never affect ranking. A message is identified by its hash: the server normalises the text (the first 600 characters, whitespace collapsed, like the search) and derives the sha256, which the search returns as `meta.queryHash` and these calls return as `queryHash`.
+
+**Rate (create or change)**
+
+- **URL**: `/api/meme-from-text/ratings`
+- **Method**: `PUT`
+- **Request Body** (`RatingRequest`, all fields required):
+  - `text` (string, 1 to 8000 characters): the message that was searched; normalised and cut at 600 characters like the search
+  - `imageId` (string): the rated meme
+  - `grade` (integer, 0 to 2)
+  - `rank` (integer, at least 1): 1-based position in the list shown, after duplicate collapse
+  - `reading` (string): `parsed` or `edited` (whether the results came from the parsed or an edited profile)
+  - `parserVersion` (string, at most 128 characters), `taxonomyVersion` (integer, at least 0), `degraded` (boolean), `fallback` (string, at most 128 characters), `language` (`en`, `ru`, `es` or `other`): the search context, copied from the response
+- **Response** `200`: `RatingResponse` with `queryHash`, `imageId` and `grade`
+- **Behavior**: one rating per message and image; rating again replaces the grade and context (upsert). The message text is stored (normalised) only because a rating exists, and is never logged.
+
+**List the grades of one message**
+
+- **URL**: `/api/meme-from-text/ratings?queryHash=<hash>`
+- **Method**: `GET`
+- **Response** `200`: `RatingsResponse`: `queryHash` and `ratings` (array of `{ imageId, grade }`)
+
+**Remove one rating**
+
+- **URL**: `/api/meme-from-text/ratings?queryHash=<hash>&imageId=<id>`
+- **Method**: `DELETE`
+- **Response** `204` (also when there was nothing to remove)
+
+**Clear the stored text of a message**
+
+- **URL**: `/api/meme-from-text/ratings/text?queryHash=<hash>`
+- **Method**: `DELETE`
+- **Response** `204`
+- **Behavior**: erases the stored message text for every rating of that message; the grades, the hash and the image ids stay. Rating the same message again stores the text again.
+
+**Error Responses** (all four calls):
+  - `404`: unknown or inactive image (`PUT`), `{"detail": "image not found"}`
+  - `422`: malformed request, a blank message after normalisation, an `imageId` that is not a valid id or a `queryHash` that is not 64 lowercase hex characters; for validation errors raised by the service `detail` is a fixed string that never contains the message text
+  - `500`: unexpected failure; the body is the generic `{"detail": "rating request failed"}` and neither the body nor the server log contains the message text
 
 ---
 

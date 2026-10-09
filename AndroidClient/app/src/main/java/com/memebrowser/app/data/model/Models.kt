@@ -167,6 +167,33 @@ data class ProfileValue(
 )
 
 @Serializable
+data class RatingItem(
+    @SerialName("imageId") val imageId: String,
+    @SerialName("grade") val grade: Int
+)
+
+@Serializable
+data class RatingRequest(
+    @SerialName("text") val text: String,
+    @SerialName("imageId") val imageId: String,
+    @SerialName("grade") val grade: Int,
+    @SerialName("rank") val rank: Int,
+    @SerialName("reading") val reading: String,
+    @SerialName("parserVersion") val parserVersion: String,
+    @SerialName("taxonomyVersion") val taxonomyVersion: Int,
+    @SerialName("degraded") val degraded: Boolean,
+    @SerialName("fallback") val fallback: String,
+    @SerialName("language") val language: String
+)
+
+@Serializable
+data class RatingResponse(
+    @SerialName("queryHash") val queryHash: String,
+    @SerialName("imageId") val imageId: String,
+    @SerialName("grade") val grade: Int
+)
+
+@Serializable
 data class RunStatusResponse(
     @SerialName("run_id") val run_id: String,
     @SerialName("batch_name") val batch_name: String,
@@ -353,6 +380,12 @@ data class MemeSearchRequest(
     @SerialName("cursor") val cursor: String? = null,
     @SerialName("limit") val limit: Int? = null,
     @SerialName("tags") val tags: List<MemeTag>? = null
+)
+
+@Serializable
+data class RatingsResponse(
+    @SerialName("queryHash") val queryHash: String,
+    @SerialName("ratings") val ratings: List<RatingItem>
 )
 
 @Serializable

@@ -18,6 +18,7 @@ from retrieval.cursor import fingerprint, paginate
 from retrieval.facets import RankedItem, collapse_clusters, facet_counts
 from retrieval.fusion import fuse, rank_candidates
 from retrieval.model import Candidate, Filters, QueryView
+from retrieval.query_hash import query_hash
 from retrieval.similarity import SimilarityIndex
 from taxonomy.loader import load
 from taxonomy.model import Taxonomy
@@ -135,6 +136,7 @@ class MemeFromTextPipeline:
             "cacheHit": cache_hit,
             "parserVersion": prepared.parser_version,
             "model": prepared.model,
+            "queryHash": query_hash(text),
         }
         result = SearchResult(page, entry.facets, next_cursor, has_next, prepared.profile, prepared.degraded,
                               prepared.fallback, meta)

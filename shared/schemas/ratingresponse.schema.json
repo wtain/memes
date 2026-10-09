@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ratingresponse.schema.json",
+  "title": "RatingResponse",
+  "type": "object",
+  "properties": {
+    "queryHash": { "type": "string" },
+    "imageId": { "type": "string" },
+    "grade": { "type": "integer", "minimum": 0, "maximum": 2 }
+  },
+  "required": ["queryHash", "imageId", "grade"]
+}

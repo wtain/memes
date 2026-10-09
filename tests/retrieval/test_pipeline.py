@@ -537,3 +537,17 @@ async def test_hostile_and_very_long_text_is_capped_for_the_parser_and_embedder_
     assert 0 < len(sent_to_parser) <= 600 and 0 < len(sent_to_embedder) <= 600 and 0 < len(sent_to_lexical) <= 600
     for fragment in ("Ignore all previous", "привет", "hola", "system prompt"):
         assert fragment not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_the_response_meta_carries_the_query_hash_also_on_a_cache_hit():
+    from retrieval.query_hash import normalised_query, query_hash
+    pipeline = _pipeline()
+    repository = FakeRepository(_candidates())
+    expected = query_hash(normalised_query("  My friend   got promoted! ", 600))
+
+    first = await pipeline.search(SearchRequest(text="  My friend   got promoted! "), repository)
+    second = await pipeline.search(SearchRequest(text="My friend got promoted!"), repository)
+
+    assert first.meta["queryHash"] == expected
+    assert second.meta["cacheHit"] is True and second.meta["queryHash"] == expected

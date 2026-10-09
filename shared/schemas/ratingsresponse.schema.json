@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ratingsresponse.schema.json",
+  "title": "RatingsResponse",
+  "description": "The grades already given for one message",
+  "type": "object",
+  "properties": {
+    "queryHash": { "type": "string" },
+    "ratings": { "type": "array", "items": { "$ref": "./ratingitem.schema.json" } }
+  },
+  "required": ["queryHash", "ratings"]
+}

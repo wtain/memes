@@ -318,6 +318,10 @@ export interface MemeFromTextResponse {
     cacheHit: boolean;
     parserVersion: string;
     model: string;
+    /**
+     * sha256 of the normalised message; the key of its ratings
+     */
+    queryHash?: string;
     [k: string]: unknown;
   };
   [k: string]: unknown;
@@ -357,6 +361,63 @@ export interface TaxonomyResponse {
     }[];
     [k: string]: unknown;
   }[];
+  [k: string]: unknown;
+}
+/**
+ * The grade given to one meme for one message
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RatingItem".
+ */
+export interface RatingItem {
+  imageId: string;
+  grade: number;
+  [k: string]: unknown;
+}
+/**
+ * Rate one result of a meme-from-text search (0 not a fit, 1 acceptable, 2 good fit)
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RatingRequest".
+ */
+export interface RatingRequest {
+  /**
+   * The message that was searched; the server normalises it and derives the hash
+   */
+  text: string;
+  imageId: string;
+  grade: number;
+  /**
+   * 1-based position in the list shown (after duplicate collapse)
+   */
+  rank: number;
+  reading: "parsed" | "edited";
+  parserVersion: string;
+  taxonomyVersion: number;
+  degraded: boolean;
+  fallback: string;
+  language: "en" | "ru" | "es" | "other";
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RatingResponse".
+ */
+export interface RatingResponse {
+  queryHash: string;
+  imageId: string;
+  grade: number;
+  [k: string]: unknown;
+}
+/**
+ * The grades already given for one message
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RatingsResponse".
+ */
+export interface RatingsResponse {
+  queryHash: string;
+  ratings: RatingItem[];
   [k: string]: unknown;
 }
 /**

@@ -21,7 +21,8 @@
         "candidates": { "type": "integer" },
         "cacheHit": { "type": "boolean" },
         "parserVersion": { "type": "string" },
-        "model": { "type": "string" }
+        "model": { "type": "string" },
+        "queryHash": { "type": "string", "description": "sha256 of the normalised message; the key of its ratings" }
       },
       "required": ["available", "parseMs", "embedMs", "retrievalMs", "candidates", "cacheHit", "parserVersion", "model"]
     }
