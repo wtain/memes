@@ -38,14 +38,14 @@ export function makeCoverage(overrides: Partial<ProfileCoverage> = {}): ProfileC
     lastRuns: {
       profiles: {
         runId: "run-1",
-        status: "done",
+        status: "completed",
         startedAt: "2026-10-09T09:00:00",
         completedAt: "2026-10-09T10:00:00",
         stats: { images_selected: 100, images_remaining: 0 },
       },
       embeddings: {
         runId: "run-2",
-        status: "done",
+        status: "completed",
         startedAt: "2026-10-09T10:00:00",
         completedAt: "2026-10-09T10:30:00",
         stats: { images_processed: 50 },
