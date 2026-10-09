@@ -211,7 +211,7 @@ async def test_human_verified_profiles_are_not_rewritten_and_count_as_needing_re
         image.id,
         ProfileData("human situation", None, "Use when human.",
                     {"emotion": [{"key": "joy", "confidence": 1.0, "source": "human"}]}),
-        ProfileMeta(load_taxonomy().version, "text-model", "old-prompt-version", "stale-fingerprint", True))
+        ProfileMeta(load_taxonomy().version - 1, "text-model", "old-prompt-version", "stale-fingerprint", True))
     await db_session.flush()
 
     calls: list = []

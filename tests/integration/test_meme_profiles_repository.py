@@ -195,6 +195,20 @@ async def test_coverage_counts_active_profiled_stale_needs_review_and_failed(db_
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_coverage_counts_a_human_profile_stale_only_for_the_taxonomy(db_session):
+    human_other_prompt = await _insert_image(db_session)
+    human_old_taxonomy = await _insert_image(db_session)
+    repo = MemeProfileRepository(db_session)
+    await repo.save_human_profile(human_other_prompt.id, _data(), _meta(extractor_prompt_version="human"))
+    await repo.save_human_profile(human_old_taxonomy.id, _data(), _meta(taxonomy_version=1, extractor_prompt_version="human"))
+    await db_session.flush()
+
+    coverage = await repo.coverage(taxonomy_version=2, prompt_version="p2-now")
+
+    assert (coverage["stale"], coverage["needs_review"], coverage["human_verified"]) == (1, 1, 2)
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_get_profiles_needing_embedding_tracks_model_and_digest(db_session):
     with_situation = await _insert_image(db_session)
     no_situation = await _insert_image(db_session)

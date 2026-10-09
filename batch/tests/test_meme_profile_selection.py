@@ -141,3 +141,20 @@ def test_recorded_context_edge_cases():
     assert recorded_context("no bracket [x]") is None
     assert recorded_context("[never closed") is None
     assert recorded_context("[a|b|c] some [other] text") == "[a|b|c]"
+
+
+def test_a_human_verified_profile_is_not_stale_when_only_prompt_model_or_inputs_changed():
+    candidate = _candidate()
+    for override in (dict(extractor_prompt_version="p2-old"), dict(extractor_model="human"),
+                     dict(inputs_fingerprint="other")):
+        result = _select([candidate], {candidate.image_id: _meta(candidate, human_verified=True, **override)})
+        assert result.work == [] and result.stale_ids == frozenset() and result.needs_review_ids == frozenset(), override
+
+
+def test_a_human_verified_profile_from_an_older_taxonomy_needs_review_and_is_never_selected():
+    candidate = _candidate()
+    result = _select([candidate], {candidate.image_id: _meta(candidate, human_verified=True, taxonomy_version=1,
+                                                              extractor_model="human", inputs_fingerprint="human")})
+    assert result.work == []
+    assert result.stale_ids == frozenset({candidate.image_id})
+    assert result.needs_review_ids == frozenset({candidate.image_id})

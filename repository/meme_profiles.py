@@ -2,12 +2,17 @@ import uuid
 from dataclasses import dataclass
 from typing import Collection
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from Storage.models import Image, MemeProfile, MemeProfileSituationEmbedding, MemeProfileValue
+from Storage.models import (
+    Image, ImageProcessingStatus, MemeProfile, MemeProfileSituationEmbedding, MemeProfileValue,
+)
 
 ID_CHUNK = 1000
+PIPELINE = "meme_profile"   # equals batch.utils.meme_profile_config.PIPELINE (the backend image has no batch/); a test pins it
+CATEGORIES = ("without_profile", "needs_review", "stale_taxonomy", "failed", "human_verified", "pending_vector")
+AXES = ("emotion", "stance", "topic", "tone")
 
 
 @dataclass(frozen=True)
@@ -35,6 +40,19 @@ class ProfileData:
             use_when=use_when,
             values={axis: list(items) for axis, items in validated.items() if isinstance(items, list)},
         )
+
+
+@dataclass(frozen=True)
+class ProfileView:
+    image_id: uuid.UUID
+    taxonomy_version: int
+    human_verified: bool
+    situation_text: str | None
+    situation_confidence: float | None
+    use_when: str | None
+    values: dict[str, list[dict]]
+    extracted_at: str
+    updated_at: str
 
 
 class MemeProfileRepository:
@@ -166,7 +184,10 @@ class MemeProfileRepository:
         )).all()
         stale = needs_review = human = 0
         for image_id, version, prompt, human_verified in rows:
-            is_stale = version != taxonomy_version or prompt != prompt_version or image_id in stale_image_ids
+            if human_verified:
+                is_stale = version != taxonomy_version
+            else:
+                is_stale = version != taxonomy_version or prompt != prompt_version or image_id in stale_image_ids
             stale += is_stale
             human += human_verified
             needs_review += is_stale and human_verified
@@ -179,3 +200,96 @@ class MemeProfileRepository:
                 .where(Image.status == "active", Image.id.in_(chunk)))).scalar_one()
         return {"active": active, "profiled": len(rows), "stale": stale, "needs_review": needs_review,
                 "human_verified": human, "failed": failed}
+
+    async def image_is_active(self, image_id: uuid.UUID) -> bool:
+        found = await self.session.execute(select(Image.id).where(Image.id == image_id, Image.status == "active"))
+        return found.first() is not None
+
+    async def get_view(self, image_id: uuid.UUID) -> "ProfileView | None":
+        row = (await self.session.execute(
+            select(MemeProfile).where(MemeProfile.image_id == image_id).execution_options(populate_existing=True)
+        )).scalar_one_or_none()
+        if row is None:
+            return None
+        items = (await self.session.execute(
+            select(MemeProfileValue.axis, MemeProfileValue.value_key, MemeProfileValue.confidence,
+                   MemeProfileValue.source)
+            .where(MemeProfileValue.image_id == image_id)
+            .order_by(MemeProfileValue.confidence.desc(), MemeProfileValue.value_key)
+        )).all()
+        values: dict[str, list[dict]] = {axis: [] for axis in AXES}
+        for axis, key, confidence, source in items:
+            values[axis].append({"key": key, "confidence": confidence, "source": source})
+        return ProfileView(
+            image_id=row.image_id, taxonomy_version=row.taxonomy_version, human_verified=bool(row.human_verified),
+            situation_text=row.situation_text, situation_confidence=row.situation_confidence, use_when=row.use_when,
+            values=values, extracted_at=row.extracted_at.isoformat(), updated_at=row.updated_at.isoformat())
+
+    async def vector_status(self, image_id: uuid.UUID, model_name: str) -> str:
+        situation = (await self.session.execute(
+            select(MemeProfile.situation_text).where(MemeProfile.image_id == image_id))).scalar_one_or_none()
+        if situation is None or not situation.strip():
+            return "none"
+        stored = (await self.session.execute(
+            select(MemeProfileSituationEmbedding.model_name)
+            .where(MemeProfileSituationEmbedding.image_id == image_id))).scalar_one_or_none()
+        return "fresh" if stored == model_name else "pending"
+
+    async def confirm(self, image_id: uuid.UUID, taxonomy_version: int) -> bool:
+        """Mark the profile human-verified without touching its values, their sources or its vector."""
+        result = await self.session.execute(
+            update(MemeProfile).where(MemeProfile.image_id == image_id)
+            .values(human_verified=True, taxonomy_version=taxonomy_version, updated_at=func.now()))
+        return result.rowcount > 0
+
+    async def reset(self, image_id: uuid.UUID) -> bool:
+        """Delete the profile (values and vector cascade) and this pipeline's failure record, so the next
+        build_meme_profiles run re-extracts the image."""
+        deleted = await self.session.execute(delete(MemeProfile).where(MemeProfile.image_id == image_id))
+        await self.session.execute(delete(ImageProcessingStatus).where(
+            ImageProcessingStatus.image_id == image_id, ImageProcessingStatus.pipeline == PIPELINE))
+        return deleted.rowcount > 0
+
+    def _category_query(self, category: str, taxonomy_version: int, model_name: str):
+        base = (select(Image.id, func.coalesce(MemeProfile.human_verified, False).label("human"))
+                .select_from(Image).outerjoin(MemeProfile, MemeProfile.image_id == Image.id)
+                .where(Image.status == "active"))
+        if category == "without_profile":
+            return base.where(MemeProfile.image_id.is_(None))
+        if category == "needs_review":
+            return base.where(MemeProfile.human_verified.is_(True), MemeProfile.taxonomy_version != taxonomy_version)
+        if category == "stale_taxonomy":
+            return base.where(MemeProfile.human_verified.is_(False), MemeProfile.taxonomy_version != taxonomy_version)
+        if category == "human_verified":
+            return base.where(MemeProfile.human_verified.is_(True))
+        if category == "failed":
+            return base.where(exists().where(
+                ImageProcessingStatus.image_id == Image.id, ImageProcessingStatus.pipeline == PIPELINE,
+                ImageProcessingStatus.status == "failed"))
+        if category == "pending_vector":
+            vector = MemeProfileSituationEmbedding
+            return (base.outerjoin(vector, vector.image_id == Image.id)
+                    .where(MemeProfile.situation_text.is_not(None),
+                           func.length(func.trim(MemeProfile.situation_text)) > 0,
+                           or_(vector.image_id.is_(None), vector.model_name != model_name)))
+        raise ValueError(f"unknown category {category!r}")
+
+    async def _count_category(self, category: str, taxonomy_version: int, model_name: str) -> int:
+        query = self._category_query(category, taxonomy_version, model_name).subquery()
+        return (await self.session.execute(select(func.count()).select_from(query))).scalar_one()
+
+    async def live_counts(self, taxonomy_version: int, model_name: str) -> dict:
+        active = (await self.session.execute(
+            select(func.count()).select_from(Image).where(Image.status == "active"))).scalar_one()
+        counts = {category: await self._count_category(category, taxonomy_version, model_name)
+                  for category in CATEGORIES}
+        return {"active": active, "profiled": active - counts["without_profile"], **counts}
+
+    async def list_category(self, category: str, taxonomy_version: int, model_name: str,
+                            after: uuid.UUID | None, limit: int) -> tuple[list[tuple[uuid.UUID, bool]], int]:
+        total = await self._count_category(category, taxonomy_version, model_name)
+        page = self._category_query(category, taxonomy_version, model_name).order_by(Image.id)
+        if after is not None:
+            page = page.where(Image.id > after)
+        rows = (await self.session.execute(page.limit(limit))).all()
+        return [(image_id, bool(human)) for image_id, human in rows], total

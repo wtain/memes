@@ -54,7 +54,8 @@ def select_work(candidates: list[Candidate], metas: dict[uuid.UUID, ProfileMeta]
                 min_text_chars: int, retry_failed: bool) -> SelectionResult:
     """An image is selected when it has no profile or its profile is stale (taxonomy version, prompt version,
     the model that would now run for its path, or the input fingerprint differs). Human-verified profiles are
-    never selected: when stale they are reported as needing review. A failed image is skipped only while the
+    never selected: when stale they are reported as needing review. A human-verified profile is stale only when its taxonomy
+    version differs. A failed image is skipped only while the
     context recorded with its failure (fingerprint, prompt version, model) equals the current one, unless
     retry_failed. Text-path work is ordered before vision-path work so Ollama swaps models at most once."""
     text_work: list[WorkItem] = []
@@ -68,12 +69,17 @@ def select_work(candidates: list[Candidate], metas: dict[uuid.UUID, ProfileMeta]
         model = text_model if path == PATH_TEXT else vision_model
         meta = metas.get(candidate.image_id)
         if meta is not None:
-            is_stale = (
-                meta.taxonomy_version != taxonomy_version
-                or meta.extractor_prompt_version != prompt_version
-                or meta.extractor_model != model
-                or meta.inputs_fingerprint != candidate.fingerprint
-            )
+            if meta.human_verified:
+                # A person's correction does not depend on the prompt, the model or the extraction inputs:
+                # it only goes stale when the vocabulary it was made against changes (P5c spec, decision 2).
+                is_stale = meta.taxonomy_version != taxonomy_version
+            else:
+                is_stale = (
+                    meta.taxonomy_version != taxonomy_version
+                    or meta.extractor_prompt_version != prompt_version
+                    or meta.extractor_model != model
+                    or meta.inputs_fingerprint != candidate.fingerprint
+                )
             if not is_stale:
                 continue
             stale.add(candidate.image_id)
