@@ -778,3 +778,34 @@ class MemeProfileSituationEmbedding(Base):
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
     )
+
+
+class MemeTextRating(Base):
+    """A rating the owner gave to one result of a meme-from-text search (epic meme-from-text, P5b).
+    query_hash is sha256 of the message normalised like the parser (NFC, collapsed whitespace, cut at
+    parse.max_input_chars); a change of that limit changes new hashes, old ratings keep their old hash.
+    query_text is stored only because a rating exists and can be cleared per message (forget text)."""
+    __tablename__ = "meme_text_ratings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    query_hash = Column(String(64), nullable=False)
+    query_text = Column(Text, nullable=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), nullable=False)
+    grade = Column(Integer, nullable=False)
+    rank = Column(Integer, nullable=False)
+    reading = Column(String(8), nullable=False)
+    parser_version = Column(String, nullable=False)
+    taxonomy_version = Column(Integer, nullable=False)
+    degraded = Column(Boolean, nullable=False, server_default=sa.false(), default=False)
+    fallback = Column(String, nullable=False, server_default="none", default="none")
+    language = Column(String(8), nullable=False)
+    rated_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("query_hash", "image_id", name="uq_meme_text_ratings_query_image"),
+        Index("ix_meme_text_ratings_rated_at", "rated_at"),
+        CheckConstraint("grade IN (0, 1, 2)", name="ck_meme_text_ratings_grade"),
+        CheckConstraint("rank >= 1", name="ck_meme_text_ratings_rank"),
+        CheckConstraint("reading IN ('parsed', 'edited')", name="ck_meme_text_ratings_reading"),
+    )
