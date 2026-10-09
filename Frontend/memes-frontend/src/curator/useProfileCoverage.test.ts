@@ -115,4 +115,18 @@ describe("useProfileCoverage", () => {
     expect(result.current.items.map((i) => i.id)).toEqual(["a"])
     expect(result.current.loading).toBe(false)
   })
+
+  it("selecting the current category again retries a failed list load", async () => {
+    const api = makeMockApi({
+      getProfileCoverageImages: vi.fn().mockRejectedValueOnce(new Error("x")).mockResolvedValue(makeCoverageImages(["a"])),
+    })
+    const { result } = renderHook(() => useProfileCoverage(api))
+    await waitFor(() => expect(result.current.listFailed).toBe(true))
+    act(() => result.current.select("without_profile"))
+    await waitFor(() => expect(result.current.items.map((i) => i.id)).toEqual(["a"]))
+    expect(result.current.listFailed).toBe(false)
+    expect(api.getProfileCoverageImages).toHaveBeenCalledTimes(2)
+    act(() => result.current.select("without_profile"))
+    expect(api.getProfileCoverageImages).toHaveBeenCalledTimes(2)
+  })
 })

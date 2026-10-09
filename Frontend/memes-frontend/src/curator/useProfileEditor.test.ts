@@ -3,6 +3,7 @@ import { StrictMode } from "react"
 import { useProfileEditor } from "./useProfileEditor"
 import { makeCuratedProfile } from "./fixtures"
 import { toDraft, toSaveRequest } from "./draft"
+import { CuratorRequestError } from "../api/errors"
 import { makeMockApi } from "../test/mockApi"
 
 function deferred<T>() {
@@ -196,5 +197,13 @@ describe("useProfileEditor", () => {
     expect(first).toBe(true)
     expect(second).toBe(false)
     await act(async () => { pending.resolve(makeCuratedProfile({ humanVerified: true })) })
+  })
+
+  it("carries the HTTP status of a curator request error in the failed event", async () => {
+    const api = makeMockApi({ saveCuratedProfile: vi.fn().mockRejectedValue(new CuratorRequestError(422)) })
+    const { result } = await ready(api)
+    act(() => result.current.setSituation("New"))
+    await act(async () => { result.current.save() })
+    expect(result.current.event).toEqual({ kind: "failed", action: "save", status: 422 })
   })
 })

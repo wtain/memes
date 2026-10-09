@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { createMemoryRouter, RouterProvider } from "react-router-dom"
 import ProfileEditor from "./ProfileEditor"
 import { makeCuratedProfile } from "../../curator/fixtures"
+import { CuratorRequestError } from "../../api/errors"
 import { makeMockApi } from "../../test/mockApi"
 
 // jsdom's AbortSignal is not the one Node's Request accepts, so a completed navigation would throw inside
@@ -229,5 +230,53 @@ describe("ProfileEditor", () => {
     // the first click's own request moves focus to the heading (its button unmounted); nothing else queued
     expect(screen.getByRole("heading", { name: "Profile" })).toHaveFocus()
     void user
+  })
+
+  it("shows each value's source and confidence, and (new) for an added key", async () => {
+    const { user } = await loaded()
+    const emotion = await screen.findByRole("list", { name: "Emotion values" })
+    expect(emotion).toHaveTextContent("Annoyance (model, 0.90)")
+    await user.click(screen.getByRole("button", { name: /Add.*emotion/ }))
+    await user.click(await screen.findByRole("option", { name: "Joy" }))
+    expect(screen.getByRole("list", { name: "Emotion values" })).toHaveTextContent("Joy (new)")
+    await user.click(screen.getByRole("button", { name: "Remove emotion: Annoyance" }))
+    expect(screen.getByRole("list", { name: "Emotion values" })).not.toHaveTextContent("Annoyance")
+  })
+
+  it("shows human sources", async () => {
+    await loaded({ getCuratedProfile: vi.fn().mockResolvedValue(makeCuratedProfile({
+      humanVerified: true,
+      values: { emotion: [{ key: "joy", confidence: 1, source: "human" }], stance: [], topic: [], tone: [] },
+    })) })
+    expect(await screen.findByRole("list", { name: "Emotion values" })).toHaveTextContent("Joy (human, 1.00)")
+  })
+
+  it("marks a key that is no longer in the vocabulary, next to the chip and in the caption", async () => {
+    await loaded({ getCuratedProfile: vi.fn().mockResolvedValue(makeCuratedProfile({
+      values: { emotion: [{ key: "gone", confidence: 0.5, source: "model" }, { key: "joy", confidence: 0.5, source: "model" }], stance: [], topic: [], tone: [] },
+    })) })
+    await waitFor(() => expect(screen.getAllByText(/no longer in the vocabulary: remove it/)).toHaveLength(2))
+    expect(screen.getByRole("button", { name: /Remove emotion: gone \(no longer in the vocabulary/ })).toBeInTheDocument()
+    expect(screen.getByRole("list", { name: "Emotion values" })).not.toHaveTextContent("Joy (model, 0.50) - no longer")
+  })
+
+  it.each([
+    ["save", 422, "Couldn't save the profile: a value is no longer valid for the current vocabulary. Remove the marked values and try again."],
+    ["save", 500, "Couldn't save the profile"],
+    ["confirm", 422, "Couldn't confirm the profile: a value is no longer valid for the current vocabulary. Remove the marked values and try again."],
+    ["confirm", 409, "This meme has no profile to confirm."],
+    ["confirm", 500, "Couldn't confirm the profile"],
+  ])("maps a %s failure with status %i to its text", async (action, status, text) => {
+    const error = new CuratorRequestError(status)
+    const { user } = await loaded(action === "save" ? { saveCuratedProfile: vi.fn().mockRejectedValue(error) } : { confirmCuratedProfile: vi.fn().mockRejectedValue(error) })
+    if (action === "save") {
+      await user.type(situation(), "!")
+      await user.click(screen.getByRole("button", { name: "Save" }))
+    } else {
+      await user.click(screen.getByRole("button", { name: "Confirm as correct" }))
+    }
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent(text)
+    expect(alert).not.toHaveTextContent("Manager")
   })
 })

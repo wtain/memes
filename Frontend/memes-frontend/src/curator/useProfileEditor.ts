@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
+import { CuratorRequestError } from "../api/errors"
 import type { AxisName } from "../reply/types"
 import { addKey, removeKey, sameDraft, toDraft, toSaveRequest } from "./draft"
 import type { Draft } from "./draft"
@@ -11,7 +12,7 @@ export type EditorEvent =
   | { kind: "saved"; vector: "fresh" | "pending" | "none" }
   | { kind: "confirmed" }
   | { kind: "reset" }
-  | { kind: "failed"; action: Busy }
+  | { kind: "failed"; action: Busy; status?: number }
 
 type Loaded = { id: string; profile: CuratedProfile | null; failed: boolean }
 
@@ -77,9 +78,10 @@ export function useProfileEditor(memesApi: MemesApi, imageId: string) {
       setEventState({ id, event: action === "save"
         ? { kind: "saved", vector: next.vector }
         : action === "confirm" ? { kind: "confirmed" } : { kind: "reset" } })
-    } catch {
+    } catch (error) {
       if (currentId.current !== id) return
-      setEventState({ id, event: { kind: "failed", action } })
+      const status = error instanceof CuratorRequestError ? error.status : undefined
+      setEventState({ id, event: { kind: "failed", action, ...(status !== undefined ? { status } : {}) } })
     } finally {
       if (currentId.current === id) inFlight.current = false
       setBusyState((previous) => (previous !== null && previous.id === id ? null : previous))

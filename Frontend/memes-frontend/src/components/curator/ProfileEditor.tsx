@@ -36,6 +36,17 @@ const FAILURES = {
   reset: "Couldn't reset the profile",
 } as const
 
+const STALE_VALUE = "no longer in the vocabulary: remove it"
+
+/** Fixed texts only: an alert never carries the profile's own text. */
+function failureText(event: Extract<EditorEvent, { kind: "failed" }>): string {
+  if (event.status === 422 && (event.action === "save" || event.action === "confirm")) {
+    return `${FAILURES[event.action]}: a value is no longer valid for the current vocabulary. Remove the marked values and try again.`
+  }
+  if (event.status === 409 && event.action === "confirm") return "This meme has no profile to confirm."
+  return FAILURES[event.action]
+}
+
 export default function ProfileEditor({ memesApi, imageId }: Props) {
   const editor = useProfileEditor(memesApi, imageId)
   const { profile, draft, dirty, busy, event } = editor
@@ -107,7 +118,7 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
   const badge = !exists ? "No profile yet" : profile.humanVerified ? "Human-verified" : "Model profile"
   const showConfirm = exists && !dirty && (!profile.humanVerified || profile.needsReview)
   const working = busy !== null
-  const failure = event?.kind === "failed" ? FAILURES[event.action] : null
+  const failure = event?.kind === "failed" ? failureText(event) : null
   const message = dirty ? "" : announcement(event)
 
   return (
@@ -148,19 +159,34 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
 
       {AXES.map((axis) => {
         const saved = profile.values[axis]
+        const known = new Set(optionsFor(taxonomy, axis).map((option) => option.key))
+        // Only judged once the vocabulary of this axis has loaded.
+        const removed = (key: string) => taxonomy !== null && axisSpec(taxonomy, axis) !== undefined && !known.has(key)
         return (
+          <div key={axis}>
           <ChipGroup
-            key={axis}
             axis={axis}
             label={AXIS_LABELS[axis]}
             values={draft.values[axis].map((key) => saved.find((item) => item.key === key) ?? { key, confidence: 1, source: "human" as const })}
-            labelOf={(key) => labelFor(taxonomy, axis, key)}
+            labelOf={(key) => (removed(key) ? `${labelFor(taxonomy, axis, key)} (${STALE_VALUE})` : labelFor(taxonomy, axis, key))}
             options={optionsFor(taxonomy, axis)}
             maxValues={maxValuesFor(taxonomy, axis)}
             pickerDisabled={taxonomy === null || working}
             onAdd={(key) => editor.add(axis, key)}
             onRemove={(key) => editor.remove(axis, key)}
           />
+          <ul aria-label={`${AXIS_LABELS[axis]} values`} className="mb-3 flex flex-wrap gap-x-4 text-xs text-gray-500">
+            {draft.values[axis].map((key) => {
+              const item = saved.find((candidate) => candidate.key === key)
+              const detail = item ? `${item.source}, ${item.confidence.toFixed(2)}` : "new"
+              return (
+                <li key={key}>
+                  {labelFor(taxonomy, axis, key)} ({detail}){removed(key) && <span className="text-red-700"> - {STALE_VALUE}</span>}
+                </li>
+              )
+            })}
+          </ul>
+          </div>
         )
       })}
 

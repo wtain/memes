@@ -83,7 +83,14 @@ export function useProfileCoverage(memesApi: MemesApi) {
   }
 
   function select(target: Category) {
-    if (target === category) return
+    if (target === category) {
+      // Selecting the category again retries a failed list load (the next page when earlier items are shown).
+      if (failedFor === category && loadingFor !== category) {
+        if (items.length > 0 && next !== null) fetchPage(category, next, items)
+        else fetchPage(category, undefined, [])
+      }
+      return
+    }
     selected.current = target
     setCategory(target)
     fetchPage(target, undefined, [])

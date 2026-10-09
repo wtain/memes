@@ -67,33 +67,76 @@ describe("ProfileCoveragePage", () => {
     expect(await screen.findByText("Nothing in this category")).toBeInTheDocument()
   })
 
-  it("shows the last run numbers with its time, and No run yet for null", async () => {
-    const api = makeMockApi({
-      getProfileCoverage: vi.fn().mockResolvedValue(makeCoverage({
-        lastRuns: {
-          profiles: {
-            runId: "r", status: "done", startedAt: "2026-10-09T09:00:00", completedAt: "2026-10-09T10:00:00",
-            stats: { stale: 7, needs_review: 4 },
-          },
-          embeddings: null,
+  function runsOf(profiles: unknown, embeddings: unknown) {
+    return makeCoverage({ lastRuns: { profiles, embeddings } as never })
+  }
+
+  it("reads the nested coverage stats of a completed profiles run and the embeddings run", async () => {
+    setup({
+      getProfileCoverage: vi.fn().mockResolvedValue(runsOf(
+        {
+          runId: "r", status: "completed", startedAt: "2026-10-09T09:00:00", completedAt: "2026-10-09T10:00:00",
+          stats: { saved: 3, images_remaining: 12, coverage: { stale: 7, needs_review: 4, failed: 2, active: 100 } },
         },
-      })),
+        {
+          runId: "e", status: "completed", startedAt: "2026-10-09T10:00:00", completedAt: "2026-10-09T10:30:00",
+          stats: { embedded: 40, images_remaining: 5 },
+        },
+      )),
     })
-    render(<MemoryRouter><ProfileCoveragePage memesApi={api} /></MemoryRouter>)
-    const block = (await screen.findByText("As of the last run")).closest("section") as HTMLElement
+    const block = (await screen.findByText("Profiles run")).closest("section") as HTMLElement
     expect(within(block).getByText("Stale").nextSibling).toHaveTextContent("7")
     expect(within(block).getByText("Needs review").nextSibling).toHaveTextContent("4")
-    expect(within(block).getByText("Failed").nextSibling).toHaveTextContent("-")
+    expect(within(block).getByText("Failed").nextSibling).toHaveTextContent("2")
+    expect(within(block).getByText("Still to profile").nextSibling).toHaveTextContent("12")
     expect(block).toHaveTextContent("Completed:")
+    const embeddings = screen.getByText("Embeddings run").closest("section") as HTMLElement
+    expect(within(embeddings).getByText("Embedded").nextSibling).toHaveTextContent("40")
+    expect(within(embeddings).getByText("Still to embed").nextSibling).toHaveTextContent("5")
     expect(screen.getByText("Active memes").nextSibling).toHaveTextContent("100")
-    expect(screen.getByText("Profiled").nextSibling).toHaveTextContent("75")
   })
 
-  it("says No run yet when there is no profile run", async () => {
+  it("shows dashes for missing or non-numeric stats of a completed run", async () => {
     setup({
-      getProfileCoverage: vi.fn().mockResolvedValue(makeCoverage({ lastRuns: { profiles: null, embeddings: null } })),
+      getProfileCoverage: vi.fn().mockResolvedValue(runsOf(
+        { runId: "r", status: "completed", startedAt: "2026-10-09T09:00:00", completedAt: "2026-10-09T10:00:00", stats: { coverage: { stale: "x" } } },
+        null,
+      )),
     })
-    expect(await screen.findByText("No run yet")).toBeInTheDocument()
+    const block = (await screen.findByText("Profiles run")).closest("section") as HTMLElement
+    expect(within(block).getByText("Stale").nextSibling).toHaveTextContent("-")
+    expect(within(block).getByText("Failed").nextSibling).toHaveTextContent("-")
+  })
+
+  it("shows a started run as in progress without numbers", async () => {
+    setup({
+      getProfileCoverage: vi.fn().mockResolvedValue(runsOf(
+        { runId: "r", status: "started", startedAt: "2026-10-09T09:00:00", completedAt: null, stats: null },
+        null,
+      )),
+    })
+    const block = (await screen.findByText("Profiles run")).closest("section") as HTMLElement
+    expect(block).toHaveTextContent("A run is in progress: numbers appear when it finishes")
+    expect(block).toHaveTextContent("running since")
+    expect(within(block).queryByText("Stale")).not.toBeInTheDocument()
+  })
+
+  it("says No run yet for each job without a run", async () => {
+    setup({ getProfileCoverage: vi.fn().mockResolvedValue(runsOf(null, null)) })
+    await screen.findByText("Profiles run")
+    expect(screen.getAllByText("No run yet")).toHaveLength(2)
+    expect(screen.getByText("Embeddings run")).toBeInTheDocument()
+  })
+
+  it("retries a failed first list load of the selected category", async () => {
+    const user = userEvent.setup()
+    const api = setup({
+      getProfileCoverageImages: vi.fn().mockRejectedValueOnce(new Error("x")).mockResolvedValue(makeCoverageImages(["a"])),
+    })
+    const alert = await screen.findByText("Couldn't load the memes")
+    await user.click(within(alert.parentElement as HTMLElement).getByRole("button", { name: "Try again" }))
+    expect(await screen.findByRole("link", { name: "Meme a" })).toBeInTheDocument()
+    expect(api.getProfileCoverageImages).toHaveBeenCalledTimes(2)
   })
 
   it("shows an alert with Try again when the coverage fails", async () => {

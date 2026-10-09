@@ -6,11 +6,6 @@ import type { ProfileCoverage } from "../curator/types"
 
 type Props = { memesApi: MemesApi }
 
-function statText(stats: { [k: string]: unknown } | null | undefined, key: string): string {
-  const value = stats?.[key]
-  return typeof value === "number" || typeof value === "string" ? String(value) : "-"
-}
-
 function formatTime(value: string | null): string {
   if (!value) return "not finished"
   const date = new Date(value)
@@ -26,24 +21,64 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function LastRun({ coverage }: { coverage: ProfileCoverage }) {
-  const run = coverage.lastRuns.profiles
+type Run = ProfileCoverage["lastRuns"]["profiles"]
+
+function nested(stats: { [k: string]: unknown } | null | undefined, key: string): unknown {
+  const coverage = stats?.coverage
+  return coverage !== null && typeof coverage === "object" ? (coverage as Record<string, unknown>)[key] : undefined
+}
+
+function numberText(value: unknown): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "-"
+}
+
+function RunBlock({ title, run, children }: { title: string; run: Run; children: (stats: { [k: string]: unknown }) => React.ReactNode }) {
   return (
-    <section className="rounded border bg-white p-4" aria-labelledby="last-run-heading">
-      <h2 id="last-run-heading" className="font-medium mb-2">As of the last run</h2>
+    <section className="rounded border bg-white p-4" aria-label={title}>
+      <h2 className="font-medium mb-2">{title}</h2>
       {run === null ? (
         <p className="text-sm text-gray-600">No run yet</p>
-      ) : (
+      ) : run.status === "completed" && run.stats !== null ? (
         <>
           <p className="text-xs text-gray-500 mb-2">Completed: {formatTime(run.completedAt)}</p>
-          <dl className="grid grid-cols-3 gap-4">
-            <Stat label="Stale" value={statText(run.stats, "stale")} />
-            <Stat label="Needs review" value={statText(run.stats, "needs_review")} />
-            <Stat label="Failed" value={statText(run.stats, "failed")} />
-          </dl>
+          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">{children(run.stats)}</dl>
         </>
+      ) : run.status === "started" ? (
+        <>
+          <p className="text-xs text-gray-500 mb-2">running since {formatTime(run.startedAt)}</p>
+          <p className="text-sm text-gray-700">A run is in progress: numbers appear when it finishes</p>
+        </>
+      ) : (
+        <p className="text-xs text-gray-500">
+          Status: {run.status}, started {formatTime(run.startedAt)}, finished {formatTime(run.completedAt)}
+        </p>
       )}
     </section>
+  )
+}
+
+function LastRuns({ coverage }: { coverage: ProfileCoverage }) {
+  return (
+    <>
+      <RunBlock title="Profiles run" run={coverage.lastRuns.profiles}>
+        {(stats) => (
+          <>
+            <Stat label="Stale" value={numberText(nested(stats, "stale"))} />
+            <Stat label="Needs review" value={numberText(nested(stats, "needs_review"))} />
+            <Stat label="Failed" value={numberText(nested(stats, "failed"))} />
+            {typeof stats.images_remaining === "number" && <Stat label="Still to profile" value={String(stats.images_remaining)} />}
+          </>
+        )}
+      </RunBlock>
+      <RunBlock title="Embeddings run" run={coverage.lastRuns.embeddings}>
+        {(stats) => (
+          <>
+            <Stat label="Embedded" value={numberText(stats.embedded)} />
+            {typeof stats.images_remaining === "number" && <Stat label="Still to embed" value={String(stats.images_remaining)} />}
+          </>
+        )}
+      </RunBlock>
+    </>
   )
 }
 
@@ -86,7 +121,7 @@ export default function ProfileCoveragePage({ memesApi }: Props) {
             </dl>
           </section>
 
-          <LastRun coverage={coverage} />
+          <LastRuns coverage={coverage} />
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {CATEGORY_CHOICES.map((c) => (
@@ -109,7 +144,12 @@ export default function ProfileCoveragePage({ memesApi }: Props) {
 
       <section aria-label="Memes in this category">
         {view.listFailed && (
-          <p role="alert" className="text-red-700">Couldn't load the memes</p>
+          <div>
+            <p role="alert" className="text-red-700">Couldn't load the memes</p>
+            <button type="button" className="mt-2 min-h-11 rounded bg-red-600 px-4 text-white" onClick={() => view.select(category)}>
+              Try again
+            </button>
+          </div>
         )}
         {!view.loading && !view.listFailed && view.items.length === 0 && (
           <p className="text-gray-600">Nothing in this category</p>
