@@ -20,6 +20,7 @@ import RecommendationsPage from "../pages/RecommendationsPage";
 import StatisticsPage from "../pages/StatisticsPage";
 import IngestionReviewPage from "../pages/IngestionReviewPage";
 import AdminBatchesPage from "../pages/AdminBatchesPage";
+import ProfileCoveragePage from "../pages/ProfileCoveragePage";
 
 
 // const baseUrl = "http://127.0.0.1:8081";
@@ -48,6 +49,7 @@ export const router = createBrowserRouter([
       { path: "/statistics", element: <StatisticsPage memesApi={memesApi} /> },
       { path: "/ingestion", element: <IngestionReviewPage memesApi={memesApi} /> },
       { path: "/admin", element: <AdminBatchesPage memesApi={memesApi} /> },
+      { path: "/admin/profiles", element: <ProfileCoveragePage memesApi={memesApi} /> },
       {
         path: "/memes/:id",
         element: <MemePage memesApi={memesApi} />

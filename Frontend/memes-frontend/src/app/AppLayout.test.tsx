@@ -18,6 +18,8 @@ function renderApp(initialPath: string) {
         <Route element={<AppLayout />}>
           <Route path="/explore" element={<DummyExplore />} />
           <Route path="/untagged" element={<DummyUntagged />} />
+          <Route path="/admin" element={<div>admin-content</div>} />
+          <Route path="/admin/profiles" element={<div>profiles-content</div>} />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -25,6 +27,13 @@ function renderApp(initialPath: string) {
 }
 
 describe('AppLayout', () => {
+  it('marks only Profiles as active on the profiles page, not Admin', () => {
+    renderApp('/admin/profiles')
+    expect(screen.getByText('Profiles')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Admin')).not.toHaveAttribute('aria-current')
+    expect(screen.getByText('Profiles')).toHaveAttribute('href', '/admin/profiles')
+  })
+
   beforeEach(() => {
     exploreMountCount = 0
   })
