@@ -26,7 +26,10 @@ export function useRatings(memesApi: MemesApi, queryHash: string | null) {
       (response) => {
         if (cancelled) return
         const fetched: Record<string, Grade> = {}
-        for (const item of response.ratings) fetched[item.imageId] = item.grade as Grade
+        // entries a click already confirmed (or cleared) while the load was in flight are newer than the fetched ones
+        for (const item of response.ratings) {
+          if (!(item.imageId in confirmed.current)) fetched[item.imageId] = item.grade as Grade
+        }
         for (const [imageId, grade] of Object.entries(fetched)) confirmed.current[imageId] = grade
         // grades the user set while the load was in flight win over the fetched ones
         setLoaded((previous) => ({
@@ -57,8 +60,8 @@ export function useRatings(memesApi: MemesApi, queryHash: string | null) {
       try {
         if (grade === null) await memesApi.deleteRating(hash, imageId)
         else await memesApi.putRating({ ...context, imageId, grade })
-        confirmed.current[imageId] = grade
         if (hashRef.current === hash) {
+          confirmed.current[imageId] = grade
           setGrade(hash, imageId, grade)
           setLastEvent({ imageId, kind: grade === null ? "cleared" : "saved" })
         }

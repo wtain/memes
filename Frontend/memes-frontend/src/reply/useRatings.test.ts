@@ -145,4 +145,47 @@ describe("useRatings", () => {
     const { result } = renderHook(() => useRatings(api, HASH), { wrapper: StrictMode })
     await waitFor(() => expect(result.current.grades).toEqual({ a: 1 }))
   })
+
+  it("a late success for the previous message does not pollute the next message's confirmed grades", async () => {
+    const lateA = deferred<unknown>()
+    const put = vi.fn().mockReturnValueOnce(lateA.promise).mockRejectedValue(new Error("down"))
+    const api = makeMockApi({ putRating: put })
+    const B = "b".repeat(64)
+    const { result, rerender } = renderHook(({ hash }) => useRatings(api, hash), { initialProps: { hash: HASH as string | null } })
+    await waitFor(() => expect(api.getRatings).toHaveBeenCalledWith(HASH))
+
+    act(() => result.current.rate(CONTEXT, "a", 2))
+    await act(async () => {})                                    // the request for message A is in flight
+    rerender({ hash: B })
+    await waitFor(() => expect(api.getRatings).toHaveBeenCalledWith(B))
+    await act(async () => { lateA.resolve({ queryHash: HASH, imageId: "a", grade: 2 }) })
+
+    await act(async () => { result.current.rate(CONTEXT, "a", 1) })   // fails on message B
+    expect(result.current.grades.a).toBeUndefined()               // rolled back to B's own (empty) state, not A's 2
+    expect(result.current.lastEvent).toEqual({ imageId: "a", kind: "failed" })
+  })
+
+  it("the load does not overwrite a grade a click confirmed while it was in flight", async () => {
+    const load = deferred<{ queryHash: string; ratings: { imageId: string; grade: number }[] }>()
+    const put = vi.fn().mockResolvedValueOnce({ queryHash: HASH, imageId: "a", grade: 2 }).mockRejectedValue(new Error("down"))
+    const api = makeMockApi({ getRatings: vi.fn().mockReturnValue(load.promise), putRating: put })
+    const { result } = renderHook(() => useRatings(api, HASH))
+
+    await act(async () => { result.current.rate(CONTEXT, "a", 2) })
+    await act(async () => { load.resolve({ queryHash: HASH, ratings: [{ imageId: "a", grade: 0 }] }) })
+    expect(result.current.grades.a).toBe(2)
+
+    await act(async () => { result.current.rate(CONTEXT, "a", 1) })   // fails: rolls back to the confirmed 2, not the fetched 0
+    expect(result.current.grades.a).toBe(2)
+  })
+
+  it("the load does not resurrect a grade cleared while it was in flight", async () => {
+    const load = deferred<{ queryHash: string; ratings: { imageId: string; grade: number }[] }>()
+    const api = makeMockApi({ getRatings: vi.fn().mockReturnValue(load.promise) })
+    const { result } = renderHook(() => useRatings(api, HASH))
+
+    await act(async () => { result.current.rate(CONTEXT, "a", null) })
+    await act(async () => { load.resolve({ queryHash: HASH, ratings: [{ imageId: "a", grade: 1 }] }) })
+    expect(result.current.grades.a).toBeUndefined()
+  })
 })
