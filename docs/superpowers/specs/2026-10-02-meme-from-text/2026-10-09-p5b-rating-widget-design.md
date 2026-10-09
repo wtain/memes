@@ -1,6 +1,6 @@
 # P5b: Rating widget — Design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-09-p5b-rating-widget.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-08-p5-web-ui-design.md (Out of scope: the rating widget, US-5)
 Follow-ups: none yet (P5c curator tools is a separate spec)
@@ -113,3 +113,43 @@ Apply the additive migration per environment (`alembic upgrade head` from `Stora
 5. Page wiring and page tests.
 6. Evaluation export: builder, CLI, tests, README.
 7. Controller steps: the seeded-database live check, migration notes, docs and review report.
+
+## Addendum: result (2026-10-09)
+
+Implemented on branch `p5b-ratings` (six plan tasks, their fix rounds, one whole-branch review on the most capable model with one fix wave, then a live check).
+
+### What was built
+
+- **Data:** table `meme_text_ratings` (`Storage/models.py`, migration `e6b1c4d8f203` after `d5a9f3c1e7b2`, additive and reversible, table comment records the normalisation rule), `repository/meme_text_ratings.py` (upsert on (query hash, image), delete, list, forget text, export read; never commits).
+- **API:** `PUT/DELETE/GET /api/meme-from-text/ratings` and `DELETE /api/meme-from-text/ratings/text` (`Backend/app/api/meme_text_ratings.py`, service `meme_text_rating_service.py`), `meta.queryHash` on every search response (also cached ones; `retrieval/query_hash.py` is the single definition: sha256 of the message normalised like the parser), four shared schemas with regenerated Python, TypeScript and Kotlin types, `backend_api.md`. An app-level validation handler (`Backend/app/error_handlers.py`) strips the rejected `input` from 422 bodies under `/api/meme-from-text`, so the message text never appears in an error body (this also fixes the same default echo on the search endpoint).
+- **Frontend:** `useRatings` (optimistic, per-image ordered, rollback to the last confirmed grade, stale-message safe), `RatingBar` (three toggle buttons mapped to gold grades 2/1/0, always-mounted status line), `ForgetTextButton`, the `rating` prop on `ResultCard`, `ReplyPage` wiring (the text that was searched, the card's position, the reading that produced the list, versions, degraded flag), and a reserved slot for the forget action so the first rating cannot shift the cards.
+- **Export:** `python -m evaluation export-ratings --round N [--out DIR] [--force]` (read-only role only): import-ready `judgments-<lang>.json` for ratings of gold queries (matched by hash), `candidate-queries.json` for new messages (the only file with text, under the git-ignored `evaluation/work/`), `summary.json` (counts, already-judged pairs with agreement, images outside the corpus). `--force` removes only the files the export owns.
+- Gates on the final commit: Backend root 419, `tests/retrieval` 137, `tests/evaluation` 145, `tests/taxonomy` 83, whole `tests/integration` 561 (test database), frontend `tsc -b`, `eslint src/ --max-warnings 0`, `vitest run` (494 tests) and `vite build`.
+
+### Live verification (2026-10-09, test database `ocrdb_test` with 14 seeded synthetic profiled images, real Ollama, a minimal backend and the Vite dev server on free ports, no scheduler)
+
+- A search returned a parsed reading and results with a rating bar on every card. `meta.queryHash` equalled an independent sha256 of the whitespace-normalised message.
+- PUT stored one row, a second PUT updated it (grade changed, `updated_at` not earlier than `rated_at`); GET returned the grade; 422 bodies for a bad grade and an invalid search `limit` carried no input; an unknown image gave 404; a bad hash gave 422.
+- In the browser: rating, re-rating, clearing by clicking the active grade ("Saved: ..." and "Rating cleared" announced), grades restored after a page reload, forgetting the text (confirm step, "Text forgotten", focus back on the button; grades stayed and `query_text` became null; rating again stored the text again), an edited chip stored `reading: edited` with the right rank, and with the backend stopped a click showed "Couldn't save the rating" and rolled back.
+- Export: on the stored rows, new messages became candidates (text kept or dropped as stored); a forced gold match produced an import-ready file that `import-judgments` accepted into a copy of the gold directory (+2) while the real gold directory stayed untouched.
+- Found live and fixed: the Forget button appeared above the grid after the first rating and pushed the cards down (a second click missed). Its slot is now reserved.
+- **Not verified:** screen-reader announcements and the narrow layout (roles and attributes are tested only), the `it` unavailable state, and the Gradle compile of the regenerated `Models.kt` (no Kotlin `queryHash`: the generator maps the inline `meta` object to `JsonObject`).
+
+### Deviations from the spec text (decided during planning and review)
+
+1. `RatingContext` is an explicit interface, not `Omit<RatingRequest, ...>` (the generated request type has an index signature, so the Omit collapsed to an untyped object).
+2. `meta.queryHash` is optional in the shared schema (the unavailable answer of an environment without a parser carries none).
+3. The saved/cleared announcement lives in each card's own always-mounted status element, driven by the hook's last event; only the most recent event announces.
+4. A rating's `reading` is taken from the request that produced the list on screen, not from the current edit state.
+5. A NUL character in a message cannot be rated (422); the search still works.
+6. The 422 handler is app-level for all of `/api/meme-from-text` (the search endpoint had the same echo).
+
+### Migration and rollout (per environment)
+
+From `Storage/` on **metal**, **general** and **it**, each with its own `.env` loaded: `alembic upgrade head` (one new revision, `e6b1c4d8f203`), then restart the backends. Until the migration is applied, rating clicks show an inline error and the silent grade load fails harmlessly. `it` has no parser, so the page and ratings are unavailable there. After rating for a while, run `python -m evaluation export-ratings --round N` with `DATABASE_URL` set to the read-only URL and review the files before any `import-judgments`.
+
+### Handoff notes for P5c (curator tools)
+
+- Ratings are the cheapest source of new gold queries: `candidate-queries.json` lists the messages; turning one into a gold query is a deliberate step with an expected profile and a new frozen fingerprint.
+- The ratings endpoints are unauthenticated like the rest of the API; a hash is only as secret as its message (documented in `backend_api.md`).
+- Known minor gaps: a race between the image-active check and the upsert would give a 500; the saved announcement uses the current grade; one event slot for all cards.

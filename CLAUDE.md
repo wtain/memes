@@ -394,7 +394,9 @@ python -m evaluation        → meme-from-text evaluation harness (P6): frozen 1
                                evaluation/work/, gitignored). Commands: build-corpus, build-pools --round N,
                                sheet --round N, import-judgments, run --retriever {random,lexical_and,
                                lexical_or,situation_embedding,axis_match,parsed_axis_match,fused} --label L, compare A B, list-baselines,
-                               tune-weights (P4: fusion-weight search, see the retrieval entry).
+                               tune-weights (P4: fusion-weight search, see the retrieval entry),
+                               export-ratings (P5b: turns the owner's stored result ratings into review files, see the
+                               ratings entry below).
                                Database commands read only: set APP_ENV and DATABASE_URL to the READ-ONLY URL
                                (role ocr_readonly) in the shell first; the CLI refuses otherwise and never calls
                                load_env() (it would swap in the write-capable URL). Profile the corpus with the
@@ -452,6 +454,21 @@ retrieval (package retrieval/) → the meme-from-text retrieval stage (P4): turn
                                parameters in the repository. The backend image needs retrieval/. See
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-07-p4-retrieval-fusion-and-api-design.md
                                (addendum: results, decisions, handoff notes for P5).
+
+ratings (P5b)                → the /reply page lets the owner rate each result (good fit 2 / acceptable 1 / not a fit 0).
+                               Table meme_text_ratings (one row per message hash and image, migration e6b1c4d8f203);
+                               PUT/DELETE/GET /api/meme-from-text/ratings and DELETE .../ratings/text; the hash is
+                               computed server-side by retrieval/query_hash.py (sha256 of the parser-normalised message)
+                               and returned as meta.queryHash. The message text is stored ONLY because a rating exists,
+                               can be cleared per message (grades stay), is never logged and never appears in an error
+                               body (Backend/app/error_handlers.py strips the echoed input of 422s under
+                               /api/meme-from-text). Ratings never influence ranking. `python -m evaluation
+                               export-ratings --round N` (read-only role) writes import-ready judgments-<lang>.json for
+                               ratings of gold queries, candidate-queries.json (the only file with text, in the
+                               git-ignored evaluation/work/) and summary.json; merging into the gold judgments is a
+                               deliberate `import-judgments` step. See
+                               docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5b-rating-widget-design.md
+                               (addendum: live check, migration commands, handoff).
 
 build_statistics            → precomputes the statistics page's numbers into the single-row
                                statistics_snapshots table (name='corpus'), so GET
