@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useParams } from "react-router-dom"
 import type { MemesApi } from "../api/MemesApi"
 import { MemeDetails } from "../components/MemeDetails"
+import ProfileEditor from "../components/curator/ProfileEditor"
 import type { Meme } from "../types/generated/all"
 import { useFetchById } from "../utils/useFetchById"
 
@@ -26,6 +27,8 @@ export default function MemePage({ memesApi }: Props) {
       </h1>
 
       <MemeDetails meme={meme} memesApi={memesApi} />
+
+      <ProfileEditor memesApi={memesApi} imageId={meme.id} />
     </div>
   )
 }
