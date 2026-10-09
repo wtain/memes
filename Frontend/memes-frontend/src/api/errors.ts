@@ -28,6 +28,16 @@ export class RatingFailedError extends Error {
   }
 }
 
+/** A curator request call failed. The message is fixed text: it never contains the user's input. */
+export class CuratorRequestError extends Error {
+  readonly status: number
+  constructor(status: number) {
+    super(`Curator request failed (HTTP ${status})`)
+    this.name = "CuratorRequestError"
+    this.status = status
+  }
+}
+
 export function isAbortError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === "AbortError") return true
   if (error && typeof error === "object") {

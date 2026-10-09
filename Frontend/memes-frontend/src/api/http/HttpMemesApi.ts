@@ -8,8 +8,10 @@ import type {
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
+  CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
 } from "../../types/generated/all"
-import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError } from "../errors"
+import type { Category } from "../../curator/types"
+import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -528,6 +530,64 @@ export class HttpMemesApi implements MemesApi {
     const params = new URLSearchParams({ queryHash })
     const response = await fetch(`${this.baseUrl}/api/meme-from-text/ratings/text?${params.toString()}`, { method: "DELETE" })
     if (!response.ok) throw new RatingFailedError(response.status)
+  }
+
+  async getCuratedProfile(imageId: string): Promise<CuratedProfile> {
+    const encodedId = encodeURIComponent(imageId)
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/profiles/${encodedId}`, {
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+    return response.json()
+  }
+
+  async saveCuratedProfile(imageId: string, request: CuratedProfileSaveRequest): Promise<CuratedProfile> {
+    const encodedId = encodeURIComponent(imageId)
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/profiles/${encodedId}`, {
+      method: "PUT",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+    return response.json()
+  }
+
+  async confirmCuratedProfile(imageId: string): Promise<CuratedProfile> {
+    const encodedId = encodeURIComponent(imageId)
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/profiles/${encodedId}/confirm`, {
+      method: "POST",
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+    return response.json()
+  }
+
+  async resetCuratedProfile(imageId: string): Promise<void> {
+    const encodedId = encodeURIComponent(imageId)
+    const response = await fetch(`${this.baseUrl}/api/meme-from-text/profiles/${encodedId}`, {
+      method: "DELETE",
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+  }
+
+  async getProfileCoverage(): Promise<ProfileCoverage> {
+    const response = await fetch(`${this.baseUrl}/api/admin/profile-coverage`, {
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+    return response.json()
+  }
+
+  async getProfileCoverageImages(category: Category, cursor?: string, limit?: number): Promise<ProfileCoverageImages> {
+    const params = new URLSearchParams()
+    params.set("category", category)
+    if (cursor !== undefined) params.set("cursor", cursor)
+    if (limit !== undefined) params.set("limit", String(limit))
+    const response = await fetch(`${this.baseUrl}/api/admin/profile-coverage/images?${params.toString()}`, {
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+    return response.json()
   }
 }
 

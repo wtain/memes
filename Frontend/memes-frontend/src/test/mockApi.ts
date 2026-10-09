@@ -1,6 +1,7 @@
 import type { MemesApi } from '../api/MemesApi'
 import type { Meme } from '../types/generated/all'
 import { makeResponse, TEST_TAXONOMY } from '../reply/fixtures'
+import { makeCuratedProfile, makeCoverage, makeCoverageImages } from '../curator/fixtures'
 
 export const DEFAULT_MOCK_MEME: Meme = {
   id: 'meme-1',
@@ -53,6 +54,12 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     deleteRating: vi.fn().mockResolvedValue(undefined),
     getRatings: vi.fn().mockResolvedValue({ queryHash: "a".repeat(64), ratings: [] }),
     forgetRatingText: vi.fn().mockResolvedValue(undefined),
+    getCuratedProfile: vi.fn().mockResolvedValue(makeCuratedProfile()),
+    saveCuratedProfile: vi.fn().mockResolvedValue(makeCuratedProfile()),
+    confirmCuratedProfile: vi.fn().mockResolvedValue(makeCuratedProfile({ humanVerified: true })),
+    resetCuratedProfile: vi.fn().mockResolvedValue(undefined),
+    getProfileCoverage: vi.fn().mockResolvedValue(makeCoverage()),
+    getProfileCoverageImages: vi.fn().mockResolvedValue(makeCoverageImages()),
     ...overrides,
   } as MemesApi
 }

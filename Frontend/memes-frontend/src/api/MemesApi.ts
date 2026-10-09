@@ -7,7 +7,9 @@ import type {
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
+  CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
 } from "../types/generated/all";
+import type { Category } from "../curator/types";
 
 export type IngestionTier = "tier_a" | "tier_b"
 
@@ -91,4 +93,11 @@ export interface MemesApi {
   deleteRating(queryHash: string, imageId: string): Promise<void>;
   getRatings(queryHash: string): Promise<RatingsResponse>;
   forgetRatingText(queryHash: string): Promise<void>;
+
+  getCuratedProfile(imageId: string): Promise<CuratedProfile>;
+  saveCuratedProfile(imageId: string, request: CuratedProfileSaveRequest): Promise<CuratedProfile>;
+  confirmCuratedProfile(imageId: string): Promise<CuratedProfile>;
+  resetCuratedProfile(imageId: string): Promise<void>;
+  getProfileCoverage(): Promise<ProfileCoverage>;
+  getProfileCoverageImages(category: Category, cursor?: string, limit?: number): Promise<ProfileCoverageImages>;
 }
