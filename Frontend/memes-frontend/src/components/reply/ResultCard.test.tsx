@@ -61,4 +61,17 @@ describe("ResultCard", () => {
     expect(panel).not.toBeNull()
     expect(toggle.getAttribute("aria-controls")).toBe(panel!.id)
   })
+
+  it("shows the rating bar only when rating props are given, and wires clicks to onRate", async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ResultCard result={makeResult("a")} memesApi={makeMockApi()} labelOf={labelOf} onOpen={vi.fn()} />)
+    expect(screen.queryByRole("group", { name: "Rate this result" })).not.toBeInTheDocument()
+
+    const onRate = vi.fn()
+    rerender(<ResultCard result={makeResult("a")} memesApi={makeMockApi()} labelOf={labelOf} onOpen={vi.fn()}
+      rating={{ grade: 1, event: null, onRate }} />)
+    expect(screen.getByRole("button", { name: "Acceptable" })).toHaveAttribute("aria-pressed", "true")
+    await user.click(screen.getByRole("button", { name: "Good fit" }))
+    expect(onRate).toHaveBeenCalledWith(2)
+  })
 })

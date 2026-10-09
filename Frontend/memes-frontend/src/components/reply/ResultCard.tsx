@@ -1,17 +1,20 @@
 import { useId, useState } from "react"
 import type { MemesApi } from "../../api/MemesApi"
-import type { MemeFromTextResult } from "../../reply/types"
+import type { Grade, MemeFromTextResult } from "../../reply/types"
 import MemeCard from "../MemeCard"
 import ExplanationPanel from "./ExplanationPanel"
+import RatingBar from "./RatingBar"
+import type { RatingBarEvent } from "./RatingBar"
 
 type Props = {
   result: MemeFromTextResult
   memesApi: MemesApi
   labelOf: (axis: string, key: string) => string
   onOpen: () => void
+  rating?: { grade: Grade | null; event: RatingBarEvent; onRate: (grade: Grade | null) => void }
 }
 
-export default function ResultCard({ result, memesApi, labelOf, onOpen }: Props) {
+export default function ResultCard({ result, memesApi, labelOf, onOpen, rating }: Props) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
   const similar = (result.clusterSize ?? 1) - 1
@@ -32,6 +35,7 @@ export default function ResultCard({ result, memesApi, labelOf, onOpen }: Props)
           Why this meme
         </button>
       </div>
+      {rating && <RatingBar grade={rating.grade} event={rating.event} onRate={rating.onRate} />}
       {open && (
         <div id={panelId}>
           <ExplanationPanel result={result} labelOf={labelOf} />
