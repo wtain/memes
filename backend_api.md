@@ -763,14 +763,14 @@ Trust model: like the rest of the API these endpoints are unauthenticated, and a
 
 Lets a person read, correct, confirm and reset the profile (situation, use-when and taxonomy axis values) that the meme-from-text search matches a meme by. A saved profile is marked human verified, and the batch jobs never rewrite a human verified profile (they report it as needing review when the taxonomy has moved on).
 
-Trust model: like the rest of the API these endpoints are unauthenticated and the last write wins (there is no version check or lock), so they are meant for a single-owner tool, not a public deployment. Only active images can be curated.
+Trust model: like the rest of the API these endpoints are unauthenticated and the last write wins (there is no version check), so they are meant for a single-owner tool, not a public deployment. Concurrent curator and batch writes to one image are serialised by a row lock on the profile; a curator request waits at most 10 seconds for it and otherwise fails with the generic `500`. Only active images can be curated.
 
 **`CuratedProfile`** (the response of the first three calls, all fields always present):
   - `imageId` (string), `exists` (boolean: `false` for an image with no profile yet, in which case the other fields are empty and `vector` is `none`), `humanVerified` (boolean), `needsReview` (boolean: human verified under an older taxonomy version than the current one)
   - `taxonomyVersion` (integer or `null`: the version the profile was written under), `currentTaxonomyVersion` (integer)
   - `situation`, `useWhen` (string or `null`), `situationConfidence` (number 0 to 1 or `null`; `null` for human text)
   - `values`: `{ emotion, stance, topic, tone }`, each an array of `{ key, confidence, source }` (`source` is `model` or `human`; a human value has confidence `1.0`)
-  - `vector`: the state of the situation embedding used by the search: `fresh` (a situation embedding made with the configured model exists), `pending` (there is a situation but its embedding is missing or was made with another model, so the next `build_meme_profile_embeddings` run will compute it) or `none` (no situation text)
+  - `vector`: the state of the situation embedding used by the search: `fresh` (a situation embedding made with the configured model exists), `pending` (there is a situation but its embedding is missing or was made with another model, so the next `build_meme_profile_embeddings` run will compute it) or `none` (no situation text). `vector` compares the model name only: a changed model digest is detected by the embeddings job, not by this field
   - `extractedAt`, `updatedAt` (ISO 8601 strings or `null`)
 
 **Get a profile**
@@ -788,14 +788,14 @@ Trust model: like the rest of the API these endpoints are unauthenticated and th
   - `useWhen` (string or `null`, at most 300 characters)
   - `values`: `{ emotion, stance, topic, tone }`, each an array of taxonomy keys (strings, at most 48 characters each; the taxonomy limits the number of values per axis)
 - **Response** `200`: the saved `CuratedProfile`
-- **Behavior**: the profile becomes human verified at the current taxonomy version, and every value is stored as `source: human`, confidence `1.0`. Axis values take effect for the search at once. When the situation text changed, the new situation vector is computed inline (bounded by `profile_editor.embed_timeout_seconds`) and stored in the same transaction as the profile, so it takes effect at once too; if the embedding service is unavailable or too slow the profile is still saved and `vector` is `pending` until the next embeddings run. The situation text is never logged.
+- **Behavior**: the profile becomes human verified at the current taxonomy version, and every value is stored as `source: human`, confidence `1.0`. Axis values take effect for the search at once. When the situation text changed, the new situation vector is computed inline (bounded by `profile_editor.embed_timeout_seconds`) and stored in the same transaction as the profile, so it takes effect at once too; if the embedding service is unavailable or too slow the profile is still saved and `vector` is `pending` until the next embeddings run. A save also clears the image's failure record for the profile pipeline. A saved, confirmed or reset profile is used by the search at once, but a repeated identical query can be served from the search result cache for up to 120 seconds. The situation text is never logged.
 
 **Confirm a profile**
 
 - **URL**: `/api/meme-from-text/profiles/{imageId}/confirm`
 - **Method**: `POST`
 - **Response** `200`: the `CuratedProfile`, now human verified at the current taxonomy version
-- **Behavior**: marks the existing profile as verified without changing its content. Confirm refuses a profile that holds a value key the current vocabulary no longer has (`422`): edit and save it instead. An image with no profile answers `409`.
+- **Behavior**: marks the existing profile as verified without changing its content. Confirm re-validates the stored profile like a save does and refuses it (`422`) when it is no longer valid for the current vocabulary (a removed key, more values on an axis than the vocabulary now allows, a situation over the limit): edit and save it instead. A confirm also clears the image's failure record for the profile pipeline. An image with no profile answers `409`.
 
 **Reset a profile**
 
@@ -807,7 +807,7 @@ Trust model: like the rest of the API these endpoints are unauthenticated and th
 **Error Responses** (all four calls):
   - `404`: unknown or inactive image, `{"detail": "image not found"}`
   - `409`: Confirm on an image with no profile; the body is a fixed `{"detail": "..."}` message
-  - `422`: malformed request (a missing axis, a value that is not a string, a text over its limit; `detail` is a list of `{ "loc", "msg", "type" }` objects only, the rejected input is never echoed), an `imageId` that is not a valid id, an unknown vocabulary key, too many values on an axis, or Confirm on a profile with a removed key (a fixed string naming the axis or key, never the free text)
+  - `422`: malformed request (a missing axis, a value that is not a string, a text over its limit; `detail` is a list of `{ "loc", "msg", "type" }` objects only, the rejected input is never echoed), an `imageId` that is not a valid id, an unknown vocabulary key, too many values on an axis, or Confirm on a profile that is no longer valid for the current vocabulary (a fixed string, never the free text)
   - `500`: unexpected failure; the body is the generic `{"detail": "profile request failed"}` and neither the body nor the server log contains the profile text
 
 #### Profile coverage (admin)

@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Collection
 
-from sqlalchemy import delete, exists, func, or_, select, update
+from sqlalchemy import delete, exists, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from Storage.models import (
@@ -76,27 +76,55 @@ class MemeProfileRepository:
                 metas[image_id] = ProfileMeta(version, model, prompt_version, fingerprint, human)
         return metas
 
+    async def set_lock_timeout(self, seconds: int) -> None:
+        """Bound how long this transaction waits for a row lock (curator requests fail fast instead of hanging
+        behind a long batch transaction). SET LOCAL ends with the transaction."""
+        await self.session.execute(text(f"SET LOCAL lock_timeout = '{int(seconds)}s'"))
+
+    async def _lock_profile(self, image_id: uuid.UUID, meta: ProfileMeta) -> tuple[MemeProfile, bool]:
+        """Serialise writers of one image's profile. Makes sure the row exists (a placeholder insert that does
+        nothing when it already does), then locks it with SELECT ... FOR UPDATE and reloads it, so every
+        following statement of this transaction sees what a concurrent writer committed while we waited.
+        Returns the locked row and whether this very call created it."""
+        inserted = (await self.session.execute(
+            insert(MemeProfile)
+            .values(image_id=image_id, taxonomy_version=meta.taxonomy_version, extractor_model=meta.extractor_model,
+                    extractor_prompt_version=meta.extractor_prompt_version,
+                    inputs_fingerprint=meta.inputs_fingerprint, human_verified=False)
+            .on_conflict_do_nothing(index_elements=["image_id"])
+            .returning(MemeProfile.image_id)
+        )).first() is not None
+        row = (await self.session.execute(
+            select(MemeProfile).where(MemeProfile.image_id == image_id)
+            .with_for_update().execution_options(populate_existing=True)
+        )).scalar_one()
+        return row, inserted
+
     async def save_profile(self, image_id: uuid.UUID, data: ProfileData, meta: ProfileMeta) -> bool:
         """Replace one image's model-generated profile. Returns False (and writes nothing) when the
-        existing row is human-verified."""
-        existing = await self.session.get(MemeProfile, image_id)
-        if existing is not None and existing.human_verified:
+        existing row is human-verified; that check runs after the row lock, so a human save wins."""
+        row, created = await self._lock_profile(image_id, meta)
+        if row.human_verified:
             return False
-        await self._write(image_id, existing, data, meta, human=False)
+        await self._write(row, created, data, meta, human=False)
         return True
 
     async def save_human_profile(self, image_id: uuid.UUID, data: ProfileData, meta: ProfileMeta) -> None:
         """Write a human-edited profile: every value gets source 'human' and the row is human_verified."""
-        existing = await self.session.get(MemeProfile, image_id)
-        await self._write(image_id, existing, data, meta, human=True)
+        row, created = await self._lock_profile(image_id, meta)
+        await self._write(row, created, data, meta, human=True)
 
-    async def _write(self, image_id, existing, data: ProfileData, meta: ProfileMeta, *, human: bool) -> None:
-        situation_changed = existing is None or existing.situation_text != data.situation_text
-        if existing is None:
-            row = MemeProfile(image_id=image_id)
-            self.session.add(row)
-        else:
-            row = existing
+    async def clear_failure(self, image_id: uuid.UUID) -> bool:
+        """Delete this pipeline's failure record of the image (and no other pipeline's)."""
+        result = await self.session.execute(delete(ImageProcessingStatus).where(
+            ImageProcessingStatus.image_id == image_id, ImageProcessingStatus.pipeline == PIPELINE))
+        return result.rowcount > 0
+
+    async def _write(self, row: MemeProfile, created: bool, data: ProfileData, meta: ProfileMeta,
+                     *, human: bool) -> None:
+        image_id = row.image_id
+        situation_changed = created or row.situation_text != data.situation_text
+        if not created:
             await self.session.execute(delete(MemeProfileValue).where(MemeProfileValue.image_id == image_id))
         row.taxonomy_version = meta.taxonomy_version
         row.extractor_model = meta.extractor_model

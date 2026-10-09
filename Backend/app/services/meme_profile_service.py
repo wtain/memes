@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 HUMAN = "human"
 MAX_USE_WHEN_CHARS = 300   # equals ai.meme_profile_extractor.MAX_USE_WHEN_CHARS; a test pins it
+LOCK_TIMEOUT_SECONDS = 10   # a curator write waits at most this long behind a batch write of the same image
 
 
 class ProfileValidationError(ValueError):
@@ -53,6 +54,7 @@ class MemeProfileService:
         return await self._response(image, await self.repo.get_view(image))
 
     async def save(self, image_id: str, request) -> dict:
+        await self.repo.set_lock_timeout(LOCK_TIMEOUT_SECONDS)
         image = await self._active(image_id)
         data = self._validated(request)
         old = await self.repo.get_view(image)
@@ -62,23 +64,28 @@ class MemeProfileService:
             vector = await self._embed(image, data.situation_text)
         await self.repo.save_human_profile(
             image, data, ProfileMeta(self.tax.version, HUMAN, HUMAN, HUMAN, True))
+        await self.repo.clear_failure(image)
         if vector is not None:
             await self.repo.save_situation_embedding(image, vector.values, self.model, vector.digest)
         return await self._response(image, await self.repo.get_view(image))
 
     async def confirm(self, image_id: str) -> dict:
+        await self.repo.set_lock_timeout(LOCK_TIMEOUT_SECONDS)
         image = await self._active(image_id)
         view = await self.repo.get_view(image)
         if view is None:
             raise ProfileConflictError("this meme has no profile to confirm")
-        for axis, items in view.values.items():
-            if any(not self.tax.has_key(axis, item["key"]) for item in items):
-                raise ProfileValidationError(
-                    "the profile holds a value the current vocabulary no longer has; edit and save it instead")
+        stored = {"situation": view.situation_text, **{axis: list(items) for axis, items in view.values.items()}}
+        if validate_profile(stored, self.tax).errors:
+            # Same rules as a save, against the current vocabulary; the message never carries profile text.
+            raise ProfileValidationError(
+                "the profile is no longer valid for the current vocabulary; edit and save it instead")
         await self.repo.confirm(image, self.tax.version)
+        await self.repo.clear_failure(image)
         return await self._response(image, await self.repo.get_view(image))
 
     async def reset(self, image_id: str) -> None:
+        await self.repo.set_lock_timeout(LOCK_TIMEOUT_SECONDS)
         image = await self._active(image_id)
         await self.repo.reset(image)
 

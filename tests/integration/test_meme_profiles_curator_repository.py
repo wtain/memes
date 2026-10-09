@@ -2,7 +2,7 @@
 import uuid
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from repository import meme_profiles
 from repository.meme_profiles import CATEGORIES, PIPELINE, MemeProfileRepository, ProfileData, ProfileMeta
@@ -165,7 +165,7 @@ async def _corpus(session):
     """One image per category, plus decoys that must be counted nowhere (a pending image)."""
     repo = MemeProfileRepository(session)
     rows = {name: await _image(session) for name in
-            ("without", "fresh", "stale", "human_stale", "human_fresh", "failed", "no_text")}
+            ("without", "fresh", "stale", "human_stale", "human_fresh", "failed", "failed_profiled", "no_text")}
     await _image(session, status="pending")                                   # not active: counted nowhere
     await repo.save_profile(rows["fresh"].id, _data(), _meta())
     await _vector(repo, rows["fresh"].id)
@@ -175,7 +175,13 @@ async def _corpus(session):
     await repo.save_human_profile(rows["human_fresh"].id, _data(), _meta(human_verified=True))
     await _vector(repo, rows["human_fresh"].id)
     await repo.save_profile(rows["no_text"].id, _data(situation=None), _meta())
-    session.add(ImageProcessingStatus(image_id=rows["failed"].id, pipeline=PIPELINE, status="failed", error_message="x"))
+    await repo.save_profile(rows["failed_profiled"].id, _data(), _meta())     # failed AND profiled
+    await _vector(repo, rows["failed_profiled"].id)
+    session.add_all([
+        ImageProcessingStatus(image_id=rows["failed"].id, pipeline=PIPELINE, status="failed", error_message="x"),
+        ImageProcessingStatus(image_id=rows["failed_profiled"].id, pipeline=PIPELINE, status="failed",
+                              error_message="x"),
+    ])
     await session.flush()
     return repo, rows
 
@@ -186,13 +192,13 @@ async def test_live_counts_and_category_lists_agree(db_session):
 
     counts = await repo.live_counts(CURRENT, MODEL)
 
-    assert counts == {"active": 7, "profiled": 5, "without_profile": 2, "needs_review": 1, "stale_taxonomy": 1,
-                      "failed": 1, "human_verified": 2, "pending_vector": 1}
+    assert counts == {"active": 8, "profiled": 6, "without_profile": 2, "needs_review": 1, "stale_taxonomy": 1,
+                      "failed": 2, "human_verified": 2, "pending_vector": 1}
     expected = {
         "without_profile": {rows["without"].id, rows["failed"].id},
         "needs_review": {rows["human_stale"].id},
         "stale_taxonomy": {rows["stale"].id},
-        "failed": {rows["failed"].id},
+        "failed": {rows["failed"].id, rows["failed_profiled"].id},
         "human_verified": {rows["human_stale"].id, rows["human_fresh"].id},
         "pending_vector": {rows["stale"].id},
     }
@@ -202,6 +208,49 @@ async def test_live_counts_and_category_lists_agree(db_session):
         assert {image_id for image_id, _ in listed} == expected[category], category
     listed, _ = await repo.list_category("human_verified", CURRENT, MODEL, None, 100)
     assert all(human for _, human in listed)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_reset_without_a_profile_returns_false_but_still_clears_the_failure_record(db_session):
+    image = await _image(db_session)
+    repo = MemeProfileRepository(db_session)
+    db_session.add(ImageProcessingStatus(image_id=image.id, pipeline=PIPELINE, status="failed", error_message="x"))
+    await db_session.flush()
+    image_id = image.id
+
+    assert await repo.reset(image_id) is False
+    await db_session.flush()
+
+    left = (await db_session.execute(
+        select(ImageProcessingStatus).where(ImageProcessingStatus.image_id == image_id))).first()
+    assert left is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_clear_failure_deletes_only_this_pipelines_row_of_that_image(db_session):
+    image, other = await _image(db_session), await _image(db_session)
+    repo = MemeProfileRepository(db_session)
+    db_session.add_all([
+        ImageProcessingStatus(image_id=image.id, pipeline=PIPELINE, status="failed", error_message="x"),
+        ImageProcessingStatus(image_id=image.id, pipeline="other_pipeline", status="failed"),
+        ImageProcessingStatus(image_id=other.id, pipeline=PIPELINE, status="failed", error_message="x"),
+    ])
+    await db_session.flush()
+    image_id, other_id = image.id, other.id
+
+    assert await repo.clear_failure(image_id) is True
+    assert await repo.clear_failure(image_id) is False
+    await db_session.flush()
+
+    rows = (await db_session.execute(
+        select(ImageProcessingStatus.image_id, ImageProcessingStatus.pipeline))).all()
+    assert sorted(rows, key=str) == sorted([(image_id, "other_pipeline"), (other_id, PIPELINE)], key=str)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_lock_timeout_applies_to_the_transaction(db_session):
+    await MemeProfileRepository(db_session).set_lock_timeout(10)
+    assert (await db_session.execute(text("SHOW lock_timeout"))).scalar_one() == "10s"
 
 
 @pytest.mark.asyncio(loop_scope="session")

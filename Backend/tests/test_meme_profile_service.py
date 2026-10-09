@@ -18,6 +18,14 @@ class FakeRepo:
     def __init__(self, view=None, active=True, vector="pending"):
         self.view, self.active, self.vector = view, active, vector
         self.saved, self.vectors, self.confirmed, self.reset_calls = [], [], [], []
+        self.lock_timeouts, self.cleared = [], []
+
+    async def set_lock_timeout(self, seconds):
+        self.lock_timeouts.append(seconds)
+
+    async def clear_failure(self, image_id):
+        self.cleared.append(image_id)
+        return True
 
     async def image_is_active(self, image_id):
         return self.active
@@ -30,6 +38,8 @@ class FakeRepo:
 
     async def save_human_profile(self, image_id, data, meta):
         self.saved.append((data, meta))
+        if not (data.situation_text or "").strip():
+            self.vector = "none"   # like the real repository: a profile without a situation has no vector
         values = {axis: [{"key": i["key"], "confidence": 1.0, "source": "human"} for i in items]
                   for axis, items in data.values.items()}
         self.view = ProfileView(image_id, meta.taxonomy_version, True, data.situation_text, None, data.use_when,
@@ -111,17 +121,36 @@ async def test_an_unchanged_situation_makes_no_embedding_call():
 
 
 @pytest.mark.parametrize("error", [EmbedTimeout("t"), EmbedUnavailable("u"), RuntimeError("boom")])
-async def test_a_failed_embedding_still_saves_and_reports_pending(error):
+async def test_a_failed_embedding_still_saves_and_reports_pending(error, caplog):
     service, repo, _ = _service(embedder=FakeEmbedder(error=error))
 
-    response = await service.save(IMAGE, _request())
+    with caplog.at_level("DEBUG"):
+        response = await service.save(IMAGE, _request())
 
     assert len(repo.saved) == 1 and repo.vectors == [] and response["vector"] == "pending"
+    assert caplog.records and all("a new situation" not in record.getMessage() for record in caplog.records)
 
 
 async def test_a_digest_failure_also_degrades_to_pending():
     service, repo, _ = _service(embedder=FakeEmbedder(digest_error=EmbedUnavailable("u")))
     assert (await service.save(IMAGE, _request()))["vector"] == "pending" and repo.vectors == []
+
+
+async def test_a_situation_differing_only_by_surrounding_whitespace_makes_no_embedding_call():
+    service, repo, embedder = _service(FakeRepo(view=_view(situation_text="a new situation"), vector="fresh"))
+
+    response = await service.save(IMAGE, _request(situation="  a new situation \n"))
+
+    assert embedder.embedded == [] and repo.vectors == [] and response["vector"] == "fresh"
+
+
+async def test_blanking_the_situation_of_an_existing_profile_saves_it_and_reports_no_vector():
+    service, repo, embedder = _service(FakeRepo(view=_view(situation_text="old situation"), vector="fresh"))
+
+    response = await service.save(IMAGE, _request(situation="  "))
+
+    assert len(repo.saved) == 1 and repo.saved[0][0].situation_text is None
+    assert embedder.embedded == [] and response["vector"] == "none" and response["situation"] is None
 
 
 async def test_a_blank_situation_has_no_vector_and_no_call():
@@ -183,6 +212,40 @@ async def test_confirm_refuses_a_missing_profile_and_a_removed_vocabulary_key():
     with pytest.raises(ProfileValidationError):
         await service.confirm(IMAGE)
     assert repo.confirmed == []
+
+
+@pytest.mark.parametrize("bad_view", [
+    dict(values={**EMPTY_VALUES, "emotion": [{"key": k, "confidence": 0.9, "source": "model"}
+                                             for k in ("joy", "amusement", "pride", "relief")]}),
+    dict(values={**EMPTY_VALUES, "emotion": [{"key": "removed-key", "confidence": 0.9, "source": "model"}]}),
+    dict(situation_text="s" * 161),
+])
+async def test_confirm_revalidates_the_stored_profile_like_a_save(bad_view):
+    service, repo, _ = _service(FakeRepo(view=_view(**bad_view)))
+
+    with pytest.raises(ProfileValidationError) as error:
+        await service.confirm(IMAGE)
+
+    assert str(error.value) == ("the profile is no longer valid for the current vocabulary; "
+                                "edit and save it instead")
+    assert repo.confirmed == [] and repo.cleared == []
+
+
+async def test_save_and_confirm_clear_the_failure_record_and_every_write_sets_the_lock_timeout():
+    service, repo, _ = _service()
+    await service.save(IMAGE, _request())
+    assert len(repo.cleared) == 1
+
+    service, repo, _ = _service(FakeRepo(view=_view(taxonomy_version=TAX.version - 1)))
+    await service.confirm(IMAGE)
+    assert len(repo.cleared) == 1
+
+    service, repo, _ = _service(FakeRepo(view=_view()))
+    await service.save(IMAGE, _request())
+    await service.confirm(IMAGE)
+    await service.reset(IMAGE)
+    assert repo.lock_timeouts == [10, 10, 10]
+    assert len(repo.cleared) == 2   # reset clears the failure inside the repository itself
 
 
 async def test_reset_deletes_and_is_idempotent_for_a_missing_profile():

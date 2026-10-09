@@ -54,10 +54,9 @@ def select_work(candidates: list[Candidate], metas: dict[uuid.UUID, ProfileMeta]
                 min_text_chars: int, retry_failed: bool) -> SelectionResult:
     """An image is selected when it has no profile or its profile is stale (taxonomy version, prompt version,
     the model that would now run for its path, or the input fingerprint differs). Human-verified profiles are
-    never selected: when stale they are reported as needing review. A human-verified profile is stale only when its taxonomy
-    version differs. A failed image is skipped only while the
-    context recorded with its failure (fingerprint, prompt version, model) equals the current one, unless
-    retry_failed. Text-path work is ordered before vision-path work so Ollama swaps models at most once."""
+    never selected: when stale they are reported as needing review, and a human-verified profile is stale only when
+    its taxonomy version differs. A failed image is skipped only while the context recorded with its failure
+    (fingerprint, prompt version, model) equals the current one, unless retry_failed. Text-path work is ordered before vision-path work so Ollama swaps models at most once."""
     text_work: list[WorkItem] = []
     vision_work: list[WorkItem] = []
     stale: set = set()
