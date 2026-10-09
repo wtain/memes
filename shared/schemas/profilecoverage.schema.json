@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "profilecoverage.schema.json",
+  "title": "ProfileCoverage",
+  "description": "Live profile coverage counts of the active library and the last profile runs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "active": { "type": "integer" },
+    "profiled": { "type": "integer" },
+    "withoutProfile": { "type": "integer" },
+    "humanVerified": { "type": "integer" },
+    "needsReview": { "type": "integer" },
+    "staleTaxonomy": { "type": "integer" },
+    "failed": { "type": "integer" },
+    "pendingVector": { "type": "integer" },
+    "currentTaxonomyVersion": { "type": "integer" },
+    "lastRuns": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profiles": { "type": ["object", "null"], "additionalProperties": false, "properties": {
+          "runId": { "type": "string" }, "status": { "type": "string" }, "startedAt": { "type": "string" },
+          "completedAt": { "type": ["string", "null"] }, "stats": { "type": ["object", "null"], "description": "Free-form run stats as of the run" } },
+          "required": ["runId", "status", "startedAt", "completedAt", "stats"] },
+        "embeddings": { "type": ["object", "null"], "additionalProperties": false, "properties": {
+          "runId": { "type": "string" }, "status": { "type": "string" }, "startedAt": { "type": "string" },
+          "completedAt": { "type": ["string", "null"] }, "stats": { "type": ["object", "null"], "description": "Free-form run stats as of the run" } },
+          "required": ["runId", "status", "startedAt", "completedAt", "stats"] }
+      },
+      "required": ["profiles", "embeddings"]
+    }
+  },
+  "required": ["active", "profiled", "withoutProfile", "humanVerified", "needsReview", "staleTaxonomy", "failed", "pendingVector", "currentTaxonomyVersion", "lastRuns"]
+}

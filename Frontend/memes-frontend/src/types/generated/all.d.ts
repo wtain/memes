@@ -421,6 +421,115 @@ export interface RatingsResponse {
   [k: string]: unknown;
 }
 /**
+ * One meme's profile as the curator sees it (the editable and the review state)
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "CuratedProfile".
+ */
+export interface CuratedProfile {
+  imageId: string;
+  /**
+   * False when the image has no profile yet
+   */
+  exists: boolean;
+  humanVerified: boolean;
+  needsReview: boolean;
+  /**
+   * Taxonomy version the profile was written under
+   */
+  taxonomyVersion: number | null;
+  currentTaxonomyVersion: number;
+  situation: string | null;
+  situationConfidence: number | null;
+  useWhen: string | null;
+  values: {
+    emotion: ProfileValue[];
+    stance: ProfileValue[];
+    topic: ProfileValue[];
+    tone: ProfileValue[];
+  };
+  /**
+   * State of the situation embedding: fresh, pending the next embeddings run, or none (no situation)
+   */
+  vector: "fresh" | "pending" | "none";
+  extractedAt: string | null;
+  updatedAt: string | null;
+}
+/**
+ * The curator's edit of one meme profile; replaces the whole profile and marks it human verified
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "CuratedProfileSaveRequest".
+ */
+export interface CuratedProfileSaveRequest {
+  situation: string | null;
+  useWhen: string | null;
+  values: {
+    emotion: string[];
+    stance: string[];
+    topic: string[];
+    tone: string[];
+  };
+}
+/**
+ * Live profile coverage counts of the active library and the last profile runs
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ProfileCoverage".
+ */
+export interface ProfileCoverage {
+  active: number;
+  profiled: number;
+  withoutProfile: number;
+  humanVerified: number;
+  needsReview: number;
+  staleTaxonomy: number;
+  failed: number;
+  pendingVector: number;
+  currentTaxonomyVersion: number;
+  lastRuns: {
+    profiles: {
+      runId: string;
+      status: string;
+      startedAt: string;
+      completedAt: string | null;
+      /**
+       * Free-form run stats as of the run
+       */
+      stats: {
+        [k: string]: unknown;
+      } | null;
+    } | null;
+    embeddings: {
+      runId: string;
+      status: string;
+      startedAt: string;
+      completedAt: string | null;
+      /**
+       * Free-form run stats as of the run
+       */
+      stats: {
+        [k: string]: unknown;
+      } | null;
+    } | null;
+  };
+}
+/**
+ * One page of the images in a profile coverage category
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ProfileCoverageImages".
+ */
+export interface ProfileCoverageImages {
+  items: {
+    id: string;
+    imageUrl: string;
+    humanVerified: boolean;
+  }[];
+  nextCursor: string | null;
+  total: number;
+}
+/**
  * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DescriptionFeedbackResponse".
  */

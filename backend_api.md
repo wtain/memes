@@ -759,6 +759,80 @@ Trust model: like the rest of the API these endpoints are unauthenticated, and a
   - `422`: malformed request, a blank message after normalisation, an `imageId` that is not a valid id or a `queryHash` that is not 64 lowercase hex characters, or a message containing a NUL character; for request validation errors `detail` is a list of `{ "loc", "msg", "type" }` objects only (no `input`, no `ctx`, the rejected input is never echoed), and for errors raised by the service it is a fixed string; neither contains the message text
   - `500`: unexpected failure; the body is the generic `{"detail": "rating request failed"}` and neither the body nor the server log contains the message text
 
+#### Meme profile curation
+
+Lets a person read, correct, confirm and reset the profile (situation, use-when and taxonomy axis values) that the meme-from-text search matches a meme by. A saved profile is marked human verified, and the batch jobs never rewrite a human verified profile (they report it as needing review when the taxonomy has moved on).
+
+Trust model: like the rest of the API these endpoints are unauthenticated and the last write wins (there is no version check or lock), so they are meant for a single-owner tool, not a public deployment. Only active images can be curated.
+
+**`CuratedProfile`** (the response of the first three calls, all fields always present):
+  - `imageId` (string), `exists` (boolean: `false` for an image with no profile yet, in which case the other fields are empty and `vector` is `none`), `humanVerified` (boolean), `needsReview` (boolean: human verified under an older taxonomy version than the current one)
+  - `taxonomyVersion` (integer or `null`: the version the profile was written under), `currentTaxonomyVersion` (integer)
+  - `situation`, `useWhen` (string or `null`), `situationConfidence` (number 0 to 1 or `null`; `null` for human text)
+  - `values`: `{ emotion, stance, topic, tone }`, each an array of `{ key, confidence, source }` (`source` is `model` or `human`; a human value has confidence `1.0`)
+  - `vector`: the state of the situation embedding used by the search: `fresh` (a situation embedding made with the configured model exists), `pending` (there is a situation but its embedding is missing or was made with another model, so the next `build_meme_profile_embeddings` run will compute it) or `none` (no situation text)
+  - `extractedAt`, `updatedAt` (ISO 8601 strings or `null`)
+
+**Get a profile**
+
+- **URL**: `/api/meme-from-text/profiles/{imageId}`
+- **Method**: `GET`
+- **Response** `200`: `CuratedProfile`
+
+**Save a human edit**
+
+- **URL**: `/api/meme-from-text/profiles/{imageId}`
+- **Method**: `PUT`
+- **Request Body** (`CuratedProfileSaveRequest`, all fields required; replaces the whole profile):
+  - `situation` (string or `null`, at most 160 characters)
+  - `useWhen` (string or `null`, at most 300 characters)
+  - `values`: `{ emotion, stance, topic, tone }`, each an array of taxonomy keys (strings, at most 48 characters each; the taxonomy limits the number of values per axis)
+- **Response** `200`: the saved `CuratedProfile`
+- **Behavior**: the profile becomes human verified at the current taxonomy version, and every value is stored as `source: human`, confidence `1.0`. Axis values take effect for the search at once. When the situation text changed, the new situation vector is computed inline (bounded by `profile_editor.embed_timeout_seconds`) and stored in the same transaction as the profile, so it takes effect at once too; if the embedding service is unavailable or too slow the profile is still saved and `vector` is `pending` until the next embeddings run. The situation text is never logged.
+
+**Confirm a profile**
+
+- **URL**: `/api/meme-from-text/profiles/{imageId}/confirm`
+- **Method**: `POST`
+- **Response** `200`: the `CuratedProfile`, now human verified at the current taxonomy version
+- **Behavior**: marks the existing profile as verified without changing its content. Confirm refuses a profile that holds a value key the current vocabulary no longer has (`422`): edit and save it instead. An image with no profile answers `409`.
+
+**Reset a profile**
+
+- **URL**: `/api/meme-from-text/profiles/{imageId}`
+- **Method**: `DELETE`
+- **Response** `204` (also when there was nothing to reset)
+- **Behavior**: deletes the profile and its situation embedding, and also clears the image's failure record for the profile pipeline, so the next `build_meme_profiles` run extracts the image again.
+
+**Error Responses** (all four calls):
+  - `404`: unknown or inactive image, `{"detail": "image not found"}`
+  - `409`: Confirm on an image with no profile; the body is a fixed `{"detail": "..."}` message
+  - `422`: malformed request (a missing axis, a value that is not a string, a text over its limit; `detail` is a list of `{ "loc", "msg", "type" }` objects only, the rejected input is never echoed), an `imageId` that is not a valid id, an unknown vocabulary key, too many values on an axis, or Confirm on a profile with a removed key (a fixed string naming the axis or key, never the free text)
+  - `500`: unexpected failure; the body is the generic `{"detail": "profile request failed"}` and neither the body nor the server log contains the profile text
+
+#### Profile coverage (admin)
+
+Live numbers on how much of the active library has a profile, and the images behind each number. Unauthenticated like the rest of the admin API. The counts are computed on every call (they are not a snapshot).
+
+**Coverage counts**
+
+- **URL**: `/api/admin/profile-coverage`
+- **Method**: `GET`
+- **Response** `200`: `ProfileCoverage`:
+  - `active` (active images), `profiled` (with a profile), `withoutProfile`, `humanVerified`, `needsReview` (human verified under an older taxonomy version), `staleTaxonomy` (model profiles written under an older taxonomy version), `failed` (images whose profile extraction is recorded as permanently failed, whether or not they also have a profile), `pendingVector` (profiles whose situation vector is missing or stale for the configured embedding model), `currentTaxonomyVersion` (all integers)
+  - `lastRuns`: `{ profiles, embeddings }`, the most recent `build_meme_profiles` and `build_meme_profile_embeddings` run, each `null` when there was none or `{ runId, status, startedAt, completedAt (null while running), stats }`. `stats` is the free-form object the run recorded, as of that run (it does not change with later edits) or `null`.
+
+**Images of one category**
+
+- **URL**: `/api/admin/profile-coverage/images?category=<category>&cursor=<id>&limit=<n>`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `category` (required): `without_profile`, `needs_review`, `stale_taxonomy`, `failed`, `human_verified` or `pending_vector` (same meaning as the counts)
+  - `cursor` (optional): the `nextCursor` of the previous page
+  - `limit` (optional, 1 to 100, default 48)
+- **Response** `200`: `ProfileCoverageImages`: `items` (array of `{ id, imageUrl, humanVerified }`, `imageUrl` is `/api/images/{id}`), `nextCursor` (string or `null` on the last page), `total` (images in the whole category). Pages are ordered by image id.
+- **Error Responses**: `422` for an unknown `category`, a `limit` outside 1 to 100 or a `cursor` that is not a valid id; `500` for an unexpected failure
+
 ---
 
 ### Recommendations

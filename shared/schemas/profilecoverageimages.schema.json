@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "profilecoverageimages.schema.json",
+  "title": "ProfileCoverageImages",
+  "description": "One page of the images in a profile coverage category",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "imageUrl": { "type": "string" },
+          "humanVerified": { "type": "boolean" }
+        },
+        "required": ["id", "imageUrl", "humanVerified"]
+      }
+    },
+    "nextCursor": { "type": ["string", "null"] },
+    "total": { "type": "integer" }
+  },
+  "required": ["items", "nextCursor", "total"]
+}

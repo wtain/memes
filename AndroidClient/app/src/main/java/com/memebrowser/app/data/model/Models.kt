@@ -39,6 +39,30 @@ data class Concept(
 )
 
 @Serializable
+data class CuratedProfile(
+    @SerialName("imageId") val imageId: String,
+    @SerialName("exists") val exists: Boolean,
+    @SerialName("humanVerified") val humanVerified: Boolean,
+    @SerialName("needsReview") val needsReview: Boolean,
+    @SerialName("taxonomyVersion") val taxonomyVersion: Int?,
+    @SerialName("currentTaxonomyVersion") val currentTaxonomyVersion: Int,
+    @SerialName("situation") val situation: String?,
+    @SerialName("situationConfidence") val situationConfidence: Float?,
+    @SerialName("useWhen") val useWhen: String?,
+    @SerialName("values") val values: JsonObject,
+    @SerialName("vector") val vector: String,
+    @SerialName("extractedAt") val extractedAt: String?,
+    @SerialName("updatedAt") val updatedAt: String?
+)
+
+@Serializable
+data class CuratedProfileSaveRequest(
+    @SerialName("situation") val situation: String?,
+    @SerialName("useWhen") val useWhen: String?,
+    @SerialName("values") val values: JsonObject
+)
+
+@Serializable
 data class DescriptionFeedbackResponse(
     @SerialName("feedback") val feedback: String? = null
 )
@@ -157,6 +181,27 @@ data class MemeTag(
     @SerialName("category") val category: String? = null,
     @SerialName("score") val score: Float? = null,
     @SerialName("source") val source: String? = null
+)
+
+@Serializable
+data class ProfileCoverage(
+    @SerialName("active") val active: Int,
+    @SerialName("profiled") val profiled: Int,
+    @SerialName("withoutProfile") val withoutProfile: Int,
+    @SerialName("humanVerified") val humanVerified: Int,
+    @SerialName("needsReview") val needsReview: Int,
+    @SerialName("staleTaxonomy") val staleTaxonomy: Int,
+    @SerialName("failed") val failed: Int,
+    @SerialName("pendingVector") val pendingVector: Int,
+    @SerialName("currentTaxonomyVersion") val currentTaxonomyVersion: Int,
+    @SerialName("lastRuns") val lastRuns: JsonObject
+)
+
+@Serializable
+data class ProfileCoverageImages(
+    @SerialName("items") val items: List<JsonObject>,
+    @SerialName("nextCursor") val nextCursor: String?,
+    @SerialName("total") val total: Int
 )
 
 @Serializable

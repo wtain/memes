@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "curatedprofilesaverequest.schema.json",
+  "title": "CuratedProfileSaveRequest",
+  "description": "The curator's edit of one meme profile; replaces the whole profile and marks it human verified",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "situation": { "type": ["string", "null"], "maxLength": 160 },
+    "useWhen": { "type": ["string", "null"], "maxLength": 300 },
+    "values": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "emotion": { "type": "array", "items": { "type": "string", "maxLength": 48 } },
+        "stance": { "type": "array", "items": { "type": "string", "maxLength": 48 } },
+        "topic": { "type": "array", "items": { "type": "string", "maxLength": 48 } },
+        "tone": { "type": "array", "items": { "type": "string", "maxLength": 48 } }
+      },
+      "required": ["emotion", "stance", "topic", "tone"]
+    }
+  },
+  "required": ["situation", "useWhen", "values"]
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "curatedprofile.schema.json",
+  "title": "CuratedProfile",
+  "description": "One meme's profile as the curator sees it (the editable and the review state)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "imageId": { "type": "string" },
+    "exists": { "type": "boolean", "description": "False when the image has no profile yet" },
+    "humanVerified": { "type": "boolean" },
+    "needsReview": { "type": "boolean" },
+    "taxonomyVersion": { "type": ["integer", "null"], "description": "Taxonomy version the profile was written under" },
+    "currentTaxonomyVersion": { "type": "integer" },
+    "situation": { "type": ["string", "null"] },
+    "situationConfidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "useWhen": { "type": ["string", "null"] },
+    "values": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "emotion": { "type": "array", "items": { "$ref": "./profilevalue.schema.json" } },
+        "stance": { "type": "array", "items": { "$ref": "./profilevalue.schema.json" } },
+        "topic": { "type": "array", "items": { "$ref": "./profilevalue.schema.json" } },
+        "tone": { "type": "array", "items": { "$ref": "./profilevalue.schema.json" } }
+      },
+      "required": ["emotion", "stance", "topic", "tone"]
+    },
+    "vector": { "type": "string", "enum": ["fresh", "pending", "none"], "description": "State of the situation embedding: fresh, pending the next embeddings run, or none (no situation)" },
+    "extractedAt": { "type": ["string", "null"] },
+    "updatedAt": { "type": ["string", "null"] }
+  },
+  "required": ["imageId", "exists", "humanVerified", "needsReview", "taxonomyVersion", "currentTaxonomyVersion", "situation", "situationConfidence", "useWhen", "values", "vector", "extractedAt", "updatedAt"]
+}
