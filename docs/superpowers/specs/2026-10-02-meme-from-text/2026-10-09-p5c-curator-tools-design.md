@@ -1,6 +1,7 @@
 # P5c: Curator tools (profile editor and coverage view) — Design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-09-p5c-curator-tools.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-08-p5-web-ui-design.md (Out of scope and handoff notes: the meme-profile editor US-9 and the coverage view US-8)
 Follow-ups: none yet
 
@@ -26,7 +27,7 @@ The profiles are the heart of the search, and today nobody can see or correct th
 - **Save edits** (`PUT`): replaces the whole profile (situation, use-when, every axis list) and goes through `save_human_profile`: all values `source: human`, confidence `1.0`, `human_verified` true. The row's meta is `taxonomy_version` = current, `extractor_model` = `human`, `extractor_prompt_version` = `human`, `inputs_fingerprint` = `human`. Works on an unprofiled meme too (creates the profile).
 - **Confirm** (`POST .../confirm`): marks the existing profile `human_verified` and leaves every value, its source and the vector untouched (provenance stays honest: the values were model-made and a person accepted them). It refuses with 409 when there is no profile and with 422 when the profile holds a value key the current taxonomy no longer has (the curator must save an edit instead). Idempotent. Clears a taxonomy "needs review" flag only by also setting the taxonomy version to the current one, which is allowed only after that key check.
 - **Reset to model** (`DELETE`): deletes the profile row (values and vector cascade) **and** the image's failure record for the profile pipeline, so the next `build_meme_profiles` run re-extracts it. Works on human-verified profiles too (the explicit undo). Refuses nothing else; deleting a missing profile is a no-op `204`.
-- Validation of a save uses the existing taxonomy validator: unknown axes or keys are `422`; at most the per-axis cap the taxonomy defines; situation and use-when trimmed, at most 600 characters; an empty situation is allowed (the meme then has no vector and stays reachable through its axis values).
+- Validation of a save uses the existing taxonomy validator: unknown axes or keys are `422`; at most the per-axis cap the taxonomy defines; situation and use-when trimmed, the situation at most 160 characters (the taxonomy's limit) and the use-when at most 300 (the extractor's limit); an empty situation is allowed (the meme then has no vector and stays reachable through its axis values).
 
 ### 2. Staleness of human-verified profiles (change to P2 behaviour)
 
@@ -34,7 +35,7 @@ The profiles are the heart of the search, and today nobody can see or correct th
 
 ### 3. Vector refresh on save
 
-The save request embeds the new situation inline with the Ollama embedding client under a short timeout (`profile_editor.embed_timeout_seconds`, default 8) using the same model name and digest source as `build_meme_profile_embeddings` (the plan extracts the shared embedder construction so both write identical `model_name`/`model_digest`). The database save is committed first; the embedding is a second step. The response says `vector: "fresh" | "pending" | "none"` (`none` when the situation is blank). On any embedding failure (timeout, Ollama down, wrong dimension) the profile stays saved without a vector, the response says `pending`, the UI shows "search vector pending" and the existing job picks it up. An unchanged situation keeps its vector (no call). The user's text is never logged; the situation text is not a secret but the log lines carry only the image id and the outcome.
+The save request embeds the new situation inline with the Ollama embedding client under a short timeout (`profile_editor.embed_timeout_seconds`, default 8) using the same model name and digest source as `build_meme_profile_embeddings` (the plan extracts the shared embedder construction so both write identical `model_name`/`model_digest`). The vector is computed before the database write (no lock is held during the Ollama call) and stored in the same transaction as the profile. The response says `vector: "fresh" | "pending" | "none"` (`none` when the situation is blank). On any embedding failure (timeout, Ollama down, wrong dimension) the profile stays saved without a vector, the response says `pending`, the UI shows "search vector pending" and the existing job picks it up. An unchanged situation keeps its vector (no call). The user's text is never logged; the situation text is not a secret but the log lines carry only the image id and the outcome.
 
 ### 4. Endpoints
 
@@ -56,7 +57,7 @@ New router `Backend/app/api/meme_profiles.py` (service `Backend/app/services/mem
 ### 6. Race and consistency rules
 
 - A curator save during a running batch is safe (decision above). A reset during a running batch is safe: the job re-reads the row at write time and writes a fresh model profile. Two curators editing at once: last write wins (single-owner tool, documented).
-- The save is one transaction for the profile and its values; the vector write is a second transaction, so a crash between them leaves a saved profile without a vector, which is exactly the `pending` state.
+- The save is one transaction for the profile, its values and (when it was computed) the vector, so a crash cannot leave a vector without its profile; a failed embedding leaves a saved profile without a vector, which is exactly the `pending` state.
 
 ## Out of scope
 
