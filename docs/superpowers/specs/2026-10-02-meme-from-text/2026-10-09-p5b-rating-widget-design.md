@@ -1,6 +1,7 @@
 # P5b: Rating widget — Design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-09-p5b-rating-widget.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-08-p5-web-ui-design.md (Out of scope: the rating widget, US-5)
 Follow-ups: none yet (P5c curator tools is a separate spec)
 
