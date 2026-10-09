@@ -135,4 +135,66 @@ describe("useProfileEditor", () => {
     expect(result.current.draft.situation).toBe("S img-2")
     expect(result.current.dirty).toBe(false)
   })
+
+  it("ignores edits while an action is in flight and keeps the saved result", async () => {
+    const pending = deferred<ReturnType<typeof makeCuratedProfile>>()
+    const api = makeMockApi({ saveCuratedProfile: vi.fn().mockReturnValue(pending.promise) })
+    const { result } = await ready(api)
+    act(() => result.current.setSituation("First"))
+    act(() => { void result.current.save() })
+    act(() => result.current.setSituation("Typed during save"))
+    act(() => result.current.setUseWhen("x"))
+    act(() => result.current.add("tone", "wholesome"))
+    act(() => result.current.remove("emotion", "annoyance"))
+    expect(result.current.draft.situation).toBe("First")
+    expect(result.current.draft.useWhen).toBe("")
+    expect(result.current.draft.values.tone).toEqual([])
+    expect(result.current.draft.values.emotion).toEqual(["annoyance"])
+    await act(async () => { pending.resolve(makeCuratedProfile({ situation: "First" })) })
+    expect(result.current.dirty).toBe(false)
+    expect(result.current.draft.situation).toBe("First")
+  })
+
+  it("does not leave an image busy when its save resolves after a switch", async () => {
+    const pending = deferred<ReturnType<typeof makeCuratedProfile>>()
+    const api = makeMockApi({
+      getCuratedProfile: vi.fn().mockImplementation((id: string) => Promise.resolve(makeCuratedProfile({ imageId: id, situation: `S ${id}` }))),
+      saveCuratedProfile: vi.fn().mockReturnValue(pending.promise),
+    })
+    const { result, rerender } = await ready(api)
+    act(() => result.current.setSituation("Edited"))
+    act(() => { void result.current.save() })
+    expect(result.current.busy).toBe("save")
+    rerender({ imageId: "img-2" })
+    await waitFor(() => expect(result.current.status).toBe("ready"))
+    expect(result.current.busy).toBeNull()
+    await act(async () => { pending.resolve(makeCuratedProfile({ imageId: "img-1", situation: "Saved A" })) })
+    expect(result.current.draft.situation).toBe("S img-2")
+    expect(result.current.event).toBeNull()
+    rerender({ imageId: "img-1" })
+    await waitFor(() => expect(result.current.status).toBe("ready"))
+    expect(result.current.busy).toBeNull()
+  })
+
+  it("retries a failed load", async () => {
+    const get = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue(makeCuratedProfile())
+    const api = makeMockApi({ getCuratedProfile: get })
+    const { result } = renderHook(() => useProfileEditor(api, "img-1"))
+    await waitFor(() => expect(result.current.status).toBe("error"))
+    act(() => result.current.retry())
+    await waitFor(() => expect(result.current.status).toBe("ready"))
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  it("reports whether an action started", async () => {
+    const pending = deferred<ReturnType<typeof makeCuratedProfile>>()
+    const api = makeMockApi({ confirmCuratedProfile: vi.fn().mockReturnValue(pending.promise) })
+    const { result } = await ready(api)
+    let first = false
+    let second = true
+    act(() => { first = result.current.confirm(); second = result.current.confirm() })
+    expect(first).toBe(true)
+    expect(second).toBe(false)
+    await act(async () => { pending.resolve(makeCuratedProfile({ humanVerified: true })) })
+  })
 })

@@ -92,13 +92,15 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
       <section aria-labelledby={headingId} className="mt-6 rounded-xl bg-white p-4 shadow-sm">
         <h2 id={headingId} className="text-lg font-semibold">Profile</h2>
         <p role="alert" className="text-red-700">Couldn't load the profile</p>
+        <button type="button" onClick={() => editor.retry()} className="mt-2 min-h-11 rounded-md border px-4">Try again</button>
       </section>
     )
   }
 
-  function request(target: FocusTarget, action: () => void) {
-    pendingFocus.current = target
-    action()
+  // Focus is requested only when the action really started: a click ignored because another action
+  // is in flight must not queue a focus move that would fire later.
+  function request(target: FocusTarget, action: () => boolean | void) {
+    if (action() !== false) pendingFocus.current = target
   }
 
   const exists = profile.exists
@@ -126,6 +128,7 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
       <textarea
         id={situationId}
         rows={2}
+        disabled={working}
         value={draft.situation}
         maxLength={axisSpec(taxonomy, "situation")?.maxChars ?? SITUATION_LIMIT}
         onChange={(e) => editor.setSituation(e.target.value)}
@@ -136,6 +139,7 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
       <textarea
         id={useWhenId}
         rows={2}
+        disabled={working}
         value={draft.useWhen}
         maxLength={USE_WHEN_LIMIT}
         onChange={(e) => editor.setUseWhen(e.target.value)}
@@ -153,7 +157,7 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
             labelOf={(key) => labelFor(taxonomy, axis, key)}
             options={optionsFor(taxonomy, axis)}
             maxValues={maxValuesFor(taxonomy, axis)}
-            pickerDisabled={taxonomy === null}
+            pickerDisabled={taxonomy === null || working}
             onAdd={(key) => editor.add(axis, key)}
             onRemove={(key) => editor.remove(axis, key)}
           />
@@ -165,7 +169,7 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
           ref={saveRef}
           type="button"
           disabled={!dirty || working}
-          onClick={() => request("save", () => { void editor.save() })}
+          onClick={() => request("save", () => editor.save())}
           className="min-h-11 rounded-md bg-blue-600 px-4 text-white disabled:opacity-40">
           Save
         </button>
@@ -184,7 +188,7 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
             ref={confirmRef}
             type="button"
             disabled={working}
-            onClick={() => request("confirm", () => { void editor.confirm() })}
+            onClick={() => request("confirm", () => editor.confirm())}
             className="min-h-11 rounded-md border px-4 disabled:opacity-40">
             Confirm as correct
           </button>
@@ -206,7 +210,7 @@ export default function ProfileEditor({ memesApi, imageId }: Props) {
               ref={confirmResetRef}
               type="button"
               disabled={working}
-              onClick={() => request("reset", () => { setConfirmingReset(false); void editor.reset() })}
+              onClick={() => request("reset", () => { setConfirmingReset(false); return editor.reset() })}
               className="min-h-11 rounded-md border px-4 disabled:opacity-40">
               Confirm reset
             </button>

@@ -19,6 +19,7 @@ export function useProfileEditor(memesApi: MemesApi, imageId: string) {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [edits, setEdits] = useState<{ id: string; draft: Draft } | null>(null)
   const [busyState, setBusyState] = useState<{ id: string; action: Busy } | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [eventState, setEventState] = useState<{ id: string; event: EditorEvent } | null>(null)
 
   // The image the hook currently serves, and whether an action is in flight (set in handlers and effects only).
@@ -49,22 +50,30 @@ export function useProfileEditor(memesApi: MemesApi, imageId: string) {
       },
     )
     return () => { cancelled = true }
-  }, [memesApi, imageId])
+  }, [memesApi, imageId, reloadKey])
 
   function edit(change: (previous: Draft) => Draft) {
+    // Inputs are disabled while an action runs; a stray call must not change what is being submitted.
+    if (inFlight.current || busy !== null) return
     setEdits({ id: imageId, draft: change(draft) })
   }
 
-  async function run(action: Busy, call: () => Promise<CuratedProfile>) {
-    if (inFlight.current || current === null || current.profile === null) return
-    const id = imageId
+  /** Starts an action and returns whether it started (false when another one is in flight). */
+  function run(action: Busy, call: () => Promise<CuratedProfile>): boolean {
+    if (inFlight.current || current === null || current.profile === null) return false
     inFlight.current = true
+    void execute(imageId, draft, action, call)
+    return true
+  }
+
+  async function execute(id: string, submitted: Draft, action: Busy, call: () => Promise<CuratedProfile>) {
     setBusyState({ id, action })
     try {
       const next = await call()
       if (currentId.current !== id) return
       setLoaded({ id, profile: next, failed: false })
-      setEdits(null)
+      // Keep anything typed after the submission on top of the fresh profile.
+      setEdits((previous) => (previous !== null && previous.id === id && sameDraft(previous.draft, submitted) ? null : previous))
       setEventState({ id, event: action === "save"
         ? { kind: "saved", vector: next.vector }
         : action === "confirm" ? { kind: "confirmed" } : { kind: "reset" } })
@@ -72,10 +81,8 @@ export function useProfileEditor(memesApi: MemesApi, imageId: string) {
       if (currentId.current !== id) return
       setEventState({ id, event: { kind: "failed", action } })
     } finally {
-      if (currentId.current === id) {
-        inFlight.current = false
-        setBusyState((previous) => (previous !== null && previous.id === id ? null : previous))
-      }
+      if (currentId.current === id) inFlight.current = false
+      setBusyState((previous) => (previous !== null && previous.id === id ? null : previous))
     }
   }
 
@@ -102,6 +109,7 @@ export function useProfileEditor(memesApi: MemesApi, imageId: string) {
     add: (axis: AxisName, key: string) => edit((previous) => addKey(previous, axis, key)),
     remove: (axis: AxisName, key: string) => edit((previous) => removeKey(previous, axis, key)),
     discard: () => setEdits(null),
+    retry: () => { setLoaded(null); setReloadKey((key) => key + 1) },
     save, confirm, reset,
   }
 }

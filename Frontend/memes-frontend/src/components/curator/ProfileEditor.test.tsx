@@ -192,4 +192,42 @@ describe("ProfileEditor", () => {
     setup({ getCuratedProfile: vi.fn().mockRejectedValue(new Error("down")) })
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load the profile")
   })
+
+  it("retries a failed load with a Try again button", async () => {
+    const get = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue(makeCuratedProfile())
+    const { user } = setup({ getCuratedProfile: get })
+    await screen.findByRole("alert")
+    const retry = screen.getByRole("button", { name: "Try again" })
+    expect(retry.className).toMatch(/min-h-11/)
+    await user.click(retry)
+    expect(await screen.findByLabelText("Situation")).toBeInTheDocument()
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  it("disables the inputs and pickers while a save is in flight", async () => {
+    let resolve!: (value: ReturnType<typeof makeCuratedProfile>) => void
+    const pending = new Promise<ReturnType<typeof makeCuratedProfile>>((res) => { resolve = res })
+    const { user } = await loaded({ saveCuratedProfile: vi.fn().mockReturnValue(pending) })
+    await screen.findByText("Annoyance")
+    await user.type(situation(), "!")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(situation()).toBeDisabled()
+    expect(screen.getByLabelText("Use when")).toBeDisabled()
+    expect(screen.getByRole("button", { name: /Add.*tone/ })).toBeDisabled()
+    await act(async () => { resolve(makeCuratedProfile({ situation: "Manager scheduled a late meeting.!" })) })
+    expect(situation()).toBeEnabled()
+  })
+
+  it("does not steal focus later when an action did not start", async () => {
+    let resolve!: (value: ReturnType<typeof makeCuratedProfile>) => void
+    const pending = new Promise<ReturnType<typeof makeCuratedProfile>>((res) => { resolve = res })
+    const { user } = await loaded({ confirmCuratedProfile: vi.fn().mockReturnValue(pending) })
+    const confirm = screen.getByRole("button", { name: "Confirm as correct" })
+    act(() => { confirm.click(); confirm.click() })
+    situation().focus()
+    await act(async () => { resolve(makeCuratedProfile({ humanVerified: true })) })
+    // the first click's own request moves focus to the heading (its button unmounted); nothing else queued
+    expect(screen.getByRole("heading", { name: "Profile" })).toHaveFocus()
+    void user
+  })
 })

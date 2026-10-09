@@ -28,7 +28,7 @@ export default function MemePage({ memesApi }: Props) {
 
       <MemeDetails meme={meme} memesApi={memesApi} />
 
-      <ProfileEditor memesApi={memesApi} imageId={meme.id} />
+      <ProfileEditor key={meme.id} memesApi={memesApi} imageId={meme.id} />
     </div>
   )
 }
