@@ -22,6 +22,7 @@ from evaluation.report import (
     save_baseline,
 )
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_GOLD = Path("evaluation/gold")
 DEFAULT_WORK = Path("evaluation/work")
 MIN_PROFILED_SHARE = 0.95
@@ -492,12 +493,25 @@ async def cmd_tune_weights(args, gold: Path) -> int:
     return 0
 
 
+def prepare_output_dir(out: Path, force: bool) -> str | None:
+    """A refusal message when `out` holds files and force is off; with force, deletes only the files an earlier
+    export owns (stale judgments-<lang>.json would otherwise be re-imported over newer judgments)."""
+    if out.exists() and any(out.iterdir()):
+        if not force:
+            return f"{out} already contains an export (use --force to replace it)"
+        for stale in [*out.glob("judgments-*.json"), out / "candidate-queries.json", out / "summary.json"]:
+            if stale.is_file():
+                stale.unlink()
+    return None
+
+
 async def cmd_export_ratings(args, gold: Path) -> int:
     """Turn the owner's ratings into review files (never an automatic merge into the frozen gold set)."""
     require_readonly()
     out = Path(args.out)
-    if out.exists() and any(out.iterdir()) and not args.force:
-        return _error(f"{out} already contains an export (use --force to replace it)")
+    refusal = prepare_output_dir(out, args.force)
+    if refusal:
+        return _error(refusal)
     from config.settings import settings
     from evaluation.ratings_export import build_export
     from repository.meme_text_ratings import MemeTextRatingRepository
@@ -592,7 +606,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     export = commands.add_parser("export-ratings")
     export.add_argument("--round", type=int, required=True)
-    export.add_argument("--out", default=str(DEFAULT_WORK / "ratings-export"))
+    export.add_argument("--out", default=str(REPO_ROOT / DEFAULT_WORK / "ratings-export"),
+                        help="default: <repository>/evaluation/work/ratings-export")
     export.add_argument("--force", action="store_true")
 
     commands.add_parser("list-baselines")

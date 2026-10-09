@@ -263,3 +263,20 @@ def test_export_ratings_refuses_to_overwrite_an_existing_export(tmp_path, capsys
     (out / "summary.json").write_text("{}", encoding="utf-8")
     code = cli.main(["--gold-dir", str(_gold_dir(tmp_path)), "export-ratings", "--round", "4", "--out", str(out)])
     assert code == 1 and "already contains an export" in capsys.readouterr().err
+
+
+def test_export_ratings_default_out_is_anchored_at_the_repository_root():
+    default = Path(cli.build_parser().parse_args(["export-ratings", "--round", "1"]).out)
+    assert default.is_absolute() and default.as_posix().endswith("evaluation/work/ratings-export")
+    assert (default.parents[2] / "evaluation" / "__main__.py").exists()
+
+
+def test_prepare_output_dir_refuses_without_force_and_cleans_only_its_own_files_with_force(tmp_path):
+    out = tmp_path / "out"
+    for name in ("judgments-ru.json", "candidate-queries.json", "summary.json", "keep.txt"):
+        out.mkdir(exist_ok=True)
+        (out / name).write_text("x", encoding="utf-8")
+    assert "already contains an export" in cli.prepare_output_dir(out, force=False)
+    assert cli.prepare_output_dir(out, force=True) is None
+    assert sorted(p.name for p in out.iterdir()) == ["keep.txt"]
+    assert cli.prepare_output_dir(tmp_path / "fresh", force=False) is None

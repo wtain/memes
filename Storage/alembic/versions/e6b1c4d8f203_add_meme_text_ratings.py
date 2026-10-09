@@ -40,6 +40,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['image_id'], ['images.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('query_hash', 'image_id', name='uq_meme_text_ratings_query_image'),
+        comment=(
+            "query_hash is sha256 of the message normalised like the parser (NFC, collapsed whitespace, cut at "
+            "parse.max_input_chars); query_text is stored only because a rating exists and can be cleared per message"
+        ),
     )
     op.create_index('ix_meme_text_ratings_rated_at', 'meme_text_ratings', ['rated_at'], unique=False)
 

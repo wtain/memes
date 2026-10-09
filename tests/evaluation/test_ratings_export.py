@@ -5,7 +5,8 @@ from evaluation.ratings_export import build_export
 from repository.meme_text_ratings import RatingRow
 from retrieval.query_hash import normalised_query, query_hash
 
-IMG_A, IMG_B, IMG_C = (str(uuid.uuid4()) for _ in range(3))
+IMG_A, IMG_B, IMG_C = ("11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222",
+                     "33333333-3333-3333-3333-333333333333")   # fixed: the export sorts by image id
 
 
 def _query(query_id, text, language="en"):

@@ -808,4 +808,8 @@ class MemeTextRating(Base):
         CheckConstraint("grade IN (0, 1, 2)", name="ck_meme_text_ratings_grade"),
         CheckConstraint("rank >= 1", name="ck_meme_text_ratings_rank"),
         CheckConstraint("reading IN ('parsed', 'edited')", name="ck_meme_text_ratings_reading"),
+        {"comment": (
+            "query_hash is sha256 of the message normalised like the parser (NFC, collapsed whitespace, cut at "
+            "parse.max_input_chars); query_text is stored only because a rating exists and can be cleared per message"
+        )},
     )

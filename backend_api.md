@@ -719,6 +719,8 @@ The vocabulary behind query profiles, for the chips editor and facet labels of t
 
 Lets a person grade how well a result fits a message (0 not a fit, 1 acceptable, 2 good fit). Ratings are for evaluation only and never affect ranking. A message is identified by its hash: the server normalises the text (the first 600 characters, whitespace collapsed, like the search) and derives the sha256, which the search returns as `meta.queryHash` and these calls return as `queryHash`.
 
+Trust model: like the rest of the API these endpoints are unauthenticated, and a `queryHash` is only as secret as its message, so anyone on the network who can guess an exact message can read or delete its ratings. They are meant for a single-owner tool, not a public deployment. A message containing a NUL character cannot be rated (`422`).
+
 **Rate (create or change)**
 
 - **URL**: `/api/meme-from-text/ratings`

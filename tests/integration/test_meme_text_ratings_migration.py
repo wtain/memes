@@ -42,7 +42,8 @@ def _shape(connection):
     primary = tuple(inspector.get_pk_constraint("meme_text_ratings")["constrained_columns"])
     foreign = {tuple(f["constrained_columns"]): (f["referred_table"], f["options"].get("ondelete"))
                for f in inspector.get_foreign_keys("meme_text_ratings")}
-    return columns, uniques, checks, indexes, primary, foreign
+    comment = inspector.get_table_comment("meme_text_ratings")["text"]
+    return columns, uniques, checks, indexes, primary, foreign, comment
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -73,6 +74,7 @@ async def test_the_migration_matches_the_model_and_downgrades(db_engine):
     "ALTER TABLE meme_text_ratings DROP CONSTRAINT ck_meme_text_ratings_grade, "
     "ADD CONSTRAINT ck_meme_text_ratings_grade CHECK (grade IN (0, 1, 2, 3))",
     "DROP INDEX ix_meme_text_ratings_rated_at",
+    "COMMENT ON TABLE meme_text_ratings IS 'something else'",
 ])
 async def test_the_shape_guard_catches_drift(db_engine, drift):
     """Negative control: a deliberately altered table must NOT compare equal to the model-created one."""
@@ -85,6 +87,13 @@ async def test_the_shape_guard_catches_drift(db_engine, drift):
             assert after != before
         finally:
             await transaction.rollback()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_the_table_records_the_normalisation_rule(db_engine):
+    async with db_engine.connect() as connection:
+        shape = await connection.run_sync(_shape)
+    assert "normalised like the parser" in shape[-1]
 
 
 def test_the_migration_continues_the_chain():
