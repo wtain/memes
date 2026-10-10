@@ -1,6 +1,7 @@
 # Meme-from-text query log and gold-set jobs
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-10-11-query-log-and-gold-set-jobs.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5b-rating-widget-design.md (ratings, `export-ratings`), docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p7-agent-layer-decision-memo.md (reopen condition 2: enough real usage)
 Follow-ups: none
 
@@ -130,7 +131,7 @@ The list is built by reading every router, not from memory.
 
 - Migration: upgrade and downgrade on the test database; existing rows get `kind = 'search'`.
 - Recorder: search log unchanged (existing tests pass); meme-from-text row written with tags, hash, timings; not written for cursor, edited profile, filters, unavailable or disabled; a failing write does not fail the request.
-- History endpoint: default response unchanged; `kind` filtering; invalid `kind` is a 422 without echoing the value.
+- History endpoint: default response unchanged; `kind` filtering; an invalid `kind` is a 422 (the value is a short enum choice, not user text, so FastAPI's default error body is fine).
 - Forget text deletes matching `meme_text` rows only.
 - Jobs: export and import against a temporary gold directory and the test database; round numbering; no-overwrite guard; atomic write; non-`general` environment skips; wrapper contract (admin trigger, scheduler tick); CLI behaviour unchanged.
 - Docs: SVGs regenerate from the `.dot` files with no diff.
