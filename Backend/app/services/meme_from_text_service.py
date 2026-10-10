@@ -32,13 +32,46 @@ def _filters(request: MemeFromTextRequest) -> Filters:
     return Filters(axes=axes, tags={key: tuple(values) for key, values in tags.items()})
 
 
+AXES = ("emotion", "stance", "topic", "tone")
+
+
+def _has_filters(raw) -> bool:
+    return raw is not None and any(getattr(raw, name, None) for name in (*AXES, "tags"))
+
+
+def _is_fresh_message(request: MemeFromTextRequest) -> bool:
+    """A new message: not a page of "Show more", not an edited reading, not a filter toggle."""
+    return not request.cursor and request.profile is None and not _has_filters(request.filters)
+
+
+def _history_fields(request: MemeFromTextRequest, result, item_count: int, user_agent: str) -> dict:
+    profile = result.profile or {}
+    meta = result.meta or {}
+    return {
+        "kind": "meme_text",
+        "query": request.text,
+        "client": "android" if "okhttp" in user_agent.lower() else "web",
+        "result_count": item_count,
+        "tags": [(axis, entry["key"]) for axis in AXES for entry in profile.get(axis) or []],
+        "language": profile.get("language"),
+        "query_hash": meta.get("queryHash"),
+        "situation": profile.get("situation"),
+        "degraded": result.degraded,
+        "fallback": None if result.fallback in (None, "none") else result.fallback,
+        "parse_ms": meta.get("parseMs"),
+        "retrieval_ms": meta.get("retrievalMs"),
+    }
+
+
 class MemeFromTextService:
-    def __init__(self, pipeline: Optional[MemeFromTextPipeline], retrieval_repository, image_repository):
+    def __init__(self, pipeline: Optional[MemeFromTextPipeline], retrieval_repository, image_repository,
+                 history_recorder=None):
+        self.history_recorder = history_recorder
         self.pipeline = pipeline
         self.retrieval_repository = retrieval_repository
         self.image_repository = image_repository
 
-    async def search(self, request: MemeFromTextRequest) -> MemeFromTextResponse:
+    async def search(self, request: MemeFromTextRequest, user_agent: str = "") -> MemeFromTextResponse:
         if self.pipeline is None:
             return self._unavailable(request)
         search_request = SearchRequest(
@@ -49,6 +82,11 @@ class MemeFromTextService:
         result = await self.pipeline.search(search_request, self.retrieval_repository)
         items = [result_item_dict(item) for item in result.items]
         await self._hydrate(items)
+        if self.history_recorder is not None and _is_fresh_message(request):
+            try:
+                await self.history_recorder(**_history_fields(request, result, len(items), user_agent))
+            except Exception:
+                pass
         payload = {
             "items": items, "facets": facets_list(result.facets), "hasNext": result.has_next,
             "profile": result.profile, "degraded": result.degraded, "fallback": result.fallback, "meta": result.meta,

@@ -74,6 +74,7 @@ search:
     warm_interval_minutes: 20     # below parse.keep_alive (30m) so the models stay loaded
     parser_breaker: {failures: 3, open_seconds: 30}
     page: {default_limit: 20, max_limit: 50}
+    query_log: {enabled: true}    # record each fresh message in search_history (kind meme_text); see docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-10-query-log-and-gold-set-jobs-design.md
 
 duplicates:
   # Candidate cutoff for rebuild_duplicates.py's KNN search -- cheap/loose, decides what's

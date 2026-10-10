@@ -167,3 +167,10 @@ def test_null_fields_are_omitted_from_a_real_response_and_present_when_set():
     assert item["clusterId"] == 4 and item["clusterSize"] == 2 and body["nextCursor"] == "cur"
     assert item["explanation"]["situationText"] == "A situation."
     assert item["explanation"]["useWhen"] == "Use when it fits."
+
+
+def test_the_user_agent_header_reaches_the_service(client_and_service):
+    client, service = client_and_service
+    client.post("/api/meme-from-text/search", json={"text": "hello"}, headers={"User-Agent": "okhttp/4.12"})
+    service.search.assert_awaited_once()
+    assert service.search.await_args.kwargs["user_agent"] == "okhttp/4.12"

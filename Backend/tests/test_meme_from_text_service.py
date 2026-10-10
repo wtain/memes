@@ -100,3 +100,68 @@ async def test_an_invalid_profile_error_propagates():
     service, _ = _service(pipeline)
     with pytest.raises(InvalidProfile):
         await service.search(Request.model_validate({"text": "hello", "profile": PROFILE}))
+
+
+PARSED = {**PROFILE, "language": "ru", "situation": "boss moved the deadline",
+          "emotion": [{"key": "stress", "confidence": 0.9, "source": "model"}],
+          "topic": [{"key": "work", "confidence": 0.8, "source": "model"}]}
+
+
+async def test_a_fresh_message_is_recorded_with_parse_and_outcome():
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item()], profile=PARSED, meta={**META, "queryHash": "a" * 64}))
+    service, _ = _service(pipeline)
+    recorder = AsyncMock()
+    service.history_recorder = recorder
+    await service.search(Request.model_validate({"text": "boss moved the deadline"}), user_agent="okhttp/4.12")
+    recorder.assert_awaited_once_with(
+        kind="meme_text", query="boss moved the deadline", client="android", result_count=1,
+        tags=[("emotion", "stress"), ("topic", "work")], language="ru", query_hash="a" * 64,
+        situation="boss moved the deadline", degraded=False, fallback=None, parse_ms=1, retrieval_ms=3)
+
+
+async def test_pages_edits_and_filters_are_not_recorded():
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item()]))
+    service, _ = _service(pipeline)
+    recorder = AsyncMock()
+    service.history_recorder = recorder
+    await service.search(Request.model_validate({"text": "x", "cursor": "abc"}))
+    await service.search(Request.model_validate({"text": "x", "profile": PROFILE}))
+    await service.search(Request.model_validate({"text": "x", "filters": {"emotion": ["joy"]}}))
+    recorder.assert_not_awaited()
+
+
+async def test_a_degraded_search_records_the_fallback_reason():
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item()], degraded=True, fallback="timeout"))
+    service, _ = _service(pipeline)
+    recorder = AsyncMock()
+    service.history_recorder = recorder
+    await service.search(Request.model_validate({"text": "x"}))
+    assert recorder.await_args.kwargs["degraded"] is True and recorder.await_args.kwargs["fallback"] == "timeout"
+
+
+async def test_a_failing_recorder_never_fails_the_search():
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item()]))
+    service, _ = _service(pipeline)
+    service.history_recorder = AsyncMock(side_effect=RuntimeError("boom"))
+    response = await service.search(Request.model_validate({"text": "x"}))
+    assert response.items
+
+
+async def test_without_a_recorder_nothing_is_recorded_and_search_works():
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item()]))
+    service, _ = _service(pipeline)
+    assert service.history_recorder is None
+    assert (await service.search(Request.model_validate({"text": "x"}))).items
+
+
+async def test_the_unavailable_answer_is_not_recorded():
+    service, _ = _service(None)
+    recorder = AsyncMock()
+    service.history_recorder = recorder
+    await service.search(Request.model_validate({"text": "x"}))
+    recorder.assert_not_awaited()

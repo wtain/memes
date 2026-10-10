@@ -1,17 +1,19 @@
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.image_repository import ImageRepository
 from Backend.app.services.cache import no_cache_headers
+from Backend.app.services.history_recorder import record_history
 from Backend.app.services.meme_from_text_pipeline import get_pipeline
 from Backend.app.services.meme_from_text_taxonomy import cached_taxonomy_payload
 from Backend.app.services.meme_from_text_service import MemeFromTextService
 from Backend.app.types.generated.memefromtextrequest import Schema as MemeFromTextRequest
 from Backend.app.types.generated.memefromtextresponse import Schema as MemeFromTextResponse
 from Backend.app.types.generated.taxonomyresponse import Schema as TaxonomyResponse
+from config.settings import settings
 from repository.meme_retrieval import MemeRetrievalRepository
 from retrieval.pipeline import InvalidProfile
 from Storage.db import get_async_db
@@ -24,18 +26,20 @@ router = APIRouter(prefix="/meme-from-text", tags=["meme-from-text"])
 async def get_meme_from_text_service(
     db: AsyncSession = Depends(get_async_db),
 ) -> AsyncGenerator[MemeFromTextService, None]:
-    yield MemeFromTextService(get_pipeline(), MemeRetrievalRepository(db), ImageRepository(db))
+    recorder = record_history if settings.get("search.meme_from_text.query_log.enabled", False) else None
+    yield MemeFromTextService(get_pipeline(), MemeRetrievalRepository(db), ImageRepository(db), recorder)
 
 
 @router.post("/search", response_model=MemeFromTextResponse, response_model_exclude_none=True)
 async def search_memes_from_text(
     request: MemeFromTextRequest,
     response: Response,
+    user_agent: str = Header(default=""),
     service: MemeFromTextService = Depends(get_meme_from_text_service),
 ):
     response.headers.update(no_cache_headers())
     try:
-        return await service.search(request)
+        return await service.search(request, user_agent=user_agent)
     except InvalidProfile as error:
         raise HTTPException(status_code=422, detail=error.errors) from None
     except Exception as error:

@@ -8,10 +8,9 @@ from typing import Optional, Literal
 from fastapi import HTTPException
 
 from Backend.app.repositories.duplicate_decisions_repository import DuplicateDecisionsRepository
-from Backend.app.repositories.history_repository import HistoryRepository
 from Backend.app.repositories.image_repository import ImageRepository
 from repository.ocr_lemmas import OCRLemmasRepository
-from Storage.db import AsyncSessionLocal
+from Backend.app.services.history_recorder import record_history
 from Backend.app.types.generated.facet import Schema as Facet
 from Backend.app.types.generated.facetbucket import Schema as FacetBucket
 from Backend.app.types.generated.meme import Schema as Meme
@@ -101,13 +100,7 @@ class ImageService:
         result_count: int,
         tags: list[tuple[str, str]],
     ) -> None:
-        try:
-            async with AsyncSessionLocal() as session:
-                async with session.begin():
-                    repo = HistoryRepository(session)
-                    await repo.add(query=q, client=client, result_count=result_count, tags=tags)
-        except Exception:
-            pass
+        await record_history(query=q, client=client, result_count=result_count, tags=tags)
 
     async def _fill_texts_and_tags(self, items):
         ids = {meme.id for meme in items}
