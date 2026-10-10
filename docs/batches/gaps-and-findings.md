@@ -3,6 +3,19 @@
 Status: draft (2026-10-10). Observations made while reading the code against the existing documents.
 Nothing here was changed in code or in the older documents.
 
+## Resolved on 2026-10-10
+
+| Item | Resolution |
+|---|---|
+| A1, A2 | `CLAUDE.md` now states the `build_concept_embeddings` chain and that `fix_image_formats` is admin-triggerable |
+| A3 | Amendment in the rollout spec now mentions `build_statistics` |
+| A4 | Comment in `environments/settings.yaml` now points at the registry and `docs/batches/inventory.md` instead of a partial list |
+| A5 | Warning added to the Concurrency section of `docs/runbooks/ingestion-pipeline.md` |
+| B3 (partly) | `fix_image_formats` is now registered, so its runs show in `/admin/batches` (test: `batch/tests/test_fix_image_formats_main.py`). `ingestion` runs are still not listed |
+| C1, C2, C3 | Done (registry entry, `CLAUDE.md` pointer, comment fixes) |
+
+Everything not listed here is still open; see the sections below. The original text of resolved rows is kept for history.
+
 ## A. Documents that are stale or silent
 
 | # | Where | What | Evidence |

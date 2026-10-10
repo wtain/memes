@@ -3,6 +3,8 @@
 Status: draft (verified 2026-10-10). Signal-to-consumer matrix: `docs/data-flow.md`. Tagging engine:
 `batch/rules_engine.md`.
 
+Execution order (Graphviz): [diagrams/tagging-and-lemmas.svg](../diagrams/tagging-and-lemmas.svg)
+
 Goal: turn raw image files into searchable text signals (OCR text, lemmas), visual signals (CLIP) and tags.
 
 ## Dependency graph

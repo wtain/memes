@@ -1,0 +1,51 @@
+// Ingestion: inbox to active library. Operator steps: docs/runbooks/ingestion-pipeline.md
+digraph ingestion {
+  rankdir=TB; compound=true; fontname="Helvetica"; labelloc=t;
+  label="Ingestion pipeline (execution order)";
+  node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#ffffff"];
+  edge [fontname="Helvetica" fontsize=9];
+
+  inbox [shape=folder label="files in\nPATH_INGESTION_SOURCE\n(BASE_PATH/inbox)" fillcolor="#f3f4f6"];
+
+  subgraph cluster_auto {
+    label="ingest_auto_prep  (one admin job, kind ingestion_auto_prep; stops quietly if no active run)";
+    style="dashed,rounded"; color="#2563eb"; fontsize=10;
+    s1 [label="1. ingest_hash_dedup\nstage = hash_dedup\nexact dupes to inbox/duplicates\nsurvivors become pending"];
+    s2 [label="2. ingest_validate_formats\nstage = format_validation\nfix extension, WebP to JPEG"];
+    s3 [label="3. build_image_embeddings\n--status pending --incremental"];
+    s4 [label="4. extract_text_from_memes\n--status pending (OCR)"];
+    s5 [label="5. build_ocr_lemmas\n--status pending --incremental" fillcolor="#dbeafe"];
+    s6 [label="6. classify_text_heavy\n--status pending" fillcolor="#dbeafe"];
+    s7 [label="7. build_ocr_text_embeddings\n--status pending" fillcolor="#dbeafe"];
+    s8 [label="8. ingest_find_duplicates --tier tier_a\nstage = tier_a_review"];
+    s1 -> s2 -> s3 -> s4 -> s5 -> s6 -> s7 -> s8;
+  }
+
+  reviewA [shape=hexagon label="HUMAN: review Tier A\n/ingestion  keep or reject, submit" fillcolor="#fef3c7"];
+  tierB [label="ingest_find_duplicates_tier_b\n(shell: ingest_find_duplicates --tier tier_b)\nstage = tier_b_review" fillcolor="#dbeafe"];
+  reviewB [shape=hexagon label="HUMAN: review Tier B\nsame page, queue follows the stage" fillcolor="#fef3c7"];
+  promote [label="ingest_promote\npending with no open candidates become active\nre-run until none pending" fillcolor="#dbeafe"];
+  done [shape=oval label="run completed\n(zero pending left)" fillcolor="#dcfce7"];
+  active [shape=cylinder label="active library" fillcolor="#dcfce7"];
+  abort [label="ingest_abort\nfiles back to inbox, rows deleted\nrun = aborted"];
+  later [shape=note label="after promotion (not part of ingestion):\ndescription_pipeline, tagging jobs,\nrebuild_duplicates (to refresh clusters)" fillcolor="#f3f4f6"];
+
+  inbox -> s1 [lhead=cluster_auto];
+  s8 -> reviewA [ltail=cluster_auto];
+  reviewA -> tierB;
+  tierB -> reviewB;
+  reviewB -> promote;
+  promote -> done;
+  promote -> active;
+  active -> later [style=dotted];
+
+  abort -> inbox [style=dashed label="any time before completion" constraint=false];
+
+  subgraph cluster_legend {
+    label="Legend"; style=rounded; color="#9ca3af"; fontsize=10;
+    l1 [label="shell only" fillcolor="#ffffff"];
+    l2 [label="also admin-triggerable\n(/admin/batches)" fillcolor="#dbeafe"];
+    l3 [shape=hexagon label="human step" fillcolor="#fef3c7"];
+    l1 -> l2 -> l3 [style=invis];
+  }
+}

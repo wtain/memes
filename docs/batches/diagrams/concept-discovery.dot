@@ -1,0 +1,21 @@
+// Human-in-the-loop vocabulary growth (/draft-lemma-concepts automates the middle).
+digraph concept_discovery {
+  rankdir=LR; fontname="Helvetica"; labelloc=t;
+  label="Concept discovery";
+  node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#ffffff"];
+  edge [fontname="Helvetica" fontsize=9];
+
+  ign [shape=note fillcolor="#f3f4f6" label="bow.ignore_file edits\n(only effective after next build_bow)"];
+  bow [label="1. build_bow\nbow.text_source = ocr | descriptions" fillcolor="#dbeafe"];
+  unm [shape=cylinder fillcolor="#f3f4f6" label="bow.unmatched.ENV.json"];
+  clu [label="2. build_lemma_clusters\nSBERT + HDBSCAN per language\noptional Ollama naming"];
+  cf [shape=cylinder fillcolor="#f3f4f6" label="lemma_clusters.ENV.LANG.yaml"];
+  dr [label="3. draft_concepts_from_clusters\n--top N  (appends)"];
+  c1 [shape=note fillcolor="#f3f4f6" label="commit raw draft"];
+  rev [shape=hexagon fillcolor="#fef3c7" label="HUMAN: review and edit\nconcepts.ENV.yaml / tags.ENV.yaml"];
+  c2 [shape=note fillcolor="#f3f4f6" label="commit reviewed"];
+  tag [label="4. build_tags_from_ocr /\nbuild_tags_from_descriptions" fillcolor="#dbeafe"];
+
+  ign -> bow [style=dotted];
+  bow -> unm -> clu -> cf -> dr -> c1 -> rev -> c2 -> tag;
+}

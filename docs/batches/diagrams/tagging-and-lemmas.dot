@@ -1,0 +1,32 @@
+// OCR, embeddings, lemmas and tags for the active library.
+digraph tagging {
+  rankdir=TB; fontname="Helvetica"; labelloc=t;
+  label="OCR, lemmas and tagging (full library pass)";
+  node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#ffffff"];
+  edge [fontname="Helvetica" fontsize=9];
+
+  ocr [label="1. extract_text_from_memes\n(shell only)"];
+  clip [label="2. build_image_embeddings\n(shell only)"];
+  lem [label="3. build_ocr_lemmas --incremental" fillcolor="#dbeafe"];
+  tocr [label="4. build_tags_from_ocr --incremental\nsource OCR" fillcolor="#dbeafe"];
+  ce [label="5. build_concept_embeddings" fillcolor="#dbeafe"];
+  tc [label="tag_images_from_concepts\nsource CONCEPT" fillcolor="#dbeafe"];
+  yolo [label="6. detect_entities_and_tag\nsource YOLO" fillcolor="#dbeafe"];
+  search [shape=cylinder fillcolor="#dcfce7" label="smart search\n(ocr_lemmas + image_tags)"];
+  sim [shape=cylinder fillcolor="#dcfce7" label="visual search\n/similar?source=image"];
+  note [shape=note fillcolor="#f3f4f6" label="tagging jobs need batch/data/tagging YAML:\nmetal and general only, not it"];
+
+  ocr -> clip -> lem -> tocr -> ce;
+  ce -> yolo [style=dotted label="no dependency,\nany order"];
+  ce -> tc [style=dashed label="chain\n(--no-chain skips)"];
+  lem -> search; tocr -> search; tc -> search; yolo -> search;
+  clip -> sim;
+  tocr -> note [style=dotted arrowhead=none];
+
+  subgraph cluster_legend {
+    label="Legend"; style=rounded; color="#9ca3af"; fontsize=10;
+    l1 [label="shell only"];
+    l2 [label="also admin-triggerable" fillcolor="#dbeafe"];
+    l1 -> l2 [style=invis];
+  }
+}

@@ -3,6 +3,8 @@
 Status: draft (verified 2026-10-10). Operator steps: `docs/runbooks/ingestion-pipeline.md`.
 Design: `docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md` and the follow-ups linked there.
 
+Execution order (Graphviz): [diagrams/ingestion.svg](../diagrams/ingestion.svg)
+
 Goal: new files dropped in `<BASE_PATH>\inbox\` (`PATH_INGESTION_SOURCE`) become `active`, searchable images, with
 exact and near duplicates reviewed by a human first. One ingestion run per environment at a time.
 

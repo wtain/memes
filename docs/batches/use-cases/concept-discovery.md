@@ -3,6 +3,8 @@
 Status: draft (verified 2026-10-10). Specs: `2026-07-01-build-lemma-clusters.md`, `2026-07-03-draft-concepts-from-clusters.md`,
 `2026-07-05-build-lemma-clusters-cli-overrides.md`. Automated by the `/draft-lemma-concepts` Claude command.
 
+Execution order (Graphviz): [diagrams/concept-discovery.svg](../diagrams/concept-discovery.svg)
+
 Goal: find frequent words the tagging vocabulary does not cover, group them, and draft new concept/tag YAML entries
 for a human to review. Deliberately not scheduled: drafts would pile up with no review UI.
 

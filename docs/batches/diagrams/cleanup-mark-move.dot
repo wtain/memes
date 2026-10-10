@@ -1,0 +1,41 @@
+// Mark -> move -> unregister -> singletons cleanup.
+digraph cleanup {
+  rankdir=LR; compound=true; fontname="Helvetica"; labelloc=t;
+  label="Removing images from the library: mark, move, reconcile";
+  node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#ffffff"];
+  edge [fontname="Helvetica" fontsize=9];
+
+  subgraph cluster_mark {
+    label="1. MARK  (sets ImageExtras.flagged)"; style="rounded,dashed"; color="#9ca3af"; fontsize=10;
+    ui [shape=hexagon label="HUMAN: flag in UI /\n/review-duplicates command" fillcolor="#fef3c7"];
+    dfd [label="detect_file_duplicates (shell)\nbyte-identical groups:\nkeep oldest, flag the rest\n(skips groups with a flagged member)"];
+  }
+
+  flags [shape=cylinder label="flagged = true" fillcolor="#f3f4f6"];
+
+  subgraph cluster_chain {
+    label="2. MOVE and RECONCILE  (one trigger, automatic chain; --no-chain stops after each step)";
+    style="rounded"; color="#2563eb"; fontsize=10;
+    mf [label="move_flagged\nfiles to BASE_PATH/excluded\n(rename on collision)\nkind move_flagged" fillcolor="#dbeafe"];
+    ud [label="unregister_deleted_images\ndelete rows whose file is gone\n(FK cascades: embeddings, OCR, tags,\nduplicate pairs, ...)\nkind unregister_deleted_images" fillcolor="#dbeafe"];
+    rs [label="remove_singletons\ndelete tmp_clusters left with\none member\n(no run row)"];
+    mf -> ud [style=dashed label="chain"];
+    ud -> rs [style=dashed label="chain"];
+  }
+
+  excl [shape=folder label="BASE_PATH/excluded" fillcolor="#f3f4f6"];
+  stats [shape=note label="statistics snapshot refreshes\nafter each wrapped job" fillcolor="#f3f4f6"];
+
+  ui -> flags;
+  dfd -> flags;
+  flags -> mf [lhead=cluster_chain];
+  mf -> excl [style=dotted];
+  rs -> stats [style=dotted ltail=cluster_chain];
+
+  subgraph cluster_legend {
+    label="Legend"; style=rounded; color="#9ca3af"; fontsize=10;
+    l1 [label="shell only"];
+    l2 [label="also admin-triggerable" fillcolor="#dbeafe"];
+    l1 -> l2 [style=invis];
+  }
+}

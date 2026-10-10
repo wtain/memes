@@ -4,6 +4,8 @@ Status: draft (verified 2026-10-10). Specs: `2026-07-13-multi-prompt-image-descr
 `2026-08-20-description-notes-design.md`, `2026-10-01-description-tagging-pipeline-driver-design.md`,
 `2026-10-02-meme-from-text/` (P1 to P6).
 
+Execution order (Graphviz): [diagrams/description-pipeline.svg](../diagrams/description-pipeline.svg)
+
 Goal: derive text understanding of each image beyond OCR: LLM descriptions, human notes, and a structured
 "meme profile" that powers the `/reply` meme-from-text search.
 

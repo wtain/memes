@@ -1,0 +1,29 @@
+// description_pipeline driver: 10 in-process steps, failure only skips dependents.
+digraph description_pipeline {
+  rankdir=LR; fontname="Helvetica"; labelloc=t;
+  label="description_pipeline (admin job, manual only, active images only)";
+  node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#dbeafe"];
+  edge [fontname="Helvetica" fontsize=9];
+
+  subgraph cluster_indep {
+    label="cheap, GPU-free, independent (run first)"; style="rounded,dashed"; color="#9ca3af"; fontsize=10;
+    s1 [label="1 ocr_tags\nbuild_tags_from_ocr"];
+    s2 [label="2 note_lemmas"];
+    s3 [label="3 note_embeddings"];
+    s4 [label="4 note_tags\nbuild_tags_from_notes"];
+    s1 -> s2 -> s3 -> s4;
+  }
+  s5 [label="5 describe\nbuild_image_descriptions\ncap: image_descriptions.max_per_run" fillcolor="#fde68a"];
+  s6 [label="6 description_embeddings"];
+  s7 [label="7 description_lemmas"];
+  s8 [label="8 description_tags\nbuild_tags_from_descriptions"];
+  s9 [label="9 meme_profiles\ncap: meme_profiles.max_per_run" fillcolor="#fde68a"];
+  s10 [label="10 meme_profile_embeddings"];
+
+  s4 -> s5;
+  s5 -> s6 [label="needs"]; s5 -> s7 [label="needs"]; s5 -> s8 [label="needs"]; s5 -> s9 [label="needs"];
+  s9 -> s10 [label="needs"];
+
+  rules [shape=note fillcolor="#f3f4f6" label="step result: ok | failed | skipped_dependency | skipped_busy\nrun fails at the end if any step failed\nre-trigger to resume (everything is incremental)"];
+  s10 -> rules [style=dotted];
+}

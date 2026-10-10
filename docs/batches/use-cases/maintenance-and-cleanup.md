@@ -2,6 +2,8 @@
 
 Status: draft (verified 2026-10-10).
 
+Execution order (Graphviz): [diagrams/cleanup-mark-move.svg](../diagrams/cleanup-mark-move.svg)
+
 ## Removing images from the library
 
 ```mermaid
@@ -27,8 +29,8 @@ counted as `error.file_not_found` and skipped. If you only want the reconcile af
 `fix_image_formats --status active` applies the ingestion format logic to the existing corpus: renames extension
 mismatches, converts WebP content to JPEG (originals to `BASE_PATH/converted_originals/`). It is also the only path
 that backfills `Image.width/height` for images registered outside the ingestion pipeline (those never pass
-`apply_format_fix()`), which `classify_text_heavy` needs. It is run-tracked with the wrapper contract but absent from
-the registry, so it is shell-only today. Each image's failure is isolated from the rest of the run.
+`apply_format_fix()`), which `classify_text_heavy` needs. It is run-tracked with the wrapper contract and registered, so it
+can also be started from `/admin/batches` (always with `--status active`; the pending mode is shell-only). Each image's failure is isolated from the rest of the run.
 
 ## OCR upkeep
 

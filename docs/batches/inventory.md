@@ -20,8 +20,8 @@ Legend for the access columns:
 | Class | Count | Scripts |
 |---|---|---|
 | Scheduled (and admin) | 2 | `trends_batch`, `build_statistics` |
-| Admin-triggerable, manual only | 25 | everything else in the registry |
-| Run-tracked but not in registry (shell only) | 2 | `fix_image_formats`, `ingest_hash_dedup` (long-lived `ingestion` row) |
+| Admin-triggerable, manual only | 26 | everything else in the registry (includes `fix_image_formats`, registered 2026-10-10) |
+| Run-tracked but not in registry (shell only) | 1 | `ingest_hash_dedup` (long-lived `ingestion` row) |
 | Shell-only, untracked | the rest | see sections below |
 
 ## 1. Intake (ingestion)
@@ -103,7 +103,7 @@ Detail: [use-cases/maintenance-and-cleanup.md](use-cases/maintenance-and-cleanup
 |---|---|---|---|---|---|
 | `move_flagged` | Move flagged images to `BASE_PATH/excluded` | `move_flagged` | yes | no | **Chains `unregister_deleted_images`** (then `remove_singletons`); `--no-chain` |
 | `unregister_deleted_images` | Delete DB rows whose files are gone | `unregister_deleted_images` | yes | no | **Chains `remove_singletons`**; `--no-chain` |
-| `fix_image_formats` | Retroactive format fix for the existing corpus; only path that backfills `Image.width/height` | `fix_image_formats` | **no (not in registry)** | no | `--status` (default `active`). Has the tracked `main(trigger, run_id)` contract already |
+| `fix_image_formats` | Retroactive format fix for the existing corpus; only path that backfills `Image.width/height` | `fix_image_formats` | yes | no | `--status` (default `active`, the only value the admin path uses) |
 | `reset_ocr_status` | Reset OCR processing status (`--all`) | none | no | no | Use before a full OCR re-run |
 | `score_ocr_language` | Backfill `lang_score` for old `ocr_texts` rows | none | no | no | `--rescore-all` |
 | `load_images_from_internet` | Fetch images via SerpAPI (`SERP_API_KEY`) | none | no | no | Ad hoc |

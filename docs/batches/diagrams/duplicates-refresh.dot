@@ -1,0 +1,26 @@
+// Refreshing near-duplicate candidates and clusters for the active library.
+digraph duplicates {
+  rankdir=LR; fontname="Helvetica"; labelloc=t;
+  label="Near-duplicate refresh (active library)";
+  node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#dbeafe"];
+  edge [fontname="Helvetica" fontsize=9];
+
+  pre [shape=note fillcolor="#f3f4f6" label="already in place:\nbuild_image_embeddings (CLIP)\nextract_text_from_memes (OCR)"];
+  th  [label="1. classify_text_heavy"];
+  ote [label="2. build_ocr_text_embeddings\n(needs step 1)"];
+  lem [label="3. build_ocr_lemmas --incremental\n(corroboration check)"];
+  rd  [label="4. rebuild_duplicates\nprobe A: general CLIP (incremental)\nprobe B: CLIP safety net (never incremental)\nprobe C: OCR-text + lemma overlap\n--full clears and re-probes"];
+  cl  [label="5. clusterize\nunion-find per distance_source\nsplit oversized clusters\n(runs automatically; --no-chain skips)"];
+  tmpd [shape=cylinder fillcolor="#f3f4f6" label="tmp_duplicates"];
+  tmpc [shape=cylinder fillcolor="#f3f4f6" label="tmp_clusters"];
+  ui  [shape=hexagon fillcolor="#fef3c7" label="HUMAN: Explore, Duplicates\nkeep / flag"];
+  mark [shape=note fillcolor="#f3f4f6" label="flagged images are then removed:\nsee cleanup-mark-move"];
+
+  pre -> th -> ote -> rd;
+  pre -> lem [label="step 3 is independent\nof steps 1-2"];
+  lem -> rd;
+  rd -> tmpd;
+  rd -> cl [style=dashed label="chain"];
+  tmpd -> cl;
+  cl -> tmpc -> ui -> mark;
+}

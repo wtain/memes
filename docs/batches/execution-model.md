@@ -25,6 +25,8 @@ Consequence: you cannot pass `--limit`, `--status`, `--full` and similar from th
 
 ## 2. Start paths
 
+Summary diagram (Graphviz): [diagrams/job-start-paths.svg](diagrams/job-start-paths.svg)
+
 ```mermaid
 sequenceDiagram
     autonumber

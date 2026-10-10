@@ -5,6 +5,8 @@ Status: draft (verified 2026-10-10). Specs: `2026-07-25-duplicate-clustering-inc
 `2026-09-18-text-embedding-duplicate-matching.md`, `2026-09-19-ocr-lemma-overlap-corroboration.md`,
 `2026-09-20-clusterize-oversized-cluster-data-loss.md`.
 
+Execution order (Graphviz): [diagrams/duplicates-refresh.svg](../diagrams/duplicates-refresh.svg)
+
 Two independent notions of "duplicate":
 
 | | Exact | Near |
