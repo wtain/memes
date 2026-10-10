@@ -577,11 +577,21 @@ class SearchHistory(Base):
     query = Column(Text, nullable=True)
     client = Column(String(20), nullable=False, default="unknown")
     result_count = Column(Integer, nullable=False, default=0)
+    kind = Column(String(20), nullable=False, default="search", server_default="search")
+    language = Column(String(8), nullable=True)
+    query_hash = Column(String(64), nullable=True)
+    situation = Column(Text, nullable=True)
+    degraded = Column(Boolean, nullable=True)
+    fallback = Column(String(32), nullable=True)
+    parse_ms = Column(Integer, nullable=True)
+    retrieval_ms = Column(Integer, nullable=True)
 
     tags = relationship("SearchHistoryTag", back_populates="search", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_search_history_searched_at", searched_at.desc()),
+        Index("ix_search_history_kind_searched_at", "kind", searched_at.desc()),
+        Index("ix_search_history_query_hash", "query_hash"),
     )
 
 
