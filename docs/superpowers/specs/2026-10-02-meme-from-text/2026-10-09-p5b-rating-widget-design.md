@@ -3,7 +3,7 @@
 Status: done
 Plan: docs/superpowers/plans/2026-10-09-p5b-rating-widget.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-08-p5-web-ui-design.md (Out of scope: the rating widget, US-5)
-Follow-ups: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5c-curator-tools-design.md (P5c curator tools)
+Follow-ups: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5c-curator-tools-design.md (P5c curator tools), docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-10-query-log-and-gold-set-jobs-design.md (query log, `export_ratings` / `import_judgments` jobs)
 
 Epic: `docs/superpowers/specs/2026-10-02-meme-from-text/README.md`. Inherited contracts: the P5 page and handoff notes (`2026-10-08-p5-web-ui-design.md`, addendum), the P4 endpoint (`POST /api/meme-from-text/search`), the P6 gold set and its import format (`evaluation/gold/`), NFR-2 (privacy: query text goes only to the local Ollama and the local database, and is stored only if search history already stores it).
 
@@ -44,6 +44,8 @@ Unique on (`query_hash`, `image_id`): rating the same meme again for the same me
 ### 2. Privacy
 
 The text is stored only because a rating exists (the owner's decision), only in the local database, and never written to logs or error bodies (the router uses the generic-error pattern of the search endpoint). `DELETE /api/meme-from-text/ratings/text?queryHash=...` sets `query_text` to null for that message and keeps the hash, grades and ids; rating again stores the text again. No automatic expiry in this version.
+
+Superseded in part on 2026-10-11: fresh messages are also recorded in `search_history` (kind `meme_text`), and "Forget text" clears those rows too, see `2026-10-10-query-log-and-gold-set-jobs-design.md`. The text is still never written to logs or error bodies.
 
 ### 3. Endpoints (a new router next to the search router; the search endpoint stays read-only)
 
@@ -87,14 +89,14 @@ Using ratings to rank or learn, per-user ratings or authentication, bulk rating,
 
 1. The table, migration, repository, the four endpoints, `meta.queryHash`, shared schemas, regenerated types and `backend_api.md` exist with tests; the rating never affects ranking.
 2. Each result shows the three-button rating bar; ratings are saved with text, hash, rank, reading, versions and flags, survive refine, re-search and reload, and can be cleared; failures roll back with a visible message.
-3. The text is stored only with a rating, never logged, and can be forgotten per message without losing grades.
+3. The text is stored only with a rating, never logged, and can be forgotten per message without losing grades. (Superseded in part on 2026-10-11: fresh messages are also recorded in `search_history`, see `2026-10-10-query-log-and-gold-set-jobs-design.md`.)
 4. `export-ratings` produces import-ready `judgments-<lang>.json` for known gold queries (no silent overwrite, corpus-checked), `candidate-queries.json` for new messages and a summary, and refuses without the read-only role.
 5. Accessibility holds (labelled group, toggle semantics, live status, focus stays) and all gates pass.
 6. The addendum records the live check and the migration commands per environment; the tracker, `CLAUDE.md` and the review report are updated.
 
 ## Risks
 
-- Private text in the database: only on rating, local, clearable, never logged.
+- Private text in the database: only on rating, local, clearable, never logged. (Superseded in part on 2026-10-11: also in `search_history`, see `2026-10-10-query-log-and-gold-set-jobs-design.md`.)
 - Hash drift if the normalisation or `parse.max_input_chars` changes: documented; old ratings keep their old hash.
 - Rating bias (only shown results are rated): exports are labelled and never merged silently.
 - Migration not applied on an environment: loading ratings fails silently, saving shows the inline error, nothing else breaks.

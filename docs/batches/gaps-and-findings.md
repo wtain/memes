@@ -1,6 +1,6 @@
 # Gaps and findings
 
-Status: draft (2026-10-10). Observations made while reading the code against the existing documents.
+Status: draft (2026-10-10, B14 and the `general` schedule note added 2026-10-11). Observations made while reading the code against the existing documents.
 Nothing here was changed in code or in the older documents.
 
 ## Resolved on 2026-10-10
@@ -47,9 +47,10 @@ Everything not listed here is still open; see the sections below. The original t
 | B8 | `it` runs `trends_batch` every 6 h with no environment-level `trends` defaults | Result is only meaningful if each source carries its own `extraction` config. Not checked against the `it` database |
 | B9 | `description_pipeline` has no environment guard. On `it` the tagging steps (1, 4, 8) have no tagging YAML | Expect failures reported in `stats.steps` there |
 | B10 | `build_ocr_lemmas` full run deletes the entire table even for `--status pending`; `build_tags_from_notes` CLI default is a full run while the admin path is incremental | Footguns on the CLI; the code already requires `--incremental` for pending lemmas |
-| B11 | `batch_registry.<env>.yaml` overlays are supported by `BatchRegistry` but none exist; all three environments expose the same admin job list | Per-environment hiding of unsuitable jobs (for example on `it`) is possible without code changes |
+| B11 | `batch_registry.<env>.yaml` overlays are supported by `BatchRegistry` but none exist; all three environments expose the same admin job list (including `export_ratings` and `import_judgments`, which only do work on `general`; there they finish as a `skipped` no-op) | Per-environment hiding of unsuitable jobs (for example on `it`) is possible without code changes |
 | B12 | The first `ingest_auto_prep` tick in an environment with no ingestion history creates an empty `ingestion` run that stays open at `tier_a_review` | Documented in the script; harmless |
 | B13 | Tier A candidates found after the run reached `tier_b_review` never surface in the review UI | Inherited limitation, documented in the rollout spec |
+| B14 | The scheduled `import_judgments` (weekly, `general` only) changes a committed file, `evaluation/gold/judgments.json`, in the working tree of the machine that runs the backend. Baselines recorded under `evaluation/gold/` carry the `judgmentsSha` of the file they were measured against, so after an import they no longer match it, and `python -m evaluation compare` of an old baseline against a new run mixes two judgment sets | Mitigation built in: the job never commits and never overwrites an existing judgment, and its stats carry a note and the changed file. Process: review `git diff evaluation/gold/judgments.json`, commit it, and record a fresh baseline (`python -m evaluation run ... --label L`) before comparing against older ones. The repo also now has an environment-dependent scheduler list (`general` runs four jobs, the others two): do not assume the schedule is identical across environments |
 
 ## C. Still open (need an owner decision or information)
 

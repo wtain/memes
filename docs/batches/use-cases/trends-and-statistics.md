@@ -3,8 +3,9 @@
 Status: draft (verified 2026-10-10). Specs: `2026-07-12-generalize-trends-pipeline-design.md`,
 `2026-07-27-batch-job-scheduler-design.md`, `2026-09-29-precomputed-statistics-design.md`.
 
-These are the only two jobs on `scheduler.jobs`. They run in the backend process of **each** environment
-(`scheduler.enabled: true` in all three per-environment settings files).
+These are the two jobs on the common `scheduler.jobs` list. They run in the backend process of **each** environment
+(`scheduler.enabled: true` in all three per-environment settings files). `general` additionally schedules
+`export_ratings` and `import_judgments`, see [ratings-and-gold-set.md](ratings-and-gold-set.md).
 
 | Job | Kind | Interval | Orphan timeout | Reads | Writes |
 |---|---|---|---|---|---|

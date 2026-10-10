@@ -7,7 +7,7 @@ digraph start_paths {
 
   cli [label="shell:\npython -m batch.X --env E"];
   adm [label="/admin/batches\nPOST /api/admin/batches/{name}/run\n(registry lookup, 409 if kind running,\nrow created and committed first)" fillcolor="#dbeafe"];
-  sch [label="backend lifespan scheduler\nscheduler.jobs: trends_batch 6h,\nbuild_statistics 1h\n(skips tick if kind active;\nfails orphans past max_runtime)" fillcolor="#dcfce7"];
+  sch [label="backend lifespan scheduler\nscheduler.jobs: trends_batch 6h,\nbuild_statistics 1h;\ngeneral only: export_ratings 1d,\nimport_judgments 7d\n(skips tick if kind active;\nfails orphans past max_runtime)" fillcolor="#dcfce7"];
   wrap [label="python -m batch.run_wrapper\n--script --env --trigger [--run-id]\n(subprocess, log in logs/ENV/)"];
   main [label="module.main(trigger, run_id)\ntracked_run | finish_existing_run"];
   rows [shape=cylinder fillcolor="#f3f4f6" label="batch_runs\n(one started row per kind)"];

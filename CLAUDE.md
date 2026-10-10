@@ -429,7 +429,7 @@ parse (package parse/)       → the meme-from-text query parser (P3): turns a p
                                (degraded true, empty axes, meta.fallback unavailable | timeout | invalid_output |
                                empty_input), never cached; one retry only after an unusable answer and only if
                                parse.retry_min_seconds of the parse.timeout_seconds budget remain. The user's text is
-                               never logged. Settings: parse.* in environments/settings*.yaml (parse.num_ctx must equal
+                               never written to the application logs (it is recorded in search_history, see ratings). Settings: parse.* in environments/settings*.yaml (parse.num_ctx must equal
                                meme_profiles.num_ctx while both use the same model, otherwise Ollama reloads the model;
                                OLLAMA_HOST wins over parse.ollama_url; in Docker set it, 127.0.0.1 is the container).
                                The backend image needs parse/, taxonomy/ and batch/data/taxonomy (.dockerignore has
@@ -454,7 +454,8 @@ retrieval (package retrieval/) → the meme-from-text retrieval stage (P4): turn
                                `it` has no parser and answers `meta.available: false`). Never fails because a model
                                failed (degraded: unavailable, timeout, invalid_output, breaker_open, embed_unavailable;
                                lexical matching only runs in that case, lexical.only_when_degraded). The user's text is
-                               never logged. Settings: search.meme_from_text.* (every key required; weights from
+                               never written to the application logs (it is recorded in search_history, see ratings). Settings:
+                               search.meme_from_text.* (every key required, including query_log.enabled; weights from
                                `python -m evaluation tune-weights --parse-model M --label L`, which collects the
                                candidates once and runs coordinate ascent with cross-validation, then you commit the
                                printed weights; situation and lexical weights must stay above 0). Evaluate with
@@ -472,16 +473,22 @@ ratings (P5b)                → the /reply page lets the owner rate each result
                                Table meme_text_ratings (one row per message hash and image, migration e6b1c4d8f203);
                                PUT/DELETE/GET /api/meme-from-text/ratings and DELETE .../ratings/text; the hash is
                                computed server-side by retrieval/query_hash.py (sha256 of the parser-normalised message)
-                               and returned as meta.queryHash. The message text is stored ONLY because a rating exists,
-                               can be cleared per message (grades stay), is never logged and never appears in an error
-                               body (Backend/app/error_handlers.py strips the echoed input of 422s under
-                               /api/meme-from-text). Ratings never influence ranking. `python -m evaluation
+                               and returned as meta.queryHash. The message text is never written to the application logs
+                               and never appears in an error body (Backend/app/error_handlers.py strips the echoed input of 422s under
+                               /api/meme-from-text). It is stored in search_history (kind meme_text, one row per fresh message:
+                               no cursor, edited profile or filters; best effort; switch search.meme_from_text.query_log.enabled;
+                               read with GET /api/history?kind=search|meme_text|all, default search) and, with a rating, in
+                               meme_text_ratings; "Forget text" (DELETE .../ratings/text) clears both (grades stay). Ratings and the log
+                               never influence ranking. `python -m evaluation
                                export-ratings --round N` (read-only role) writes import-ready judgments-<lang>.json for
                                ratings of gold queries, candidate-queries.json (the only file with text, in the
                                git-ignored evaluation/work/) and summary.json; merging into the gold judgments is a
-                               deliberate `import-judgments` step. See
+                               deliberate `import-judgments` step; on `general` the batch jobs export_ratings and import_judgments do
+                               both on a schedule (see their entries). See
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5b-rating-widget-design.md
-                               (addendum: live check, migration commands, handoff).
+                               (addendum: live check, migration commands, handoff) and
+                               docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-10-query-log-and-gold-set-jobs-design.md
+                               (query log, the two jobs; supersedes the "text stored only with a rating" rule).
 
 curator tools (P5c)          → the meme page (`MemePage`) has a curator panel and `/admin/profiles` shows coverage. Endpoints:
                                GET/PUT /api/meme-from-text/profiles/{imageId} (PUT = save as human-verified: every value
@@ -498,6 +505,21 @@ curator tools (P5c)          → the meme page (`MemePage`) has a curator panel 
                                at most 10 s. No migration. See
                                docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5c-curator-tools-design.md
                                (addendum: live check, deviations, handoff).
+
+export_ratings              → turns the owner's stored result ratings (meme_text_ratings) into gold-set review files:
+                               judgments-<lang>.json, candidate-queries.json (the only file with message text) and summary.json in
+                               evaluation/work/ratings-export/current/ (git-ignored, replaced on every run). Round = highest round in
+                               judgments.json + 1; pairs that already have a judgment are left out; never merges anything. Run-tracked
+                               (kind export_ratings), admin-triggerable from /admin/batches, scheduled daily (1440 min) on `general` ONLY
+                               (settings.general.yaml); on any other environment it finishes with skipped: true. Shares its code with the
+                               CLI `python -m evaluation export-ratings` (evaluation/ratings_job.py), which keeps its read-only-role rule.
+                               See docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-10-query-log-and-gold-set-jobs-design.md.
+import_judgments            → merges the files of evaluation/work/ratings-export/current/ into the committed
+                               evaluation/gold/judgments.json (atomic write, no database). NEVER commits: the change stays in the working
+                               tree for a person to review and commit, and baselines recorded before it no longer match the judgments
+                               file (judgmentsSha). NEVER overwrites an existing judgment (the run fails instead); with no export it
+                               succeeds having added nothing. Run-tracked (kind import_judgments), admin-triggerable, scheduled weekly
+                               (10080 min) on `general` ONLY. See docs/batches/use-cases/ratings-and-gold-set.md.
 
 build_statistics            → precomputes the statistics page's numbers into the single-row
                                statistics_snapshots table (name='corpus'), so GET

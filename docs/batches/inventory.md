@@ -1,6 +1,6 @@
 # Batch script inventory
 
-Status: draft (verified 2026-10-10 against `batch/*.py`, `environments/batch_registry.yaml`,
+Status: draft (verified 2026-10-11 against `batch/*.py`, `environments/batch_registry.yaml`,
 `environments/settings*.yaml`, `Backend/app/scheduler.py`; effective scheduler config read by loading
 `config.settings` under each `APP_ENV`)
 
@@ -10,8 +10,8 @@ Legend for the access columns:
 - **Admin**: listed in `environments/batch_registry.yaml`, so `POST /api/admin/batches/{name}/run` and the
   `/admin/batches` page can start it. The registry name is the script name; the registry `kind` can differ
   (`build_statistics` has kind `statistics`, `trends_batch` has `trends`, `ingest_auto_prep` has `ingestion_auto_prep`).
-- **Sched**: appears in `scheduler.jobs`. See [Schedule per environment](#schedule-per-environment): only two jobs, and
-  identical on metal, general and it.
+- **Sched**: appears in `scheduler.jobs`. See [Schedule per environment](#schedule-per-environment): two jobs on every environment, plus two more on
+  `general` only.
 - **CLI**: `python -m batch.<script> --env {metal,general,it}` (from repo root, `.venv311`). `--env` is optional when
   `APP_ENV` is set. Use `PYTHONIOENCODING=utf-8` on Windows for anything that uses `ProgressTracker`.
 
@@ -19,8 +19,8 @@ Legend for the access columns:
 
 | Class | Count | Scripts |
 |---|---|---|
-| Scheduled (and admin) | 2 | `trends_batch`, `build_statistics` |
-| Admin-triggerable, manual only | 28 | everything else in the registry (`fix_image_formats`, `build_image_embeddings` and `extract_text_from_memes` were registered 2026-10-10) |
+| Scheduled (and admin) | 4 | `trends_batch`, `build_statistics` (all environments), `export_ratings`, `import_judgments` (`general` only) |
+| Admin-triggerable, manual only | 28 | everything else in the registry (`fix_image_formats`, `build_image_embeddings` and `extract_text_from_memes` were registered 2026-10-10); the registry holds 32 entries in all |
 | Run-tracked but not in registry (shell only) | 1 | `ingest_hash_dedup` (long-lived `ingestion` row) |
 | Shell-only, untracked | the rest | see sections below |
 
@@ -130,7 +130,19 @@ Detail: [use-cases/trends-and-statistics.md](use-cases/trends-and-statistics.md)
 | `trends_batch` | GLiNER NER over each configured source; counts `label:entity` per run | `trends` | yes | **yes, 360 min** | Sources seeded by `batch/trends/seed_sources.py` (not a scheduled job) |
 | `build_statistics` | Precompute the statistics page into `statistics_snapshots` | `statistics` | yes | **yes, 60 min** | Also run best-effort after every wrapped job |
 
-## 9. Support modules and dev tools (not jobs)
+## 9. Evaluation and ratings
+
+Detail: [use-cases/ratings-and-gold-set.md](use-cases/ratings-and-gold-set.md). Both jobs are meaningful on `general`
+only (the gold corpus belongs to `general`): started on another environment they refuse and finish with
+`skipped: true` in their stats. Both are in the registry, so every environment's admin page lists them, but only
+`general` schedules them.
+
+| Script | What it does | Tracked kind | Admin | Sched | Notes |
+|---|---|---|---|---|---|
+| `export_ratings` | Turns the owner's stored result ratings (`meme_text_ratings`) into gold-set review files | `export_ratings` | yes | **yes, `general` only, 1440 min** | Replaces `evaluation/work/ratings-export/current/` on every run (git-ignored; `candidate-queries.json` holds message text). Never touches `evaluation/gold/` |
+| `import_judgments` | Merges `current/judgments-*.json` into the committed `evaluation/gold/judgments.json` | `import_judgments` | yes | **yes, `general` only, 10080 min** | No database. Never commits: the change stays in the working tree for a person to review. Never overwrites an existing judgment (the run fails instead). No-op ("no export to import") when `current/` has no judgment files |
+
+## 10. Support modules and dev tools (not jobs)
 
 | Path | Role |
 |---|---|
@@ -147,14 +159,17 @@ Detail: [use-cases/trends-and-statistics.md](use-cases/trends-and-statistics.md)
 
 ## Schedule per environment
 
-Source of truth: `scheduler.jobs` in `environments/settings.yaml`. The per-environment files
-(`settings.metal.yaml`, `settings.general.yaml`, `settings.it.yaml`) each only set `scheduler.enabled: true`.
-No environment overrides the job list. Values below were read by loading `config.settings` under each `APP_ENV`.
+Source of truth: `scheduler.jobs` in `environments/settings.yaml`, plus `scheduler.jobs` in
+`environments/settings.general.yaml`, which Dynaconf merges onto the common list (so `general` has four jobs,
+`metal` and `it` two). Each per-environment file also sets `scheduler.enabled: true`. Values below were read by
+loading `config.settings` under each `APP_ENV` and calling `Backend.app.scheduler._load_job_configs`.
 
 | Job | Kind | Interval | Orphan timeout | metal | general | it |
 |---|---|---|---|---|---|---|
 | `trends_batch` | `trends` | 360 min | 60 min | enabled | enabled | enabled (see caveat) |
 | `build_statistics` | `statistics` | 60 min | 10 min | enabled | enabled | enabled |
+| `export_ratings` | `export_ratings` | 1440 min (daily) | 10 min | not scheduled | enabled | not scheduled |
+| `import_judgments` | `import_judgments` | 10080 min (weekly) | 10 min | not scheduled | enabled | not scheduled |
 
 Caveats:
 

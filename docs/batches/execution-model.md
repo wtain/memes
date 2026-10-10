@@ -1,6 +1,6 @@
 # Batch execution model
 
-Status: draft (verified 2026-10-10)
+Status: draft (verified 2026-10-11)
 
 How a batch job is started, tracked, locked and chained. Files: `batch/run_wrapper.py`, `batch/run_tracking.py`,
 `batch/registry.py`, `repository/batch_runs.py`, `Backend/app/scheduler.py`, `Backend/app/batch_subprocess.py`,
@@ -82,6 +82,11 @@ Details that matter in practice:
 - **The scheduler lives inside each backend process.** Three environments mean three independent schedulers on three
   databases. The Docker image runs several workers without a cross-worker lock, hence `scheduler.enabled: false` in
   the common settings.
+- **The job list can differ per environment.** `general` appends `export_ratings` (daily) and `import_judgments`
+  (weekly) to the common list through `settings.general.yaml` (Dynaconf merge), so `general` runs four scheduled
+  jobs and `metal` and `it` two. Both extra modules follow the wrapper contract above (`main(trigger, run_id)`,
+  kind equal to `batch_run_kind`) and check `APP_ENV` against the gold corpus's environment, so started anywhere
+  else they finish as a no-op (`skipped: true`) instead of writing files.
 - **Children outlive the backend.** `spawn_and_track` uses `subprocess.Popen` plus a daemon waiter thread, so a
   backend reload or shutdown never kills a running job (and shutdown does not block on it).
 - **Logs**: `logs/<env>/<script>_<timestamp>.log`, one file per invocation, stdout and stderr together, UTF-8 forced.

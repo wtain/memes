@@ -1,6 +1,6 @@
 # Meme-from-text query log and gold-set jobs
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-11-query-log-and-gold-set-jobs.md
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p5b-rating-widget-design.md (ratings, `export-ratings`), docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-09-p7-agent-layer-decision-memo.md (reopen condition 2: enough real usage)
 Follow-ups: none
@@ -136,3 +136,20 @@ The list is built by reading every router, not from memory.
 - Jobs: export and import against a temporary gold directory and the test database; round numbering; no-overwrite guard; atomic write; non-`general` environment skips; wrapper contract (admin trigger, scheduler tick); CLI behaviour unchanged.
 - Docs: SVGs regenerate from the `.dot` files with no diff.
 - Whole roots run as separate pytest invocations (Backend, `tests/integration`, `batch/tests`, `tests/evaluation` if present), then the frontend gate only if a frontend file changes (none planned).
+
+## Result (2026-10-11)
+
+Built as specified, in six tasks (plan above):
+
+- `search_history` gained `kind`, `language`, `query_hash`, `situation`, `degraded`, `fallback`, `parse_ms`, `retrieval_ms` (one additive migration, `f3a9c27b5d14`); a shared recorder (`Backend/app/services/history_recorder.py`) serves search and meme-from-text; `search.meme_from_text.query_log.enabled` (default `true`) switches the meme-from-text log; `GET /api/history?kind=search|meme_text|all`; "Forget text" also deletes the matching `meme_text` rows.
+- `evaluation/ratings_job.py` holds the shared export and import functions; `batch/export_ratings.py` and `batch/import_judgments.py` are tracked, in `environments/batch_registry.yaml` (32 entries now) and scheduled on `general` only through `scheduler.jobs` in `environments/settings.general.yaml` (daily 1440 min and weekly 10080 min, 10 min orphan timeout). Other environments list them in the admin page but they finish with `skipped: true`.
+- Documentation: `docs/batches/` (inventory, execution model, gaps finding B14, new use case and diagram), CLAUDE.md, the P4 and P5b pointers, `tracker.md` and the rebuilt `docs/security/admin-permissions-todo.md` (57 routes classified into admin only, personal data and public).
+
+Deviations and notes:
+
+- Summary counts: scheduled jobs went from 2 to 4 as planned, but the admin-only (manual) count stays 28, because both new jobs are scheduled and so count under "Scheduled (and admin)"; the registry grew from 30 to 32 entries.
+- The batch admin page is the frontend route `/admin` (the code), not `/admin/batches` as the older docs write.
+- The scheduled import changes a committed file; this is recorded as finding B14 in `docs/batches/gaps-and-findings.md` with the process (review, commit, record a new baseline).
+
+Handoff: run `alembic upgrade head` from `Storage/` on metal, general and it, then restart the three backends. The first scheduled export on `general` appears after the next backend start plus one interval (the first tick waits out the interval); the first import one week after that. No frontend change.
+

@@ -1,0 +1,26 @@
+// Ratings, the meme-from-text query log and the gold-set jobs (export_ratings, import_judgments: general only).
+digraph ratings_and_gold_set {
+  rankdir=LR; fontname="Helvetica"; labelloc=t;
+  label="Ratings and gold set (export_ratings daily, import_judgments weekly, both general only, never commit)";
+  node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#ffffff"];
+  edge [fontname="Helvetica" fontsize=9];
+
+  reply [label="/reply page\n(paste a message, rate results)"];
+  log [shape=cylinder fillcolor="#f3f4f6" label="search_history\n(kind meme_text)"];
+  rat [shape=cylinder fillcolor="#f3f4f6" label="meme_text_ratings"];
+  exp [label="export_ratings\n(daily, general)" fillcolor="#dbeafe"];
+  cur [shape=folder fillcolor="#f3f4f6" label="evaluation/work/ratings-export/current/\n(git-ignored, replaced each run)"];
+  imp [label="import_judgments\n(weekly, general)" fillcolor="#dbeafe"];
+  jud [shape=note fillcolor="#f3f4f6" label="evaluation/gold/judgments.json\n(uncommitted)"];
+  person [shape=hexagon fillcolor="#fde68a" label="person:\nreview and commit"];
+  run [label="python -m evaluation run\n(new baseline)"];
+  use [shape=note fillcolor="#f3f4f6" label="usage analysis\nGET /api/history?kind=meme_text\nor SQL, read-only role"];
+  forget [shape=hexagon fillcolor="#fde68a" label="Forget text"];
+
+  reply -> log [label="fresh message"];
+  reply -> rat [label="PUT ratings"];
+  log -> use [style=dotted];
+  rat -> exp -> cur -> imp -> jud -> person -> run;
+  forget -> rat [label="clears text" style=dashed];
+  forget -> log [label="deletes rows with\nthe same query_hash" style=dashed];
+}

@@ -12,6 +12,7 @@ yellow hexagon = human step, dashed edge = automatic chain, dotted edge = option
 | [tagging-and-lemmas](tagging-and-lemmas.svg) | OCR, embeddings, lemmas, tags | [ocr-lemmas-tags.md](../use-cases/ocr-lemmas-tags.md) |
 | [description-pipeline](description-pipeline.svg) | the 10-step driver and its dependencies | [descriptions-and-profiles.md](../use-cases/descriptions-and-profiles.md) |
 | [concept-discovery](concept-discovery.svg) | bag of words to reviewed concepts | [concept-discovery.md](../use-cases/concept-discovery.md) |
+| [ratings-and-gold-set](ratings-and-gold-set.svg) | `/reply` ratings and query log, `export_ratings`, `import_judgments`, committing the gold judgments | [ratings-and-gold-set.md](../use-cases/ratings-and-gold-set.md) |
 | [job-start-paths](job-start-paths.svg) | shell, admin and scheduler start paths | [execution-model.md](../execution-model.md) |
 
 ## Re-rendering

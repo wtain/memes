@@ -1,6 +1,6 @@
 # Batch jobs: documentation index
 
-Status: draft (verified against the code on 2026-10-10)
+Status: draft (verified against the code on 2026-10-11)
 
 Everything that enriches the library offline (OCR, embeddings, lemmas, tags, descriptions, meme profiles,
 duplicate clusters, trends, statistics) is a batch job under `batch/`. The FastAPI backend only serves what
@@ -17,7 +17,8 @@ these jobs pre-computed. This folder is the map of those jobs.
 | [use-cases/maintenance-and-cleanup.md](use-cases/maintenance-and-cleanup.md) | Flag/move/unregister, format fixes, resets, backfills |
 | [use-cases/concept-discovery.md](use-cases/concept-discovery.md) | Human-in-the-loop vocabulary growth (`build_bow` to drafted concepts) |
 | [use-cases/trends-and-statistics.md](use-cases/trends-and-statistics.md) | The two scheduled jobs |
-| [diagrams/](diagrams/README.md) | Graphviz execution-order diagrams (ingestion, mark-move cleanup, duplicates, tagging, descriptions, concept discovery, start paths) |
+| [use-cases/ratings-and-gold-set.md](use-cases/ratings-and-gold-set.md) | The `/reply` rating widget and query log, the two extra `general` jobs `export_ratings` and `import_judgments`, and how ratings reach the gold set |
+| [diagrams/](diagrams/README.md) | Graphviz execution-order diagrams (ingestion, mark-move cleanup, duplicates, tagging, descriptions, concept discovery, ratings and gold set, start paths) |
 | [gaps-and-findings.md](gaps-and-findings.md) | Things found while writing this: doc drift, undocumented behaviour, risks |
 
 Related, older documents (still authoritative for the topics they cover):
