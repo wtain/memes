@@ -23,7 +23,7 @@ Epic-level ADRs (all `proposed`): ADR-001 flow style, ADR-002 taxonomy and repre
 | P5 | Web UI | Text box, loading and degraded states, profile chips editor, results with explanations, axis facets and filters, rating widget, meme-profile editor on `MemePage`, coverage view in admin | P4 (endpoint), P2 for the editor | FR-1, FR-5, FR-6, FR-11, FR-16, FR-17, FR-23 | done (narrowed on 2026-10-08 to the searcher UI: US-1 to US-4, US-6, plus a vocabulary endpoint; the rating widget P5b and the curator tools P5c are separate follow-up specs) | `2026-10-08-p5-web-ui-design.md`, plan `docs/superpowers/plans/2026-10-08-p5-web-ui.md` | - |
 | P5b | Rating widget | Per-result three-button rating (good fit / acceptable / not a fit) stored with the message text (only when rated), hash, rank, reading and versions; ratings endpoints, `meta.queryHash`, `export-ratings` into the gold-set import format | P5, P4, P6 | FR-18 | done | `2026-10-09-p5b-rating-widget-design.md`, plan `docs/superpowers/plans/2026-10-09-p5b-rating-widget.md` | - |
 | P5c | Curator tools | Meme-profile editor on `MemePage` (save as human-verified, confirm, reset to model, inline vector refresh) and the `/admin/profiles` coverage view with last runs; human-verified staleness only on a taxonomy bump | P5, P5b, P2 | FR-11, FR-23 | done | `2026-10-09-p5c-curator-tools-design.md`, plan `docs/superpowers/plans/2026-10-09-p5c-curator-tools.md` | - |
-| P7 | Agent layer (optional) | Decision memo, then (if justified) an agent wrapping the P3/P4 tools: query rewriting, clarifying questions, LLM re-rank | P3, P4, P6 results | OQ-9 | not started, gated | - | - |
+| P7 | Agent layer (optional) | Decision memo, then (if justified) an agent wrapping the P3/P4 tools: query rewriting, clarifying questions, LLM re-rank | P3, P4, P6 results | OQ-9 | decided 2026-10-10: not built now (memo accepted; reopen conditions in the memo) | `2026-10-09-p7-agent-layer-decision-memo.md` | - |
 
 ## Order
 
@@ -46,7 +46,7 @@ with P3, then P4, P5. P7 is decided after P4 and P6 show where the pipeline fail
 | M2 Baseline | Gold set exists and the baseline pipeline (parse + retrieve + fuse) has stored metrics | P3, P4, P6 |
 | M3 Usable | Web UI from US-1 to US-4 works end to end on one environment, meeting NFR-1 and NFR-4 | P4, P5 |
 | M4 Rolled out | Rolled out to metal, general and it (or `it` explicitly excluded per NFR-7) | all but P7 |
-| M5 Agent decision | P7 memo accepted or the layer dropped | P7 |
+| M5 Agent decision | P7 memo accepted or the layer dropped | P7 (done 2026-10-10: memo accepted, layer not built) |
 
 ## Risks
 

@@ -81,4 +81,4 @@ Each question has an owner project and a default we proceed with unless told oth
 | OQ-6 | Should the first release include the lexical signal in fusion, or the axis path alone | Include it with a low default weight | ADR-003, P4 |
 | OQ-7 | Do memes that lack readable text and have unclear meaning get a profile at all, or a "low confidence" flag | A confidence value per axis, low confidence axes are neutral in fusion | P2 |
 | OQ-8 | Is NSFW/offensive content filtered or labelled, and is it shown in reply scenarios by default | Add a `tone` value and a filter. Default shows everything the library shows today. Confirm with the user | P1 |
-| OQ-9 | Does the agent layer (P7) justify itself after P3-P6 are measured. Candidates: query rewriting, multi-step refinement, asking a clarifying question | Defer. Decide after the gold set shows where the pipeline fails | P7 |
+| OQ-9 | Does the agent layer (P7) justify itself after P3-P6 are measured. Candidates: query rewriting, multi-step refinement, asking a clarifying question | Decided 2026-10-10: not now (see `2026-10-09-p7-agent-layer-decision-memo.md`; reopen conditions listed there) | P7 |

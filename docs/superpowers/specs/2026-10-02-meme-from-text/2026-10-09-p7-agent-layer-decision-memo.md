@@ -1,6 +1,7 @@
 # P7: Agent layer — decision memo
 
-Status: draft
+Status: done
+Decision: accepted on 2026-10-10: P7 is not built now; the deterministic pipeline stays (ADR-001, approach B). Reopen only under the conditions at the end of this memo.
 Originates from: docs/superpowers/specs/2026-10-02-meme-from-text/requirements.md (OQ-9), decomposition.md (P7, `rerank_with_llm`), tracker.md (P7 "not started, gated")
 Follow-ups: none
 
