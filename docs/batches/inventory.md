@@ -1,0 +1,172 @@
+# Batch script inventory
+
+Status: draft (verified 2026-10-10 against `batch/*.py`, `environments/batch_registry.yaml`,
+`environments/settings*.yaml`, `Backend/app/scheduler.py`; effective scheduler config read by loading
+`config.settings` under each `APP_ENV`)
+
+Legend for the access columns:
+
+- **Tracked**: writes a `batch_runs` row (`kind` shown). Required for admin/scheduler use.
+- **Admin**: listed in `environments/batch_registry.yaml`, so `POST /api/admin/batches/{name}/run` and the
+  `/admin/batches` page can start it. The registry name is the script name; the registry `kind` can differ
+  (`build_statistics` has kind `statistics`, `trends_batch` has `trends`, `ingest_auto_prep` has `ingestion_auto_prep`).
+- **Sched**: appears in `scheduler.jobs`. See [Schedule per environment](#schedule-per-environment): only two jobs, and
+  identical on metal, general and it.
+- **CLI**: `python -m batch.<script> --env {metal,general,it}` (from repo root, `.venv311`). `--env` is optional when
+  `APP_ENV` is set. Use `PYTHONIOENCODING=utf-8` on Windows for anything that uses `ProgressTracker`.
+
+## Summary counts
+
+| Class | Count | Scripts |
+|---|---|---|
+| Scheduled (and admin) | 2 | `trends_batch`, `build_statistics` |
+| Admin-triggerable, manual only | 25 | everything else in the registry |
+| Run-tracked but not in registry (shell only) | 2 | `fix_image_formats`, `ingest_hash_dedup` (long-lived `ingestion` row) |
+| Shell-only, untracked | the rest | see sections below |
+
+## 1. Intake (ingestion)
+
+Detail and diagrams: [use-cases/ingestion.md](use-cases/ingestion.md).
+
+| Script | What it does | Tracked kind | Admin | Sched | Notes |
+|---|---|---|---|---|---|
+| `ingest_hash_dedup` | Stage 1. SHA-256 every file in `PATH_INGESTION_SOURCE`; drop in-batch and cross-corpus exact duplicates; register survivors as `pending`; move them into `BASE_PATH` | `ingestion` (long-lived review run, stage `hash_dedup`) | no | no | Joins the active run if one exists. Postgres advisory lock against concurrent copies of itself |
+| `ingest_validate_formats` | Stage 1.5. Fix extension/content mismatch, convert WebP to JPEG (originals to `converted_originals/`), flag unreadable files | none (advances `ingestion` stage to `format_validation`) | no | no | Safe to re-run |
+| `build_image_embeddings --status pending --incremental` | CLIP 512-dim vectors for the batch | none | no | no | Skipping it silently excludes images from review |
+| `extract_text_from_memes --status pending` | OCR (EasyOCR EN/ES/RU, with Tesseract/TrOCR fallbacks) | none | no | no | Must run before Tier A |
+| `build_ocr_lemmas --status pending --incremental` | Lemma index; needed by the OCR-text duplicate corroboration | `build_ocr_lemmas` | yes | no | `--status pending` requires `--incremental` |
+| `classify_text_heavy --status pending` | Text-heavy classifier | `classify_text_heavy` | yes | no | |
+| `build_ocr_text_embeddings --status pending` | 384-dim OCR-text embeddings for text-heavy images | `build_ocr_text_embeddings` | yes | no | Needs `classify_text_heavy` first |
+| `ingest_find_duplicates --tier tier_a\|tier_b` | Candidate pairs into `tmp_duplicates`, advances stage to `tier_a_review` / `tier_b_review` | none | no (use the wrapper below) | no | Stage can only move forward |
+| `ingest_find_duplicates_tier_b` | Thin driver: `ingest_find_duplicates.main(tier="tier_b")` | `ingest_find_duplicates_tier_b` | yes | no | Manual: needs Tier A review finished |
+| `ingest_auto_prep` | Driver: hash dedup, validate, embeddings, OCR, lemmas, text-heavy, OCR-text embeddings, Tier A | `ingestion_auto_prep` | yes | **no** (was designed for a 15 min schedule, removed) | Distinct kind so the scheduler's orphan guard never touches the long-lived `ingestion` run |
+| `ingest_promote` | Stage 4. `pending` to `active` for images with no unresolved candidates; completes the run when none remain pending | `ingest_promote` | yes | no | Fails (visibly) if no active run |
+| `ingest_abort` | Abandon the active run: move files back to the inbox, delete rows, mark run `aborted` | none (aborts the `ingestion` row) | no | no | Does not undo WebP conversion |
+
+## 2. Core signals: OCR, embeddings, lemmas, text classification
+
+Detail: [use-cases/ocr-lemmas-tags.md](use-cases/ocr-lemmas-tags.md).
+
+| Script | What it does | Tracked kind | Admin | Sched | Key flags / notes |
+|---|---|---|---|---|---|
+| `extract_text_from_memes` | Register files, OCR to `ocr_texts` | none | no | no | `--status {pending,active,all}`; auto-registers only in `active` mode. Do not clear `ocr_texts` for a re-run, use `reset_ocr_status` |
+| `build_image_embeddings` | CLIP embeddings | none | no | no | `--status`, `--incremental` |
+| `build_ocr_lemmas` | Per-image lemma index (smart search, duplicate corroboration) | `build_ocr_lemmas` | yes | no | `--incremental`, `--status`. Admin path is always incremental. A full run deletes the whole table |
+| `build_ocr_text_embeddings` | 384-dim MiniLM embeddings of OCR text (text-heavy images only) | `build_ocr_text_embeddings` | yes | no | `--status` |
+| `classify_text_heavy` | Coverage / background / ink-colour classifier into `image_classifications` | `classify_text_heavy` | yes | no | `--status` |
+
+## 3. Tagging
+
+| Script | Source label | Tracked kind | Admin | Sched | Notes |
+|---|---|---|---|---|---|
+| `build_tags_from_ocr` | `OCR` | `build_tags_from_ocr` | yes | no | ConceptTagger. `--incremental`. Not available on `it` |
+| `build_tags_from_descriptions` | `Ollama` | `build_tags_from_descriptions` | yes | no | `--incremental`. Not on `it` |
+| `build_tags_from_notes` | `Note` | `build_tags_from_notes` | yes | no | CLI default is a full run, `main()` and admin default to incremental. Not on `it` |
+| `build_concept_embeddings` | n/a (feeds `CONCEPT`) | `build_concept_embeddings` | yes | no | **Chains into `tag_images_from_concepts`** unless `--no-chain` |
+| `tag_images_from_concepts` | `CONCEPT` | `tag_images_from_concepts` | yes | no | Full rebuild |
+| `detect_entities_and_tag` | `YOLO` | `detect_entities_and_tag` | yes | no | YOLOv8 animals, full rebuild |
+
+## 4. Descriptions, notes and meme-from-text profiles
+
+Detail: [use-cases/descriptions-and-profiles.md](use-cases/descriptions-and-profiles.md).
+
+| Script | What it does | Tracked kind | Admin | Sched | Flags / notes |
+|---|---|---|---|---|---|
+| `build_image_descriptions` | Multi-prompt Ollama vision descriptions | `build_image_descriptions` | yes | no | `--limit`, `--reset`, `--retry-failed`. Admin has no limit. Active images only |
+| `build_image_description_embeddings` | bge-large 1024-dim, one per description | `build_image_description_embeddings` | yes | no | `--reset` |
+| `build_description_lemmas` | Lemma index of descriptions (English) | `build_description_lemmas` | yes | no | Incremental by construction |
+| `build_description_note_lemmas` | Lemma index of human notes | `build_description_note_lemmas` | yes | no | |
+| `build_description_note_embeddings` | bge-large embeddings of notes | `build_description_note_embeddings` | yes | no | |
+| `build_meme_profiles` | Profile (situation, emotion, stance, topic, tone, use-when) per image | `build_meme_profiles` | yes | no | `--limit`, `--reset`, `--retry-failed`, `--ids-file`. `it` exits cleanly (no `text_model`) |
+| `build_meme_profile_embeddings` | Situation embedding via Ollama | `build_meme_profile_embeddings` | yes | no | `--limit`, `--reset`, `--ids-file`. `it` exits cleanly |
+| `description_pipeline` | Driver over 10 steps (see use-case page) | `description_pipeline` | yes | no | Failure only skips dependents. Children self-track under their own kinds |
+| `build_taxonomy_similarity` | Regenerates `batch/data/taxonomy/similarity.json` | none | no | no | Needs live Ollama; manual after taxonomy edits |
+
+## 5. Duplicates and clusters
+
+Detail: [use-cases/duplicates-and-clusters.md](use-cases/duplicates-and-clusters.md).
+
+| Script | What it does | Tracked kind | Admin | Sched | Notes |
+|---|---|---|---|---|---|
+| `rebuild_duplicates` | Three probes (general CLIP, tight CLIP safety net, OCR-text) into `tmp_duplicates` | `rebuild_duplicates` | yes | no | `--full`, `--k`, `--threshold`. **Chains into `clusterize`** unless `--no-chain` |
+| `clusterize` | Union-find over `tmp_duplicates`, splits oversized clusters, writes `tmp_clusters` | `clusterize` | yes | no | Config: `clustering.*` |
+| `detect_file_duplicates` | Byte-level duplicates: backfills `content_hash`, flags all but the oldest of each identical group | none | no | no | Skips clusters that already have a flagged member |
+| `deduplicate_ocr_texts` | Deletes duplicate `ocr_texts` rows | none | no | no | No `--env` flag, relies on `APP_ENV` / `DATABASE_URL` |
+| `remove_singletons` | Deletes `tmp_clusters` rows of single-member clusters | none | no | no | Auto-run by `unregister_deleted_images` |
+| `move_reference_duplicates` | Moves files in a reference dir that already exist in the library | none | no | no | `--reference-dir`, `--dry-run` |
+
+## 6. Maintenance
+
+Detail: [use-cases/maintenance-and-cleanup.md](use-cases/maintenance-and-cleanup.md).
+
+| Script | What it does | Tracked kind | Admin | Sched | Notes |
+|---|---|---|---|---|---|
+| `move_flagged` | Move flagged images to `BASE_PATH/excluded` | `move_flagged` | yes | no | **Chains `unregister_deleted_images`** (then `remove_singletons`); `--no-chain` |
+| `unregister_deleted_images` | Delete DB rows whose files are gone | `unregister_deleted_images` | yes | no | **Chains `remove_singletons`**; `--no-chain` |
+| `fix_image_formats` | Retroactive format fix for the existing corpus; only path that backfills `Image.width/height` | `fix_image_formats` | **no (not in registry)** | no | `--status` (default `active`). Has the tracked `main(trigger, run_id)` contract already |
+| `reset_ocr_status` | Reset OCR processing status (`--all`) | none | no | no | Use before a full OCR re-run |
+| `score_ocr_language` | Backfill `lang_score` for old `ocr_texts` rows | none | no | no | `--rescore-all` |
+| `load_images_from_internet` | Fetch images via SerpAPI (`SERP_API_KEY`) | none | no | no | Ad hoc |
+
+## 7. Concept discovery (human in the loop)
+
+Detail: [use-cases/concept-discovery.md](use-cases/concept-discovery.md).
+
+| Script | What it does | Tracked kind | Admin | Sched | Notes |
+|---|---|---|---|---|---|
+| `build_bow` | Bag of words / unmatched lemmas | `build_bow` | yes | no | Writes `bow.*` output files. `bow.text_source` is `ocr` or `descriptions` |
+| `build_lemma_clusters` | Embed unmatched lemmas, HDBSCAN per language, optional Ollama naming | none | no | no | Many flags; `lemma_clustering.selection_method: leaf` |
+| `draft_concepts_from_clusters` | Append drafts to `concepts.<env>.yaml` and `tags.<env>.yaml` | none | no | no | `--cluster-file --env --language [--top]` |
+
+Both manual scripts are deliberately excluded from scheduling (they would pile up unreviewed drafts).
+The `/draft-lemma-concepts` command in `.claude/commands/` runs them with a commit before and after review.
+
+## 8. Trends and statistics
+
+Detail: [use-cases/trends-and-statistics.md](use-cases/trends-and-statistics.md).
+
+| Script | What it does | Tracked kind | Admin | Sched | Notes |
+|---|---|---|---|---|---|
+| `trends_batch` | GLiNER NER over each configured source; counts `label:entity` per run | `trends` | yes | **yes, 360 min** | Sources seeded by `batch/trends/seed_sources.py` (not a scheduled job) |
+| `build_statistics` | Precompute the statistics page into `statistics_snapshots` | `statistics` | yes | **yes, 60 min** | Also run best-effort after every wrapped job |
+
+## 9. Support modules and dev tools (not jobs)
+
+| Path | Role |
+|---|---|
+| `batch/run_wrapper.py` | Uniform subprocess entry point for scheduler and admin |
+| `batch/run_tracking.py` | `tracked_run`, `finish_existing_run`, `record_stats` |
+| `batch/registry.py` | Reads `environments/batch_registry.yaml` (+ optional `batch_registry.<env>.yaml`, none exist) |
+| `batch/ocr_preprocess.py`, `tesseract_reader.py`, `trocr_fallback.py` | OCR helpers used by `extract_text_from_memes` |
+| `batch/tasks/SourceTasks.py`, `batch/trends/*` | Trends sources, connectors, NER processing |
+| `batch/utils/*` | `ProgressTracker`, hashing, safe move |
+| `batch/diff_rules.py`, `eval_rules.py`, `eval_ocr_language_filter.py` | Evaluate tagging rules and the language filter against golden sets |
+| `batch/tools/*` | Spot checks, rule conversion, meme-profile pilot, probes (one-off) |
+| `python -m evaluation ...` | Meme-from-text evaluation harness (read-only DB role) |
+| `tools/agent_duplicates.py`, `tools/agent_untagged.py` | Feed the `/review-duplicates` and `/suggest-tags` Claude commands |
+
+## Schedule per environment
+
+Source of truth: `scheduler.jobs` in `environments/settings.yaml`. The per-environment files
+(`settings.metal.yaml`, `settings.general.yaml`, `settings.it.yaml`) each only set `scheduler.enabled: true`.
+No environment overrides the job list. Values below were read by loading `config.settings` under each `APP_ENV`.
+
+| Job | Kind | Interval | Orphan timeout | metal | general | it |
+|---|---|---|---|---|---|---|
+| `trends_batch` | `trends` | 360 min | 60 min | enabled | enabled | enabled (see caveat) |
+| `build_statistics` | `statistics` | 60 min | 10 min | enabled | enabled | enabled |
+
+Caveats:
+
+- `scheduler.enabled` defaults to `false` in the common file on purpose (the Docker backend image does not carry
+  `batch.trends_batch` or its ML dependencies and has several workers with no cross-worker lock). Each dev
+  environment opts in.
+- `it` has no `trends:` section, so `trends_batch` there has no default labels or model. It only produces results if
+  each source row carries its own `extraction` config. Whether that is so in the `it` database was not checked.
+- Every other registry job is manual only, in all three environments. Admin availability is identical in all three
+  because no `batch_registry.<env>.yaml` override exists, but some jobs cannot do real work on `it`:
+  `build_tags_from_*` (no tagging YAML for profile `it`), `build_meme_profiles` and `build_meme_profile_embeddings`
+  (exit cleanly, no `text_model`).
+- Runs are restart-safe: the first fire after a backend restart waits for the remainder of the interval, based on the
+  most recent `batch_runs` row of that kind. A `started` row older than `max_runtime_minutes` is marked failed as
+  orphaned so it stops blocking.
