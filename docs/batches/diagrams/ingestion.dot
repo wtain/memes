@@ -12,8 +12,8 @@ digraph ingestion {
     style="dashed,rounded"; color="#2563eb"; fontsize=10;
     s1 [label="1. ingest_hash_dedup\nstage = hash_dedup\nexact dupes to inbox/duplicates\nsurvivors become pending"];
     s2 [label="2. ingest_validate_formats\nstage = format_validation\nfix extension, WebP to JPEG"];
-    s3 [label="3. build_image_embeddings\n--status pending --incremental"];
-    s4 [label="4. extract_text_from_memes\n--status pending (OCR)"];
+    s3 [label="3. build_image_embeddings\n--status pending --incremental" fillcolor="#dbeafe"];
+    s4 [label="4. extract_text_from_memes\n--status pending (OCR)" fillcolor="#dbeafe"];
     s5 [label="5. build_ocr_lemmas\n--status pending --incremental" fillcolor="#dbeafe"];
     s6 [label="6. classify_text_heavy\n--status pending" fillcolor="#dbeafe"];
     s7 [label="7. build_ocr_text_embeddings\n--status pending" fillcolor="#dbeafe"];
@@ -44,7 +44,7 @@ digraph ingestion {
   subgraph cluster_legend {
     label="Legend"; style=rounded; color="#9ca3af"; fontsize=10;
     l1 [label="shell only" fillcolor="#ffffff"];
-    l2 [label="also admin-triggerable\n(/admin/batches)" fillcolor="#dbeafe"];
+    l2 [label="also admin-triggerable\n(/admin/batches; the admin path\nuses default flags, e.g. status active)" fillcolor="#dbeafe"];
     l3 [shape=hexagon label="human step" fillcolor="#fef3c7"];
     l1 -> l2 -> l3 [style=invis];
   }

@@ -13,6 +13,11 @@ Nothing here was changed in code or in the older documents.
 | A5 | Warning added to the Concurrency section of `docs/runbooks/ingestion-pipeline.md` |
 | B3 (partly) | `fix_image_formats` is now registered, so its runs show in `/admin/batches` (test: `batch/tests/test_fix_image_formats_main.py`). `ingestion` runs are still not listed |
 | C1, C2, C3 | Done (registry entry, `CLAUDE.md` pointer, comment fixes) |
+| A7 | Module docstrings added to the 27 job scripts that had none (derived from reading each script) |
+| B5 | `extract_text_from_memes` and `build_image_embeddings` now follow the `main(trigger, run_id)` contract, are registered, and tracked under their own kinds. Admin and scheduler runs use the defaults: status `active`, and for embeddings always incremental (`batch/tests/test_tracked_embeddings_and_ocr_main.py`) |
+| B6 | `ingest_auto_prep` ends the tick quietly when a child is already running instead of failing (`batch/tests/test_ingest_auto_prep.py`) |
+| Docs fix | `move_reference_duplicates` was described backwards; corrected (it moves unregistered `BASE_PATH` files identical to a reference-dir file into `possible_duplicates/`) |
+| Test hygiene | `test_ingest_auto_prep.py` replaced `.main` on real modules and never restored it, which broke later test files; now restored by a fixture |
 
 Everything not listed here is still open; see the sections below. The original text of resolved rows is kept for history.
 
@@ -46,13 +51,10 @@ Everything not listed here is still open; see the sections below. The original t
 | B12 | The first `ingest_auto_prep` tick in an environment with no ingestion history creates an empty `ingestion` run that stays open at `tier_a_review` | Documented in the script; harmless |
 | B13 | Tier A candidates found after the run reached `tier_b_review` never surface in the review UI | Inherited limitation, documented in the rollout spec |
 
-## C. Candidate follow-ups (not done, for the owner to decide)
+## C. Still open (need an owner decision or information)
 
-1. Register `fix_image_formats` (it already satisfies the contract) so it appears in `/admin/batches`.
-2. Add a one-line pointer to `docs/batches/` in `CLAUDE.md` (batch pipeline section) and fix A1.
-3. Update the stale comment in `environments/settings.yaml` (A4) and the amendment in the rollout spec (A3).
-4. Consider making `ingest_auto_prep` treat `BatchAlreadyRunningError` from a child as "busy, skip" as
-   `description_pipeline` does (B6).
-5. Consider a generic stale-run reaper for kinds not on the schedule (B2), for example in the admin trigger path.
-6. Consider tracking `extract_text_from_memes` and `build_image_embeddings` (B5), which would also allow admin triggers.
-7. Add module docstrings for the undocumented scripts (A7).
+1. B2, stale runs: a per-kind maximum runtime is needed for the 28 unscheduled kinds, or another policy.
+2. B8, B9, B11, environment `it`: which jobs should be exposed there (an `environments/batch_registry.it.yaml` overlay
+   is supported by the loader), and whether `trends_batch` should run there.
+3. B3: `ingestion` runs are still not visible in `/admin/batches`.
+4. B4: no link between a `run_id` and its log file.

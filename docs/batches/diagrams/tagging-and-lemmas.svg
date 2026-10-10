@@ -18,16 +18,15 @@
 <!-- ocr -->
 <g id="node1" class="node">
 <title>ocr</title>
-<path fill="#ffffff" stroke="black" d="M675.26,-517.2C675.26,-517.2 543.87,-517.2 543.87,-517.2 537.87,-517.2 531.87,-511.2 531.87,-505.2 531.87,-505.2 531.87,-493.2 531.87,-493.2 531.87,-487.2 537.87,-481.2 543.87,-481.2 543.87,-481.2 675.26,-481.2 675.26,-481.2 681.26,-481.2 687.26,-487.2 687.26,-493.2 687.26,-493.2 687.26,-505.2 687.26,-505.2 687.26,-511.2 681.26,-517.2 675.26,-517.2"/>
-<text xml:space="preserve" text-anchor="middle" x="609.57" y="-502.5" font-family="Helvetica,sans-Serif" font-size="11.00">1. extract_text_from_memes</text>
-<text xml:space="preserve" text-anchor="middle" x="609.57" y="-489.3" font-family="Helvetica,sans-Serif" font-size="11.00">(shell only)</text>
+<path fill="#dbeafe" stroke="black" d="M675.26,-517.2C675.26,-517.2 543.87,-517.2 543.87,-517.2 537.87,-517.2 531.87,-511.2 531.87,-505.2 531.87,-505.2 531.87,-493.2 531.87,-493.2 531.87,-487.2 537.87,-481.2 543.87,-481.2 543.87,-481.2 675.26,-481.2 675.26,-481.2 681.26,-481.2 687.26,-487.2 687.26,-493.2 687.26,-493.2 687.26,-505.2 687.26,-505.2 687.26,-511.2 681.26,-517.2 675.26,-517.2"/>
+<text xml:space="preserve" text-anchor="middle" x="609.57" y="-495.9" font-family="Helvetica,sans-Serif" font-size="11.00">1. extract_text_from_memes</text>
 </g>
 <!-- clip -->
 <g id="node2" class="node">
 <title>clip</title>
-<path fill="#ffffff" stroke="black" d="M674.36,-444.2C674.36,-444.2 544.77,-444.2 544.77,-444.2 538.77,-444.2 532.77,-438.2 532.77,-432.2 532.77,-432.2 532.77,-420.2 532.77,-420.2 532.77,-414.2 538.77,-408.2 544.77,-408.2 544.77,-408.2 674.36,-408.2 674.36,-408.2 680.36,-408.2 686.36,-414.2 686.36,-420.2 686.36,-420.2 686.36,-432.2 686.36,-432.2 686.36,-438.2 680.36,-444.2 674.36,-444.2"/>
+<path fill="#dbeafe" stroke="black" d="M674.36,-444.2C674.36,-444.2 544.77,-444.2 544.77,-444.2 538.77,-444.2 532.77,-438.2 532.77,-432.2 532.77,-432.2 532.77,-420.2 532.77,-420.2 532.77,-414.2 538.77,-408.2 544.77,-408.2 544.77,-408.2 674.36,-408.2 674.36,-408.2 680.36,-408.2 686.36,-414.2 686.36,-420.2 686.36,-420.2 686.36,-432.2 686.36,-432.2 686.36,-438.2 680.36,-444.2 674.36,-444.2"/>
 <text xml:space="preserve" text-anchor="middle" x="609.57" y="-429.5" font-family="Helvetica,sans-Serif" font-size="11.00">2. build_image_embeddings</text>
-<text xml:space="preserve" text-anchor="middle" x="609.57" y="-416.3" font-family="Helvetica,sans-Serif" font-size="11.00">(shell only)</text>
+<text xml:space="preserve" text-anchor="middle" x="609.57" y="-416.3" font-family="Helvetica,sans-Serif" font-size="11.00">&#45;&#45;incremental</text>
 </g>
 <!-- ocr&#45;&gt;clip -->
 <g id="edge1" class="edge">

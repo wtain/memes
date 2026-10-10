@@ -104,6 +104,7 @@ A partial unique index on `batch_runs` allows one `started` row per `kind`. `cre
 | Scheduler | Pre-checks `get_active_run`, so normally skips the tick |
 | Chained call (`rebuild_duplicates` to `clusterize`, `move_flagged` to `unregister_deleted_images`, `build_concept_embeddings` to `tag_images_from_concepts`) | Prints "Skipping chained ..." and continues |
 | `description_pipeline` children | Step becomes `skipped_busy`, not a failure |
+| `ingest_auto_prep` children | Prints that the child is busy and ends the tick quietly (run completes); the next trigger resumes. Running Tier A over images that still lack lemma/OCR-text coverage would weaken review |
 | Direct CLI | Raises |
 
 Orphan recovery exists only in the scheduler's tick (`max_runtime_minutes`). A run started from the CLI or admin that
@@ -131,9 +132,9 @@ Driver differences:
 | | `ingest_auto_prep` | `description_pipeline` |
 |---|---|---|
 | Order semantics | Strict chain; stops quietly when there is no active ingestion run | Dependency graph; a failure only skips dependents |
-| Child tracking | Steps are in-process calls. Tracked ones (`build_ocr_lemmas`, `classify_text_heavy`, `build_ocr_text_embeddings`) write their own rows; embeddings, OCR, validate and Tier A write none. A `BatchAlreadyRunningError` from a tracked child is not caught and fails the driver | Each child self-tracks under its own kind; a busy child is `skipped_busy` |
+| Child tracking | Steps are in-process calls. Tracked ones (embeddings, OCR, lemmas, text-heavy, OCR-text embeddings) write their own rows; hash dedup (its own `ingestion` row), validate and Tier A are separate. A `BatchAlreadyRunningError` from a child ends the tick quietly | Each child self-tracks under its own kind; a busy child is `skipped_busy` |
 | Result recording | Driver row only | `stats.steps` with `ok / failed / skipped_dependency / skipped_busy` |
-| Failure | First real error aborts the run | Run fails at the end if any step failed |
+| Failure | First real error aborts the run (a busy child is not an error) | Run fails at the end if any step failed |
 
 ## 5. Quick reference: starting things
 

@@ -77,7 +77,7 @@ Stages only move forward (`_STAGE_ORDER` guard in `ingest_find_duplicates`, `sho
 |---|---|---|---|
 | 1 | `ingest_hash_dedup` | yes | no |
 | 1.5 | `ingest_validate_formats` | yes | no |
-| 2 | embeddings, OCR, lemmas, text-heavy, OCR-text embeddings (all `--status pending`) | yes | lemmas / text-heavy / OCR-text embeddings only |
+| 2 | embeddings, OCR, lemmas, text-heavy, OCR-text embeddings (all `--status pending`) | yes | all five are registered, but the admin path runs with the default status `active`, not `pending` |
 | 2 to Tier A | `ingest_auto_prep` runs everything above through Tier A | yes | yes |
 | 3 | `ingest_find_duplicates_tier_b` | `ingest_find_duplicates --tier tier_b` | yes |
 | 4 | `ingest_promote` | yes | yes |
@@ -98,9 +98,10 @@ removed from `scheduler.jobs`; `settings.yaml` still carries a comment saying so
   Harmless; `ingest_promote` completes it.
 - **Do not run** `ingest_promote` or `ingest_abort` concurrently with an `ingest_hash_dedup` re-join; the advisory lock
   only protects copies of `ingest_hash_dedup`.
-- **`ingest_auto_prep` vs tracked children**: if `build_ocr_lemmas`, `classify_text_heavy` or
-  `build_ocr_text_embeddings` is already running (for example triggered from the admin page), the driver fails with
-  `BatchAlreadyRunningError` instead of skipping.
+- **`ingest_auto_prep` vs tracked children**: if one of its tracked children (embeddings, OCR, lemmas, text-heavy,
+  OCR-text embeddings) is already running, for example triggered from the admin page, the driver prints that and
+  ends the tick quietly instead of running Tier A on images that still lack coverage. Trigger it again once the
+  other run has finished.
 - **Abort does not undo WebP conversion**; the original stays in `converted_originals/`.
 - After promotion, run [`description_pipeline`](descriptions-and-profiles.md) and the tagging jobs; optionally
   `rebuild_duplicates` so Explore, Duplicates shows the new relationships (`tmp_duplicates` already has them, but

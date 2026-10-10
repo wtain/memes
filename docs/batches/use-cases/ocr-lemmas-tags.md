@@ -49,8 +49,8 @@ Steps A to C are also what ingestion runs for `pending` images (see [ingestion.m
 
 | Job | Reads | Writes | Re-run behaviour | Run it |
 |---|---|---|---|---|
-| `extract_text_from_memes` | files, `images` | `ocr_texts` (per image, per language) | Processes images without OCR status. Full re-run: `python -m batch.reset_ocr_status --all`, then rerun. Never truncate `ocr_texts` | shell only, `--status {pending,active,all}` |
-| `build_image_embeddings` | files | `embeddings` | `--incremental` skips embedded images | shell only |
+| `extract_text_from_memes` | files, `images` | `ocr_texts` (per image, per language) | Processes images without OCR status. Full re-run: `python -m batch.reset_ocr_status --all`, then rerun. Never truncate `ocr_texts` | shell, admin (always `active`), `--status {pending,active,all}` |
+| `build_image_embeddings` | files | `embeddings` | `--incremental` skips embedded images. Admin and scheduler runs are always incremental and `active` | shell, admin |
 | `build_ocr_lemmas` | `ocr_texts` | `ocr_lemmas` | `--incremental` skips indexed images. **A full run deletes the entire table**, even with `--status pending`, so pending requires incremental | shell, admin (always incremental) |
 | `build_tags_from_ocr` | `ocr_texts` (after confidence and language-plausibility filters) | `image_tags` source `OCR` | `--incremental` skips images that already have an `OCR` tag. Full run deletes all `OCR` tags first | shell, admin (incremental) |
 | `build_concept_embeddings` | `CONCEPTS.*` files, concept images | concept vectors and mappings | Full rebuild; **chains** `tag_images_from_concepts` | shell (`--no-chain`), admin |

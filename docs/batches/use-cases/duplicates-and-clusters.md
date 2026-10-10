@@ -72,7 +72,7 @@ the active-library pairs and re-probes everything.
 | `clusterize` | yes | yes | no | none |
 | `ingest_find_duplicates` | `--tier tier_a\|tier_b --k` | via `ingest_find_duplicates_tier_b` / `ingest_auto_prep` | no | none |
 | `detect_file_duplicates` | yes | no | no | none |
-| `move_reference_duplicates` | `--reference-dir --dry-run` | no | no | none |
+| `move_reference_duplicates` | `--reference-dir --dry-run`; moves unregistered `BASE_PATH` files identical to a reference-dir file into `possible_duplicates/` | no | no | none |
 | `deduplicate_ocr_texts` | yes | no | no | none |
 
 Recommended full refresh on the existing corpus:

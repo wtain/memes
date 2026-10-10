@@ -52,8 +52,9 @@ can also be started from `/admin/batches` (always with `--status active`; the pe
 
 ## Intake helpers (ad hoc)
 
-`load_images_from_internet` (SerpAPI, needs `SERP_API_KEY` in the env file) and `move_reference_duplicates` (drop files
-from a reference folder that already exist in the library) are manual one-offs with no tracking.
+`load_images_from_internet` (SerpAPI, needs `SERP_API_KEY` in the env file; the queries are hardcoded in `main()`) and
+`move_reference_duplicates` (moves unregistered `BASE_PATH` files that are byte-identical to a file in `--reference-dir`
+into `BASE_PATH/possible_duplicates`) are manual one-offs with no tracking.
 
 ## Windows operational hazards
 

@@ -5,8 +5,8 @@ digraph tagging {
   node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#ffffff"];
   edge [fontname="Helvetica" fontsize=9];
 
-  ocr [label="1. extract_text_from_memes\n(shell only)"];
-  clip [label="2. build_image_embeddings\n(shell only)"];
+  ocr [label="1. extract_text_from_memes" fillcolor="#dbeafe"];
+  clip [label="2. build_image_embeddings\n--incremental" fillcolor="#dbeafe"];
   lem [label="3. build_ocr_lemmas --incremental" fillcolor="#dbeafe"];
   tocr [label="4. build_tags_from_ocr --incremental\nsource OCR" fillcolor="#dbeafe"];
   ce [label="5. build_concept_embeddings" fillcolor="#dbeafe"];
