@@ -1,0 +1,111 @@
+### headroom analysis (p7_analyze.py on the deep top-50 rankings)
+depth 50 model qwen2.5:7b-instruct; degraded queries: 0; candidates median 504.0
+
+== ALL (60 queries)
+  nDCG@10 now 0.45   judged-only nDCG@10 now 0.51
+  judged-relevant (grade>=1) found within top N:   top10: 0.435   top20: 0.55   top30: 0.596   top50: 0.652
+  great (grade 2) found within top N:              top10: 0.535   top20: 0.614   top30: 0.635   top50: 0.715
+  ORACLE re-rank of top N -> nDCG@10:              N=10: 0.62   N=20: 0.718   N=30: 0.751   N=50: 0.797
+  judged-only ORACLE (top N of judged items):      N=10: 0.683   N=20: 0.797   N=30: 0.797
+
+== language en (20 queries)
+  nDCG@10 now 0.455   judged-only nDCG@10 now 0.507
+  judged-relevant (grade>=1) found within top N:   top10: 0.445   top20: 0.568   top30: 0.596   top50: 0.639
+  great (grade 2) found within top N:              top10: 0.477   top20: 0.593   top30: 0.599   top50: 0.726
+  ORACLE re-rank of top N -> nDCG@10:              N=10: 0.615   N=20: 0.716   N=30: 0.739   N=50: 0.789
+  judged-only ORACLE (top N of judged items):      N=10: 0.674   N=20: 0.789   N=30: 0.789
+
+== language ru (20 queries)
+  nDCG@10 now 0.444   judged-only nDCG@10 now 0.494
+  judged-relevant (grade>=1) found within top N:   top10: 0.43   top20: 0.536   top30: 0.591   top50: 0.646
+  great (grade 2) found within top N:              top10: 0.609   top20: 0.65   top30: 0.672   top50: 0.729
+  ORACLE re-rank of top N -> nDCG@10:              N=10: 0.638   N=20: 0.714   N=30: 0.75   N=50: 0.788
+  judged-only ORACLE (top N of judged items):      N=10: 0.677   N=20: 0.788   N=30: 0.788
+
+== language es (20 queries)
+  nDCG@10 now 0.451   judged-only nDCG@10 now 0.528
+  judged-relevant (grade>=1) found within top N:   top10: 0.431   top20: 0.545   top30: 0.6   top50: 0.671
+  great (grade 2) found within top N:              top10: 0.519   top20: 0.597   top30: 0.633   top50: 0.691
+  ORACLE re-rank of top N -> nDCG@10:              N=10: 0.608   N=20: 0.724   N=30: 0.763   N=50: 0.814
+  judged-only ORACLE (top N of judged items):      N=10: 0.7   N=20: 0.814   N=30: 0.814
+
+== difficulty easy (21 queries)
+  nDCG@10 now 0.428   judged-only nDCG@10 now 0.493
+  judged-relevant (grade>=1) found within top N:   top10: 0.441   top20: 0.58   top30: 0.625   top50: 0.68
+  great (grade 2) found within top N:              top10: 0.531   top20: 0.625   top30: 0.637   top50: 0.687
+  ORACLE re-rank of top N -> nDCG@10:              N=10: 0.601   N=20: 0.729   N=30: 0.761   N=50: 0.808
+  judged-only ORACLE (top N of judged items):      N=10: 0.685   N=20: 0.808   N=30: 0.808
+
+== difficulty hard (24 queries)
+  nDCG@10 now 0.424   judged-only nDCG@10 now 0.488
+  judged-relevant (grade>=1) found within top N:   top10: 0.427   top20: 0.513   top30: 0.546   top50: 0.599
+  great (grade 2) found within top N:              top10: 0.567   top20: 0.625   top30: 0.632   top50: 0.696
+  ORACLE re-rank of top N -> nDCG@10:              N=10: 0.615   N=20: 0.693   N=30: 0.716   N=50: 0.767
+  judged-only ORACLE (top N of judged items):      N=10: 0.673   N=20: 0.767   N=30: 0.767
+
+== difficulty ambiguous (15 queries)
+  nDCG@10 now 0.522   judged-only nDCG@10 now 0.569
+  judged-relevant (grade>=1) found within top N:   top10: 0.441   top20: 0.567   top30: 0.633   top50: 0.697
+  great (grade 2) found within top N:              top10: 0.491   top20: 0.581   top30: 0.636   top50: 0.787
+  ORACLE re-rank of top N -> nDCG@10:              N=10: 0.657   N=20: 0.743   N=30: 0.791   N=50: 0.83
+  judged-only ORACLE (top N of judged items):      N=10: 0.698   N=20: 0.83   N=30: 0.83
+
+== Failure classes (nDCG@10 < 0.25)
+  11 of 60 queries
+  some relevant in top 10, low gains/ordering: 10 ['q001', 'q006', 'q007', 'q013', 'q014', 'q023', 'q032', 'q037', 'q038', 'q039']
+  relevant in 11..50 only (re-rank could help): 1 ['q041']
+
+== Weak queries detail
+  q041 es easy      ndcg 0.00 pos 18 great  8 cov10 0.00 cov50 0.50 first_pos_rank 11  profile-situation: 'Someone announces that they just got promoted at work.'
+  q001 en easy      ndcg 0.07 pos 16 great  5 cov10 0.06 cov50 0.12 first_pos_rank 3  profile-situation: 'Someone announces that they just got promoted at work.'
+  q006 en hard      ndcg 0.14 pos  8 great  2 cov10 0.25 cov50 0.62 first_pos_rank 4  profile-situation: 'The landlord is raising the rent again while the heating is '
+  q039 ru hard      ndcg 0.15 pos  8 great  0 cov10 0.25 cov50 0.50 first_pos_rank 8  profile-situation: 'My cat brought me a dead mouse as a gift and looks proud.'
+  q032 ru ambiguous ndcg 0.19 pos 13 great  4 cov10 0.31 cov50 0.31 first_pos_rank 4  profile-situation: 'Someone asks what I think of the new season of a show everyo'
+  q037 ru easy      ndcg 0.19 pos 11 great  2 cov10 0.18 cov50 0.64 first_pos_rank 3  profile-situation: 'A family trip to the country house with music and barbecue, '
+  q014 en ambiguous ndcg 0.20 pos  4 great  0 cov10 0.25 cov50 0.50 first_pos_rank 3  profile-situation: 'A long flight delay in a cold airport.'
+  q013 en ambiguous ndcg 0.21 pos  9 great  1 cov10 0.33 cov50 0.44 first_pos_rank 4  profile-situation: 'My cat is racing around the house in the middle of the night'
+  q023 ru hard      ndcg 0.23 pos 15 great  4 cov10 0.27 cov50 0.33 first_pos_rank 6  profile-situation: 'A coworker took the credit for my work and I am sarcasticall'
+  q007 en easy      ndcg 0.25 pos 11 great  4 cov10 0.27 cov50 0.45 first_pos_rank 3  profile-situation: 'A parent keeps checking up on my diet.'
+  q038 ru hard      ndcg 0.25 pos 12 great  6 cov10 0.25 cov50 0.67 first_pos_rank 2  profile-situation: 'Politicians again promise lower prices and higher wages and '
+
+first relevant result rank: median 2.0, within top1 29, top3 49, top10 59 of 60
+positives per query: median 10.0 min 4 max 19
+
+### parse quality versus ranking quality (p7_corr.py)
+queries 60 | mean parse macro-F1 0.497 | mean nDCG@10 0.45
+axis F1: {'emotion': 0.375, 'stance': 0.278, 'topic': 0.834, 'tone': 0.5}
+  worst third by parse   n=20 parse macro-F1 0.231  nDCG@10 0.465  oracle(top20) 0.727  found-in-top50 0.642
+  middle third           n=20 parse macro-F1 0.526  nDCG@10 0.473  oracle(top20) 0.7  found-in-top50 0.627
+  best third by parse    n=20 parse macro-F1 0.733  nDCG@10 0.412  oracle(top20) 0.727  found-in-top50 0.687
+Pearson r (parse macro-F1 vs nDCG@10): -0.03
+Pearson r (parse macro-F1 vs share of relevant found in top 50): 0.111
+
+Failure attribution for the weak queries (nDCG@10 < 0.30):
+  parse-driven (parse macro-F1 < 0.40): 8 ['q001', 'q007', 'q013', 'q032', 'q035', 'q038', 'q039', 'q041']
+  ranking-driven (parse ok, relevant mostly inside top 50 but not top 10): 5 ['q006', 'q014', 'q037', 'q046', 'q060']
+  other (parse ok, relevant mostly outside top 50): 2 ['q023', 'q050']
+
+Weak queries: text / expected vs parsed
+  q041 es nDCG 0.00 parseF1 0.25 cov10 0.00 cov50 0.50 | parsed {'emotion': ['amusement'], 'stance': ['mock'], 'topic': ['work'], 'tone': ['sarcastic']}
+  q001 en nDCG 0.07 parseF1 0.25 cov10 0.06 cov50 0.12 | parsed {'emotion': ['jealousy'], 'stance': ['complain'], 'topic': ['work'], 'tone': []}
+  q006 en nDCG 0.14 parseF1 0.67 cov10 0.25 cov50 0.62 | parsed {'emotion': ['frustration', 'anger'], 'stance': ['complain'], 'topic': ['money', 'work'], 'tone': ['dramatic']}
+  q039 ru nDCG 0.15 parseF1 0.38 cov10 0.25 cov50 0.50 | parsed {'emotion': ['amusement', 'love'], 'stance': ['console'], 'topic': ['animals'], 'tone': ['wholesome']}
+  q032 ru nDCG 0.19 parseF1 0.00 cov10 0.31 cov50 0.31 | parsed {'emotion': [], 'stance': [], 'topic': ['gaming', 'study', 'work'], 'tone': []}
+  q037 ru nDCG 0.19 parseF1 0.46 cov10 0.18 cov50 0.64 | parsed {'emotion': ['joy', 'relief'], 'stance': [], 'topic': ['holidays', 'food', 'travel'], 'tone': ['wholesome']}
+  q014 en nDCG 0.20 parseF1 0.54 cov10 0.25 cov50 0.50 | parsed {'emotion': ['frustration', 'disappointment'], 'stance': ['complain'], 'topic': ['travel', 'weather'], 'tone': ['cynical']}
+  q013 en nDCG 0.21 parseF1 0.17 cov10 0.33 cov50 0.44 | parsed {'emotion': ['annoyance'], 'stance': ['complain'], 'topic': ['animals'], 'tone': ['sarcastic']}
+  q023 ru nDCG 0.23 parseF1 0.67 cov10 0.27 cov50 0.33 | parsed {'emotion': ['annoyance'], 'stance': ['mock'], 'topic': ['work'], 'tone': ['sarcastic']}
+  q007 en nDCG 0.25 parseF1 0.12 cov10 0.27 cov50 0.45 | parsed {'emotion': ['annoyance'], 'stance': ['complain'], 'topic': ['family', 'health'], 'tone': ['sarcastic']}
+  q038 ru nDCG 0.25 parseF1 0.33 cov10 0.25 cov50 0.67 | parsed {'emotion': ['disappointment', 'frustration'], 'stance': ['complain'], 'topic': ['politics'], 'tone': ['cynical']}
+  q050 es nDCG 0.27 parseF1 0.62 cov10 0.09 cov50 0.27 | parsed {'emotion': ['embarrassment'], 'stance': ['mock'], 'topic': ['sleep', 'technology'], 'tone': ['self_deprecating']}
+  q060 es nDCG 0.27 parseF1 0.58 cov10 0.44 cov50 0.56 | parsed {'emotion': ['amusement'], 'stance': ['relate'], 'topic': ['family', 'politics', 'gaming'], 'tone': ['wholesome']}
+  q035 ru nDCG 0.28 parseF1 0.29 cov10 0.20 cov50 0.40 | parsed {'emotion': ['anxiety'], 'stance': ['complain'], 'topic': ['technology'], 'tone': ['dramatic']}
+  q046 es nDCG 0.30 parseF1 0.67 cov10 0.40 cov50 0.60 | parsed {'emotion': ['frustration', 'anger'], 'stance': ['complain'], 'topic': ['money', 'work'], 'tone': ['dramatic']}
+### LLM re-rank probe (p7_rerank.py, summarised)
+queries 30 usable (>=3 judged in top 20): 29
+judged-only nDCG@10  base 0.508  LLM re-rank 0.537  oracle 0.74
+paired: LLM better on 19 worse on 6 tie on 4 | mean diff 0.028 se 0.012
+LLM score (rows 0/1/2) vs human grade (cols 0/1/2):
+  0 [106, 70, 42]
+  1 [0, 4, 2]
+  2 [34, 33, 31]
