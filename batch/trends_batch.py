@@ -1,3 +1,10 @@
+"""
+Trends: for each configured trend source, fetches items through its connector, runs GLiNER entity
+extraction (labels, model and language from the source extraction config, falling back to trends.* settings),
+lemmatises entities for supported languages and stores per-source counts of label:entity for this run. Results
+written before a failure are still committed. Run-tracked (kind trends); scheduled (every 6 h) and
+admin-triggerable. Sources are seeded separately by batch/trends/seed_sources.py.
+"""
 import argparse
 import asyncio
 import uuid

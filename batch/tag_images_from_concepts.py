@@ -1,3 +1,9 @@
+"""
+CONCEPT tags from CLIP similarity: deletes every CONCEPT tag, then for each concept with an entry in
+CONCEPTS.MAPPING_FILE tags the top images above the concept threshold (CONCEPTS.THRESHOLD / CONCEPTS.LIMIT by
+default). Needs build_concept_embeddings to have run. Run-tracked (kind tag_images_from_concepts); admin-triggerable,
+manual only; runs automatically after build_concept_embeddings.
+"""
 import argparse
 import asyncio
 import json

@@ -1,3 +1,10 @@
+"""
+Multi-prompt Ollama image descriptions: one row per (image, prompt) for active images that lack
+one. Prompts and model come from the image_descriptions settings. A pair that fails is recorded as failed and skipped
+on later runs unless --retry-failed is given; --reset clears descriptions; --limit caps the run. Run-tracked (kind
+build_image_descriptions); admin-triggerable (no limit), manual only. See
+docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md.
+"""
 import argparse
 import asyncio
 import os

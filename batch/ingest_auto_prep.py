@@ -34,6 +34,7 @@ from batch import (
 )
 from batch.run_tracking import finish_existing_run, tracked_run
 from config.settings import load_env, settings
+from repository.batch_runs import BatchAlreadyRunningError
 
 
 async def _run_prep_chain() -> None:
@@ -42,7 +43,7 @@ async def _run_prep_chain() -> None:
     steps = [
         ("ingest_validate_formats", lambda: ingest_validate_formats.main(env=None)),
         ("build_image_embeddings", lambda: build_image_embeddings.main(incremental=True, target_status="pending")),
-        ("extract_text_from_memes", lambda: extract_text_from_memes.main(settings.BASE_PATH, target_status="pending")),
+        ("extract_text_from_memes", lambda: extract_text_from_memes.main(path=settings.BASE_PATH, target_status="pending")),
         ("build_ocr_lemmas", lambda: build_ocr_lemmas.main(status="pending")),
         ("classify_text_heavy", lambda: classify_text_heavy.main(status="pending")),
         ("build_ocr_text_embeddings", lambda: build_ocr_text_embeddings.main(status="pending")),
@@ -51,6 +52,12 @@ async def _run_prep_chain() -> None:
     for name, step in steps:
         try:
             await step()
+        except BatchAlreadyRunningError as e:
+            # A tracked child (build_ocr_lemmas, classify_text_heavy, build_ocr_text_embeddings) is
+            # already running, e.g. admin-triggered by hand. Carrying on would run Tier A on pending
+            # images that still lack lemma/OCR-text coverage, so end the tick; the next trigger resumes.
+            print(f"ingest_auto_prep: {name} is already running elsewhere, stopping this tick ({e})")
+            return
         except RuntimeError as e:
             if "No ingestion run is currently in progress" not in str(e):
                 raise

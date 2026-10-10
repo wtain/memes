@@ -1,3 +1,10 @@
+"""
+Tags from Ollama descriptions with ConceptTagger (same vocabulary and profile as OCR tagging),
+source "Ollama". Each description is tagged on its own as English and the tags are unioned per image. Incremental mode
+selects images with no Ollama tag or a newer description and rewrites their Ollama tags; a full run deletes every
+Ollama tag first. Run-tracked (kind build_tags_from_descriptions); admin-triggerable, manual only; needs the tagging
+YAML of the environment profile (not available for it).
+"""
 import argparse
 import asyncio
 import uuid

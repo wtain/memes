@@ -1,3 +1,9 @@
+"""
+Tags from human description notes with ConceptTagger, source "Note", language None. Incremental
+mode selects notes with no Note tag or edited since, and rewrites their Note tags; a full run deletes every Note tag
+first (the CLI default; main() and the admin trigger default to incremental). Run-tracked (kind
+build_tags_from_notes); admin-triggerable, manual only; needs the tagging YAML of the environment profile.
+"""
 import argparse
 import asyncio
 import uuid

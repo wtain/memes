@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from batch.ingest_auto_prep import main
+from repository.batch_runs import BatchAlreadyRunningError
 
 
 def _ctx(value):
@@ -19,6 +20,21 @@ def _ctx(value):
             return False
 
     return _Ctx()
+
+
+@pytest.fixture(autouse=True)
+def _restore_step_mains():
+    """_patched_steps() assigns .main on the real step modules; restore them afterwards so the
+    mocks don't leak into other test files that import the same modules."""
+    import batch.ingest_auto_prep as module
+
+    names = ["ingest_hash_dedup", "ingest_validate_formats", "build_image_embeddings",
+             "extract_text_from_memes", "build_ocr_lemmas", "classify_text_heavy",
+             "build_ocr_text_embeddings", "ingest_find_duplicates"]
+    originals = {name: getattr(module, name).main for name in names}
+    yield
+    for name, original in originals.items():
+        getattr(module, name).main = original
 
 
 def _patched_steps(module, **overrides):
@@ -61,7 +77,7 @@ class TestRunPrepChain:
         steps["ingest_hash_dedup"].assert_awaited_once_with(env=None)
         steps["ingest_validate_formats"].assert_awaited_once_with(env=None)
         steps["build_image_embeddings"].assert_awaited_once_with(incremental=True, target_status="pending")
-        steps["extract_text_from_memes"].assert_awaited_once_with("/fake/base", target_status="pending")
+        steps["extract_text_from_memes"].assert_awaited_once_with(path="/fake/base", target_status="pending")
         steps["build_ocr_lemmas"].assert_awaited_once_with(status="pending")
         steps["classify_text_heavy"].assert_awaited_once_with(status="pending")
         steps["build_ocr_text_embeddings"].assert_awaited_once_with(status="pending")
@@ -102,6 +118,24 @@ class TestRunPrepChain:
 
         steps["ingest_validate_formats"].assert_awaited_once()
         steps["extract_text_from_memes"].assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_busy_tracked_child_stops_the_tick_without_failing(self):
+        """build_ocr_lemmas already running (e.g. admin-triggered): the tick must end quietly,
+        not run Tier A on images without lemma coverage, and not fail the driver run."""
+        import batch.ingest_auto_prep as module
+
+        steps = _patched_steps(
+            module,
+            build_ocr_lemmas=AsyncMock(side_effect=BatchAlreadyRunningError("build_ocr_lemmas")),
+        )
+
+        with patch.object(module.settings, "BASE_PATH", "/fake/base"):
+            await module._run_prep_chain()  # must not raise
+
+        steps["extract_text_from_memes"].assert_awaited_once()
+        steps["classify_text_heavy"].assert_not_awaited()
+        steps["ingest_find_duplicates"].assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_runtime_error_from_hash_dedup_propagates(self):

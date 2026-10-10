@@ -1,3 +1,8 @@
+"""
+One-off cleanup: deletes duplicate rows from ocr_texts (OCRTextRepository.delete_duplicate_texts) and
+prints how many were removed. No --env flag: it relies on the environment already set up in the shell. Manual only,
+not run-tracked.
+"""
 import asyncio
 
 from Storage.db import AsyncSessionLocal

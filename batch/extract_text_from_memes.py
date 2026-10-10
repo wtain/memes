@@ -1,3 +1,10 @@
+"""
+OCR: reads each image in BASE_PATH through a pipeline of EasyOCR (with preprocessing variants and
+Tesseract/TrOCR fallbacks) and stores the text in ocr_texts, committing in batches. Files not yet registered are
+auto-registered only in the default active mode. --status {pending,active,all} selects the images (ingestion runs it
+with pending). Run-tracked (kind extract_text_from_memes); admin-triggerable, manual only. For a full re-run use
+batch.reset_ocr_status first; never clear ocr_texts.
+"""
 import argparse
 import os
 import sys
@@ -15,10 +22,12 @@ from concurrent.futures import ThreadPoolExecutor
 from easyocr import easyocr
 
 import time
+import uuid
 
 from batch.ocr_preprocess import generate_variants, merge_results
 from batch.trocr_fallback import TrOCRFallback
 from batch.tesseract_reader import TesseractReader, is_available as tesseract_available
+from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.batch_commit import BatchCommitter
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
@@ -236,10 +245,23 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10, target
     metrics_listener.print()
 
 
-async def main(path: str, target_status: str = "active") -> None:
+async def _process(path: str, target_status: str) -> None:
     batch_size = settings.GENERAL.BATCH_SIZE
     progress_every = settings.GENERAL.PROGRESS_EVERY
     await run(path, batch_size=batch_size, progress_every=progress_every, target_status=target_status)
+
+
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None,
+               path: str | None = None, target_status: str = "active") -> None:
+    # path defaults to settings.BASE_PATH so the wrapper (scheduler/admin), which passes no
+    # arguments beyond trigger/run_id, scans the same directory the CLI does.
+    resolved_path = path if path is not None else settings.BASE_PATH
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process(resolved_path, target_status)
+    else:
+        async with tracked_run(kind="extract_text_from_memes", trigger=trigger):
+            await _process(resolved_path, target_status)
 
 
 """
@@ -259,4 +281,4 @@ if __name__ == "__main__":
     load_env(args.env)
     source_path = settings.BASE_PATH
     print(f"Base path: {source_path}")
-    asyncio.run(main(source_path, target_status=args.status))
+    asyncio.run(main(path=source_path, target_status=args.status))

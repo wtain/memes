@@ -1,3 +1,10 @@
+"""
+Builds tmp_clusters from tmp_duplicates: deletes every existing cluster row, then union-finds the
+candidate pairs (CLIP pairs below PROXIMITY_THRESHOLD, OCR-text pairs below PROXIMITY_THRESHOLD_OCR_TEXT) and, when
+clustering.splitting.enabled, splits oversized clusters with resolve_cluster. Members left without an edge are not
+written as size-1 clusters. Run-tracked (kind clusterize); admin-triggerable, manual only; run automatically after
+rebuild_duplicates. See docs/superpowers/specs/2026-09-20-clusterize-oversized-cluster-data-loss.md.
+"""
 import asyncio
 import uuid
 from collections import defaultdict

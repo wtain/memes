@@ -179,8 +179,10 @@ mark-and-move cleanup, ...). Update `inventory.md` too when you add a script or 
 registry or scheduler status.
 
 ```
-extract_text_from_memes    → registers images + EasyOCR (EN/ES/RU)
-build_image_embeddings     → CLIP 512-dim vectors
+extract_text_from_memes    → registers images + EasyOCR (EN/ES/RU). Run-tracked and admin-triggerable
+                              from /admin/batches (always --status active there), manual-trigger only
+build_image_embeddings     → CLIP 512-dim vectors. Run-tracked and admin-triggerable (always incremental,
+                              --status active there; a full rebuild stays shell-only), manual-trigger only
 rebuild_duplicates         → near-duplicate candidate pairs; HNSW-assisted KNN, not a full cross
                               join — see
                               docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.

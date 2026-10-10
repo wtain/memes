@@ -1,3 +1,9 @@
+"""
+Rule-based tags from OCR text with ConceptTagger, source "OCR". Texts failing the OCR confidence or
+language-plausibility filters are skipped. --incremental processes only images with no OCR tags yet; a full run
+deletes every OCR tag first. Run-tracked (kind build_tags_from_ocr); main() defaults to incremental; admin-triggerable,
+manual only; needs the tagging YAML of the environment profile (not available for it).
+"""
 import argparse
 import asyncio
 import uuid

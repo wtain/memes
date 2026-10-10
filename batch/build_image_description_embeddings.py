@@ -1,3 +1,8 @@
+"""
+SBERT embeddings (BAAI/bge-large-en-v1.5), one per Ollama description that has none. Used only by
+/similar?source=description. --reset deletes all description embeddings first. Run-tracked (kind
+build_image_description_embeddings, stats descriptions_embedded); admin-triggerable, manual only.
+"""
 import argparse
 import asyncio
 import uuid

@@ -1,11 +1,19 @@
+"""
+CLIP image embeddings (512-dim) into the embeddings table. --incremental embeds only images with no
+embedding; without it the in-scope embeddings are deleted and rebuilt. --status {pending,active,all} selects the
+images (ingestion runs it with pending). Run-tracked (kind build_image_embeddings); main() defaults to incremental
+and active so a scheduled or admin run never wipes embeddings. Admin-triggerable, manual only.
+"""
 import argparse
 import asyncio
 import os
+import uuid
 
 from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count
 
 from ai.clip import ClipModel
+from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
 from embeddingutils.image import load_image
@@ -16,7 +24,7 @@ from Storage.models import Embedding
 from Storage.models import Image as Img
 
 
-async def main(incremental: bool, target_status: str = "active"):
+async def _process(incremental: bool, target_status: str = "active") -> None:
 
     status_filter = () if target_status == "all" else (Img.status == target_status,)
 
@@ -85,6 +93,18 @@ async def main(incremental: bool, target_status: str = "active"):
         metrics.print()
 
 
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None,
+               incremental: bool = True, target_status: str = "active") -> None:
+    # incremental defaults to True: a scheduled or admin-triggered run (which cannot pass flags) must
+    # never silently delete and rebuild every embedding. The CLI passes its own --incremental value.
+    if run_id is not None:
+        async with finish_existing_run(run_id):
+            await _process(incremental, target_status)
+    else:
+        async with tracked_run(kind="build_image_embeddings", trigger=trigger):
+            await _process(incremental, target_status)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
@@ -95,4 +115,4 @@ if __name__ == "__main__":
                              "Ingestion's own duplicate-review stage calls this with --status pending.")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(args.incremental, target_status=args.status))
+    asyncio.run(main(incremental=args.incremental, target_status=args.status))

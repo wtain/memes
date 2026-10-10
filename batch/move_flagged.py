@@ -1,3 +1,8 @@
+"""
+Moves every image flagged in ImageExtras to BASE_PATH/excluded (renaming instead of overwriting; missing
+files are counted and skipped). Run-tracked (kind move_flagged); unless chain=False (--no-chain) it then runs
+unregister_deleted_images, which in turn runs remove_singletons. Admin-triggerable, manual only.
+"""
 import argparse
 import asyncio
 import os

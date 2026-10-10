@@ -1,3 +1,8 @@
+"""
+Lemma index of human description notes for smart search: (re)indexes notes that have no lemmas
+yet or were edited since, then marks them built. Run-tracked (kind build_description_note_lemmas); admin-triggerable,
+manual only. See docs/superpowers/specs/2026-08-20-description-notes-design.md.
+"""
 import argparse
 import asyncio
 import uuid

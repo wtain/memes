@@ -1,3 +1,8 @@
+"""
+SBERT embeddings (BAAI/bge-large-en-v1.5) of human description notes, for notes that have none
+or were edited since their embedding. Feeds /similar?source=description_note and description_all. Run-tracked (kind
+build_description_note_embeddings); admin-triggerable, manual only.
+"""
 import argparse
 import asyncio
 import uuid

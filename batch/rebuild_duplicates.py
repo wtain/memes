@@ -1,3 +1,10 @@
+"""
+Near-duplicate candidates for the active library into the persistent tmp_duplicates table (ON
+CONFLICT DO NOTHING), via HNSW-assisted per-image KNN. Three probes: general CLIP (incremental), a CLIP safety net for
+text-heavy pairs (never incremental), and OCR-text embeddings with a lemma-overlap check. --full clears active-library
+pairs first. Run-tracked (kind rebuild_duplicates); unless chain=False (--no-chain) it then runs clusterize.
+Admin-triggerable, manual only. See docs/batches/use-cases/duplicates-and-clusters.md.
+"""
 import argparse
 import asyncio
 import uuid

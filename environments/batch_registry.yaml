@@ -82,3 +82,9 @@ build_meme_profile_embeddings:
 fix_image_formats:
   module: batch.fix_image_formats
   kind: fix_image_formats
+build_image_embeddings:
+  module: batch.build_image_embeddings
+  kind: build_image_embeddings
+extract_text_from_memes:
+  module: batch.extract_text_from_memes
+  kind: extract_text_from_memes

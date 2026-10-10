@@ -1,3 +1,9 @@
+"""
+Concept discovery step 2: embeds the lemmas from build_bow output (all lemmas, or only the unmatched
+ones, per lemma_clustering.text_scope) with a sentence model, clusters them per language with HDBSCAN, optionally
+names each cluster via Ollama, and writes a YAML file for draft_concepts_from_clusters. Most settings can be
+overridden on the command line. Manual only, not run-tracked. See docs/batches/use-cases/concept-discovery.md.
+"""
 import argparse
 import asyncio
 import json

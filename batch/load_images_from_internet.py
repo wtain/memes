@@ -1,3 +1,7 @@
+"""
+Ad hoc image download through SerpAPI (needs SERP_API_KEY): the concepts and queries are hardcoded
+in main(), and results are saved under images/<concept>/<query>/. Manual only, not run-tracked.
+"""
 import argparse
 import asyncio
 

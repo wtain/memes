@@ -1,3 +1,8 @@
+"""
+Deletes the database rows of images whose files no longer exist in BASE_PATH (cascades clean up
+dependent rows). Run-tracked (kind unregister_deleted_images); unless chain=False (--no-chain) it then runs
+remove_singletons (no run row of its own). Admin-triggerable, manual only; run automatically after move_flagged.
+"""
 import argparse
 import asyncio
 import os

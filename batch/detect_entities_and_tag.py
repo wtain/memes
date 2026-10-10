@@ -1,3 +1,8 @@
+"""
+YOLOv8 animal/object detection over the images, source "YOLO": deletes every YOLO tag, then tags
+each image with the detected animals ("animal") and objects ("object"), skipping unsupported file extensions. A
+failing image is logged and skipped. Run-tracked (kind detect_entities_and_tag); admin-triggerable, manual only.
+"""
 import argparse
 import asyncio
 import os

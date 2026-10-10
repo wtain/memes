@@ -1,3 +1,11 @@
+"""
+Builds the bag of words used for concept discovery. Counts lemmas over OCR text (per language, after
+the OCR confidence and language-plausibility filters) or over Ollama descriptions, depending on
+bow.text_source; drops lemmas below bow.min_frequency and those in bow.ignore_file; writes the counts to
+bow.output_file and the lemmas not yet covered by the current rules/concepts file (rules.file) to
+bow.unmatched_file, which build_lemma_clusters reads. Edits to the ignore file only take effect on the next run.
+Run-tracked (kind build_bow); admin-triggerable, manual only. See docs/batches/use-cases/concept-discovery.md.
+"""
 import argparse
 import asyncio
 import json

@@ -1,3 +1,7 @@
+"""
+Deletes tmp_clusters rows of clusters that have a single member left. Not run-tracked; run
+automatically by unregister_deleted_images (unless --no-chain) and usable on its own.
+"""
 import argparse
 import asyncio
 

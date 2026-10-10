@@ -1,3 +1,9 @@
+"""
+Byte-level duplicate detection: backfills missing content_hash values (SHA-256), groups identical
+hashes, verifies the files really are identical, keeps the oldest image of each group and flags the others
+(ImageExtras.flagged). A group that already has a flagged member is treated as reviewed and skipped. Follow with
+move_flagged. Manual only, not run-tracked.
+"""
 import argparse
 import asyncio
 import os

@@ -1,3 +1,8 @@
+"""
+Concept discovery step 3: takes the top N clusters from the build_lemma_clusters YAML whose top
+lemma is not already covered, and appends draft entries to concepts.<env>.yaml and tags.<env>.yaml for human review
+(never overwrites existing keys). Manual only, not run-tracked. See docs/batches/use-cases/concept-discovery.md.
+"""
 import argparse
 import os
 import re

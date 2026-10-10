@@ -1,3 +1,10 @@
+"""
+Builds the concept embeddings used by CONCEPT tagging: CLIP embeddings for the text concepts
+(CONCEPTS.TEXT_CONCEPTS_FILE, expanded through CONCEPTS.TEXT_CONCEPTS_TEMPLATES_FILE) and for the concept image
+sets under CONCEPTS.IMAGES_DIR, stored through ConceptsRepository. Run-tracked (kind
+build_concept_embeddings); unless chain=False (--no-chain) it then runs tag_images_from_concepts. Admin-triggerable,
+manual only.
+"""
 import argparse
 import asyncio
 import csv

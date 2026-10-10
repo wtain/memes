@@ -1,3 +1,8 @@
+"""
+Moves files in BASE_PATH that are not registered as images but are byte-identical (SHA-256, then a
+content comparison) to a file in --reference-dir into BASE_PATH/possible_duplicates. --dry-run only reports. Manual
+only, not run-tracked.
+"""
 import argparse
 import asyncio
 import os

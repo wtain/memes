@@ -1,3 +1,9 @@
+"""
+Per-image lemma index of OCR text, for smart search and for the corroboration check of OCR-text
+duplicate matching. --incremental skips images already indexed; a full run deletes the whole ocr_lemmas table, so
+--status pending requires --incremental. Run-tracked (kind build_ocr_lemmas); main() defaults to incremental, so
+admin and scheduled runs never rebuild everything. Admin-triggerable, manual only.
+"""
 import argparse
 import asyncio
 import uuid

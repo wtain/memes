@@ -1,3 +1,9 @@
+"""
+Lemma index of Ollama descriptions for smart search. Descriptions are English LLM output, so
+they are indexed as language "en" (stemmed like en-tagged OCR rows). Incremental by construction: only descriptions
+without lemmas yet are processed. Run-tracked (kind build_description_lemmas); admin-triggerable, manual only.
+See docs/superpowers/specs/2026-10-01-description-notes-search-similarity-tagging-design.md.
+"""
 import argparse
 import asyncio
 import uuid
