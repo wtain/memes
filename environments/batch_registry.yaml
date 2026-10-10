@@ -79,3 +79,6 @@ build_meme_profiles:
 build_meme_profile_embeddings:
   module: batch.build_meme_profile_embeddings
   kind: build_meme_profile_embeddings
+fix_image_formats:
+  module: batch.fix_image_formats
+  kind: fix_image_formats

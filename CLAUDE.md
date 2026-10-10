@@ -171,6 +171,13 @@ Keep this list in sync: when you add a new batch script under `batch/`, or
 materially change an existing one's CLI/config surface, update its entry
 here in the same change.
 
+`docs/batches/` is the map of all batch jobs: `inventory.md` (every script, with its
+tracked kind and whether it is admin-triggerable or scheduled, per environment),
+`execution-model.md` (wrapper, registry, scheduler, locks, chaining) and `use-cases/`
+(diagrams of the execution order for ingestion, tagging, descriptions, duplicates,
+mark-and-move cleanup, ...). Update `inventory.md` too when you add a script or change its
+registry or scheduler status.
+
 ```
 extract_text_from_memes    → registers images + EasyOCR (EN/ES/RU)
 build_image_embeddings     → CLIP 512-dim vectors
@@ -303,7 +310,9 @@ description_pipeline      → one admin-triggerable driver (manual-trigger only,
                               already-running child is skipped, not failed. Excludes tag_images_from_concepts,
                               detect_entities_and_tag and concept drafting. See
                               docs/superpowers/specs/2026-10-01-description-tagging-pipeline-driver-design.md.
-build_concept_embeddings   → concept CLIP embeddings + mappings
+build_concept_embeddings   → concept CLIP embeddings + mappings; also runs tag_images_from_concepts
+                              automatically afterward (--no-chain skips this); both are
+                              admin-triggerable, manual-trigger only, not scheduled
 
 # Maintenance (run as needed)
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
@@ -317,7 +326,9 @@ unregister_deleted_images   → also runs remove_singletons automatically afterw
                                single member; --no-chain skips this.
 fix_image_formats           → retroactively applies ingest_validate_formats' fix logic to
                                the existing corpus (default --status active); safe to
-                               re-run, already-fixed images are no-ops. Also the only path that
+                               re-run, already-fixed images are no-ops. Admin-triggerable from
+                               /admin/batches (manual-trigger only, not scheduled; always the
+                               default --status active there). Also the only path that
                                backfills Image.width/height (see
                                docs/superpowers/specs/2026-09-14-image-dimension-capture.md) --
                                images registered directly via extract_text_from_memes.py's

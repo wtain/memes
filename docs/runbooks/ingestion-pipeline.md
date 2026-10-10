@@ -274,3 +274,8 @@ serialized via a Postgres advisory lock, so a second operator's simultaneous re-
 gets a clear "try again shortly" error rather than racing on `PATH_INGESTION_SOURCE`'s
 filesystem state — but this lock doesn't cover `ingest_promote.py`/`ingest_abort.py`, so
 avoid running either of those concurrently with an `ingest_hash_dedup.py` re-join.
+
+When using the `ingest_auto_prep` job, also don't start `build_ocr_lemmas`, `classify_text_heavy` or
+`build_ocr_text_embeddings` (each is separately admin-triggerable) while it is in flight: those three write their own
+run rows, and if one of them is already running the driver fails with `BatchAlreadyRunningError` instead of skipping
+it. See `docs/batches/execution-model.md`.
