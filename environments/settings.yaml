@@ -167,6 +167,8 @@ scheduler:
     # deliberately NOT scheduled -- manual trigger only, via the /admin/batches UI. See
     # docs/batches/inventory.md for the full list and
     # docs/superpowers/specs/2026-08-14-batch-scheduling-rollout-design.md.
+    # Exception: settings.general.yaml additionally schedules export_ratings (daily) and
+    # import_judgments (weekly), which are meaningful on general only.
 
 taxonomy:
   embedding_model: bge-large   # chosen in P1 (spec 2026-10-02-p1-taxonomy-and-data-model-design.md, decision 6)

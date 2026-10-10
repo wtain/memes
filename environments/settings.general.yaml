@@ -4,6 +4,20 @@ general:
 
 scheduler:
   enabled: true
+  # Appended to the common scheduler.jobs list in settings.yaml (Dynaconf merge); general only.
+  jobs:
+    - name: export_ratings
+      script: export_ratings
+      batch_run_kind: export_ratings
+      interval_minutes: 1440
+      max_runtime_minutes: 10
+      enabled: true
+    - name: import_judgments
+      script: import_judgments
+      batch_run_kind: import_judgments
+      interval_minutes: 10080
+      max_runtime_minutes: 10
+      enabled: true
 
 rules:
   file: data/rules.general.json

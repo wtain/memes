@@ -88,3 +88,9 @@ build_image_embeddings:
 extract_text_from_memes:
   module: batch.extract_text_from_memes
   kind: extract_text_from_memes
+export_ratings:
+  module: batch.export_ratings
+  kind: export_ratings
+import_judgments:
+  module: batch.import_judgments
+  kind: import_judgments
