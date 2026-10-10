@@ -14,9 +14,9 @@ from datetime import date as date_class
 from pathlib import Path
 
 from evaluation.gold import (
-    GoldError, Judgment, dump_json, file_sha256, judgments_by_query, load_corpus, load_judgments, load_queries,
-    merge_judgments, parse_export, save_corpus, save_judgments, Corpus,
+    GoldError, file_sha256, judgments_by_query, load_corpus, load_judgments, load_queries, save_corpus, Corpus,
 )
+from evaluation.ratings_job import check_environment, export_ratings, import_judgment_files, prepare_output_dir
 from evaluation.report import (
     CompareError, compare_baselines, format_report, git_commit, load_baseline, make_baseline, pooling_bias,
     save_baseline,
@@ -66,14 +66,6 @@ def _error(message: str) -> int:
     return 1
 
 
-def check_environment(app_env: str | None, corpus_environment: str) -> str | None:
-    """A refusal message when the shell's APP_ENV names a different environment than the corpus was frozen for."""
-    if app_env and app_env != corpus_environment:
-        return (f"APP_ENV is {app_env!r} but the corpus was built for {corpus_environment!r}; scoring a different "
-                "database than the one the gold data was judged against is meaningless")
-    return None
-
-
 def resolve_corpus_paths(gold: Path, out: str | None, ids_file: str | None) -> tuple[Path, Path]:
     return (Path(out) if out else gold / "corpus.json"), (Path(ids_file) if ids_file else DEFAULT_WORK / "corpus.ids")
 
@@ -92,20 +84,9 @@ def _baseline_path(gold: Path, label_or_path: str) -> Path:
 # ------------------------------------------------------------------ commands without a database
 
 def cmd_import_judgments(args, gold: Path) -> int:
-    queries = load_queries(gold / "queries.json")
-    corpus = load_corpus(gold / "corpus.json")
-    existing = load_judgments(gold / "judgments.json")
-    incoming: list[Judgment] = []
-    import json
-    for name in args.files:
-        with open(name, encoding="utf-8") as handle:
-            data = json.load(handle)
-        incoming.extend(parse_export(data, valid_query_ids={q.id for q in queries},
-                                     valid_image_ids=set(corpus.image_ids())))
-    result = merge_judgments(existing, incoming)
-    save_judgments(result.merged, gold / "judgments.json")
-    print(f"added {result.added}, overwritten {result.overwritten}, unchanged {result.unchanged}; "
-          f"{len(result.merged)} judgments in total")
+    stats = import_judgment_files([Path(name) for name in args.files], gold, allow_overwrite=True)
+    print(f"added {stats['added']}, overwritten {stats['overwritten']}, unchanged {stats['unchanged']}; "
+          f"{stats['total']} judgments in total")
     return 0
 
 
@@ -493,18 +474,6 @@ async def cmd_tune_weights(args, gold: Path) -> int:
     return 0
 
 
-def prepare_output_dir(out: Path, force: bool) -> str | None:
-    """A refusal message when `out` holds files and force is off; with force, deletes only the files an earlier
-    export owns (stale judgments-<lang>.json would otherwise be re-imported over newer judgments)."""
-    if out.exists() and any(out.iterdir()):
-        if not force:
-            return f"{out} already contains an export (use --force to replace it)"
-        for stale in [*out.glob("judgments-*.json"), out / "candidate-queries.json", out / "summary.json"]:
-            if stale.is_file():
-                stale.unlink()
-    return None
-
-
 async def cmd_export_ratings(args, gold: Path) -> int:
     """Turn the owner's ratings into review files (never an automatic merge into the frozen gold set)."""
     require_readonly()
@@ -513,25 +482,14 @@ async def cmd_export_ratings(args, gold: Path) -> int:
     if refusal:
         return _error(refusal)
     from config.settings import settings
-    from evaluation.ratings_export import build_export
-    from repository.meme_text_ratings import MemeTextRatingRepository
     from Storage.db import AsyncSessionLocal
     max_chars = int(settings.get("parse.max_input_chars", 600))
     async with AsyncSessionLocal() as session:
-        ratings = await MemeTextRatingRepository(session).all_ratings()
-    result = build_export(ratings, load_queries(gold / "queries.json"), load_judgments(gold / "judgments.json"),
-                          set(load_corpus(gold / "corpus.json").image_ids()), max_chars=max_chars,
-                          round_number=args.round, today=date_class.today().isoformat())
-    out.mkdir(parents=True, exist_ok=True)
-    for language, data in result.judgments_by_language.items():
-        (out / f"judgments-{language}.json").write_text(dump_json(data), encoding="utf-8", newline="\n")
-    (out / "candidate-queries.json").write_text(dump_json(result.candidates), encoding="utf-8", newline="\n")
-    (out / "summary.json").write_text(dump_json(result.report), encoding="utf-8", newline="\n")
-    summary = result.report["summary"]
-    print(f"{summary['total']} ratings: {result.report['importable']} importable judgments in "
-          f"{len(result.judgments_by_language)} file(s), {len(result.report['alreadyJudged'])} already judged, "
-          f"{len(result.report['outsideCorpus'])} outside the corpus, {result.report['candidateMessages']} new "
-          f"message(s); wrote {out}")
+        stats = await export_ratings(session, gold, out, round_number=args.round, max_chars=max_chars,
+                                     today=date_class.today().isoformat())
+    print(f"{stats['ratings']} ratings: {stats['importable']} importable judgments in {stats['files']} file(s), "
+          f"{stats['already_judged']} already judged, {stats['outside_corpus']} outside the corpus, "
+          f"{stats['new_messages']} new message(s); wrote {out}")
     return 0
 
 
