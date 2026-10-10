@@ -1,7 +1,7 @@
 # Gaps and findings
 
 Status: draft (2026-10-10, B14 and the `general` schedule note added 2026-10-11). Observations made while reading the code against the existing documents.
-Nothing here was changed in code or in the older documents.
+The 2026-10-10 review changed nothing in code or in the older documents; B14 (2026-10-11) records the one later code change that touches a committed file.
 
 ## Resolved on 2026-10-10
 
@@ -38,7 +38,7 @@ Everything not listed here is still open; see the sections below. The original t
 | # | Finding | Impact |
 |---|---|---|
 | B1 | Admin and scheduler start jobs through `run_wrapper`, which calls `main(trigger, run_id)` only. No flags can be passed | `--full`, `--limit`, `--status`, `--retry-failed`, `--reset` are shell-only |
-| B2 | Orphan recovery (`started` older than `max_runtime_minutes` is failed) exists only inside the scheduler tick. A CLI or admin-started run that is killed leaves a `started` row that blocks its kind (HTTP 409 / `BatchAlreadyRunningError`) | For the 25 unscheduled kinds, the fix is manual: fail the row in `batch_runs`. No other recovery path was found |
+| B2 | Orphan recovery (`started` older than `max_runtime_minutes` is failed) exists only inside the scheduler tick. A CLI or admin-started run that is killed leaves a `started` row that blocks its kind (HTTP 409 / `BatchAlreadyRunningError`) | For the 28 unscheduled kinds, the fix is manual: fail the row in `batch_runs`. No other recovery path was found |
 | B3 | `GET /api/admin/batches/runs` lists only registry kinds | Runs of kind `ingestion` and `fix_image_formats` are not visible in the admin UI |
 | B4 | Run logs (`logs/<env>/<script>_<ts>.log`) are not linked to a `run_id` | Correlation is by script name and time |
 | B5 | `extract_text_from_memes` and `build_image_embeddings` are neither tracked nor in the registry | The two most expensive core steps have no run history, no admin trigger and no concurrency guard (two copies can run at once) |

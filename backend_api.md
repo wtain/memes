@@ -743,7 +743,7 @@ Trust model: like the rest of the API these endpoints are unauthenticated, and a
   - `reading` (string): `parsed` or `edited` (whether the results came from the parsed or an edited profile)
   - `parserVersion` (string, at most 128 characters), `taxonomyVersion` (integer, at least 0), `degraded` (boolean), `fallback` (string, at most 128 characters), `language` (`en`, `ru`, `es` or `other`): the search context, copied from the response
 - **Response** `200`: `RatingResponse` with `queryHash`, `imageId` and `grade`
-- **Behavior**: one rating per message and image; rating again replaces the grade and context (upsert). The message text is stored (normalised) only because a rating exists, and is never logged.
+- **Behavior**: one rating per message and image; rating again replaces the grade and context (upsert). The message text is stored (normalised) with the rating; it is never written to application logs or error bodies. It is also recorded in the query log (`GET /api/history?kind=meme_text`) for every fresh message, and both the rating text and the log rows are cleared by `DELETE /api/meme-from-text/ratings/text`.
 
 **List the grades of one message**
 

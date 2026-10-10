@@ -65,7 +65,7 @@ flowchart TD
 
 `DELETE /api/meme-from-text/ratings/text` clears the stored message text of a rating (the grades stay) and now also
 deletes the `search_history` rows of `kind = 'meme_text'` with the same `query_hash` (their tags cascade). The text is
-never written to application logs or error bodies.
+never written to application logs or error bodies. Caveat: every fresh message is logged, but the `/reply` page shows the Forget button only once a message has a rating (the API call works for any message hash).
 
 ## Operating notes
 

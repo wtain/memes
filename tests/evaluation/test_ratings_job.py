@@ -106,3 +106,20 @@ async def test_export_ratings_writes_files_and_reports_counts(tmp_path, monkeypa
     assert stats["round"] == 4 and stats["importable"] == 1 and stats["files"] == 1
     assert (out / "judgments-en.json").exists() and (out / "summary.json").exists()
     assert (out / "candidate-queries.json").exists()
+
+
+def test_a_failing_save_leaves_no_temporary_file_and_the_original_untouched(tmp_path, monkeypatch):
+    gold = _gold(tmp_path)
+    file = tmp_path / "judgments-en.json"
+    _export_file(file, ("q001", IMG, 2))
+    before = (gold / "judgments.json").read_bytes()
+
+    def failing_save(judgments, path):
+        path.write_text("partial")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(ratings_job, "save_judgments", failing_save)
+    with pytest.raises(OSError):
+        ratings_job.import_judgment_files([file], gold, allow_overwrite=False)
+    assert not (gold / "judgments.json.tmp").exists()
+    assert (gold / "judgments.json").read_bytes() == before

@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.add_column("search_history", sa.Column("query_hash", sa.String(64), nullable=True))
     op.add_column("search_history", sa.Column("situation", sa.Text(), nullable=True))
     op.add_column("search_history", sa.Column("degraded", sa.Boolean(), nullable=True))
-    op.add_column("search_history", sa.Column("fallback", sa.String(32), nullable=True))
+    op.add_column("search_history", sa.Column("fallback", sa.String(64), nullable=True))
     op.add_column("search_history", sa.Column("parse_ms", sa.Integer(), nullable=True))
     op.add_column("search_history", sa.Column("retrieval_ms", sa.Integer(), nullable=True))
     op.create_index("ix_search_history_kind_searched_at", "search_history",

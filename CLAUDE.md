@@ -429,7 +429,8 @@ parse (package parse/)       → the meme-from-text query parser (P3): turns a p
                                (degraded true, empty axes, meta.fallback unavailable | timeout | invalid_output |
                                empty_input), never cached; one retry only after an unusable answer and only if
                                parse.retry_min_seconds of the parse.timeout_seconds budget remain. The user's text is
-                               never written to the application logs (it is recorded in search_history, see ratings). Settings: parse.* in environments/settings*.yaml (parse.num_ctx must equal
+                               never written to the application logs. Settings: parse.* in
+                               environments/settings*.yaml (parse.num_ctx must equal
                                meme_profiles.num_ctx while both use the same model, otherwise Ollama reloads the model;
                                OLLAMA_HOST wins over parse.ollama_url; in Docker set it, 127.0.0.1 is the container).
                                The backend image needs parse/, taxonomy/ and batch/data/taxonomy (.dockerignore has
@@ -454,7 +455,8 @@ retrieval (package retrieval/) → the meme-from-text retrieval stage (P4): turn
                                `it` has no parser and answers `meta.available: false`). Never fails because a model
                                failed (degraded: unavailable, timeout, invalid_output, breaker_open, embed_unavailable;
                                lexical matching only runs in that case, lexical.only_when_degraded). The user's text is
-                               never written to the application logs (it is recorded in search_history, see ratings). Settings:
+                               never written to the application logs (the backend records it in search_history, see
+                               ratings). Settings:
                                search.meme_from_text.* (every key required, including query_log.enabled; weights from
                                `python -m evaluation tune-weights --parse-model M --label L`, which collects the
                                candidates once and runs coordinate ascent with cross-validation, then you commit the
@@ -474,11 +476,14 @@ ratings (P5b)                → the /reply page lets the owner rate each result
                                PUT/DELETE/GET /api/meme-from-text/ratings and DELETE .../ratings/text; the hash is
                                computed server-side by retrieval/query_hash.py (sha256 of the parser-normalised message)
                                and returned as meta.queryHash. The message text is never written to the application logs
-                               and never appears in an error body (Backend/app/error_handlers.py strips the echoed input of 422s under
-                               /api/meme-from-text). It is stored in search_history (kind meme_text, one row per fresh message:
-                               no cursor, edited profile or filters; best effort; switch search.meme_from_text.query_log.enabled;
-                               read with GET /api/history?kind=search|meme_text|all, default search) and, with a rating, in
-                               meme_text_ratings; "Forget text" (DELETE .../ratings/text) clears both (grades stay). Ratings and the log
+                               and never appears in an error body (Backend/app/error_handlers.py strips the echoed
+                               input of 422s under /api/meme-from-text). It is stored, normalised and capped at
+                               parse.max_input_chars, in search_history (kind meme_text, one row per fresh message:
+                               no cursor, edited profile or filters; best effort; switch
+                               search.meme_from_text.query_log.enabled; read with
+                               GET /api/history?kind=search|meme_text|all, default search) and, with a rating, in
+                               meme_text_ratings; "Forget text" (DELETE .../ratings/text) clears both (grades stay). Caveat: every fresh
+                               message is logged, but the Forget button shows only once a message has a rating (the API call works for any). Ratings and the log
                                never influence ranking. `python -m evaluation
                                export-ratings --round N` (read-only role) writes import-ready judgments-<lang>.json for
                                ratings of gold queries, candidate-queries.json (the only file with text, in the

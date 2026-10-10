@@ -70,7 +70,11 @@ def import_judgment_files(files: Sequence[Path], gold: Path, *, allow_overwrite:
         raise GoldError(f"the merge would overwrite {result.overwritten} existing judgment(s); nothing was written")
     target = gold / "judgments.json"
     temporary = gold / "judgments.json.tmp"
-    save_judgments(result.merged, temporary)
-    os.replace(temporary, target)
+    try:
+        save_judgments(result.merged, temporary)
+        os.replace(temporary, target)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
     return {"added": result.added, "overwritten": result.overwritten, "unchanged": result.unchanged,
             "total": len(result.merged)}

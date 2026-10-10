@@ -63,8 +63,8 @@ Page names below are the frontend routes (`router.tsx`). The batch admin page is
 | `DELETE /api/images/{image_id}/description-note` | Anyone can clear any image's note | `/memes/:id` |
 | `PUT /api/images/{image_id}/descriptions/{prompt_key}/approve` | Description feedback; changes which descriptions feed search and tags | `/memes/:id` |
 | `PUT /api/images/{image_id}/descriptions/{prompt_key}/reject` | Same, and deletes the image's Ollama tags | `/memes/:id` |
-| `PUT /api/images/meme/{image_id}/mark_flagged` | Flags an image; `move_flagged` later moves the file out of the library | meme cards and `/memes/:id` |
-| `PUT /api/images/meme/{image_id}/unmark_flagged` | Reverses a flag | meme cards and `/memes/:id` |
+| `PUT /api/images/meme/{image_id}/mark_flagged` | Flags an image; `move_flagged` later moves the file out of the library | meme cards (the Flagged checkbox), the `/memes/:id` toggle and `/duplicates` (flags the losers of a resolved cluster) |
+| `PUT /api/images/meme/{image_id}/unmark_flagged` | Reverses a flag | meme cards, the `/memes/:id` toggle and `/duplicates` (undo) |
 | `POST /api/images/duplicates/clusters/{cluster_id}/dismiss` | Records duplicate decisions that hide candidate pairs | `/duplicates` |
 | `POST /api/images/duplicates/pairs/undo-dismiss` | Reverses those decisions | `/duplicates` |
 | `GET /api/ingestion/run` | State of the intake run | `/ingestion` |
@@ -118,6 +118,8 @@ Closing the HTTP routes above does not close these:
   grades only.
 
 ## Open items
+
+- **Forget button for unrated messages.** Unrated messages are logged but the Forget button only appears once a message has a rating; the API call works for any message.
 
 - **Retention for `search_history`.** Nothing expires rows. The only controls are the manual
   "Forget text" action (one message at a time, meme-from-text rows only) and the

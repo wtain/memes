@@ -113,6 +113,7 @@ async def test_a_fresh_message_is_recorded_with_parse_and_outcome():
     service, _ = _service(pipeline)
     recorder = AsyncMock()
     service.history_recorder = recorder
+    service.max_chars = 600
     await service.search(Request.model_validate({"text": "boss moved the deadline"}), user_agent="okhttp/4.12")
     recorder.assert_awaited_once_with(
         kind="meme_text", query="boss moved the deadline", client="android", result_count=1,
@@ -126,6 +127,7 @@ async def test_pages_edits_and_filters_are_not_recorded():
     service, _ = _service(pipeline)
     recorder = AsyncMock()
     service.history_recorder = recorder
+    service.max_chars = 600
     await service.search(Request.model_validate({"text": "x", "cursor": "abc"}))
     await service.search(Request.model_validate({"text": "x", "profile": PROFILE}))
     await service.search(Request.model_validate({"text": "x", "filters": {"emotion": ["joy"]}}))
@@ -138,6 +140,7 @@ async def test_a_degraded_search_records_the_fallback_reason():
     service, _ = _service(pipeline)
     recorder = AsyncMock()
     service.history_recorder = recorder
+    service.max_chars = 600
     await service.search(Request.model_validate({"text": "x"}))
     assert recorder.await_args.kwargs["degraded"] is True and recorder.await_args.kwargs["fallback"] == "timeout"
 
@@ -147,6 +150,7 @@ async def test_a_failing_recorder_never_fails_the_search():
     pipeline.search = AsyncMock(return_value=_result([_item()]))
     service, _ = _service(pipeline)
     service.history_recorder = AsyncMock(side_effect=RuntimeError("boom"))
+    service.max_chars = 600
     response = await service.search(Request.model_validate({"text": "x"}))
     assert response.items
 
@@ -163,5 +167,26 @@ async def test_the_unavailable_answer_is_not_recorded():
     service, _ = _service(None)
     recorder = AsyncMock()
     service.history_recorder = recorder
+    service.max_chars = 600
     await service.search(Request.model_validate({"text": "x"}))
     recorder.assert_not_awaited()
+
+
+async def test_the_recorded_query_is_normalised_and_capped():
+    from retrieval.query_hash import normalised_query
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item()]))
+    service, _ = _service(pipeline)
+    recorder = AsyncMock()
+    service.history_recorder = recorder
+    service.max_chars = 50
+    text = "  boss   moved\n\tthe deadline  " +"again " * 40
+    await service.search(Request.model_validate({"text": text}))
+    recorded = recorder.await_args.kwargs["query"]
+    assert recorded == normalised_query(text, 50)
+    assert len(recorded) <= 50 and "  " not in recorded
+
+
+def test_a_recorder_without_a_cap_is_rejected():
+    with pytest.raises(ValueError):
+        MemeFromTextService(None, MagicMock(), MagicMock(), AsyncMock())

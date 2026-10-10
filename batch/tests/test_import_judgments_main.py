@@ -104,5 +104,7 @@ async def test_process_fails_rather_than_overwrite(tmp_path, monkeypatch):
     export.mkdir()
     _export_file(export / "judgments-en.json", ("q001", IMG, 2))
     monkeypatch.setenv("APP_ENV", "general")
+    before = (gold / "judgments.json").read_bytes()
     with pytest.raises(GoldError):
         await module._process(gold=gold, export_dir=export)
+    assert (gold / "judgments.json").read_bytes() == before

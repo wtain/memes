@@ -28,3 +28,11 @@ async def test_the_fields_reach_the_repository():
 async def test_a_failing_write_is_swallowed():
     with patch.object(history_recorder, "AsyncSessionLocal", side_effect=RuntimeError("db down")):
         await history_recorder.record_history(query="q", client="web", result_count=0, tags=[])
+
+
+async def test_a_failing_write_logs_the_error_type_but_never_the_fields(caplog):
+    import logging
+    with caplog.at_level(logging.WARNING, logger=history_recorder.logger.name),          patch.object(history_recorder, "AsyncSessionLocal", side_effect=RuntimeError("SECRET-QUERY db down")):
+        await history_recorder.record_history(query="SECRET-QUERY", client="web", result_count=0, tags=[])
+    assert "history write failed: RuntimeError" in caplog.text
+    assert "SECRET-QUERY" not in caplog.text

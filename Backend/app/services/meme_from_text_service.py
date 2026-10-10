@@ -7,6 +7,7 @@ from parse.language import guess_language
 from parse.parser import normalise_text
 from parse.prompt import PARSER_VERSION
 from retrieval.model import Filters
+from retrieval.query_hash import normalised_query
 from retrieval.pipeline import MemeFromTextPipeline, SearchRequest
 from retrieval.tools import facets_list, result_item_dict
 from taxonomy.loader import load
@@ -44,12 +45,12 @@ def _is_fresh_message(request: MemeFromTextRequest) -> bool:
     return not request.cursor and request.profile is None and not _has_filters(request.filters)
 
 
-def _history_fields(request: MemeFromTextRequest, result, item_count: int, user_agent: str) -> dict:
+def _history_fields(request: MemeFromTextRequest, result, item_count: int, user_agent: str, max_chars: int) -> dict:
     profile = result.profile or {}
     meta = result.meta or {}
     return {
         "kind": "meme_text",
-        "query": request.text,
+        "query": normalised_query(request.text, max_chars),
         "client": "android" if "okhttp" in user_agent.lower() else "web",
         "result_count": item_count,
         "tags": [(axis, entry["key"]) for axis in AXES for entry in profile.get(axis) or []],
@@ -65,8 +66,11 @@ def _history_fields(request: MemeFromTextRequest, result, item_count: int, user_
 
 class MemeFromTextService:
     def __init__(self, pipeline: Optional[MemeFromTextPipeline], retrieval_repository, image_repository,
-                 history_recorder=None):
+                 history_recorder=None, max_chars: Optional[int] = None):
+        if history_recorder is not None and max_chars is None:
+            raise ValueError("max_chars is required when a history recorder is set")
         self.history_recorder = history_recorder
+        self.max_chars = max_chars
         self.pipeline = pipeline
         self.retrieval_repository = retrieval_repository
         self.image_repository = image_repository
@@ -84,7 +88,7 @@ class MemeFromTextService:
         await self._hydrate(items)
         if self.history_recorder is not None and _is_fresh_message(request):
             try:
-                await self.history_recorder(**_history_fields(request, result, len(items), user_agent))
+                await self.history_recorder(**_history_fields(request, result, len(items), user_agent, self.max_chars))
             except Exception:
                 pass
         payload = {

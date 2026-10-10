@@ -582,7 +582,7 @@ class SearchHistory(Base):
     query_hash = Column(String(64), nullable=True)
     situation = Column(Text, nullable=True)
     degraded = Column(Boolean, nullable=True)
-    fallback = Column(String(32), nullable=True)
+    fallback = Column(String(64), nullable=True)
     parse_ms = Column(Integer, nullable=True)
     retrieval_ms = Column(Integer, nullable=True)
 

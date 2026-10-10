@@ -87,3 +87,37 @@ def test_an_unexpected_error_is_a_generic_500_that_never_contains_the_text(clien
     assert response.status_code == 500
     assert "SECRET-MESSAGE" not in response.text and "SECRET-MESSAGE" not in caplog.text
     assert any("RuntimeError" in record.getMessage() for record in caplog.records)
+
+
+async def test_the_real_dependency_binds_the_history_repository_to_the_same_session():
+    from unittest.mock import MagicMock
+    from Backend.app.repositories.history_repository import HistoryRepository
+    session = MagicMock()
+    generator = get_rating_service(session)
+    service = await generator.__anext__()
+    assert isinstance(service.history_repository, HistoryRepository)
+    assert service.history_repository.session is session
+    assert service.repository.session is session
+    await generator.aclose()
+
+
+def test_forget_text_deletes_the_rating_text_and_the_query_log_rows():
+    from unittest.mock import MagicMock
+    from sqlalchemy.dialects import postgresql
+    from Storage.db import get_async_db
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=MagicMock(rowcount=1))
+
+    async def override():
+        yield session
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    app.dependency_overrides[get_async_db] = override
+    response = TestClient(app).delete(f"/api/meme-from-text/ratings/text?queryHash={HASH}")
+    assert response.status_code == 204
+    statements = [str(call.args[0].compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+                  for call in session.execute.await_args_list]
+    assert any(s.startswith("UPDATE meme_text_ratings") and "query_text" in s for s in statements)
+    deletes = [s for s in statements if s.startswith("DELETE FROM search_history")]
+    assert len(deletes) == 1 and "'meme_text'" in deletes[0] and HASH in deletes[0]

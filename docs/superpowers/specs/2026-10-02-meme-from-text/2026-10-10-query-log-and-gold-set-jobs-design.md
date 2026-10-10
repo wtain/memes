@@ -147,9 +147,11 @@ Built as specified, in six tasks (plan above):
 
 Deviations and notes:
 
-- Summary counts: scheduled jobs went from 2 to 4 as planned, but the admin-only (manual) count stays 28, because both new jobs are scheduled and so count under "Scheduled (and admin)"; the registry grew from 30 to 32 entries.
+- Summary counts: scheduled jobs went from 2 to 4, but the admin-only (manual) count stays 28, because both new jobs are scheduled and so count under "Scheduled (and admin)"; the registry grew from 30 to 32 entries. The spec's "28 -> 30" was a miscount (the registry went 30 -> 32; manual-only stays 28).
 - The batch admin page is the frontend route `/admin` (the code), not `/admin/batches` as the older docs write.
 - The scheduled import changes a committed file; this is recorded as finding B14 in `docs/batches/gaps-and-findings.md` with the process (review, commit, record a new baseline).
 
-Handoff: run `alembic upgrade head` from `Storage/` on metal, general and it, then restart the three backends. The first scheduled export on `general` appears after the next backend start plus one interval (the first tick waits out the interval); the first import one week after that. No frontend change.
+Handoff: run `alembic upgrade head` from `Storage/` on metal, general and it BEFORE merging to main (the migration is additive, so it is safe ahead of the code; the three always-on backends run with `--reload` on `Backend/app`, so merging first would reload them with the new ORM columns before the migration exists, and `GET /api/history` would fail, the logs would silently stop and "Forget text" would fail), then restart the three backends. The first scheduled export on `general` appears after the next backend start plus one interval (the first tick waits out the interval); the first import one week after that. No frontend change.
+
+Open items (follow-ups, not done here): extend `shared/schemas/searchhistoryitem.schema.json` with the new log fields and regenerate the TypeScript, Kotlin and Python types; unrated messages are logged but the Forget button only appears once a message has a rating (the API call works for any message); the export job empties `current/` before its database read (self-heals on the next daily run).
 

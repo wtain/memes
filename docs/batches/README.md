@@ -16,7 +16,7 @@ these jobs pre-computed. This folder is the map of those jobs.
 | [use-cases/duplicates-and-clusters.md](use-cases/duplicates-and-clusters.md) | Near-duplicate candidates, clustering, the text-heavy classifier and OCR-text probe |
 | [use-cases/maintenance-and-cleanup.md](use-cases/maintenance-and-cleanup.md) | Flag/move/unregister, format fixes, resets, backfills |
 | [use-cases/concept-discovery.md](use-cases/concept-discovery.md) | Human-in-the-loop vocabulary growth (`build_bow` to drafted concepts) |
-| [use-cases/trends-and-statistics.md](use-cases/trends-and-statistics.md) | The two scheduled jobs |
+| [use-cases/trends-and-statistics.md](use-cases/trends-and-statistics.md) | The two jobs scheduled on every environment |
 | [use-cases/ratings-and-gold-set.md](use-cases/ratings-and-gold-set.md) | The `/reply` rating widget and query log, the two extra `general` jobs `export_ratings` and `import_judgments`, and how ratings reach the gold set |
 | [diagrams/](diagrams/README.md) | Graphviz execution-order diagrams (ingestion, mark-move cleanup, duplicates, tagging, descriptions, concept discovery, ratings and gold set, start paths) |
 | [gaps-and-findings.md](gaps-and-findings.md) | Things found while writing this: doc drift, undocumented behaviour, risks |

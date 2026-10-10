@@ -27,7 +27,8 @@ async def get_meme_from_text_service(
     db: AsyncSession = Depends(get_async_db),
 ) -> AsyncGenerator[MemeFromTextService, None]:
     recorder = record_history if settings.get("search.meme_from_text.query_log.enabled", False) else None
-    yield MemeFromTextService(get_pipeline(), MemeRetrievalRepository(db), ImageRepository(db), recorder)
+    yield MemeFromTextService(get_pipeline(), MemeRetrievalRepository(db), ImageRepository(db), recorder,
+                                 int(settings.get("parse.max_input_chars")))
 
 
 @router.post("/search", response_model=MemeFromTextResponse, response_model_exclude_none=True)
