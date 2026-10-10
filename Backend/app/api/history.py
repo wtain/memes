@@ -2,7 +2,7 @@ import base64
 import json
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -26,6 +26,14 @@ class SearchHistoryItemResponse(BaseModel):
     client: str
     resultCount: int
     tags: list[SearchHistoryTagResponse]
+    kind: str = "search"
+    language: Optional[str] = None
+    queryHash: Optional[str] = None
+    situation: Optional[str] = None
+    degraded: Optional[bool] = None
+    fallback: Optional[str] = None
+    parseMs: Optional[int] = None
+    retrievalMs: Optional[int] = None
 
 
 class SearchHistoryListResponse(BaseModel):
@@ -58,6 +66,7 @@ async def get_history(
     limit: int = Query(50, ge=1, le=200),
     cursor: Optional[str] = None,
     client: Optional[str] = None,
+    kind: Literal["search", "meme_text", "all"] = "search",
     repo: HistoryRepository = Depends(get_history_repo),
 ):
     cursor_searched_at, cursor_id = _decode_cursor(cursor)
@@ -66,6 +75,7 @@ async def get_history(
         cursor_searched_at=cursor_searched_at,
         cursor_id=cursor_id,
         client=client,
+        kind=kind,
     )
     has_next = len(rows) > limit
     rows = rows[:limit]
@@ -78,6 +88,14 @@ async def get_history(
             client=r.client,
             resultCount=r.result_count,
             tags=[SearchHistoryTagResponse(category=t.category, value=t.value) for t in r.tags],
+            kind=r.kind,
+            language=r.language,
+            queryHash=r.query_hash,
+            situation=r.situation,
+            degraded=r.degraded,
+            fallback=r.fallback,
+            parseMs=r.parse_ms,
+            retrievalMs=r.retrieval_ms,
         )
         for r in rows
     ]

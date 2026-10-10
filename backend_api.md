@@ -162,13 +162,23 @@ A single recorded search event.
   "query": "string | null",
   "client": "string",
   "resultCount": "number",
-  "tags": [SearchHistoryTag]
+  "tags": [SearchHistoryTag],
+  "kind": "string",
+  "language": "string | null",
+  "queryHash": "string | null",
+  "situation": "string | null",
+  "degraded": "boolean | null",
+  "fallback": "string | null",
+  "parseMs": "number | null",
+  "retrievalMs": "number | null"
 }
 ```
 
 - `query`: the text query, or `null` for tag-only searches
 - `client`: `"web"` or `"android"`, inferred from `User-Agent`
 - `resultCount`: number of items on the first page (≤ `limit`); `0` indicates no results
+- `kind`: `"search"` (a `GET /api/images` search) or `"meme_text"` (a meme-from-text search)
+- The remaining fields are optional and only filled for `meme_text` rows: `language` (detected language), `queryHash` (hash of the normalised message, the same value as `meta.queryHash` and the ratings `queryHash`), `situation` (the parsed English situation phrase), `degraded` / `fallback` (whether the parse fell back and why), `parseMs` / `retrievalMs` (stage timings in milliseconds)
 
 ### SearchHistoryResponse
 
@@ -752,7 +762,7 @@ Trust model: like the rest of the API these endpoints are unauthenticated, and a
 - **URL**: `/api/meme-from-text/ratings/text?queryHash=<hash>`
 - **Method**: `DELETE`
 - **Response** `204`
-- **Behavior**: erases the stored message text for every rating of that message; the grades, the hash and the image ids stay. Rating the same message again stores the text again.
+- **Behavior**: erases the stored message text for every rating of that message; the grades, the hash and the image ids stay. Rating the same message again stores the text again. It also deletes that message's rows from the query log (`GET /api/history?kind=meme_text`), matched by `queryHash`.
 
 **Error Responses** (all four calls):
   - `404`: unknown or inactive image (`PUT`), `{"detail": "image not found"}`
@@ -1018,6 +1028,9 @@ Returns a cursor-paginated list of recorded search events, newest first.
 | `limit`   | int    | 50      | Items per page (1–200) |
 | `cursor`  | string | —       | Pagination cursor from previous response |
 | `client`  | string | —       | Filter by client: `web` or `android` |
+| `kind`    | string | `search` | `search` (image searches only), `meme_text` or `all`; any other value is a `422` |
+
+`meme_text` rows hold the pasted message text (in `query`), its parse and the outcome of the search. The message text is therefore stored in the query log; it is removed per message by `DELETE /api/meme-from-text/ratings/text`. This endpoint is unauthenticated, like every endpoint of the backend (see `docs/security/admin-permissions-todo.md`).
 
 **Response** `200 OK` — `SearchHistoryResponse`:
 

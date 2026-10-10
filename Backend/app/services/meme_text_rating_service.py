@@ -32,8 +32,9 @@ def _hash(value: str) -> str:
 
 
 class MemeTextRatingService:
-    def __init__(self, repository, max_chars: int):
+    def __init__(self, repository, max_chars: int, history_repository=None):
         self.repository = repository
+        self.history_repository = history_repository
         self.max_chars = max_chars
 
     async def put(self, request: RatingRequest) -> RatingResponse:
@@ -64,4 +65,7 @@ class MemeTextRatingService:
             {"queryHash": digest, "ratings": [{"imageId": str(image_id), "grade": grade} for image_id, grade in grades]})
 
     async def forget_text(self, hash_value: str) -> None:
-        await self.repository.forget_text(_hash(hash_value))
+        digest = _hash(hash_value)
+        await self.repository.forget_text(digest)
+        if self.history_repository is not None:
+            await self.history_repository.delete_by_query_hash(digest)

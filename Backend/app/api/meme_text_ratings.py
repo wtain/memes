@@ -4,6 +4,7 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from Backend.app.repositories.history_repository import HistoryRepository
 from Backend.app.services.meme_text_rating_service import (
     MemeTextRatingService, RatingValidationError, UnknownImageError,
 )
@@ -20,7 +21,8 @@ router = APIRouter(prefix="/meme-from-text", tags=["meme-from-text"])
 
 
 async def get_rating_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[MemeTextRatingService, None]:
-    yield MemeTextRatingService(MemeTextRatingRepository(db), int(settings.get("parse.max_input_chars")))
+    yield MemeTextRatingService(MemeTextRatingRepository(db), int(settings.get("parse.max_input_chars")),
+                                HistoryRepository(db))
 
 
 def _fail(error: Exception) -> HTTPException:

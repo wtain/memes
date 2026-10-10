@@ -91,3 +91,21 @@ async def test_delete_list_and_forget_validate_the_hash():
             await service.list(bad)
     with pytest.raises(RatingValidationError):
         await service.delete(good, "nope")
+
+
+async def test_forget_text_also_deletes_the_query_log_rows():
+    repository = MagicMock()
+    repository.forget_text = AsyncMock(return_value=2)
+    history = MagicMock()
+    history.delete_by_query_hash = AsyncMock(return_value=1)
+    service = MemeTextRatingService(repository, 600, history)
+    await service.forget_text("a" * 64)
+    repository.forget_text.assert_awaited_once_with("a" * 64)
+    history.delete_by_query_hash.assert_awaited_once_with("a" * 64)
+
+
+async def test_forget_text_without_a_history_repository_still_works():
+    repository = MagicMock()
+    repository.forget_text = AsyncMock(return_value=0)
+    await MemeTextRatingService(repository, 600).forget_text("a" * 64)
+    repository.forget_text.assert_awaited_once()
