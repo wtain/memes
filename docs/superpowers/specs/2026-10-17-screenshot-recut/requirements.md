@@ -24,6 +24,10 @@ Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 | FR-15 | The review UI lets the owner adjust the box before approving (project R6, after first use) |
 | FR-16 | Detection quality is measured on a labelled sample (precision of proposals, and recall where measurable) before the detection job is scheduled |
 
+| FR-17 | Detection never proposes an image listed in the frozen evaluation corpus (`evaluation/gold/corpus.json`) for the corpus environment, because approving would remove an image that the gold judgments and baselines are keyed by |
+| FR-18 | Ratings (`meme_text_ratings`) are not copied to a proposed cut. On approve they are moved from the source to the cut; on reject they stay with the source |
+| FR-19 | The cut inherits the source's `created_at`; copied OCR polygons are shifted by the crop origin and rows outside the crop are dropped |
+
 ## Non-functional requirements
 
 | ID | Requirement |
@@ -43,6 +47,6 @@ Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 | OQ-2 | Output format of the cut file (keep the source format, or PNG for screenshots with text) | R3 design |
 | OQ-3 | Size of the labelled sample and who labels it (proposal: about 100 images, the owner, once) | R2 design / R7 |
 | OQ-4 | Minimum crop (area ratio, absolute size) below which a proposal is dropped | R2 design |
-| OQ-5 | The exact list of tables in groups 1, 2 and 3 | R1 inventory |
+| OQ-5 | The exact list of tables in groups 1, 2 and 3 | answered in the R1 design, section 7 |
 | OQ-6 | Retention of business metric events | M1 design |
 | OQ-7 | Whether `move_flagged` and `unregister_deleted_images` handle non-active images correctly, and whether `ingest_hash_dedup` must skip files written by the cut step | R5 audit |

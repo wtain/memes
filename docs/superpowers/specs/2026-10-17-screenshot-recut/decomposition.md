@@ -47,7 +47,7 @@ The source stays `active` throughout, so search is unaffected until approval. Af
 
 | Group | Rule | Examples (final list from the R1 inventory) |
 |---|---|---|
-| 1. Copy as is | Human-authored or not pixel-dependent | description notes and their lemmas and embeddings, description feedback, human-verified meme profile, ratings, manual tags |
+| 1. Copy as is | Human-authored or not pixel-dependent | description notes and their lemmas and embeddings, human-verified meme profile, `Note` tags, `image_extras.remarks`. Ratings are group 1 but move on approve instead of being copied (FR-18). The authoritative list is section 7 of the R1 design |
 | 2. Recompute | Depends on the pixels; copying would be wrong | CLIP embedding, `width`, `height`, `content_hash`, text-heavy classification, OCR text embedding, duplicate candidates |
 | 3. Copy, then refresh | Model-derived and cheap to copy, but the frame may have contributed junk | OCR text, OCR lemmas, Ollama descriptions and their embeddings and lemmas, tags derived from OCR and descriptions, model-generated meme profile and its embedding |
 

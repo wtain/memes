@@ -20,6 +20,9 @@ processing, and must carry copied derived data that is recomputed later.
 3. **Staleness as a boolean column** `stale` (default `false`) on each group 3 derived table, added through a shared mixin.
    A provenance column holding the source id was rejected: the source link lives in `image_cuts`, and a foreign key with
    `ON DELETE SET NULL` would make rows look fresh when the source is removed.
+   Refinement (R1 design, 2026-10-17): the column is added only where staleness cannot already be derived. That is four
+   tables: `ocr_texts`, `ocr_lemmas`, `image_descriptions`, `tags`. Meme profiles already derive staleness from their input
+   fingerprint, and description embeddings, lemmas and feedback hang off a description row that refresh replaces.
 4. **A third batch mode, "refresh stale"**, next to full and incremental. It selects images with stale rows through one shared
    helper, deletes those rows, and rewrites them with the job's normal logic. Rewritten rows are fresh by default.
 
