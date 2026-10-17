@@ -56,6 +56,11 @@ pytest tests/rules/
 # Config loading integration tests (fixture .env files, no real secrets touched)
 pytest batch/tests/
 
+# Documentation guards (no DB): docs/image-status.md must list exactly the ImageStatus values and the
+# scripts with a --status flag; docs/image-derived-data.md must classify every table off images.
+# Runs in CI after the integration tests.
+pytest tests/docs/
+
 # Dockerfile.backend smoke test — builds the image and verifies it actually boots
 # (not just that `docker build` succeeds). Requires a local Docker daemon; skips
 # otherwise. Runs in CI as part of Backend Docker Build.

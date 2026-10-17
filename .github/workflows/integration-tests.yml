@@ -103,3 +103,6 @@ jobs:
 
       - name: Run integration tests
         run: pytest tests/integration/ -v --tb=short
+
+      - name: Run documentation guard tests
+        run: pytest tests/docs/ -v --tb=short

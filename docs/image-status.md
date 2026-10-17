@@ -20,8 +20,22 @@ otherwise. The constants live in `Storage/models.py` (`ImageStatus`); the column
 - `rejected` to `pending`: undo in the ingestion review UI (the file is moved back).
 - `pending` or `rejected` to removed: `ingest_abort` moves the file back to the ingestion source and deletes the row. It never touches `active` images.
 - `cut_proposed` to `active`: the proposal is approved (screenshot-recut R5). The source image is flagged for the existing `move_flagged` path in the same change.
-- `cut_proposed` to removed: the proposal is rejected. The cut is flagged and leaves through `move_flagged` and `unregister_deleted_images`.
+- `cut_proposed` to removed: the proposal is rejected (screenshot-recut R5). The cut is flagged and its file is moved by `move_flagged`. Caveat for R5: `unregister_deleted_images` only reconciles `active` images today (`get_all_images` defaults to `status="active"`), so R5 must extend it to `cut_proposed` or delete the row itself; otherwise a rejected cut would keep a row pointing at a missing file.
 - `active` has no outgoing status change. An `active` image leaves the library by being flagged (`image_extras.flagged`), not by a status.
+
+## Accepted by `--status`
+
+These batch scripts take `--status` (checked against the code by `tests/docs/test_image_status_registry.py`). Today every one
+accepts `active` (the default) and `pending`; none accepts `cut_proposed` yet (screenshot-recut R3 adds it).
+
+- `build_image_embeddings` (also accepts `all`)
+- `extract_text_from_memes` (also accepts `all`)
+- `build_ocr_lemmas` (`--status pending` requires `--incremental`)
+- `classify_text_heavy`
+- `build_ocr_text_embeddings`
+- `fix_image_formats`
+
+`all` is a selector meaning "every status", not a status. It would also select `rejected` images, and later `cut_proposed` ones.
 
 ## Not image statuses
 
