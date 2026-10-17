@@ -1,6 +1,6 @@
 # R1: Data model and status registry - design
 
-Status: planned
+Status: implementation
 Plan: docs/superpowers/plans/2026-10-17-r1-data-model-and-status-registry.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R1)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
