@@ -24,6 +24,37 @@ TEXT_EMBEDDING_DIM = 1024
 PROFILE_EMBEDDING_DIM = 1024
 
 
+class ImageStatus:
+    """Values of images.status (a free String(20), deliberately not an enum or a check constraint).
+    Meaning, who sets each value, who reads it and the allowed transitions: docs/image-status.md,
+    which is authoritative."""
+    ACTIVE = "active"
+    PENDING = "pending"
+    REJECTED = "rejected"
+    CUT_PROPOSED = "cut_proposed"
+    ALL = (ACTIVE, PENDING, REJECTED, CUT_PROPOSED)
+
+
+class CutState:
+    """Values of image_cuts.state (epic screenshot-recut). LIVE states hold the one-per-source slot."""
+    DETECTED = "detected"
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    FAILED = "failed"
+    LIVE = (DETECTED, PROPOSED, APPROVED)
+    ALL = (DETECTED, PROPOSED, APPROVED, REJECTED, FAILED)
+
+
+class StaleMixin:
+    """Marks a derived row that was copied from a source image to its cut and must be rewritten by
+    the 'refresh stale' mode of the job that owns the table (epic screenshot-recut, ADR-001).
+    Only tables whose jobs select work by absence of rows carry it; see
+    docs/image-derived-data.md. Rewritten rows take the default (False), so nothing needs clearing."""
+    stale = Column(Boolean, nullable=False, server_default=sa.false(), default=False)
+
+
+
 class Image(Base):
     __tablename__ = "images"
 
@@ -73,6 +104,45 @@ class Image(Base):
     )
 
 
+_CUT_LIVE_PREDICATE = "state IN ('detected', 'proposed', 'approved')"
+
+
+class ImageCut(Base):
+    """One proposal to replace a badly cropped image (source) with a tighter cut (epic screenshot-recut).
+    The record outlives both images: the three foreign keys are SET NULL, so a removed source or a rejected
+    and removed cut leaves the history (box, detector, state) behind, with source_content_hash as the audit
+    anchor. At most one live (detected/proposed/approved) row per source; rejected and failed rows may
+    repeat. The box is in source pixels and is validated against the source size in code, not here."""
+    __tablename__ = "image_cuts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="SET NULL"), nullable=True)
+    cut_image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="SET NULL"), nullable=True)
+    source_content_hash = Column(String, nullable=True)
+    crop_x = Column(Integer, nullable=False)
+    crop_y = Column(Integer, nullable=False)
+    crop_w = Column(Integer, nullable=False)
+    crop_h = Column(Integer, nullable=False)
+    detector = Column(String(50), nullable=False)
+    detector_version = Column(String(50), nullable=False)
+    confidence = Column(Float, nullable=True)
+    detect_run_id = Column(UUID(as_uuid=True), ForeignKey("batch_runs.run_id", ondelete="SET NULL"), nullable=True)
+    state = Column(String(20), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("uq_image_cuts_live_source", "source_image_id", unique=True,
+              postgresql_where=text(_CUT_LIVE_PREDICATE)),
+        Index("uq_image_cuts_cut_image_id", "cut_image_id", unique=True),
+        Index("ix_image_cuts_detect_run_id", "detect_run_id"),
+        Index("ix_image_cuts_state", "state"),
+        CheckConstraint("crop_x >= 0 AND crop_y >= 0 AND crop_w > 0 AND crop_h > 0", name="ck_image_cuts_box"),
+        CheckConstraint("state IN ('detected', 'proposed', 'approved', 'rejected', 'failed')",
+                        name="ck_image_cuts_state"),
+    )
+
+
 class ImageMetrics(Base):
     __tablename__ = "image_metrics"
 
@@ -88,7 +158,7 @@ class ImageMetrics(Base):
     image = relationship("Image", back_populates="metrics")
 
 
-class OCRText(Base):
+class OCRText(StaleMixin, Base):
     __tablename__ = "ocr_texts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
@@ -105,7 +175,7 @@ class OCRText(Base):
     image = relationship("Image", back_populates="texts")
 
 
-class ImageDescription(Base):
+class ImageDescription(StaleMixin, Base):
     __tablename__ = "image_descriptions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
@@ -273,7 +343,7 @@ class DuplicateDecision(Base):
     )
 
 
-class ImageTag(Base):
+class ImageTag(StaleMixin, Base):
     __tablename__ = "tags"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
@@ -288,7 +358,7 @@ class ImageTag(Base):
     image = relationship("Image", back_populates="tags")
 
 
-class OCRLemma(Base):
+class OCRLemma(StaleMixin, Base):
     __tablename__ = "ocr_lemmas"
 
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
