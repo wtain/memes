@@ -2,6 +2,7 @@
 
 Status: done
 Originates from: docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md
+Image status values are defined in `docs/image-status.md` (authoritative since 2026-10-17); this document keeps its design history.
 
 **Date:** 2026-07-25. Prerequisite for `2026-07-24-ingestion-pipeline-design.md` — ingestion needs
 newly-registered images to be invisible to normal browse/search until duplicate review clears

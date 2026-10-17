@@ -3,6 +3,7 @@
 Status: done
 Originates from: docs/superpowers/specs/2026-07-24-ingestion-pipeline-pre-spec.md
 Follow-ups: docs/superpowers/specs/2026-07-25-batch-run-tracking-design.md, docs/superpowers/specs/2026-07-25-image-visibility-status-design.md, docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md
+Image status values are defined in `docs/image-status.md` (authoritative since 2026-10-17); this document keeps its design history.
 
 **Date:** 2026-07-24 (revised 2026-07-25 — brainstorming rounds 1–3)
 

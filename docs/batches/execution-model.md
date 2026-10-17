@@ -6,6 +6,8 @@ How a batch job is started, tracked, locked and chained. Files: `batch/run_wrapp
 `batch/registry.py`, `repository/batch_runs.py`, `Backend/app/scheduler.py`, `Backend/app/batch_subprocess.py`,
 `Backend/app/services/admin_batch_service.py`, `Backend/app/api/admin.py`.
 
+Image statuses (`--status active|pending|cut_proposed`) are defined in `docs/image-status.md`; this document does not redefine them.
+
 ## 1. The contract a "wrappable" job must satisfy
 
 ```python

@@ -827,6 +827,7 @@ status line:
 - Env files (secrets) and tracked settings YAML both live in `environments/` (not `Storage/`) — see Configuration above.
 - The metal/general/IT backend, frontend, and database ports are always occupied by the developer's running environments — never bind to them for testing. See `environments/Environments.md`.
 - `backend_api.md` must stay in sync with the actual routers.
+- Image `status` values (`active`, `pending`, `rejected`, `cut_proposed`) are defined in one place, `docs/image-status.md`. Add a row there in the same change as any new status; link to it instead of redefining one. What hangs off an image, and how a recut copies it, is `docs/image-derived-data.md` (kept in sync by `tests/docs/`).
 - Windows dev: `WATCHFILES_FORCE_POLLING=1` is required for uvicorn `--reload` to work.
 - AGP 8.5.2 requires Java 11+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
 - **Never give a subagent the main `DATABASE_URL`.** If a subagent needs to query a live

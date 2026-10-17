@@ -4,6 +4,8 @@ Status: draft (verified 2026-10-11 against `batch/*.py`, `environments/batch_reg
 `environments/settings*.yaml`, `Backend/app/scheduler.py`; effective scheduler config read by loading
 `config.settings` under each `APP_ENV`)
 
+Image statuses (`--status active|pending|cut_proposed`) are defined in `docs/image-status.md`; this document does not redefine them.
+
 Legend for the access columns:
 
 - **Tracked**: writes a `batch_runs` row (`kind` shown). Required for admin/scheduler use.
