@@ -1,6 +1,7 @@
 # M1: Business metrics infrastructure - design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-18-m1-business-metrics.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project M1)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 ADR: docs/superpowers/specs/2026-10-17-screenshot-recut/adr/ADR-002-business-metrics.md
@@ -57,13 +58,13 @@ Layout (matches how batch code already imports backend services, for example `ba
   - `record(process, event, batch_run_id, subject_id)`: raises `ValueError` for an unknown process or event, so a typo cannot write
     a row no report reads. Uses the caller's session, so it commits or rolls back with the state change it describes.
   - `batch_metrics(process, limit)`: one item per run, `{run_id, run_created_at, counts, metrics}`, newest run first, plus an
-    `unattributed` bucket for rows whose `batch_run_id` is null. Runs with no events are omitted. Unknown process: `ValueError`.
+    `unattributed` bucket for rows whose `batch_run_id` is null (`null` when there are none). Runs with no events are omitted. Unknown process: `UnknownProcessError` (a `ValueError`); unknown event: `UnknownEventError`.
 
 ## 4. API
 
 `GET /api/admin/batches/metrics?process=recut&limit=50` in `Backend/app/api/admin.py`, delegating to the service (no SQL in the
-router). Response: `{process, items: [{runId, runCreatedAt, counts: {proposed, approved, rejected}, metrics: {approveRate,
-decidedShare, pending}}], unattributed: {counts, metrics}}`. Unknown `process`: 404. `limit` caps runs, 1 to 200, default 50.
+router). Response: `{process, items: [{run_id, run_created_at, counts: {proposed, approved, rejected}, metrics: {approve_rate,
+decided_share, pending}}], unattributed: {counts, metrics} | null}` (snake_case, like the other admin responses). Unknown `process`: 404. `limit` caps runs, 1 to 200, default 50.
 
 The response model goes in `shared/schemas/`; TypeScript, Kotlin and Python types are regenerated in the same change (see CLAUDE.md,
 Type generation). `backend_api.md` is updated in the same change.
