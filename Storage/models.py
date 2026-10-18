@@ -143,6 +143,25 @@ class ImageCut(Base):
     )
 
 
+class ProcessEvent(Base):
+    """One outcome of a process on one subject, kept forever (epic screenshot-recut, ADR-002). Append-only:
+    rates are computed from these rows at read time. A subject has each event at most once, so recording is
+    idempotent. batch_run_id is the run that produced the subject; if that run is pruned the event stays,
+    unattributed. subject_id has no foreign key because subjects differ per process (image_cuts.id for recut)."""
+    __tablename__ = "process_events"
+    __table_args__ = (
+        UniqueConstraint("process", "event", "subject_id", name="uq_process_events_subject_event"),
+        Index("ix_process_events_process_run_event", "process", "batch_run_id", "event"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    process = Column(String(40), nullable=False)
+    event = Column(String(40), nullable=False)
+    batch_run_id = Column(UUID(as_uuid=True), ForeignKey("batch_runs.run_id", ondelete="SET NULL"), nullable=True)
+    subject_id = Column(UUID(as_uuid=True), nullable=False)
+    occurred_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class ImageMetrics(Base):
     __tablename__ = "image_metrics"
 
