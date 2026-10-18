@@ -161,7 +161,7 @@ Never bind your own server to the metal/general/it ports to test this; they are 
 
 `process_events` (one row per process, event and subject, kept forever) records the outcome of a process on one subject, for
 example a recut proposal being proposed, approved or rejected. Process code calls `BusinessMetricsService.record(process,
-event, batch_run_id, subject_id)` in the same transaction as the state change; recording is idempotent per subject and event.
+event, batch_run_id, subject_id)` in the same transaction as the state change; recording is idempotent per subject and event, and a subject cannot carry both `approved` and `rejected` (`ConflictingEventError`).
 The allowed processes, events and rate formulas live in the `PROCESSES` registry in
 `Backend/app/services/business_metrics_service.py`. Counts and rates per batch run are computed on request by
 `GET /api/admin/batches/metrics` and shown as the "Recut outcomes" panel on `/admin/batches`; nothing is stored. A decision is

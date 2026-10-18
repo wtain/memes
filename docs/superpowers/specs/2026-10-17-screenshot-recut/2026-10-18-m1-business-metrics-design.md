@@ -35,7 +35,9 @@ New Alembic revision, `down_revision = 'b8d4f1a6c935'`.
 
 - Unique `(process, event, subject_id)`: one outcome per subject. A retried transaction or a re-run step cannot double-count.
   Counts and rates are per proposal. If R6 regenerates a cut, the new proposal needs a new subject (a new `image_cuts` row) to
-  count as a second proposal; R6 must respect this.
+  count as a second proposal; R6 must respect this. The unique key is per event, so on its own it would let one subject carry
+  both `approved` and `rejected`; the registry's `exclusive` groups close that: `record` raises `ConflictingEventError` when the
+  subject already has an event that excludes this one. Concurrent writers must serialise on the subject (R5 locks the `image_cuts` row).
 - Index `(process, batch_run_id, event)` serves the per-batch read.
 - No CHECK on `process` or `event`: the table stays generic. Vocabulary is enforced by the registry (section 3).
 - `process_events` hangs off no image, so `docs/image-derived-data.md` does not change.

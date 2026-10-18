@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import delete
 
 from Backend.app.services.business_metrics_service import (
-    PROCESSES, BusinessMetricsService, UnknownEventError, UnknownProcessError,
+    PROCESSES, BusinessMetricsService, ConflictingEventError, UnknownEventError, UnknownProcessError,
 )
 from Storage.models import BatchRun, RunStatus
 
@@ -149,3 +149,18 @@ def test_every_metric_survives_all_zero_counts(name):
     for metric in definition.metrics.values():
         value = metric(counts)  # must not raise ZeroDivisionError
         assert value is None or isinstance(value, (int, float))
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_subject_cannot_carry_both_decisions(db_session):
+    service = BusinessMetricsService(db_session)
+    run, subject, other = await _run(db_session, 1), uuid.uuid4(), uuid.uuid4()
+    await service.record("recut", "approved", run.run_id, subject)
+
+    with pytest.raises(ConflictingEventError):
+        await service.record("recut", "rejected", run.run_id, subject)
+    assert await service.record("recut", "approved", run.run_id, subject) is False  # a retry stays idempotent
+    assert await service.record("recut", "rejected", run.run_id, other) is True     # other subjects are unaffected
+
+    counts = (await service.batch_metrics("recut"))["items"][0]["counts"]
+    assert counts == {"proposed": 0, "approved": 1, "rejected": 1}
