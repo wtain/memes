@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "batchmetricsitem.schema.json",
+  "title": "BatchMetricsItem",
+  "type": "object",
+  "properties": {
+    "run_id": { "type": "string", "description": "The batch run (detection run) that produced the subjects counted here" },
+    "run_created_at": { "type": "string", "format": "date-time" },
+    "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+    "metrics": { "type": "object", "additionalProperties": { "type": ["number", "null"] } }
+  },
+  "required": ["run_id", "run_created_at", "counts", "metrics"]
+}

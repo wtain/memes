@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "batchmetricsresponse.schema.json",
+  "title": "BatchMetricsResponse",
+  "type": "object",
+  "properties": {
+    "process": { "type": "string" },
+    "items": { "type": "array", "items": { "$ref": "./batchmetricsitem.schema.json" }, "description": "Newest run first; runs without events are omitted" },
+    "unattributed": {
+      "$ref": "./batchmetricsbucket.schema.json",
+      "description": "Events whose batch run was pruned or never known; all counts are zero when there are none"
+    }
+  },
+  "required": ["process", "items", "unattributed"]
+}

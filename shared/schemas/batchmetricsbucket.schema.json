@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "batchmetricsbucket.schema.json",
+  "title": "BatchMetricsBucket",
+  "type": "object",
+  "properties": {
+    "counts": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Events counted per event name; every event the process defines is present" },
+    "metrics": { "type": "object", "additionalProperties": { "type": ["number", "null"] }, "description": "Computed at read time; null when the denominator is zero. Names ending in _rate or _share are fractions (0..1)" }
+  },
+  "required": ["counts", "metrics"]
+}

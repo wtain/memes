@@ -22,6 +22,10 @@
 - Frontend before commit: `tsc -b`, `eslint src/` with 0 warnings, `vitest run` (from `Frontend/memes-frontend/`). Effects must survive a StrictMode double mount; follow the `await Promise.resolve()` pattern used in `AdminBatchesPage.tsx`.
 - Response keys on the admin router are snake_case (matches `RunStatusResponse`).
 
+## Amendment during execution (Task 3)
+
+`unattributed` is always present in `batch_metrics` and in the endpoint response, with all counts zero when there are none (not `null`). Reason: `AndroidClient/scripts/generate_dtos.py` cannot express a nullable object and generated a wrong `String` type; an always-present bucket keeps every generated client type correct. Where Tasks 2 to 4 below say `None`/`null` for `unattributed`, read "a bucket with zero counts"; the panel shows the Unattributed row only when some count is above zero. The code and tests in the repository are authoritative where this plan's snippets differ.
+
 ## Review Focus
 
 Spec-implied conditions with no obvious owner; each has a pinned test in the task named.

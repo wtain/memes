@@ -58,13 +58,13 @@ Layout (matches how batch code already imports backend services, for example `ba
   - `record(process, event, batch_run_id, subject_id)`: raises `ValueError` for an unknown process or event, so a typo cannot write
     a row no report reads. Uses the caller's session, so it commits or rolls back with the state change it describes.
   - `batch_metrics(process, limit)`: one item per run, `{run_id, run_created_at, counts, metrics}`, newest run first, plus an
-    `unattributed` bucket for rows whose `batch_run_id` is null (`null` when there are none). Runs with no events are omitted. Unknown process: `UnknownProcessError` (a `ValueError`); unknown event: `UnknownEventError`.
+    `unattributed` bucket for rows whose `batch_run_id` is null (all counts zero when there are none; always present so every generated client type stays simple). Runs with no events are omitted. Unknown process: `UnknownProcessError` (a `ValueError`); unknown event: `UnknownEventError`.
 
 ## 4. API
 
 `GET /api/admin/batches/metrics?process=recut&limit=50` in `Backend/app/api/admin.py`, delegating to the service (no SQL in the
 router). Response: `{process, items: [{run_id, run_created_at, counts: {proposed, approved, rejected}, metrics: {approve_rate,
-decided_share, pending}}], unattributed: {counts, metrics} | null}` (snake_case, like the other admin responses). Unknown `process`: 404. `limit` caps runs, 1 to 200, default 50.
+decided_share, pending}}], unattributed: {counts, metrics}}` (snake_case, like the other admin responses). Unknown `process`: 404. `limit` caps runs, 1 to 200, default 50.
 
 The response model goes in `shared/schemas/`; TypeScript, Kotlin and Python types are regenerated in the same change (see CLAUDE.md,
 Type generation). `backend_api.md` is updated in the same change.
@@ -76,7 +76,7 @@ A component `BusinessMetricsPanel` with a `process` prop (M2 mounts a second one
 
 - One row per detection run: started time, proposed, approved, rejected, pending, approve rate, decided share.
 - Rates as percentages; `-` when `None`. A note under the table: pending proposals are not counted as rejections.
-- An `unattributed` row when that bucket has events.
+- An `unattributed` row only when that bucket has events (any count above zero).
 - Empty state: "No recut proposals yet" (true until R3 records events). Error state when the fetch fails.
 
 ## 6. Tests

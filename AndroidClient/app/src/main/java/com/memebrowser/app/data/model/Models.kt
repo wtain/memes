@@ -21,6 +21,20 @@ data class AxisExplanation(
 )
 
 @Serializable
+data class BatchMetricsBucket(
+    @SerialName("counts") val counts: JsonObject,
+    @SerialName("metrics") val metrics: JsonObject
+)
+
+@Serializable
+data class BatchMetricsItem(
+    @SerialName("run_id") val run_id: String,
+    @SerialName("run_created_at") val run_created_at: String,
+    @SerialName("counts") val counts: JsonObject,
+    @SerialName("metrics") val metrics: JsonObject
+)
+
+@Serializable
 data class BatchNamesResponse(
     @SerialName("names") val names: List<String>
 )
@@ -454,6 +468,13 @@ data class SearchHistoryResponse(
     @SerialName("items") val items: List<SearchHistoryItem>,
     @SerialName("nextCursor") val nextCursor: String? = null,
     @SerialName("hasNext") val hasNext: Boolean
+)
+
+@Serializable
+data class BatchMetricsResponse(
+    @SerialName("process") val process: String,
+    @SerialName("items") val items: List<BatchMetricsItem>,
+    @SerialName("unattributed") val unattributed: BatchMetricsBucket
 )
 
 @Serializable

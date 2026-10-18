@@ -1017,6 +1017,74 @@ export interface BatchNamesResponse {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "BatchMetricsBucket".
+ */
+export interface BatchMetricsBucket {
+  /**
+   * Events counted per event name; every event the process defines is present
+   */
+  counts: {
+    [k: string]: number;
+  };
+  /**
+   * Computed at read time; null when the denominator is zero. Names ending in _rate or _share are fractions (0..1)
+   */
+  metrics: {
+    [k: string]: number | null;
+  };
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "BatchMetricsItem".
+ */
+export interface BatchMetricsItem {
+  /**
+   * The batch run (detection run) that produced the subjects counted here
+   */
+  run_id: string;
+  run_created_at: string;
+  counts: {
+    [k: string]: number;
+  };
+  metrics: {
+    [k: string]: number | null;
+  };
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "BatchMetricsResponse".
+ */
+export interface BatchMetricsResponse {
+  process: string;
+  /**
+   * Newest run first; runs without events are omitted
+   */
+  items: BatchMetricsItem[];
+  unattributed: BatchMetricsBucket1;
+  [k: string]: unknown;
+}
+/**
+ * Events whose batch run was pruned or never known; all counts are zero when there are none
+ */
+export interface BatchMetricsBucket1 {
+  /**
+   * Events counted per event name; every event the process defines is present
+   */
+  counts: {
+    [k: string]: number;
+  };
+  /**
+   * Computed at read time; null when the denominator is zero. Names ending in _rate or _share are fractions (0..1)
+   */
+  metrics: {
+    [k: string]: number | null;
+  };
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DuplicatePair".
  */
 export interface DuplicatePair {

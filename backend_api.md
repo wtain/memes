@@ -1404,6 +1404,39 @@ is `failed`.
 Only runs of the admin-triggerable kinds are included — scheduler and ingestion runs are
 excluded even though they share the same `batch_runs` table.
 
+#### Batch Metrics
+
+- **URL**: `/api/admin/batches/metrics`
+- **Method**: `GET`
+- **Query params**: `process` (required; today `recut`), `limit` (number of runs, `1` to `200`, default `50`)
+- **Response**: `BatchMetricsResponse`; unknown `process` is `404`, a `limit` out of range is `422`
+- **Example**: `GET /api/admin/batches/metrics?process=recut&limit=10`
+
+```json
+{
+  "process": "recut",
+  "items": [
+    {
+      "run_id": "b3f1c2a4-...",
+      "run_created_at": "2026-10-18T09:00:00Z",
+      "counts": { "proposed": 4, "approved": 1, "rejected": 1 },
+      "metrics": { "approve_rate": 0.5, "decided_share": 0.5, "pending": 2 }
+    }
+  ],
+  "unattributed": {
+    "counts": { "proposed": 0, "approved": 0, "rejected": 0 },
+    "metrics": { "approve_rate": null, "decided_share": null, "pending": 0 }
+  }
+}
+```
+
+One item per detection run that has at least one event, newest run first. A decision is attributed to the run that
+produced the proposal, however late it arrives. Rates are computed on every request and never stored:
+`approve_rate` = approved / (approved + rejected), `decided_share` = (approved + rejected) / proposed, `pending` =
+proposed - approved - rejected (pending proposals are not counted as rejections). A rate is `null` when its
+denominator is zero. `unattributed` holds events whose batch run was pruned or never known; its counts are all zero when there
+are none. Events come from the process code (screenshot recut: projects R3 and R5), so the list is empty until they ship.
+
 ---
 
 ## Running the API

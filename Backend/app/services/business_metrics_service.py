@@ -71,7 +71,7 @@ class BusinessMetricsService:
 
     async def batch_metrics(self, process: str, limit: int = 50) -> dict:
         """Counts and rates for the newest `limit` runs that have events, newest first, plus the unattributed
-        rows (events whose run was pruned or never known) or None when there are none."""
+        rows (events whose run was pruned or never known); its counts are all zero when there are none."""
         definition = _definition(process)
         runs = await process_events.latest_runs_with_events(self._session, process, limit)
         rows = await process_events.count_events(self._session, process, [run_id for run_id, _ in runs])
@@ -89,5 +89,5 @@ class BusinessMetricsService:
         return {
             "process": process,
             "items": items,
-            "unattributed": _bucket(definition, unattributed) if unattributed else None,
+            "unattributed": _bucket(definition, unattributed),
         }
