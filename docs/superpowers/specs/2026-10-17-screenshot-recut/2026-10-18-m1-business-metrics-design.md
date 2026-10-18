@@ -1,6 +1,6 @@
 # M1: Business metrics infrastructure - design
 
-Status: planned
+Status: implementation
 Plan: docs/superpowers/plans/2026-10-18-m1-business-metrics.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project M1)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
