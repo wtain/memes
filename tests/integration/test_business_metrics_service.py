@@ -96,7 +96,9 @@ async def test_a_late_decision_counts_toward_the_proposing_run(db_session):
 async def test_events_without_a_run_are_unattributed_and_runs_without_events_are_omitted(db_session):
     service = BusinessMetricsService(db_session)
     await _run(db_session, 1)  # no events: must not appear
-    assert (await service.batch_metrics("recut")) == {"process": "recut", "items": [], "unattributed": None}
+    empty = {"counts": {"proposed": 0, "approved": 0, "rejected": 0},
+             "metrics": {"approve_rate": None, "decided_share": None, "pending": 0}}
+    assert (await service.batch_metrics("recut")) == {"process": "recut", "items": [], "unattributed": empty}
 
     await _record(service, "proposed", None, 2)
     result = await service.batch_metrics("recut")
