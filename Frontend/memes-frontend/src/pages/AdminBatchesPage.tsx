@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import type { RunStatusResponse } from "../types/generated/all"
+import BusinessMetricsPanel from "../components/BusinessMetricsPanel"
 import DuplicateDecisionsPanel from "../components/DuplicateDecisionsPanel"
 
 type Props = { memesApi: MemesApi }
@@ -242,6 +243,13 @@ export default function AdminBatchesPage({ memesApi }: Props) {
           </button>
         </div>
       </div>
+
+      <BusinessMetricsPanel
+        memesApi={memesApi}
+        process="recut"
+        title="Recut outcomes"
+        emptyText="No recut proposals yet"
+      />
 
       <DuplicateDecisionsPanel memesApi={memesApi} />
     </div>

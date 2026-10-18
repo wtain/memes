@@ -210,4 +210,24 @@ describe('AdminBatchesPage', () => {
     await waitFor(() => expect(listBatchRuns).toHaveBeenCalledWith(20, 20))
     expect(screen.getByText('Next')).toBeDisabled()
   })
+
+  it('shows the recut outcomes panel', async () => {
+    const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([])) })
+    render(<AdminBatchesPage memesApi={api} />)
+
+    expect(await screen.findByText('Recut outcomes')).toBeInTheDocument()
+    expect(api.getBatchMetrics).toHaveBeenCalledWith('recut')
+  })
+
+  it('a failing metrics fetch leaves the page usable', async () => {
+    const api = makeMockApi({
+      listBatchRuns: vi.fn().mockResolvedValue(makeList([])),
+      getBatchMetrics: vi.fn().mockRejectedValue(new Error('metrics down')),
+    })
+    render(<AdminBatchesPage memesApi={api} />)
+
+    expect(await screen.findByText('metrics down')).toBeInTheDocument()
+    expect(screen.getByText('move_flagged')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Run' }).length).toBeGreaterThan(0)
+  })
 })

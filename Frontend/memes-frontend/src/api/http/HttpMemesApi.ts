@@ -4,7 +4,7 @@ import type {
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
   IngestionRunStatus, IngestionPendingImage, IngestionClusterPage, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse, IngestionTierBReviewPage,
-  RunTriggerResponse, RunListResponse, BatchNamesResponse,
+  RunTriggerResponse, RunListResponse, BatchNamesResponse, BatchMetricsResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
@@ -498,6 +498,16 @@ export class HttpMemesApi implements MemesApi {
       headers: { Accept: "application/json" },
     })
     if (!res.ok) throw new Error(`Failed to fetch batch runs: ${res.status}`)
+    return res.json()
+  }
+
+  async getBatchMetrics(process: string, limit?: number): Promise<BatchMetricsResponse> {
+    const params = new URLSearchParams({ process })
+    if (limit !== undefined) params.set("limit", String(limit))
+    const res = await fetch(`${this.baseUrl}/api/admin/batches/metrics?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+    })
+    if (!res.ok) throw new Error(`Failed to fetch batch metrics: ${res.status}`)
     return res.json()
   }
 

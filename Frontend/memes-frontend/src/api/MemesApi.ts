@@ -3,7 +3,7 @@ import type {
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
   IngestionRunStatus, IngestionPendingImage, IngestionClusterPage, IngestionDecision,
   IngestionResolveResponse, IngestionUndoRejectResponse, IngestionTierBReviewPage,
-  RunTriggerResponse, RunListResponse, BatchNamesResponse,
+  RunTriggerResponse, RunListResponse, BatchNamesResponse, BatchMetricsResponse,
   DuplicatePair, DuplicateDismissResponse, DuplicateDecisionListResponse, ClusterSimilarityResponse,
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
@@ -88,6 +88,7 @@ export interface MemesApi {
   listBatchNames(): Promise<BatchNamesResponse>;
   triggerBatchRun(batchName: string): Promise<RunTriggerResponse>;
   listBatchRuns(limit?: number, offset?: number): Promise<RunListResponse>;
+  getBatchMetrics(process: string, limit?: number): Promise<BatchMetricsResponse>;
 
   putRating(request: RatingRequest): Promise<RatingResponse>;
   deleteRating(queryHash: string, imageId: string): Promise<void>;
