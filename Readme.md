@@ -521,6 +521,14 @@ For development, always set:
 set WATCHFILES_FORCE_POLLING=1
 ```
 
+**Reaching the environments from another device (phone, mobile app):** the Windows firewall blocks inbound connections to any port without an allow rule, and this only affects other devices; the same machine bypasses it. A new environment can therefore work from the workstation but time out from the phone. The allow rule `Pet projects` must list every backend and frontend port from [environments/Environments.md](./environments/Environments.md) (5173-5175, 8081-8083). When it was missing 8083/5175, `it` failed from the mobile app while `general` worked. Update it from an **elevated** PowerShell:
+
+```powershell
+Set-NetFirewallRule -DisplayName 'Pet projects' -LocalPort 5173,5174,5175,8081,8082,8083
+```
+
+To check what is allowed: `Get-NetFirewallRule -Enabled True -Direction Inbound | Get-NetFirewallPortFilter | Where-Object LocalPort -match '808|517'`. If every port is allowed and one environment still fails, check the base URL configured in the app.
+
 See [SETUP.md](./SETUP.md#windows) for full Windows setup guide.
 
 ## Contributing
