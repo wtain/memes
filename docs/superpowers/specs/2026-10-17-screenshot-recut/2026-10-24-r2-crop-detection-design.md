@@ -1,6 +1,7 @@
 # R2: Crop detection - design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-24-r2-crop-detection.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R2)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Spike findings: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-24-r2-spike-findings.md
