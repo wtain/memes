@@ -58,6 +58,9 @@ clusterize:
 classify_text_heavy:
   module: batch.classify_text_heavy
   kind: classify_text_heavy
+detect_recut_crops:
+  module: batch.detect_recut_crops
+  kind: detect_recut_crops
 build_ocr_text_embeddings:
   module: batch.build_ocr_text_embeddings
   kind: build_ocr_text_embeddings
