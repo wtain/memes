@@ -6,7 +6,7 @@ recut:                          # screenshot recut, crop detection (docs/superpo
   min_removed_share: 0.07       # a proposal removes at least this share of the image area (spike floor)
   max_removed_share: 0.75       # ... and at most this share
   flat_tolerance: 7.0           # row/column intensity std-dev below this counts as flat margin
-  ocr_overlap_max: 0.15         # drop a proposal when more than this share of an OCR region falls outside the box (1.0 = guard off)
+  ocr_overlap_max: 1.0          # drop a proposal when more than this share of an OCR region falls outside the box; 1.0 = guard off (calibration 2026-10-25: 0.15 dropped 44 of 118 good cuts and no bad ones)
   commit_interval: 200
 
 rules:
