@@ -4,7 +4,7 @@ Status: done
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Resolves (partly): OQ-1 (approach), OQ-3 (sample)
 
-Question: which approach proposes the right box often enough to be worth the owner's review time? Throwaway code: `batch/tools/recut_spike/`. Read-only on `general` (sample of 3,000 active images outside the frozen corpus; 30,828 eligible). Owner graded 135 of 136 pooled, blinded items.
+Question: which approach proposes the right box often enough to be worth the owner's review time? The throwaway spike code was deleted when R2 shipped; it is recoverable from commit 6d68dad and its successors on branch `r2-crop-detection`. Read-only on `general` (sample of 3,000 active images outside the frozen corpus; 30,828 eligible). Owner graded 135 of 136 pooled, blinded items.
 
 ## Result
 

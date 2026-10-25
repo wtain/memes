@@ -341,6 +341,18 @@ fix_image_formats           → retroactively applies ingest_validate_formats' f
                                images registered directly via extract_text_from_memes.py's
                                register_image() (bypassing the ingestion pipeline) need this
                                re-run too, since they never pass through apply_format_fix().
+detect_recut_crops          → screenshot recut, crop detection (R2): for each active image with a flat margin around
+                               the meme (margin trim, removing 7% to 75% of the area), stores one `detected`
+                               `image_cuts` proposal with the box in source pixels. Creates no files, changes no image
+                               status and records no metric event (R3 does). Skips the frozen evaluation corpus, flagged
+                               images, images that already have a live cut or are themselves a cut, and sources rejected
+                               for the same detector version. Each checked image is remembered in
+                               image_processing_status under `recut_detect_v<detector version>`, so a re-run sees only
+                               new images and a new detector version checks all again. Run-tracked (kind
+                               detect_recut_crops, stats proposed/no_cut/clipped_text/unreadable/images_remaining) and
+                               admin-triggerable from /admin/batches, manual-trigger only, not scheduled; `--limit`.
+                               Settings: `recut.*`. The OCR clipping guard exists but is off (ocr_overlap_max 1.0). See
+                               docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-24-r2-crop-detection-design.md.
 classify_text_heavy         → computes the text-heavy classifier (coverage ratio, background
                                color uniformity, ink-color consistency) for images with OCR text
                                and real dimensions, storing both the raw signals and the result in

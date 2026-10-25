@@ -1,6 +1,6 @@
 # R2: Crop detection - design
 
-Status: planned
+Status: implementation
 Plan: docs/superpowers/plans/2026-10-24-r2-crop-detection.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R2)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
@@ -28,6 +28,7 @@ judgments).
 
 - are not in the frozen evaluation corpus (`evaluation/gold/corpus.json`, FR-17). The ids are for `general`; on metal and IT the
   exclusion matches nothing, which is harmless;
+- are not flagged (`image_extras.flagged`): they are already leaving the library;
 - have no live `image_cuts` row as source (R1's unique live rule);
 - are not themselves a cut (`image_cuts.cut_image_id`, FR-3);
 - have no `rejected` `image_cuts` row as source with the same `detector_version` (FR-3);
@@ -66,8 +67,7 @@ admin-triggerable, with the three environment overlays; listed in `docs/batches/
 ## 4. Settings
 
 Group `recut` in `environments/settings.yaml`, every key required (so the overlays are overrides only):
-`min_removed_share: 0.07`, `max_removed_share: 0.75`, `flat_tolerance: 7.0`, `ocr_overlap_max: 0.15` (final value from
-section 5), `commit_interval: 200`.
+`min_removed_share: 0.07`, `max_removed_share: 0.75`, `flat_tolerance: 7.0`, `ocr_overlap_max: 1.0` (guard off, see the addendum), `commit_interval: 200`.
 
 ## 5. Guard calibration (a plan task, outside CI)
 
@@ -105,3 +105,18 @@ guard's drop share; the rows wait in `detected`, nothing is shown or changed.
 Acceptance: every exclusion has a test that failed first; a re-run adds no rows; stats add up; the guard decision is recorded
 (kept with a value, or removed); the inventory, `CLAUDE.md`, the registry and the tracker row are updated; the throwaway
 `batch/tools/recut_spike/` is deleted and `evaluation/gold/recut/` stays.
+
+## Addendum 2026-10-25: guard calibration result
+
+The calibration (section 5) ran on the 124 judged margin boxes (118 graded 2, 5 graded 1, 1 graded 0; 117 of the 124 images have OCR regions):
+
+| `ocr_overlap_max` | good cuts dropped | grade 1 dropped | grade 0 dropped |
+|---|---|---|---|
+| 0.02 | 84 of 118 | 2 of 5 | 0 of 1 |
+| 0.05 | 78 | 2 | 0 |
+| 0.10 | 71 | 0 | 0 |
+| 0.15 | 44 | 0 | 0 |
+| 0.20 | 17 | 0 | 0 |
+| 0.30 and up | 0 | 0 | 0 |
+
+No threshold meets the rule (drop at least half of the bad cuts, at most 5% of the good ones). The guard is therefore **off**: `recut.ocr_overlap_max: 1.0`. The code stays (`clips_ocr`, tested) so a better rule can be switched on by a setting. Why it fails: OCR regions of good cuts often overhang the content box by a few percent, and the bad cuts clip a picture edge more often than text. Evidence is thin (6 bad margin cuts). A guard that counts only regions mostly inside the removed band is a possible R7 follow-up if live review shows clipped text.
