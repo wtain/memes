@@ -348,8 +348,10 @@ detect_recut_crops          → screenshot recut, crop detection (R2): for each 
                                images, images that already have a live cut or are themselves a cut, and sources rejected
                                for the same detector version. Each checked image is remembered in
                                image_processing_status under `recut_detect_v<detector version>`, so a re-run sees only
-                               new images and a new detector version checks all again. Run-tracked (kind
-                               detect_recut_crops, stats proposed/no_cut/clipped_text/unreadable/images_remaining) and
+                               new images and a new detector version checks all again (an unreadable file is recorded `failed` and is not
+                               retried under the same version; 20 unreadable files in a row stop the run; animated and
+                               EXIF-rotated images get no proposal). Run-tracked (kind
+                               detect_recut_crops, stats images_selected/proposed/no_cut/clipped_text/unreadable/images_remaining) and
                                admin-triggerable from /admin/batches, manual-trigger only, not scheduled; `--limit`.
                                Settings: `recut.*`. The OCR clipping guard exists but is off (ocr_overlap_max 1.0). See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-24-r2-crop-detection-design.md.

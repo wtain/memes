@@ -10,6 +10,8 @@ import os
 import uuid
 from pathlib import Path
 
+from PIL import Image as PILImage
+
 from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.crop_detection import (DETECTOR, DETECTOR_VERSION, DetectParams, clips_ocr,
                                         detect_margin_box)
@@ -21,6 +23,10 @@ from repository.image_procesing_status import ImageProcessingStatusRepository
 from Storage.db import AsyncSessionLocal
 
 KIND = "detect_recut_crops"
+# Failures that mean "this file cannot be read"; anything else is a code bug and fails the run.
+FILE_ERRORS = (OSError, ValueError, SyntaxError, PILImage.DecompressionBombError)
+# This many unreadable files in a row means the drive or BASE_PATH is the problem, not the files: stop the run.
+MAX_CONSECUTIVE_FAILURES = 20
 PIPELINE = f"recut_detect_v{DETECTOR_VERSION}"
 CORPUS_PATH = Path(__file__).resolve().parents[1] / "evaluation" / "gold" / "corpus.json"
 
@@ -42,6 +48,8 @@ def params_from_settings() -> DetectParams:
 async def run(session, base_path: str, params: DetectParams, ocr_confidence_min: float,
               run_id: uuid.UUID | None, corpus_ids, commit_interval: int,
               limit: int | None = None) -> SimpleMetricsListener:
+    if not os.path.isdir(base_path):
+        raise FileNotFoundError(f"BASE_PATH is not a directory: {base_path}")
     cuts = ImageCutsRepository(session)
     processed = ImageProcessingStatusRepository(session, PIPELINE)
     total = await cuts.count_candidates(PIPELINE, DETECTOR_VERSION, corpus_ids)
@@ -52,13 +60,19 @@ async def run(session, base_path: str, params: DetectParams, ocr_confidence_min:
     metrics.add("images_selected", len(rows))
     metrics.add("images_remaining", total - len(rows))
 
+    streak = 0
     for i, row in enumerate(rows, start=1):
         try:
             proposal = detect_margin_box(os.path.join(base_path, row.filename), params)
-        except Exception as e:  # one bad file never fails the run; it is recorded and counted
+        except FILE_ERRORS as e:  # one bad file never fails the run; it is recorded and counted
             await processed.record_failure(row.id, f"{type(e).__name__}: {e}"[:300])
             metrics.increment("unreadable")
+            streak += 1
+            if streak >= MAX_CONSECUTIVE_FAILURES:
+                await session.commit()  # keep the recorded failures so a re-run does not hit the same files first
+                raise RuntimeError(f"{streak} unreadable files in a row; check BASE_PATH and the drive")
         else:
+            streak = 0
             if proposal is None:
                 await processed.mark_done_by_id(row.id)
                 metrics.increment("no_cut")

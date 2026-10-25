@@ -125,3 +125,26 @@ def test_region_exactly_at_the_limit_does_not_clip():
 
 def test_guard_off_at_one():
     assert clips_ocr((90, 90, 100, 100), [[0, 0, 50, 50]], 1.0) is False
+
+
+def test_animated_image_gives_none(tmp_path):
+    frames = []
+    for seed in (0, 1):
+        arr = np.full((300, 400, 3), 255, dtype=np.uint8)
+        arr[30:270, 30:370] = _noise(340, 240, seed)
+        frames.append(Image.fromarray(arr))
+    p = tmp_path / "anim.gif"
+    frames[0].save(p, save_all=True, append_images=frames[1:])
+    assert detect_margin_box(str(p), PARAMS) is None
+
+
+def test_exif_rotated_image_gives_none(tmp_path):
+    arr = np.full((300, 400, 3), 255, dtype=np.uint8)
+    arr[30:270, 30:370] = _noise(340, 240)
+    for orientation, expect_none in ((6, True), (1, False)):
+        img = Image.fromarray(arr)
+        exif = img.getexif()
+        exif[0x0112] = orientation
+        p = tmp_path / f"o{orientation}.png"
+        img.save(p, "PNG", exif=exif)
+        assert (detect_margin_box(str(p), PARAMS) is None) is expect_none

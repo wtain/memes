@@ -138,3 +138,52 @@ async def test_a_new_detector_version_checks_images_again(tmp_path, db_session):
 def test_load_corpus_ids_reads_the_committed_corpus():
     ids = load_corpus_ids()
     assert len(ids) == 1500 and all(isinstance(i, uuid.UUID) for i in ids)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_code_bug_in_the_detector_fails_the_run_and_marks_no_image(tmp_path, db_session, monkeypatch):
+    img = await _image(db_session, tmp_path, "a.png", _write_bordered)
+
+    def boom(path, params):
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr("batch.detect_recut_crops.detect_margin_box", boom)
+    with pytest.raises(RuntimeError, match="bug"):
+        await _go(db_session, tmp_path, corpus=await _only(db_session, {img.id}))
+    assert await db_session.get(ImageProcessingStatus, {"image_id": img.id, "pipeline": PIPELINE}) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_missing_base_directory_fails_the_run_before_marking_anything(tmp_path, db_session):
+    img = await _image(db_session, tmp_path, "a.png", _write_bordered)
+    corpus = await _only(db_session, {img.id})
+    with pytest.raises(FileNotFoundError):
+        await run(db_session, str(tmp_path / "nope"), PARAMS, 0.4, None, corpus, 200)
+    assert await db_session.get(ImageProcessingStatus, {"image_id": img.id, "pipeline": PIPELINE}) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_unreadable_files_in_a_row_stop_the_run_with_the_failures_recorded(tmp_path, db_session, monkeypatch):
+    monkeypatch.setattr("batch.detect_recut_crops.MAX_CONSECUTIVE_FAILURES", 3)
+    imgs = [await _image(db_session, tmp_path, f"gone{i}.png", None) for i in range(5)]
+    corpus = await _only(db_session, {i.id for i in imgs})
+    with pytest.raises(RuntimeError, match="in a row"):
+        await _go(db_session, tmp_path, corpus=corpus)
+    failed = (await db_session.execute(
+        select(ImageProcessingStatus).where(ImageProcessingStatus.pipeline == PIPELINE,
+                                            ImageProcessingStatus.image_id.in_([i.id for i in imgs])))).scalars().all()
+    assert len(failed) == 3 and all(f.status == "failed" for f in failed)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_good_file_resets_the_failure_streak(tmp_path, db_session, monkeypatch):
+    monkeypatch.setattr("batch.detect_recut_crops.MAX_CONSECUTIVE_FAILURES", 3)
+    base = uuid.UUID(int=(1 << 120))  # explicit ids fix the run order: gone, gone, good, gone, gone
+    names = ["g0.png", "g1.png", "good.png", "g3.png", "g4.png"]
+    imgs = []
+    for n, name in enumerate(names):
+        writer = _write_bordered if name == "good.png" else None
+        imgs.append(await _image(db_session, tmp_path, name, writer, id=uuid.UUID(int=base.int + n)))
+    corpus = await _only(db_session, {i.id for i in imgs})
+    stats = await _go(db_session, tmp_path, corpus=corpus)
+    assert stats["unreadable"] == 4 and stats["proposed"] == 1

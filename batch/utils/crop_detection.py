@@ -11,6 +11,7 @@ DETECTOR = "margin_trim"
 DETECTOR_VERSION = "1"  # bump when the algorithm changes: the job's pipeline name carries it, so every image is checked again
 
 MAX_SIDE = 600
+EXIF_ORIENTATION = 0x0112
 MIN_IMAGE_SIDE = 120
 
 
@@ -39,10 +40,14 @@ def _span(std: np.ndarray, tolerance: float):
 
 def detect_margin_box(path: str, params: DetectParams) -> Proposal | None:
     """Returns the content box, or None when there is nothing to propose (no margin, margin outside the allowed
-    share, or an image under MIN_IMAGE_SIDE). Raises on an unreadable file; the caller counts it."""
+    share, an image under MIN_IMAGE_SIDE, an animated image, or an image with an EXIF orientation other than 1:
+    pixel boxes of a rotated image would not match the frame OCR and browsers use). Raises on an unreadable
+    file; the caller counts it."""
     with Image.open(path) as im:
         w, h = im.size
-        if min(w, h) < MIN_IMAGE_SIDE:
+        if min(w, h) < MIN_IMAGE_SIDE or getattr(im, "is_animated", False):
+            return None
+        if im.getexif().get(EXIF_ORIENTATION, 1) != 1:
             return None
         scale = min(1.0, MAX_SIDE / max(w, h))
         small = im.convert("L").resize((max(1, round(w * scale)), max(1, round(h * scale))))
