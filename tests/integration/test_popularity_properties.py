@@ -16,70 +16,100 @@ SOURCES = ["cluster_review", "ingest_tier_a", "agent_review", "recut"]
 REASONS = ["correction"]
 STEPS = 60
 IMAGES = 8
+MIN_SUCCESSES = 50
+
+
+async def run_sequence(session, seed, tag=""):
+    """Run one seeded random sequence; returns (step log, counts of successful operations by kind).
+    Everything that influences a choice is run-independent (no uuid ordering), so a seed replays exactly."""
+    rng = random.Random(seed)
+    repo = PopularityRepository(session)
+    names = [f"{tag}r{seed}-{n}.jpg" for n in range(IMAGES)]
+    ids = [(await make_image(session, name)).id for name in names]
+    index = {i: n for n, i in enumerate(ids)}
+    deleted = set()
+    run = await make_run(session)
+    log = []
+    counts = {"absorb": 0, "dropped": 0, "reverse": 0, "delete": 0}
+    counter = 0
+
+    for step in range(STEPS):
+        action = rng.choice(["absorb", "absorb", "absorb", "dropped", "reverse", "reverse", "delete"])
+        if action == "absorb":
+            loser, winner, source = rng.choice(ids), rng.choice(ids), rng.choice(SOURCES)
+            log.append(f"{step}: absorb loser=#{index[loser]} winner=#{index[winner]} source={source}")
+            try:
+                await repo.absorb(loser, winner, source)
+                counts["absorb"] += 1
+            except (CycleError, AlreadyDiscardedError):
+                pass
+            except ValueError:
+                if loser not in deleted:
+                    raise
+        elif action == "dropped":
+            winner = rng.choice(ids)
+            counter += 1
+            n = rng.randint(1, 3)
+            dropped = [DroppedCopy(f"{tag}d{seed}-{counter}-{k}", f"h{seed}-{counter}-{k}", f"/dest/{counter}")
+                       for k in range(n)]
+            log.append(f"{step}: dropped winner=#{index[winner]} count={n}")
+            counts["dropped"] += await repo.record_dropped_copies(winner, dropped, run) and 1
+        elif action == "reverse":
+            open_rows = (await session.execute(
+                select(PopularityAbsorption.id, PopularityAbsorption.loser_filename).where(
+                    PopularityAbsorption.kind == "absorb",
+                    PopularityAbsorption.reversed_by_id.is_(None),
+                    PopularityAbsorption.loser_filename.like(f"{tag}r{seed}-%")
+                    | PopularityAbsorption.loser_filename.like(f"{tag}d{seed}-%"),
+                ))).all()
+            # unique among open rows: one open edge per loser image, dropped names carry a counter
+            open_rows = sorted(open_rows, key=lambda r: r[1])
+            if not open_rows:
+                log.append(f"{step}: reverse (no open rows)")
+                continue
+            target_id, target_name = rng.choice(open_rows)
+            log.append(f"{step}: reverse row of {target_name.removeprefix(tag)}")
+            await repo.reverse(target_id, rng.choice(REASONS))
+            counts["reverse"] += 1
+        else:
+            alive = [i for i in ids if i not in deleted]
+            if not alive:
+                log.append(f"{step}: delete (none left)")
+                continue
+            victim = rng.choice(alive)
+            log.append(f"{step}: delete image #{index[victim]}")
+            await session.execute(delete(Image).where(Image.id == victim))
+            deleted.add(victim)
+            counts["delete"] += 1
+
+        drift = await repo.verify()
+        assert drift == [], f"seed {seed} drift after step {step}: {drift}\n" + "\n".join(log)
+        for image_id, popularity in (await session.execute(
+                select(Image.id, Image.popularity).where(Image.id.in_(ids)))).all():
+            if await repo._open_edge(image_id) is None:
+                assert popularity >= 1, (
+                    f"seed {seed} step {step}: #{index[image_id]} is not discarded but has "
+                    f"popularity {popularity}\n" + "\n".join(log))
+    return log, counts
 
 
 @pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.parametrize("seed", range(25))
 async def test_random_absorb_and_reverse_sequences_never_drift(db_session, seed):
-    rng = random.Random(seed)
-    repo = PopularityRepository(db_session)
-    ids = [(await make_image(db_session, f"r{seed}-{n}.jpg")).id for n in range(IMAGES)]
-    run = await make_run(db_session)
-    log = []
-    counter = 0
+    await run_sequence(db_session, seed)
 
-    for step in range(STEPS):
-        action = rng.choice(["absorb", "absorb", "dropped", "reverse", "delete"])
-        short = lambda i: str(i)[:8]
-        try:
-            if action == "absorb":
-                loser, winner, source = rng.choice(ids), rng.choice(ids), rng.choice(SOURCES)
-                log.append(f"{step}: absorb loser={short(loser)} winner={short(winner)} source={source}")
-                try:
-                    await repo.absorb(loser, winner, source)
-                except (CycleError, AlreadyDiscardedError):
-                    pass
-                except ValueError:  # loser row deleted earlier
-                    pass
-            elif action == "dropped":
-                winner = rng.choice(ids)
-                counter += 1
-                n = rng.randint(1, 3)
-                dropped = [DroppedCopy(f"d{counter}-{k}", f"h{seed}-{counter}-{k}", f"/dest/{counter}")
-                           for k in range(n)]
-                log.append(f"{step}: dropped winner={short(winner)} count={n}")
-                await repo.record_dropped_copies(winner, dropped, run)
-            elif action == "reverse":
-                open_rows = (await db_session.execute(
-                    select(PopularityAbsorption.id).where(
-                        PopularityAbsorption.kind == "absorb",
-                        PopularityAbsorption.reversed_by_id.is_(None),
-                    ))).scalars().all()
-                if not open_rows:
-                    log.append(f"{step}: reverse (no open rows)")
-                    continue
-                target = rng.choice(sorted(open_rows))
-                log.append(f"{step}: reverse {short(target)}")
-                try:
-                    await repo.reverse(target, rng.choice(REASONS))
-                except ValueError:
-                    pass
-            else:
-                victim = rng.choice(ids)
-                log.append(f"{step}: delete image {short(victim)}")
-                await db_session.execute(delete(Image).where(Image.id == victim))
-        except Exception:
-            print("\n".join(log))
-            raise
 
-        drift = await repo.verify()
-        assert drift == [], f"seed {seed} drift after step {step}: {drift}\n" + "\n".join(log)
-        for image_id, popularity in (await db_session.execute(
-                select(Image.id, Image.popularity).where(Image.id.in_(ids)))).all():
-            if await repo._open_edge(image_id) is None:
-                assert popularity >= 1, (
-                    f"seed {seed} step {step}: {image_id} is not discarded but has popularity {popularity}\n"
-                    + "\n".join(log))
+@pytest.mark.asyncio(loop_scope="session")
+async def test_random_sequences_are_replayable_and_not_vacuous(db_session):
+    totals = {"absorb": 0, "dropped": 0, "reverse": 0, "delete": 0}
+    for seed in range(25):
+        log, counts = await run_sequence(db_session, seed, tag="first-")
+        again, _ = await run_sequence(db_session, seed, tag="second-")
+        assert log == again, f"seed {seed} did not replay identically"
+        for kind, n in counts.items():
+            totals[kind] += n
+    for kind, n in totals.items():
+        assert n >= MIN_SUCCESSES, f"only {n} successful {kind} operations across all seeds: {totals}"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -99,7 +129,10 @@ async def test_concurrent_absorbs_in_one_tree_lose_no_update(db_engine):
                 await PopularityRepository(s).absorb(loser, winner, "cluster_review")
                 await s.commit()
 
-        await asyncio.gather(run(b, a), run(c, a), run(a, d))
+        results = await asyncio.gather(run(b, a), run(c, a), run(a, d), return_exceptions=True)
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
 
         async with AsyncSession(db_engine, expire_on_commit=False) as s:
             repo = PopularityRepository(s)
