@@ -427,3 +427,36 @@ async def test_verify_ignores_orphan_trees(db_session):
     await db_session.execute(delete(Image).where(Image.id == a.id))
     assert await repo.verify() == []
     assert await repo.popularity_of(b.id) == 0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_verify_reports_drift_on_a_discarded_image(db_session):
+    repo, a, b, *_ = await build_mixed_tree(db_session)
+    await db_session.execute(update(Image).where(Image.id == b.id).values(popularity=1))
+    assert await repo.verify() == [Drift(b.id, 1, 0)]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_breakdown_omits_a_recut_source(db_session):
+    a, x, y, cut = [await make_image(db_session, f"{n}.jpg") for n in ("a", "x", "y", "cut")]
+    repo = PopularityRepository(db_session)
+    await repo.absorb(x.id, a.id, "cluster_review")
+    await repo.record_dropped_copies(a.id, copies("p"), await make_run(db_session))
+    await repo.absorb(y.id, a.id, "recut")
+    parts = await repo.breakdown(a.id)
+    assert "recut" not in parts
+    assert sum(parts.values()) == await repo.popularity_of(a.id) == 3
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_verify_ignores_an_orphan_tree_with_depth_and_leaf_edges(db_session):
+    a, b, c = [await make_image(db_session, f"{n}.jpg") for n in "abc"]
+    repo = PopularityRepository(db_session)
+    await repo.absorb(b.id, a.id, "cluster_review")
+    await repo.absorb(c.id, b.id, "cluster_review")
+    await repo.record_dropped_copies(b.id, copies("x", "y"), await make_run(db_session))
+    await db_session.execute(delete(Image).where(Image.id == a.id))
+    drifts = await repo.verify()
+    assert all(d.image_id != a.id for d in drifts) and drifts == []
+    assert await repo.popularity_of(b.id) == 0
+    assert await repo.popularity_of(c.id) == 0
