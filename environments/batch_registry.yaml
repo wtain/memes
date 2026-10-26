@@ -79,6 +79,9 @@ build_image_description_embeddings:
 description_pipeline:
   module: batch.description_pipeline
   kind: description_pipeline
+refresh_recut_cuts:
+  module: batch.refresh_recut_cuts
+  kind: refresh_recut_cuts
 build_meme_profiles:
   module: batch.build_meme_profiles
   kind: build_meme_profiles
