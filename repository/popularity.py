@@ -18,7 +18,7 @@ _TREE_WEIGHT_SQL = text("""
         WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL AND a.loser_image_id IS NOT NULL
     )
     SELECT COALESCE(SUM(a.weight), 0) FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
-    WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL AND a.loser_image_id IS NOT NULL
+    WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL
 """)
 
 
@@ -74,7 +74,7 @@ class PopularityRepository:
     async def _lock_images(self, ids) -> None:
         """Row-lock images in id order (consistent order avoids deadlocks); missing ids are ignored."""
         await self.session.execute(
-            select(Image.id).where(Image.id.in_(sorted(set(ids), key=str))).order_by(Image.id).with_for_update()
+            select(Image.id).where(Image.id.in_(set(ids))).order_by(Image.id).with_for_update()
         )
 
     async def _add_popularity(self, image_id: uuid.UUID, delta: int) -> None:
@@ -94,6 +94,8 @@ class PopularityRepository:
                      batch_run_id: uuid.UUID | None = None) -> PopularityAbsorption:
         """Record `loser_id` as a copy of `winner_id` (credited to the root of the winner's tree) and move
         the loser's tree count into that root. Idempotent for a retry into the same tree."""
+        # Locks from a failed attempt stay held, so id ordering is not global across retries; a deadlock
+        # there is detected and aborted by Postgres, never silently wrong.
         for _ in range(MAX_ATTEMPTS):
             root = await self.root_of(winner_id)
             if root == loser_id:

@@ -63,6 +63,7 @@ async def test_recut_edge_gives_the_cut_exactly_the_sources_popularity(db_sessio
     s, cut2 = await make_image(db_session, "s.jpg"), await make_image(db_session, "cut2.jpg")
     await repo.absorb(s.id, cut2.id, "recut")
     assert await pop(db_session, cut2) == 1
+    assert await pop(db_session, s) == 0
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -87,7 +88,7 @@ async def test_absorbing_into_a_different_tree_raises_already_discarded(db_sessi
     with pytest.raises(AlreadyDiscardedError) as exc:
         await repo.absorb(b.id, c.id, "cluster_review")
     assert exc.value.existing.winner_image_id == a.id
-    assert (await pop(db_session, a), await pop(db_session, c)) == (2, 1)
+    assert (await pop(db_session, a), await pop(db_session, b), await pop(db_session, c)) == (2, 0, 1)
     assert await edge_count(db_session) == 1
 
 
@@ -97,17 +98,22 @@ async def test_cycle_is_refused(db_session):
     repo = PopularityRepository(db_session)
     with pytest.raises(CycleError):
         await repo.absorb(a.id, a.id, "cluster_review")
+    assert await edge_count(db_session) == 0
+    assert (await pop(db_session, a), await pop(db_session, b)) == (1, 1)
     await repo.absorb(b.id, a.id, "cluster_review")
     with pytest.raises(CycleError):
         await repo.absorb(a.id, b.id, "cluster_review")
     assert await edge_count(db_session) == 1
+    assert (await pop(db_session, a), await pop(db_session, b)) == (2, 0)
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_ghost_winner_is_accepted(db_session):
     b = await make_image(db_session, "b.jpg")
-    row = await PopularityRepository(db_session).absorb(b.id, uuid.uuid4(), "cluster_review")
+    ghost = uuid.uuid4()
+    row = await PopularityRepository(db_session).absorb(b.id, ghost, "cluster_review")
     assert row.id is not None
+    assert row.winner_image_id == ghost and row.winner_content_hash is None
     assert await pop(db_session, b) == 0
 
 
@@ -117,3 +123,30 @@ async def test_a_drifted_loser_cache_does_not_spread(db_session):
     await db_session.execute(update(Image).where(Image.id == b.id).values(popularity=50))
     await PopularityRepository(db_session).absorb(b.id, a.id, "cluster_review")
     assert await pop(db_session, a) == 2
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_missing_loser_raises_value_error(db_session):
+    a = await make_image(db_session, "a.jpg")
+    with pytest.raises(ValueError):
+        await PopularityRepository(db_session).absorb(uuid.uuid4(), a.id, "cluster_review")
+    assert await edge_count(db_session) == 0
+
+
+async def add_leaf_edge(session, winner, key):
+    session.add(PopularityAbsorption(kind="absorb", source="hash_in_batch", loser_image_id=None,
+                                     winner_image_id=winner.id, weight=1, dedupe_key=key))
+    await session.flush()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_tree_weight_counts_leaf_edges_and_they_travel_with_the_tree(db_session):
+    a, w = await make_image(db_session, "a.jpg"), await make_image(db_session, "w.jpg")
+    repo = PopularityRepository(db_session)
+    await add_leaf_edge(db_session, w, "leaf-1")
+    await add_leaf_edge(db_session, w, "leaf-2")
+    await db_session.execute(update(Image).where(Image.id == w.id).values(popularity=3))
+    assert await repo.tree_weight(w.id) == 2
+    await repo.absorb(w.id, a.id, "cluster_review")
+    assert await pop(db_session, a) == 4
+    assert await pop(db_session, w) == 0
