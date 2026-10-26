@@ -482,3 +482,13 @@ async def test_ocr_lemma_overlap_check_respects_min_lemma_count_floor(db_session
     assert inserted == 0
     rows = (await db_session.execute(text("SELECT * FROM tmp_duplicates"))).all()
     assert rows == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_rebuild_ignores_cut_proposed_images(db_session):
+    await _insert_image_with_embedding(db_session, _unit_vector(0), status="active")
+    await _insert_image_with_embedding(db_session, _unit_vector(0), status="cut_proposed")
+
+    inserted = await rebuild_active_library(db_session, k=20, threshold=0.3)
+
+    assert inserted == 0
