@@ -28,7 +28,7 @@ Append-only log of duplicate absorptions (epic meme-popularity): when a duplicat
 |---|---|---|
 | `id` | UUID PK | |
 | `kind` | String(10) NOT NULL | `absorb` \| `reverse` |
-| `source` | String(30) NOT NULL | Which flow dropped the loser: `hash_in_batch`, `hash_cross_corpus`, `ingest_tier_a`, `ingest_tier_b`, `cluster_review`, `agent_review`, `file_duplicates` (`PopularitySource` in `Storage/models.py`) |
+| `source` | String(30) NOT NULL | Which flow dropped the loser: `hash_in_batch`, `hash_cross_corpus`, `ingest_tier_a`, `ingest_tier_b`, `cluster_review`, `agent_review`, `file_duplicates`, `recut` (`PopularitySource` in `Storage/models.py`) |
 | `loser_image_id` | UUID nullable | Plain id, no FK. Null for a loser that never became an image row |
 | `winner_image_id` | UUID NOT NULL | Plain id, no FK |
 | `weight` | Integer NOT NULL | CHECK `>= 0`. Copies carried over to the winner |

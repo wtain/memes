@@ -324,7 +324,7 @@ build_concept_embeddings   → concept CLIP embeddings + mappings; also runs tag
 # Maintenance (run as needed)
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
 detect_entities_and_tag    tag_images_from_concepts  build_bow          remove_singletons
-fix_image_formats          classify_text_heavy       build_ocr_text_embeddings
+fix_image_formats          classify_text_heavy       build_ocr_text_embeddings   check_image_popularity
 
 check_image_popularity      → reports drift of the cached images.popularity against the value derived from the open
                                popularity_absorptions edges; --fix rewrites the cache to the expected value. Shell only
