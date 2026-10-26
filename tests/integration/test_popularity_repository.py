@@ -1,10 +1,11 @@
 import uuid
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 
-from repository.popularity import AlreadyDiscardedError, CycleError, PopularityRepository
-from Storage.models import Image, PopularityAbsorption
+from repository.popularity import (AlreadyDiscardedError, CycleError, Drift, DroppedCopy,
+                                   PopularityRepository)
+from Storage.models import BatchRun, Image, PopularityAbsorption
 
 
 async def make_image(session, filename):
@@ -154,11 +155,6 @@ async def test_tree_weight_counts_leaf_edges_and_they_travel_with_the_tree(db_se
 
 # ---- record_dropped_copies and reverse ----
 
-from sqlalchemy import delete  # noqa: E402
-
-from repository.popularity import DroppedCopy  # noqa: E402
-from Storage.models import BatchRun  # noqa: E402
-
 
 async def make_run(session):
     run = BatchRun(kind="ingestion", trigger="manual", status="completed")
@@ -230,6 +226,8 @@ async def test_reverse_restores_the_loser(db_session):
     await db_session.refresh(row)
     assert row.reversed_by_id == rev.id
     assert rev.kind == "reverse" and rev.reverses_id == row.id and rev.reason == "undo_reject"
+    assert (rev.loser_filename, rev.loser_content_hash, rev.winner_content_hash, rev.batch_run_id) == (
+        row.loser_filename, row.loser_content_hash, row.winner_content_hash, row.batch_run_id)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -305,12 +303,14 @@ async def test_double_reverse_and_reverse_of_a_reverse_row_raise_value_error(db_
     repo = PopularityRepository(db_session)
     row = await repo.absorb(b.id, a.id, "cluster_review")
     rev = await repo.reverse(row.id, "correction")
+    before = await edge_count(db_session)
     with pytest.raises(ValueError):
         await repo.reverse(row.id, "correction")
     with pytest.raises(ValueError):
         await repo.reverse(rev.id, "correction")
     with pytest.raises(ValueError):
         await repo.reverse(uuid.uuid4(), "correction")
+    assert await edge_count(db_session) == before
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -321,6 +321,7 @@ async def test_an_unknown_reason_raises(db_session):
     with pytest.raises(ValueError):
         await repo.reverse(row.id, "because")
     assert await pop(db_session, a) == 2
+    assert await edge_count(db_session) == 1
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -344,3 +345,85 @@ async def test_recut_with_children_then_reverse(db_session):
     assert (await pop(db_session, cut), await pop(db_session, a)) == (3, 0)
     await repo.reverse(recut.id, "correction")
     assert (await pop(db_session, cut), await pop(db_session, a)) == (1, 3)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_reverse_takes_leaf_edges_of_the_subtree_with_it(db_session):
+    a, b = await make_image(db_session, "a.jpg"), await make_image(db_session, "b.jpg")
+    repo = PopularityRepository(db_session)
+    await repo.record_dropped_copies(b.id, copies("x", "y"), await make_run(db_session))
+    assert await pop(db_session, b) == 3
+    eb = await repo.absorb(b.id, a.id, "cluster_review")
+    assert await pop(db_session, a) == 4
+    await repo.reverse(eb.id, "correction")
+    assert (await pop(db_session, a), await pop(db_session, b)) == (1, 3)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_dropped_copies_accept_the_cross_corpus_source(db_session):
+    keeper = await make_image(db_session, "k.jpg")
+    n = await PopularityRepository(db_session).record_dropped_copies(
+        keeper.id, copies("x"), await make_run(db_session), source="hash_cross_corpus")
+    assert n == 1
+    assert await pop(db_session, keeper) == 2
+
+
+# ---- popularity_of, breakdown, verify ----
+
+async def build_mixed_tree(session):
+    a, b, c, d = [await make_image(session, f"{n}.jpg") for n in "abcd"]
+    repo = PopularityRepository(session)
+    await repo.absorb(b.id, a.id, "cluster_review")
+    await repo.absorb(c.id, a.id, "ingest_tier_a")
+    await repo.absorb(d.id, b.id, "agent_review")
+    await repo.record_dropped_copies(b.id, copies("x", "y"), await make_run(session))
+    return repo, a, b, c, d
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_breakdown_sums_weights_by_source_over_the_tree(db_session):
+    repo, a, *_ = await build_mixed_tree(db_session)
+    assert await repo.breakdown(a.id) == {"own": 1, "cluster_review": 1, "ingest_tier_a": 1,
+                                          "agent_review": 1, "hash_in_batch": 2}
+    assert await pop(db_session, a) == 6
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_breakdown_of_a_lone_image(db_session):
+    a = await make_image(db_session, "a.jpg")
+    assert await PopularityRepository(db_session).breakdown(a.id) == {"own": 1}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_popularity_of_matches_the_cache_after_operations(db_session):
+    repo, a, b, c, d = await build_mixed_tree(db_session)
+    e = await make_image(db_session, "e.jpg")
+    await repo.absorb(a.id, e.id, "recut")
+    for img in (a, b, c, d, e):
+        assert await repo.popularity_of(img.id) == await pop(db_session, img)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_verify_reports_nothing_when_consistent(db_session):
+    repo, *_ = await build_mixed_tree(db_session)
+    await make_image(db_session, "lone.jpg")
+    assert await repo.verify() == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_verify_reports_drift(db_session):
+    repo, a, b, *_ = await build_mixed_tree(db_session)
+    await db_session.execute(update(Image).where(Image.id == a.id).values(popularity=9))
+    assert await repo.verify() == [Drift(a.id, 9, 6)]
+    assert await repo.verify([b.id]) == []
+    assert await repo.verify([a.id]) == [Drift(a.id, 9, 6)]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_verify_ignores_orphan_trees(db_session):
+    a, b = await make_image(db_session, "a.jpg"), await make_image(db_session, "b.jpg")
+    repo = PopularityRepository(db_session)
+    await repo.absorb(b.id, a.id, "cluster_review")
+    await db_session.execute(delete(Image).where(Image.id == a.id))
+    assert await repo.verify() == []
+    assert await repo.popularity_of(b.id) == 0

@@ -1,7 +1,8 @@
 """Data access for meme popularity (epic meme-popularity, P1): the absorption tree and its cached counts.
 Never commits: the caller controls commit timing."""
 import uuid
-from collections.abc import Sequence
+from collections import defaultdict
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import select, text, update
@@ -23,6 +24,25 @@ _TREE_WEIGHT_SQL = text("""
     SELECT COALESCE(SUM(a.weight), 0) FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
     WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL
 """)
+
+_BREAKDOWN_SQL = text("""
+    WITH RECURSIVE tree(id) AS (
+        SELECT CAST(:root AS uuid)
+        UNION
+        SELECT a.loser_image_id FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
+        WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL AND a.loser_image_id IS NOT NULL
+    )
+    SELECT a.source, SUM(a.weight) FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
+    WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL
+    GROUP BY a.source
+""")
+
+
+@dataclass(frozen=True)
+class Drift:
+    image_id: uuid.UUID
+    cached: int
+    expected: int
 
 
 @dataclass(frozen=True)
@@ -225,3 +245,60 @@ class PopularityRepository:
             await self.session.flush()
             return row
         raise PopularityConflictError(f"root above edge {absorb_id} kept changing")
+
+    # ---- read-only checks ----
+
+    async def popularity_of(self, image_id: uuid.UUID) -> int:
+        """Popularity derived from the edges: 0 for a discarded image, else 1 + the weight of its tree."""
+        if await self._open_edge(image_id) is not None:
+            return 0
+        return 1 + await self.tree_weight(image_id)
+
+    async def breakdown(self, image_id: uuid.UUID) -> dict[str, int]:
+        """`own` plus the weight per source over the open edges below the image (sources with weight 0,
+        such as recut, add nothing and are left out)."""
+        result = await self.session.execute(_BREAKDOWN_SQL, {"root": image_id})
+        parts = {"own": 1}
+        for source, weight in result.all():
+            if weight:
+                parts[source] = int(weight)
+        return parts
+
+    async def verify(self, image_ids: Collection[uuid.UUID] | None = None) -> list[Drift]:
+        """Compare images.popularity with the value derived from all open edges (loaded once). Only existing
+        images are compared, so trees whose root image is gone are ignored."""
+        edges = (await self.session.execute(
+            select(PopularityAbsorption.winner_image_id, PopularityAbsorption.loser_image_id,
+                   PopularityAbsorption.weight).where(
+                PopularityAbsorption.kind == PopularityKind.ABSORB,
+                PopularityAbsorption.reversed_by_id.is_(None),
+            )
+        )).all()
+        children: dict[uuid.UUID, list[uuid.UUID]] = defaultdict(list)
+        own_weight: dict[uuid.UUID, int] = defaultdict(int)
+        losers: set[uuid.UUID] = set()
+        for winner, loser, weight in edges:
+            own_weight[winner] += weight
+            if loser is not None:
+                children[winner].append(loser)
+                losers.add(loser)
+
+        query = select(Image.id, Image.popularity)
+        if image_ids is not None:
+            query = query.where(Image.id.in_(set(image_ids)))
+        drifts = []
+        for image_id, cached in (await self.session.execute(query)).all():
+            if image_id in losers:
+                expected = 0
+            else:
+                expected, seen, stack = 1, {image_id}, [image_id]
+                while stack:
+                    node = stack.pop()
+                    expected += own_weight.get(node, 0)
+                    for child in children.get(node, ()):
+                        if child not in seen:
+                            seen.add(child)
+                            stack.append(child)
+            if cached != expected:
+                drifts.append(Drift(image_id, cached, expected))
+        return drifts
