@@ -187,7 +187,8 @@ registry or scheduler status.
 extract_text_from_memes    → registers images + EasyOCR (EN/ES/RU). Run-tracked and admin-triggerable
                               from /admin/batches (always --status active there), manual-trigger only
 build_image_embeddings     → CLIP 512-dim vectors. Run-tracked and admin-triggerable (always incremental,
-                              --status active there; a full rebuild stays shell-only), manual-trigger only
+                              --status active there; a full rebuild stays shell-only), manual-trigger only. --status also takes cut_proposed
+                              (recut cuts: --status cut_proposed --incremental, shell only)
 rebuild_duplicates         → near-duplicate candidate pairs; HNSW-assisted KNN, not a full cross
                               join — see
                               docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
@@ -359,7 +360,8 @@ create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each
                                confidence first, into a cut file in BASE_PATH (same format as the source: JPEG at
                                recut.jpeg_quality keeping the subsampling, PNG as PNG), a `cut_proposed` images row, copies
                                of the derived data (group 1 as is; group 3 with stale = true, OCR boxes shifted into the cut;
-                               group 2 is left for the existing jobs with --status cut_proposed, R3b), image_cuts.state
+                               group 2 is left for build_image_embeddings, classify_text_heavy and build_ocr_text_embeddings with --status cut_proposed (R3b; the
+                               last two after the OCR refresh, see docs/image-status.md); the YOLO and CONCEPT tags wait for the next full run once the cut is active), image_cuts.state
                                `proposed` and the `proposed` metric event, one transaction per cut (a failure leaves no
                                row and no file). A proposal that cannot be cut ends `failed` with image_cuts.failure_reason
                                (source_missing, source_changed, unreadable, write_error); 20 failures in a row stop the run.
@@ -376,7 +378,8 @@ classify_text_heavy         → computes the text-heavy classifier (coverage rat
                                manual-trigger only, not scheduled. --status defaults to active
                                (the existing corpus); --status pending covers an in-flight
                                ingestion batch -- also chained automatically as part of
-                               ingest_auto_prep (see Ingestion below). Uses ProgressTracker, so
+                               ingest_auto_prep (see Ingestion below). --status cut_proposed (shell only) covers recut cuts, after the
+                               cut's OCR refresh. Uses ProgressTracker, so
                                when run interactively on Windows it needs PYTHONIOENCODING=utf-8
                                set first -- see the ProgressTracker gotcha below. See
                                docs/superpowers/specs/2026-09-15-text-heavy-classifier.md.
@@ -391,7 +394,8 @@ build_ocr_text_embeddings   → computes sentence embeddings (paraphrase-multili
                                from /admin/batches, manual-trigger only, not scheduled. --status
                                defaults to active; --status pending covers an in-flight
                                ingestion batch -- also chained automatically as part of
-                               ingest_auto_prep (see Ingestion below).
+                               ingest_auto_prep (see Ingestion below). --status cut_proposed (shell only) covers recut cuts, after the cut's OCR refresh and
+                               classify_text_heavy.
 build_taxonomy_similarity   → regenerates batch/data/taxonomy/similarity.json for the meme-from-text
                                vocabulary keys from the 25 hand-curated near-synonym pairs in
                                batch/data/taxonomy/similarity_overrides.yaml, plus any within-axis embedding

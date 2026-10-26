@@ -1,6 +1,7 @@
 # R3b: Derive group 2 - design
 
-Status: draft
+Status: implementation
+Plan: docs/superpowers/plans/2026-10-26-r3b-derive-group-2.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R3b, split from R3)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Inventory of derived data: docs/image-derived-data.md

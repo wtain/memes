@@ -1,7 +1,7 @@
 """
 CLIP image embeddings (512-dim) into the embeddings table. --incremental embeds only images with no
-embedding; without it the in-scope embeddings are deleted and rebuilt. --status {pending,active,all} selects the
-images (ingestion runs it with pending). Run-tracked (kind build_image_embeddings); main() defaults to incremental
+embedding; without it the in-scope embeddings are deleted and rebuilt. --status {pending,active,cut_proposed,all} selects
+the images (ingestion runs it with pending; recut cuts: --status cut_proposed --incremental). Run-tracked (kind build_image_embeddings); main() defaults to incremental
 and active so a scheduled or admin run never wipes embeddings. Admin-triggerable, manual only.
 """
 import argparse
@@ -24,9 +24,23 @@ from Storage.models import Embedding
 from Storage.models import Image as Img
 
 
+def _status_filter(target_status: str):
+    return () if target_status == "all" else (Img.status == target_status,)
+
+
+async def select_images_to_embed(session, incremental: bool, target_status: str):
+    """(filename, id) rows of the images to embed: every image of the status, or with `incremental` only those that
+    have no vector yet."""
+    stmt = select(Img.filename, Img.id).where(*_status_filter(target_status))
+    if incremental:
+        has_embedding = select(Embedding.image_id).distinct().scalar_subquery()
+        stmt = stmt.where(Img.id.not_in(has_embedding))
+    return (await session.execute(stmt)).all()
+
+
 async def _process(incremental: bool, target_status: str = "active") -> None:
 
-    status_filter = () if target_status == "all" else (Img.status == target_status,)
+    status_filter = _status_filter(target_status)
 
     async with AsyncSessionLocal() as session:
         if not incremental:
@@ -43,13 +57,7 @@ async def _process(incremental: bool, target_status: str = "active") -> None:
         )).scalar_one()
         print(f"Total images (status={target_status}): {total_images}")
 
-        if incremental:
-            has_embedding = select(Embedding.image_id).distinct().scalar_subquery()
-            stmt = select(Img.filename, Img.id).where(Img.id.not_in(has_embedding), *status_filter)
-        else:
-            stmt = select(Img.filename, Img.id).where(*status_filter)
-
-        rows = (await session.execute(stmt)).all()
+        rows = await select_images_to_embed(session, incremental, target_status)
         print(f"Found {len(rows)} image(s) needing embeddings")
 
         clip_model = ClipModel()
@@ -110,7 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     parser.add_argument("--incremental", action="store_true",
                         help="Only embed images that have no embedding yet (default: clear all and reprocess)")
-    parser.add_argument("--status", choices=["pending", "active", "all"], default="active",
+    parser.add_argument("--status", choices=["pending", "active", "cut_proposed", "all"], default="active",
                         help="Only embed images with this registration status (default: active). "
                              "Ingestion's own duplicate-review stage calls this with --status pending.")
     args = parser.parse_args()

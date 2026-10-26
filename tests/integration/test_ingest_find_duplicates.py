@@ -292,3 +292,14 @@ async def test_ocr_text_probe_tolerates_image_with_no_ocr_lemmas(db_session):
     assert inserted == 0
     rows = (await db_session.execute(text("SELECT * FROM tmp_duplicates"))).all()
     assert rows == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ingestion_probe_ignores_cut_proposed_images(db_session):
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
+    await _insert_image(db_session, _unit_vector(0), "cut_proposed")
+
+    inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)
+
+    assert inserted == 0

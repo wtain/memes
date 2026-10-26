@@ -52,10 +52,10 @@ Detail: [use-cases/ocr-lemmas-tags.md](use-cases/ocr-lemmas-tags.md).
 | Script | What it does | Tracked kind | Admin | Sched | Key flags / notes |
 |---|---|---|---|---|---|
 | `extract_text_from_memes` | Register files, OCR to `ocr_texts` | `extract_text_from_memes` | yes | no | `--status {pending,active,all}`; the admin path is always `active` over `BASE_PATH`. Auto-registers only in `active` mode. Do not clear `ocr_texts` for a re-run, use `reset_ocr_status` |
-| `build_image_embeddings` | CLIP embeddings | `build_image_embeddings` | yes | no | `--status`, `--incremental`. `main()` defaults to incremental and `active`, so admin runs never delete embeddings; a full rebuild is shell-only (omit `--incremental`) |
+| `build_image_embeddings` | CLIP embeddings | `build_image_embeddings` | yes | no | `--status` (`pending`, `active`, `cut_proposed`, `all`), `--incremental`. `main()` defaults to incremental and `active`, so admin runs never delete embeddings; a full rebuild is shell-only (omit `--incremental`). Recut cuts: `--status cut_proposed --incremental`, shell only |
 | `build_ocr_lemmas` | Per-image lemma index (smart search, duplicate corroboration) | `build_ocr_lemmas` | yes | no | `--incremental`, `--status`. Admin path is always incremental. A full run deletes the whole table |
-| `build_ocr_text_embeddings` | 384-dim MiniLM embeddings of OCR text (text-heavy images only) | `build_ocr_text_embeddings` | yes | no | `--status` |
-| `classify_text_heavy` | Coverage / background / ink-colour classifier into `image_classifications` | `classify_text_heavy` | yes | no | `--status` |
+| `build_ocr_text_embeddings` | 384-dim MiniLM embeddings of OCR text (text-heavy images only) | `build_ocr_text_embeddings` | yes | no | `--status` (also `cut_proposed`, shell only, after the cut's OCR refresh and `classify_text_heavy`) |
+| `classify_text_heavy` | Coverage / background / ink-colour classifier into `image_classifications` | `classify_text_heavy` | yes | no | `--status` (also `cut_proposed`, shell only, after the cut's OCR refresh) |
 
 ## 3. Tagging
 
