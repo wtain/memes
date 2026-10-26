@@ -6,6 +6,7 @@ Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Inventory of derived data: docs/image-derived-data.md
 Follows: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-25-r3a-cut-and-copy-design.md
+Follow-ups: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-26-r3c-refresh-stale-design.md
 
 R3a creates `cut_proposed` images and copies groups 1 and 3. R3b lets the existing jobs that recompute from pixels (group 2)
 run on those cuts: `--status cut_proposed` for three jobs, one guard against the new CLIP vectors leaking into the concept
