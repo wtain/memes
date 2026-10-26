@@ -1,6 +1,6 @@
 # P1: Popularity data model and absorption rules
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-10-26-p1-popularity-data-model.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; read it first, it holds the definition, D1 to D6 and C1 to C7)
 Follow-ups: P2 recording winners in each path, P3 API and details page, P4 corrections and audit (not written yet)
