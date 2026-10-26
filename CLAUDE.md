@@ -366,7 +366,8 @@ create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each
                                Skips sources that are not active, flagged or in the frozen corpus (the proposal stays
                                `detected`). Run-tracked (kind create_recut_cuts, stats
                                proposals_selected/cut/skipped/failed/proposals_remaining) and admin-triggerable from
-                               /admin/batches, manual-trigger only, not scheduled; `--limit`. See
+                               /admin/batches, manual-trigger only, not scheduled; `--limit`; `--retry-failed` (shell only) first puts `failed`
+                               proposals back to `detected`, for after a drive or database outage. See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-25-r3a-cut-and-copy-design.md.
 classify_text_heavy         → computes the text-heavy classifier (coverage ratio, background
                                color uniformity, ink-color consistency) for images with OCR text

@@ -50,10 +50,13 @@ async def _cut_one(session, cuts: ImageCutsRepository, base_path: str, row, dst_
         raise CutError(WRITE_ERROR, f"{type(e).__name__}: {e}"[:200]) from e
 
 
-async def run(session, base_path: str, corpus_ids, jpeg_quality: int, limit: int | None = None) -> SimpleMetricsListener:
+async def run(session, base_path: str, corpus_ids, jpeg_quality: int, limit: int | None = None,
+              retry_failed: bool = False) -> SimpleMetricsListener:
     if not os.path.isdir(base_path):
         raise FileNotFoundError(f"BASE_PATH is not a directory: {base_path}")
     cuts = ImageCutsRepository(session)
+    if retry_failed:
+        print(f"Re-queued {await cuts.requeue_failed()} failed proposals")
     skipped = await cuts.count_ineligible_detected(corpus_ids)
     total = await cuts.count_cuttable(corpus_ids)
     rows = await cuts.select_cuttable(corpus_ids, limit=limit)
@@ -91,22 +94,24 @@ async def run(session, base_path: str, corpus_ids, jpeg_quality: int, limit: int
     return metrics
 
 
-async def _execute(run_id: uuid.UUID, limit: int | None) -> SimpleMetricsListener:
+async def _execute(run_id: uuid.UUID, limit: int | None, retry_failed: bool = False) -> SimpleMetricsListener:
     corpus_ids = load_corpus_ids()
     async with AsyncSessionLocal() as session:
-        metrics = await run(session, settings.BASE_PATH, corpus_ids, settings.RECUT.JPEG_QUALITY, limit=limit)
+        metrics = await run(session, settings.BASE_PATH, corpus_ids, settings.RECUT.JPEG_QUALITY, limit=limit,
+                            retry_failed=retry_failed)
         await BatchRunRepository(session).update_stats(run_id, **metrics.counters_dict())
         await session.commit()
     return metrics
 
 
-async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, limit: int | None = None) -> None:
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, limit: int | None = None,
+               retry_failed: bool = False) -> None:
     if run_id is not None:
         async with finish_existing_run(run_id):
-            metrics = await _execute(run_id, limit)
+            metrics = await _execute(run_id, limit, retry_failed)
     else:
         async with tracked_run(kind=KIND, trigger=trigger) as new_run_id:
-            metrics = await _execute(new_run_id, limit)
+            metrics = await _execute(new_run_id, limit, retry_failed)
     print("Recut cut results:")
     metrics.print()
 
@@ -115,6 +120,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
     parser.add_argument("--limit", type=int, default=None, help="cut at most this many proposals this run")
+    parser.add_argument("--retry-failed", action="store_true",
+                        help="first put failed proposals back to detected (after a drive or database outage)")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(limit=args.limit))
+    asyncio.run(main(limit=args.limit, retry_failed=args.retry_failed))

@@ -229,3 +229,24 @@ async def test_mark_proposed_and_mark_failed(db_session):
     await db_session.refresh(bad)
     assert ok.state == CutState.PROPOSED and ok.cut_image_id == cut_img.id
     assert bad.state == CutState.FAILED and bad.failure_reason == "source_missing" and bad.cut_image_id is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_requeue_failed_returns_failed_proposals_to_detected(db_session):
+    repo = ImageCutsRepository(db_session)
+    a, b = await _image(db_session), await _image(db_session)
+    failed = await _detected(db_session, a)
+    await repo.mark_failed(failed.id, "source_missing")
+    blocked_src = await _image(db_session)
+    blocked = await _detected(db_session, blocked_src)
+    await repo.mark_failed(blocked.id, "write_error")
+    await _detected(db_session, blocked_src)  # a live proposal now holds the source's slot again
+    other = await _detected(db_session, b)
+    await db_session.flush()
+    count = await repo.requeue_failed()
+    await db_session.refresh(failed)
+    await db_session.refresh(blocked)
+    await db_session.refresh(other)
+    assert failed.state == CutState.DETECTED and failed.failure_reason is None
+    assert blocked.state == CutState.FAILED  # re-queueing it would break the one-live-proposal-per-source rule
+    assert other.state == CutState.DETECTED and count >= 1

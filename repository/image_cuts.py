@@ -3,6 +3,7 @@ controls commit timing."""
 import uuid
 
 from sqlalchemy import and_, exists, func, select, update
+from sqlalchemy.orm import aliased
 
 from Storage.models import CutState, Image, ImageCut, ImageExtras, ImageProcessingStatus, ImageStatus, OCRText
 
@@ -111,3 +112,17 @@ class ImageCutsRepository:
         await self.session.execute(
             update(ImageCut).where(ImageCut.id == cut_id)
             .values(state=CutState.FAILED, failure_reason=reason))
+
+    async def requeue_failed(self) -> int:
+        """Put `failed` proposals back to `detected` so the next cut run tries them again (a passing outage of the
+        drive or database leaves them failed for good otherwise). A proposal whose source already has another live
+        proposal stays failed: re-queueing it would break the one-live-proposal-per-source rule. Returns the count."""
+        other = aliased(ImageCut)
+        live_elsewhere = exists().where(other.source_image_id == ImageCut.source_image_id,
+                                        other.state.in_(CutState.LIVE))
+        result = await self.session.execute(
+            update(ImageCut)
+            .where(ImageCut.state == CutState.FAILED, ImageCut.source_image_id.isnot(None),
+                   ImageCut.cut_image_id.is_(None), ~live_elsewhere)
+            .values(state=CutState.DETECTED, failure_reason=None))
+        return result.rowcount or 0

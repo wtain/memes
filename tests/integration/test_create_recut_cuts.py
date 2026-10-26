@@ -163,3 +163,20 @@ async def test_consecutive_failures_stop_the_run(db_session, tmp_path):
     await db_session.commit()
     with patch.object(job, "MAX_CONSECUTIVE_FAILURES", 2), pytest.raises(RuntimeError):
         await job.run(db_session, str(tmp_path), corpus, 95)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_retry_failed_requeues_failed_proposals_and_cuts_them(db_session, tmp_path):
+    src, cut = await _proposal(db_session, tmp_path, write=False)
+    corpus = await _only(db_session, [src])
+    await _go(db_session, tmp_path, corpus)
+    await db_session.refresh(cut)
+    assert cut.state == CutState.FAILED
+    _write(tmp_path / "a.png")  # the volume is back
+    await db_session.execute(
+        ImageCut.__table__.update().where(ImageCut.id == cut.id).values(source_content_hash=None))
+    await db_session.commit()
+    m = await job.run(db_session, str(tmp_path), corpus, 95, retry_failed=True)
+    await db_session.commit()
+    await db_session.refresh(cut)
+    assert cut.state == CutState.PROPOSED and cut.failure_reason is None and m.counters_dict()["cut"] == 1
