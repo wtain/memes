@@ -6,7 +6,7 @@ Not run-tracked. See docs/superpowers/specs/2026-10-26-meme-popularity/.
 import argparse
 import asyncio
 
-from sqlalchemy import update
+from sqlalchemy import text, update
 
 from config.settings import load_env
 from repository.popularity import Drift, PopularityRepository
@@ -16,6 +16,9 @@ from Storage.models import Image
 
 async def run(session, fix: bool) -> list[Drift]:
     """Return the drift found; when fix, rewrite images.popularity to expected. Never commits."""
+    if fix:
+        # Writers insert into popularity_absorptions; blocking them keeps verify's read consistent with the fix.
+        await session.execute(text("LOCK TABLE popularity_absorptions IN SHARE MODE"))
     drifts = await PopularityRepository(session).verify()
     if fix:
         for drift in drifts:

@@ -33,7 +33,10 @@ For every live root it is at least 1.
 
 `images.popularity`: `Integer NOT NULL server_default '1'`, `CHECK (popularity >= 0)`. Adding a column with a constant
 default is metadata-only in Postgres (no table rewrite). Every existing image becomes 1: that is the "no backfill"
-rule. An older backend ignores the column, so rollout order does not matter.
+rule. An older backend runs fine against the migrated schema, but the new code needs the migration first (every
+`select(Image)` reads `images.popularity`), so migrate metal, general and IT before or at the merge. The CHECK
+constraint add takes an ACCESS EXCLUSIVE lock on `images` and scans it (fast at ~22k rows) but queues behind long
+transactions, so do not run it during a long batch (or set lock_timeout).
 
 New table `popularity_absorptions`, append-only except `reversed_by_id` on an absorb row:
 

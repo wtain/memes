@@ -3,12 +3,12 @@ import random
 import uuid
 
 import pytest
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repository.popularity import (AlreadyDiscardedError, CycleError, DroppedCopy,
                                    PopularityRepository)
-from Storage.models import Image, PopularityAbsorption
+from Storage.models import Image, OCRText, PopularityAbsorption
 
 from tests.integration.test_popularity_repository import make_image, make_run, pop
 
@@ -110,6 +110,32 @@ async def test_random_sequences_are_replayable_and_not_vacuous(db_session):
             totals[kind] += n
     for kind, n in totals.items():
         assert n >= MIN_SUCCESSES, f"only {n} successful {kind} operations across all seeds: {totals}"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_popularity_row_lock_does_not_block_child_table_inserts(db_engine):
+    """A popularity transaction holding an image lock must not block FK-checked inserts into child tables."""
+    tag = uuid.uuid4().hex[:8]
+    image_id = None
+    try:
+        async with AsyncSession(db_engine, expire_on_commit=False) as s:
+            image_id = (await make_image(s, f"lock-{tag}.jpg")).id
+            await s.commit()
+
+        async with AsyncSession(db_engine) as holder:
+            await PopularityRepository(holder)._lock_images({image_id})  # held, not committed
+            async with AsyncSession(db_engine) as other:
+                await other.execute(text("SET LOCAL lock_timeout = '2s'"))
+                other.add(OCRText(image_id=image_id, text="x"))
+                await other.flush()  # raises on lock timeout if the FK check were blocked
+                await other.rollback()
+            await holder.rollback()
+    finally:
+        async with AsyncSession(db_engine) as s:
+            if image_id:
+                await s.execute(delete(OCRText).where(OCRText.image_id == image_id))
+                await s.execute(delete(Image).where(Image.id == image_id))
+            await s.commit()
 
 
 @pytest.mark.asyncio(loop_scope="session")

@@ -103,8 +103,10 @@ class PopularityRepository:
 
     async def _lock_images(self, ids) -> None:
         """Row-lock images in id order (consistent order avoids deadlocks); missing ids are ignored."""
+        # key_share=True renders FOR NO KEY UPDATE: plain FOR UPDATE conflicts with the FOR KEY SHARE lock
+        # Postgres takes on every FK check, so it would block inserts into all child tables (ocr_texts, tags...).
         await self.session.execute(
-            select(Image.id).where(Image.id.in_(set(ids))).order_by(Image.id).with_for_update()
+            select(Image.id).where(Image.id.in_(set(ids))).order_by(Image.id).with_for_update(key_share=True)
         )
 
     async def _add_popularity(self, image_id: uuid.UUID, delta: int) -> None:
@@ -124,6 +126,8 @@ class PopularityRepository:
                      batch_run_id: uuid.UUID | None = None) -> PopularityAbsorption:
         """Record `loser_id` as a copy of `winner_id` (credited to the root of the winner's tree) and move
         the loser's tree count into that root. Idempotent for a retry into the same tree."""
+        if source not in PopularitySource.ALL:
+            raise ValueError(f"unknown source {source!r}")
         # Locks from a failed attempt stay held, so id ordering is not global across retries; a deadlock
         # there is detected and aborted by Postgres, never silently wrong.
         for _ in range(MAX_ATTEMPTS):
@@ -172,6 +176,8 @@ class PopularityRepository:
                                     source: str = PopularitySource.HASH_IN_BATCH) -> int:
         """Credit the root of `winner_id`'s tree with files dropped as exact duplicates (leaf edges, no loser
         image). Idempotent per (batch, content hash, destination); returns the number newly counted."""
+        if batch_run_id is None:
+            raise ValueError("batch_run_id is required")
         if source not in (PopularitySource.HASH_IN_BATCH, PopularitySource.HASH_CROSS_CORPUS):
             raise ValueError(f"source {source!r} is not valid for dropped copies")
         if not copies:
@@ -256,7 +262,8 @@ class PopularityRepository:
 
     async def breakdown(self, image_id: uuid.UUID) -> dict[str, int]:
         """`own` plus the weight per source over the open edges below the image (sources with weight 0,
-        such as recut, add nothing and are left out)."""
+        such as recut, add nothing and are left out). Meant for roots: on a discarded image `popularity_of` is 0
+        while this still returns the tree-based parts, so callers should call it on roots only."""
         result = await self.session.execute(_BREAKDOWN_SQL, {"root": image_id})
         parts = {"own": 1}
         for source, weight in result.all():

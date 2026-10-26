@@ -217,6 +217,24 @@ async def test_a_non_hash_source_is_rejected_for_copies(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_dropped_copies_require_a_batch_run_id(db_session):
+    keeper = await make_image(db_session, "k.jpg")
+    with pytest.raises(ValueError):
+        await PopularityRepository(db_session).record_dropped_copies(keeper.id, copies("x"), None)
+    assert await edge_count(db_session) == 0
+    assert await pop(db_session, keeper) == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_absorb_with_an_unknown_source_raises_and_writes_nothing(db_session):
+    a, b = await make_image(db_session, "a.jpg"), await make_image(db_session, "b.jpg")
+    with pytest.raises(ValueError):
+        await PopularityRepository(db_session).absorb(b.id, a.id, "bogus")
+    assert await edge_count(db_session) == 0
+    assert (await pop(db_session, a), await pop(db_session, b)) == (1, 1)
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_reverse_restores_the_loser(db_session):
     a, b = await make_image(db_session, "a.jpg"), await make_image(db_session, "b.jpg")
     repo = PopularityRepository(db_session)
