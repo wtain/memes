@@ -159,3 +159,73 @@ async def test_a_cut_can_store_a_failure_reason(db_session):
     row.failure_reason = "source_missing"
     await db_session.flush()
     assert row.failure_reason == "source_missing"
+
+
+async def _detected(s, source, confidence=0.9):
+    cut = ImageCut(source_image_id=source.id, crop_x=1, crop_y=1, crop_w=10, crop_h=10, detector="margin_trim",
+                   detector_version=VER, confidence=confidence, state=CutState.DETECTED)
+    s.add(cut)
+    await s.flush()
+    return cut
+
+
+async def _cuttable_ids(s, corpus=frozenset(), limit=None):
+    return [r.cut_id for r in await ImageCutsRepository(s).select_cuttable(set(corpus), limit)]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cuttable_orders_by_confidence_then_limits(db_session):
+    low = await _detected(db_session, await _image(db_session), 0.2)
+    high = await _detected(db_session, await _image(db_session), 0.95)
+    mid = await _detected(db_session, await _image(db_session), 0.5)
+    ids = [i for i in await _cuttable_ids(db_session) if i in {low.id, high.id, mid.id}]
+    assert ids == [high.id, mid.id, low.id]
+    assert len(await _cuttable_ids(db_session, limit=1)) == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cuttable_row_carries_what_the_job_needs(db_session):
+    src = await _image(db_session, content_hash="h")
+    cut = await _detected(db_session, src)
+    (row,) = [r for r in await ImageCutsRepository(db_session).select_cuttable(set()) if r.cut_id == cut.id]
+    assert row.source_image_id == src.id and row.filename == src.filename and row.source_content_hash is None
+    assert (row.crop_x, row.crop_y, row.crop_w, row.crop_h) == (1, 1, 10, 10)
+    assert row.created_at == src.created_at and row.detect_run_id is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ineligible_sources_are_not_cuttable_but_are_counted(db_session):
+    repo = ImageCutsRepository(db_session)
+    before = await repo.count_ineligible_detected(set())
+    inactive = await _detected(db_session, await _image(db_session, status="rejected"))
+    flagged_img = await _image(db_session)
+    db_session.add(ImageExtras(image_id=flagged_img.id, flagged=True))
+    flagged = await _detected(db_session, flagged_img)
+    in_corpus_img = await _image(db_session)
+    in_corpus = await _detected(db_session, in_corpus_img)
+    ok = await _detected(db_session, await _image(db_session))
+    await db_session.flush()
+    ids = await _cuttable_ids(db_session, corpus={in_corpus_img.id})
+    assert ok.id in ids and not ({inactive.id, flagged.id, in_corpus.id} & set(ids))
+    assert await repo.count_ineligible_detected({in_corpus_img.id}) == before + 3
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_only_detected_rows_are_cuttable(db_session):
+    img = await _image(db_session)
+    await _cut(db_session, img, state=CutState.PROPOSED)
+    rows = (await db_session.execute(select(ImageCut).where(ImageCut.source_image_id == img.id))).scalars().all()
+    assert rows[0].id not in await _cuttable_ids(db_session)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_mark_proposed_and_mark_failed(db_session):
+    repo = ImageCutsRepository(db_session)
+    a, b, cut_img = await _image(db_session), await _image(db_session), await _image(db_session)
+    ok, bad = await _detected(db_session, a), await _detected(db_session, b)
+    await repo.mark_proposed(ok.id, cut_img.id)
+    await repo.mark_failed(bad.id, "source_missing")
+    await db_session.refresh(ok)
+    await db_session.refresh(bad)
+    assert ok.state == CutState.PROPOSED and ok.cut_image_id == cut_img.id
+    assert bad.state == CutState.FAILED and bad.failure_reason == "source_missing" and bad.cut_image_id is None

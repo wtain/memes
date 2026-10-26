@@ -2,9 +2,9 @@
 controls commit timing."""
 import uuid
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import and_, exists, func, select, update
 
-from Storage.models import CutState, Image, ImageCut, ImageExtras, ImageProcessingStatus, OCRText
+from Storage.models import CutState, Image, ImageCut, ImageExtras, ImageProcessingStatus, ImageStatus, OCRText
 
 
 class ImageCutsRepository:
@@ -65,3 +65,49 @@ class ImageCutsRepository:
         )
         # the bbox column is JSON: a Python None can be stored as JSON null, which isnot(None) does not exclude
         return [bbox for bbox in result.scalars().all() if bbox is not None]
+
+    def _detected(self, corpus_ids):
+        """(select of detected proposals joined to their source, the eligibility predicate). Eligible: the source is
+        active, not flagged and not in `corpus_ids` (the frozen evaluation corpus). A detected row whose source was
+        deleted has no join partner and is in neither set."""
+        flagged = exists().where(ImageExtras.image_id == Image.id, ImageExtras.flagged.is_(True))
+        eligible = and_(Image.status == ImageStatus.ACTIVE, ~flagged)
+        if corpus_ids:
+            eligible = and_(eligible, Image.id.not_in(list(corpus_ids)))
+        base = (
+            select(
+                ImageCut.id.label("cut_id"), ImageCut.source_image_id, Image.filename, Image.created_at,
+                ImageCut.crop_x, ImageCut.crop_y, ImageCut.crop_w, ImageCut.crop_h,
+                ImageCut.source_content_hash, ImageCut.detect_run_id,
+            )
+            .join(Image, Image.id == ImageCut.source_image_id)
+            .where(ImageCut.state == CutState.DETECTED)
+        )
+        return base, eligible
+
+    async def select_cuttable(self, corpus_ids, limit: int | None = None):
+        base, eligible = self._detected(corpus_ids)
+        query = base.where(eligible).order_by(ImageCut.confidence.desc().nulls_last(), ImageCut.id)
+        if limit is not None:
+            query = query.limit(limit)
+        return (await self.session.execute(query)).fetchall()
+
+    async def count_cuttable(self, corpus_ids) -> int:
+        base, eligible = self._detected(corpus_ids)
+        sub = base.where(eligible).subquery()
+        return (await self.session.execute(select(func.count()).select_from(sub))).scalar_one()
+
+    async def count_ineligible_detected(self, corpus_ids) -> int:
+        base, eligible = self._detected(corpus_ids)
+        sub = base.where(~eligible).subquery()
+        return (await self.session.execute(select(func.count()).select_from(sub))).scalar_one()
+
+    async def mark_proposed(self, cut_id: uuid.UUID, cut_image_id: uuid.UUID) -> None:
+        await self.session.execute(
+            update(ImageCut).where(ImageCut.id == cut_id)
+            .values(state=CutState.PROPOSED, cut_image_id=cut_image_id))
+
+    async def mark_failed(self, cut_id: uuid.UUID, reason: str) -> None:
+        await self.session.execute(
+            update(ImageCut).where(ImageCut.id == cut_id)
+            .values(state=CutState.FAILED, failure_reason=reason))
