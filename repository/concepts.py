@@ -35,6 +35,7 @@ class ConceptRepositoryBase:
                 e.embedding.label("embedding"),
             )
             .join(e, e.image_id == i.id)
+            .where(i.status == "active")  # not cut_proposed or pending: their vectors must not take top-N slots
             .subquery()
         )
 
