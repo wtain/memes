@@ -41,6 +41,9 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | `duplicate_decisions` | none | Not copied | not applicable |
 | `processing_errors` | none | Not copied | produced by the jobs |
 | `image_metrics` | none | Not copied | produced by the jobs |
+| `popularity_absorptions` | none | Not copied; it has no foreign key to `images` (plain ids, so history survives deletion). A cut's `images.popularity` is set by the recut approval edge (popularity epic P2), never copied | not applicable |
+
+`images.popularity` is a column of `images`, not a table: a new image starts at 1, and a cut gets its popularity from the recut approval edge (popularity epic P2), never by copying the source's value.
 
 ## Tags by source
 

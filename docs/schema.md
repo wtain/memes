@@ -17,8 +17,32 @@ Primary record for every registered image file.
 | `width` | Integer nullable | Set during registration if readable |
 | `height` | Integer nullable | Set during registration if readable |
 | `created_at` | DateTime | Server default `now()` |
+| `popularity` | Integer NOT NULL | Server default 1, CHECK `>= 0`. Copies of this meme seen in total: a cache of the absorption tree below the image (1 plus the weight of the tree below it, 0 for an image that is itself absorbed). `batch/check_image_popularity.py` reports drift (`--fix` rewrites it). See `docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-26-p1-data-model-and-absorption-rules-design.md` |
 
 Indexes: composite `(created_at DESC, id DESC)` — used by all cursor-paginated queries.
+
+### `popularity_absorptions`
+Append-only log of duplicate absorptions (epic meme-popularity): when a duplicate loser is dropped, its weight is added to the winner. Only `reversed_by_id` of an `absorb` row is ever updated. Deliberately no foreign key to `images`, so ids, filenames and hashes outlive deleted images and the tree and audit survive deletion. Written through `repository/popularity.py` (`PopularityRepository`), which never commits. See the P1 design spec linked under `images.popularity`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `kind` | String(10) NOT NULL | `absorb` \| `reverse` |
+| `source` | String(30) NOT NULL | Which flow dropped the loser: `hash_in_batch`, `hash_cross_corpus`, `ingest_tier_a`, `ingest_tier_b`, `cluster_review`, `agent_review`, `file_duplicates` (`PopularitySource` in `Storage/models.py`) |
+| `loser_image_id` | UUID nullable | Plain id, no FK. Null for a loser that never became an image row |
+| `winner_image_id` | UUID NOT NULL | Plain id, no FK |
+| `weight` | Integer NOT NULL | CHECK `>= 0`. Copies carried over to the winner |
+| `loser_filename` | String nullable | Audit copy |
+| `loser_content_hash` | String nullable | Audit copy |
+| `winner_content_hash` | String nullable | Audit copy |
+| `dedupe_key` | String nullable | Unique; makes recording the same drop twice a no-op |
+| `batch_run_id` | UUID FK → batch_runs nullable | `ON DELETE SET NULL` |
+| `reverses_id` | UUID FK → popularity_absorptions nullable | Set on `reverse` rows only; unique, so an edge is reversed at most once |
+| `reversed_by_id` | UUID FK → popularity_absorptions nullable | Set on an `absorb` row once reversed; an edge with it null is "open" |
+| `reason` | String(20) nullable | `reverse` rows only: `undo_reject` \| `unflag` \| `abort` \| `correction` |
+| `created_at` | DateTime(tz) | Server default `now()` |
+
+Constraints: CHECK on `kind`, `source`, `reason`, `weight >= 0` and on the row shape (an `absorb` has no `reverses_id` and no `reason`, a `reverse` has both). Indexes: partial unique `(loser_image_id)` over open `absorb` edges (a loser is absorbed by at most one winner at a time), partial `(winner_image_id)` over open edges, and `batch_run_id`.
 
 ### `image_extras`
 Optional per-image flags. Separate table so that the `images` row stays small and extras are only joined when needed.

@@ -326,6 +326,11 @@ detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister
 detect_entities_and_tag    tag_images_from_concepts  build_bow          remove_singletons
 fix_image_formats          classify_text_heavy       build_ocr_text_embeddings
 
+check_image_popularity      → reports drift of the cached images.popularity against the value derived from the open
+                               popularity_absorptions edges; --fix rewrites the cache to the expected value. Shell only
+                               (not run-tracked, not admin-triggerable, not scheduled). See
+                               docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-26-p1-data-model-and-absorption-rules-design.md.
+
 move_flagged                → also runs unregister_deleted_images automatically afterward,
                                reconciling the DB with whatever was moved; --no-chain skips this.
 unregister_deleted_images   → also runs remove_singletons automatically afterward, deleting
