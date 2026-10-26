@@ -22,7 +22,7 @@ Legend for the access columns:
 | Class | Count | Scripts |
 |---|---|---|
 | Scheduled (and admin) | 4 | `trends_batch`, `build_statistics` (all environments), `export_ratings`, `import_judgments` (`general` only) |
-| Admin-triggerable, manual only | 29 | everything else in the registry (`fix_image_formats`, `build_image_embeddings` and `extract_text_from_memes` were registered 2026-10-10, `detect_recut_crops` 2026-10-25); the registry holds 33 entries in all |
+| Admin-triggerable, manual only | 30 | everything else in the registry (`fix_image_formats`, `build_image_embeddings` and `extract_text_from_memes` were registered 2026-10-10, `detect_recut_crops` 2026-10-25, `create_recut_cuts` 2026-10-26); the registry holds 34 entries in all |
 | Run-tracked but not in registry (shell only) | 1 | `ingest_hash_dedup` (long-lived `ingestion` row) |
 | Shell-only, untracked | the rest | see sections below |
 
@@ -107,6 +107,7 @@ Detail: [use-cases/maintenance-and-cleanup.md](use-cases/maintenance-and-cleanup
 | `unregister_deleted_images` | Delete DB rows whose files are gone | `unregister_deleted_images` | yes | no | **Chains `remove_singletons`**; `--no-chain` |
 | `fix_image_formats` | Retroactive format fix for the existing corpus; only path that backfills `Image.width/height` | `fix_image_formats` | yes | no | `--status` (default `active`, the only value the admin path uses) |
 | `detect_recut_crops` | Screenshot recut: stores a `detected` `image_cuts` proposal for active images with a flat margin (R2) | `detect_recut_crops` | yes | no | `--limit`; checks each image once per detector version (`recut_detect_v1`); skips the frozen evaluation corpus, flagged images and images that already have a live cut; unreadable files are recorded `failed` and not retried under the same detector version, 20 in a row stop the run |
+| `create_recut_cuts` | Screenshot recut: cuts each `detected` proposal into a same-format file, a `cut_proposed` image and copied derived data (R3a) | `create_recut_cuts` | yes | no | `--limit`; highest confidence first; one transaction per cut; skips sources that are not active, flagged or in the frozen corpus; a proposal that cannot be cut ends `failed` with a reason; 20 in a row stop the run |
 | `reset_ocr_status` | Reset OCR processing status (`--all`) | none | no | no | Use before a full OCR re-run |
 | `score_ocr_language` | Backfill `lang_score` for old `ocr_texts` rows | none | no | no | `--rescore-all` |
 | `load_images_from_internet` | Fetch images via SerpAPI (`SERP_API_KEY`); queries are hardcoded in `main()`, output under `images/<concept>/<query>/` | none | no | no | Ad hoc, edit the script to change queries |

@@ -61,6 +61,9 @@ classify_text_heavy:
 detect_recut_crops:
   module: batch.detect_recut_crops
   kind: detect_recut_crops
+create_recut_cuts:
+  module: batch.create_recut_cuts
+  kind: create_recut_cuts
 build_ocr_text_embeddings:
   module: batch.build_ocr_text_embeddings
   kind: build_ocr_text_embeddings

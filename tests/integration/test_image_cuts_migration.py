@@ -9,11 +9,20 @@ from sqlalchemy import inspect, text
 
 MIGRATION = (Path(__file__).resolve().parents[2] / "Storage" / "alembic" / "versions"
              / "b8d4f1a6c935_add_image_cuts_and_stale_columns.py")
+R3A_MIGRATION = (Path(__file__).resolve().parents[2] / "Storage" / "alembic" / "versions"
+                 / "d7a3b9e2c451_add_image_cuts_failure_reason.py")
 STALE_TABLES = ("ocr_texts", "ocr_lemmas", "image_descriptions", "tags")
 
 
 def _load():
     spec = importlib.util.spec_from_file_location("migration_b8d4f1a6c935", MIGRATION)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_r3a():
+    spec = importlib.util.spec_from_file_location("migration_d7a3b9e2c451", R3A_MIGRATION)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -67,7 +76,7 @@ async def _drop_what_the_migration_adds(connection):
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_the_migration_matches_the_model_and_downgrades(db_engine):
-    module = _load()
+    module, r3a = _load(), _load_r3a()  # image_cuts is created by b8d4f1a6c935, then extended by d7a3b9e2c451
     async with db_engine.connect() as connection:
         transaction = await connection.begin()
         try:
@@ -76,8 +85,10 @@ async def test_the_migration_matches_the_model_and_downgrades(db_engine):
 
             await _drop_what_the_migration_adds(connection)
             await connection.run_sync(lambda sync: _run(sync, module.upgrade))
+            await connection.run_sync(lambda sync: _run(sync, r3a.upgrade))
             assert await connection.run_sync(_both) == model_shape
 
+            await connection.run_sync(lambda sync: _run(sync, r3a.downgrade))
             await connection.run_sync(lambda sync: _run(sync, module.downgrade))
             tables = await connection.run_sync(lambda sync: inspect(sync).get_table_names())
             assert "image_cuts" not in tables
@@ -124,3 +135,8 @@ async def test_the_shape_guard_catches_drift(db_engine, drift):
 def test_the_migration_continues_the_chain():
     module = _load()
     assert module.revision == "b8d4f1a6c935" and module.down_revision == "f3a9c27b5d14"
+
+
+def test_the_failure_reason_migration_follows_the_metrics_one():
+    module = _load_r3a()
+    assert module.revision == "d7a3b9e2c451" and module.down_revision == "c5e2a9d7b140"

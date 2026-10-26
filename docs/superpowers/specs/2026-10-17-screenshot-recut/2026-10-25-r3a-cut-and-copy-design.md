@@ -1,6 +1,7 @@
 # R3a: Cut and copy - design
 
-Status: draft
+Status: implementation
+Plan: docs/superpowers/plans/2026-10-26-r3a-cut-and-copy.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R3a, split from R3)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Inventory of derived data: docs/image-derived-data.md
@@ -60,7 +61,7 @@ needs Python arithmetic.
   points clipped to the crop bounds, and dropped otherwise. Both `bbox` shapes (list of points, `[x, y, w, h]`) are handled.
 - `ocr_lemmas`, copied wholesale.
 - `image_descriptions`, with their `image_description_embeddings` and `description_lemmas` via the new description ids.
-  `image_description_feedback` is not copied (it is lost when the stale description is replaced).
+  `image_description_feedback` is copied with its description, as `docs/image-derived-data.md` says (corrected at planning); it is lost when the refresh replaces the stale description.
 - `tags` with sources `OCR` and `Ollama`.
 - Model-made `meme_profiles`, `meme_profile_values` and `meme_profile_situation_embeddings`, copied exactly; their staleness
   comes from the existing fingerprint rule and they have no `stale` column.

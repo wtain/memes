@@ -344,7 +344,7 @@ fix_image_formats           → retroactively applies ingest_validate_formats' f
 detect_recut_crops          → screenshot recut, crop detection (R2): for each active image with a flat margin around
                                the meme (margin trim, removing 7% to 75% of the area), stores one `detected`
                                `image_cuts` proposal with the box in source pixels. Creates no files, changes no image
-                               status and records no metric event (R3 does). Skips the frozen evaluation corpus, flagged
+                               status and records no metric event (create_recut_cuts does). Skips the frozen evaluation corpus, flagged
                                images, images that already have a live cut or are themselves a cut, and sources rejected
                                for the same detector version. Each checked image is remembered in
                                image_processing_status under `recut_detect_v<detector version>`, so a re-run sees only
@@ -355,6 +355,19 @@ detect_recut_crops          → screenshot recut, crop detection (R2): for each 
                                admin-triggerable from /admin/batches, manual-trigger only, not scheduled; `--limit`.
                                Settings: `recut.*`. The OCR clipping guard exists but is off (ocr_overlap_max 1.0). See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-24-r2-crop-detection-design.md.
+create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each `detected` image_cuts proposal, highest
+                               confidence first, into a cut file in BASE_PATH (same format as the source: JPEG at
+                               recut.jpeg_quality keeping the subsampling, PNG as PNG), a `cut_proposed` images row, copies
+                               of the derived data (group 1 as is; group 3 with stale = true, OCR boxes shifted into the cut;
+                               group 2 is left for the existing jobs with --status cut_proposed, R3b), image_cuts.state
+                               `proposed` and the `proposed` metric event, one transaction per cut (a failure leaves no
+                               row and no file). A proposal that cannot be cut ends `failed` with image_cuts.failure_reason
+                               (source_missing, source_changed, unreadable, write_error); 20 failures in a row stop the run.
+                               Skips sources that are not active, flagged or in the frozen corpus (the proposal stays
+                               `detected`). Run-tracked (kind create_recut_cuts, stats
+                               proposals_selected/cut/skipped/failed/proposals_remaining) and admin-triggerable from
+                               /admin/batches, manual-trigger only, not scheduled; `--limit`. See
+                               docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-25-r3a-cut-and-copy-design.md.
 classify_text_heavy         → computes the text-heavy classifier (coverage ratio, background
                                color uniformity, ink-color consistency) for images with OCR text
                                and real dimensions, storing both the raw signals and the result in
