@@ -2,22 +2,27 @@
 Per-image lemma index of OCR text, for smart search and for the corroboration check of OCR-text
 duplicate matching. --incremental skips images already indexed; a full run deletes the whole ocr_lemmas table, so
 --status pending requires --incremental. Run-tracked (kind build_ocr_lemmas); main() defaults to incremental, so
-admin and scheduled runs never rebuild everything. Admin-triggerable, manual only.
+admin and scheduled runs never rebuild everything. Admin-triggerable, manual only. --refresh-stale replaces the stale
+lemmas of recut cuts (cut_proposed) with lemmas of their refreshed OCR; it ignores --status and --incremental.
 """
 import argparse
 import asyncio
 import uuid
 
-from batch.run_tracking import finish_existing_run, tracked_run
+from batch.run_tracking import finish_existing_run, record_stats, tracked_run
 from batch.utils.ocr_lemmas import group_lemmas_by_image
 from batch.utils.progress import ProgressTracker
+from batch.utils.refresh_stale import refresh_stats, reject_conflicts
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from rules.normalize import make_morph
 from Storage.db import AsyncSessionLocal
+from Storage.models import ImageStatus, OCRLemma, OCRText
+from Storage.stale import delete_stale_rows, images_with_stale_rows, stale_among
 from repository.image_procesing_status import ImageProcessingStatusRepository
 from repository.images import ImagesRepository, OCR_LEMMAS_PIPELINE
 from repository.ocr_lemmas import OCRLemmasRepository, OCRLemmasSaver
+from repository.ocr_text import OCRTextRepository
 
 
 async def run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_word_length, morph,
@@ -68,13 +73,44 @@ async def run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_
     tracker.summary()
 
 
-async def _process(incremental: bool, status: str = "active") -> None:
+async def refresh_stale_lemmas(session, morph, ocr_confidence_min, ocr_lang_score_min, min_word_length) -> dict:
+    """Replaces the stale lemma rows of cut_proposed images with lemmas of their (refreshed) OCR. One transaction:
+    on any error nothing is committed and the stale rows stay."""
+    selected = await images_with_stale_rows(session, OCRLemma, ImageStatus.CUT_PROPOSED)
+    blocked = await stale_among(session, OCRText, selected)
+    ready = [image_id for image_id in selected if image_id not in blocked]
+    rows = await OCRTextRepository(session).get_rows_for_images(ready)
+    lemmas_by_image, _, _ = group_lemmas_by_image(
+        rows, morph, ocr_confidence_min, ocr_lang_score_min, min_word_length)
+    status_repo = ImageProcessingStatusRepository(session, OCR_LEMMAS_PIPELINE)
+    # Not used as `async with`: OCRLemmasSaver.__aexit__ commits even when the block raised.
+    saver = OCRLemmasSaver(session)
+    try:
+        await delete_stale_rows(session, OCRLemma, ready)
+        for image_id in ready:
+            await saver.add_lemmas(image_id, lemmas_by_image.get(image_id, set()))
+            await status_repo.mark_done_by_id(image_id)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return refresh_stats(selected=len(selected), refreshed=len(ready), skipped_upstream_stale=len(blocked))
+
+
+async def _process(incremental: bool, status: str = "active", refresh_stale: bool = False) -> dict | None:
     ocr_confidence_min = settings.OCR.CONFIDENCE_MIN
     ocr_lang_score_min = settings.OCR.LANG_SCORE_MIN
     min_word_length = settings.BOW.MIN_WORD_LENGTH
 
     morph = make_morph()
     metrics = SimpleMetricsListener()
+
+    if refresh_stale:
+        async with AsyncSessionLocal() as session:
+            stats = await refresh_stale_lemmas(session, morph, ocr_confidence_min, ocr_lang_score_min,
+                                               min_word_length)
+        print(f"Refresh stale: {stats}")
+        return stats
 
     async with AsyncSessionLocal() as session:
         await run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_word_length,
@@ -85,8 +121,8 @@ async def _process(incremental: bool, status: str = "active") -> None:
 
 
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, incremental: bool = True,
-                status: str = "active") -> None:
-    if status == "pending" and not incremental:
+                status: str = "active", refresh_stale: bool = False) -> None:
+    if status == "pending" and not incremental and not refresh_stale:
         raise ValueError(
             "build_ocr_lemmas: --status pending requires incremental mode. A full reprocess "
             "(incremental=False) unconditionally deletes ALL ocr_lemmas rows via "
@@ -95,10 +131,14 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, increme
         )
     if run_id is not None:
         async with finish_existing_run(run_id):
-            await _process(incremental=incremental, status=status)
+            stats = await _process(incremental=incremental, status=status, refresh_stale=refresh_stale)
+            if stats:
+                await record_stats(run_id, stats)
     else:
-        async with tracked_run(kind="build_ocr_lemmas", trigger=trigger):
-            await _process(incremental=incremental, status=status)
+        async with tracked_run(kind="build_ocr_lemmas", trigger=trigger) as new_run_id:
+            stats = await _process(incremental=incremental, status=status, refresh_stale=refresh_stale)
+            if stats:
+                await record_stats(new_run_id, stats)
 
 
 if __name__ == "__main__":
@@ -110,6 +150,10 @@ if __name__ == "__main__":
     parser.add_argument("--status", choices=["active", "pending"], default="active",
                         help="Which images to process (default: active). --status pending "
                              "requires --incremental (see main()'s own guard).")
+    parser.add_argument("--refresh-stale", action="store_true",
+                        help="Replace the stale lemmas of cut_proposed images (recut) with lemmas of their "
+                             "refreshed OCR; ignores --status")
     args = parser.parse_args()
+    reject_conflicts(parser, args.refresh_stale, incremental=args.incremental)
     load_env(args.env)
-    asyncio.run(main(incremental=args.incremental, status=args.status))
+    asyncio.run(main(incremental=args.incremental, status=args.status, refresh_stale=args.refresh_stale))
