@@ -131,3 +131,41 @@ async def test_the_helpers_never_commit(db_session, monkeypatch):
     await images_with_stale_rows(db_session, OCRText, ImageStatus.CUT_PROPOSED)
     await delete_stale_rows(db_session, OCRText, [image.id])
     await stale_counts(db_session)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_source_scopes_tag_selection_and_deletion(db_session):
+    cut = await _image(db_session)
+    db_session.add_all([
+        ImageTag(image_id=cut.id, key="k", value="a", source="OCR", stale=True),
+        ImageTag(image_id=cut.id, key="k", value="b", source="Ollama", stale=True),
+    ])
+    await db_session.flush()
+
+    assert await images_with_stale_rows(db_session, ImageTag, ImageStatus.CUT_PROPOSED, source="Ollama") == [cut.id]
+    assert await delete_stale_rows(db_session, ImageTag, [cut.id], source="OCR") == 1
+    left = (await db_session.execute(select(ImageTag.source).where(ImageTag.image_id == cut.id))).scalars().all()
+    assert left == ["Ollama"]
+    assert await images_with_stale_rows(db_session, ImageTag, ImageStatus.CUT_PROPOSED, source="OCR") == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_source_is_rejected_for_a_model_without_one(db_session):
+    with pytest.raises(ValueError):
+        await images_with_stale_rows(db_session, OCRText, ImageStatus.CUT_PROPOSED, source="OCR")
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_stale_among_reports_only_the_listed_images_that_are_still_stale(db_session):
+    still = await _image(db_session)
+    done = await _image(db_session)
+    unrelated = await _image(db_session)
+    db_session.add_all([
+        OCRText(image_id=still.id, text="a", stale=True),
+        OCRText(image_id=done.id, text="b", stale=False),
+        OCRText(image_id=unrelated.id, text="c", stale=True),
+    ])
+    await db_session.flush()
+
+    assert await stale.stale_among(db_session, OCRText, [still.id, done.id]) == {still.id}
+    assert await stale.stale_among(db_session, OCRText, []) == set()

@@ -65,6 +65,18 @@ class OCRTextRepository:
                 )
             )
 
+    async def get_rows_for_images(self, image_ids) -> list[tuple]:
+        """(image_id, text, confidence, language, lang_score) of the given images' OCR rows, oldest first."""
+        ids = list(image_ids)
+        rows: list[tuple] = []
+        for start in range(0, len(ids), 5000):
+            result = await self.session.execute(
+                select(OCRText.image_id, OCRText.text, OCRText.confidence, OCRText.language, OCRText.lang_score)
+                .where(OCRText.image_id.in_(ids[start:start + 5000]))
+                .order_by(OCRText.created_at, OCRText.id))
+            rows.extend(tuple(row) for row in result.all())
+        return rows
+
     async def get_rows_for_scoring(self, rescore_all: bool = False):
         """Rows to (re)score. By default, only rows with lang_score IS NULL."""
         query = select(OCRText.id, OCRText.text, OCRText.language)
