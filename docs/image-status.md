@@ -25,8 +25,12 @@ otherwise. The constants live in `Storage/models.py` (`ImageStatus`); the column
 
 ## Accepted by `--status`
 
-These batch scripts take `--status` (checked against the code by `tests/docs/test_image_status_registry.py`). Today every one
-accepts `active` (the default) and `pending`; none accepts `cut_proposed` yet (screenshot-recut R3 adds it).
+These batch scripts take `--status` (checked against the code by `tests/docs/test_image_status_registry.py`). Every one
+accepts `active` (the default) and `pending`; `build_image_embeddings`, `classify_text_heavy` and `build_ocr_text_embeddings` also accept
+`cut_proposed` (screenshot-recut R3b). Run order for cuts: `build_image_embeddings --status cut_proposed --incremental`; then, after
+the cut's OCR is refreshed (R3c), `classify_text_heavy --status cut_proposed`; then `build_ocr_text_embeddings --status cut_proposed`.
+The last two skip images that already have a row, so a run before the OCR refresh leaves rows computed from the source's text.
+The admin trigger of these jobs stays `--status active`; cuts are processed from the shell.
 
 - `build_image_embeddings` (also accepts `all`)
 - `extract_text_from_memes` (also accepts `all`)

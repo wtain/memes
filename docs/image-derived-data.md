@@ -24,7 +24,7 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | `meme_text_ratings` | 1, deferred | Not copied at cut time. Moved to the cut on approve, stay with the source on reject | none |
 | `embeddings` | 2 | Not copied (CLIP vector) | `build_image_embeddings --status cut_proposed` |
 | `image_classifications` | 2 | Not copied (text-heavy classifier) | `classify_text_heavy --status cut_proposed` |
-| `ocr_text_embeddings` | 2 | Not copied | `build_ocr_text_embeddings`, after OCR and classification |
+| `ocr_text_embeddings` | 2 | Not copied | `build_ocr_text_embeddings --status cut_proposed`, after the OCR refresh and `classify_text_heavy` |
 | `ocr_texts` | 3 | Copied with each polygon shifted by the crop origin; a row is kept when its polygon centre lies inside the crop (points clipped to the crop), otherwise dropped; `stale = true` | `extract_text_from_memes`, refresh mode |
 | `ocr_lemmas` | 3 | Copied wholesale, `stale = true`. Keyed by image and lemma, not by OCR row, so they cannot be filtered by the crop | `build_ocr_lemmas`, refresh mode, after the OCR refresh |
 | `image_descriptions` | 3 | Copied, `stale = true` | `build_image_descriptions`, refresh mode |
@@ -49,8 +49,8 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | Source | Group | At cut time | Refresh path |
 |---|---|---|---|
 | `Note` | 1 | Copied (derived from the copied note, not from pixels) | none |
-| `YOLO` | 2 | Not copied | `detect_entities_and_tag` |
-| `CONCEPT` | 2 | Not copied | `tag_images_from_concepts` |
+| `YOLO` | 2 | Not copied; not derived at proposal time | `detect_entities_and_tag`: the next full run covers the cut once it is `active` |
+| `CONCEPT` | 2 | Not copied; not derived at proposal time | `tag_images_from_concepts`: the next full run covers the cut once it is `active` |
 | `OCR` | 3 | Copied, `stale = true` | `build_tags_from_ocr`, refresh mode |
 | `Ollama` | 3 | Copied, `stale = true` | `build_tags_from_descriptions`, refresh mode |
 
