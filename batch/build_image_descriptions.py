@@ -106,7 +106,14 @@ async def refresh_stale_descriptions(session, prompts, describer, base_path, num
             print(f"Skipping {path}")
             continue
         all_ok = True
+        # A prompt that already has a fresh row (an earlier run replaced it while another prompt failed) is not
+        # described again: the (image, prompt) pair is unique and the call would be wasted.
+        fresh = set((await session.execute(
+            select(ImageDescription.prompt_key).where(
+                ImageDescription.image_id == image_id, ImageDescription.stale.is_(False)))).scalars().all())
         for prompt in prompts:
+            if prompt.key in fresh:
+                continue
             model = model_for(prompt)
             try:
                 text = await asyncio.to_thread(describer.describe, path, prompt.prompt, model, num_ctx)

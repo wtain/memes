@@ -110,3 +110,26 @@ async def test_limit_caps_the_images_and_reports_the_rest_as_remaining(db_sessio
 
     assert stats["refreshed"] == 1
     assert stats["images_remaining"] >= 1
+
+
+class CountingDescriber(FakeDescriber):
+    def __init__(self, fail_prompts=()):
+        super().__init__(fail_prompts)
+        self.described = []
+
+    def describe(self, path, prompt_text, model, num_ctx):
+        self.described.append(prompt_text)
+        return super().describe(path, prompt_text, model, num_ctx)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_second_run_after_a_partial_failure_describes_only_the_missing_prompt(db_session):
+    cut = await _cut_with_stale_descriptions(db_session)
+    await _refresh(db_session, FakeDescriber(fail_prompts=("describe more",)))
+
+    describer = CountingDescriber()
+    await _refresh(db_session, describer)
+
+    assert describer.described == ["describe more"]          # p1 is already fresh: no second call, no duplicate row
+    assert await _rows(db_session, cut.id) == [
+        ("p1", "new text for describe", False), ("p2", "new text for describe more", False)]

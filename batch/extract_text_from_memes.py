@@ -237,6 +237,10 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10, target
             total = await status_repo.count_unprocessed(
                 None if target_status == "all" else target_status
             )
+    if refresh_stale and not refresh_images:
+        # Nothing stale: do not pay for loading the OCR models (EasyOCR x3, Tesseract, TrOCR on CUDA).
+        print("No cut has stale OCR; nothing to refresh")
+        return refresh_stats(selected=0, refreshed=0)
     tracker = ProgressTracker(total=total, report_every=progress_every)
 
     io_queue = asyncio.Queue(maxsize=200)
@@ -244,11 +248,22 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10, target
     cpu_executor = ThreadPoolExecutor(max_workers=16)
     metrics_listener = SimpleMetricsListener()
 
+    stopped: list[Exception] = []
+
+    async def guarded_refresh_producer():
+        # refresh_producer ends the queue before it raises, so the worker and consumer run to their end; the error is
+        # raised only after they finished and the images refreshed so far were committed (gather would otherwise
+        # re-raise at once and leave them running against a rolled-back session).
+        try:
+            await refresh_producer(path, refresh_images, io_queue, metrics_listener, tracker)
+        except RuntimeError as error:
+            stopped.append(error)
+
     async with AsyncSessionLocal() as session:
         committer = BatchCommitter(session, batch_size=batch_size, pipeline=PIPELINE)
         try:
             producer = (
-                refresh_producer(path, refresh_images, io_queue, metrics_listener, tracker) if refresh_stale
+                guarded_refresh_producer() if refresh_stale
                 else io_producer(path, io_queue, PIPELINE, metrics_listener, tracker, target_status)
             )
             await asyncio.gather(
@@ -260,6 +275,8 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10, target
         except Exception:
             await session.rollback()
             raise
+    if stopped:
+        raise stopped[0]
 
     tracker.summary()
     metrics_listener.print()
