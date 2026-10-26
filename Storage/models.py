@@ -130,6 +130,8 @@ class ImageCut(Base):
     state = Column(String(20), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     decided_at = Column(DateTime(timezone=True), nullable=True)
+    # Why a detected proposal could not be cut (R3a): source_missing, source_changed, unreadable, write_error.
+    failure_reason = Column(String(40), nullable=True)
 
     __table_args__ = (
         Index("uq_image_cuts_live_source", "source_image_id", unique=True,

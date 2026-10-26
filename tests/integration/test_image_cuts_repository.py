@@ -148,3 +148,14 @@ async def test_ocr_regions_respects_the_confidence_floor(db_session):
     await db_session.flush()
     regions = await ImageCutsRepository(db_session).ocr_regions(img.id, 0.4)
     assert regions == [[[0, 0], [5, 0], [5, 5], [0, 5]]]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_cut_can_store_a_failure_reason(db_session):
+    img = await _image(db_session)
+    await _cut(db_session, img, state=CutState.FAILED)
+    row = (await db_session.execute(select(ImageCut).where(ImageCut.source_image_id == img.id))).scalar_one()
+    assert row.failure_reason is None
+    row.failure_reason = "source_missing"
+    await db_session.flush()
+    assert row.failure_reason == "source_missing"

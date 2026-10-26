@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-KEYS = {"min_removed_share", "max_removed_share", "flat_tolerance", "ocr_overlap_max", "commit_interval"}
+KEYS = {"min_removed_share", "max_removed_share", "flat_tolerance", "ocr_overlap_max", "commit_interval", "jpeg_quality"}
 
 
 def _group():
@@ -20,3 +20,7 @@ def test_recut_values_are_sane():
     assert g["flat_tolerance"] > 0
     assert 0 < g["ocr_overlap_max"] <= 1
     assert g["commit_interval"] >= 1
+
+
+def test_jpeg_quality_is_a_valid_quality():
+    assert 1 <= _group()["jpeg_quality"] <= 100
