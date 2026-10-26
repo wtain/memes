@@ -1,11 +1,14 @@
 """Data access for meme popularity (epic meme-popularity, P1): the absorption tree and its cached counts.
 Never commits: the caller controls commit timing."""
 import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 from sqlalchemy import select, text, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from Storage.models import Image, PopularityAbsorption, PopularityKind, PopularitySource
+from Storage.models import Image, PopularityAbsorption, PopularityKind, PopularityReason, PopularitySource
 
 MAX_HOPS = 10000
 MAX_ATTEMPTS = 3
@@ -20,6 +23,13 @@ _TREE_WEIGHT_SQL = text("""
     SELECT COALESCE(SUM(a.weight), 0) FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
     WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL
 """)
+
+
+@dataclass(frozen=True)
+class DroppedCopy:
+    filename: str
+    content_hash: str
+    destination: str
 
 
 class CycleError(ValueError):
@@ -136,3 +146,82 @@ class PopularityRepository:
             await self.session.flush()
             return row
         raise PopularityConflictError(f"root above {winner_id} kept changing")
+
+    async def record_dropped_copies(self, winner_id: uuid.UUID, copies: Sequence[DroppedCopy],
+                                    batch_run_id: uuid.UUID,
+                                    source: str = PopularitySource.HASH_IN_BATCH) -> int:
+        """Credit the root of `winner_id`'s tree with files dropped as exact duplicates (leaf edges, no loser
+        image). Idempotent per (batch, content hash, destination); returns the number newly counted."""
+        if source not in (PopularitySource.HASH_IN_BATCH, PopularitySource.HASH_CROSS_CORPUS):
+            raise ValueError(f"source {source!r} is not valid for dropped copies")
+        if not copies:
+            return 0
+        for _ in range(MAX_ATTEMPTS):
+            root = await self.root_of(winner_id)
+            await self._lock_images({root})
+            if await self.root_of(winner_id) != root:
+                continue
+            winner = await self._image(winner_id)
+            winner_hash = winner.content_hash if winner is not None else None
+            inserted = 0
+            for copy in copies:
+                stmt = (
+                    pg_insert(PopularityAbsorption)
+                    .values(
+                        kind=PopularityKind.ABSORB, source=source, loser_image_id=None,
+                        winner_image_id=winner_id, weight=1, loser_filename=copy.filename,
+                        loser_content_hash=copy.content_hash, winner_content_hash=winner_hash,
+                        dedupe_key=f"{batch_run_id}:{copy.content_hash}:{copy.destination}",
+                        batch_run_id=batch_run_id,
+                    )
+                    .on_conflict_do_nothing(index_elements=["dedupe_key"])
+                    .returning(PopularityAbsorption.id)
+                )
+                if (await self.session.execute(stmt)).first() is not None:
+                    inserted += 1
+            if inserted:
+                await self._add_popularity(root, inserted)
+            await self.session.flush()
+            return inserted
+        raise PopularityConflictError(f"root above {winner_id} kept changing")
+
+    async def reverse(self, absorb_id: uuid.UUID, reason: str) -> PopularityAbsorption:
+        """Undo one open absorb edge: the loser (with its subtree) leaves the winner's tree again."""
+        if reason not in PopularityReason.ALL:
+            raise ValueError(f"unknown reason {reason!r}")
+        for _ in range(MAX_ATTEMPTS):
+            edge = (await self.session.execute(
+                select(PopularityAbsorption).where(PopularityAbsorption.id == absorb_id)
+            )).scalar_one_or_none()
+            if edge is None or edge.kind != PopularityKind.ABSORB or edge.reversed_by_id is not None:
+                raise ValueError(f"{absorb_id} is not an open absorb row")
+            root = await self.root_of(edge.winner_image_id)
+            # A ghost root has no images row and cannot be locked; its UPDATE below touches zero rows.
+            await self._lock_images({root} | ({edge.loser_image_id} if edge.loser_image_id else set()))
+            if await self.root_of(edge.winner_image_id) != root:
+                continue
+            await self.session.refresh(edge)
+            if edge.reversed_by_id is not None:
+                raise ValueError(f"{absorb_id} is not an open absorb row")
+
+            subtree = await self.tree_weight(edge.loser_image_id) if edge.loser_image_id else 0
+            row = PopularityAbsorption(
+                kind=PopularityKind.REVERSE, source=edge.source, loser_image_id=edge.loser_image_id,
+                winner_image_id=edge.winner_image_id, weight=edge.weight,
+                loser_filename=edge.loser_filename, loser_content_hash=edge.loser_content_hash,
+                winner_content_hash=edge.winner_content_hash, batch_run_id=edge.batch_run_id,
+                reverses_id=edge.id, reason=reason,
+            )
+            self.session.add(row)
+            await self.session.flush()
+            edge.reversed_by_id = row.id
+            await self.session.flush()
+
+            await self._add_popularity(root, -(edge.weight + subtree))
+            if edge.loser_image_id is not None:
+                await self.session.execute(
+                    update(Image).where(Image.id == edge.loser_image_id).values(popularity=1 + subtree)
+                )
+            await self.session.flush()
+            return row
+        raise PopularityConflictError(f"root above edge {absorb_id} kept changing")
