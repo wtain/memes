@@ -87,7 +87,7 @@ class Image(Base):
         CheckConstraint("popularity >= 0", name="ck_images_popularity"),
     )
 
-    texts =relationship("OCRText", back_populates="image", cascade="all, delete-orphan")
+    texts = relationship("OCRText", back_populates="image", cascade="all, delete-orphan")
     descriptions = relationship("ImageDescription", back_populates="image", cascade="all, delete-orphan")
     metrics = relationship("ImageMetrics", uselist=False, back_populates="image")
     errors = relationship("ProcessingError", back_populates="image")
