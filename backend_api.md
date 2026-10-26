@@ -907,7 +907,7 @@ Retrieve all available concepts.
 
 #### Get Top Images for Concept
 
-Get the top-ranked images associated with a specific concept.
+Get the top-ranked images associated with a specific concept. Only `active` images are ranked (not `pending`, `rejected` or `cut_proposed`).
 
 - **URL**: `/api/concepts/top-images`
 - **Method**: `GET`
