@@ -54,7 +54,7 @@ class TestExtractTextFromMemesMain:
             await ocr_module.main(trigger="manual", run_id=run_id)
 
         finish.assert_called_once_with(run_id)
-        process.assert_awaited_once_with("/fake/base", "active")
+        process.assert_awaited_once_with("/fake/base", "active", False)
 
     @pytest.mark.asyncio
     async def test_self_tracked_under_its_own_kind(self):
@@ -63,7 +63,7 @@ class TestExtractTextFromMemesMain:
             await ocr_module.main(trigger="manual", path="/some/dir", target_status="pending")
 
         tracked.assert_called_once_with(kind="extract_text_from_memes", trigger="manual")
-        process.assert_awaited_once_with("/some/dir", "pending")
+        process.assert_awaited_once_with("/some/dir", "pending", False)
 
     def test_registered_in_batch_registry(self):
         assert BatchRegistry().get("extract_text_from_memes") == {

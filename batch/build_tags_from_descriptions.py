@@ -105,12 +105,12 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, increme
     if run_id is not None:
         async with finish_existing_run(run_id):
             stats = await _process(incremental=incremental, refresh_stale=refresh_stale)
-            if stats:
+            if refresh_stale and stats:
                 await record_stats(run_id, stats)
     else:
         async with tracked_run(kind="build_tags_from_descriptions", trigger=trigger) as new_run_id:
             stats = await _process(incremental=incremental, refresh_stale=refresh_stale)
-            if stats:
+            if refresh_stale and stats:
                 await record_stats(new_run_id, stats)
 
 

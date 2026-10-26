@@ -33,7 +33,7 @@ class TestMain:
             await main(trigger="scheduled")
 
         tracked_run_mock.assert_called_once_with(kind="build_ocr_lemmas", trigger="scheduled")
-        process_mock.assert_awaited_once_with(incremental=True, status="active")
+        process_mock.assert_awaited_once_with(incremental=True, status="active", refresh_stale=False)
 
     @pytest.mark.asyncio
     async def test_finish_existing_run_path_forces_incremental_true_by_default(self):
@@ -45,7 +45,7 @@ class TestMain:
             await main(trigger="manual", run_id="existing-run-1")
 
         finish_mock.assert_called_once_with("existing-run-1")
-        process_mock.assert_awaited_once_with(incremental=True, status="active")
+        process_mock.assert_awaited_once_with(incremental=True, status="active", refresh_stale=False)
 
     @pytest.mark.asyncio
     async def test_status_pending_threaded_through_to_process(self):
@@ -56,7 +56,7 @@ class TestMain:
              patch.object(module, "_process", process_mock):
             await main(trigger="scheduled", status="pending")
 
-        process_mock.assert_awaited_once_with(incremental=True, status="pending")
+        process_mock.assert_awaited_once_with(incremental=True, status="pending", refresh_stale=False)
 
     @pytest.mark.asyncio
     async def test_status_pending_with_incremental_false_raises_before_any_db_work(self):

@@ -32,7 +32,7 @@ class TestMain:
             await main(trigger="scheduled")
 
         tracked_run_mock.assert_called_once_with(kind="build_tags_from_descriptions", trigger="scheduled")
-        process_mock.assert_awaited_once_with(incremental=True)
+        process_mock.assert_awaited_once_with(incremental=True, refresh_stale=False)
 
     @pytest.mark.asyncio
     async def test_finish_existing_run_path_forces_incremental_true_by_default(self):
@@ -44,7 +44,7 @@ class TestMain:
             await main(trigger="manual", run_id="existing-run-1")
 
         finish_mock.assert_called_once_with("existing-run-1")
-        process_mock.assert_awaited_once_with(incremental=True)
+        process_mock.assert_awaited_once_with(incremental=True, refresh_stale=False)
 
 
 class _StubEngine:
