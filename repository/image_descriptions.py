@@ -26,6 +26,12 @@ class ImageDescriptionsRepository:
     async def delete_all(self) -> None:
         await self.session.execute(delete(ImageDescription))
 
+    async def delete_stale_for_prompt(self, image_id, prompt_key: str) -> None:
+        """Removes the stale copy of one (image, prompt) description; its feedback, embedding and lemmas cascade."""
+        await self.session.execute(delete(ImageDescription).where(
+            ImageDescription.image_id == image_id, ImageDescription.prompt_key == prompt_key,
+            ImageDescription.stale.is_(True)))
+
     def save(self, image_id, prompt_key: str, model_used: str, text: str) -> None:
         self.session.add(ImageDescription(
             image_id=image_id, prompt_key=prompt_key, model_used=model_used, text=text,
