@@ -112,3 +112,22 @@ async def test_set_result_upserts_on_reclassification(db_session):
     assert len(rows) == 1
     assert rows[0].result == TEXT_HEAVY
     assert rows[0].details["coverage_ratio"] == 0.9
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cut_proposed_status_classifies_only_cuts(tmp_path, db_session):
+    cut = Image(filename="cut.jpg", status="cut_proposed", width=200, height=200)
+    other = Image(filename="other.jpg", status="active", width=200, height=200)
+    db_session.add_all([cut, other])
+    await db_session.flush()
+    for name, image in (("cut.jpg", cut), ("other.jpg", other)):
+        bboxes = _screenshot_image(os.path.join(str(tmp_path), name))
+        for bbox in bboxes:
+            db_session.add(OCRText(image_id=image.id, bbox=bbox, confidence=0.9, text="x"))
+    await db_session.flush()
+
+    await run(db_session, str(tmp_path), CONFIDENCE_MIN, "cut_proposed")
+    await db_session.commit()
+
+    classified = (await db_session.execute(select(ImageClassification.image_id))).scalars().all()
+    assert cut.id in classified and other.id not in classified

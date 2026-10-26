@@ -2,7 +2,8 @@
 docs/superpowers/specs/2026-09-15-text-heavy-classifier.md), storing them in
 ocr_text_embeddings for a future duplicate-matching signal (see
 docs/superpowers/specs/2026-09-17-ocr-text-embeddings.md). Safe to re-run: only images not yet
-in ocr_text_embeddings are processed."""
+in ocr_text_embeddings are processed. --status cut_proposed covers recut cuts; run it after the cut's OCR is
+refreshed and classified (docs/image-status.md)."""
 import argparse
 import asyncio
 import uuid
@@ -75,7 +76,7 @@ async def main(status: str = "active", trigger: str = "manual", run_id: uuid.UUI
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["metal", "general", "it"], default=None)
-    parser.add_argument("--status", choices=["active", "pending"], default="active")
+    parser.add_argument("--status", choices=["active", "pending", "cut_proposed"], default="active")
     args = parser.parse_args()
     load_env(args.env)
     asyncio.run(main(status=args.status))

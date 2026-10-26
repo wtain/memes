@@ -126,3 +126,18 @@ async def test_two_candidates_one_embeddable_one_filtered_out(db_session):
     assert metrics.counters_dict() == {"embedded": 1}
     embedded_ids = (await db_session.execute(select(OCRTextEmbedding.image_id))).scalars().all()
     assert embedded_ids == [embeddable.id]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cut_proposed_status_embeds_only_cuts(db_session):
+    cut = await _text_heavy_image(db_session, status="cut_proposed")
+    other = await _text_heavy_image(db_session, status="active")
+    for image in (cut, other):
+        db_session.add(OCRText(image_id=image.id, text="a real sentence to embed", confidence=0.9, lang_score=0.9))
+    await db_session.flush()
+
+    await run(db_session, CONFIDENCE_MIN, LANG_SCORE_MIN, "cut_proposed")
+    await db_session.commit()
+
+    embedded = (await db_session.execute(select(OCRTextEmbedding.image_id))).scalars().all()
+    assert cut.id in embedded and other.id not in embedded
