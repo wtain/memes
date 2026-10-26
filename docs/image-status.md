@@ -38,6 +38,7 @@ The admin trigger of these jobs stays `--status active`; cuts are processed from
 - `classify_text_heavy`
 - `build_ocr_text_embeddings`
 - `fix_image_formats`
+- `build_meme_profiles` (takes `active` and `cut_proposed` only, no `pending`; `cut_proposed` skips cuts whose OCR or descriptions are still stale, and is not combinable with `--reset`)
 
 `all` is a selector meaning "every status", not a status. It would also select `rejected` images, and later `cut_proposed` ones.
 

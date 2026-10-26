@@ -460,3 +460,55 @@ async def test_reset_with_only_ids_deletes_only_the_listed_images_profiles_and_f
     assert await db_session.get(MemeProfile, other.id) is not None
     failed = await status_repo.get_image_ids_with_status("failed")
     assert other.id in failed and listed.id not in failed
+
+
+async def _insert_cut(session) -> Image:
+    cut = Image(filename=f"{uuid.uuid4()}.jpg", status="cut_proposed")
+    session.add(cut)
+    await session.flush()
+    return cut
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cut_proposed_status_profiles_the_cut_and_leaves_active_images(db_session):
+    active = await _insert_image(db_session)
+    await _add_description(db_session, active)
+    cut = await _insert_cut(db_session)
+    await _add_description(db_session, cut)
+    calls: list = []
+
+    stats = await _run(db_session, calls, status="cut_proposed", only_ids=frozenset({active.id, cut.id}))
+
+    assert stats["saved"] == 1 and len(calls) == 1
+    assert await db_session.get(MemeProfile, cut.id) is not None
+    assert await db_session.get(MemeProfile, active.id) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cut_with_stale_inputs_is_skipped_until_they_are_refreshed(db_session):
+    cut = await _insert_cut(db_session)
+    description = await _add_description(db_session, cut)
+    description.stale = True
+    await db_session.flush()
+    calls: list = []
+
+    stats = await _run(db_session, calls, status="cut_proposed", only_ids=frozenset({cut.id}))
+
+    assert calls == [] and stats["skipped.upstream_stale"] == 1
+
+    description.stale = False
+    await db_session.flush()
+    stats = await _run(db_session, calls, status="cut_proposed", only_ids=frozenset({cut.id}))
+    assert stats["saved"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_reset_is_refused_for_the_cut_status(db_session):
+    active = await _insert_image(db_session)
+    await _add_description(db_session, active)
+    await _run(db_session, [], only_ids=frozenset({active.id}))
+
+    with pytest.raises(ValueError):
+        await _run(db_session, [], reset=True, status="cut_proposed")
+
+    assert await db_session.get(MemeProfile, active.id) is not None
