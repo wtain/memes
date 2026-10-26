@@ -23,11 +23,11 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | `image_extras` | 1 | `remarks` copied; `flagged` and `flagged_reason` left empty | none |
 | `meme_text_ratings` | 1, deferred | Not copied at cut time. Moved to the cut on approve, stay with the source on reject | none |
 | `embeddings` | 2 | Not copied (CLIP vector) | `build_image_embeddings --status cut_proposed` |
-| `image_classifications` | 2 | Not copied (text-heavy classifier) | `classify_text_heavy --status cut_proposed` |
-| `ocr_text_embeddings` | 2 | Not copied | `build_ocr_text_embeddings --status cut_proposed`, after the OCR refresh and `classify_text_heavy` |
-| `ocr_texts` | 3 | Copied with each polygon shifted by the crop origin; a row is kept when its polygon centre lies inside the crop (points clipped to the crop), otherwise dropped; `stale = true` | `extract_text_from_memes`, refresh mode |
-| `ocr_lemmas` | 3 | Copied wholesale, `stale = true`. Keyed by image and lemma, not by OCR row, so they cannot be filtered by the crop | `build_ocr_lemmas`, refresh mode, after the OCR refresh |
-| `image_descriptions` | 3 | Copied, `stale = true` | `build_image_descriptions`, refresh mode |
+| `image_classifications` | 2 | Not copied (text-heavy classifier) | `classify_text_heavy --status cut_proposed`; the OCR refresh deletes a cut's row so it is recomputed from the new text |
+| `ocr_text_embeddings` | 2 | Not copied | `build_ocr_text_embeddings --status cut_proposed`, after the OCR refresh and `classify_text_heavy`; the OCR refresh deletes a cut's row |
+| `ocr_texts` | 3 | Copied with each polygon shifted by the crop origin; a row is kept when its polygon centre lies inside the crop (points clipped to the crop), otherwise dropped; `stale = true` | `extract_text_from_memes --refresh-stale` (reads the cut files of images with stale OCR from the database; implemented in R3c) |
+| `ocr_lemmas` | 3 | Copied wholesale, `stale = true`. Keyed by image and lemma, not by OCR row, so they cannot be filtered by the crop | `build_ocr_lemmas --refresh-stale`, after the OCR refresh (implemented in R3c) |
+| `image_descriptions` | 3 | Copied, `stale = true` | `build_image_descriptions --refresh-stale`: every configured prompt is described again; a prompt that fails keeps its stale row (implemented in R3c) |
 | `image_description_embeddings` | 3, via parent | Copied with the description | rebuilt for the new description row by `build_image_description_embeddings` |
 | `image_description_feedback` | 3, via parent | Copied with the description; lost when the stale description is replaced (the feedback judged the old text) | none |
 | `description_lemmas` | 3, via parent | Copied with the description | rebuilt for the new description row by `build_description_lemmas` |
@@ -51,11 +51,12 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | `Note` | 1 | Copied (derived from the copied note, not from pixels) | none |
 | `YOLO` | 2 | Not copied; not derived at proposal time | `detect_entities_and_tag`: the next full run covers the cut once it is `active` |
 | `CONCEPT` | 2 | Not copied; not derived at proposal time | `tag_images_from_concepts`: the next full run covers the cut once it is `active` |
-| `OCR` | 3 | Copied, `stale = true` | `build_tags_from_ocr`, refresh mode |
-| `Ollama` | 3 | Copied, `stale = true` | `build_tags_from_descriptions`, refresh mode |
+| `OCR` | 3 | Copied, `stale = true` | `build_tags_from_ocr --refresh-stale` (implemented in R3c) |
+| `Ollama` | 3 | Copied, `stale = true` | `build_tags_from_descriptions --refresh-stale` (implemented in R3c) |
 
 ## Refresh order
 
 The OCR refresh rewrites `ocr_texts`, so everything derived from OCR runs after it: OCR, then OCR lemmas and OCR tags, then
-descriptions, then description embeddings, lemmas and tags, then the profile and its embedding. `description_pipeline` already
-orders the last part. The order is part of the contract: a lemma row rebuilt before the OCR refresh would be fresh in name only.
+descriptions, then description embeddings, lemmas and tags, then the profile and its embedding. The driver `refresh_recut_cuts`
+runs them in this order (a job skips an image whose upstream rows are still stale). A cut whose source had no row in a table has
+nothing stale to replace there; the normal run of that job fills it once the cut is `active`. The order is part of the contract: a lemma row rebuilt before the OCR refresh would be fresh in name only.

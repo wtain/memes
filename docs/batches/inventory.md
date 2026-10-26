@@ -22,7 +22,7 @@ Legend for the access columns:
 | Class | Count | Scripts |
 |---|---|---|
 | Scheduled (and admin) | 4 | `trends_batch`, `build_statistics` (all environments), `export_ratings`, `import_judgments` (`general` only) |
-| Admin-triggerable, manual only | 30 | everything else in the registry (`fix_image_formats`, `build_image_embeddings` and `extract_text_from_memes` were registered 2026-10-10, `detect_recut_crops` 2026-10-25, `create_recut_cuts` 2026-10-26); the registry holds 34 entries in all |
+| Admin-triggerable, manual only | 31 | everything else in the registry (`fix_image_formats`, `build_image_embeddings` and `extract_text_from_memes` were registered 2026-10-10, `detect_recut_crops` 2026-10-25, `create_recut_cuts` 2026-10-26, `refresh_recut_cuts` 2026-10-26); the registry holds 35 entries in all |
 | Run-tracked but not in registry (shell only) | 1 | `ingest_hash_dedup` (long-lived `ingestion` row) |
 | Shell-only, untracked | the rest | see sections below |
 
@@ -51,9 +51,9 @@ Detail: [use-cases/ocr-lemmas-tags.md](use-cases/ocr-lemmas-tags.md).
 
 | Script | What it does | Tracked kind | Admin | Sched | Key flags / notes |
 |---|---|---|---|---|---|
-| `extract_text_from_memes` | Register files, OCR to `ocr_texts` | `extract_text_from_memes` | yes | no | `--status {pending,active,all}`; the admin path is always `active` over `BASE_PATH`. Auto-registers only in `active` mode. Do not clear `ocr_texts` for a re-run, use `reset_ocr_status` |
+| `extract_text_from_memes` | Register files, OCR to `ocr_texts` | `extract_text_from_memes` | yes | no | `--status {pending,active,all}`; the admin path is always `active` over `BASE_PATH`. Auto-registers only in `active` mode. `--refresh-stale` re-runs OCR on recut cuts that still carry the source's stale OCR (and clears their classification and OCR-text embedding). Do not clear `ocr_texts` for a re-run, use `reset_ocr_status` |
 | `build_image_embeddings` | CLIP embeddings | `build_image_embeddings` | yes | no | `--status` (`pending`, `active`, `cut_proposed`, `all`), `--incremental`. `main()` defaults to incremental and `active`, so admin runs never delete embeddings; a full rebuild is shell-only (omit `--incremental`). Recut cuts: `--status cut_proposed --incremental`, shell only |
-| `build_ocr_lemmas` | Per-image lemma index (smart search, duplicate corroboration) | `build_ocr_lemmas` | yes | no | `--incremental`, `--status`. Admin path is always incremental. A full run deletes the whole table |
+| `build_ocr_lemmas` | Per-image lemma index (smart search, duplicate corroboration) | `build_ocr_lemmas` | yes | no | `--incremental`, `--status`. Admin path is always incremental. A full run deletes the whole table. `--refresh-stale` replaces the stale lemmas of recut cuts |
 | `build_ocr_text_embeddings` | 384-dim MiniLM embeddings of OCR text (text-heavy images only) | `build_ocr_text_embeddings` | yes | no | `--status` (also `cut_proposed`, shell only, after the cut's OCR refresh and `classify_text_heavy`) |
 | `classify_text_heavy` | Coverage / background / ink-colour classifier into `image_classifications` | `classify_text_heavy` | yes | no | `--status` (also `cut_proposed`, shell only, after the cut's OCR refresh) |
 
@@ -61,8 +61,8 @@ Detail: [use-cases/ocr-lemmas-tags.md](use-cases/ocr-lemmas-tags.md).
 
 | Script | Source label | Tracked kind | Admin | Sched | Notes |
 |---|---|---|---|---|---|
-| `build_tags_from_ocr` | `OCR` | `build_tags_from_ocr` | yes | no | ConceptTagger. `--incremental`. Not available on `it` |
-| `build_tags_from_descriptions` | `Ollama` | `build_tags_from_descriptions` | yes | no | `--incremental`. Not on `it` |
+| `build_tags_from_ocr` | `OCR` | `build_tags_from_ocr` | yes | no | ConceptTagger. `--incremental`; `--refresh-stale` replaces the stale OCR tags of recut cuts. Not available on `it` |
+| `build_tags_from_descriptions` | `Ollama` | `build_tags_from_descriptions` | yes | no | `--incremental`; `--refresh-stale` replaces the stale Ollama tags of recut cuts. Not on `it` |
 | `build_tags_from_notes` | `Note` | `build_tags_from_notes` | yes | no | CLI default is a full run, `main()` and admin default to incremental. Not on `it` |
 | `build_concept_embeddings` | n/a (feeds `CONCEPT`) | `build_concept_embeddings` | yes | no | **Chains into `tag_images_from_concepts`** unless `--no-chain` |
 | `tag_images_from_concepts` | `CONCEPT` | `tag_images_from_concepts` | yes | no | Full rebuild |
@@ -74,12 +74,12 @@ Detail: [use-cases/descriptions-and-profiles.md](use-cases/descriptions-and-prof
 
 | Script | What it does | Tracked kind | Admin | Sched | Flags / notes |
 |---|---|---|---|---|---|
-| `build_image_descriptions` | Multi-prompt Ollama vision descriptions | `build_image_descriptions` | yes | no | `--limit`, `--reset`, `--retry-failed`. Admin has no limit. Active images only |
+| `build_image_descriptions` | Multi-prompt Ollama vision descriptions | `build_image_descriptions` | yes | no | `--limit`, `--reset`, `--retry-failed`. Admin has no limit. Active images only; `--refresh-stale` (with `--limit`) re-describes recut cuts |
 | `build_image_description_embeddings` | bge-large 1024-dim, one per description | `build_image_description_embeddings` | yes | no | `--reset` |
 | `build_description_lemmas` | Lemma index of descriptions (English) | `build_description_lemmas` | yes | no | Incremental by construction |
 | `build_description_note_lemmas` | Lemma index of human notes | `build_description_note_lemmas` | yes | no | |
 | `build_description_note_embeddings` | bge-large embeddings of notes | `build_description_note_embeddings` | yes | no | |
-| `build_meme_profiles` | Profile (situation, emotion, stance, topic, tone, use-when) per image | `build_meme_profiles` | yes | no | `--limit`, `--reset`, `--retry-failed`, `--ids-file`. `it` exits cleanly (no `text_model`) |
+| `build_meme_profiles` | Profile (situation, emotion, stance, topic, tone, use-when) per image | `build_meme_profiles` | yes | no | `--limit`, `--reset`, `--retry-failed`, `--ids-file`, `--status {active,cut_proposed}` (cuts only after their refresh; not with `--reset`). `it` exits cleanly (no `text_model`) |
 | `build_meme_profile_embeddings` | Situation embedding via Ollama | `build_meme_profile_embeddings` | yes | no | `--limit`, `--reset`, `--ids-file`. `it` exits cleanly |
 | `description_pipeline` | Driver over 10 steps (see use-case page) | `description_pipeline` | yes | no | Failure only skips dependents. Children self-track under their own kinds |
 | `build_taxonomy_similarity` | Regenerates `batch/data/taxonomy/similarity.json` | none | no | no | Needs live Ollama; manual after taxonomy edits |
@@ -107,6 +107,7 @@ Detail: [use-cases/maintenance-and-cleanup.md](use-cases/maintenance-and-cleanup
 | `unregister_deleted_images` | Delete DB rows whose files are gone | `unregister_deleted_images` | yes | no | **Chains `remove_singletons`**; `--no-chain` |
 | `fix_image_formats` | Retroactive format fix for the existing corpus; only path that backfills `Image.width/height` | `fix_image_formats` | yes | no | `--status` (default `active`, the only value the admin path uses) |
 | `detect_recut_crops` | Screenshot recut: stores a `detected` `image_cuts` proposal for active images with a flat margin (R2) | `detect_recut_crops` | yes | no | `--limit`; checks each image once per detector version (`recut_detect_v1`); skips the frozen evaluation corpus, flagged images and images that already have a live cut; unreadable files are recorded `failed` and not retried under the same detector version, 20 in a row stop the run |
+| `refresh_recut_cuts` | Screenshot recut: replaces the stale derived data of the cuts by running the refresh modes in order (R3c); 11 steps | `refresh_recut_cuts` | yes | no | Children self-track under their own kinds; failure only skips dependents; stats carry the steps and `stale_rows_total` (all statuses) |
 | `create_recut_cuts` | Screenshot recut: cuts each `detected` proposal into a same-format file, a `cut_proposed` image and copied derived data (R3a) | `create_recut_cuts` | yes | no | `--limit`, `--retry-failed` (shell only: re-queues `failed` proposals); highest confidence first; one transaction per cut; skips sources that are not active, flagged or in the frozen corpus; a proposal that cannot be cut ends `failed` with a reason; 20 in a row stop the run |
 | `reset_ocr_status` | Reset OCR processing status (`--all`) | none | no | no | Use before a full OCR re-run |
 | `score_ocr_language` | Backfill `lang_score` for old `ocr_texts` rows | none | no | no | `--rescore-all` |
