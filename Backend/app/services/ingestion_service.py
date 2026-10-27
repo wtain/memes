@@ -13,6 +13,10 @@ from Backend.app.services.cluster_splitting import split_for_review
 from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
 from config.settings import settings
 from graph.uf import UnionFind
+from repository.popularity import PopularityRepository, guarded
+from Storage.models import PopularityReason, PopularitySource
+
+_TIER_SOURCE = {"tier_a": PopularitySource.INGEST_TIER_A, "tier_b": PopularitySource.INGEST_TIER_B}
 
 TIER_BANDS = {
     "tier_a": (0.0, TIER_A_THRESHOLD),
@@ -315,6 +319,18 @@ class IngestionService:
                        if (page and has_next) else None)
         return {"items": items, "next_cursor": next_cursor, "has_next": has_next}
 
+    async def _record_reject(self, image_id, tier: str) -> None:
+        """Credit the best remaining neighbour of a just-rejected image, never failing the reject."""
+        async def call():
+            winner = await self.repo.pick_duplicate_winner(image_id, tier, *_tier_band(tier))
+            if winner is None:
+                return None
+            batch_run_id = await self.repo.get_batch_id(image_id)
+            return await PopularityRepository(self.repo.session).absorb(
+                image_id, winner, _TIER_SOURCE[tier], batch_run_id)
+
+        await guarded(self.repo.session, "ingest reject", call)
+
     async def resolve(self, tier: str, decisions: list[dict]) -> dict:
         """Apply per-image reject/keep decisions independently -- one decision's failure (DB or
         filesystem) does not affect any other decision in the same call. `decisions` is a list
@@ -335,6 +351,7 @@ class IngestionService:
                     filename = await self.repo.reject_image(image_id)
                     if filename is None:
                         continue
+                    await self._record_reject(image_id, tier)
                     await self.repo.commit()
                     try:
                         image_store.move_to_rejected(filename)
@@ -363,5 +380,10 @@ class IngestionService:
         filename = await self.repo.undo_reject(image_id)
         if filename is None:
             raise HTTPException(status_code=404, detail="Image not found or not currently rejected")
+        # Committed by get_async_db after the request, as before; a popularity failure is swallowed.
+        await guarded(self.repo.session, "ingest undo_reject", lambda: PopularityRepository(
+            self.repo.session).reverse_open_edge(
+                image_id, PopularityReason.UNDO_REJECT,
+                {PopularitySource.INGEST_TIER_A, PopularitySource.INGEST_TIER_B}))
         image_store.move_from_rejected(filename)
         return {"image_id": str(image_id), "status": "pending"}
