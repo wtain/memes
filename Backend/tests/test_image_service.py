@@ -556,6 +556,31 @@ class TestMarkFlaggedReason:
         mock_repo.set_flagged.assert_awaited_once_with(image_id, True, None)
 
 
+class TestMarkFlaggedDuplicateOf:
+    @staticmethod
+    async def _passthrough(session, label, call):
+        return await call()
+
+    async def test_records_absorb_with_mapped_source(self, service, mock_repo):
+        from unittest.mock import MagicMock, patch
+        image_id, other_id = uuid.uuid4(), uuid.uuid4()
+        pop_cls = MagicMock()
+        pop_cls.return_value.absorb = AsyncMock()
+        with patch("Backend.app.services.image_service.PopularityRepository", pop_cls), \
+                patch("Backend.app.services.image_service.guarded", self._passthrough):
+            await service.mark_flagged(str(image_id), "duplicate_review", str(other_id))
+
+        mock_repo.set_flagged.assert_awaited_once_with(str(image_id), True, "duplicate_review")
+        pop_cls.return_value.absorb.assert_awaited_once_with(image_id, other_id, "cluster_review")
+
+    async def test_invalid_combination_is_422_before_any_write(self, service, mock_repo):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.mark_flagged(str(uuid.uuid4()), "other", str(uuid.uuid4()))
+
+        assert exc_info.value.status_code == 422
+        mock_repo.set_flagged.assert_not_awaited()
+
+
 class TestClusterOverlapCoefficients:
     async def test_delegates_member_ids_to_ocr_lemmas_repo(self, service, mock_repo, mock_ocr_lemmas_repo):
         a, b = uuid.uuid4(), uuid.uuid4()

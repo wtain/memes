@@ -185,9 +185,10 @@ async def mark_flagged(
     image_id: str,
     response: Response,
     reason: str | None = Query(None, max_length=50),
+    duplicateOf: str | None = Query(None, max_length=36),
     service: ImageService = Depends(get_image_service),
 ):
-    await service.mark_flagged(image_id, reason)
+    await service.mark_flagged(image_id, reason, duplicateOf)
 
 
 @router.put("/meme/{image_id}/unmark_flagged")

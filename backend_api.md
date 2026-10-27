@@ -507,13 +507,21 @@ Mark a meme as flagged.
   - `image_id`: Unique identifier of the image
 - **Query Parameters**:
   - `reason` (optional): Free-text reason for flagging (max 50 chars), stored alongside the flag
+  - `duplicateOf` (optional): id of the image that survives this one as its duplicate. Requires `reason` to be
+    `duplicate_review` (popularity source `cluster_review`) or `agent_review` (source `agent_review`); the flagged
+    image's popularity moves into the survivor. Without `duplicateOf` a flag never changes popularity.
+- **Errors**: `422` when `duplicateOf` is given with another or no `reason`, is not a valid image id, or equals
+  `image_id`. Validation happens before anything is written. A popularity recording failure never fails the flag;
+  re-flagging against another survivor keeps the first recorded edge.
 - **Response**: Success (no content)
 - **Example**: `PUT /api/images/meme/abc123/mark_flagged`
 - **Example (with reason)**: `PUT /api/images/meme/abc123/mark_flagged?reason=duplicate_review`
+- **Example (with survivor)**: `PUT /api/images/meme/abc123/mark_flagged?reason=agent_review&duplicateOf=def456-...`
 
 #### Unmark Meme as Flagged
 
-Remove flagged status from a meme.
+Remove flagged status from a meme. If the flag recorded a popularity edge (`duplicateOf`), unflagging reverses it
+(reason `unflag`), restoring the popularity of both images; with no such edge popularity is untouched.
 
 - **URL**: `/api/images/meme/{image_id}/unmark_flagged`
 - **Method**: `PUT`
