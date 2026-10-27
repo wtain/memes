@@ -20,6 +20,9 @@ flowchart LR
 | `unregister_deleted_images` | `unregister_deleted_images` | yes | `--no-chain` |
 | `remove_singletons` | no (prints metrics) | no | n/a |
 
+Popularity: flagging with `duplicateOf` (or `detect_file_duplicates`) records an absorption into the survivor, and
+unflagging reverses it. A flag without `duplicateOf` never changes popularity.
+
 Name collisions in `excluded/` are resolved by renaming, not overwriting (`move_without_overwrite`). Missing files are
 counted as `error.file_not_found` and skipped. If you only want the reconcile after deleting files by hand, run
 `unregister_deleted_images` alone.

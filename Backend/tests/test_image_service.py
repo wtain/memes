@@ -580,6 +580,16 @@ class TestMarkFlaggedDuplicateOf:
         assert exc_info.value.status_code == 422
         mock_repo.set_flagged.assert_not_awaited()
 
+    async def test_malformed_ids_name_the_right_parameter(self, service, mock_repo):
+        with pytest.raises(HTTPException) as bad_winner:
+            await service.mark_flagged(str(uuid.uuid4()), "duplicate_review", "nope")
+        assert "duplicateOf" in bad_winner.value.detail
+        with pytest.raises(HTTPException) as bad_loser:
+            await service.mark_flagged("nope", "duplicate_review", str(uuid.uuid4()))
+        assert bad_loser.value.status_code == 422
+        assert "duplicateOf" not in bad_loser.value.detail
+        mock_repo.set_flagged.assert_not_awaited()
+
 
 class TestClusterOverlapCoefficients:
     async def test_delegates_member_ids_to_ocr_lemmas_repo(self, service, mock_repo, mock_ocr_lemmas_repo):

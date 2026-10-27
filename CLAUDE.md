@@ -334,7 +334,10 @@ check_image_popularity      → reports drift of the cached images.popularity ag
 detect_file_duplicates      → byte-identical files: keeps the oldest, flags the rest, and records the keeper as
                                the winner of each flagged copy's popularity absorption (metrics key
                                popularity_skipped). Flagging with `duplicateOf` (mark_flagged, the /duplicates page,
-                               the review-duplicates command) records the same edge and unflagging reverses it.
+                               the review-duplicates command) records the same edge. A flag WITHOUT duplicateOf never changes popularity
+                               (attribution of manual flags comes in P4). Reasons: duplicate_review -> source
+                               cluster_review, agent_review -> agent_review, any other reason with duplicateOf is
+                               a 422. Unflagging reverses cluster_review / agent_review / file_duplicates edges.
 
 move_flagged                → also runs unregister_deleted_images automatically afterward,
                                reconciling the DB with whatever was moved; --no-chain skips this.
@@ -740,7 +743,8 @@ ingest_abort                → Abandons the currently active ingestion run inst
                                at any point before the run completes -- right after Stage 1, mid-
                                review, etc. Also reverses the popularity edges that point from its
                                deleted images into surviving images (metrics popularity_reversed /
-                               popularity_skipped).
+                               popularity_skipped). Files already in duplicates/ are not moved back; copies
+                               credited to a deleted pending keeper disappear with it.
 ```
 
 `ingest_auto_prep` is a one-job alternative to running Stage 1 through the Tier A step by

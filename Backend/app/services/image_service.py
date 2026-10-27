@@ -468,9 +468,12 @@ class ImageService:
                 raise HTTPException(status_code=422, detail="duplicateOf requires a duplicate or agent review reason")
             try:
                 winner_id = uuid.UUID(duplicate_of)
-                loser_id = uuid.UUID(str(image_id))
             except ValueError:
                 raise HTTPException(status_code=422, detail="duplicateOf must be an image id")
+            try:
+                loser_id = uuid.UUID(str(image_id))
+            except ValueError:
+                raise HTTPException(status_code=422, detail="image_id must be an image id")
             if winner_id == loser_id:
                 raise HTTPException(status_code=422, detail="duplicateOf must differ from the image")
         await self.repo.set_flagged(image_id, True, reason)

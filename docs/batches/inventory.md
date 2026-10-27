@@ -32,7 +32,7 @@ Detail and diagrams: [use-cases/ingestion.md](use-cases/ingestion.md).
 
 | Script | What it does | Tracked kind | Admin | Sched | Notes |
 |---|---|---|---|---|---|
-| `ingest_hash_dedup` | Stage 1. SHA-256 every file in `PATH_INGESTION_SOURCE`; drop in-batch and cross-corpus exact duplicates; register survivors as `pending`; move them into `BASE_PATH` | `ingestion` (long-lived review run, stage `hash_dedup`) | no | no | Joins the active run if one exists. Postgres advisory lock against concurrent copies of itself |
+| `ingest_hash_dedup` | Stage 1. SHA-256 every file in `PATH_INGESTION_SOURCE`; drop in-batch and cross-corpus exact duplicates; register survivors as `pending`; move them into `BASE_PATH` | `ingestion` (long-lived review run, stage `hash_dedup`) | no | no | Joins the active run if one exists. Postgres advisory lock against concurrent copies of itself. Records each dropped copy as a popularity absorption into its keeper (stats `popularity_copies_recorded`, `popularity_skipped`) |
 | `ingest_validate_formats` | Stage 1.5. Fix extension/content mismatch, convert WebP to JPEG (originals to `converted_originals/`), flag unreadable files | none (advances `ingestion` stage to `format_validation`) | no | no | Safe to re-run |
 | `build_image_embeddings --status pending --incremental` | CLIP 512-dim vectors for the batch | `build_image_embeddings` | yes (active, incremental only) | no | Skipping it silently excludes images from review |
 | `extract_text_from_memes --status pending` | OCR (EasyOCR EN/ES/RU, with Tesseract/TrOCR fallbacks) | `extract_text_from_memes` | yes (active only) | no | Must run before Tier A |
@@ -43,7 +43,7 @@ Detail and diagrams: [use-cases/ingestion.md](use-cases/ingestion.md).
 | `ingest_find_duplicates_tier_b` | Thin driver: `ingest_find_duplicates.main(tier="tier_b")` | `ingest_find_duplicates_tier_b` | yes | no | Manual: needs Tier A review finished |
 | `ingest_auto_prep` | Driver: hash dedup, validate, embeddings, OCR, lemmas, text-heavy, OCR-text embeddings, Tier A. Stops the tick quietly if a tracked child is already running | `ingestion_auto_prep` | yes | **no** (was designed for a 15 min schedule, removed) | Distinct kind so the scheduler's orphan guard never touches the long-lived `ingestion` run |
 | `ingest_promote` | Stage 4. `pending` to `active` for images with no unresolved candidates; completes the run when none remain pending | `ingest_promote` | yes | no | Fails (visibly) if no active run |
-| `ingest_abort` | Abandon the active run: move files back to the inbox, delete rows, mark run `aborted` | none (aborts the `ingestion` row) | no | no | Does not undo WebP conversion |
+| `ingest_abort` | Abandon the active run: move files back to the inbox, delete rows, mark run `aborted` | none (aborts the `ingestion` row) | no | no | Does not undo WebP conversion. Reverses popularity edges into surviving images (metrics `popularity_reversed`, `popularity_skipped`) |
 
 ## 2. Core signals: OCR, embeddings, lemmas, text classification
 
@@ -92,7 +92,7 @@ Detail: [use-cases/duplicates-and-clusters.md](use-cases/duplicates-and-clusters
 |---|---|---|---|---|---|
 | `rebuild_duplicates` | Three probes (general CLIP, tight CLIP safety net, OCR-text) into `tmp_duplicates` | `rebuild_duplicates` | yes | no | `--full`, `--k`, `--threshold`. **Chains into `clusterize`** unless `--no-chain` |
 | `clusterize` | Union-find over `tmp_duplicates`, splits oversized clusters, writes `tmp_clusters` | `clusterize` | yes | no | Config: `clustering.*` |
-| `detect_file_duplicates` | Byte-level duplicates: backfills `content_hash`, flags all but the oldest of each identical group | none | no | no | Skips clusters that already have a flagged member |
+| `detect_file_duplicates` | Byte-level duplicates: backfills `content_hash`, flags all but the oldest of each identical group | none | no | no | Skips clusters that already have a flagged member. Records the keeper as winner of each flagged copy (metric `popularity_skipped` for failed recordings); unflagging reverses it |
 | `deduplicate_ocr_texts` | Deletes duplicate `ocr_texts` rows | none | no | no | No `--env` flag, relies on `APP_ENV` / `DATABASE_URL` |
 | `remove_singletons` | Deletes `tmp_clusters` rows of single-member clusters | none | no | no | Auto-run by `unregister_deleted_images` |
 | `move_reference_duplicates` | Moves unregistered files in `BASE_PATH` that are byte-identical to a file in a reference dir into `BASE_PATH/possible_duplicates` | none | no | no | `--reference-dir`, `--dry-run` |

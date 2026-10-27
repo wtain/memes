@@ -419,7 +419,9 @@ describe('MemesDuplicatesList partial selection', () => {
     await waitFor(() => {
       expect(api.markImageIsFlagged).toHaveBeenCalledWith('b', 'duplicate_review', 'a')
     })
-    expect(api.markImageIsFlagged).not.toHaveBeenCalledWith('a', expect.anything())
+    const flaggedIds = vi.mocked(api.markImageIsFlagged).mock.calls.map(c => c[0])
+    expect(flaggedIds).toContain('b')
+    expect(flaggedIds.every(id => id !== 'a')).toBe(true)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
     await waitFor(() => {

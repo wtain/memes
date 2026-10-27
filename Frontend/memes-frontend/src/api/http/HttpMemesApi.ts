@@ -306,7 +306,7 @@ export class HttpMemesApi implements MemesApi {
     const query = new URLSearchParams()
     if (reason) query.set("reason", reason)
     if (duplicateOf) query.set("duplicateOf", duplicateOf)
-    const params = query.size > 0 ? `?${query.toString()}` : ""
+    const params = query.toString() !== "" ? `?${query.toString()}` : ""
     const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/mark_flagged${params}`, {
       method: "PUT"
     })
