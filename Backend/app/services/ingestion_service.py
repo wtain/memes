@@ -319,10 +319,11 @@ class IngestionService:
                        if (page and has_next) else None)
         return {"items": items, "next_cursor": next_cursor, "has_next": has_next}
 
-    async def _record_reject(self, image_id, tier: str) -> None:
+    async def _record_reject(self, image_id, tier: str, exclude_ids=(), prefer_ids=()) -> None:
         """Credit the best remaining neighbour of a just-rejected image, never failing the reject."""
         async def call():
-            winner = await self.repo.pick_duplicate_winner(image_id, tier, *_tier_band(tier))
+            winner = await self.repo.pick_duplicate_winner(
+                image_id, tier, *_tier_band(tier), exclude_ids=exclude_ids, prefer_ids=prefer_ids)
             if winner is None:
                 return None
             batch_run_id = await self.repo.get_batch_id(image_id)
@@ -343,6 +344,10 @@ class IngestionService:
         must not treat `rejected` and `move_failed` as mutually exclusive.
         """
         rejected, kept, failed, move_failed = [], [], [], []
+        # Images rejected anywhere in this request must never be picked as a winner (they would
+        # strand the credit on a rejected root); images kept in it are preferred.
+        reject_ids = {e["image_id"] for e in decisions if e["decision"] == "reject"}
+        keep_ids = {e["image_id"] for e in decisions if e["decision"] == "keep"}
         for entry in decisions:
             image_id = entry["image_id"]
             decision = entry["decision"]
@@ -351,7 +356,7 @@ class IngestionService:
                     filename = await self.repo.reject_image(image_id)
                     if filename is None:
                         continue
-                    await self._record_reject(image_id, tier)
+                    await self._record_reject(image_id, tier, reject_ids, keep_ids)
                     await self.repo.commit()
                     try:
                         image_store.move_to_rejected(filename)

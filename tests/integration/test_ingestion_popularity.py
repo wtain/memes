@@ -85,18 +85,107 @@ async def test_pick_duplicate_winner_prefers_active_then_popularity_then_age(db_
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_pick_ignores_rejected_reviewed_and_out_of_band_neighbours(db_session):
+async def test_pick_ignores_rejected_and_out_of_band_but_not_reviewed_neighbours(db_session):
     repo = IngestionRepository(db_session)
     a = await _img(db_session, "pending")
     rej = await _img(db_session, "rejected")
-    rev = await _img(db_session, "active")
     far = await _img(db_session, "active")
     await _pair(db_session, a, rej, 0.02)
-    await _pair(db_session, a, rev, 0.02, tier_a_reviewed_at=_T0_TZ)
     await _pair(db_session, a, far, 0.2)
     assert await repo.pick_duplicate_winner(a, "tier_a", 0.0, 0.05) is None
-    # tier_b: reviewed flag is the tier_b column, band 0.05..0.3
+    # tier_b band 0.05..0.3
     assert await repo.pick_duplicate_winner(a, "tier_b", 0.05, 0.3) == far
+    # a reviewed (kept) neighbour is still a valid winner
+    rev = await _img(db_session, "active")
+    await _pair(db_session, a, rev, 0.02, tier_a_reviewed_at=_T0_TZ)
+    assert await repo.pick_duplicate_winner(a, "tier_a", 0.0, 0.05) == rev
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_pick_band_bounds_low_included_high_excluded(db_session):
+    from Backend.app.services.ingestion_service import _tier_band
+    repo = IngestionRepository(db_session)
+    for tier in ("tier_a", "tier_b"):
+        low, high = _tier_band(tier)
+        a = await _img(db_session, "pending")
+        at_low = await _img(db_session, "active")
+        at_high = await _img(db_session, "active")
+        await _pair(db_session, a, at_low, low)
+        await _pair(db_session, a, at_high, high)
+        assert await repo.pick_duplicate_winner(a, tier, low, high) == at_low
+        (await db_session.get(Image, at_low)).status = "rejected"
+        await db_session.flush()
+        assert await repo.pick_duplicate_winner(a, tier, low, high) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_tier_b_does_not_pick_a_neighbour_that_is_only_in_tier_a_band(db_session):
+    batch = await _make_run(db_session)
+    a = await _img(db_session, "pending", batch)
+    near = await _img(db_session, "active")
+    await _pair(db_session, a, near, 0.02, tier_a_reviewed_at=_T0_TZ)
+    with patch(MOVE_OUT):
+        await _service(db_session).resolve("tier_b", [{"image_id": a, "decision": "reject"}])
+    assert await _edges(db_session, a) == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("order", ["keep_reject", "reject_keep", "two_calls"])
+async def test_keep_and_reject_in_any_order_record_one_edge_to_the_kept_image(db_session, order):
+    batch = await _make_run(db_session)
+    b = await _img(db_session, "pending", batch)
+    c = await _img(db_session, "pending", batch)
+    await _pair(db_session, b, c, 0.02)
+    service = _service(db_session)
+    keep = {"image_id": b, "decision": "keep"}
+    reject = {"image_id": c, "decision": "reject"}
+    with patch(MOVE_OUT):
+        if order == "keep_reject":
+            await service.resolve("tier_a", [keep, reject])
+        elif order == "reject_keep":
+            await service.resolve("tier_a", [reject, keep])
+        else:
+            await service.resolve("tier_a", [keep])
+            await service.resolve("tier_a", [reject])
+    (edge,) = await _edges(db_session, c)
+    assert edge.winner_image_id == b
+    assert await _pop(db_session, b) == 2
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_neighbour_rejected_later_in_same_request_is_not_picked(db_session):
+    batch = await _make_run(db_session)
+    b = await _img(db_session, "pending", batch, popularity=9)
+    c = await _img(db_session, "pending", batch)
+    d = await _img(db_session, "pending", batch)
+    await _pair(db_session, b, c, 0.02)
+    await _pair(db_session, c, d, 0.02)
+    with patch(MOVE_OUT):
+        await _service(db_session).resolve("tier_a", [
+            {"image_id": c, "decision": "reject"},
+            {"image_id": b, "decision": "reject"},
+            {"image_id": d, "decision": "keep"},
+        ])
+    (edge,) = await _edges(db_session, c)
+    assert edge.winner_image_id == d
+    assert await _edges(db_session, b) == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_kept_ids_in_the_request_are_preferred(db_session):
+    batch = await _make_run(db_session)
+    a = await _img(db_session, "pending", batch)
+    x = await _img(db_session, "pending", batch, popularity=1)
+    y = await _img(db_session, "pending", batch, popularity=9)
+    await _pair(db_session, a, x, 0.02)
+    await _pair(db_session, a, y, 0.02)
+    with patch(MOVE_OUT):
+        await _service(db_session).resolve("tier_a", [
+            {"image_id": a, "decision": "reject"},
+            {"image_id": x, "decision": "keep"},
+        ])
+    (edge,) = await _edges(db_session, a)
+    assert edge.winner_image_id == x
 
 
 @pytest.mark.asyncio(loop_scope="session")

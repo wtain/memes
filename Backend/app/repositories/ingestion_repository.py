@@ -313,29 +313,42 @@ class IngestionRepository:
             select(Image.ingestion_batch_id).where(Image.id == image_id))
         return result.scalar_one_or_none()
 
-    async def pick_duplicate_winner(self, image_id, tier: str, distance_low: float, distance_high: float):
+    async def pick_duplicate_winner(self, image_id, tier: str, distance_low: float, distance_high: float,
+                                    exclude_ids=(), prefer_ids=()):
         """The neighbour of `image_id` that a reject credits: among images paired with it in
-        tmp_duplicates inside [low, high) whose tier reviewed_at is NULL and whose status is
-        active or pending, active first, then highest popularity, then earliest created_at.
-        None when there is none. Independent of image_id's own status."""
-        reviewed_col = TmpDuplicates.tier_a_reviewed_at if tier == "tier_a" else TmpDuplicates.tier_b_reviewed_at
+        tmp_duplicates inside [low, high) whose status is active or pending (and not in
+        `exclude_ids`, e.g. images rejected later in the same request). Order: active first, then
+        ids in `prefer_ids` (kept in this request), then highest popularity, then earliest
+        created_at. None when there is none. Independent of image_id's own status.
+
+        Deliberately NOT filtered by the tier's reviewed_at: a `keep` decision stamps reviewed_at
+        on every pair touching the kept image, and the kept image is exactly the intended winner,
+        so filtering would make the outcome depend on decision order. `tier` is accepted for the
+        caller's symmetry with the band and is not otherwise used."""
         other = aliased(Image)
         other_id = case((TmpDuplicates.image_id1 == image_id, TmpDuplicates.image_id2),
                         else_=TmpDuplicates.image_id1)
+        conditions = [
+            or_(TmpDuplicates.image_id1 == image_id, TmpDuplicates.image_id2 == image_id),
+            other.id != image_id,
+            TmpDuplicates.distance >= distance_low,
+            TmpDuplicates.distance < distance_high,
+            other.status.in_(["active", "pending"]),
+        ]
+        exclude = list(exclude_ids)
+        if exclude:
+            conditions.append(other.id.notin_(exclude))
+        prefer = list(prefer_ids)
+        order = [(other.status == "active").desc()]
+        if prefer:
+            order.append(other.id.in_(prefer).desc())
+        order += [other.popularity.desc(), other.created_at.asc(), other.id]
         query = (
             select(other.id)
             .select_from(TmpDuplicates)
             .join(other, other.id == other_id)
-            .where(
-                or_(TmpDuplicates.image_id1 == image_id, TmpDuplicates.image_id2 == image_id),
-                other.id != image_id,
-                reviewed_col.is_(None),
-                TmpDuplicates.distance >= distance_low,
-                TmpDuplicates.distance < distance_high,
-                other.status.in_(["active", "pending"]),
-            )
-            .order_by((other.status == "active").desc(), other.popularity.desc(),
-                      other.created_at.asc(), other.id)
+            .where(*conditions)
+            .order_by(*order)
             .limit(1)
         )
         return (await self.session.execute(query)).scalar_one_or_none()
