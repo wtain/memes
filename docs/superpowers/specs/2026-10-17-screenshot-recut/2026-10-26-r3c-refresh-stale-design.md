@@ -1,6 +1,6 @@
 # R3c: Refresh stale - design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-26-r3c-refresh-stale.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R3c, split from R3)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
