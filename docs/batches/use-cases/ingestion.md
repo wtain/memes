@@ -83,6 +83,9 @@ Stages only move forward (`_STAGE_ORDER` guard in `ingest_find_duplicates`, `sho
 | 4 | `ingest_promote` | yes | yes |
 | Undo | `ingest_abort` | yes | no |
 
+Stage 1 records each dropped copy as a popularity absorption into its keeper; `ingest_abort` reverses edges pointing
+into surviving images.
+
 Nothing here is on the scheduler. `ingest_auto_prep` was designed for a 15 minute tick (spec 2026-08-14) and then
 removed from `scheduler.jobs`; `settings.yaml` still carries a comment saying so.
 

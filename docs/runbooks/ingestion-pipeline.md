@@ -237,7 +237,7 @@ runs, files just sit in `inbox\` untouched.
 - `python -m batch.ingest_abort --env <env>` abandons the entire currently active run
   instead of continuing it: it undoes every `pending`/`rejected` image the run registered
   (moves each file back to `PATH_INGESTION_SOURCE`, deletes its row — FK cascades clean up
-  embeddings/OCR/tmp_duplicates automatically) and marks the run `aborted`, freeing the
+  embeddings/OCR/tmp_duplicates automatically; popularity edges into surviving images are reversed) and marks the run `aborted`, freeing the
   one-active-run-per-kind lock. Never touches already-`active` (promoted) images in the
   batch. Can be run at any point before the run completes — right after Stage 1, mid-review,
   etc.

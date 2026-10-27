@@ -1,6 +1,6 @@
 # P2: Recording winners in each duplicate path
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-10-27-p2-recording-winners.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; read it first) and `2026-10-26-p1-data-model-and-absorption-rules-design.md` (the repository this design calls)
 Follow-ups: P3 API and details page, P4 corrections and audit (not written yet)
