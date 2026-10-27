@@ -254,7 +254,7 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     const keeper = keeperByCluster.get(clusterId)
     if (selected.length < 2 || !keeper) return
     const losers = selected.filter(id => id !== keeper)
-    const results = await Promise.allSettled(losers.map(id => memesApi.markImageIsFlagged(id, "duplicate_review")))
+    const results = await Promise.allSettled(losers.map(id => memesApi.markImageIsFlagged(id, "duplicate_review", keeper)))
     const succeeded = losers.filter((_, i) => results[i].status === "fulfilled")
     if (succeeded.length === 0) return
     setFlaggedMembers(prev => new Map(prev).set(clusterId, new Set([...(prev.get(clusterId) ?? []), ...succeeded])))

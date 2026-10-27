@@ -302,8 +302,11 @@ export class HttpMemesApi implements MemesApi {
     return res.json()
   }
 
-  async markImageIsFlagged(id: string, reason?: string): Promise<void> {
-    const params = reason ? `?reason=${encodeURIComponent(reason)}` : ""
+  async markImageIsFlagged(id: string, reason?: string, duplicateOf?: string): Promise<void> {
+    const query = new URLSearchParams()
+    if (reason) query.set("reason", reason)
+    if (duplicateOf) query.set("duplicateOf", duplicateOf)
+    const params = query.size > 0 ? `?${query.toString()}` : ""
     const res = await fetch(`${this.baseUrl}/api/images/meme/${id}/mark_flagged${params}`, {
       method: "PUT"
     })
