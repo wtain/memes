@@ -52,4 +52,4 @@ async def test_flags_have_no_reason(db_session):
         db_session, ImageExtrasRepository(db_session), keeper.id, [d1.id], SimpleMetricsListener())
     row = await _flag_row(db_session, d1)
     assert row.flagged is True
-    assert getattr(row, "flag_reason", None) is None
+    assert row.flagged_reason is None
