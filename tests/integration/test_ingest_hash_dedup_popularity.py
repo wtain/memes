@@ -158,3 +158,37 @@ async def test_a_popularity_error_does_not_fail_the_run(tmp_path, db_session, mo
     assert stats["popularity_skipped"] == 2
     assert set(os.listdir(base)) == {"a.jpg", "u.jpg"}
     assert (await db_session.execute(select(func.count()).select_from(Image))).scalar_one() == 2
+
+
+async def _multi_survivor_run(tmp_path, db_session):
+    source, base, batch_id = await _setup(tmp_path, db_session)
+    active = await _active(db_session)  # CONTENT_HASH, matched by repost.jpg
+    _write(base, "u1.jpg", b"already-in-base")  # forces u1.jpg to be renamed on registration
+    _write(source, "u1.jpg", b"unique-one")
+    _write(source, "dup_a.jpg", b"in-batch-dup")
+    _write(source, "dup_b.jpg", b"in-batch-dup")
+    _write(source, "dup_c.jpg", b"in-batch-dup")
+    _write(source, "repost.jpg", CONTENT)
+    _write(source, "u2.jpg", b"unique-two")
+    stats = await run(db_session, str(source), str(base), batch_id)
+    return active, stats
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_each_keeper_gets_its_own_extras_among_several_survivors(tmp_path, db_session):
+    active, stats = await _multi_survivor_run(tmp_path, db_session)
+    by_hash = {}
+    for image in (await db_session.execute(select(Image).where(Image.status == "pending"))).scalars():
+        by_hash[image.content_hash] = image
+    assert len(by_hash) == 3
+    keeper = by_hash[hashlib.sha256(b"in-batch-dup").hexdigest()]
+    u1 = by_hash[hashlib.sha256(b"unique-one").hexdigest()]
+    u2 = by_hash[hashlib.sha256(b"unique-two").hexdigest()]
+    assert keeper.filename == "dup_a.jpg"
+    assert u1.filename == "u1_1.jpg"  # renamed by the collision
+    assert await _pop(db_session, keeper) == 3
+    assert await _pop(db_session, u1) == 1
+    assert await _pop(db_session, u2) == 1
+    assert await _pop(db_session, active) == 2
+    assert stats["popularity_copies_recorded"] == 3
+    assert stats["popularity_skipped"] == 0

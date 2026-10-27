@@ -202,7 +202,12 @@ async def record_popularity(
     if winners is None:
         return {"popularity_copies_recorded": 0, "popularity_skipped": total}
 
-    registered_by_hash = {remaining[f]: i for f, i in zip(remaining.keys(), registered_ids)}
+    # register_and_move_to_base_path returns one id per survivor, in order; on a length mismatch
+    # map nothing (extras are then counted as skipped) rather than credit the wrong image.
+    registered_by_hash = (
+        {remaining[f]: i for f, i in zip(remaining.keys(), registered_ids)}
+        if len(registered_ids) == len(remaining) else {}
+    )
 
     async def credit(winner_id, copies, source, label):
         nonlocal recorded, skipped
