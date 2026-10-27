@@ -197,6 +197,8 @@ async def test_run_end_to_end_stats_and_final_state(tmp_path, db_session):
     assert stats["hash_duplicates_in_batch"] == 1
     assert stats["hash_duplicates_cross_corpus"] == 1
     assert stats["registered"] == 2
+    assert stats["popularity_copies_recorded"] == 2  # dup_b onto dup_a, repost onto existing2
+    assert stats["popularity_skipped"] == 0
 
     assert set(os.listdir(base)) == {"dup_a.jpg", "unique.jpg"}
     assert set(os.listdir(source / "duplicates")) == {"dup_b.jpg", "repost.jpg"}
