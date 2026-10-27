@@ -1,15 +1,21 @@
 """Data access for meme popularity (epic meme-popularity, P1): the absorption tree and its cached counts.
 Never commits: the caller controls commit timing."""
+import logging
 import uuid
 from collections import defaultdict
-from collections.abc import Collection, Sequence
+from collections.abc import Awaitable, Callable, Collection, Sequence
 from dataclasses import dataclass
+from typing import TypeVar
 
 from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import Image, PopularityAbsorption, PopularityKind, PopularityReason, PopularitySource
+
+logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 MAX_HOPS = 10000
 MAX_ATTEMPTS = 3
@@ -66,6 +72,21 @@ class AlreadyDiscardedError(Exception):
 
 class PopularityConflictError(RuntimeError):
     """The root kept changing under concurrent writers."""
+
+
+class WinnerGoneError(Exception):
+    """The root of the winner's tree has no images row, so there is nothing to credit."""
+
+
+async def guarded(session: AsyncSession, label: str, call: Callable[[], Awaitable[T]]) -> T | None:
+    """Run `call` in a savepoint; on any Exception log a warning and return None, leaving the outer
+    transaction usable. Never commits. BaseException (cancellation) is not caught."""
+    try:
+        async with session.begin_nested():
+            return await call()
+    except Exception as exc:
+        logger.warning("popularity recording failed (%s): %r", label, exc)
+        return None
 
 
 class PopularityRepository:
@@ -148,6 +169,8 @@ class PopularityRepository:
                     return existing
                 raise AlreadyDiscardedError(existing)
 
+            if await self._image(root) is None:
+                raise WinnerGoneError(f"root {root} above {winner_id} has no image row")
             winner = await self._image(winner_id)
             weight = 0 if source == PopularitySource.RECUT else 1
             row = PopularityAbsorption(
@@ -187,6 +210,8 @@ class PopularityRepository:
             await self._lock_images({root})
             if await self.root_of(winner_id) != root:
                 continue
+            if await self._image(root) is None:
+                raise WinnerGoneError(f"root {root} above {winner_id} has no image row")
             winner = await self._image(winner_id)
             winner_hash = winner.content_hash if winner is not None else None
             inserted = 0
@@ -251,6 +276,15 @@ class PopularityRepository:
             await self.session.flush()
             return row
         raise PopularityConflictError(f"root above edge {absorb_id} kept changing")
+
+    async def reverse_open_edge(self, loser_id: uuid.UUID, reason: str,
+                                sources: Collection[str] | None = None) -> PopularityAbsorption | None:
+        """Reverse the open absorb edge whose loser is `loser_id` (optionally only for the given sources);
+        None when there is no such edge."""
+        edge = await self._open_edge(loser_id)
+        if edge is None or (sources is not None and edge.source not in sources):
+            return None
+        return await self.reverse(edge.id, reason)
 
     # ---- read-only checks ----
 

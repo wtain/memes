@@ -7,7 +7,7 @@ from sqlalchemy import delete, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repository.popularity import (AlreadyDiscardedError, CycleError, DroppedCopy,
-                                   PopularityRepository)
+                                   PopularityRepository, WinnerGoneError)
 from Storage.models import Image, OCRText, PopularityAbsorption
 
 from tests.integration.test_popularity_repository import make_image, make_run, pop
@@ -41,7 +41,7 @@ async def run_sequence(session, seed, tag=""):
             try:
                 await repo.absorb(loser, winner, source)
                 counts["absorb"] += 1
-            except (CycleError, AlreadyDiscardedError):
+            except (CycleError, AlreadyDiscardedError, WinnerGoneError):
                 pass
             except ValueError:
                 if loser not in deleted:
@@ -53,7 +53,10 @@ async def run_sequence(session, seed, tag=""):
             dropped = [DroppedCopy(f"{tag}d{seed}-{counter}-{k}", f"h{seed}-{counter}-{k}", f"/dest/{counter}")
                        for k in range(n)]
             log.append(f"{step}: dropped winner=#{index[winner]} count={n}")
-            counts["dropped"] += await repo.record_dropped_copies(winner, dropped, run) and 1
+            try:
+                counts["dropped"] += await repo.record_dropped_copies(winner, dropped, run) and 1
+            except WinnerGoneError:
+                pass
         elif action == "reverse":
             open_rows = (await session.execute(
                 select(PopularityAbsorption.id, PopularityAbsorption.loser_filename).where(

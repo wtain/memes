@@ -111,6 +111,9 @@ with A. Callers normally name a root anyway; the rule only matters when they do 
 **Deleted images:** nothing in this table is touched when an image row is deleted (no cascade, no set null). Edges whose
 endpoints are gone stay in place and keep their weight in whatever tree they belong to, so the root's cached number
 stays correct. Reversing an edge whose loser row is gone only lowers the root and records the reversal.
+`absorb` and `record_dropped_copies` raise `WinnerGoneError` when the root of the winner's tree has no `images` row,
+before writing anything. No advisory lock on deleted roots is needed: the wired paths cannot write into a tree whose
+root is gone (see the P2 design).
 
 **Deleting a root that is not absorbed** (a flagged image removed for non-duplicate reasons, a pending image removed by
 `ingest_abort`) ends its popularity and leaves its tree's open edges behind as orphans. That is intended: the meme is

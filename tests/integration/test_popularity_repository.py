@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import delete, func, select, update
 
 from repository.popularity import (AlreadyDiscardedError, CycleError, Drift, DroppedCopy,
-                                   PopularityRepository)
+                                   PopularityRepository, WinnerGoneError)
 from Storage.models import BatchRun, Image, PopularityAbsorption
 
 
@@ -109,13 +109,12 @@ async def test_cycle_is_refused(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_ghost_winner_is_accepted(db_session):
+async def test_ghost_winner_raises_winner_gone(db_session):
     b = await make_image(db_session, "b.jpg")
-    ghost = uuid.uuid4()
-    row = await PopularityRepository(db_session).absorb(b.id, ghost, "cluster_review")
-    assert row.id is not None
-    assert row.winner_image_id == ghost and row.winner_content_hash is None
-    assert await pop(db_session, b) == 0
+    with pytest.raises(WinnerGoneError):
+        await PopularityRepository(db_session).absorb(b.id, uuid.uuid4(), "cluster_review")
+    assert await pop(db_session, b) == 1
+    assert await edge_count(db_session) == 0
 
 
 @pytest.mark.asyncio(loop_scope="session")
