@@ -31,13 +31,16 @@ class MemeProfileInputsRepository:
     def __init__(self, session):
         self.session = session
 
-    async def list_active_images(self) -> list[tuple[uuid.UUID, str, str | None]]:
+    async def list_images(self, status: str = "active") -> list[tuple[uuid.UUID, str, str | None]]:
         result = await self.session.execute(
             select(Image.id, Image.filename, Image.content_hash)
-            .where(Image.status == "active")
+            .where(Image.status == status)
             .order_by(Image.created_at, Image.id)
         )
         return [(image_id, filename, content_hash) for image_id, filename, content_hash in result.all()]
+
+    async def list_active_images(self) -> list[tuple[uuid.UUID, str, str | None]]:
+        return await self.list_images("active")
 
     async def load_inputs(self, image_ids: list[uuid.UUID]) -> dict[uuid.UUID, RawInputs]:
         inputs = {image_id: RawInputs() for image_id in image_ids}

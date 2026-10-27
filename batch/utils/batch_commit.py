@@ -1,4 +1,7 @@
-from Storage.models import Image
+from sqlalchemy import delete
+
+from Storage.models import Image, ImageClassification, OCRText, OCRTextEmbedding
+from Storage.stale import delete_stale_rows
 from repository.image_metrics import ImageMetricsRepository
 from repository.image_procesing_status import ImageProcessingStatusRepository
 from repository.ocr_text import OCRTextRepository
@@ -25,6 +28,15 @@ class BatchCommitter:
         self._pending += 1
         if self._pending >= self._batch_size:
             await self.flush()
+
+    async def on_refresh_done(self, image: Image, metrics: dict) -> None:
+        """A cut's OCR was rewritten: sweep what is still the source's copy and what was computed from the old text
+        (the text-heavy classification and the OCR-text embedding), so classify_text_heavy and
+        build_ocr_text_embeddings recompute them from the new OCR."""
+        await delete_stale_rows(self._session, OCRText, [image.id])
+        await self._session.execute(delete(ImageClassification).where(ImageClassification.image_id == image.id))
+        await self._session.execute(delete(OCRTextEmbedding).where(OCRTextEmbedding.image_id == image.id))
+        await self.on_image_done(image, metrics)
 
     async def flush(self) -> None:
         await self._session.commit()

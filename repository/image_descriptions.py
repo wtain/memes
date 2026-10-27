@@ -26,6 +26,12 @@ class ImageDescriptionsRepository:
     async def delete_all(self) -> None:
         await self.session.execute(delete(ImageDescription))
 
+    async def delete_stale_for_prompt(self, image_id, prompt_key: str) -> None:
+        """Removes the stale copy of one (image, prompt) description; its feedback, embedding and lemmas cascade."""
+        await self.session.execute(delete(ImageDescription).where(
+            ImageDescription.image_id == image_id, ImageDescription.prompt_key == prompt_key,
+            ImageDescription.stale.is_(True)))
+
     def save(self, image_id, prompt_key: str, model_used: str, text: str) -> None:
         self.session.add(ImageDescription(
             image_id=image_id, prompt_key=prompt_key, model_used=model_used, text=text,
@@ -34,6 +40,19 @@ class ImageDescriptionsRepository:
     async def get_all_texts(self) -> list[str]:
         result = await self.session.execute(select(ImageDescription.text))
         return result.scalars().all()
+
+    async def get_texts_for_images(self, image_ids) -> list[tuple[uuid.UUID, str]]:
+        """(image_id, text) of the given images' descriptions that are not rejected."""
+        ids = list(image_ids)
+        rows: list[tuple[uuid.UUID, str]] = []
+        for start in range(0, len(ids), 5000):
+            result = await self.session.execute(
+                select(ImageDescription.image_id, ImageDescription.text)
+                .where(ImageDescription.image_id.in_(ids[start:start + 5000]),
+                       description_not_rejected(ImageDescription.id))
+                .order_by(ImageDescription.created_at, ImageDescription.id))
+            rows.extend((image_id, text) for image_id, text in result.all())
+        return rows
 
     async def get_image_ids_with_prompt(self, prompt_key: str) -> set[uuid.UUID]:
         result = await self.session.execute(

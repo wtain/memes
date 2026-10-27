@@ -24,8 +24,18 @@ def _require_stale_model(model: type) -> None:
         raise ValueError(f"{getattr(model, '__name__', model)} has no stale column")
 
 
-async def images_with_stale_rows(session: AsyncSession, model: type, status: str) -> list[uuid.UUID]:
-    """Ids of images in `status` having at least one stale row in `model`, each reported once."""
+def _scope_to_source(statement, model: type, source: str | None):
+    """Restrict a statement to one `source` (tags: OCR, Ollama, Note); only models with a source column accept it."""
+    if source is None:
+        return statement
+    if not hasattr(model, "source"):
+        raise ValueError(f"{model.__name__} has no source column")
+    return statement.where(model.source == source)
+
+
+async def images_with_stale_rows(session: AsyncSession, model: type, status: str,
+                                 source: str | None = None) -> list[uuid.UUID]:
+    """Ids of images in `status` having at least one stale row in `model` (of `source`, for tags), each reported once."""
     _require_stale_model(model)
     statement = (
         select(model.image_id)
@@ -34,21 +44,38 @@ async def images_with_stale_rows(session: AsyncSession, model: type, status: str
         .distinct()
         .order_by(model.image_id)
     )
-    return list((await session.execute(statement)).scalars().all())
+    return list((await session.execute(_scope_to_source(statement, model, source))).scalars().all())
 
 
-async def delete_stale_rows(session: AsyncSession, model: type, image_ids: Sequence[uuid.UUID]) -> int:
-    """Delete the stale rows of the given images (rows that are not stale are never touched). Returns the count."""
+async def delete_stale_rows(session: AsyncSession, model: type, image_ids: Sequence[uuid.UUID],
+                            source: str | None = None) -> int:
+    """Delete the stale rows (of `source`, for tags) of the given images; rows that are not stale are never touched.
+    Returns the count."""
     _require_stale_model(model)
     ids = list(image_ids)
     deleted = 0
     for start in range(0, len(ids), _CHUNK):
         chunk = ids[start:start + _CHUNK]
-        result = await session.execute(
-            delete(model).where(model.stale.is_(True), model.image_id.in_(chunk))
-        )
+        statement = delete(model).where(model.stale.is_(True), model.image_id.in_(chunk))
+        result = await session.execute(_scope_to_source(statement, model, source))
         deleted += result.rowcount
     return deleted
+
+
+async def stale_among(session: AsyncSession, model: type, image_ids: Sequence[uuid.UUID],
+                      source: str | None = None) -> set[uuid.UUID]:
+    """Those of `image_ids` that still have a stale row in `model` (the upstream-ready check of a refresh)."""
+    _require_stale_model(model)
+    ids = list(image_ids)
+    found: set[uuid.UUID] = set()
+    for start in range(0, len(ids), _CHUNK):
+        statement = (
+            select(model.image_id)
+            .where(model.stale.is_(True), model.image_id.in_(ids[start:start + _CHUNK]))
+            .distinct()
+        )
+        found.update((await session.execute(_scope_to_source(statement, model, source))).scalars().all())
+    return found
 
 
 async def stale_counts(session: AsyncSession) -> dict[str, int]:

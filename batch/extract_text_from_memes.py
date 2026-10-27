@@ -3,7 +3,9 @@ OCR: reads each image in BASE_PATH through a pipeline of EasyOCR (with preproces
 Tesseract/TrOCR fallbacks) and stores the text in ocr_texts, committing in batches. Files not yet registered are
 auto-registered only in the default active mode. --status {pending,active,all} selects the images (ingestion runs it
 with pending). Run-tracked (kind extract_text_from_memes); admin-triggerable, manual only. For a full re-run use
-batch.reset_ocr_status first; never clear ocr_texts.
+batch.reset_ocr_status first; never clear ocr_texts. --refresh-stale re-runs OCR on recut cuts (cut_proposed) that
+still carry the source's stale OCR rows, reading them from the database instead of walking the directory, and also
+clears the cut's text-heavy classification and OCR-text embedding (computed from the old text).
 """
 import argparse
 import os
@@ -27,9 +29,11 @@ import uuid
 from batch.ocr_preprocess import generate_variants, merge_results
 from batch.trocr_fallback import TrOCRFallback
 from batch.tesseract_reader import TesseractReader, is_available as tesseract_available
-from batch.run_tracking import finish_existing_run, tracked_run
+from batch.run_tracking import finish_existing_run, record_stats, tracked_run
 from batch.utils.batch_commit import BatchCommitter
+from batch.utils.ocr_refresh import refresh_producer, select_refresh_images
 from batch.utils.progress import ProgressTracker
+from batch.utils.refresh_stale import refresh_stats
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
@@ -130,6 +134,7 @@ async def gpu_consumer(
     metrics_listener,
     committer: BatchCommitter,
     tracker: ProgressTracker,
+    refresh: bool = False,
 ):
     en_reader = easyocr.Reader(['en'], gpu=True)
     es_reader = easyocr.Reader(['es'], gpu=True)
@@ -202,25 +207,40 @@ async def gpu_consumer(
             metrics_listener.increment("saved")
             await committer.add_language_result(image, language, merged)
 
-        await committer.on_image_done(image, {
+        timings = {
             "read_time_ms": read_t,
             "preprocess_time_ms": prep_t,
             "ocr_time_ms": total_ocr_t,
             "total_time_ms": read_t + prep_t + total_ocr_t,
-        })
+        }
+        if refresh:
+            await committer.on_refresh_done(image, timings)
+            metrics_listener.increment("refreshed")
+        else:
+            await committer.on_image_done(image, timings)
         tracker.mark_done()
 
 
-async def run(path: str, batch_size: int = 100, progress_every: int = 10, target_status: str = "active") -> None:
+async def run(path: str, batch_size: int = 100, progress_every: int = 10, target_status: str = "active",
+              refresh_stale: bool = False) -> dict:
     # Seed the tracker with the number of images that actually need OCR for this run's
     # --status scope, not a raw file count of BASE_PATH (which spans every status and
     # every already-processed image -- see the progress denominator being ~4x the real
     # work in --status pending runs).
+    refresh_images = []
     async with AsyncSessionLocal() as session:
-        status_repo = ImageProcessingStatusRepository(session, PIPELINE)
-        total = await status_repo.count_unprocessed(
-            None if target_status == "all" else target_status
-        )
+        if refresh_stale:
+            refresh_images = await select_refresh_images(session)
+            total = len(refresh_images)
+        else:
+            status_repo = ImageProcessingStatusRepository(session, PIPELINE)
+            total = await status_repo.count_unprocessed(
+                None if target_status == "all" else target_status
+            )
+    if refresh_stale and not refresh_images:
+        # Nothing stale: do not pay for loading the OCR models (EasyOCR x3, Tesseract, TrOCR on CUDA).
+        print("No cut has stale OCR; nothing to refresh")
+        return refresh_stats(selected=0, refreshed=0)
     tracker = ProgressTracker(total=total, report_every=progress_every)
 
     io_queue = asyncio.Queue(maxsize=200)
@@ -228,40 +248,67 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10, target
     cpu_executor = ThreadPoolExecutor(max_workers=16)
     metrics_listener = SimpleMetricsListener()
 
+    stopped: list[Exception] = []
+
+    async def guarded_refresh_producer():
+        # refresh_producer ends the queue before it raises, so the worker and consumer run to their end; the error is
+        # raised only after they finished and the images refreshed so far were committed (gather would otherwise
+        # re-raise at once and leave them running against a rolled-back session).
+        try:
+            await refresh_producer(path, refresh_images, io_queue, metrics_listener, tracker)
+        except RuntimeError as error:
+            stopped.append(error)
+
     async with AsyncSessionLocal() as session:
         committer = BatchCommitter(session, batch_size=batch_size, pipeline=PIPELINE)
         try:
+            producer = (
+                guarded_refresh_producer() if refresh_stale
+                else io_producer(path, io_queue, PIPELINE, metrics_listener, tracker, target_status)
+            )
             await asyncio.gather(
-                io_producer(path, io_queue, PIPELINE, metrics_listener, tracker, target_status),
+                producer,
                 cpu_worker(io_queue, cpu_queue, cpu_executor, metrics_listener),
-                gpu_consumer(cpu_queue, PIPELINE, metrics_listener, committer, tracker),
+                gpu_consumer(cpu_queue, PIPELINE, metrics_listener, committer, tracker, refresh=refresh_stale),
             )
             await committer.close()
         except Exception:
             await session.rollback()
             raise
+    if stopped:
+        raise stopped[0]
 
     tracker.summary()
     metrics_listener.print()
+    if not refresh_stale:
+        return {}
+    refreshed = metrics_listener.counters_dict().get("refreshed", 0)
+    return {**refresh_stats(selected=len(refresh_images), refreshed=refreshed,
+                            failed=len(refresh_images) - refreshed)}
 
 
-async def _process(path: str, target_status: str) -> None:
+async def _process(path: str, target_status: str, refresh_stale: bool = False) -> dict:
     batch_size = settings.GENERAL.BATCH_SIZE
     progress_every = settings.GENERAL.PROGRESS_EVERY
-    await run(path, batch_size=batch_size, progress_every=progress_every, target_status=target_status)
+    return await run(path, batch_size=batch_size, progress_every=progress_every, target_status=target_status,
+                     refresh_stale=refresh_stale)
 
 
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None,
-               path: str | None = None, target_status: str = "active") -> None:
+               path: str | None = None, target_status: str = "active", refresh_stale: bool = False) -> None:
     # path defaults to settings.BASE_PATH so the wrapper (scheduler/admin), which passes no
     # arguments beyond trigger/run_id, scans the same directory the CLI does.
     resolved_path = path if path is not None else settings.BASE_PATH
     if run_id is not None:
         async with finish_existing_run(run_id):
-            await _process(resolved_path, target_status)
+            stats = await _process(resolved_path, target_status, refresh_stale)
+            if refresh_stale and stats:
+                await record_stats(run_id, stats)
     else:
-        async with tracked_run(kind="extract_text_from_memes", trigger=trigger):
-            await _process(resolved_path, target_status)
+        async with tracked_run(kind="extract_text_from_memes", trigger=trigger) as new_run_id:
+            stats = await _process(resolved_path, target_status, refresh_stale)
+            if refresh_stale and stats:
+                await record_stats(new_run_id, stats)
 
 
 """
@@ -277,8 +324,11 @@ if __name__ == "__main__":
                         help="Only OCR images with this registration status (default: active). "
                              "'pending' is for the ingestion pipeline's pre-review OCR pass; "
                              "unregistered files are only auto-registered in the default 'active' mode.")
+    parser.add_argument("--refresh-stale", action="store_true",
+                        help="Re-run OCR on the cut_proposed images (recut) that still carry the stale OCR copied "
+                             "from their source; ignores --status")
     args = parser.parse_args()
     load_env(args.env)
     source_path = settings.BASE_PATH
     print(f"Base path: {source_path}")
-    asyncio.run(main(path=source_path, target_status=args.status))
+    asyncio.run(main(path=source_path, target_status=args.status, refresh_stale=args.refresh_stale))

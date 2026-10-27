@@ -34,7 +34,7 @@ class TestMain:
             await module.main(trigger="manual", limit=7, retry_failed=True)
 
         tracked_run_mock.assert_called_once_with(kind="build_meme_profiles", trigger="manual")
-        process_mock.assert_awaited_once_with(reset=False, limit=7, retry_failed=True, only_ids=None)
+        process_mock.assert_awaited_once_with(reset=False, limit=7, retry_failed=True, only_ids=None, status="active")
         record_mock.assert_awaited_once_with("run-1", {"images_selected": 2, "images_remaining": 5})
 
     @pytest.mark.asyncio
@@ -48,7 +48,7 @@ class TestMain:
             await module.main(trigger="manual", run_id="existing-run-1", reset=True)
 
         finish_mock.assert_called_once_with("existing-run-1")
-        process_mock.assert_awaited_once_with(reset=True, limit=None, retry_failed=False, only_ids=None)
+        process_mock.assert_awaited_once_with(reset=True, limit=None, retry_failed=False, only_ids=None, status="active")
         record_mock.assert_awaited_once_with("existing-run-1", {"images_selected": 0, "images_remaining": 0})
 
     @pytest.mark.asyncio
@@ -61,7 +61,7 @@ class TestMain:
              patch.object(module, "record_stats", AsyncMock()):
             await module.main(trigger="manual", only_ids=ids)
 
-        process_mock.assert_awaited_once_with(reset=False, limit=None, retry_failed=False, only_ids=ids)
+        process_mock.assert_awaited_once_with(reset=False, limit=None, retry_failed=False, only_ids=ids, status="active")
 
 
 @pytest.mark.asyncio

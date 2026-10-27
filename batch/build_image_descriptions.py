@@ -2,7 +2,8 @@
 Multi-prompt Ollama image descriptions: one row per (image, prompt) for active images that lack
 one. Prompts and model come from the image_descriptions settings. A pair that fails is recorded as failed and skipped
 on later runs unless --retry-failed is given; --reset clears descriptions; --limit caps the run. Run-tracked (kind
-build_image_descriptions); admin-triggerable (no limit), manual only. See
+build_image_descriptions); admin-triggerable (no limit), manual only. --refresh-stale re-describes recut cuts
+(cut_proposed) that still carry the source's stale descriptions. See
 docs/superpowers/specs/2026-07-13-multi-prompt-image-descriptions-design.md.
 """
 import argparse
@@ -12,13 +13,18 @@ import uuid
 
 from ai.image_description_prompts import load_prompts, resolve_model
 from ai.ollama import OllamaImageDescriber
+from sqlalchemy import select
+
 from batch.run_tracking import finish_existing_run, record_stats, tracked_run
 from batch.utils.description_batch_commit import DescriptionBatchCommitter
 from batch.utils.image_format_filter import has_unsupported_image_extension
 from batch.utils.progress import ProgressTracker
+from batch.utils.refresh_stale import refresh_stats, reject_conflicts
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from Storage.db import AsyncSessionLocal
+from Storage.models import Image, ImageDescription, ImageStatus
+from Storage.stale import delete_stale_rows, images_with_stale_rows
 from repository.image_descriptions import ImageDescriptionsRepository
 from repository.image_procesing_status import ImageProcessingStatusRepository
 from repository.images import ImagesRepository
@@ -78,7 +84,57 @@ async def _images_missing_prompts(images_repo, descriptions_repo, status_repos, 
     return work
 
 
-async def _process(reset: bool, limit: int | None = None, retry_failed: bool = False) -> dict[str, int]:
+async def refresh_stale_descriptions(session, prompts, describer, base_path, num_ctx, model_for, limit=None) -> dict:
+    """Re-describes the cut_proposed images that still carry the stale descriptions copied from their source.
+    A prompt that succeeds replaces its stale row (same transaction, committed per image); a prompt that fails keeps
+    its stale row, nothing is recorded as failed and the image is retried on the next run. Sequential: the volume is
+    the number of cuts, not the corpus."""
+    ids = await images_with_stale_rows(session, ImageDescription, ImageStatus.CUT_PROPOSED)
+    selected = ids[:limit] if limit is not None else ids
+    filenames = {}
+    if selected:
+        rows = await session.execute(select(Image.id, Image.filename).where(Image.id.in_(selected)))
+        filenames = {image_id: filename for image_id, filename in rows.all()}
+    repo = ImageDescriptionsRepository(session)
+    refreshed = failed = 0
+    for image_id in selected:
+        filename = filenames.get(image_id)
+        if filename is None:
+            continue
+        path = os.path.join(base_path, filename)
+        if has_unsupported_image_extension(path):
+            print(f"Skipping {path}")
+            continue
+        all_ok = True
+        # A prompt that already has a fresh row (an earlier run replaced it while another prompt failed) is not
+        # described again: the (image, prompt) pair is unique and the call would be wasted.
+        fresh = set((await session.execute(
+            select(ImageDescription.prompt_key).where(
+                ImageDescription.image_id == image_id, ImageDescription.stale.is_(False)))).scalars().all())
+        for prompt in prompts:
+            if prompt.key in fresh:
+                continue
+            model = model_for(prompt)
+            try:
+                text = await asyncio.to_thread(describer.describe, path, prompt.prompt, model, num_ctx)
+            except Exception as error:
+                print(f"Model failed for {path} [{prompt.key}]: {error}")
+                all_ok = False
+                continue
+            await repo.delete_stale_for_prompt(image_id, prompt.key)
+            repo.save(image_id, prompt.key, model, text)
+        if all_ok:
+            await session.flush()
+            await delete_stale_rows(session, ImageDescription, [image_id])  # prompts that are no longer configured
+            refreshed += 1
+        else:
+            failed += 1
+        await session.commit()
+    return refresh_stats(selected=len(ids), refreshed=refreshed, failed=failed)
+
+
+async def _process(reset: bool, limit: int | None = None, retry_failed: bool = False,
+                   refresh_stale: bool = False) -> dict[str, int]:
     """Returns run stats: images selected for this run, images still waiting beyond `limit`,
     plus the metrics counters (saved, error.model, skipped.*)."""
     BASE_PATH = settings.BASE_PATH
@@ -99,6 +155,13 @@ async def _process(reset: bool, limit: int | None = None, retry_failed: bool = F
 
     metrics = SimpleMetricsListener()
     describer = OllamaImageDescriber()
+
+    if refresh_stale:
+        async with AsyncSessionLocal() as session:
+            stats = await refresh_stale_descriptions(
+                session, prompts, describer, base_path, num_ctx, lambda p: resolve_model(p, settings), limit)
+        print(f"Refresh stale: {stats}")
+        return stats
 
     async with AsyncSessionLocal() as session:
         descriptions_repo = ImageDescriptionsRepository(session)
@@ -178,14 +241,14 @@ async def _process(reset: bool, limit: int | None = None, retry_failed: bool = F
 
 
 async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, reset: bool = False,
-               limit: int | None = None, retry_failed: bool = False) -> None:
+               limit: int | None = None, retry_failed: bool = False, refresh_stale: bool = False) -> None:
     if run_id is not None:
         async with finish_existing_run(run_id):
-            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed)
+            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed, refresh_stale=refresh_stale)
             await record_stats(run_id, stats)
     else:
         async with tracked_run(kind="build_image_descriptions", trigger=trigger) as new_run_id:
-            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed)
+            stats = await _process(reset=reset, limit=limit, retry_failed=retry_failed, refresh_stale=refresh_stale)
             await record_stats(new_run_id, stats)
 
 
@@ -201,6 +264,11 @@ if __name__ == "__main__":
     parser.add_argument("--retry-failed", action="store_true",
                         help="Re-attempt previously-failed image/prompt pairs "
                              "(default: skip pairs that failed on a prior run)")
+    parser.add_argument("--refresh-stale", action="store_true",
+                        help="Re-describe the cut_proposed images (recut) that still carry the stale descriptions "
+                             "copied from their source; --limit still applies")
     args = parser.parse_args()
+    reject_conflicts(parser, args.refresh_stale, reset=args.reset, retry_failed=args.retry_failed)
     load_env(args.env)
-    asyncio.run(main(reset=args.reset, limit=args.limit, retry_failed=args.retry_failed))  # trigger defaults to "manual"
+    asyncio.run(main(reset=args.reset, limit=args.limit, retry_failed=args.retry_failed,
+                     refresh_stale=args.refresh_stale))  # trigger defaults to "manual"

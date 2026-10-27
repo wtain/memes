@@ -29,7 +29,9 @@ These batch scripts take `--status` (checked against the code by `tests/docs/tes
 accepts `active` (the default) and `pending`; `build_image_embeddings`, `classify_text_heavy` and `build_ocr_text_embeddings` also accept
 `cut_proposed` (screenshot-recut R3b). Run order for cuts: `build_image_embeddings --status cut_proposed --incremental`; then, after
 the cut's OCR is refreshed (R3c), `classify_text_heavy --status cut_proposed`; then `build_ocr_text_embeddings --status cut_proposed`.
-The last two skip images that already have a row, so a run before the OCR refresh leaves rows computed from the source's text.
+The last two skip images that already have a row, so a run before the OCR refresh would keep rows computed from the source's text;
+`extract_text_from_memes --refresh-stale` deletes those rows for every cut it re-reads, and `refresh_recut_cuts` runs the whole
+sequence in order (R3c).
 The admin trigger of these jobs stays `--status active`; cuts are processed from the shell.
 
 - `build_image_embeddings` (also accepts `all`)
@@ -38,6 +40,7 @@ The admin trigger of these jobs stays `--status active`; cuts are processed from
 - `classify_text_heavy`
 - `build_ocr_text_embeddings`
 - `fix_image_formats`
+- `build_meme_profiles` (takes `active` and `cut_proposed` only, no `pending`; `cut_proposed` skips cuts whose OCR or descriptions are still stale, and is not combinable with `--reset`)
 
 `all` is a selector meaning "every status", not a status. It would also select `rejected` images, and later `cut_proposed` ones.
 

@@ -356,6 +356,16 @@ detect_recut_crops          → screenshot recut, crop detection (R2): for each 
                                admin-triggerable from /admin/batches, manual-trigger only, not scheduled; `--limit`.
                                Settings: `recut.*`. The OCR clipping guard exists but is off (ocr_overlap_max 1.0). See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-24-r2-crop-detection-design.md.
+refresh_recut_cuts          → screenshot recut, refresh stale (R3c): replaces the stale derived data a cut inherited from its source by running, in
+                               dependency order, `extract_text_from_memes --refresh-stale` (rewrites the cut's OCR from its file and deletes its classification
+                               and OCR-text embedding rows), `classify_text_heavy` and `build_ocr_text_embeddings --status cut_proposed`, `build_ocr_lemmas` and
+                               `build_tags_from_ocr --refresh-stale`, `build_image_descriptions --refresh-stale` (then the normal runs of the description
+                               embeddings and lemmas jobs fill what the replaced descriptions cascaded away), `build_tags_from_descriptions --refresh-stale`,
+                               and `build_meme_profiles --status cut_proposed` with the profile embeddings. A job skips an image whose upstream rows are still
+                               stale; a failed image keeps its stale rows and is retried; nothing is deleted before its replacement is written. Each
+                               `--refresh-stale` flag conflicts with `--reset`/`--incremental`/`--retry-failed` and ignores `--status`. Admin-triggerable from
+                               /admin/batches, manual-trigger only, not scheduled (when to run it is R7). See
+                               docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-26-r3c-refresh-stale-design.md.
 create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each `detected` image_cuts proposal, highest
                                confidence first, into a cut file in BASE_PATH (same format as the source: JPEG at
                                recut.jpeg_quality keeping the subsampling, PNG as PNG), a `cut_proposed` images row, copies

@@ -33,7 +33,7 @@ class TestMain:
             await module.main(trigger="manual", limit=7, retry_failed=True)
 
         tracked_run_mock.assert_called_once_with(kind="build_image_descriptions", trigger="manual")
-        process_mock.assert_awaited_once_with(reset=False, limit=7, retry_failed=True)
+        process_mock.assert_awaited_once_with(reset=False, limit=7, retry_failed=True, refresh_stale=False)
         record_mock.assert_awaited_once_with("run-1", {"images_selected": 2, "images_remaining": 5})
 
     @pytest.mark.asyncio
@@ -47,7 +47,7 @@ class TestMain:
             await module.main(trigger="manual", run_id="existing-run-1")
 
         finish_mock.assert_called_once_with("existing-run-1")
-        process_mock.assert_awaited_once_with(reset=False, limit=None, retry_failed=False)
+        process_mock.assert_awaited_once_with(reset=False, limit=None, retry_failed=False, refresh_stale=False)
         record_mock.assert_awaited_once_with("existing-run-1", {"images_selected": 0, "images_remaining": 0})
 
 

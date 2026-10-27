@@ -32,7 +32,7 @@ class TestMain:
             await main(trigger="scheduled")
 
         tracked_run_mock.assert_called_once_with(kind="build_tags_from_ocr", trigger="scheduled")
-        process_mock.assert_awaited_once_with(incremental=True)
+        process_mock.assert_awaited_once_with(incremental=True, refresh_stale=False)
 
     @pytest.mark.asyncio
     async def test_finish_existing_run_path_forces_incremental_true_by_default(self):
@@ -44,7 +44,7 @@ class TestMain:
             await main(trigger="manual", run_id="existing-run-1")
 
         finish_mock.assert_called_once_with("existing-run-1")
-        process_mock.assert_awaited_once_with(incremental=True)
+        process_mock.assert_awaited_once_with(incremental=True, refresh_stale=False)
 
     @pytest.mark.asyncio
     async def test_explicit_incremental_false_is_respected(self):
@@ -57,4 +57,4 @@ class TestMain:
              patch.object(module, "_process", process_mock):
             await main(trigger="manual", incremental=False)
 
-        process_mock.assert_awaited_once_with(incremental=False)
+        process_mock.assert_awaited_once_with(incremental=False, refresh_stale=False)
