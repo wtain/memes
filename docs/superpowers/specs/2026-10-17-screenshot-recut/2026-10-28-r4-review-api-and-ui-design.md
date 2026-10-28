@@ -1,6 +1,7 @@
 # R4: Review API and UI - design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-28-r4-review-api-and-ui.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R4)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Follows: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-26-r3c-refresh-stale-design.md
@@ -31,17 +32,17 @@ existing curator routers use.
 
 ### GET /api/recut/proposals?offset=0&limit=50
 
-`image_cuts` rows with `state = 'proposed'` and non-null `source_image_id` and `cut_image_id`, ordered `confidence DESC, id ASC`.
+`image_cuts` rows with `state = 'proposed'` and non-null `source_image_id` and `cut_image_id`, ordered `confidence DESC NULLS LAST, id ASC` (`confidence` is nullable; PostgreSQL would otherwise put NULLs first).
 `limit` 1 to 200 (default 50), `offset` >= 0; anything else is a 422. Response `{ items, total }`, `total` counting every matching
-row. Item: `id`, `sourceImageId`, `cutImageId`, `confidence`, `box { x, y, w, h }` (source pixels, from `crop_x/y/w/h`).
+row. Item: `id`, `sourceImageId`, `cutImageId`, `confidence` (number or null), `box { x, y, w, h }` (source pixels, from `crop_x/y/w/h`).
 
 ### GET /api/recut/proposals/{id}
 
 The item fields plus `state`, `detector`, `detectorVersion`, `detectRunId`, `createdAt`, `previousId` and `nextId`. The neighbours
-are the adjacent rows in the same ordering among `proposed` rows (keyset on `(confidence, id)`), so the page steps without a second
-call; both are null at the ends. The detail answers a row in any state that still has both images (a link stays valid after R5
-decides it); an unknown id, or a row missing either image, is a 404. For a row that is not `proposed` the neighbours are those of
-its position in the `proposed` queue.
+are the adjacent rows in the same ordering among `proposed` rows (SQL `lag`/`lead` over that ordering, which handles NULL
+confidence), so the page steps without a second call; both are null at the ends. The detail answers a row in any state that still has both images (a link stays valid after R5
+decides it); an unknown id, or a row missing either image, is a 404, and an `id` that is not a UUID is a 422. A row that is not
+`proposed` is not in the queue, so its neighbours are both null.
 
 ### Images
 
