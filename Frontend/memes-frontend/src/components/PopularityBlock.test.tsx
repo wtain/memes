@@ -1,6 +1,6 @@
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { StrictMode } from 'react'
-import { PopularityBlock, sourceLabel } from './PopularityBlock'
+import { PopularityBlock } from './PopularityBlock'
 import { makeMockApi } from '../test/mockApi'
 import type { MemePopularity } from '../types/generated/all'
 
@@ -60,7 +60,6 @@ describe('PopularityBlock', () => {
     const api = apiReturning(Promise.resolve({ popularity: 2, status: 'normal', breakdown: [{ source: 'own', count: 1 }, { source: 'manual', count: 1 }] }))
     render(<PopularityBlock imageId="a" memesApi={api} />)
     await waitFor(() => expect(screen.getByText('manual: 1')).toBeInTheDocument())
-    expect(sourceLabel('manual')).toBe('manual')
   })
 
   it('fetches once in StrictMode', async () => {
