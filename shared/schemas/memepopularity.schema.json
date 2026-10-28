@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memepopularity.schema.json",
+  "title": "MemePopularity",
+  "type": "object",
+  "properties": {
+    "popularity": { "type": "integer", "minimum": 0 },
+    "status": { "type": "string", "enum": ["normal", "flagged", "discarded"] },
+    "breakdown": { "type": "array", "items": { "$ref": "./popularitybreakdownrow.schema.json" } }
+  },
+  "required": ["popularity", "status", "breakdown"]
+}

@@ -598,6 +598,25 @@ export interface DescriptionFeedbackResponse {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "MemePopularity".
+ */
+export interface MemePopularity {
+  popularity: number;
+  status: "normal" | "flagged" | "discarded";
+  breakdown: PopularityBreakdownRow[];
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "PopularityBreakdownRow".
+ */
+export interface PopularityBreakdownRow {
+  source: string;
+  count: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "Concept".
  */
 export interface Concept {

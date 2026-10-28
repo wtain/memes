@@ -28,6 +28,8 @@
     "RecutProposalPage": { "$ref": "recutproposalpage.schema.json" },
     "RecutProposalDetail": { "$ref": "recutproposaldetail.schema.json" },
     "DescriptionFeedbackResponse": { "$ref": "descriptionfeedbackresponse.schema.json" },
+    "MemePopularity": { "$ref": "memepopularity.schema.json" },
+    "PopularityBreakdownRow": { "$ref": "popularitybreakdownrow.schema.json" },
     "Concept": { "$ref": "concept.schema.json" },
     "TrendsRun": { "$ref": "trendsrun.schema.json" },
     "TrendEntry": { "$ref": "trendentry.schema.json" },

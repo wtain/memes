@@ -198,6 +198,12 @@ data class MemeTag(
 )
 
 @Serializable
+data class PopularityBreakdownRow(
+    @SerialName("source") val source: String,
+    @SerialName("count") val count: Int
+)
+
+@Serializable
 data class ProfileCoverage(
     @SerialName("active") val active: Int,
     @SerialName("profiled") val profiled: Int,
@@ -456,6 +462,13 @@ data class MemeFromTextResult(
     @SerialName("explanation") val explanation: JsonObject,
     @SerialName("clusterId") val clusterId: Int? = null,
     @SerialName("clusterSize") val clusterSize: Int? = null
+)
+
+@Serializable
+data class MemePopularity(
+    @SerialName("popularity") val popularity: Int,
+    @SerialName("status") val status: String,
+    @SerialName("breakdown") val breakdown: List<PopularityBreakdownRow>
 )
 
 @Serializable
