@@ -9,7 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutProposalDetail, RecutProposalPage,
+  RecutProposalDetail, RecutProposalPage, MemePopularity,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -187,6 +187,23 @@ export class HttpMemesApi implements MemesApi {
 
     if (!response.ok) {
       throw new Error(`Failed to fetch descriptions: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async getMemePopularity(id: string): Promise<MemePopularity> {
+    const response = await fetch(
+      `${this.baseUrl}/api/images/meme/${id}/popularity`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch popularity: ${response.status}`)
     }
 
     return response.json()

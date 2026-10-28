@@ -70,6 +70,31 @@ describe('MemeDetails', () => {
     })
   })
 
+  describe('popularity', () => {
+    it('shows the popularity block for the meme', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getMemePopularity: vi.fn().mockResolvedValue({ popularity: 7, status: 'normal', breakdown: [{ source: 'own', count: 7 }] }),
+      })
+      await waitFor(() => expect(screen.getByTestId('popularity-value')).toHaveTextContent('7'))
+    })
+
+    it('never shows the previous meme number after navigating', async () => {
+      const api = makeMockApi({
+        getMemePopularity: vi.fn()
+          .mockResolvedValueOnce({ popularity: 7, status: 'normal', breakdown: [] })
+          .mockReturnValueOnce(new Promise(() => {})),
+      })
+      const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+      const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+      const { rerender } = render(<MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>)
+      await waitFor(() => expect(screen.getByTestId('popularity-value')).toHaveTextContent('7'))
+      rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+      expect(api.getMemePopularity).toHaveBeenCalledWith('meme-B')
+      expect(screen.queryByTestId('popularity-value')).not.toBeInTheDocument()
+    })
+  })
+
   describe('similarMemes', () => {
     it('calls the backend once per mount (production behaviour)', async () => {
       const { api } = renderMemeDetails()
