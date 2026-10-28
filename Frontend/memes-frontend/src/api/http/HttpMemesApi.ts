@@ -9,6 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
+  RecutProposalDetail, RecutProposalPage,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -597,6 +598,26 @@ export class HttpMemesApi implements MemesApi {
     if (cursor !== undefined) params.set("cursor", cursor)
     if (limit !== undefined) params.set("limit", String(limit))
     const response = await fetch(`${this.baseUrl}/api/admin/profile-coverage/images?${params.toString()}`, {
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+    return response.json()
+  }
+
+  async listRecutProposals(offset?: number, limit?: number): Promise<RecutProposalPage> {
+    const params = new URLSearchParams()
+    if (offset !== undefined) params.set("offset", String(offset))
+    if (limit !== undefined) params.set("limit", String(limit))
+    const query = params.toString()
+    const response = await fetch(`${this.baseUrl}/api/recut/proposals${query ? `?${query}` : ""}`, {
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+    return response.json()
+  }
+
+  async getRecutProposal(id: string): Promise<RecutProposalDetail> {
+    const response = await fetch(`${this.baseUrl}/api/recut/proposals/${encodeURIComponent(id)}`, {
       headers: { "Accept": "application/json" },
     })
     if (!response.ok) throw new CuratorRequestError(response.status)
