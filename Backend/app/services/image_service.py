@@ -18,6 +18,10 @@ from Backend.app.types.generated.imagedescription import Schema as ImageDescript
 from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from graph.uf import UnionFind
+from repository.popularity import PopularityRepository, guarded
+
+# Flag reasons that may name the surviving copy (duplicateOf), mapped to the popularity edge source.
+FLAG_REASON_SOURCES = {"duplicate_review": "cluster_review", "agent_review": "agent_review"}
 
 
 # Presentation-only similarity computation is O(members^2) -- clusters on the corpus-wide
@@ -457,11 +461,38 @@ class ImageService:
 
         return self._paginate_response(rows, items, limit)
 
-    async def mark_flagged(self, image_id, reason: str | None = None):
+    async def mark_flagged(self, image_id, reason: str | None = None, duplicate_of: str | None = None):
+        winner_id = None
+        if duplicate_of is not None:
+            if reason not in FLAG_REASON_SOURCES:
+                raise HTTPException(status_code=422, detail="duplicateOf requires a duplicate or agent review reason")
+            try:
+                winner_id = uuid.UUID(duplicate_of)
+            except ValueError:
+                raise HTTPException(status_code=422, detail="duplicateOf must be an image id")
+            try:
+                loser_id = uuid.UUID(str(image_id))
+            except ValueError:
+                raise HTTPException(status_code=422, detail="image_id must be an image id")
+            if winner_id == loser_id:
+                raise HTTPException(status_code=422, detail="duplicateOf must differ from the image")
         await self.repo.set_flagged(image_id, True, reason)
+        if winner_id is not None:
+            await guarded(
+                self.repo.session, "flag",
+                lambda: PopularityRepository(self.repo.session).absorb(
+                    loser_id, winner_id, FLAG_REASON_SOURCES[reason]))
 
     async def unmark_flagged(self, image_id):
         await self.repo.set_flagged(image_id, False)
+        try:
+            loser_id = uuid.UUID(str(image_id))
+        except ValueError:
+            return
+        await guarded(
+            self.repo.session, "unflag",
+            lambda: PopularityRepository(self.repo.session).reverse_open_edge(
+                loser_id, "unflag", {"cluster_review", "agent_review", "file_duplicates"}))
 
     async def get_is_flagged(self, image_id) -> bool:
         return await self.repo.get_is_flagged(image_id)

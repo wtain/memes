@@ -68,6 +68,8 @@ class Image(Base):
     ingestion_batch_id = Column(
         UUID(as_uuid=True), ForeignKey("batch_runs.run_id", ondelete="SET NULL"), nullable=True
     )
+    # Copies of this meme seen in total (epic meme-popularity): a cache of the absorption tree below it.
+    popularity = Column(Integer, nullable=False, server_default="1")
 
     __table_args__ = (
         Index(
@@ -82,6 +84,7 @@ class Image(Base):
             "id",
             postgresql_where=text("status = 'pending'"),
         ),
+        CheckConstraint("popularity >= 0", name="ck_images_popularity"),
     )
 
     texts = relationship("OCRText", back_populates="image", cascade="all, delete-orphan")
@@ -142,6 +145,82 @@ class ImageCut(Base):
         CheckConstraint("crop_x >= 0 AND crop_y >= 0 AND crop_w > 0 AND crop_h > 0", name="ck_image_cuts_box"),
         CheckConstraint("state IN ('detected', 'proposed', 'approved', 'rejected', 'failed')",
                         name="ck_image_cuts_state"),
+    )
+
+
+class PopularitySource:
+    """Values of popularity_absorptions.source (epic meme-popularity)."""
+    HASH_IN_BATCH = "hash_in_batch"
+    HASH_CROSS_CORPUS = "hash_cross_corpus"
+    INGEST_TIER_A = "ingest_tier_a"
+    INGEST_TIER_B = "ingest_tier_b"
+    CLUSTER_REVIEW = "cluster_review"
+    AGENT_REVIEW = "agent_review"
+    FILE_DUPLICATES = "file_duplicates"
+    RECUT = "recut"
+    ALL = (HASH_IN_BATCH, HASH_CROSS_CORPUS, INGEST_TIER_A, INGEST_TIER_B,
+           CLUSTER_REVIEW, AGENT_REVIEW, FILE_DUPLICATES, RECUT)
+
+
+class PopularityKind:
+    """Values of popularity_absorptions.kind."""
+    ABSORB = "absorb"
+    REVERSE = "reverse"
+    ALL = (ABSORB, REVERSE)
+
+
+class PopularityReason:
+    """Values of popularity_absorptions.reason (reverse rows only)."""
+    UNDO_REJECT = "undo_reject"
+    UNFLAG = "unflag"
+    ABORT = "abort"
+    CORRECTION = "correction"
+    ALL = (UNDO_REJECT, UNFLAG, ABORT, CORRECTION)
+
+
+def _in_list(column, values):
+    return f"{column} IN ({', '.join(repr(v) for v in values)})"
+
+
+class PopularityAbsorption(Base):
+    """Append-only log of duplicate absorptions (epic meme-popularity); only reversed_by_id of an absorb row
+    is ever updated. Deliberately no foreign key to images: ids outlive deleted images so trees and audit
+    survive deletion."""
+    __tablename__ = "popularity_absorptions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    kind = Column(String(10), nullable=False)
+    source = Column(String(30), nullable=False)
+    loser_image_id = Column(UUID(as_uuid=True), nullable=True)
+    winner_image_id = Column(UUID(as_uuid=True), nullable=False)
+    weight = Column(Integer, nullable=False)
+    loser_filename = Column(String, nullable=True)
+    loser_content_hash = Column(String, nullable=True)
+    winner_content_hash = Column(String, nullable=True)
+    dedupe_key = Column(String, nullable=True)
+    batch_run_id = Column(UUID(as_uuid=True), ForeignKey("batch_runs.run_id", ondelete="SET NULL"), nullable=True)
+    reverses_id = Column(UUID(as_uuid=True), ForeignKey("popularity_absorptions.id"), nullable=True)
+    reversed_by_id = Column(UUID(as_uuid=True), ForeignKey("popularity_absorptions.id"), nullable=True)
+    reason = Column(String(20), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("dedupe_key", name="uq_popularity_dedupe_key"),
+        UniqueConstraint("reverses_id", name="uq_popularity_reverses_id"),
+        Index("uq_popularity_open_loser", "loser_image_id", unique=True,
+              postgresql_where=text("kind = 'absorb' AND reversed_by_id IS NULL AND loser_image_id IS NOT NULL")),
+        Index("ix_popularity_open_winner", "winner_image_id",
+              postgresql_where=text("kind = 'absorb' AND reversed_by_id IS NULL")),
+        Index("ix_popularity_batch_run_id", "batch_run_id"),
+        CheckConstraint(_in_list("kind", PopularityKind.ALL), name="ck_popularity_absorptions_kind"),
+        CheckConstraint("weight >= 0", name="ck_popularity_absorptions_weight"),
+        CheckConstraint(_in_list("source", PopularitySource.ALL), name="ck_popularity_absorptions_source"),
+        CheckConstraint(f"reason IS NULL OR {_in_list('reason', PopularityReason.ALL)}",
+                        name="ck_popularity_absorptions_reason"),
+        CheckConstraint(
+            "(kind = 'absorb' AND reverses_id IS NULL AND reason IS NULL) OR "
+            "(kind = 'reverse' AND reverses_id IS NOT NULL AND reason IS NOT NULL)",
+            name="ck_popularity_absorptions_shape"),
     )
 
 

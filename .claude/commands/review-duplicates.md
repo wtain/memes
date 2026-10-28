@@ -62,8 +62,9 @@ Append an entry to `logs/agent_unresolved_duplicates.jsonl`:
 
 For each image to exclude, call:
 ```
-PUT http://127.0.0.1:{port}/api/images/meme/{id}/mark_flagged
+PUT http://127.0.0.1:{port}/api/images/meme/{id}/mark_flagged?reason=agent_review&duplicateOf={kept_id}
 ```
+`{kept_id}` is the id of the member you decided to keep; the backend records it as the winner for the popularity data. A cluster with no kept member (all members excluded) must not be flagged through this command.
 Ports: metal=8081, general=8082, it=8083.
 
 Use the Bash tool with curl, or WebFetch if available.

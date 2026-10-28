@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import or_, select, text, update
+from sqlalchemy import case, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -306,6 +306,52 @@ class IngestionRepository:
         image.status = "rejected"
         await self.session.flush()
         return image.filename
+
+    async def get_batch_id(self, image_id):
+        """The ingestion run an image was registered under, or None."""
+        result = await self.session.execute(
+            select(Image.ingestion_batch_id).where(Image.id == image_id))
+        return result.scalar_one_or_none()
+
+    async def pick_duplicate_winner(self, image_id, tier: str, distance_low: float, distance_high: float,
+                                    exclude_ids=(), prefer_ids=()):
+        """The neighbour of `image_id` that a reject credits: among images paired with it in
+        tmp_duplicates inside [low, high) whose status is active or pending (and not in
+        `exclude_ids`, e.g. images rejected later in the same request). Order: active first, then
+        ids in `prefer_ids` (kept in this request), then highest popularity, then earliest
+        created_at. None when there is none. Independent of image_id's own status.
+
+        Deliberately NOT filtered by the tier's reviewed_at: a `keep` decision stamps reviewed_at
+        on every pair touching the kept image, and the kept image is exactly the intended winner,
+        so filtering would make the outcome depend on decision order. `tier` is accepted for the
+        caller's symmetry with the band and is not otherwise used."""
+        other = aliased(Image)
+        other_id = case((TmpDuplicates.image_id1 == image_id, TmpDuplicates.image_id2),
+                        else_=TmpDuplicates.image_id1)
+        conditions = [
+            or_(TmpDuplicates.image_id1 == image_id, TmpDuplicates.image_id2 == image_id),
+            other.id != image_id,
+            TmpDuplicates.distance >= distance_low,
+            TmpDuplicates.distance < distance_high,
+            other.status.in_(["active", "pending"]),
+        ]
+        exclude = list(exclude_ids)
+        if exclude:
+            conditions.append(other.id.notin_(exclude))
+        prefer = list(prefer_ids)
+        order = [(other.status == "active").desc()]
+        if prefer:
+            order.append(other.id.in_(prefer).desc())
+        order += [other.popularity.desc(), other.created_at.asc(), other.id]
+        query = (
+            select(other.id)
+            .select_from(TmpDuplicates)
+            .join(other, other.id == other_id)
+            .where(*conditions)
+            .order_by(*order)
+            .limit(1)
+        )
+        return (await self.session.execute(query)).scalar_one_or_none()
 
     async def undo_reject(self, image_id) -> Optional[str]:
         """Revert a rejected image back to pending. Returns the filename (for the caller to

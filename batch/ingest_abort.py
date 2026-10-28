@@ -25,7 +25,7 @@ import argparse
 import asyncio
 import os
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from batch.utils.safe_move import move_without_overwrite
 from Backend.app.repositories.ingestion_repository import IngestionRepository
@@ -33,7 +33,35 @@ from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from repository.batch_runs import BatchRunRepository
 from Storage.db import AsyncSessionLocal
-from Storage.models import Image
+from repository.popularity import PopularityRepository, guarded
+from Storage.models import Image, PopularityAbsorption, PopularityKind, PopularityReason
+
+
+async def _reverse_edges_into_survivors(session, aborted_ids: set, metrics) -> None:
+    """Give surviving winners their popularity back: reverse every open absorb edge whose loser is being
+    deleted and whose winner is not. Edges between two aborted images are left (both ends vanish); edges
+    with no loser image (hash leaf edges) are never selected. A failure here is counted, never raised."""
+    popularity = PopularityRepository(session)
+    edge_ids = await guarded(session, "abort select", lambda: _open_edge_ids(session, aborted_ids))
+    if edge_ids is None:
+        metrics.increment("popularity_skipped")
+        return
+    for edge_id in edge_ids:
+        reversed_row = await guarded(
+            session, "abort", lambda edge_id=edge_id: popularity.reverse(edge_id, PopularityReason.ABORT))
+        metrics.increment("popularity_reversed" if reversed_row is not None else "popularity_skipped")
+
+
+async def _open_edge_ids(session, aborted_ids: set) -> list:
+    result = await session.execute(
+        select(PopularityAbsorption.id).where(
+            PopularityAbsorption.kind == PopularityKind.ABSORB,
+            PopularityAbsorption.reversed_by_id.is_(None),
+            PopularityAbsorption.loser_image_id.in_(aborted_ids),
+            PopularityAbsorption.winner_image_id.not_in(aborted_ids),
+        )
+    )
+    return [row[0] for row in result.all()]
 
 
 async def run(session, source_path: str, base_path: str, batch_id) -> SimpleMetricsListener:
@@ -55,6 +83,9 @@ async def run(session, source_path: str, base_path: str, batch_id) -> SimpleMetr
         except Exception as e:
             print(f"Can't move {src_path} back to inbox: {e}")
             metrics.increment("error.move_failed")
+
+    if rows:
+        await _reverse_edges_into_survivors(session, {row[0] for row in rows}, metrics)
 
     rowcount = 0
     if rows:

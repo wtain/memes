@@ -56,6 +56,7 @@ import asyncio
 import os
 import shutil
 import uuid
+from collections.abc import Collection
 
 from sqlalchemy import select, text
 
@@ -64,8 +65,9 @@ from batch.utils.safe_move import move_without_overwrite
 from config.settings import load_env, settings
 from repository.batch_runs import BatchRunRepository
 from repository.images import ImagesRepository
+from repository.popularity import DroppedCopy, PopularityRepository, guarded
 from Storage.db import AsyncSessionLocal
-from Storage.models import Image
+from Storage.models import Image, PopularitySource
 
 
 def hash_incoming_files(source_path: str) -> dict[str, list[str]]:
@@ -147,6 +149,102 @@ async def register_and_move_to_base_path(
     return registered_ids
 
 
+async def active_winners_by_hash(session, hashes: Collection[str]) -> dict[str, uuid.UUID]:
+    """For each hash with at least one active image, the most popular such image (ties to the
+    earliest created_at)."""
+    if not hashes:
+        return {}
+    result = await session.execute(
+        select(Image.content_hash, Image.id)
+        .where(Image.status == "active", Image.content_hash.in_(set(hashes)))
+        .order_by(Image.popularity.desc(), Image.created_at.asc(), Image.id.asc())
+    )
+    winners: dict[str, uuid.UUID] = {}
+    for content_hash, image_id in result.all():
+        winners.setdefault(content_hash, image_id)
+    return winners
+
+
+def plan_dropped_copies(
+    hash_to_files: dict[str, list[str]], invocation_id: str
+) -> dict[str, tuple[str, list[DroppedCopy]]]:
+    """Per hash with more than one file: the keeper name (lexicographically first, as
+    dedupe_in_batch) and a DroppedCopy for each extra file."""
+    plan: dict[str, tuple[str, list[DroppedCopy]]] = {}
+    for content_hash, filenames in hash_to_files.items():
+        if len(filenames) < 2:
+            continue
+        ordered = sorted(filenames)
+        plan[content_hash] = (
+            ordered[0],
+            [DroppedCopy(f, content_hash, f"{invocation_id}:{f}") for f in ordered[1:]],
+        )
+    return plan
+
+
+async def record_popularity(
+    session, batch_id, invocation_id: str, plan, survivors_before_corpus: dict[str, str],
+    remaining: dict[str, str], registered_ids: list,
+) -> dict:
+    """Credit dropped copies to their winners. Never raises and never commits: a failure only
+    increments popularity_skipped."""
+    recorded = 0
+    skipped = 0
+    repo = PopularityRepository(session)
+
+    cross_keepers = {f: h for f, h in survivors_before_corpus.items() if f not in remaining}
+    total = sum(len(c) for _, c in plan.values()) + len(cross_keepers)
+    if total == 0:
+        return {"popularity_copies_recorded": 0, "popularity_skipped": 0}
+
+    hashes = set(plan) | set(survivors_before_corpus.values())
+    winners = await guarded(session, "hash winners", lambda: active_winners_by_hash(session, hashes))
+    if winners is None:
+        return {"popularity_copies_recorded": 0, "popularity_skipped": total}
+
+    # register_and_move_to_base_path returns one id per survivor, in order; on a length mismatch
+    # map nothing (extras are then counted as skipped) rather than credit the wrong image.
+    registered_by_hash = (
+        {remaining[f]: i for f, i in zip(remaining.keys(), registered_ids)}
+        if len(registered_ids) == len(remaining) else {}
+    )
+
+    async def credit(winner_id, copies, source, label):
+        nonlocal recorded, skipped
+        if not copies:
+            return
+        got = await guarded(
+            session, label,
+            lambda: repo.record_dropped_copies(winner_id, copies, batch_id, source),
+        )
+        if got is None:
+            skipped += len(copies)
+        else:
+            recorded += got
+
+    for content_hash, (_keeper, extras) in plan.items():
+        winner = winners.get(content_hash)
+        if winner is not None:
+            await credit(winner, extras, PopularitySource.HASH_IN_BATCH, f"hash copies {content_hash}")
+        elif content_hash in registered_by_hash:
+            await credit(registered_by_hash[content_hash], extras, PopularitySource.HASH_IN_BATCH,
+                         f"hash copies {content_hash}")
+        else:
+            skipped += len(extras)
+
+    for filename, content_hash in cross_keepers.items():
+        winner = winners.get(content_hash)
+        if winner is None:
+            skipped += 1
+            continue
+        await credit(
+            winner, [DroppedCopy(filename, content_hash, f"{invocation_id}:{filename}")],
+            PopularitySource.HASH_CROSS_CORPUS, f"hash copies {content_hash}",
+        )
+
+    return {"popularity_copies_recorded": recorded, "popularity_skipped": skipped}
+
+
 async def run(session, source_path: str, base_path: str, batch_id) -> dict:
     """Stage 1 end to end. Returns stats for the caller to record on the batch_runs row."""
     duplicates_dir = os.path.join(source_path, "duplicates")
@@ -154,19 +252,28 @@ async def run(session, source_path: str, base_path: str, batch_id) -> dict:
     hash_to_files = hash_incoming_files(source_path)
     intake_count = sum(len(v) for v in hash_to_files.values())
 
+    invocation_id = uuid.uuid4().hex
+    plan = plan_dropped_copies(hash_to_files, invocation_id)
+
     survivors = dedupe_in_batch(source_path, hash_to_files, duplicates_dir)
     hash_duplicates_in_batch = intake_count - len(survivors)
 
+    survivors_before_corpus = survivors
     survivors = await dedupe_cross_corpus(session, source_path, survivors, duplicates_dir)
     hash_duplicates_cross_corpus = intake_count - hash_duplicates_in_batch - len(survivors)
 
     registered_ids = await register_and_move_to_base_path(session, source_path, base_path, survivors, batch_id)
+
+    popularity_stats = await record_popularity(
+        session, batch_id, invocation_id, plan, survivors_before_corpus, survivors, registered_ids,
+    )
 
     return {
         "intake": intake_count,
         "hash_duplicates_in_batch": hash_duplicates_in_batch,
         "hash_duplicates_cross_corpus": hash_duplicates_cross_corpus,
         "registered": len(registered_ids),
+        **popularity_stats,
     }
 
 

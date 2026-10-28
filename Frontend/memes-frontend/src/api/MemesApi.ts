@@ -60,7 +60,7 @@ export interface MemesApi {
 
   getConcept(id: number): Promise<Concept>;
 
-  markImageIsFlagged(id: string, reason?: string): Promise<void>;
+  markImageIsFlagged(id: string, reason?: string, duplicateOf?: string): Promise<void>;
 
   unmarkImageIsFlagged(id: string): Promise<void>;
 

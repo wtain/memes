@@ -325,7 +325,20 @@ build_concept_embeddings   → concept CLIP embeddings + mappings; also runs tag
 # Maintenance (run as needed)
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
 detect_entities_and_tag    tag_images_from_concepts  build_bow          remove_singletons
-fix_image_formats          classify_text_heavy       build_ocr_text_embeddings
+fix_image_formats          classify_text_heavy       build_ocr_text_embeddings   check_image_popularity
+
+check_image_popularity      → reports drift of the cached images.popularity against the value derived from the open
+                               popularity_absorptions edges; --fix rewrites the cache to the expected value. Shell only
+                               (not run-tracked, not admin-triggerable, not scheduled). See
+                               docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-26-p1-data-model-and-absorption-rules-design.md.
+
+detect_file_duplicates      → byte-identical files: keeps the oldest, flags the rest, and records the keeper as
+                               the winner of each flagged copy's popularity absorption (metrics key
+                               popularity_skipped). Flagging with `duplicateOf` (mark_flagged, the /duplicates page,
+                               the review-duplicates command) records the same edge. A flag WITHOUT duplicateOf never changes popularity
+                               (attribution of manual flags comes in P4). Reasons: duplicate_review -> source
+                               cluster_review, agent_review -> agent_review, any other reason with duplicateOf is
+                               a 422. Unflagging reverses cluster_review / agent_review / file_duplicates edges.
 
 move_flagged                → also runs unregister_deleted_images automatically afterward,
                                reconciling the DB with whatever was moved; --no-chain skips this.
@@ -642,7 +655,10 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
                                batch. A Postgres advisory lock serializes concurrent invocations of
                                this script against each other (not the other ingestion scripts --
                                don't run this concurrently with ingest_promote/ingest_abort either,
-                               see their own entries). Newly-added images need
+                               see their own entries). Each dropped copy is also recorded as a
+                               popularity absorption into its surviving keeper (stats
+                               popularity_copies_recorded / popularity_skipped; a recording problem
+                               is skipped, never fails the run). Newly-added images need
                                ingest_validate_formats.py, build_image_embeddings --status
                                pending --incremental, extract_text_from_memes --status pending,
                                build_ocr_lemmas --status pending --incremental, classify_text_heavy
@@ -720,6 +736,9 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                /api/ingestion/* endpoints (Backend/app/api/ingestion.py), with a
                                frontend page at /ingestion covering both tiers (switches queue
                                based on the run's stage) -- both tiers show OCR text per member.
+                               Rejecting a candidate records a popularity absorption into the kept
+                               image, and undo-reject reverses it (see
+                               docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-27-p2-recording-winners-design.md).
 ingest_promote              → Stage 4 (final): promotes pending images with no remaining
                                unresolved Tier A/B candidate pairs to `active` (pure status flip
                                -- files are already in BASE_PATH from Stage 1). Marks the run
@@ -736,7 +755,10 @@ ingest_abort                → Abandons the currently active ingestion run inst
                                run `aborted`, freeing the one-active-run-per-kind lock. Never
                                touches already-`active` (promoted) images in the batch. Can be run
                                at any point before the run completes -- right after Stage 1, mid-
-                               review, etc.
+                               review, etc. Also reverses the popularity edges that point from its
+                               deleted images into surviving images (metrics popularity_reversed /
+                               popularity_skipped). Files already in duplicates/ are not moved back; copies
+                               credited to a deleted pending keeper disappear with it.
 ```
 
 `ingest_auto_prep` is a one-job alternative to running Stage 1 through the Tier A step by

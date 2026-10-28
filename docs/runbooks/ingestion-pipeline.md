@@ -232,12 +232,13 @@ runs, files just sit in `inbox\` untouched.
 - `POST /api/ingestion/images/{image_id}/undo-reject` reverts a rejected image back to
   `pending` and moves its file back from `BASE_PATH/rejected/`. This only works while the
   image is still `rejected` — undoing a "Keep" decision that later got promoted to `active`
-  is out of scope; there is no built-in path to demote a promoted image.
+  is out of scope; there is no built-in path to demote a promoted image. Undo-reject also
+  reverses the popularity edge that was recorded at reject.
 
 - `python -m batch.ingest_abort --env <env>` abandons the entire currently active run
   instead of continuing it: it undoes every `pending`/`rejected` image the run registered
   (moves each file back to `PATH_INGESTION_SOURCE`, deletes its row — FK cascades clean up
-  embeddings/OCR/tmp_duplicates automatically) and marks the run `aborted`, freeing the
+  embeddings/OCR/tmp_duplicates automatically; popularity edges into surviving images are reversed) and marks the run `aborted`, freeing the
   one-active-run-per-kind lock. Never touches already-`active` (promoted) images in the
   batch. Can be run at any point before the run completes — right after Stage 1, mid-review,
   etc.

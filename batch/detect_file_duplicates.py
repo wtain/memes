@@ -15,12 +15,29 @@ from graph.uf import UnionFind
 from metrics.listener import SimpleMetricsListener
 from repository.image_extras import ImageExtrasRepository
 from repository.images import ImagesRepository
+from repository.popularity import PopularityRepository, guarded
+from Storage.models import PopularitySource
 
 
 def cluster_already_handled(cluster: list, flags: dict) -> bool:
     """True if any member of this cluster is already flagged -- treat the whole
     cluster as already reviewed by a human, and skip flagging anything else in it."""
     return any(flags.get(mid, False) for mid in cluster)
+
+
+async def flag_cluster_duplicates(session, extras_repo, keeper_id, duplicate_ids, metrics) -> None:
+    """Flag each duplicate and credit its popularity to the keeper. A popularity failure never
+    affects the flag (it is counted as popularity_skipped). Never commits."""
+    popularity = PopularityRepository(session)
+    for dup_id in duplicate_ids:
+        await extras_repo.set_flagged(dup_id, True)
+        metrics.increment("flagged")
+        recorded = await guarded(
+            session, "file duplicates",
+            lambda dup_id=dup_id: popularity.absorb(dup_id, keeper_id, PopularitySource.FILE_DUPLICATES),
+        )
+        if recorded is None:
+            metrics.increment("popularity_skipped")
 
 
 async def main():
@@ -119,9 +136,7 @@ async def main():
             dup_names = [hashed[d][0] for d in duplicates]
             print(f"  cluster {len(cluster)}: keep={keeper_name}  flag={dup_names}")
 
-            for dup_id in duplicates:
-                await extras_repo.set_flagged(dup_id, True)
-                metrics.increment("flagged")
+            await flag_cluster_duplicates(session, extras_repo, keeper, duplicates, metrics)
 
             metrics.increment("clusters.found")
 

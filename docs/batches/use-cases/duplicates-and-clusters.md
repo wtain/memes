@@ -84,7 +84,8 @@ run with `--status pending` (see [ingestion.md](ingestion.md)).
 
 `detect_file_duplicates`: hashes every registered file (backfilling `content_hash`), groups identical hashes, verifies
 content, keeps the oldest by `created_at` and flags the rest. A group that already has a flagged member is treated as
-reviewed and skipped. Follow with `move_flagged`.
+reviewed and skipped. It also records the keeper as the winner of each flagged copy (popularity; metrics key
+`popularity_skipped` counts recordings that failed and were skipped). Follow with `move_flagged`.
 
 ## Related
 

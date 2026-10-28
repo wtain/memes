@@ -417,9 +417,11 @@ describe('MemesDuplicatesList partial selection', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Duplicates — keep best' }))
 
     await waitFor(() => {
-      expect(api.markImageIsFlagged).toHaveBeenCalledWith('b', 'duplicate_review')
+      expect(api.markImageIsFlagged).toHaveBeenCalledWith('b', 'duplicate_review', 'a')
     })
-    expect(api.markImageIsFlagged).not.toHaveBeenCalledWith('a', expect.anything())
+    const flaggedIds = vi.mocked(api.markImageIsFlagged).mock.calls.map(c => c[0])
+    expect(flaggedIds).toContain('b')
+    expect(flaggedIds.every(id => id !== 'a')).toBe(true)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
     await waitFor(() => {
@@ -468,7 +470,7 @@ describe('MemesDuplicatesList partial selection', () => {
     fireEvent.click(checkboxes[1])  // b
     fireEvent.click((await screen.findAllByRole('radio', { name: 'Keeper' }))[0])  // a is keeper
     fireEvent.click(await screen.findByRole('button', { name: 'Duplicates — keep best' }))
-    await waitFor(() => expect(api.markImageIsFlagged).toHaveBeenCalledWith('b', 'duplicate_review'))
+    await waitFor(() => expect(api.markImageIsFlagged).toHaveBeenCalledWith('b', 'duplicate_review', 'a'))
 
     // Then a dismiss resolves the last two remaining (a, c), fully resolving the row.
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all' }))

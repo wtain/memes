@@ -507,13 +507,24 @@ Mark a meme as flagged.
   - `image_id`: Unique identifier of the image
 - **Query Parameters**:
   - `reason` (optional): Free-text reason for flagging (max 50 chars), stored alongside the flag
+  - `duplicateOf` (optional): id of the image that survives this one as its duplicate. Requires `reason` to be
+    `duplicate_review` (popularity source `cluster_review`) or `agent_review` (source `agent_review`); the flagged
+    image's popularity moves into the survivor. Without `duplicateOf` a flag never changes popularity.
+- **Errors**: `422` when `duplicateOf` is given with another or no `reason`, when `duplicateOf` or `image_id` is
+  not a well-formed UUID, or when they are equal. A well-formed UUID with no image row returns `200` and records
+  nothing. Validation happens before anything is written. A popularity recording failure never fails the flag;
+  re-flagging against another survivor keeps the first recorded edge.
 - **Response**: Success (no content)
 - **Example**: `PUT /api/images/meme/abc123/mark_flagged`
 - **Example (with reason)**: `PUT /api/images/meme/abc123/mark_flagged?reason=duplicate_review`
+- **Example (with survivor)**: `PUT /api/images/meme/abc123/mark_flagged?reason=agent_review&duplicateOf=def456-...`
 
 #### Unmark Meme as Flagged
 
-Remove flagged status from a meme.
+Remove flagged status from a meme. Unflagging reverses the image's open popularity edge (reason `unflag`) when its
+source is `cluster_review`, `agent_review` or `file_duplicates` (so also edges recorded by `detect_file_duplicates`,
+not only flags made with `duplicateOf`), restoring the popularity of both images; with no such edge popularity is
+untouched.
 
 - **URL**: `/api/images/meme/{image_id}/unmark_flagged`
 - **Method**: `PUT`
@@ -1269,6 +1280,12 @@ discards others in the same call. `failed` lists decisions whose database write 
 move failed (the image is correctly `rejected` in the database -- `undo_reject` on it is safe and
 will simply find nothing to move back).
 
+Popularity: each `reject` also records, server-side, the best remaining neighbour of the rejected image as its
+winner (source `ingest_tier_a` or `ingest_tier_b`). The winner is chosen from the pair band of the tier among
+`active` and `pending` neighbours, excluding images rejected anywhere in the same request, preferring `active`,
+then images kept in the request, then the most popular, then the oldest. The client sends no winner. A
+popularity failure never fails the reject.
+
 - **URL**: `/api/ingestion/clusters/{tier}/resolve`
 - **Method**: `POST`
 - **Body**: `ResolveRequest`
@@ -1294,7 +1311,8 @@ will simply find nothing to move back).
 #### Undo Reject
 
 Reverts a `rejected` image back to `pending` and moves its file back out of
-`BASE_PATH/rejected/`.
+`BASE_PATH/rejected/`. It also reverses the popularity edge recorded when the image was rejected (reason
+`undo_reject`); a popularity failure never fails the call.
 
 - **URL**: `/api/ingestion/images/{image_id}/undo-reject`
 - **Method**: `POST`

@@ -280,7 +280,7 @@ class TestMarkFlagged:
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.mark_flagged.assert_called_once_with("123", None)
+        mock_image_service.mark_flagged.assert_called_once_with("123", None, None)
 
     def test_mark_flagged_with_reason(self, client, mock_image_service):
         mock_image_service.mark_flagged.return_value = None
@@ -288,7 +288,15 @@ class TestMarkFlagged:
         response = client.put("/api/images/meme/123/mark_flagged?reason=duplicate_review")
 
         assert response.status_code == 200
-        mock_image_service.mark_flagged.assert_called_once_with("123", "duplicate_review")
+        mock_image_service.mark_flagged.assert_called_once_with("123", "duplicate_review", None)
+
+    def test_mark_flagged_with_duplicate_of(self, client, mock_image_service):
+        mock_image_service.mark_flagged.return_value = None
+
+        response = client.put("/api/images/meme/123/mark_flagged?reason=agent_review&duplicateOf=456")
+
+        assert response.status_code == 200
+        mock_image_service.mark_flagged.assert_called_once_with("123", "agent_review", "456")
 
     def test_mark_flagged_multiple_times(self, client, mock_image_service):
         """Test marking the same image as flagged multiple times (should be idempotent)."""
@@ -315,7 +323,7 @@ class TestMarkFlagged:
 
         # Assert
         assert response.status_code == 200
-        mock_image_service.mark_flagged.assert_called_once_with(uuid_id, None)
+        mock_image_service.mark_flagged.assert_called_once_with(uuid_id, None, None)
 
     def test_mark_flagged_service_error(self, client, mock_image_service):
         """Test handling of service errors when marking flagged."""
@@ -396,7 +404,7 @@ class TestMarkUnmarkFlaggedWorkflow:
         # Assert
         assert mark_response.status_code == 200
         assert unmark_response.status_code == 200
-        mock_image_service.mark_flagged.assert_called_once_with(image_id, None)
+        mock_image_service.mark_flagged.assert_called_once_with(image_id, None, None)
         mock_image_service.unmark_flagged.assert_called_once_with(image_id)
 
 
