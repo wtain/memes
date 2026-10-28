@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recutproposaldetail.schema.json",
+  "title": "RecutProposalDetail",
+  "description": "One proposal with its provenance and its neighbours in the review queue",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "sourceImageId": { "type": "string" },
+    "cutImageId": { "type": "string" },
+    "confidence": { "type": ["number", "null"] },
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "w": { "type": "integer" },
+        "h": { "type": "integer" }
+      },
+      "required": ["x", "y", "w", "h"]
+    },
+    "state": { "type": "string" },
+    "detector": { "type": "string" },
+    "detectorVersion": { "type": "string" },
+    "detectRunId": { "type": ["string", "null"] },
+    "createdAt": { "type": "string" },
+    "previousId": { "type": ["string", "null"] },
+    "nextId": { "type": ["string", "null"] }
+  },
+  "required": ["id", "sourceImageId", "cutImageId", "confidence", "box", "state", "detector", "detectorVersion",
+               "detectRunId", "createdAt", "previousId", "nextId"]
+}

@@ -253,6 +253,31 @@ data class RatingResponse(
 )
 
 @Serializable
+data class RecutProposal(
+    @SerialName("id") val id: String,
+    @SerialName("sourceImageId") val sourceImageId: String,
+    @SerialName("cutImageId") val cutImageId: String,
+    @SerialName("confidence") val confidence: Float?,
+    @SerialName("box") val box: JsonObject
+)
+
+@Serializable
+data class RecutProposalDetail(
+    @SerialName("id") val id: String,
+    @SerialName("sourceImageId") val sourceImageId: String,
+    @SerialName("cutImageId") val cutImageId: String,
+    @SerialName("confidence") val confidence: Float?,
+    @SerialName("box") val box: JsonObject,
+    @SerialName("state") val state: String,
+    @SerialName("detector") val detector: String,
+    @SerialName("detectorVersion") val detectorVersion: String,
+    @SerialName("detectRunId") val detectRunId: String?,
+    @SerialName("createdAt") val createdAt: String,
+    @SerialName("previousId") val previousId: String?,
+    @SerialName("nextId") val nextId: String?
+)
+
+@Serializable
 data class RunStatusResponse(
     @SerialName("run_id") val run_id: String,
     @SerialName("batch_name") val batch_name: String,
@@ -445,6 +470,12 @@ data class MemeSearchRequest(
 data class RatingsResponse(
     @SerialName("queryHash") val queryHash: String,
     @SerialName("ratings") val ratings: List<RatingItem>
+)
+
+@Serializable
+data class RecutProposalPage(
+    @SerialName("items") val items: List<RecutProposal>,
+    @SerialName("total") val total: Int
 )
 
 @Serializable

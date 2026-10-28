@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recutproposal.schema.json",
+  "title": "RecutProposal",
+  "description": "One proposed cut of a badly cropped image, waiting for review",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "sourceImageId": { "type": "string" },
+    "cutImageId": { "type": "string" },
+    "confidence": { "type": ["number", "null"] },
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The proposed rectangle in pixels of the source image",
+      "properties": {
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "w": { "type": "integer" },
+        "h": { "type": "integer" }
+      },
+      "required": ["x", "y", "w", "h"]
+    }
+  },
+  "required": ["id", "sourceImageId", "cutImageId", "confidence", "box"]
+}
