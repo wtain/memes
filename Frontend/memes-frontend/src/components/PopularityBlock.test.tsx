@@ -9,6 +9,8 @@ function apiReturning(result: Promise<MemePopularity>) {
 }
 
 describe('PopularityBlock', () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it('shows the number and one labelled line per breakdown row', async () => {
     const api = apiReturning(Promise.resolve({
       popularity: 5,
@@ -52,8 +54,6 @@ describe('PopularityBlock', () => {
     expect(container).toBeEmptyDOMElement()
     expect(errorSpy).not.toHaveBeenCalled()
     expect(warnSpy).not.toHaveBeenCalled()
-    errorSpy.mockRestore()
-    warnSpy.mockRestore()
   })
 
   it('shows the raw key for an unknown source', async () => {

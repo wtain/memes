@@ -89,6 +89,19 @@ async def test_unknown_and_malformed_ids_are_404(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_odd_uuid_spellings_answer_404_for_unknown_and_work_for_real_images(db_session):
+    service = make_service(db_session)
+    unknown = uuid.uuid4()
+    for spelling in (f"{{{unknown}}}", f"urn:uuid:{unknown}", unknown.hex):
+        with pytest.raises(HTTPException) as exc:
+            await service.get_popularity(spelling)
+        assert exc.value.status_code == 404
+    img = await make_image(db_session, "a.jpg")
+    assert shape(await service.get_popularity(f"{{{img.id}}}")) == (1, "normal", [("own", 1)])
+    assert shape(await service.get_popularity(str(img.id))) == (1, "normal", [("own", 1)])
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_drifted_cache_number_from_cache_rows_from_log(db_session):
     w, l = await make_image(db_session, "w.jpg"), await make_image(db_session, "l.jpg")
     await PopularityRepository(db_session).absorb(l.id, w.id, "cluster_review")

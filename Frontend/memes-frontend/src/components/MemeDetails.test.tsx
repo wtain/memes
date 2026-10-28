@@ -95,6 +95,25 @@ describe('MemeDetails', () => {
     })
   })
 
+  describe('popularity after the flag toggle', () => {
+    it('refetches the block once the flag call succeeds and shows the new response', async () => {
+      const api = makeMockApi({
+        getImageIsFlagged: vi.fn().mockResolvedValue(true),
+        unmarkImageIsFlagged: vi.fn().mockResolvedValue(undefined),
+        getMemePopularity: vi.fn()
+          .mockResolvedValueOnce({ popularity: 0, status: 'discarded', breakdown: [] })
+          .mockResolvedValueOnce({ popularity: 3, status: 'normal', breakdown: [] }),
+      })
+      render(<MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>)
+      await waitFor(() => expect(screen.getByTestId('popularity-value')).toHaveTextContent('0'))
+      const checkbox = await screen.findByRole('checkbox')
+      await waitFor(() => expect(checkbox).toBeChecked())
+      fireEvent.click(checkbox)
+      await waitFor(() => expect(screen.getByTestId('popularity-value')).toHaveTextContent('3'))
+      expect(api.getMemePopularity).toHaveBeenCalledTimes(2)
+    })
+  })
+
   describe('similarMemes', () => {
     it('calls the backend once per mount (production behaviour)', async () => {
       const { api } = renderMemeDetails()

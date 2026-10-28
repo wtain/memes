@@ -29,6 +29,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [descriptions, setDescriptions] = useState<ImageDescription[]>([])
   const [isFlagged, setIsFlagged] = useState<boolean | null>(null)
+  const [popularityVersion, setPopularityVersion] = useState(0)
   const [noteText, setNoteText] = useState<string | null>(null)
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -56,7 +57,11 @@ export function MemeDetails({ meme, memesApi }: Props) {
   function toggleFlagged() {
     const next = !isFlagged
     const call = next ? memesApi.markImageIsFlagged(meme.id) : memesApi.unmarkImageIsFlagged(meme.id)
-    call.then(() => setIsFlagged(next))
+    call.then(() => {
+      setIsFlagged(next)
+      // Flagging changes the status and unflagging can restore popularity; refetch the block.
+      setPopularityVersion(v => v + 1)
+    })
   }
 
   function setDescriptionFeedback(promptKey: string, action: "approve" | "reject") {
@@ -295,7 +300,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
           </label>
         </div>
 
-        <PopularityBlock key={meme.id} imageId={meme.id} memesApi={memesApi} />
+        <PopularityBlock key={`${meme.id}:${popularityVersion}`} imageId={meme.id} memesApi={memesApi} />
 
         <div>
           <table className="w-full border">

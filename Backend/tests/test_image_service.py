@@ -769,6 +769,18 @@ class TestPopularity:
         assert exc_info.value.status_code == 404
         mock_repo.get_popularity.assert_not_called()
 
+    @pytest.mark.parametrize("spelling", [
+        "{550e8400-e29b-41d4-a716-446655440000}",
+        "urn:uuid:550e8400-e29b-41d4-a716-446655440000",
+        "550E8400E29B41D4A716446655440000",
+    ])
+    async def test_odd_uuid_spellings_reach_the_repo_in_canonical_form(self, service, mock_repo, spelling):
+        mock_repo.get_popularity.return_value = None
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_popularity(spelling)
+        assert exc_info.value.status_code == 404
+        mock_repo.get_popularity.assert_called_once_with("550e8400-e29b-41d4-a716-446655440000")
+
     async def test_unknown_image_is_404(self, service, mock_repo):
         mock_repo.get_popularity.return_value = None
         with pytest.raises(HTTPException) as exc_info:

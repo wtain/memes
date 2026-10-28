@@ -147,17 +147,18 @@ class ImageService:
         """Read-only. The number is the cached images.popularity as stored (even if it drifted from the log);
         the rows come from the open absorption edges and are empty for a discarded image."""
         try:
-            uuid.UUID(image_id)
+            image_uuid = uuid.UUID(image_id)
         except ValueError:
             raise HTTPException(status_code=404, detail="Image not found")
-        popularity = await self.repo.get_popularity(image_id)
+        canonical_id = str(image_uuid)
+        popularity = await self.repo.get_popularity(canonical_id)
         if popularity is None:
             raise HTTPException(status_code=404, detail="Image not found")
-        flagged = bool(await self.repo.get_is_flagged(image_id))
+        flagged = bool(await self.repo.get_is_flagged(canonical_id))
         status = popularity_status(popularity, flagged)
         rows: list[tuple[str, int]] = []
         if popularity != 0:
-            parts = await PopularityRepository(self.repo.session).breakdown(uuid.UUID(image_id))
+            parts = await PopularityRepository(self.repo.session).breakdown(image_uuid)
             rows = order_breakdown(parts)
         return MemePopularity(
             popularity=popularity,
