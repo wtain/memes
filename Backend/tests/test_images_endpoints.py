@@ -452,6 +452,33 @@ class TestGetFlagged:
         mock_image_service.get_is_flagged.assert_called_once_with(uuid_id)
 
 
+class TestGetPopularity:
+    """Tests for GET /api/images/meme/{image_id}/popularity."""
+
+    ID = "550e8400-e29b-41d4-a716-446655440000"
+
+    def test_returns_shape_and_no_cache_headers(self, client, mock_image_service):
+        from Backend.app.types.generated.memepopularity import Schema as MemePopularity
+        mock_image_service.get_popularity.return_value = MemePopularity(
+            popularity=3, status="normal",
+            breakdown=[{"source": "own", "count": 1}, {"source": "cluster_review", "count": 2}])
+
+        response = client.get(f"/api/images/meme/{self.ID}/popularity")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "popularity": 3, "status": "normal",
+            "breakdown": [{"source": "own", "count": 1}, {"source": "cluster_review", "count": 2}]}
+        assert "no-cache" in response.headers["cache-control"]
+        mock_image_service.get_popularity.assert_called_once_with(self.ID)
+
+    def test_service_404_maps_to_404(self, client, mock_image_service):
+        from fastapi import HTTPException
+        mock_image_service.get_popularity.side_effect = HTTPException(status_code=404, detail="Image not found")
+        response = client.get("/api/images/meme/nope/popularity")
+        assert response.status_code == 404
+
+
 class TestGetSimilarImages:
     """Tests for GET /api/images/{image_id}/similar endpoint."""
 

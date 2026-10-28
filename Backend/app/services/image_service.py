@@ -17,6 +17,8 @@ from Backend.app.types.generated.meme import Schema as Meme
 from Backend.app.types.generated.imagedescription import Schema as ImageDescription
 from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
+from Backend.app.types.generated.memepopularity import Schema as MemePopularity
+from Backend.app.types.generated.popularitybreakdownrow import Schema as PopularityBreakdownRow
 from graph.uf import UnionFind
 from repository.popularity import PopularityRepository, guarded
 
@@ -31,6 +33,19 @@ FLAG_REASON_SOURCES = {"duplicate_review": "cluster_review", "agent_review": "ag
 # This cap is deliberately generous (never expected to fire in practice) and simply skips the
 # computation for a cluster past it, rather than either crashing or paying an unbounded cost.
 SIMILARITY_MEMBER_CAP = 100
+
+
+def popularity_status(popularity: int, flagged: bool) -> str:
+    """discarded (absorbed into another image) wins over flagged; a flag alone keeps the number."""
+    if popularity == 0:
+        return "discarded"
+    return "flagged" if flagged else "normal"
+
+
+def order_breakdown(parts: dict[str, int]) -> list[tuple[str, int]]:
+    """`own` first, then the other sources by count descending, ties by source name."""
+    others = sorted(((s, c) for s, c in parts.items() if s != "own"), key=lambda p: (-p[1], p[0]))
+    return ([("own", parts["own"])] if "own" in parts else []) + others
 
 
 def _feedback_label(approved: Optional[bool]) -> Optional[str]:
@@ -126,6 +141,28 @@ class ImageService:
             originalFileName=filename,
             flagged=is_flagged,
             descriptionNote=note_text,
+        )
+
+    async def get_popularity(self, image_id: str) -> MemePopularity:
+        """Read-only. The number is the cached images.popularity as stored (even if it drifted from the log);
+        the rows come from the open absorption edges and are empty for a discarded image."""
+        try:
+            uuid.UUID(image_id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Image not found")
+        popularity = await self.repo.get_popularity(image_id)
+        if popularity is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+        flagged = bool(await self.repo.get_is_flagged(image_id))
+        status = popularity_status(popularity, flagged)
+        rows: list[tuple[str, int]] = []
+        if popularity != 0:
+            parts = await PopularityRepository(self.repo.session).breakdown(uuid.UUID(image_id))
+            rows = order_breakdown(parts)
+        return MemePopularity(
+            popularity=popularity,
+            status=status,
+            breakdown=[PopularityBreakdownRow(source=s, count=c) for s, c in rows],
         )
 
     async def get_descriptions(self, image_id: str) -> list[ImageDescription]:

@@ -519,6 +519,26 @@ Mark a meme as flagged.
 - **Example (with reason)**: `PUT /api/images/meme/abc123/mark_flagged?reason=duplicate_review`
 - **Example (with survivor)**: `PUT /api/images/meme/abc123/mark_flagged?reason=agent_review&duplicateOf=def456-...`
 
+#### Get Meme Popularity
+
+Popularity of one meme and where it came from. Read-only: writes nothing. Needs the P1 popularity migration
+(`images.popularity`, `popularity_absorptions`).
+
+- **URL**: `/api/images/meme/{image_id}/popularity`
+- **Method**: `GET`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image (UUID)
+- **Response**: `MemePopularity`
+  - `popularity` (integer >= 0): the cached `images.popularity`, returned as stored
+  - `status`: `normal`, `flagged` (flagged and still holds popularity) or `discarded` (popularity 0, i.e. absorbed
+    into another image; wins over a flag)
+  - `breakdown`: list of `{source, count}` rows with the counts credited to this image. `own` comes first, then the
+    sources by `count` descending, ties by source name. Empty when `discarded`. Rows come from the open absorption
+    edges, so after cache drift they may not sum to `popularity`.
+- **Errors**: `404` for an unknown or non-UUID `image_id` (a deliberate difference from `GET /meme/{id}`)
+- **Cache**: no-cache
+- **Example**: `GET /api/images/meme/550e8400-e29b-41d4-a716-446655440000/popularity`
+
 #### Unmark Meme as Flagged
 
 Remove flagged status from a meme. Unflagging reverses the image's open popularity edge (reason `unflag`) when its

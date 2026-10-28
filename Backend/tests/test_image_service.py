@@ -710,3 +710,77 @@ class TestSearchCursor:
         kwargs = mock_repo.search.call_args.kwargs
         assert kwargs["cursor_score"] == 0.9
         assert kwargs["cursor_created_at"] == created_at and kwargs["cursor_id"] == image_id
+
+
+class TestPopularity:
+    IMAGE_ID = "550e8400-e29b-41d4-a716-446655440000"
+
+    @pytest.mark.parametrize("popularity,flagged,expected", [
+        (0, False, "discarded"), (0, True, "discarded"),
+        (3, True, "flagged"), (3, False, "normal"), (1, False, "normal"),
+    ])
+    def test_popularity_status(self, popularity, flagged, expected):
+        from Backend.app.services.image_service import popularity_status
+        assert popularity_status(popularity, flagged) == expected
+
+    def test_order_breakdown(self):
+        from Backend.app.services.image_service import order_breakdown
+        parts = {"own": 1, "cluster_review": 2, "agent_review": 2, "hash_in_batch": 5}
+        assert order_breakdown(parts) == [
+            ("own", 1), ("hash_in_batch", 5), ("agent_review", 2), ("cluster_review", 2)]
+
+    def test_order_breakdown_own_first_even_when_smaller(self):
+        from Backend.app.services.image_service import order_breakdown
+        assert order_breakdown({"b": 9, "own": 1})[0] == ("own", 1)
+
+    async def test_root_returns_cached_number_and_breakdown_rows(self, service, mock_repo):
+        from unittest.mock import patch
+        mock_repo.get_popularity.return_value = 3
+        mock_repo.get_is_flagged.return_value = False
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.breakdown = AsyncMock(return_value={"own": 1, "cluster_review": 2})
+            result = await service.get_popularity(self.IMAGE_ID)
+        assert result.popularity == 3
+        assert result.status.value == "normal"
+        assert [(r.source, r.count) for r in result.breakdown] == [("own", 1), ("cluster_review", 2)]
+
+    async def test_discarded_has_no_rows_and_skips_breakdown(self, service, mock_repo):
+        from unittest.mock import patch
+        mock_repo.get_popularity.return_value = 0
+        mock_repo.get_is_flagged.return_value = True
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.breakdown = AsyncMock()
+            result = await service.get_popularity(self.IMAGE_ID)
+            pr.return_value.breakdown.assert_not_called()
+        assert (result.popularity, result.status.value, result.breakdown) == (0, "discarded", [])
+
+    async def test_flagged_root_status(self, service, mock_repo):
+        from unittest.mock import patch
+        mock_repo.get_popularity.return_value = 2
+        mock_repo.get_is_flagged.return_value = True
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.breakdown = AsyncMock(return_value={"own": 2})
+            result = await service.get_popularity(self.IMAGE_ID)
+        assert result.status.value == "flagged"
+
+    async def test_non_uuid_is_404_before_touching_repo(self, service, mock_repo):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_popularity("not-a-uuid")
+        assert exc_info.value.status_code == 404
+        mock_repo.get_popularity.assert_not_called()
+
+    async def test_unknown_image_is_404(self, service, mock_repo):
+        mock_repo.get_popularity.return_value = None
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_popularity(self.IMAGE_ID)
+        assert exc_info.value.status_code == 404
+
+    async def test_cache_differing_from_breakdown_sum_is_returned_as_stored(self, service, mock_repo):
+        from unittest.mock import patch
+        mock_repo.get_popularity.return_value = 7
+        mock_repo.get_is_flagged.return_value = False
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.breakdown = AsyncMock(return_value={"own": 1, "cluster_review": 2})
+            result = await service.get_popularity(self.IMAGE_ID)
+        assert result.popularity == 7
+        assert sum(r.count for r in result.breakdown) == 3

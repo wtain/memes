@@ -156,6 +156,13 @@ class ImageRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_popularity(self, image_id: str) -> Optional[int]:
+        """The cached images.popularity; None when there is no such image."""
+        result = await self.session.execute(
+            select(Image.popularity).where(Image.id == image_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_texts(self, image_ids: set[str], min_confidence: float = 0.8):
         result = await self.session.execute(
             select(OCRText.image_id, OCRText.text, OCRText.confidence)

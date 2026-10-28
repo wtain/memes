@@ -21,6 +21,7 @@ from Backend.app.services.cache import image_cache_headers, no_cache_headers
 from Backend.app.services.image_service import ImageService
 from Backend.app.services.image_store import get_image_path, image_exists
 from Backend.app.types.generated.meme import Schema as Meme
+from Backend.app.types.generated.memepopularity import Schema as MemePopularity
 from Backend.app.types.generated.imagedescription import Schema as ImageDescription
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from Backend.app.types.generated.descriptionfeedbackresponse import Schema as DescriptionFeedbackResponse
@@ -178,6 +179,16 @@ async def get_meme(
 ):
     response.headers.update(no_cache_headers())
     return await service.get_meme(image_id)
+
+
+@router.get("/meme/{image_id}/popularity", response_model=MemePopularity)
+async def get_meme_popularity(
+    image_id: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    return await service.get_popularity(image_id)
 
 
 @router.put("/meme/{image_id}/mark_flagged")
