@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recutproposalpage.schema.json",
+  "title": "RecutProposalPage",
+  "description": "One page of the proposals waiting for review, highest confidence first",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "items": { "type": "array", "items": { "$ref": "./recutproposal.schema.json" } },
+    "total": { "type": "integer" }
+  },
+  "required": ["items", "total"]
+}

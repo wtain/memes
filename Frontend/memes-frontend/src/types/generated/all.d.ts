@@ -530,6 +530,62 @@ export interface ProfileCoverageImages {
   total: number;
 }
 /**
+ * One proposed cut of a badly cropped image, waiting for review
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RecutProposal".
+ */
+export interface RecutProposal {
+  id: string;
+  sourceImageId: string;
+  cutImageId: string;
+  confidence: number | null;
+  /**
+   * The proposed rectangle in pixels of the source image
+   */
+  box: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+}
+/**
+ * One page of the proposals waiting for review, highest confidence first
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RecutProposalPage".
+ */
+export interface RecutProposalPage {
+  items: RecutProposal[];
+  total: number;
+}
+/**
+ * One proposal with its provenance and its neighbours in the review queue
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RecutProposalDetail".
+ */
+export interface RecutProposalDetail {
+  id: string;
+  sourceImageId: string;
+  cutImageId: string;
+  confidence: number | null;
+  box: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+  state: string;
+  detector: string;
+  detectorVersion: string;
+  detectRunId: string | null;
+  createdAt: string;
+  previousId: string | null;
+  nextId: string | null;
+}
+/**
  * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DescriptionFeedbackResponse".
  */

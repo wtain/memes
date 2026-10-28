@@ -20,6 +20,7 @@ function renderApp(initialPath: string) {
           <Route path="/untagged" element={<DummyUntagged />} />
           <Route path="/admin" element={<div>admin-content</div>} />
           <Route path="/admin/profiles" element={<div>profiles-content</div>} />
+          <Route path="/admin/recut" element={<div>recut-content</div>} />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -32,6 +33,13 @@ describe('AppLayout', () => {
     expect(screen.getByText('Profiles')).toHaveAttribute('aria-current', 'page')
     expect(screen.getByText('Admin')).not.toHaveAttribute('aria-current')
     expect(screen.getByText('Profiles')).toHaveAttribute('href', '/admin/profiles')
+  })
+
+  it('marks only Recut as active on the recut page, not Admin', () => {
+    renderApp('/admin/recut')
+    expect(screen.getByText('Recut')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Admin')).not.toHaveAttribute('aria-current')
+    expect(screen.getByText('Recut')).toHaveAttribute('href', '/admin/recut')
   })
 
   beforeEach(() => {
