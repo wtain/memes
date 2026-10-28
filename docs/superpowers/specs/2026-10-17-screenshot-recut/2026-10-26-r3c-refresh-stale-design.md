@@ -6,6 +6,7 @@ Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Inventory of derived data: docs/image-derived-data.md
 Follows: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-26-r3b-derive-group-2-design.md
+Follow-ups: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-28-r4-review-api-and-ui-design.md
 
 R3a copies the group 3 derived data onto a cut with `stale = true`. R3c gives each group 3 job a "refresh stale" mode that
 replaces those copies with rows computed from the cut's own pixels or text, and one driver that runs the modes in dependency
