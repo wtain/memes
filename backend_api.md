@@ -1326,6 +1326,27 @@ Reverts a `rejected` image back to `pending` and moves its file back out of
 
 ---
 
+### Recut review
+
+The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-17-screenshot-recut/`): proposed cuts of badly cropped images, with the rectangle (in pixels of the source) the cut was taken from. Read-only; the approve and reject endpoints arrive with R5. Unauthenticated like the rest of the admin API. The images themselves are served by `GET /api/images/{id}`, which also serves `cut_proposed` images.
+
+**List the proposals**
+
+- **URL**: `/api/recut/proposals?offset=<n>&limit=<n>`
+- **Method**: `GET`
+- **Query Parameters**: `offset` (optional, >= 0, default 0), `limit` (optional, 1 to 200, default 50)
+- **Response** `200`: `RecutProposalPage`: `items` (array of `{ id, sourceImageId, cutImageId, confidence, box }`, `confidence` is a number or `null`, `box` is `{ x, y, w, h }` in pixels of the source image) and `total` (every proposal waiting for review, not only this page). Only `proposed` proposals with both images are listed, ordered by confidence (highest first, unscored last) and then by `id`.
+- **Error Responses**: `422` for a bad `offset` or `limit`
+
+**One proposal**
+
+- **URL**: `/api/recut/proposals/{id}`
+- **Method**: `GET`
+- **Response** `200`: `RecutProposalDetail`: the item fields plus `state` (`proposed`, `approved`, `rejected`...), `detector`, `detectorVersion`, `detectRunId` (or `null`), `createdAt` (ISO 8601) and `previousId`/`nextId`, the neighbours in the list order (`null` at either end, and both `null` when the proposal is not `proposed`). A proposal of any state is answered as long as both its images still exist, so a link survives its decision.
+- **Error Responses**: `404` for an unknown id or a proposal whose source or cut image no longer exists; `422` for an `id` that is not a UUID
+
+---
+
 ### Admin
 
 Manual triggers for every batch job registered in `environments/batch_registry.yaml` /
