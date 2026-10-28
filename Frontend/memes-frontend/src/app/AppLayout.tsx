@@ -173,6 +173,15 @@ export default function AppLayout() {
           >
             Profiles
           </NavLink>
+
+          <NavLink
+            to="/admin/recut"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Recut
+          </NavLink>
         </div>
       </header>
 
