@@ -1,6 +1,7 @@
 # P3: API and meme details page
 
-Status: draft
+Status: planned
+Plan: `docs/superpowers/plans/2026-10-28-p3-api-and-details-page.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; read it first), `2026-10-26-p1-data-model-and-absorption-rules-design.md` (the repository this reads) and `2026-10-27-p2-recording-winners-design.md`
 Follow-ups: P4 corrections and audit, P5 lists and sorting (not written yet)
 
