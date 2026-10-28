@@ -1,6 +1,6 @@
 # R4: Review API and UI - design
 
-Status: implementation
+Status: done
 Plan: docs/superpowers/plans/2026-10-28-r4-review-api-and-ui.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R4)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
