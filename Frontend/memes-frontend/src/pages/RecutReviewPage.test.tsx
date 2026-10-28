@@ -54,6 +54,37 @@ describe("RecutReviewPage", () => {
     expect(api.getRecutProposal).toHaveBeenCalledWith("nope")
   })
 
+  it("falls back to the first proposal when the id in the URL is not even a valid id (the server answers 422)", async () => {
+    setup({
+      getRecutProposal: vi.fn((id: string) => id === "garbage"
+        ? Promise.reject(new CuratorRequestError(422))
+        : Promise.resolve(makeProposalDetail(id))),
+    }, "/admin/recut?cut=garbage")
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("?cut=a"))
+    expect(await screen.findByText("1 of 3")).toBeInTheDocument()
+  })
+
+  it("says so, with a retry, when the first proposal itself has gone (instead of loading forever)", async () => {
+    setup({ getRecutProposal: vi.fn().mockRejectedValue(new CuratorRequestError(404)) })
+    expect(await screen.findByText("This proposal is no longer available")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+    expect(screen.queryByText("Loading proposal...")).not.toBeInTheDocument()
+  })
+
+  it("leaves Alt+arrow (browser back/forward) and other modified arrows alone", async () => {
+    setup()
+    await screen.findByText("1 of 3")
+
+    fireEvent.keyDown(window, { key: "ArrowRight", altKey: true })
+    fireEvent.keyDown(window, { key: "ArrowRight", ctrlKey: true })
+    fireEvent.keyDown(window, { key: "ArrowRight", metaKey: true })
+    fireEvent.keyDown(window, { key: "ArrowRight", shiftKey: true })
+
+    expect(screen.getByText("1 of 3")).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    expect(await screen.findByText("2 of 3")).toBeInTheDocument()
+  })
+
   it("steps with the buttons and the arrow keys", async () => {
     const user = userEvent.setup()
     setup()

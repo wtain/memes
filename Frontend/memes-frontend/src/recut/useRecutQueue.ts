@@ -39,7 +39,8 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
       (data) => { if (!cancelled) setLoaded({ id: openId, state: { status: "ready", data } }) },
       (error) => {
         if (cancelled) return
-        const missing = error instanceof CuratorRequestError && error.status === 404
+        // 404: no such proposal; 422: the id is not even a valid id (a mangled ?cut=). Either way there is nothing to retry.
+        const missing = error instanceof CuratorRequestError && (error.status === 404 || error.status === 422)
         setLoaded({ id: openId, state: { status: missing ? "missing" : "failed" } })
       },
     )

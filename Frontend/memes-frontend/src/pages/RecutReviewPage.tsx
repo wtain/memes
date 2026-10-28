@@ -34,6 +34,7 @@ export default function RecutReviewPage({ memesApi }: Props) {
   const nextId = detail?.status === "ready" ? detail.data.nextId : null
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return  // Alt+arrow is the browser's back/forward
       const target = event.target as HTMLElement | null
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
       if (event.key === "ArrowLeft" && previousId !== null) open(previousId)
@@ -81,6 +82,14 @@ export default function RecutReviewPage({ memesApi }: Props) {
     )
   } else if (items.length === 0) {
     body = <p>No proposals waiting for review</p>
+  } else if (detail?.status === "missing" && firstId === openId) {
+    // Not redirected (it is already the first one), so say so instead of loading forever.
+    body = (
+      <div role="alert">
+        <p>This proposal is no longer available</p>
+        <button type="button" onClick={queue.reload} className="mt-2 min-h-11 rounded border px-3">Retry</button>
+      </div>
+    )
   } else if (detail?.status === "failed") {
     body = (
       <div role="alert">
