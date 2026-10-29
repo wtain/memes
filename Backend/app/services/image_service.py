@@ -20,7 +20,7 @@ from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchR
 from Backend.app.types.generated.memepopularity import Schema as MemePopularity
 from Backend.app.types.generated.popularitybreakdownrow import Schema as PopularityBreakdownRow
 from graph.uf import UnionFind
-from repository.popularity import PopularityRepository, guarded
+from repository.popularity import AlreadyDiscardedError, PopularityRepository, WinnerGoneError, guarded
 
 # Flag reasons that may name the surviving copy (duplicateOf), mapped to the popularity edge source.
 FLAG_REASON_SOURCES = {"duplicate_review": "cluster_review", "agent_review": "agent_review"}
@@ -43,9 +43,12 @@ def popularity_status(popularity: int, flagged: bool) -> str:
 
 
 def order_breakdown(parts: dict[str, int]) -> list[tuple[str, int]]:
-    """`own` first, then the other sources by count descending, ties by source name."""
-    others = sorted(((s, c) for s, c in parts.items() if s != "own"), key=lambda p: (-p[1], p[0]))
-    return ([("own", parts["own"])] if "own" in parts else []) + others
+    """`own` first, `adjustment` last, the other sources between by count descending, ties by source name."""
+    others = sorted(((s, c) for s, c in parts.items() if s not in ("own", "adjustment")),
+                    key=lambda p: (-p[1], p[0]))
+    return (([("own", parts["own"])] if "own" in parts else [])
+            + others
+            + ([("adjustment", parts["adjustment"])] if "adjustment" in parts else []))
 
 
 def _feedback_label(approved: Optional[bool]) -> Optional[str]:
@@ -165,6 +168,29 @@ class ImageService:
             status=status,
             breakdown=[PopularityBreakdownRow(source=s, count=c) for s, c in rows],
         )
+
+    async def set_popularity(self, image_id: str, value: int) -> MemePopularity:
+        """Set an active root's popularity to `value` by recording an `adjustment` edge (P4). 404 for an unknown
+        image, 409 for a non-active image or one absorbed into another (popularity 0)."""
+        try:
+            image_uuid = uuid.UUID(image_id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Image not found")
+        canonical_id = str(image_uuid)
+        status = await self.repo.get_status(canonical_id)
+        if status is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+        if status != "active":
+            raise HTTPException(status_code=409, detail="Only active images can have their popularity set")
+        if await self.repo.get_popularity(canonical_id) == 0:
+            raise HTTPException(status_code=409, detail="Image is discarded (absorbed into another image)")
+        try:
+            await PopularityRepository(self.repo.session).adjust(image_uuid, value)
+        except AlreadyDiscardedError:
+            raise HTTPException(status_code=409, detail="Image is discarded (absorbed into another image)")
+        except WinnerGoneError:
+            raise HTTPException(status_code=404, detail="Image not found")
+        return await self.get_popularity(image_id)
 
     async def get_descriptions(self, image_id: str) -> list[ImageDescription]:
         rows = await self.repo.get_descriptions(image_id)

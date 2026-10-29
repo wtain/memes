@@ -190,6 +190,11 @@ data class IngestionUndoRejectResponse(
 )
 
 @Serializable
+data class MemePopularityUpdate(
+    @SerialName("popularity") val popularity: Int
+)
+
+@Serializable
 data class MemeTag(
     @SerialName("name") val name: String,
     @SerialName("category") val category: String? = null,

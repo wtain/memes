@@ -479,6 +479,49 @@ class TestGetPopularity:
         assert response.status_code == 404
 
 
+class TestPutPopularity:
+    """Tests for PUT /api/images/meme/{image_id}/popularity."""
+
+    ID = "550e8400-e29b-41d4-a716-446655440000"
+
+    def test_returns_shape_and_no_cache_headers(self, client, mock_image_service):
+        from Backend.app.types.generated.memepopularity import Schema as MemePopularity
+        mock_image_service.set_popularity.return_value = MemePopularity(
+            popularity=40, status="normal",
+            breakdown=[{"source": "own", "count": 1}, {"source": "adjustment", "count": 39}])
+
+        response = client.put(f"/api/images/meme/{self.ID}/popularity", json={"popularity": 40})
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "popularity": 40, "status": "normal",
+            "breakdown": [{"source": "own", "count": 1}, {"source": "adjustment", "count": 39}]}
+        assert "no-cache" in response.headers["cache-control"]
+        mock_image_service.set_popularity.assert_called_once_with(self.ID, 40)
+
+    @pytest.mark.parametrize("body", [
+        {"popularity": 0}, {"popularity": -3}, {"popularity": 1000001},
+        {"popularity": 40.5}, {"popularity": "many"}, {},
+    ])
+    def test_invalid_body_is_422(self, client, mock_image_service, body):
+        response = client.put(f"/api/images/meme/{self.ID}/popularity", json=body)
+        assert response.status_code == 422
+        mock_image_service.set_popularity.assert_not_called()
+
+    def test_bounds_are_accepted(self, client, mock_image_service):
+        from Backend.app.types.generated.memepopularity import Schema as MemePopularity
+        mock_image_service.set_popularity.return_value = MemePopularity(popularity=1, status="normal", breakdown=[])
+        for value in (1, 1000000):
+            assert client.put(f"/api/images/meme/{self.ID}/popularity", json={"popularity": value}).status_code == 200
+
+    @pytest.mark.parametrize("code", [404, 409])
+    def test_service_errors_map_through(self, client, mock_image_service, code):
+        from fastapi import HTTPException
+        mock_image_service.set_popularity.side_effect = HTTPException(status_code=code, detail="x")
+        response = client.put(f"/api/images/meme/{self.ID}/popularity", json={"popularity": 5})
+        assert response.status_code == code
+
+
 class TestGetSimilarImages:
     """Tests for GET /api/images/{image_id}/similar endpoint."""
 

@@ -617,6 +617,14 @@ export interface PopularityBreakdownRow {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "MemePopularityUpdate".
+ */
+export interface MemePopularityUpdate {
+  popularity: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "Concept".
  */
 export interface Concept {

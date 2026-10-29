@@ -533,11 +533,33 @@ Popularity of one meme and where it came from. Read-only: writes nothing. Needs 
   - `status`: `normal`, `flagged` (flagged and still holds popularity) or `discarded` (popularity 0, i.e. absorbed
     into another image; wins over a flag)
   - `breakdown`: list of `{source, count}` rows with the counts credited to this image. `own` comes first, then the
-    sources by `count` descending, ties by source name. Empty when `discarded`. Rows come from the open absorption
-    edges, so after cache drift they may not sum to `popularity`.
+    sources by `count` descending, ties by source name, and `adjustment` (a manual set, see below) last. Empty when
+    `discarded`. An `adjustment` count is signed (negative when popularity was lowered); every other count is
+    positive. Rows come from the open absorption edges, so after cache drift they may not sum to `popularity`.
 - **Errors**: `404` for an unknown or non-UUID `image_id` (a deliberate difference from `GET /meme/{id}`)
 - **Cache**: no-cache
 - **Example**: `GET /api/images/meme/550e8400-e29b-41d4-a716-446655440000/popularity`
+
+#### Set Meme Popularity
+
+Set the popularity of one meme to an exact number. Records an `adjustment` edge with the signed difference from
+the current value, so the change is visible in the `breakdown` and the number stays derivable from the log. Idempotent
+by value: setting the number the image already has writes nothing.
+
+- **URL**: `/api/images/meme/{image_id}/popularity`
+- **Method**: `PUT`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image (UUID)
+- **Body**: `MemePopularityUpdate`
+  - `popularity` (integer, 1 to 1000000): the new popularity
+- **Response**: `MemePopularity`, the same shape as the read above, after the change
+- **Errors**:
+  - `404`: unknown or non-UUID `image_id`
+  - `409`: the image is not `active`, or it is discarded (popularity 0, absorbed into another image; set the
+    popularity of the surviving image instead)
+  - `422`: `popularity` missing, not an integer, below 1 or above 1000000
+- **Cache**: no-cache
+- **Example**: `PUT /api/images/meme/550e8400-e29b-41d4-a716-446655440000/popularity` with `{"popularity": 40}`
 
 #### Unmark Meme as Flagged
 

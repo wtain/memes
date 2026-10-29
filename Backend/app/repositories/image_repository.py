@@ -156,6 +156,13 @@ class ImageRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_status(self, image_id: str) -> Optional[str]:
+        """The image's status; None when there is no such image."""
+        result = await self.session.execute(
+            select(Image.status).where(Image.id == image_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_popularity(self, image_id: str) -> Optional[int]:
         """The cached images.popularity; None when there is no such image."""
         result = await self.session.execute(

@@ -796,3 +796,89 @@ class TestPopularity:
             result = await service.get_popularity(self.IMAGE_ID)
         assert result.popularity == 7
         assert sum(r.count for r in result.breakdown) == 3
+
+
+class TestSetPopularity:
+    IMAGE_ID = "550e8400-e29b-41d4-a716-446655440000"
+
+    def test_order_breakdown_puts_adjustment_last(self):
+        from Backend.app.services.image_service import order_breakdown
+        assert order_breakdown({"own": 1, "adjustment": -4, "cluster_review": 2}) == [
+            ("own", 1), ("cluster_review", 2), ("adjustment", -4)]
+
+    async def test_sets_target_then_returns_fresh_read(self, service, mock_repo):
+        from unittest.mock import patch
+        mock_repo.get_status.return_value = "active"
+        mock_repo.get_popularity.return_value = 40
+        mock_repo.get_is_flagged.return_value = False
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.adjust = AsyncMock()
+            pr.return_value.breakdown = AsyncMock(return_value={"own": 1, "adjustment": 39})
+            result = await service.set_popularity(self.IMAGE_ID, 40)
+        pr.return_value.adjust.assert_awaited_once_with(uuid.UUID(self.IMAGE_ID), 40)
+        assert result.popularity == 40
+        assert [(r.source, r.count) for r in result.breakdown] == [("own", 1), ("adjustment", 39)]
+
+    async def test_non_uuid_is_404_before_touching_repo(self, service, mock_repo):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.set_popularity("not-a-uuid", 5)
+        assert exc_info.value.status_code == 404
+        mock_repo.get_status.assert_not_called()
+
+    async def test_odd_uuid_spelling_reaches_repo_canonical(self, service, mock_repo):
+        mock_repo.get_status.return_value = None
+        with pytest.raises(HTTPException) as exc_info:
+            await service.set_popularity("550E8400E29B41D4A716446655440000", 5)
+        assert exc_info.value.status_code == 404
+        mock_repo.get_status.assert_called_once_with("550e8400-e29b-41d4-a716-446655440000")
+
+    async def test_missing_row_is_404(self, service, mock_repo):
+        mock_repo.get_status.return_value = None
+        with pytest.raises(HTTPException) as exc_info:
+            await service.set_popularity(self.IMAGE_ID, 5)
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.parametrize("status", ["pending", "rejected", "cut_proposed"])
+    async def test_non_active_is_409_and_nothing_adjusted(self, service, mock_repo, status):
+        from unittest.mock import patch
+        mock_repo.get_status.return_value = status
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.adjust = AsyncMock()
+            with pytest.raises(HTTPException) as exc_info:
+                await service.set_popularity(self.IMAGE_ID, 5)
+            pr.return_value.adjust.assert_not_called()
+        assert exc_info.value.status_code == 409
+
+    async def test_stored_zero_is_409(self, service, mock_repo):
+        from unittest.mock import patch
+        mock_repo.get_status.return_value = "active"
+        mock_repo.get_popularity.return_value = 0
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.adjust = AsyncMock()
+            with pytest.raises(HTTPException) as exc_info:
+                await service.set_popularity(self.IMAGE_ID, 5)
+            pr.return_value.adjust.assert_not_called()
+        assert exc_info.value.status_code == 409
+
+    async def test_already_discarded_is_409(self, service, mock_repo):
+        from unittest.mock import patch
+        from repository.popularity import AlreadyDiscardedError
+        mock_repo.get_status.return_value = "active"
+        mock_repo.get_popularity.return_value = 1
+        existing = SimpleNamespace(loser_image_id="a", winner_image_id="b")
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.adjust = AsyncMock(side_effect=AlreadyDiscardedError(existing))
+            with pytest.raises(HTTPException) as exc_info:
+                await service.set_popularity(self.IMAGE_ID, 5)
+        assert exc_info.value.status_code == 409
+
+    async def test_winner_gone_is_404(self, service, mock_repo):
+        from unittest.mock import patch
+        from repository.popularity import WinnerGoneError
+        mock_repo.get_status.return_value = "active"
+        mock_repo.get_popularity.return_value = 1
+        with patch("Backend.app.services.image_service.PopularityRepository") as pr:
+            pr.return_value.adjust = AsyncMock(side_effect=WinnerGoneError("gone"))
+            with pytest.raises(HTTPException) as exc_info:
+                await service.set_popularity(self.IMAGE_ID, 5)
+        assert exc_info.value.status_code == 404

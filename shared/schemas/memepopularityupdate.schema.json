@@ -1,0 +1,10 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memepopularityupdate.schema.json",
+  "title": "MemePopularityUpdate",
+  "type": "object",
+  "properties": {
+    "popularity": { "type": "integer", "minimum": 1, "maximum": 1000000 }
+  },
+  "required": ["popularity"]
+}
