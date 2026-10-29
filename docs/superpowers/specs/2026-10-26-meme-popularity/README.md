@@ -1,7 +1,7 @@
 # Meme popularity (epic)
 
 Status: approved
-Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md` (done); P5 not written yet
+Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md` (done), `2026-10-29-p5-ranking-and-trending-design.md`; the signals tracker below lists the future projects
 
 ## Intent
 
@@ -99,7 +99,21 @@ Written one at a time, in this order. Each gets its own spec, plan and review.
 3. **API and meme details page**: popularity and breakdown by source on the image response, shared schema,
    generated types, `backend_api.md`, the details page.
 4. **Manual adjustment** (replaces the original "corrections and audit" scope after the owner narrowed it): set a meme's popularity to a chosen number, recorded as a signed `adjustment` edge. No log view, no per-entry reversal, no "attach to a winner" action.
-5. **Lists, sorting and top-popular**: later.
+5. **Popularity in search ranking and a Trending memes page** (replaces the original "lists, sorting and top-popular" scope after the owner redirected it): a small capped boost to the text-search score, and an all-time trending page. See `2026-10-29-p5-ranking-and-trending-design.md`.
+
+## Signals tracker (future projects)
+
+Ideas raised while designing the epic, kept here so they are not lost. None is designed; each needs its own
+brainstorm. The owner's observation behind them: a meme that keeps coming back through ingestion is either popular,
+hard to find in this app, or both (the owner googles a meme they cannot find and re-drops it).
+
+| # | Signal / project | Why it matters | State |
+|---|---|---|---|
+| S1 | **Search-result appearance frequency**: how often a meme is shown in results | A meme that appears often but is never saved is a ranking problem; one that never appears is invisible | idea; needs impression capture |
+| S2 | **Save frequency**: how often a meme is saved with "save" in the app | The strongest "this was useful" signal the app can see | idea; needs an event on save |
+| S3 | **Trending time window** (for example the last 30 days) | Separates "was popular once" from "is being re-dropped now"; the absorption log already has `created_at`, so no remodelling | deferred from P5 |
+| S4 | **Discovery: why the owner googles instead of finding the meme here**, including capturing failed searches | Re-ingestion mixes "popular" and "hard to find"; failed searches would separate them | needs its own brainstorm |
+| S5 | **Evaluating the ranking boost**: does it help the owner find memes | P5 ships a conservative default without measurement | follow-up once S1/S2 exist |
 
 ## Left to the builder
 
