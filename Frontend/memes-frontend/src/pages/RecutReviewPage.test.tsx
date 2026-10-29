@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import RecutReviewPage from "./RecutReviewPage"
 import { CuratorRequestError } from "../api/errors"
-import { makeProposalDetail, makeProposalPage } from "../recut/fixtures"
+import { makeDecision, makeProposalDetail, makeProposalPage } from "../recut/fixtures"
 import { makeMockApi } from "../test/mockApi"
 
 function Where() {
@@ -141,12 +141,141 @@ describe("RecutReviewPage", () => {
     expect(await screen.findByText("not scored")).toBeInTheDocument()
   })
 
-  it("keeps approve and reject visible but disabled", async () => {
-    setup()
+  it("approves with the button, opens the next proposal and shrinks the queue", async () => {
+    const user = userEvent.setup()
+    const api = setup()
+    api.approveRecutProposal = vi.fn().mockResolvedValue(makeDecision("a", "approved"))
+    await screen.findByText("1 of 3")
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+
+    expect(api.approveRecutProposal).toHaveBeenCalledWith("a")
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
+    expect(screen.getByTestId("where")).toHaveTextContent("?cut=b")
+    expect(screen.queryByRole("button", { name: "Open proposal 3" })).not.toBeInTheDocument()
+  })
+
+  it("rejects with the R key and approves with the A key", async () => {
+    const api = setup()
+    api.rejectRecutProposal = vi.fn().mockResolvedValue(makeDecision("a", "rejected"))
+    api.approveRecutProposal = vi.fn().mockResolvedValue(makeDecision("b", "approved"))
+    await screen.findByText("1 of 3")
+
+    fireEvent.keyDown(window, { key: "r" })
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
+    expect(api.rejectRecutProposal).toHaveBeenCalledWith("a")
+
+    fireEvent.keyDown(window, { key: "a" })
+    await waitFor(() => expect(api.approveRecutProposal).toHaveBeenCalledWith("b"))
+  })
+
+  it("ignores A and R with a modifier key", async () => {
+    const api = setup()
+    await screen.findByText("1 of 3")
+
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true })
+    fireEvent.keyDown(window, { key: "r", metaKey: true })
+
+    expect(api.approveRecutProposal).not.toHaveBeenCalled()
+    expect(api.rejectRecutProposal).not.toHaveBeenCalled()
+  })
+
+  it("opens the previous proposal after deciding the last one", async () => {
+    const user = userEvent.setup()
+    const api = setup({}, "/admin/recut?cut=c")
+    api.approveRecutProposal = vi.fn().mockResolvedValue(makeDecision("c", "approved"))
+    await screen.findByText("3 of 3")
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+
+    expect(await screen.findByText("2 of 2")).toBeInTheDocument()
+    expect(screen.getByTestId("where")).toHaveTextContent("?cut=b")
+  })
+
+  it("shows the empty queue after deciding the only proposal", async () => {
+    const user = userEvent.setup()
+    const api = setup({
+      listRecutProposals: vi.fn().mockResolvedValue(makeProposalPage(["a"], 1)),
+      getRecutProposal: vi.fn().mockResolvedValue(makeProposalDetail("a")),
+    })
+    api.rejectRecutProposal = vi.fn().mockResolvedValue(makeDecision("a", "rejected"))
+    await screen.findByText("1 of 1")
+
+    await user.click(screen.getByRole("button", { name: "Reject" }))
+
+    expect(await screen.findByText("No proposals waiting for review")).toBeInTheDocument()
+  })
+
+  it("sends one request and disables both buttons while a decision is saving", async () => {
+    const user = userEvent.setup()
+    let finish: (value: ReturnType<typeof makeDecision>) => void = () => {}
+    const api = setup()
+    api.approveRecutProposal = vi.fn().mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    await screen.findByText("1 of 3")
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled()
+    fireEvent.keyDown(window, { key: "a" })
+    fireEvent.keyDown(window, { key: "r" })
+    expect(api.approveRecutProposal).toHaveBeenCalledTimes(1)
+    expect(api.rejectRecutProposal).not.toHaveBeenCalled()
+
+    finish(makeDecision("a", "approved"))
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
+  })
+
+  it("explains a 409, reloads the queue and moves to the first remaining proposal", async () => {
+    const user = userEvent.setup()
+    const list = vi.fn()
+      .mockResolvedValueOnce(makeProposalPage(["a", "b", "c"], 3))
+      .mockResolvedValue(makeProposalPage(["b", "c"], 2))
+    const api = setup({ listRecutProposals: list })
+    api.approveRecutProposal = vi.fn().mockRejectedValue(new CuratorRequestError(409, "already_decided"))
+    await screen.findByText("1 of 3")
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+
+    expect(await screen.findByText("Already decided")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("?cut=b"))
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
+    expect(list).toHaveBeenCalledTimes(2)
+  })
+
+  it("says why a flagged source cannot be approved", async () => {
+    const user = userEvent.setup()
+    const api = setup()
+    api.approveRecutProposal = vi.fn().mockRejectedValue(new CuratorRequestError(409, "source_flagged"))
+    await screen.findByText("1 of 3")
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+
+    expect(await screen.findByText("The source image is flagged, so it can't be approved")).toBeInTheDocument()
+  })
+
+  it("keeps the proposal open and lets the owner try again after a failure", async () => {
+    const user = userEvent.setup()
+    const api = setup()
+    api.approveRecutProposal = vi.fn()
+      .mockRejectedValueOnce(new CuratorRequestError(500))
+      .mockResolvedValue(makeDecision("a", "approved"))
+    await screen.findByText("1 of 3")
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+    expect(await screen.findByText("Could not save the decision")).toBeInTheDocument()
+    expect(screen.getByText("1 of 3")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled()
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
+    expect(screen.queryByText("Could not save the decision")).not.toBeInTheDocument()
+  })
+
+  it("keeps the buttons disabled for a proposal that is no longer proposed", async () => {
+    setup({ getRecutProposal: vi.fn().mockResolvedValue(makeProposalDetail("a", { state: "approved" })) })
     await screen.findByText("1 of 3")
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled()
-    expect(screen.getByText(/arrives with the approve\/reject step/)).toBeInTheDocument()
   })
 
   it("shows a placeholder for an image whose file is missing", async () => {
