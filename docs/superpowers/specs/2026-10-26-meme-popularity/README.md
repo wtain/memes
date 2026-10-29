@@ -1,7 +1,7 @@
 # Meme popularity (epic)
 
 Status: approved
-Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done); P4 and P5 not written yet
+Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md`; P5 not written yet
 
 ## Intent
 
@@ -98,7 +98,7 @@ Written one at a time, in this order. Each gets its own spec, plan and review.
    `/duplicates` keep best, agent flow, `detect_file_duplicates`, recut approve.
 3. **API and meme details page**: popularity and breakdown by source on the image response, shared schema,
    generated types, `backend_api.md`, the details page.
-4. **Corrections and audit**: view the log for an image, reverse an entry.
+4. **Manual adjustment** (replaces the original "corrections and audit" scope after the owner narrowed it): set a meme's popularity to a chosen number, recorded as a signed `adjustment` edge. No log view, no per-entry reversal, no "attach to a winner" action.
 5. **Lists, sorting and top-popular**: later.
 
 ## Left to the builder
