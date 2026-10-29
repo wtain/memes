@@ -24,6 +24,7 @@ from Backend.app.types.generated.meme import Schema as Meme
 from Backend.app.types.generated.memepopularity import Schema as MemePopularity
 from Backend.app.types.generated.memepopularityupdate import Schema as MemePopularityUpdate
 from Backend.app.types.generated.imagedescription import Schema as ImageDescription
+from Backend.app.types.generated.trendingmemesresponse import Schema as TrendingMemesResponse
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from Backend.app.types.generated.descriptionfeedbackresponse import Schema as DescriptionFeedbackResponse
 
@@ -257,7 +258,19 @@ async def get_untagged_images(
 
 
 # Must be before /{image_id} endpoint
-@router.get("/no-ocr", response_model=MemeSearchResponse)
+@router.get("/trending", response_model=TrendingMemesResponse)
+async def get_trending_images(
+    response: Response,
+    limit: int = Query(36, ge=1, le=100),
+    cursor: Optional[str] = None,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    return await service.get_trending(cursor=cursor, limit=limit)
+
+
+# Must be before /{image_id} endpoint
+@router.get("/no-ocr",response_model=MemeSearchResponse)
 async def get_no_ocr_images(
     response: Response,
     limit: int = Query(20, ge=1, le=100),

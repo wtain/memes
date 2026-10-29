@@ -527,6 +527,19 @@ data class SearchHistoryResponse(
 )
 
 @Serializable
+data class TrendingMemeItem(
+    @SerialName("meme") val meme: Meme,
+    @SerialName("popularity") val popularity: Int
+)
+
+@Serializable
+data class TrendingMemesResponse(
+    @SerialName("items") val items: List<TrendingMemeItem>,
+    @SerialName("nextCursor") val nextCursor: String? = null,
+    @SerialName("hasNext") val hasNext: Boolean
+)
+
+@Serializable
 data class BatchMetricsResponse(
     @SerialName("process") val process: String,
     @SerialName("items") val items: List<BatchMetricsItem>,

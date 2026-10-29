@@ -625,6 +625,22 @@ Retrieve images that have no OCR text at all.
 - **Cache**: no-cache
 - **Example**: `GET /api/images/no-ocr?limit=30`
 
+#### Get Trending Memes
+
+The all-time "Trending memes" list: memes with the most copies, most popular first. Read-only.
+
+- **URL**: `/api/images/trending`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `limit` (optional): Number of results (1-100, default: 36)
+  - `cursor` (optional): Pagination cursor for next page
+- **Response**: `TrendingMemesResponse`: `items` (each `{meme: Meme, popularity: int}`), `nextCursor` (optional), `hasNext`. No facets.
+- **Eligibility**: `status = 'active'`, not flagged (an image without an `image_extras` row counts as not flagged) and `popularity >= search.trending.min_popularity` (setting in `environments/settings.yaml`, int >= 1, required, default 2). A discarded image (popularity 0) is therefore never listed.
+- **Order**: `popularity` descending, then `created_at` descending, then `id` descending.
+- **Cursor**: opaque; keyset over `(popularity, created_at, id)` and it addresses the last returned item. An invalid, truncated or foreign cursor (for example one from the search endpoint) is not an error: the list restarts at page 1.
+- **Cache**: no-cache
+- **Example**: `GET /api/images/trending?limit=36`
+
 #### Get Duplicate Images
 
 Find duplicate or near-duplicate images using clustering.

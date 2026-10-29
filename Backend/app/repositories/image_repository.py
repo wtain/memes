@@ -481,6 +481,40 @@ class ImageRepository:
         )
         return results.all()
 
+    async def get_trending(
+            self,
+            cursor_popularity: Optional[int],
+            cursor_created_at: Optional[datetime],
+            cursor_id: Optional[uuid.UUID],
+            limit: int,
+            min_popularity: int,
+    ):
+        """Active, unflagged images with popularity >= min_popularity, most popular first. Keyset on
+        (popularity, created_at, id) descending; returns up to limit + 1 rows. Read-only."""
+        img = aliased(Image)
+        extras = aliased(ImageExtras)
+
+        query = (
+            select(img.id, img.filename, img.created_at, extras.flagged, img.popularity)
+            .outerjoin(extras, img.id == extras.image_id)
+            .where(
+                img.status == "active",
+                func.coalesce(extras.flagged, False).is_(False),
+                img.popularity >= min_popularity,
+            )
+        )
+
+        if cursor_popularity is not None and cursor_created_at is not None and cursor_id is not None:
+            query = query.where(
+                tuple_(img.popularity, img.created_at, img.id)
+                < tuple_(cursor_popularity, cursor_created_at, cursor_id)
+            )
+
+        results = await self.session.execute(
+            query.order_by(img.popularity.desc(), img.created_at.desc(), img.id.desc()).limit(limit + 1)
+        )
+        return results.all()
+
     async def get_no_ocr(
             self,
             cursor_created_at: Optional[datetime],

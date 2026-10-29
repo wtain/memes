@@ -882,3 +882,127 @@ class TestSetPopularity:
             with pytest.raises(HTTPException) as exc_info:
                 await service.set_popularity(self.IMAGE_ID, 5)
         assert exc_info.value.status_code == 404
+
+class TestTrendingCursor:
+    def test_round_trips_popularity_created_at_and_id(self):
+        created_at = datetime(2026, 1, 1, 12, 0, 0)
+        image_id = uuid.uuid4()
+
+        cursor = ImageService._encode_trending_cursor(7, created_at, image_id)
+
+        assert ImageService._decode_trending_cursor(cursor) == (7, created_at, image_id)
+
+    def test_no_cursor_decodes_to_none(self):
+        assert ImageService._decode_trending_cursor(None) == (None, None, None)
+        assert ImageService._decode_trending_cursor("") == (None, None, None)
+
+    def test_invalid_truncated_or_foreign_cursors_restart_at_page_one(self):
+        created_at = datetime(2026, 1, 1, 12, 0, 0)
+        valid = ImageService._encode_trending_cursor(7, created_at, uuid.uuid4())
+        relevance = ImageService._encode_cursor(SimpleNamespace(id=uuid.uuid4(), created_at=created_at, score=1.5))
+        recency = ImageService._encode_cursor(SimpleNamespace(id=uuid.uuid4(), created_at=created_at))
+        for bad in ("not base64 at all!", valid[:-6], valid[:10], relevance, recency, "e30="):
+            assert ImageService._decode_trending_cursor(bad) == (None, None, None), bad
+
+
+class TestGetTrending:
+    @staticmethod
+    def _rows(n):
+        base = datetime(2026, 1, 1, 12, 0, 0)
+        return [
+            SimpleNamespace(
+                id=uuid.UUID(int=i + 1), filename=f"{i}.jpg", created_at=base.replace(minute=59 - i),
+                flagged=None, popularity=10 - i,
+            )
+            for i in range(n)
+        ]
+
+    async def test_items_carry_the_number_beside_the_meme_and_cursor_points_at_last_returned_row(
+        self, service, mock_repo, monkeypatch,
+    ):
+        rows = self._rows(4)                    # limit 3 -> the repo returned limit + 1 rows
+        mock_repo.get_trending.return_value = rows
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+
+        response = await service.get_trending(cursor=None, limit=3)
+
+        assert [(i.meme.id, i.popularity) for i in response.items] == [
+            (str(r.id), r.popularity) for r in rows[:3]
+        ]
+        assert response.items[0].meme.originalFileName == "0.jpg"
+        assert response.items[0].meme.flagged is False
+        assert response.hasNext is True
+        assert ImageService._decode_trending_cursor(response.nextCursor) == (
+            rows[2].popularity, rows[2].created_at, rows[2].id,
+        )
+        kwargs = mock_repo.get_trending.call_args.kwargs
+        assert kwargs["limit"] == 3 and kwargs["min_popularity"] == 2
+        assert kwargs["cursor_popularity"] is None
+
+    async def test_last_page_has_no_next(self, service, mock_repo, monkeypatch):
+        rows = self._rows(2)
+        mock_repo.get_trending.return_value = rows
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+
+        response = await service.get_trending(cursor=None, limit=3)
+
+        assert response.hasNext is False
+        assert ImageService._decode_trending_cursor(response.nextCursor)[2] == rows[-1].id
+
+    async def test_empty_result_has_no_cursor(self, service, mock_repo, monkeypatch):
+        mock_repo.get_trending.return_value = []
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+
+        response = await service.get_trending(cursor=None, limit=3)
+
+        assert response.items == [] and response.hasNext is False and response.nextCursor is None
+
+    async def test_cursor_is_passed_to_the_repository_and_a_bad_one_is_ignored(
+        self, service, mock_repo, monkeypatch,
+    ):
+        created_at = datetime(2026, 1, 1, 12, 0, 0)
+        image_id = uuid.uuid4()
+        mock_repo.get_trending.return_value = []
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+
+        await service.get_trending(cursor=ImageService._encode_trending_cursor(7, created_at, image_id), limit=3)
+        kwargs = mock_repo.get_trending.call_args.kwargs
+        assert (kwargs["cursor_popularity"], kwargs["cursor_created_at"], kwargs["cursor_id"]) == (
+            7, created_at, image_id,
+        )
+
+        await service.get_trending(cursor="garbage", limit=3)
+        kwargs = mock_repo.get_trending.call_args.kwargs
+        assert (kwargs["cursor_popularity"], kwargs["cursor_created_at"], kwargs["cursor_id"]) == (None, None, None)
+
+
+class TestTrendingSetting:
+    @staticmethod
+    def _load(monkeypatch, value, present=True):
+        from repository import search_ranking
+
+        block = SimpleNamespace(MIN_POPULARITY=value) if present else SimpleNamespace()
+        fake = SimpleNamespace(SEARCH=SimpleNamespace(TRENDING=block))
+        monkeypatch.setattr(search_ranking, "settings", fake)
+        search_ranking.get_trending_min_popularity.cache_clear()
+        try:
+            return search_ranking.get_trending_min_popularity()
+        finally:
+            search_ranking.get_trending_min_popularity.cache_clear()
+
+    def test_shipped_value(self):
+        from repository.search_ranking import get_trending_min_popularity
+
+        assert get_trending_min_popularity() == 2
+
+    def test_valid_value(self, monkeypatch):
+        assert self._load(monkeypatch, 5) == 5
+
+    @pytest.mark.parametrize("bad", [0, -1, 1.5, True, "2", None])
+    def test_invalid_values_are_rejected(self, monkeypatch, bad):
+        with pytest.raises(ValueError, match="search.trending"):
+            self._load(monkeypatch, bad)
+
+    def test_missing_key_is_rejected(self, monkeypatch):
+        with pytest.raises(ValueError, match="search.trending"):
+            self._load(monkeypatch, None, present=False)

@@ -122,6 +122,18 @@ def get_popularity_boost() -> PopularityBoost:
     return PopularityBoost(weight=weight, max_log2=max_log2)
 
 
+@lru_cache(maxsize=1)
+def get_trending_min_popularity() -> int:
+    """search.trending.min_popularity: the fewest copies a meme needs to be listed as trending (int >= 1)."""
+    try:
+        raw = settings.SEARCH.TRENDING.MIN_POPULARITY
+    except (AttributeError, KeyError) as exc:
+        raise ValueError(f"search.trending.min_popularity missing: {exc}") from exc
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1:
+        raise ValueError(f"search.trending.min_popularity must be an int >= 1, got {raw!r}")
+    return raw
+
+
 def score_images(token_hits: list[dict[uuid.UUID, float]]) -> dict[uuid.UUID, float]:
     """token_hits[i] maps image id -> that image's best hit weight for query token i. Returns the images
     present for EVERY token with score = sum of their per-token weights (AND semantics)."""

@@ -1628,3 +1628,42 @@ class TestListDuplicateDecisions:
 
         assert response.status_code == 200
         mock_image_service.list_duplicate_decisions.assert_called_once_with(limit=5, offset=10)
+
+
+class TestGetTrendingImages:
+    """Tests for GET /api/images/trending endpoint."""
+
+    @staticmethod
+    def _response():
+        from Backend.app.types.generated.trendingmemeitem import Schema as TrendingMemeItem
+        from Backend.app.types.generated.trendingmemesresponse import Schema as TrendingMemesResponse
+        meme = Meme(id="t-1", imageUrl="/api/images/t-1", text=[], tags=[], originalFileName="t1.jpg", flagged=False)
+        return TrendingMemesResponse(items=[TrendingMemeItem(meme=meme, popularity=5)], nextCursor="c1", hasNext=True)
+
+    def test_success_shape_defaults_and_no_cache_headers(self, client, mock_image_service):
+        mock_image_service.get_trending.return_value = self._response()
+
+        response = client.get("/api/images/trending")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["items"][0]["meme"]["id"] == "t-1"
+        assert data["items"][0]["popularity"] == 5
+        assert data["nextCursor"] == "c1" and data["hasNext"] is True
+        assert "facets" not in data
+        assert "no-cache" in response.headers["cache-control"]
+        assert mock_image_service.get_trending.call_args.kwargs == {"cursor": None, "limit": 36}
+
+    def test_passes_cursor_and_limit(self, client, mock_image_service):
+        mock_image_service.get_trending.return_value = self._response()
+
+        client.get("/api/images/trending", params={"limit": 100, "cursor": "abc"})
+
+        assert mock_image_service.get_trending.call_args.kwargs == {"cursor": "abc", "limit": 100}
+
+    @pytest.mark.parametrize("limit", [0, 101])
+    def test_limit_out_of_range_is_422(self, client, mock_image_service, limit):
+        response = client.get("/api/images/trending", params={"limit": limit})
+
+        assert response.status_code == 422
+        mock_image_service.get_trending.assert_not_called()

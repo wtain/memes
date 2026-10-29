@@ -90,6 +90,25 @@ export interface MemeSearchResponse {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "TrendingMemeItem".
+ */
+export interface TrendingMemeItem {
+  meme: Meme;
+  popularity: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "TrendingMemesResponse".
+ */
+export interface TrendingMemesResponse {
+  items: TrendingMemeItem[];
+  nextCursor?: string;
+  hasNext: boolean;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "ImageDescription".
  */
 export interface ImageDescription {

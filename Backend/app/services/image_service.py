@@ -19,8 +19,11 @@ from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from Backend.app.types.generated.memepopularity import Schema as MemePopularity
 from Backend.app.types.generated.popularitybreakdownrow import Schema as PopularityBreakdownRow
+from Backend.app.types.generated.trendingmemeitem import Schema as TrendingMemeItem
+from Backend.app.types.generated.trendingmemesresponse import Schema as TrendingMemesResponse
 from graph.uf import UnionFind
 from repository.popularity import AlreadyDiscardedError, PopularityRepository, WinnerGoneError, guarded
+from repository.search_ranking import get_trending_min_popularity
 
 # Flag reasons that may name the surviving copy (duplicateOf), mapped to the popularity edge source.
 FLAG_REASON_SOURCES = {"duplicate_review": "cluster_review", "agent_review": "agent_review"}
@@ -300,6 +303,64 @@ class ImageService:
         await self._fill_texts_and_tags(items)
 
         return self._paginate_response(rows, items, limit)
+
+    async def get_trending(self, cursor: Optional[str], limit: int) -> TrendingMemesResponse:
+        """All-time trending list (P5): active, unflagged memes with at least search.trending.min_popularity
+        copies, most popular first. Read-only; an unusable cursor restarts at page 1."""
+        cursor_popularity, cursor_created_at, cursor_id = self._decode_trending_cursor(cursor)
+
+        rows = await self.repo.get_trending(
+            cursor_popularity=cursor_popularity,
+            cursor_created_at=cursor_created_at,
+            cursor_id=cursor_id,
+            limit=limit,
+            min_popularity=get_trending_min_popularity(),
+        )
+
+        page = rows[:limit]
+        memes = [
+            Meme(
+                id=str(r.id),
+                imageUrl=f"/api/images/{r.id}",
+                text=[],
+                tags=[],
+                originalFileName=r.filename,
+                flagged=r.flagged if r.flagged is not None else False,
+            )
+            for r in page
+        ]
+        await self._fill_texts_and_tags(memes)
+
+        # The cursor points at the last RETURNED row, never at the extra limit + 1 row.
+        next_cursor = None
+        if page:
+            last = page[-1]
+            next_cursor = self._encode_trending_cursor(last.popularity, last.created_at, last.id)
+        return TrendingMemesResponse(
+            items=[TrendingMemeItem(meme=m, popularity=r.popularity) for m, r in zip(memes, page)],
+            nextCursor=next_cursor,
+            hasNext=len(rows) > limit,
+        )
+
+    @staticmethod
+    def _encode_trending_cursor(popularity: int, created_at: datetime, id) -> str:
+        payload = {"popularity": popularity, "created_at": created_at.isoformat(), "id": str(id)}
+        return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+
+    @staticmethod
+    def _decode_trending_cursor(cursor: Optional[str]):
+        """(popularity, created_at, id), or (None, None, None) for no cursor or any unusable one (invalid,
+        truncated, or in another endpoint's format), which restarts the list at page 1."""
+        if not cursor:
+            return None, None, None
+        try:
+            obj = json.loads(base64.urlsafe_b64decode(cursor).decode())
+            popularity = obj["popularity"]
+            if isinstance(popularity, bool) or not isinstance(popularity, int):
+                return None, None, None
+            return popularity, datetime.fromisoformat(obj["created_at"]), uuid.UUID(obj["id"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return None, None, None
 
     async def get_no_ocr(
             self,

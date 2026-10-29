@@ -68,6 +68,9 @@ search:
     # Capped popularity term added to a text query's score: weight * min(log2(popularity), max_log2).
     # weight 0 switches it off. See docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-29-p5-ranking-and-trending-design.md.
     popularity: {weight: 0.03, max_log2: 5}
+  # Trending memes list (GET /api/images/trending): only memes with at least this many copies (images.popularity).
+  trending:
+    min_popularity: 2
   # Meme from text retrieval and fusion (epic meme-from-text, P4; see
   # docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-07-p4-retrieval-fusion-and-api-design.md).
   # A missing key is a startup error. The weights come from `python -m evaluation tune-weights` on the gold set
