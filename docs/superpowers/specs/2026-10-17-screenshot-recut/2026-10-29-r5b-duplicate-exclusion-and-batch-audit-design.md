@@ -1,6 +1,6 @@
 # R5b: Duplicate exclusion and batch audit - design
 
-Status: planned
+Status: implementation
 Plan: docs/superpowers/plans/2026-10-29-r5b-duplicate-exclusion-and-batch-audit.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R5, split into R5a and R5b)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md

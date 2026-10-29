@@ -36,7 +36,7 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | `meme_profile_values` | 1 or 3 | Copied with its profile | with the profile |
 | `meme_profile_situation_embeddings` | 1 or 3 | Copied with its profile | `build_meme_profile_embeddings`, with the profile |
 | `image_processing_status` | none | Not copied: a copied `done` would claim work that was not done. The refresh mode selects by stale rows and bypasses the marker | the jobs create their own markers |
-| `tmp_duplicates` | none | Not copied | the duplicate jobs run as usual (source/cut pairs are excluded, screenshot-recut R5) |
+| `tmp_duplicates` | none | Not copied | the duplicate jobs run as usual (source/cut pairs are excluded by `find_duplicates`, screenshot-recut R5b) |
 | `tmp_clusters` | none | Not copied | `clusterize` |
 | `duplicate_decisions` | none | Not copied | not applicable |
 | `processing_errors` | none | Not copied | produced by the jobs |
