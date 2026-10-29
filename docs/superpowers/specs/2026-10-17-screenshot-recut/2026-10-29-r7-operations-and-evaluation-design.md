@@ -1,6 +1,6 @@
 # R7: Operations and evaluation - design
 
-Status: implementation
+Status: done
 Plan: docs/superpowers/plans/2026-10-29-r7-operations-and-evaluation.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R7)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
