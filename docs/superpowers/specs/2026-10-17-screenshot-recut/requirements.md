@@ -49,4 +49,4 @@ Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 | OQ-4 | Minimum crop (area ratio, absolute size) below which a proposal is dropped | R2 design |
 | OQ-5 | The exact list of tables in groups 1, 2 and 3 | answered in the R1 design, section 7 |
 | OQ-6 | Retention of business metric events | M1 design |
-| OQ-7 | Whether `move_flagged` and `unregister_deleted_images` handle non-active images correctly, and whether `ingest_hash_dedup` must skip files written by the cut step | R5 audit |
+| OQ-7 | Whether `move_flagged` and `unregister_deleted_images` handle non-active images correctly, and whether `ingest_hash_dedup` must skip files written by the cut step | answered in the R5b design (`2026-10-29-r5b-duplicate-exclusion-and-batch-audit-design.md`): `move_flagged` and `ingest_hash_dedup` need no change; `unregister_deleted_images` was extended in R5a |

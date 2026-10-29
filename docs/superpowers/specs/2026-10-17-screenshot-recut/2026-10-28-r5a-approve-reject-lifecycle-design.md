@@ -5,6 +5,7 @@ Plan: docs/superpowers/plans/2026-10-29-r5a-approve-reject-lifecycle.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R5, split into R5a and R5b)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Follows: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-28-r4-review-api-and-ui-design.md
+Follow-ups: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-29-r5b-duplicate-exclusion-and-batch-audit-design.md
 
 R4 shows each `proposed` cut next to its source with the Approve and Reject buttons disabled. R5a makes them work: two endpoints that
 decide a proposal, the state transitions behind them, flagging through the existing removal path, the popularity edge, the move of

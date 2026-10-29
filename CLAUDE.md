@@ -212,7 +212,9 @@ rebuild_duplicates         → near-duplicate candidate pairs; HNSW-assisted KNN
                               --full clears active-library pairs and re-probes everything;
                               --k/--threshold override settings.DUPLICATES.K/THRESHOLD (the general
                               CLIP probe's threshold only -- the safety-net and OCR-text
-                              thresholds are fixed module constants). Chains
+                              thresholds are fixed module constants). A recut source/cut pair
+                              (an image_cuts row with both ids) is never inserted as a candidate,
+                              in either duplicate job (_EXCLUDE_RECUT_PAIR in find_duplicates). Chains
                               into clusterize when it finishes (--no-chain to skip); both are
                               independently admin-triggerable from /admin/batches, manual-trigger
                               only (not scheduled).

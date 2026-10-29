@@ -51,7 +51,8 @@ flowchart LR
 
 Do not "simplify" the safety net into sharing the general probe's incremental marker: that would silently and
 permanently disable it for affected images. `--k` and `--threshold` override only the general probe. `--full` clears
-the active-library pairs and re-probes everything.
+the active-library pairs and re-probes everything. A recut source and its cut (an `image_cuts` row with both ids) are
+never inserted as a candidate pair, whichever probe finds them (screenshot recut R5b).
 
 ### Clustering rules (`clusterize`)
 

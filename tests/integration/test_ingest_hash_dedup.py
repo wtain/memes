@@ -113,6 +113,22 @@ async def test_dedupe_cross_corpus_ignores_pending_images(tmp_path, db_session):
     assert os.path.exists(os.path.join(str(tmp_path), "new.jpg"))
 
 
+@pytest.mark.asyncio(loop_scope="session")
+async def test_dedupe_cross_corpus_ignores_cut_proposed_images(tmp_path, db_session):
+    """A recut cut is not in the library yet: a dropped file with the same hash is not a duplicate of it (R5b audit)."""
+    db_session.add(Image(filename="cut.jpg", status="cut_proposed", content_hash="abc123"))
+    await db_session.flush()
+
+    _write(tmp_path, "new.jpg", b"whatever")
+    survivors = {"new.jpg": "abc123"}
+    duplicates_dir = str(tmp_path / "duplicates")
+
+    remaining = await dedupe_cross_corpus(db_session, str(tmp_path), survivors, duplicates_dir)
+
+    assert remaining == {"new.jpg": "abc123"}
+    assert os.path.exists(os.path.join(str(tmp_path), "new.jpg"))
+
+
 # --------------------------------------------------------------------------
 # register_and_move_to_base_path
 # --------------------------------------------------------------------------

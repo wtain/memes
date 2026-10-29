@@ -109,7 +109,22 @@ _TEXT_HEAVY_PAIR_ONLY = """
                 AND tc2.classifier = 'text_heavy_v1' AND tc2.result = 'text_heavy')
 """
 
-TEXT_EMBEDDING_TIGHT_THRESHOLD = 0.05   # auto-cluster-worthy OCR-text match
+# A recut source and its cut are the same meme, so they must never be each other's duplicate candidates (screenshot recut
+# R5b, FR-11). After an approve the flagged source stays `active` until move_flagged and unregister_deleted_images have
+# run, so both are in the probed corpus for a while. Applies to every image_cuts row with both ids, whatever its state:
+# a proposed or rejected cut is not in a probed corpus anyway. Lives inside the LATERAL, before LIMIT :k, because the cut
+# is the source's nearest neighbour; filtering afterwards would spend a K slot on a pair that is then thrown away.
+# image_cuts.cut_image_id has a unique index, so this is one index lookup per scanned candidate. References probe.id and
+# e2.image_id, both in scope where find_duplicates() interpolates it.
+_EXCLUDE_RECUT_PAIR = """
+    NOT EXISTS (
+        SELECT 1 FROM image_cuts c
+        WHERE c.cut_image_id IN (probe.id, e2.image_id)
+          AND c.source_image_id IN (probe.id, e2.image_id)
+    )
+"""
+
+TEXT_EMBEDDING_TIGHT_THRESHOLD = 0.05  # auto-cluster-worthy OCR-text match
 TEXT_EMBEDDING_LOOSE_THRESHOLD = 0.10   # review-worthy OCR-text match (Tier B upper bound)
 CLIP_SAFETY_NET_THRESHOLD = 0.02        # near-pixel-identical repost, text-heavy pairs only
 
@@ -175,6 +190,8 @@ async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: in
     distance_source is stamped on every inserted row -- 'clip' or 'ocr_text' -- see
     docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md.
 
+    A recut source/cut pair is never inserted (`_EXCLUDE_RECUT_PAIR`).
+
     `probe_sql`/`corpus_filter_sql` may reference named bind params (e.g. `:batch_id`) -- pass
     their values via `extra_params` rather than string-interpolating them into the fragment, even
     though callers so far only ever pass internally-generated values (never raw user input).
@@ -204,6 +221,7 @@ async def find_duplicates(session, probe_sql: str, corpus_filter_sql: str, k: in
             JOIN images i2 ON i2.id = e2.image_id
             WHERE e2.image_id != probe.id
               AND ({corpus_filter_sql})
+              AND ({_EXCLUDE_RECUT_PAIR})
             ORDER BY probe.embedding <=> e2.embedding
             LIMIT :k
         ) nn
