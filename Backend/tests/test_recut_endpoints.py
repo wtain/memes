@@ -12,6 +12,8 @@ ITEM = {"id": "c1", "sourceImageId": "s1", "cutImageId": "i1", "confidence": 0.9
         "box": {"x": 10, "y": 20, "w": 300, "h": 200}}
 DETAIL = {**ITEM, "state": "proposed", "detector": "margin_trim", "detectorVersion": "1", "detectRunId": None,
           "createdAt": "2026-10-28T10:00:00+00:00", "previousId": None, "nextId": "c2"}
+BAND = {"label": "0.9-1.0", "lower": 0.9, "upper": 1.0, "waiting": 3, "approved": 7, "rejected": 1, "approveRate": 0.875}
+STATS = {"bands": [BAND], "total": {**BAND, "label": "total", "lower": None, "upper": None}}
 
 
 @pytest.fixture
@@ -19,10 +21,18 @@ def client_and_repo():
     repo = type("R", (), {})()
     repo.list_proposed = AsyncMock(return_value=([ITEM], 7))
     repo.get = AsyncMock(return_value=DETAIL)
+    repo.band_stats = AsyncMock(return_value=STATS)
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.dependency_overrides[get_recut_repository] = lambda: repo
     return TestClient(app), repo
+
+
+def test_stats_returns_the_bands_and_the_total(client_and_repo):
+    client, repo = client_and_repo
+    response = client.get("/api/recut/stats")
+    assert response.status_code == 200 and response.json() == STATS
+    repo.band_stats.assert_awaited_once_with()
 
 
 def test_list_returns_the_page_and_total(client_and_repo):
