@@ -3,7 +3,8 @@ import sys
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[2] / "evaluation"
-PURE = ["gold.py", "metrics.py", "pooling.py", "runner.py", "report.py", "parse_scoring.py", "retrievers/base.py"]
+PURE = ["gold.py", "metrics.py", "pooling.py", "runner.py", "report.py", "parse_scoring.py", "recut_report.py",
+        "retrievers/base.py"]
 ALLOWED = set(sys.stdlib_module_names) | {"taxonomy", "evaluation"}
 
 
