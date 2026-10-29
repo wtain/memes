@@ -1,6 +1,7 @@
 # P4: Manual popularity adjustment
 
-Status: draft
+Status: planned
+Plan: `docs/superpowers/plans/2026-10-29-p4-manual-adjustment.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; read it first), `2026-10-26-p1-data-model-and-absorption-rules-design.md` (the log and the cache this changes), `2026-10-27-p2-recording-winners-design.md` (E3 promised an "attach to a winner" action here; replaced, see G1) and `2026-10-28-p3-api-and-details-page-design.md` (the page this extends)
 Follow-ups: P5 lists, sorting and top-popular (not written yet)
 
