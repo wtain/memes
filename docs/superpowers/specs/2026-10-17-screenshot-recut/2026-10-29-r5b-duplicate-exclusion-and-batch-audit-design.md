@@ -67,5 +67,16 @@ Integration (test database; `tests/integration/test_recut_pair_exclusion.py` and
 ## Not covered (known)
 
 - Re-dropping the original screenshot after its source was removed registers it as a new `pending` image, and Tier A/B review then compares it with the cut. That is existing ingestion behaviour and not part of FR-11.
+- Transitive clustering: the exclusion removes only the direct source/cut pair. If a third active copy X exists, (source, X)
+  and (cut, X) are still candidates, and `clusterize` (union-find) puts source, cut and X in one cluster that `/duplicates`
+  shows, with the source flagged, until `move_flagged` and `unregister_deleted_images` have removed the source. Dropping
+  flagged images (or recut-flagged sources) from `clusterize` would change how every flagged image is treated, so it is a
+  separate decision, left to R7. Likewise the generic flag toggle can still unflag an approved source, which R5a accepts
+  (no undo, no recut awareness in the flag path).
+- Query plan: with the exclusion the planner keeps the HNSW ordered scan as long as `image_cuts` covers only part of the
+  corpus (measured on synthetic data up to 2,000 cut rows in 20,000 images: the same cost as before). If nearly every
+  active image were a source or cut, its row estimate collapses and the plan can fall back to a sequential scan per probe
+  (about 70x slower in the reviewer's synthetic worst case). Not expected in practice; if it ever shows, compute each
+  probe's partners once per probe instead of a correlated `NOT EXISTS`.
 - Flagged images in general are still probed by the duplicate jobs; only the recut pair is excluded.
 - The change was not measured against a live corpus; the added lookup is one unique-index probe per scanned candidate.

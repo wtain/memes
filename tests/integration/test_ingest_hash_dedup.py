@@ -110,6 +110,7 @@ async def test_dedupe_cross_corpus_ignores_pending_images(tmp_path, db_session):
     remaining = await dedupe_cross_corpus(db_session, str(tmp_path), survivors, duplicates_dir)
 
     assert remaining == {"new.jpg": "abc123"}
+    assert os.path.exists(os.path.join(str(tmp_path), "new.jpg"))
 
 
 @pytest.mark.asyncio(loop_scope="session")
