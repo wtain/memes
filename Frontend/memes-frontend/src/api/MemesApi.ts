@@ -8,7 +8,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutDecision, RecutProposalDetail, RecutProposalPage, MemePopularity,
+  RecutDecision, RecutProposalDetail, RecutProposalPage, MemePopularity, TrendingMemesResponse,
 } from "../types/generated/all";
 import type { Category } from "../curator/types";
 
@@ -22,6 +22,8 @@ export interface MemesApi {
   getTaxonomy(): Promise<TaxonomyResponse>
 
   iterateUntaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>
+
+  getTrendingMemes(limit?: number, cursor?: string): Promise<TrendingMemesResponse>
 
   iterateNoOcrMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>
 

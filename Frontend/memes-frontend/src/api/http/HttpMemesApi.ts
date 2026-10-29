@@ -9,7 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutDecision, RecutProposalDetail, RecutProposalPage, MemePopularity, MemePopularityUpdate,
+  RecutDecision, RecutProposalDetail, RecutProposalPage, MemePopularity, MemePopularityUpdate, TrendingMemesResponse,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -96,6 +96,21 @@ export class HttpMemesApi implements MemesApi {
       throw new Error(`Search failed: ${response.status}`)
     }
 
+    return response.json()
+  }
+
+  async getTrendingMemes(limit?: number, cursor?: string): Promise<TrendingMemesResponse> {
+    const params = new URLSearchParams()
+    if (limit) params.set("limit", String(limit))
+    if (cursor) params.set("cursor", cursor)
+    const query = params.toString()
+    const response = await fetch(
+      `${this.baseUrl}/api/images/trending${query ? `?${query}` : ""}`,
+      { headers: { "Accept": "application/json" } },
+    )
+    if (!response.ok) {
+      throw new Error(`Trending memes failed: ${response.status}`)
+    }
     return response.json()
   }
 

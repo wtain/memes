@@ -12,6 +12,7 @@ import ExploreUntaggedPage from "../pages/ExploreUntaggedPage";
 import ExploreDuplicatesPage from "../pages/ExploreDuplicatesPage";
 import ExploreNoOcrPage from "../pages/ExploreNoOcrPage";
 import ExploreFlaggedPage from "../pages/ExploreFlaggedPage";
+import TrendingMemesPage from "../pages/TrendingMemesPage";
 import TrendsPage from "../pages/TrendsPage";
 import TrendsDatePage from "../pages/TrendsDatePage";
 import TrendHistoryPage from "../pages/TrendHistoryPage";
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: "/duplicates", element: <ExploreDuplicatesPage memesApi={memesApi} /> },
       { path: "/no-ocr", element: <ExploreNoOcrPage memesApi={memesApi} /> },
       { path: "/flagged", element: <ExploreFlaggedPage memesApi={memesApi} /> },
+      { path: "/trending-memes", element: <TrendingMemesPage memesApi={memesApi} /> },
       { path: "/trends", element: <TrendsPage memesApi={memesApi} /> },
       { path: "/trends/date/:date", element: <TrendsDatePage memesApi={memesApi} /> },
       { path: "/trends/history/:label/:name", element: <TrendHistoryPage memesApi={memesApi} /> },

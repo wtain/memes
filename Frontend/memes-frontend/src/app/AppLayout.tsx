@@ -120,6 +120,15 @@ export default function AppLayout() {
           </NavLink>
 
           <NavLink
+            to="/trending-memes"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Trending memes
+          </NavLink>
+
+          <NavLink
             to="/concepts"
             className={({ isActive }) =>
               isActive ? "font-semibold text-blue-600" : "text-gray-600"

@@ -1,6 +1,6 @@
 # P5: Popularity in search ranking, and a Trending memes page
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-10-29-p5-ranking-and-trending.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; read it first), `2026-10-28-p3-api-and-details-page-design.md` (why the shared `Meme` schema stays untouched) and `docs/adr/adr-2026-10-01-search-ranking-in-python.md` (where search scores are computed)
 Follow-ups: the signals tracker in the epic README (future projects, not written yet)
