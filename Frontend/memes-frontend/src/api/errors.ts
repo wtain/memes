@@ -31,10 +31,13 @@ export class RatingFailedError extends Error {
 /** A curator request call failed. The message is fixed text: it never contains the user's input. */
 export class CuratorRequestError extends Error {
   readonly status: number
-  constructor(status: number) {
+  /** The server's reason code when it sent one (a string `detail`, e.g. a recut 409). */
+  readonly code?: string
+  constructor(status: number, code?: string) {
     super(`Curator request failed (HTTP ${status})`)
     this.name = "CuratorRequestError"
     this.status = status
+    this.code = code
   }
 }
 

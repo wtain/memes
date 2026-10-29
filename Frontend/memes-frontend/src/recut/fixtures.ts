@@ -1,4 +1,8 @@
-import type { RecutProposal, RecutProposalDetail, RecutProposalPage } from "./types"
+import type { RecutDecision, RecutProposal, RecutProposalDetail, RecutProposalPage } from "./types"
+
+export function makeDecision(id: string, state: string = "approved"): RecutDecision {
+  return { id, state, decidedAt: "2026-10-29T10:00:00+00:00" }
+}
 
 export function makeProposal(id: string, overrides: Partial<RecutProposal> = {}): RecutProposal {
   return {
