@@ -43,6 +43,8 @@ export interface MemesApi {
 
   getMemePopularity(id: string): Promise<MemePopularity>
 
+  setMemePopularity(id: string, popularity: number): Promise<MemePopularity>
+
   setDescriptionFeedback(imageId: string, promptKey: string, action: "approve" | "reject"): Promise<{ feedback?: string }>
 
   setDescriptionNote(imageId: string, text: string): Promise<void>

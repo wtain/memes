@@ -9,7 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutProposalDetail, RecutProposalPage, MemePopularity,
+  RecutProposalDetail, RecutProposalPage, MemePopularity, MemePopularityUpdate,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -204,6 +204,27 @@ export class HttpMemesApi implements MemesApi {
 
     if (!response.ok) {
       throw new Error(`Failed to fetch popularity: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async setMemePopularity(id: string, popularity: number): Promise<MemePopularity> {
+    const body: MemePopularityUpdate = { popularity }
+    const response = await fetch(
+      `${this.baseUrl}/api/images/meme/${id}/popularity`,
+      {
+        method: "PUT",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to set popularity: ${response.status}`)
     }
 
     return response.json()

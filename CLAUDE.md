@@ -328,7 +328,12 @@ detect_entities_and_tag    tag_images_from_concepts  build_bow          remove_s
 fix_image_formats          classify_text_heavy       build_ocr_text_embeddings   check_image_popularity
 
 check_image_popularity      → reports drift of the cached images.popularity against the value derived from the open
-                               popularity_absorptions edges; --fix rewrites the cache to the expected value. Shell only
+                               popularity_absorptions edges, floored at 1 for any image that is not itself absorbed (the expected value
+                               includes `adjustment` edges, the signed manual "set popularity to N" edges written by
+                               PUT /api/images/meme/{id}/popularity and the set-popularity control in the details
+                               page's popularity block, see
+                               docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-29-p4-manual-adjustment-design.md);
+                               --fix rewrites the cache to the expected value. Shell only
                                (not run-tracked, not admin-triggerable, not scheduled). See
                                docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-26-p1-data-model-and-absorption-rules-design.md.
 

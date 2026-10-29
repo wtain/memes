@@ -7,6 +7,12 @@ const SOURCE_LABELS: Record<string, string> = {
   cluster_review: "Duplicates page",
   agent_review: "Duplicate review command",
   file_duplicates: "Identical files found in the collection",
+  adjustment: "Manual adjustment",
+}
+
+/** Count as shown in the breakdown: only the adjustment is signed (+28, -4); the other sources are never negative. */
+export function formatSourceCount(source: string, count: number): string {
+  return source === "adjustment" && count > 0 ? `+${count}` : String(count)
 }
 
 /** Label for a breakdown source; an unknown key (a source added later) shows as is. */
