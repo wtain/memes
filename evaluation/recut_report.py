@@ -2,9 +2,11 @@
 under evaluation/gold/recut/ and counts; no database, no images.
 
 The sample was judged on the R2 spike's detector A. The shipped detector (`margin_trim` v1) is A's margin part, so only
-margin proposals count: round 1 items proposed by A or C (all at confidence 1.0), round 2 items of a margin band. Round 2
-inner-rectangle items are excluded (the shipped detector does not propose them). A different detector version needs a new
-labelled round. Grades: 2 use as is, 1 slightly off, 0 wrong, s skipped.
+margin proposals count: round 1 items proposed by A or C, banded by the confidence A recorded for them (the key carries
+it), and round 2 items of a margin band. A round 1 entry without a recorded confidence is counted in the total but in no
+band ("unbanded"), never guessed into one. Round 2 inner-rectangle items are excluded (the shipped detector does not
+propose them). A different detector version needs a new labelled round. Grades: 2 use as is, 1 slightly off, 0 wrong,
+s skipped.
 
 BAND_LABELS mirrors the bands of GET /api/recut/stats (Backend/app/repositories/recut_repository.py), so gold and live
 numbers compare band for band."""
@@ -51,6 +53,7 @@ def _count(counts: dict, grade: str) -> None:
 
 def build_report(round1_judgments: dict, round1_key: dict, round2_judgments: dict, round2_key: dict) -> dict:
     bands = {label: _empty() for label in BAND_LABELS}
+    unbanded = _empty()
     excluded = {"inner": 0, "skipped": 0, "ungraded": 0}
     recall = {"measurable": False, "judged_no_proposal": 0, "needed_a_cut": 0, "skipped_no_proposal": 0}
 
@@ -60,13 +63,14 @@ def build_report(round1_judgments: dict, round1_key: dict, round2_judgments: dic
         elif grade == "s":
             excluded["skipped"] += 1
         else:
-            _count(bands[label], grade)
+            _count(unbanded if label is None else bands[label], grade)
 
     for item, entry in round1_key.items():
         by = entry.get("by", [])
         grade = round1_judgments.get(item)
         if "A" in by or "C" in by:
-            take(grade, "1.0")
+            confidence = entry.get("confidence")
+            take(grade, None if confidence is None else band_of(confidence))
         elif "none" in by:
             if grade in ("y", "n"):
                 recall["judged_no_proposal"] += 1
@@ -80,10 +84,10 @@ def build_report(round1_judgments: dict, round1_key: dict, round2_judgments: dic
         take(round2_judgments.get(item), band_of(entry["confidence"]))
 
     total = _empty()
-    for counts in bands.values():
+    for counts in [*bands.values(), unbanded]:
         for field in total:
             total[field] += counts[field]
-    return {"bands": bands, "total": total, "excluded": excluded, "recall": recall}
+    return {"bands": bands, "unbanded": unbanded, "total": total, "excluded": excluded, "recall": recall}
 
 
 def load_report(directory: Path) -> dict:
@@ -115,12 +119,15 @@ def format_report(report: dict) -> str:
         f"{'band':<10}{'graded':>8}{'as is':>26}{'as is or slightly off [95% CI]':>34}{'wrong':>7}",
     ]
     lines += [_row(label, report["bands"][label]) for label in BAND_LABELS]
+    if report["unbanded"]["graded"]:
+        lines.append(_row("no band", report["unbanded"]))
     lines.append(_row("all", report["total"]))
     excluded = report["excluded"]
     lines += [
         "",
         f"Excluded: {excluded['inner']} inner-rectangle items (not proposed by the shipped detector), "
-        f"{excluded['skipped']} skipped, {excluded['ungraded']} without a judgment.",
+        f"{excluded['skipped']} skipped, {excluded['ungraded']} without a judgment."
+        + (" 'no band' rows are proposals with no recorded confidence." if report["unbanded"]["graded"] else ""),
         "",
         "Recall: not measurable. "
         f"{report['recall']['judged_no_proposal']} no-proposal items were judged ({report['recall']['needed_a_cut']} needed a "

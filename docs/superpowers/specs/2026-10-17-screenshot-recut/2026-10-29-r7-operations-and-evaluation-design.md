@@ -56,9 +56,11 @@ next to the other `recut.*` keys.
 New `evaluation/recut_report.py`, wired into `evaluation/__main__.py` as `recut-report`. It reads
 `evaluation/gold/recut/spike-round{1,2}-{judgments,key}.json` and prints a table.
 
-- **Which items count.** The proposals of the shipped detector: margin trims. Round 1 contributes the items A or C proposed (all
-  at confidence 1.0; the key has no confidence, so they form the `1.0` band); round 2 contributes its margin items (the key
-  carries `band` and `confidence`). The 14 inner-rectangle items of round 2 are excluded: the shipped detector does not propose
+- **Which items count.** The proposals of the shipped detector: margin trims. Round 1 contributes the items A or C proposed, banded by
+  the confidence A recorded for them: only A's own top-40 items are at 1.0, the C items come from further down A's list, so the
+  key carries a `confidence` per A/C entry (added 2026-10-29 from the spike output) and an entry without one is counted in the
+  total but in no band ("unbanded"), never guessed; round 2 contributes its margin items (the key carries `band` and
+  `confidence`). The 14 inner-rectangle items of round 2 are excluded: the shipped detector does not propose
   them. Skipped items (`s`) and items with no judgment are excluded and counted.
 - **Bands.** `[0.6,0.7)`, `[0.7,0.8)`, `[0.8,0.9)`, `[0.9,1.0)`, `1.0`, the same edges as the live table below.
 - **Numbers per band and overall.** Graded count; "as is" (grade 2); "as is or slightly off" (grade 1 or 2); wrong (grade 0);

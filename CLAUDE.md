@@ -386,7 +386,8 @@ refresh_recut_cuts          → screenshot recut, refresh stale (R3c): replaces 
                                and `build_meme_profiles --status cut_proposed` with the profile embeddings. A job skips an image whose upstream rows are still
                                stale; a failed image keeps its stale rows and is retried; nothing is deleted before its replacement is written. Each
                                `--refresh-stale` flag conflicts with `--reset`/`--incremental`/`--retry-failed` and ignores `--status`. Admin-triggerable from
-                               /admin/batches, manual-trigger only, not scheduled (when to run it is R7). See
+                               /admin/batches, manual-trigger only, not scheduled (run through `recut_pipeline`, R7). Every refresh mode selects `cut_proposed`
+                               images only: a cut approved before its refresh has run stays stale (run the refresh before approving). See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-26-r3c-refresh-stale-design.md.
 recut_pipeline              → screenshot recut driver (R7): runs `create_recut_cuts` (capped by the optional `recut.max_cuts_per_run`),
                                `build_image_embeddings --status cut_proposed --incremental` and `refresh_recut_cuts`, so the cuts of the

@@ -44,8 +44,10 @@ flowchart TD
   rate. Read it next to `python -m evaluation recut-report`, which prints the precision measured on the labelled sample (no
   database needed). The approve rate is stricter than the gold "as is or slightly off" precision, because a slightly-off box can
   still be rejected, so the two are not compared one to one.
-- Approving a cut whose refresh has not run yet is allowed: `refresh_recut_cuts` selects stale rows of any image status, so it can
-  run after the approve.
+- Run `recut_pipeline` (so the refresh has run) before approving. The refresh modes select `cut_proposed` images only, so a cut
+  approved while its copied OCR, lemmas, tags and descriptions are still stale becomes `active` and is not refreshed by
+  `refresh_recut_cuts` afterwards; those rows would stay stale in the library. (Widening the refresh to `active` cuts would be
+  a code change, not made in R7.)
 
 ## After a failed step
 
