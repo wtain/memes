@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recutstatsband.schema.json",
+  "title": "RecutStatsBand",
+  "description": "Recut proposals of one detector-confidence band: how many wait for review and how many were approved or rejected",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "label": { "type": "string" },
+    "lower": { "type": ["number", "null"] },
+    "upper": { "type": ["number", "null"] },
+    "waiting": { "type": "integer" },
+    "approved": { "type": "integer" },
+    "rejected": { "type": "integer" },
+    "approveRate": { "type": ["number", "null"] }
+  },
+  "required": ["label", "lower", "upper", "waiting", "approved", "rejected", "approveRate"]
+}

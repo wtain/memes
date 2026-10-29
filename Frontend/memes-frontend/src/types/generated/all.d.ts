@@ -597,6 +597,31 @@ export interface RecutDecision {
   decidedAt: string;
 }
 /**
+ * Recut review statistics by detector-confidence band, with a total
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RecutStats".
+ */
+export interface RecutStats {
+  bands: RecutStatsBand[];
+  total: RecutStatsBand;
+}
+/**
+ * Recut proposals of one detector-confidence band: how many wait for review and how many were approved or rejected
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RecutStatsBand".
+ */
+export interface RecutStatsBand {
+  label: string;
+  lower: number | null;
+  upper: number | null;
+  waiting: number;
+  approved: number;
+  rejected: number;
+  approveRate: number | null;
+}
+/**
  * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DescriptionFeedbackResponse".
  */
