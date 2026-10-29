@@ -158,8 +158,9 @@ class PopularitySource:
     AGENT_REVIEW = "agent_review"
     FILE_DUPLICATES = "file_duplicates"
     RECUT = "recut"
+    ADJUSTMENT = "adjustment"
     ALL = (HASH_IN_BATCH, HASH_CROSS_CORPUS, INGEST_TIER_A, INGEST_TIER_B,
-           CLUSTER_REVIEW, AGENT_REVIEW, FILE_DUPLICATES, RECUT)
+           CLUSTER_REVIEW, AGENT_REVIEW, FILE_DUPLICATES, RECUT, ADJUSTMENT)
 
 
 class PopularityKind:
@@ -213,7 +214,8 @@ class PopularityAbsorption(Base):
               postgresql_where=text("kind = 'absorb' AND reversed_by_id IS NULL")),
         Index("ix_popularity_batch_run_id", "batch_run_id"),
         CheckConstraint(_in_list("kind", PopularityKind.ALL), name="ck_popularity_absorptions_kind"),
-        CheckConstraint("weight >= 0", name="ck_popularity_absorptions_weight"),
+        CheckConstraint("(source <> 'adjustment' AND weight >= 0) OR (source = 'adjustment' AND weight <> 0)",
+                        name="ck_popularity_absorptions_weight"),
         CheckConstraint(_in_list("source", PopularitySource.ALL), name="ck_popularity_absorptions_source"),
         CheckConstraint(f"reason IS NULL OR {_in_list('reason', PopularityReason.ALL)}",
                         name="ck_popularity_absorptions_reason"),

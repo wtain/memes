@@ -60,7 +60,7 @@ async def test_the_shape_check_rejects_a_reverse_row_without_reverses_id(db_sess
         await db_session.flush()
 
 
-async def test_a_source_outside_the_eight_is_rejected(db_session):
+async def test_a_source_outside_the_nine_is_rejected(db_session):
     db_session.add(_absorb(uuid.uuid4(), source="telepathy"))
     with pytest.raises(IntegrityError):
         await db_session.flush()
@@ -80,3 +80,45 @@ async def test_dedupe_key_is_unique_but_null_is_repeatable(db_session):
 async def test_there_is_no_foreign_key_from_the_log_to_images():
     assert {fk.column.table.name for fk in PopularityAbsorption.__table__.foreign_keys} == {
         "batch_runs", "popularity_absorptions"}
+
+
+@pytest.mark.parametrize("weight", [-4, 28])
+async def test_an_adjustment_row_accepts_a_signed_weight(db_session, weight):
+    row = _absorb(uuid.uuid4(), source=PopularitySource.ADJUSTMENT)
+    row.weight = weight
+    db_session.add(row)
+    await db_session.flush()
+
+
+async def test_an_adjustment_row_rejects_weight_zero(db_session):
+    row = _absorb(uuid.uuid4(), source=PopularitySource.ADJUSTMENT)
+    row.weight = 0
+    db_session.add(row)
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_a_recut_row_may_still_have_weight_zero(db_session):
+    row = _absorb(uuid.uuid4(), source=PopularitySource.RECUT)
+    row.weight = 0
+    db_session.add(row)
+    await db_session.flush()
+
+
+async def test_a_negative_weight_is_rejected_for_a_non_adjustment_source(db_session):
+    row = _absorb(uuid.uuid4(), source=PopularitySource.HASH_IN_BATCH)
+    row.weight = -1
+    db_session.add(row)
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_a_reverse_row_copies_a_negative_adjustment_weight(db_session):
+    first = _absorb(uuid.uuid4(), source=PopularitySource.ADJUSTMENT)
+    first.weight = -4
+    db_session.add(first)
+    await db_session.flush()
+    db_session.add(PopularityAbsorption(
+        kind=PopularityKind.REVERSE, source=PopularitySource.ADJUSTMENT, loser_image_id=first.loser_image_id,
+        winner_image_id=first.winner_image_id, weight=-4, reverses_id=first.id, reason="correction"))
+    await db_session.flush()
