@@ -21,7 +21,7 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | `description_note_lemmas` | 1 | Copied | none |
 | `description_note_embeddings` | 1 | Copied | none |
 | `image_extras` | 1 | `remarks` copied; `flagged` and `flagged_reason` left empty | none |
-| `meme_text_ratings` | 1, deferred | Not copied at cut time. Moved to the cut on approve, stay with the source on reject | none |
+| `meme_text_ratings` | 1, deferred | Not copied at cut time. Moved to the cut on approve, stay with the source on reject (implemented in R5a) | none |
 | `embeddings` | 2 | Not copied (CLIP vector) | `build_image_embeddings --status cut_proposed` |
 | `image_classifications` | 2 | Not copied (text-heavy classifier) | `classify_text_heavy --status cut_proposed`; the OCR refresh deletes a cut's row so it is recomputed from the new text |
 | `ocr_text_embeddings` | 2 | Not copied | `build_ocr_text_embeddings --status cut_proposed`, after the OCR refresh and `classify_text_heavy`; the OCR refresh deletes a cut's row |
