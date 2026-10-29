@@ -1,6 +1,7 @@
 # R5a: Approve and reject lifecycle - design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-29-r5a-approve-reject-lifecycle.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R5, split into R5a and R5b)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Follows: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-28-r4-review-api-and-ui-design.md
