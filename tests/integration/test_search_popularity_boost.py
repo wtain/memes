@@ -11,7 +11,7 @@ import pytest
 import Backend.app.repositories.image_repository as image_repository
 from Backend.app.repositories.image_repository import ImageRepository
 from repository.search_ranking import PopularityBoost, get_popularity_boost, get_weights
-from Storage.models import DescriptionNoteLemma, Image, OCRLemma
+from Storage.models import DescriptionNoteLemma, ImageTag, Image, OCRLemma
 
 _T0 = datetime(2026, 1, 1, 12, 0, 0)
 
@@ -66,7 +66,8 @@ async def test_weight_zero_restores_the_unboosted_order(db_session, monkeypatch)
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_note_exact_hit_still_outranks_a_popular_ocr_hit(db_session):
+async def test_moderately_popular_ocr_hit_stays_below_a_note_exact_hit(db_session):
+    # Scores only: 0.9 + 0.03 * 3 = 0.99 < 1.0. This does NOT exercise the cap (see the tests below).
     note = await _image(db_session, popularity=1, minutes=0)
     popular = await _image(db_session, popularity=8, minutes=10)
     db_session.add_all([
@@ -79,6 +80,59 @@ async def test_note_exact_hit_still_outranks_a_popular_ocr_hit(db_session):
 
     assert [r.id for r in rows] == [note.id, popular.id]
     assert rows[1].score == round(0.9 + get_popularity_boost().weight * 3, 6)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cap_keeps_a_viral_tag_hit_below_a_note_exact_hit(db_session):
+    # Capped: 0.8 + 0.03 * 5 = 0.95 < 1.0. Uncapped (popularity 2**20 = 20 doublings): 0.8 + 0.6 = 1.4 would win.
+    note = await _image(db_session, popularity=1, minutes=10)
+    viral = await _image(db_session, popularity=2 ** 20, minutes=0)
+    db_session.add_all([
+        DescriptionNoteLemma(image_id=note.id, lemma="zebracorn"),
+        ImageTag(image_id=viral.id, key="animal", value="zebracorn", source="rules"),
+    ])
+    await db_session.flush()
+
+    rows, _ = await _search(ImageRepository(db_session), "zebracorn")
+
+    assert [r.id for r in rows] == [note.id, viral.id]
+    assert rows[1].score == round(0.8 + 0.03 * 5, 6)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cap_keeps_two_viral_ocr_tokens_below_two_note_tokens(db_session):
+    # Capped: 2 * 0.9 + 0.15 = 1.95 < 2.0. Uncapped (20 doublings): 1.8 + 0.6 = 2.4 would win.
+    notes = await _image(db_session, popularity=1, minutes=10)
+    viral = await _image(db_session, popularity=2 ** 20, minutes=0)
+    db_session.add_all([
+        DescriptionNoteLemma(image_id=notes.id, lemma="zebracorn"),
+        DescriptionNoteLemma(image_id=notes.id, lemma="flamingo"),
+        OCRLemma(image_id=viral.id, lemma="zebracorn"),
+        OCRLemma(image_id=viral.id, lemma="flamingo"),
+    ])
+    await db_session.flush()
+
+    rows, _ = await _search(ImageRepository(db_session), "zebracorn flamingo")
+
+    assert [r.id for r in rows] == [notes.id, viral.id]
+    assert rows[1].score == round(1.8 + 0.03 * 5, 6)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_exact_hit_at_the_cap_may_overtake_a_note_exact_hit_of_popularity_one(db_session):
+    # Spec L1: near-equal hits reorder. 0.9 + 0.15 = 1.05 > 1.0.
+    note = await _image(db_session, popularity=1, minutes=10)
+    viral = await _image(db_session, popularity=2 ** 20, minutes=0)
+    db_session.add_all([
+        DescriptionNoteLemma(image_id=note.id, lemma="zebracorn"),
+        OCRLemma(image_id=viral.id, lemma="zebracorn"),
+    ])
+    await db_session.flush()
+
+    rows, _ = await _search(ImageRepository(db_session), "zebracorn")
+
+    assert [r.id for r in rows] == [viral.id, note.id]
+    assert rows[0].score == round(0.9 + 0.03 * 5, 6)
 
 
 def test_the_cap_cannot_lift_a_fuzzy_ocr_hit_above_a_note_exact_hit():
