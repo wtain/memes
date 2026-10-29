@@ -1,6 +1,6 @@
 import { HttpMemesApi } from "./HttpMemesApi"
 import { CuratorRequestError } from "../errors"
-import { makeDecision, makeProposalDetail, makeProposalPage } from "../../recut/fixtures"
+import { makeDecision, makeProposalDetail, makeProposalPage, makeStats } from "../../recut/fixtures"
 
 const api = new HttpMemesApi("http://backend")
 
@@ -56,6 +56,20 @@ describe("recut API", () => {
       expect(fetchMock.mock.calls[0][0]).toBe(`http://backend/api/recut/proposals/a/${verb}`)
       expect(fetchMock.mock.calls[0][1].method).toBe("POST")
     })
+
+  it("gets the review statistics", async () => {
+    const body = makeStats()
+    const fetchMock = stubFetch({ ok: true, status: 200, body })
+
+    expect(await api.getRecutStats()).toEqual(body)
+    expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/recut/stats")
+  })
+
+  it("rejects with the HTTP status when the statistics fail", async () => {
+    stubFetch({ ok: false, status: 500 })
+
+    await expect(api.getRecutStats()).rejects.toMatchObject({ name: "CuratorRequestError", status: 500 })
+  })
 
   it("carries the 409 reason code on the error", async () => {
     stubFetch({ ok: false, status: 409, body: { detail: "already_decided" } })

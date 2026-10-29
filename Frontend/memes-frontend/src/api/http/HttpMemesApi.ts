@@ -9,7 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutDecision, RecutProposalDetail, RecutProposalPage, MemePopularity, MemePopularityUpdate, TrendingMemesResponse,
+  RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, TrendingMemesResponse,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -673,6 +673,12 @@ export class HttpMemesApi implements MemesApi {
     const response = await fetch(`${this.baseUrl}/api/recut/proposals/${encodeURIComponent(id)}`, {
       headers: { "Accept": "application/json" },
     })
+    if (!response.ok) throw new CuratorRequestError(response.status)
+    return response.json()
+  }
+
+  async getRecutStats(): Promise<RecutStats> {
+    const response = await fetch(`${this.baseUrl}/api/recut/stats`, { headers: { "Accept": "application/json" } })
     if (!response.ok) throw new CuratorRequestError(response.status)
     return response.json()
   }

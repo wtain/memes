@@ -1403,6 +1403,12 @@ The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-1
 - **Response** `200`: `RecutProposalDetail`: the item fields plus `state` (`proposed`, `approved`, `rejected`...), `detector`, `detectorVersion`, `detectRunId` (or `null`), `createdAt` (ISO 8601) and `previousId`/`nextId`, the neighbours in the list order (`null` at either end, and both `null` when the proposal is not `proposed`). A proposal of any state is answered as long as both its images still exist, so a link survives its decision.
 - **Error Responses**: `404` for an unknown id or a proposal whose source or cut image no longer exists; `422` for an `id` that is not a UUID
 
+**Review statistics**
+
+- **URL**: `/api/recut/stats`
+- **Method**: `GET`
+- **Response** `200`: `RecutStats`: `bands` (six, in a fixed order: `0.6-0.7`, `0.7-0.8`, `0.8-0.9`, `0.9-1.0`, `1.0`, `unscored`; each `{ label, lower, upper, waiting, approved, rejected, approveRate }`, `lower`/`upper` are `null` for `unscored`) and `total` (the same shape, label `total`). `waiting` counts proposals in state `proposed`; `approveRate` is `approved / (approved + rejected)`, or `null` while nothing in the band is decided. Counted by detector confidence, computed on every request. Bands: lower edge inclusive, anything under 0.7 is in the first band (the detector's floor is 0.6), `1.0` is its own band.
+
 **Approve or reject a proposal**
 
 - **URL**: `/api/recut/proposals/{id}/approve` and `/api/recut/proposals/{id}/reject`

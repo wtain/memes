@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import CutState, Image, ImageCut, MemeTextRating
@@ -26,6 +26,31 @@ def _item(row: ImageCut) -> dict:
     }
 
 
+# Bands of the live approve-rate table. Mirrors evaluation/recut_report.py (BAND_LABELS), so gold and live numbers compare
+# band for band. Lower edge inclusive; anything under 0.7 is the first band (the detector's floor is 0.6); 1.0 is its own.
+_BANDS = (("0.6-0.7", 0.6, 0.7), ("0.7-0.8", 0.7, 0.8), ("0.8-0.9", 0.8, 0.9), ("0.9-1.0", 0.9, 1.0),
+          ("1.0", 1.0, 1.0), ("unscored", None, None))
+_DECIDABLE = (CutState.PROPOSED, CutState.APPROVED, CutState.REJECTED)
+
+
+def _band_expression():
+    return case(
+        (ImageCut.confidence.is_(None), "unscored"),
+        (ImageCut.confidence >= 1.0, "1.0"),
+        (ImageCut.confidence >= 0.9, "0.9-1.0"),
+        (ImageCut.confidence >= 0.8, "0.8-0.9"),
+        (ImageCut.confidence >= 0.7, "0.7-0.8"),
+        else_="0.6-0.7",
+    )
+
+
+def _stats_band(label: str, lower, upper, counts: dict) -> dict:
+    approved, rejected = counts.get(CutState.APPROVED, 0), counts.get(CutState.REJECTED, 0)
+    decided = approved + rejected
+    return {"label": label, "lower": lower, "upper": upper, "waiting": counts.get(CutState.PROPOSED, 0),
+            "approved": approved, "rejected": rejected, "approveRate": None if decided == 0 else approved / decided}
+
+
 def lock_statement(cut_id: uuid.UUID):
     """The proposal row with a row lock: two deciders of one proposal take turns, the second sees the first's state."""
     return select(ImageCut).where(ImageCut.id == cut_id).with_for_update()
@@ -36,6 +61,24 @@ class RecutRepository:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def band_stats(self) -> dict:
+        """Waiting / approved / rejected counts and the approve rate per confidence band, computed at read time (NFR-5).
+        'waiting' counts every proposed row; the review queue additionally needs both images, so the two can differ by
+        orphaned rows."""
+        band = _band_expression().label("band")
+        rows = (await self.session.execute(
+            select(band, ImageCut.state, func.count()).where(ImageCut.state.in_(_DECIDABLE)).group_by(band, ImageCut.state)
+        )).all()
+        per_band: dict[str, dict] = {}
+        for label, state, count in rows:
+            per_band.setdefault(label, {})[state] = count
+        totals: dict[str, int] = {}
+        for counts in per_band.values():
+            for state, count in counts.items():
+                totals[state] = totals.get(state, 0) + count
+        return {"bands": [_stats_band(label, lower, upper, per_band.get(label, {})) for label, lower, upper in _BANDS],
+                "total": _stats_band("total", None, None, totals)}
 
     async def lock_proposal(self, cut_id: uuid.UUID) -> ImageCut | None:
         return (await self.session.execute(lock_statement(cut_id))).scalar_one_or_none()

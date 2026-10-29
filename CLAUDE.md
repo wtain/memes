@@ -386,8 +386,17 @@ refresh_recut_cuts          → screenshot recut, refresh stale (R3c): replaces 
                                and `build_meme_profiles --status cut_proposed` with the profile embeddings. A job skips an image whose upstream rows are still
                                stale; a failed image keeps its stale rows and is retried; nothing is deleted before its replacement is written. Each
                                `--refresh-stale` flag conflicts with `--reset`/`--incremental`/`--retry-failed` and ignores `--status`. Admin-triggerable from
-                               /admin/batches, manual-trigger only, not scheduled (when to run it is R7). See
+                               /admin/batches, manual-trigger only, not scheduled (run through `recut_pipeline`, R7). Every refresh mode selects `cut_proposed`
+                               images only: a cut approved before its refresh has run stays stale (run the refresh before approving). See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-26-r3c-refresh-stale-design.md.
+recut_pipeline              → screenshot recut driver (R7): runs `create_recut_cuts` (capped by the optional `recut.max_cuts_per_run`),
+                               `build_image_embeddings --status cut_proposed --incremental` and `refresh_recut_cuts`, so the cuts of the
+                               `detected` proposals become reviewable with one job. Detection (`detect_recut_crops --limit`) stays a separate
+                               manual step because it decides how large the review queue gets. The steps are independent; a failed step does
+                               not stop the others and the driver then fails; each child self-tracks under its own kind and a busy child is
+                               skipped. Admin-triggerable from /admin/batches, manual-trigger only, deliberately not scheduled (review, not
+                               detection, is the bottleneck; revisit once the first pass is reviewed). See
+                               docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-29-r7-operations-and-evaluation-design.md.
 create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each `detected` image_cuts proposal, highest
                                confidence first, into a cut file in BASE_PATH (same format as the source: JPEG at
                                recut.jpeg_quality keeping the subsampling, PNG as PNG), a `cut_proposed` images row, copies

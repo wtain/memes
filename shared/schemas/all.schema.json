@@ -30,6 +30,8 @@
     "RecutProposalPage": { "$ref": "recutproposalpage.schema.json" },
     "RecutProposalDetail": { "$ref": "recutproposaldetail.schema.json" },
     "RecutDecision": { "$ref": "recutdecision.schema.json" },
+    "RecutStats": { "$ref": "recutstats.schema.json" },
+    "RecutStatsBand": { "$ref": "recutstatsband.schema.json" },
     "DescriptionFeedbackResponse": { "$ref": "descriptionfeedbackresponse.schema.json" },
     "MemePopularity": { "$ref": "memepopularity.schema.json" },
     "MemePopularityUpdate": { "$ref": "memepopularityupdate.schema.json" },

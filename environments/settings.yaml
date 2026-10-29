@@ -8,7 +8,8 @@ recut:                          # screenshot recut, crop detection (docs/superpo
   flat_tolerance: 7.0           # row/column intensity std-dev below this counts as flat margin
   ocr_overlap_max: 1.0          # drop a proposal when more than this share of an OCR region falls outside the box; 1.0 = guard off (calibration 2026-10-25: 0.15 dropped 44 of 118 good cuts and no bad ones)
   commit_interval: 200
-  jpeg_quality: 95              # quality of a cut saved from a JPEG source (R3a); the source's subsampling is kept
+  # max_cuts_per_run: 500       # optional cap on proposals cut per recut_pipeline run (passed to create_recut_cuts as --limit); unset = unlimited
+  jpeg_quality: 95             # quality of a cut saved from a JPEG source (R3a); the source's subsampling is kept
 
 rules:
   lemmatize: false

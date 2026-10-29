@@ -1,4 +1,16 @@
-import type { RecutDecision, RecutProposal, RecutProposalDetail, RecutProposalPage } from "./types"
+import type { RecutDecision, RecutProposal, RecutProposalDetail, RecutProposalPage, RecutStats } from "./types"
+
+export function makeStats(overrides: Partial<RecutStats> = {}): RecutStats {
+  return {
+    bands: [
+      { label: "0.9-1.0", lower: 0.9, upper: 1, waiting: 3, approved: 7, rejected: 1, approveRate: 0.875 },
+      { label: "0.8-0.9", lower: 0.8, upper: 0.9, waiting: 2, approved: 0, rejected: 0, approveRate: null },
+      { label: "unscored", lower: null, upper: null, waiting: 0, approved: 0, rejected: 0, approveRate: null },
+    ],
+    total: { label: "total", lower: null, upper: null, waiting: 5, approved: 7, rejected: 1, approveRate: 0.875 },
+    ...overrides,
+  }
+}
 
 export function makeDecision(id: string, state: string = "approved"): RecutDecision {
   return { id, state, decidedAt: "2026-10-29T10:00:00+00:00" }

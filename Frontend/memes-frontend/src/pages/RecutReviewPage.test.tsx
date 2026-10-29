@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import RecutReviewPage from "./RecutReviewPage"
 import { CuratorRequestError } from "../api/errors"
-import { makeDecision, makeProposalDetail, makeProposalPage } from "../recut/fixtures"
+import { makeDecision, makeProposalDetail, makeProposalPage, makeStats } from "../recut/fixtures"
 import { makeMockApi } from "../test/mockApi"
 
 function Where() {
@@ -139,6 +139,32 @@ describe("RecutReviewPage", () => {
   it("shows no confidence for an unscored proposal", async () => {
     setup({ getRecutProposal: vi.fn().mockResolvedValue(makeProposalDetail("a", { confidence: null })) })
     expect(await screen.findByText("not scored")).toBeInTheDocument()
+  })
+
+  it("shows the review statistics under the page", async () => {
+    setup()
+    expect(await screen.findByText("Review so far")).toBeInTheDocument()
+    expect(await screen.findByRole("row", { name: /0\.9-1\.0/ })).toBeInTheDocument()
+  })
+
+  it("still lets the owner review when the statistics cannot be loaded", async () => {
+    setup({ getRecutStats: vi.fn().mockRejectedValue(new CuratorRequestError(500)) })
+
+    expect(await screen.findByText("1 of 3")).toBeInTheDocument()
+    expect(screen.queryByText("Review so far")).not.toBeInTheDocument()
+  })
+
+  it("reloads the statistics after a decision", async () => {
+    const user = userEvent.setup()
+    const stats = vi.fn().mockResolvedValue(makeStats())
+    const api = setup({ getRecutStats: stats })
+    api.approveRecutProposal = vi.fn().mockResolvedValue(makeDecision("a", "approved"))
+    await screen.findByText("1 of 3")
+    await waitFor(() => expect(stats).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+
+    await waitFor(() => expect(stats).toHaveBeenCalledTimes(2))
   })
 
   it("approves with the button, opens the next proposal and shrinks the queue", async () => {

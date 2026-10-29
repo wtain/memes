@@ -11,7 +11,7 @@ otherwise. The constants live in `Storage/models.py` (`ImageStatus`); the column
 | `active` | In the library and searchable. The column default, and the value every list query filters on unless told otherwise | column default; `ingest_promote`; approval of a recut proposal (screenshot-recut R5) | all default queries; jobs without `--status` |
 | `pending` | Ingested into an in-flight ingestion run and awaiting duplicate review. The file is already in `BASE_PATH` | `ingest_hash_dedup` | ingestion review endpoints and page; jobs with `--status pending`; `ingest_promote`; `ingest_abort` |
 | `rejected` | Rejected during ingestion review. The file was moved out of the library, the row is kept so the decision can be undone | ingestion review | ingestion tooling only |
-| `cut_proposed` | A proposed cut of a badly cropped image, awaiting human review. Invisible to search and browse; still served by `GET /api/images/{id}` for the review page | the cut step (screenshot-recut R3); a reject keeps it `cut_proposed` and flags it, an approve sets `active` (R5a) | recut review page `/admin/recut` (R4); jobs with `--status cut_proposed` (R3) |
+| `cut_proposed` | A proposed cut of a badly cropped image, awaiting human review. Invisible to search and browse; still served by `GET /api/images/{id}` for the review page | the cut step (screenshot-recut R3); a reject keeps it `cut_proposed` and flags it, an approve sets `active` (R5a) | recut review page `/admin/recut` (R4) and its review statistics (`GET /api/recut/stats`, R7); jobs with `--status cut_proposed` (R3) |
 
 ## Transitions
 
