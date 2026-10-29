@@ -946,7 +946,7 @@ Check the facts you write against the code and `docs/batches/inventory.md`; do n
 - `docs/batches/README.md`: add a row to the use-case table: `[use-cases/screenshot-recut.md](use-cases/screenshot-recut.md)` | "Screenshot recut: detecting badly cropped memes, cutting, review, and removing the sources (`recut_pipeline`)".
 - `docs/image-status.md`: in the `cut_proposed` row, "Read by" also names the review statistics (`GET /api/recut/stats`).
 - Epic `README.md`: set the epic status to reflect R7 done (read the file for its status line and project list; R6 and M2 remain).
-- R7 spec: `Status: draft` becomes `Status: done`, and add `Plan: docs/superpowers/plans/2026-10-29-r7-operations-and-evaluation.md` under the status line (it is `planned` between the plan and the execution; execution sets `implementation`, the merge sets `done`; in this task set `implementation`). Tracker: the R7 row gets the plan path and `implementation`.
+- R7 spec: change `Status: planned` to `Status: implementation` (it becomes `done` after the merge; the `Plan:` link is already there). Tracker: the R7 row status becomes `implementation`.
 
 - [ ] **Step 3: Full verification**
 
