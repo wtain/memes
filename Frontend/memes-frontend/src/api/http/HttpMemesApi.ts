@@ -9,7 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutProposalDetail, RecutProposalPage, MemePopularity, MemePopularityUpdate,
+  RecutDecision, RecutProposalDetail, RecutProposalPage, MemePopularity, MemePopularityUpdate,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -660,6 +660,33 @@ export class HttpMemesApi implements MemesApi {
     })
     if (!response.ok) throw new CuratorRequestError(response.status)
     return response.json()
+  }
+
+  approveRecutProposal(id: string): Promise<RecutDecision> {
+    return this.decideRecutProposal(id, "approve")
+  }
+
+  rejectRecutProposal(id: string): Promise<RecutDecision> {
+    return this.decideRecutProposal(id, "reject")
+  }
+
+  private async decideRecutProposal(id: string, verb: "approve" | "reject"): Promise<RecutDecision> {
+    const response = await fetch(`${this.baseUrl}/api/recut/proposals/${encodeURIComponent(id)}/${verb}`, {
+      method: "POST",
+      headers: { "Accept": "application/json" },
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status, await readDetailCode(response))
+    return response.json()
+  }
+}
+
+/** The reason code of a 409 (FastAPI's string `detail`); undefined when the body has none. */
+async function readDetailCode(response: Response): Promise<string | undefined> {
+  try {
+    const detail = (await response.json())?.detail
+    return typeof detail === "string" ? detail : undefined
+  } catch {
+    return undefined
   }
 }
 

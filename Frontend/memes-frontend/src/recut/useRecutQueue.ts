@@ -12,6 +12,14 @@ export type DetailState =
   | { status: "failed" }
 type Loaded = { id: string; state: DetailState }
 
+export type DecisionState =
+  | { status: "idle" }
+  | { status: "saving" }
+  | { status: "failed" }
+  // `redirect`: the page still has to move off the refused proposal once the reloaded queue is in (one-shot).
+  | { status: "conflict"; code: string; redirect: boolean }
+export type DecideResult = { outcome: "ignored" | "failed" | "conflict" } | { outcome: "done"; next: string | null }
+
 const LOADING: ListState = { items: [], total: 0, status: "loading" }
 
 export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
@@ -19,9 +27,11 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [decision, setDecision] = useState<DecisionState>({ status: "idle" })
 
-  // Only touched in handlers and effects: one next-page request at a time.
+  // Only touched in handlers and effects: one next-page request at a time, one decision at a time.
   const loadingMoreRef = useRef(false)
+  const decidingRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -65,11 +75,44 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
     })
   }, [memesApi, list.status, list.items.length, list.total])
 
-  function reload() {
+  const reload = useCallback(() => {
     setList(LOADING)
     setLoaded(null)
     setReloadKey((key) => key + 1)
-  }
+  }, [])
+
+  const decide = useCallback(async (kind: "approve" | "reject"): Promise<DecideResult> => {
+    const current = loaded !== null && loaded.id === openId && loaded.state.status === "ready" ? loaded.state.data : null
+    if (current === null || current.state !== "proposed" || decidingRef.current) return { outcome: "ignored" }
+    decidingRef.current = true
+    setDecision({ status: "saving" })
+    try {
+      if (kind === "approve") await memesApi.approveRecutProposal(current.id)
+      else await memesApi.rejectRecutProposal(current.id)
+      setList((previous) => ({
+        ...previous,
+        items: previous.items.filter((item) => item.id !== current.id),
+        total: Math.max(0, previous.total - 1),
+      }))
+      setLoaded(null)
+      setDecision({ status: "idle" })
+      return { outcome: "done", next: current.nextId ?? current.previousId }
+    } catch (error) {
+      if (error instanceof CuratorRequestError && error.status === 409) {
+        setDecision({ status: "conflict", code: error.code ?? "", redirect: true })
+        reload()
+        return { outcome: "conflict" }
+      }
+      setDecision({ status: "failed" })
+      return { outcome: "failed" }
+    } finally {
+      decidingRef.current = false
+    }
+  }, [memesApi, loaded, openId, reload])
+
+  const settleConflict = useCallback(() => {
+    setDecision((previous) => (previous.status === "conflict" ? { ...previous, redirect: false } : previous))
+  }, [])
 
   return {
     items: list.items,
@@ -79,5 +122,8 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
     loadMore,
     detail: openId !== null && loaded !== null && loaded.id === openId ? loaded.state : null,
     reload,
+    decision,
+    decide,
+    settleConflict,
   }
 }

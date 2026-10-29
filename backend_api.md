@@ -1370,7 +1370,7 @@ Reverts a `rejected` image back to `pending` and moves its file back out of
 
 ### Recut review
 
-The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-17-screenshot-recut/`): proposed cuts of badly cropped images, with the rectangle (in pixels of the source) the cut was taken from. Read-only; the approve and reject endpoints arrive with R5. Unauthenticated like the rest of the admin API. The images themselves are served by `GET /api/images/{id}`, which also serves `cut_proposed` images.
+The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-17-screenshot-recut/`): proposed cuts of badly cropped images, with the rectangle (in pixels of the source) the cut was taken from. The review page decides a proposal with the two POST endpoints below; a decision moves no file (removal is `move_flagged`, then `unregister_deleted_images`). Unauthenticated like the rest of the admin API. The images themselves are served by `GET /api/images/{id}`, which also serves `cut_proposed` images.
 
 **List the proposals**
 
@@ -1386,6 +1386,15 @@ The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-1
 - **Method**: `GET`
 - **Response** `200`: `RecutProposalDetail`: the item fields plus `state` (`proposed`, `approved`, `rejected`...), `detector`, `detectorVersion`, `detectRunId` (or `null`), `createdAt` (ISO 8601) and `previousId`/`nextId`, the neighbours in the list order (`null` at either end, and both `null` when the proposal is not `proposed`). A proposal of any state is answered as long as both its images still exist, so a link survives its decision.
 - **Error Responses**: `404` for an unknown id or a proposal whose source or cut image no longer exists; `422` for an `id` that is not a UUID
+
+**Approve or reject a proposal**
+
+- **URL**: `/api/recut/proposals/{id}/approve` and `/api/recut/proposals/{id}/reject`
+- **Method**: `POST`, no body
+- **Response** `200`: `RecutDecision`: `id`, `state` (`approved` or `rejected`) and `decidedAt` (ISO 8601).
+  - Approve: the cut becomes `active`, the source is flagged (remarks `recut_approved`) for `move_flagged`, the cut takes over the source's popularity and text ratings, and the `approved` event is recorded.
+  - Reject: the cut is flagged (remarks `recut_rejected`), the source is untouched, and the `rejected` event is recorded.
+- **Error Responses**: `404` for an unknown id; `422` for an `id` that is not a UUID; `409` with `detail` one of `already_decided` (the proposal is not `proposed`), `cut_missing` (no cut image, or it is not `cut_proposed`), and for approve only `source_missing`, `source_not_active`, `source_flagged` (the source is already flagged for removal). Nothing is changed on a `409`.
 
 ---
 

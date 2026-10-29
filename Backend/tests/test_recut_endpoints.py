@@ -5,7 +5,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from Backend.app.api.recut import get_recut_repository, router
+from Backend.app.api.recut import get_recut_decision_service, get_recut_repository, router
+from Backend.app.services.recut_decision_service import ProposalConflictError, ProposalNotFoundError
 
 ITEM = {"id": "c1", "sourceImageId": "s1", "cutImageId": "i1", "confidence": 0.93,
         "box": {"x": 10, "y": 20, "w": 300, "h": 200}}
@@ -64,3 +65,51 @@ def test_detail_with_an_id_that_is_not_a_uuid_is_422(client_and_repo):
     client, repo = client_and_repo
     assert client.get("/api/recut/proposals/not-a-uuid").status_code == 422
     repo.get.assert_not_awaited()
+
+
+DECISION = {"id": "c1", "state": "approved", "decidedAt": "2026-10-29T10:00:00+00:00"}
+
+
+@pytest.fixture
+def client_and_service():
+    service = type("S", (), {})()
+    service.approve = AsyncMock(return_value=DECISION)
+    service.reject = AsyncMock(return_value={**DECISION, "state": "rejected"})
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    app.dependency_overrides[get_recut_decision_service] = lambda: service
+    return TestClient(app), service
+
+
+@pytest.mark.parametrize("verb, state", [("approve", "approved"), ("reject", "rejected")])
+def test_decision_returns_the_outcome(client_and_service, verb, state):
+    client, service = client_and_service
+    cut_id = uuid.uuid4()
+    response = client.post(f"/api/recut/proposals/{cut_id}/{verb}")
+    assert response.status_code == 200
+    assert response.json() == {**DECISION, "state": state}
+    getattr(service, verb).assert_awaited_once_with(cut_id)
+
+
+@pytest.mark.parametrize("verb", ["approve", "reject"])
+def test_decision_unknown_proposal_is_404(client_and_service, verb):
+    client, service = client_and_service
+    getattr(service, verb).side_effect = ProposalNotFoundError("x")
+    response = client.post(f"/api/recut/proposals/{uuid.uuid4()}/{verb}")
+    assert response.status_code == 404 and response.json() == {"detail": "Proposal not found"}
+
+
+@pytest.mark.parametrize("verb", ["approve", "reject"])
+@pytest.mark.parametrize("code", ["already_decided", "cut_missing", "source_missing", "source_not_active", "source_flagged"])
+def test_decision_conflict_carries_the_reason_code(client_and_service, verb, code):
+    client, service = client_and_service
+    getattr(service, verb).side_effect = ProposalConflictError(code)
+    response = client.post(f"/api/recut/proposals/{uuid.uuid4()}/{verb}")
+    assert response.status_code == 409 and response.json() == {"detail": code}
+
+
+@pytest.mark.parametrize("verb", ["approve", "reject"])
+def test_decision_with_an_id_that_is_not_a_uuid_is_422(client_and_service, verb):
+    client, service = client_and_service
+    assert client.post(f"/api/recut/proposals/not-a-uuid/{verb}").status_code == 422
+    getattr(service, verb).assert_not_awaited()

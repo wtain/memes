@@ -64,6 +64,7 @@ from . import (
     ratingrequest,
     ratingresponse,
     ratingsresponse,
+    recutdecision,
     recutproposal,
     recutproposaldetail,
     recutproposalpage,
@@ -176,6 +177,10 @@ class RecutProposalPage(RootModel[recutproposalpage.Schema]):
 
 class RecutProposalDetail(RootModel[recutproposaldetail.Schema]):
     root: recutproposaldetail.Schema
+
+
+class RecutDecision(RootModel[recutdecision.Schema]):
+    root: recutdecision.Schema
 
 
 class DescriptionFeedbackResponse(RootModel[descriptionfeedbackresponse.Schema]):

@@ -11,7 +11,7 @@ otherwise. The constants live in `Storage/models.py` (`ImageStatus`); the column
 | `active` | In the library and searchable. The column default, and the value every list query filters on unless told otherwise | column default; `ingest_promote`; approval of a recut proposal (screenshot-recut R5) | all default queries; jobs without `--status` |
 | `pending` | Ingested into an in-flight ingestion run and awaiting duplicate review. The file is already in `BASE_PATH` | `ingest_hash_dedup` | ingestion review endpoints and page; jobs with `--status pending`; `ingest_promote`; `ingest_abort` |
 | `rejected` | Rejected during ingestion review. The file was moved out of the library, the row is kept so the decision can be undone | ingestion review | ingestion tooling only |
-| `cut_proposed` | A proposed cut of a badly cropped image, awaiting human review. Invisible to search and browse; still served by `GET /api/images/{id}` for the review page | the cut step (screenshot-recut R3) | recut review page `/admin/recut` (R4); jobs with `--status cut_proposed` (R3) |
+| `cut_proposed` | A proposed cut of a badly cropped image, awaiting human review. Invisible to search and browse; still served by `GET /api/images/{id}` for the review page | the cut step (screenshot-recut R3); a reject keeps it `cut_proposed` and flags it, an approve sets `active` (R5a) | recut review page `/admin/recut` (R4); jobs with `--status cut_proposed` (R3) |
 
 ## Transitions
 
@@ -20,7 +20,7 @@ otherwise. The constants live in `Storage/models.py` (`ImageStatus`); the column
 - `rejected` to `pending`: undo in the ingestion review UI (the file is moved back).
 - `pending` or `rejected` to removed: `ingest_abort` moves the file back to the ingestion source and deletes the row. It never touches `active` images.
 - `cut_proposed` to `active`: the proposal is approved (screenshot-recut R5). The source image is flagged for the existing `move_flagged` path in the same change.
-- `cut_proposed` to removed: the proposal is rejected (screenshot-recut R5). The cut is flagged and its file is moved by `move_flagged`. Caveat for R5: `unregister_deleted_images` only reconciles `active` images today (`get_all_images` defaults to `status="active"`), so R5 must extend it to `cut_proposed` or delete the row itself; otherwise a rejected cut would keep a row pointing at a missing file.
+- `cut_proposed` to removed: the proposal is rejected (screenshot-recut R5). The cut is flagged and its file is moved by `move_flagged`. `unregister_deleted_images` reconciles `cut_proposed` images that are flagged (never an unflagged one, so an unplugged drive cannot wipe the review queue), so the rejected cut's row goes once `move_flagged` has moved its file; the `image_cuts` row stays as `rejected`.
 - `active` has no outgoing status change. An `active` image leaves the library by being flagged (`image_extras.flagged`), not by a status.
 
 ## Accepted by `--status`
