@@ -5,6 +5,7 @@ Plan: docs/superpowers/plans/2026-10-29-r5b-duplicate-exclusion-and-batch-audit.
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R5, split into R5a and R5b)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Follows: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-28-r5a-approve-reject-lifecycle-design.md
+Follow-ups: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-29-r7-operations-and-evaluation-design.md
 
 R5a approves a proposal by activating the cut and flagging the source; the source stays `active` until `move_flagged` and
 `unregister_deleted_images` have run. In that window the duplicate jobs could pair the source with its own cut and put the pair
