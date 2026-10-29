@@ -311,3 +311,48 @@ async def test_verify_floors_a_negative_root_and_reports_a_cache_below_1(db_sess
     await db_session.execute(update(Image).where(Image.id == root.id).values(popularity=0))
     drifts = await repo.verify([root.id])
     assert [(d.cached, d.expected) for d in drifts] == [(0, 1)]
+
+
+# ---- final review: set-to-N lands on N when the root is floored ----
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_adjust_a_floored_root_lands_exactly_on_the_target(db_session):
+    root, _ = await floored_root(db_session)
+    repo = PopularityRepository(db_session)
+    assert await repo.popularity_of(root.id) == 1
+    row = await repo.adjust(root.id, 5)
+    assert row is not None and row.weight == 6  # raw -2 -> 4 (+6): 1 + 4 = 5
+    assert await pop(db_session, root) == 5
+    assert await repo.verify() == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_four_copies_set_to_1_then_one_unflagged_then_10_ends_at_10(db_session):
+    repo = PopularityRepository(db_session)
+    root = await make_image(db_session, "r.jpg")
+    edges = await with_losers(db_session, root, 4)
+    assert (await repo.adjust(root.id, 1)).weight == -4
+    await repo.reverse(edges[0].id, "correction")
+    assert await pop(db_session, root) == 1
+    await repo.adjust(root.id, 10)
+    assert await pop(db_session, root) == 10
+    assert await repo.verify() == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_setting_a_floored_root_to_1_writes_nothing(db_session):
+    root, _ = await floored_root(db_session)
+    repo = PopularityRepository(db_session)
+    before = await edge_count(db_session)
+    assert await repo.adjust(root.id, 1) is None
+    assert await edge_count(db_session) == before
+    assert await pop(db_session, root) == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_absorb_refuses_the_adjustment_source(db_session):
+    a = await make_image(db_session, "a.jpg")
+    b = await make_image(db_session, "b.jpg")
+    with pytest.raises(ValueError, match="adjust"):
+        await PopularityRepository(db_session).absorb(b.id, a.id, "adjustment")

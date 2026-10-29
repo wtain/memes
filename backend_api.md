@@ -543,7 +543,7 @@ Popularity of one meme and where it came from. Read-only: writes nothing. Needs 
 #### Set Meme Popularity
 
 Set the popularity of one meme to an exact number. Records an `adjustment` edge with the signed difference from
-the current value, so the change is visible in the `breakdown` and the number stays derivable from the log. Idempotent
+the raw tree value (1 plus the weight below the image, before the floor of 1), so the shown number lands exactly on N and the change is visible in the `breakdown` and the number stays derivable from the log. Idempotent
 by value: setting the number the image already has writes nothing.
 
 - **URL**: `/api/images/meme/{image_id}/popularity`

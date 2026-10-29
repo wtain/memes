@@ -151,6 +151,8 @@ class PopularityRepository:
         the loser's tree count into that root. Idempotent for a retry into the same tree."""
         if source not in PopularitySource.ALL:
             raise ValueError(f"unknown source {source!r}")
+        if source == PopularitySource.ADJUSTMENT:
+            raise ValueError("adjustment edges are written only by adjust(), not absorb()")
         # Locks from a failed attempt stay held, so id ordering is not global across retries; a deadlock
         # there is detected and aborted by Postgres, never silently wrong.
         for _ in range(MAX_ATTEMPTS):
@@ -295,9 +297,13 @@ class PopularityRepository:
             if image is None:
                 raise WinnerGoneError(f"image {image_id} has no image row")
 
-            delta = target - await self.popularity_of(image_id)
-            if delta == 0:
+            # "Nothing to do" is judged against the shown (floored) number; the delta is taken against the raw
+            # tree value, because the cache is recomputed from the raw sum. After the check, target != shown:
+            # if raw >= 0, shown == 1 + raw so delta != 0; if raw < 0, shown == 1 and target != 1, while
+            # delta == 0 would need target == 1 + raw < 1, which the target >= 1 guard excludes.
+            if target == await self.popularity_of(image_id):
                 return None
+            delta = target - (1 + await self.tree_weight(image_id))
             row = PopularityAbsorption(
                 kind=PopularityKind.ABSORB,
                 source=PopularitySource.ADJUSTMENT,

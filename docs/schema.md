@@ -31,7 +31,7 @@ Append-only log of duplicate absorptions (epic meme-popularity): when a duplicat
 | `source` | String(30) NOT NULL | Which flow dropped the loser: `hash_in_batch`, `hash_cross_corpus`, `ingest_tier_a`, `ingest_tier_b`, `cluster_review`, `agent_review`, `file_duplicates`, `recut`, and the ninth, `adjustment` (a manual "set popularity to N": no loser image, `winner_image_id` is the adjusted meme; `PopularitySource` in `Storage/models.py`) |
 | `loser_image_id` | UUID nullable | Plain id, no FK. Null for a loser that never became an image row |
 | `winner_image_id` | UUID NOT NULL | Plain id, no FK |
-| `weight` | Integer NOT NULL | CHECK `weight >= 0` for every source except `adjustment`, whose weight is signed and non-zero (the difference between the target and the shown number). Copies carried over to the winner |
+| `weight` | Integer NOT NULL | CHECK `weight >= 0` for every source except `adjustment`, whose weight is signed and non-zero (the difference between the target and the raw tree value, 1 plus the weight below the image). Copies carried over to the winner |
 | `loser_filename` | String nullable | Audit copy |
 | `loser_content_hash` | String nullable | Audit copy |
 | `winner_content_hash` | String nullable | Audit copy |

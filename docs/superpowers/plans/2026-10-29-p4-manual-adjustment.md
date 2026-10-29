@@ -14,7 +14,7 @@
 
 - Repositories never call `session.commit()`; `adjust` is not wrapped in `guarded` (errors reach the caller, spec H6).
 - Weight CHECK, exactly: `(source <> 'adjustment' AND weight >= 0) OR (source = 'adjustment' AND weight <> 0)`, for every row kind. Source list gains `adjustment`. `images.popularity >= 0` stays.
-- Roots are floored: `popularity = max(1, 1 + sum of open edge weights in the tree)`; a node with an open loser edge is exactly 0. Sums stay raw (spec H3). `adjust` diffs against the floored derived value, not the cached column.
+- Roots are floored: `popularity = max(1, 1 + sum of open edge weights in the tree)`; a node with an open loser edge is exactly 0. Sums stay raw (spec H3). `adjust` judges "nothing to do" against the floored derived value and takes the delta against the raw tree value, never the cached column.
 - Target range: integer 1 to 1,000,000 (422 otherwise). Only `active` images are adjustable (409 otherwise); a discarded image (stored 0) is 409; unknown or non-UUID id or a vanished image row is 404.
 - The response is the P3 `MemePopularity` (`popularity`, `status`, `breakdown`); the `adjustment` row is listed last and carries a signed count.
 - Migration is for the owner to run: never run `alembic upgrade` against any live database; tests use the test database only.

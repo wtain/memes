@@ -341,7 +341,7 @@ detect_file_duplicates      → byte-identical files: keeps the oldest, flags th
                                the winner of each flagged copy's popularity absorption (metrics key
                                popularity_skipped). Flagging with `duplicateOf` (mark_flagged, the /duplicates page,
                                the review-duplicates command) records the same edge. A flag WITHOUT duplicateOf never changes popularity
-                               (attribution of manual flags comes in P4). Reasons: duplicate_review -> source
+                               (the owner can set the number from the meme details page instead). Reasons: duplicate_review -> source
                                cluster_review, agent_review -> agent_review, any other reason with duplicateOf is
                                a 422. Unflagging reverses cluster_review / agent_review / file_duplicates edges.
 
