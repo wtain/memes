@@ -270,7 +270,7 @@ async def get_trending_images(
 
 
 # Must be before /{image_id} endpoint
-@router.get("/no-ocr",response_model=MemeSearchResponse)
+@router.get("/no-ocr", response_model=MemeSearchResponse)
 async def get_no_ocr_images(
     response: Response,
     limit: int = Query(20, ge=1, le=100),
