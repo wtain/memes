@@ -65,6 +65,9 @@ search:
     # Log a warning when one query matches more than this many images: the trigger to revisit
     # Python-side scoring (docs/adr/adr-2026-10-01-search-ranking-in-python.md).
     warn_match_count: 10000
+    # Capped popularity term added to a text query's score: weight * min(log2(popularity), max_log2).
+    # weight 0 switches it off. See docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-29-p5-ranking-and-trending-design.md.
+    popularity: {weight: 0.03, max_log2: 5}
   # Meme from text retrieval and fusion (epic meme-from-text, P4; see
   # docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-07-p4-retrieval-fusion-and-api-design.md).
   # A missing key is a startup error. The weights come from `python -m evaluation tune-weights` on the gold set

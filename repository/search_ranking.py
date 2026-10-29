@@ -72,6 +72,56 @@ def get_weights() -> RankingWeights:
     return RankingWeights(source=source, tier=tier, warn_match_count=warn)
 
 
+@dataclass(frozen=True)
+class PopularityBoost:
+    """Capped popularity term added to a text-search score (P5 design: L1). weight 0 switches it off."""
+    weight: float
+    max_log2: float
+
+    def bonus(self, popularity: int) -> float:
+        """weight * min(log2(max(1, popularity)), max_log2), unrounded."""
+        return self.weight * min(math.log2(max(1, popularity)), self.max_log2)
+
+
+def _finite_number(raw):
+    """float(raw) for a real int/float that is finite, else None (bool and str are rejected)."""
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
+        return None
+    return float(raw)
+
+
+@lru_cache(maxsize=1)
+def get_popularity_boost() -> PopularityBoost:
+    """search.ranking.popularity.{weight,max_log2}; see
+    docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-29-p5-ranking-and-trending-design.md."""
+    try:
+        block = settings.SEARCH.RANKING.POPULARITY
+    except (AttributeError, KeyError) as exc:
+        raise ValueError(f"search.ranking.popularity missing: {exc}") from exc
+    raw = {}
+    missing = []
+    for key in ("weight", "max_log2"):
+        try:
+            raw[key] = getattr(block, key.upper())
+        except (AttributeError, KeyError):
+            missing.append(key)
+    if missing:
+        raise ValueError(f"search.ranking.popularity is missing keys: {', '.join(missing)}")
+    weight = _finite_number(raw["weight"])
+    max_log2 = _finite_number(raw["max_log2"])
+    problems = []
+    if weight is None or weight < 0:
+        problems.append(f"weight={raw['weight']!r}")
+    if max_log2 is None or max_log2 <= 0:
+        problems.append(f"max_log2={raw['max_log2']!r}")
+    if problems:
+        raise ValueError(
+            "search.ranking.popularity has invalid values (weight a finite number >= 0, "
+            f"max_log2 a finite number > 0): {', '.join(problems)}"
+        )
+    return PopularityBoost(weight=weight, max_log2=max_log2)
+
+
 def score_images(token_hits: list[dict[uuid.UUID, float]]) -> dict[uuid.UUID, float]:
     """token_hits[i] maps image id -> that image's best hit weight for query token i. Returns the images
     present for EVERY token with score = sum of their per-token weights (AND semantics)."""

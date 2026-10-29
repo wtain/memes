@@ -383,7 +383,7 @@ Search for memes with optional query, facets, and pagination.
   - `limit` (optional): Number of results (1-100, default: 20)
   - `facets` (optional): Facet filter string
   - `cursor` (optional): Pagination cursor for next page
-- **Ordering**: with a non-empty `q`, results are ordered by relevance (per-token best hit, source weight x match-tier weight, summed across tokens), then by recency. Without `q` they are ordered by recency (unchanged). `nextCursor` stays an opaque string; relevance pages embed the score in it. A cursor in the other format (e.g. a recency cursor sent with `q`) is ignored and the listing restarts at the first page. Weights live in `search.ranking.*` in `environments/settings.yaml`.
+- **Ordering**: with a non-empty `q`, results are ordered by relevance (per-token best hit, source weight x match-tier weight, summed across tokens) plus a small capped popularity bonus (`weight * min(log2(popularity), max_log2)`, from `search.ranking.popularity.weight` and `.max_log2`; weight 0 turns it off), then by recency. Without `q` they are ordered by recency (unchanged). `nextCursor` stays an opaque string; relevance pages embed the score in it. A cursor in the other format (e.g. a recency cursor sent with `q`) is ignored and the listing restarts at the first page. Weights live in `search.ranking.*` in `environments/settings.yaml`.
 - **Pagination contract**: `nextCursor` addresses the last returned item, so the next page neither skips nor repeats a result. This holds for `GET /api/images` (search), `GET /api/images/untagged`, `GET /api/images/no-ocr` and `GET /api/images/flagged`.
 - **Response**: `MemeSearchResponse`
 - **Cache**: no-cache

@@ -50,6 +50,7 @@ Compute relevance in Python and page in Python:
 - Cursor format changes for ranked pages; a stale-format cursor restarts at page 1 (web and Android treat the cursor as opaque).
 - The score is deterministic for a given query and data, so pages are consistent unless the underlying data changes mid-pagination (same
   caveat as any keyset pagination).
+- Scores now include a capped popularity term, `weight * min(log2(popularity), max_log2)`, added after matching and rounded with the score (`images.popularity` is read in the same fetch, no extra query); see [the P5 design](../superpowers/specs/2026-10-26-meme-popularity/2026-10-29-p5-ranking-and-trending-design.md).
 
 ## Revisit when
 

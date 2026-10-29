@@ -20,7 +20,7 @@ from graph.uf import UnionFind
 from repository.description_note_lemmas import DescriptionNoteLemmasSaver, compute_note_lemmas
 from repository.image_descriptions import description_not_rejected
 from repository.ocr_lemmas import scored_image_matches
-from repository.search_ranking import get_weights
+from repository.search_ranking import _SCORE_DECIMALS, get_popularity_boost, get_weights
 from repository.tags import DESCRIPTION_TAG_SOURCE, NOTE_TAG_SOURCE, TagsRepository
 
 logger = logging.getLogger(__name__)
@@ -132,11 +132,19 @@ class ImageRepository:
         img = aliased(Image)
         extras = aliased(ImageExtras)
         result = await self.session.execute(
-            select(img.id, img.filename, img.created_at, extras.flagged)
+            select(img.id, img.filename, img.created_at, extras.flagged, img.popularity)
             .outerjoin(extras, img.id == extras.image_id)
             .where(img.id.in_(select(filtered_ids_subquery.c.id)))
         )
-        rows = [RankedRow(r.id, r.filename, r.created_at, r.flagged, scores[r.id]) for r in result.all()]
+        # The score carries the capped popularity term (P5 spec L1); rounding it here keeps the cursor float exact.
+        boost = get_popularity_boost()
+        rows = [
+            RankedRow(
+                r.id, r.filename, r.created_at, r.flagged,
+                round(scores[r.id] + boost.bonus(r.popularity), _SCORE_DECIMALS),
+            )
+            for r in result.all()
+        ]
         rows.sort(key=lambda r: (r.score, r.created_at, r.id), reverse=True)
         if cursor_score is not None and cursor_created_at is not None and cursor_id is not None:
             cursor_key = (cursor_score, cursor_created_at, cursor_id)
