@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recutdecision.schema.json",
+  "title": "RecutDecision",
+  "description": "The outcome of approving or rejecting one recut proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "state": { "type": "string" },
+    "decidedAt": { "type": "string" }
+  },
+  "required": ["id", "state", "decidedAt"]
+}

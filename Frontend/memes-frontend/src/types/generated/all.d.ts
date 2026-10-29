@@ -586,6 +586,17 @@ export interface RecutProposalDetail {
   nextId: string | null;
 }
 /**
+ * The outcome of approving or rejecting one recut proposal
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RecutDecision".
+ */
+export interface RecutDecision {
+  id: string;
+  state: string;
+  decidedAt: string;
+}
+/**
  * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "DescriptionFeedbackResponse".
  */

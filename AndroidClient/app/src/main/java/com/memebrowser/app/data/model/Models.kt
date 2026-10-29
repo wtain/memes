@@ -259,6 +259,13 @@ data class RatingResponse(
 )
 
 @Serializable
+data class RecutDecision(
+    @SerialName("id") val id: String,
+    @SerialName("state") val state: String,
+    @SerialName("decidedAt") val decidedAt: String
+)
+
+@Serializable
 data class RecutProposal(
     @SerialName("id") val id: String,
     @SerialName("sourceImageId") val sourceImageId: String,

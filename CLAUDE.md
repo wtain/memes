@@ -344,7 +344,9 @@ move_flagged                → also runs unregister_deleted_images automaticall
                                reconciling the DB with whatever was moved; --no-chain skips this.
 unregister_deleted_images   → also runs remove_singletons automatically afterward, deleting
                                tmp_clusters rows for clusters its cascade-deletes reduced to a
-                               single member; --no-chain skips this.
+                               single member; --no-chain skips this. It also deletes flagged
+                               `cut_proposed` images whose file is gone (rejected recut cuts),
+                               never an unflagged one.
 fix_image_formats           → retroactively applies ingest_validate_formats' fix logic to
                                the existing corpus (default --status active); safe to
                                re-run, already-fixed images are no-ops. Admin-triggerable from

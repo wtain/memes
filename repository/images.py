@@ -4,7 +4,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import count
 
 from repository.image_descriptions import description_not_rejected
-from Storage.models import OCRText, Image, ImageDescription, ImageTag, ImageProcessingStatus, DescriptionNote
+from Storage.models import OCRText, Image, ImageDescription, ImageTag, ImageProcessingStatus, DescriptionNote, ImageExtras
 
 OCR_LEMMAS_PIPELINE = "ocr_lemmas"
 
@@ -239,6 +239,15 @@ class ImagesRepository:
         )
         images = await self.session.execute(query)
         return images
+
+    async def get_flagged_images(self, status: str):
+        """(filename, id) of the images of `status` that are flagged for removal."""
+        query = (
+            select(Image.filename, Image.id)
+            .join(ImageExtras, ImageExtras.image_id == Image.id)
+            .where(Image.status == status, ImageExtras.flagged == True)
+        )
+        return (await self.session.execute(query)).all()
 
 
     async def iterate_images(self, status: str = "active"):

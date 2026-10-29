@@ -1,9 +1,10 @@
 import uuid
+from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from Storage.models import CutState, ImageCut
+from Storage.models import CutState, Image, ImageCut, MemeTextRating
 
 # The review queue: proposals with a cut file to show, best first. confidence is nullable and PostgreSQL sorts NULLs
 # first on DESC, so unscored proposals are put last explicitly; id makes the order total so paging never repeats a row.
@@ -25,11 +26,38 @@ def _item(row: ImageCut) -> dict:
     }
 
 
+def lock_statement(cut_id: uuid.UUID):
+    """The proposal row with a row lock: two deciders of one proposal take turns, the second sees the first's state."""
+    return select(ImageCut).where(ImageCut.id == cut_id).with_for_update()
+
+
 class RecutRepository:
-    """Read side of the screenshot-recut review (R4). Never writes and never commits."""
+    """The screenshot-recut review queue (R4, read) and the helpers of a decision (R5a, write). Never commits."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def lock_proposal(self, cut_id: uuid.UUID) -> ImageCut | None:
+        return (await self.session.execute(lock_statement(cut_id))).scalar_one_or_none()
+
+    async def images_by_id(self, ids: list[uuid.UUID]) -> dict[uuid.UUID, Image]:
+        rows = (await self.session.execute(select(Image).where(Image.id.in_(ids)))).scalars().all()
+        return {row.id: row for row in rows}
+
+    async def set_image_status(self, image_id: uuid.UUID, status: str) -> None:
+        await self.session.execute(update(Image).where(Image.id == image_id).values(status=status))
+
+    async def move_ratings(self, from_id: uuid.UUID, to_id: uuid.UUID) -> int:
+        result = await self.session.execute(
+            update(MemeTextRating).where(MemeTextRating.image_id == from_id).values(image_id=to_id))
+        return result.rowcount
+
+    async def mark_decided(self, row: ImageCut, state: str) -> datetime:
+        decided_at = datetime.now(timezone.utc)
+        row.state = state
+        row.decided_at = decided_at
+        await self.session.flush()
+        return decided_at
 
     async def list_proposed(self, offset: int, limit: int) -> tuple[list[dict], int]:
         rows = (await self.session.execute(

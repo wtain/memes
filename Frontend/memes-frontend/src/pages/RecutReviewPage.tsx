@@ -10,13 +10,25 @@ type Props = { memesApi: MemesApi }
 
 const LOAD_AHEAD = 5
 
+const CONFLICT_TEXT: Record<string, string> = {
+  already_decided: "Already decided",
+  source_flagged: "The source image is flagged, so it can't be approved",
+}
+
 export default function RecutReviewPage({ memesApi }: Props) {
   const [params, setParams] = useSearchParams()
   const openId = params.get("cut")
   const queue = useRecutQueue(memesApi, openId)
-  const { items, total, listStatus, loadMore, detail } = queue
+  const { items, total, listStatus, loadMore, detail, decision, decide, settleConflict } = queue
 
   const open = useCallback((id: string, replace = false) => setParams({ cut: id }, { replace }), [setParams])
+
+  const saving = decision.status === "saving"
+  const decidable = detail?.status === "ready" && detail.data.state === "proposed" && !saving
+  const onDecide = useCallback(async (kind: "approve" | "reject") => {
+    const result = await decide(kind)
+    if (result.outcome === "done" && result.next !== null) open(result.next)
+  }, [decide, open])
 
   const firstId = items[0]?.id ?? null
   const detailStatus = detail?.status
@@ -24,6 +36,14 @@ export default function RecutReviewPage({ memesApi }: Props) {
     if (listStatus !== "ready" || firstId === null || firstId === openId) return
     if (openId === null || detailStatus === "missing") open(firstId, true)
   }, [listStatus, firstId, openId, detailStatus, open])
+
+  // After a 409 the queue is reloaded: move to its head once, then leave the reviewer free to navigate.
+  const redirecting = decision.status === "conflict" && decision.redirect
+  useEffect(() => {
+    if (!redirecting || listStatus !== "ready") return
+    if (firstId !== null && firstId !== openId) open(firstId, true)
+    settleConflict()
+  }, [redirecting, listStatus, firstId, openId, open, settleConflict])
 
   const position = items.findIndex((item) => item.id === openId)
   useEffect(() => {
@@ -39,10 +59,14 @@ export default function RecutReviewPage({ memesApi }: Props) {
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
       if (event.key === "ArrowLeft" && previousId !== null) open(previousId)
       if (event.key === "ArrowRight" && nextId !== null) open(nextId)
+      // A held key repeats: it must never decide the proposal that auto-advance just opened (there is no undo).
+      if (event.repeat) return
+      if (decidable && event.key.toLowerCase() === "a") void onDecide("approve")
+      if (decidable && event.key.toLowerCase() === "r") void onDecide("reject")
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [previousId, nextId, open])
+  }, [previousId, nextId, open, decidable, onDecide])
 
   let body: React.ReactNode
   if (listStatus === "loading") {
@@ -73,9 +97,10 @@ export default function RecutReviewPage({ memesApi }: Props) {
         />
         <div className="mt-4"><ProposalInfo detail={proposal} /></div>
         <div className="mt-4 flex items-center gap-3">
-          <button type="button" disabled className="min-h-11 rounded border px-3 opacity-50">Approve</button>
-          <button type="button" disabled className="min-h-11 rounded border px-3 opacity-50">Reject</button>
-          <span className="text-xs text-gray-500">Deciding arrives with the approve/reject step</span>
+          <button type="button" disabled={!decidable} aria-keyshortcuts="a" onClick={() => void onDecide("approve")}
+                  className="min-h-11 rounded border px-3 disabled:opacity-50">Approve</button>
+          <button type="button" disabled={!decidable} aria-keyshortcuts="r" onClick={() => void onDecide("reject")}
+                  className="min-h-11 rounded border px-3 disabled:opacity-50">Reject</button>
         </div>
         <QueueStrip items={items} openId={openId} imageUrl={(id) => memesApi.getImageUrlById(id)} onOpen={(id) => open(id)} />
       </>
@@ -104,6 +129,10 @@ export default function RecutReviewPage({ memesApi }: Props) {
   return (
     <div>
       <h1 className="mb-4 text-xl font-semibold">Recut review</h1>
+      {decision.status === "failed" && <p role="alert" className="mb-3">Could not save the decision</p>}
+      {decision.status === "conflict" && (
+        <p role="alert" className="mb-3">{CONFLICT_TEXT[decision.code] ?? "This proposal can no longer be applied"}</p>
+      )}
       {body}
     </div>
   )

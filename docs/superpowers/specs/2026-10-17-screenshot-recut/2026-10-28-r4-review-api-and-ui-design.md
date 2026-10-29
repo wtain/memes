@@ -5,6 +5,7 @@ Plan: docs/superpowers/plans/2026-10-28-r4-review-api-and-ui.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R4)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Follows: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-26-r3c-refresh-stale-design.md
+Follow-ups: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-28-r5a-approve-reject-lifecycle-design.md
 
 R3a leaves each cut as a `proposed` `image_cuts` row with a `cut_proposed` image. R4 is the read side of the review: two endpoints
 that list the proposals and describe one, and an admin page that shows the source with the proposed box drawn on it next to the
