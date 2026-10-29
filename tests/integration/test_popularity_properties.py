@@ -19,9 +19,11 @@ IMAGES = 8
 MIN_SUCCESSES = 50
 
 
-async def run_sequence(session, seed, tag=""):
+async def run_sequence(session, seed, tag="", with_adjust=False):
     """Run one seeded random sequence; returns (step log, counts of successful operations by kind).
-    Everything that influences a choice is run-independent (no uuid ordering), so a seed replays exactly."""
+    Everything that influences a choice is run-independent (no uuid ordering), so a seed replays exactly.
+    with_adjust adds a manual adjustment of a random image to a random target (P4), so trees carry negative
+    weights and the floor of 1 is exercised; without it the sequences are exactly the P1 ones."""
     rng = random.Random(seed)
     repo = PopularityRepository(session)
     names = [f"{tag}r{seed}-{n}.jpg" for n in range(IMAGES)]
@@ -32,10 +34,22 @@ async def run_sequence(session, seed, tag=""):
     log = []
     counts = {"absorb": 0, "dropped": 0, "reverse": 0, "delete": 0}
     counter = 0
+    actions = ["absorb", "absorb", "absorb", "dropped", "reverse", "reverse", "delete"]
+    if with_adjust:
+        actions += ["adjust", "adjust"]
+        counts["adjust"] = 0
 
     for step in range(STEPS):
-        action = rng.choice(["absorb", "absorb", "absorb", "dropped", "reverse", "reverse", "delete"])
-        if action == "absorb":
+        action = rng.choice(actions)
+        if action == "adjust":
+            target_image, target = rng.choice(ids), rng.randint(1, 6)
+            log.append(f"{step}: adjust #{index[target_image]} to {target}")
+            try:
+                await repo.adjust(target_image, target)
+                counts["adjust"] += 1
+            except (AlreadyDiscardedError, WinnerGoneError):
+                pass
+        elif action == "absorb":
             loser, winner, source = rng.choice(ids), rng.choice(ids), rng.choice(SOURCES)
             log.append(f"{step}: absorb loser=#{index[loser]} winner=#{index[winner]} source={source}")
             try:
@@ -67,6 +81,19 @@ async def run_sequence(session, seed, tag=""):
                 ))).all()
             # unique among open rows: one open edge per loser image, dropped names carry a counter
             open_rows = sorted(open_rows, key=lambda r: r[1])
+            if with_adjust:
+                # adjustment rows have no loser name; label them by winner index and weight (two rows with the
+                # same label are interchangeable, so the choice stays replayable in effect)
+                adjustments = (await session.execute(
+                    select(PopularityAbsorption.id, PopularityAbsorption.winner_image_id,
+                           PopularityAbsorption.weight).where(
+                        PopularityAbsorption.kind == "absorb",
+                        PopularityAbsorption.reversed_by_id.is_(None),
+                        PopularityAbsorption.source == "adjustment",
+                        PopularityAbsorption.winner_image_id.in_(ids),
+                    ))).all()
+                open_rows += sorted(((row_id, f"{tag}adjustment of #{index[w]} ({weight:+d})")
+                                     for row_id, w, weight in adjustments), key=lambda r: r[1])
             if not open_rows:
                 log.append(f"{step}: reverse (no open rows)")
                 continue
@@ -113,6 +140,21 @@ async def test_random_sequences_are_replayable_and_not_vacuous(db_session):
             totals[kind] += n
     for kind, n in totals.items():
         assert n >= MIN_SUCCESSES, f"only {n} successful {kind} operations across all seeds: {totals}"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("seed", range(25))
+async def test_random_sequences_with_adjustments_never_drift(db_session, seed):
+    await run_sequence(db_session, seed, tag="adj-", with_adjust=True)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_random_sequences_with_adjustments_are_not_vacuous(db_session):
+    adjusted = 0
+    for seed in range(25):
+        _, counts = await run_sequence(db_session, seed, tag="adjc-", with_adjust=True)
+        adjusted += counts["adjust"]
+    assert adjusted >= MIN_SUCCESSES, f"only {adjusted} successful adjustments across all seeds"
 
 
 @pytest.mark.asyncio(loop_scope="session")

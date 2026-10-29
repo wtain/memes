@@ -83,8 +83,8 @@ async def test_two_actives_with_one_hash_pick_the_more_popular(tmp_path, db_sess
     source, base, batch_id = await _setup(tmp_path, db_session)
     low = await _active(db_session, "low.jpg")
     high = await _active(db_session, "high.jpg")
-    high.popularity = 5
-    await db_session.flush()
+    # through the log, not by writing the cache: since P4 every write recomputes the cache from the tree
+    await PopularityRepository(db_session).adjust(high.id, 5)
     _write(source, "a.jpg")
     await run(db_session, str(source), str(base), batch_id)
     assert await _pop(db_session, high) == 6

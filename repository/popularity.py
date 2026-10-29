@@ -130,10 +130,12 @@ class PopularityRepository:
             select(Image.id).where(Image.id.in_(set(ids))).order_by(Image.id).with_for_update(key_share=True)
         )
 
-    async def _add_popularity(self, image_id: uuid.UUID, delta: int) -> None:
-        await self.session.execute(
-            update(Image).where(Image.id == image_id).values(popularity=Image.popularity + delta)
-        )
+    async def _refresh_cache(self, image_id: uuid.UUID) -> None:
+        """Rewrite images.popularity of a node with no open loser edge (a root, or a loser just released) from
+        its tree: max(1, 1 + tree weight). The sums stay raw; only this displayed value is floored (P4, H3). A
+        ghost root has no images row and the UPDATE touches nothing."""
+        floored = max(1, 1 + await self.tree_weight(image_id))
+        await self.session.execute(update(Image).where(Image.id == image_id).values(popularity=floored))
 
     async def _zero_popularity(self, image_id: uuid.UUID) -> None:
         await self.session.execute(update(Image).where(Image.id == image_id).values(popularity=0))
@@ -187,8 +189,7 @@ class PopularityRepository:
             self.session.add(row)
             await self.session.flush()
 
-            delta = weight + await self.tree_weight(loser_id)
-            await self._add_popularity(root, delta)
+            await self._refresh_cache(root)
             await self._zero_popularity(loser_id)
             await self.session.flush()
             return row
@@ -231,7 +232,8 @@ class PopularityRepository:
                 if (await self.session.execute(stmt)).first() is not None:
                     inserted += 1
             if inserted:
-                await self._add_popularity(root, inserted)
+                await self.session.flush()
+                await self._refresh_cache(root)
             await self.session.flush()
             return inserted
         raise PopularityConflictError(f"root above {winner_id} kept changing")
@@ -255,7 +257,6 @@ class PopularityRepository:
             if edge.reversed_by_id is not None:
                 raise ValueError(f"{absorb_id} is not an open absorb row")
 
-            subtree = await self.tree_weight(edge.loser_image_id) if edge.loser_image_id else 0
             row = PopularityAbsorption(
                 kind=PopularityKind.REVERSE, source=edge.source, loser_image_id=edge.loser_image_id,
                 winner_image_id=edge.winner_image_id, weight=edge.weight,
@@ -268,14 +269,49 @@ class PopularityRepository:
             edge.reversed_by_id = row.id
             await self.session.flush()
 
-            await self._add_popularity(root, -(edge.weight + subtree))
+            await self._refresh_cache(root)
             if edge.loser_image_id is not None:
-                await self.session.execute(
-                    update(Image).where(Image.id == edge.loser_image_id).values(popularity=1 + subtree)
-                )
+                await self._refresh_cache(edge.loser_image_id)
             await self.session.flush()
             return row
         raise PopularityConflictError(f"root above edge {absorb_id} kept changing")
+
+    async def adjust(self, image_id: uuid.UUID, target: int) -> PopularityAbsorption | None:
+        """Set the popularity of `image_id` (a root) to `target` by recording an `adjustment` edge with the signed
+        difference from the current derived value (P4, H1-H3). None, writing nothing, when it already reads
+        `target`. Raises ValueError for target < 1, AlreadyDiscardedError when the image is absorbed into another
+        tree, WinnerGoneError when the image row is missing. Not meant for `guarded`: errors reach the caller."""
+        if target < 1:
+            raise ValueError(f"target popularity must be at least 1, got {target}")
+        for _ in range(MAX_ATTEMPTS):
+            existing = await self._open_edge(image_id)
+            if existing is not None:
+                raise AlreadyDiscardedError(existing)
+            await self._lock_images({image_id})
+            # absorbing this image locks its row too, so after the lock the answer can no longer change
+            if await self._open_edge(image_id) is not None:
+                continue
+            image = await self._image(image_id)
+            if image is None:
+                raise WinnerGoneError(f"image {image_id} has no image row")
+
+            delta = target - await self.popularity_of(image_id)
+            if delta == 0:
+                return None
+            row = PopularityAbsorption(
+                kind=PopularityKind.ABSORB,
+                source=PopularitySource.ADJUSTMENT,
+                loser_image_id=None,
+                winner_image_id=image_id,
+                weight=delta,
+                winner_content_hash=image.content_hash,
+            )
+            self.session.add(row)
+            await self.session.flush()
+            await self._refresh_cache(image_id)
+            await self.session.flush()
+            return row
+        raise PopularityConflictError(f"image {image_id} kept being absorbed")
 
     async def reverse_open_edge(self, loser_id: uuid.UUID, reason: str,
                                 sources: Collection[str] | None = None) -> PopularityAbsorption | None:
@@ -289,15 +325,18 @@ class PopularityRepository:
     # ---- read-only checks ----
 
     async def popularity_of(self, image_id: uuid.UUID) -> int:
-        """Popularity derived from the edges: 0 for a discarded image, else 1 + the weight of its tree."""
+        """Popularity derived from the edges: 0 for a discarded image, else 1 + the weight of its tree, floored
+        at 1 (a negative adjustment can take the raw sum lower; P4, H3)."""
         if await self._open_edge(image_id) is not None:
             return 0
-        return 1 + await self.tree_weight(image_id)
+        return max(1, 1 + await self.tree_weight(image_id))
 
     async def breakdown(self, image_id: uuid.UUID) -> dict[str, int]:
         """`own` plus the weight per source over the open edges below the image (sources with weight 0,
-        such as recut, add nothing and are left out). Meant for roots: on a discarded image `popularity_of` is 0
-        while this still returns the tree-based parts, so callers should call it on roots only."""
+        such as recut, add nothing and are left out; `adjustment` may be negative). The parts add up to the raw
+        sum, which is below `popularity_of` when the floor of 1 applies. Meant for roots: on a discarded image
+        `popularity_of` is 0 while this still returns the tree-based parts, so callers should call it on roots
+        only."""
         result = await self.session.execute(_BREAKDOWN_SQL, {"root": image_id})
         parts = {"own": 1}
         for source, weight in result.all():
@@ -306,8 +345,9 @@ class PopularityRepository:
         return parts
 
     async def verify(self, image_ids: Collection[uuid.UUID] | None = None) -> list[Drift]:
-        """Compare images.popularity with the value derived from all open edges (loaded once). Only existing
-        images are compared, so trees whose root image is gone are ignored."""
+        """Compare images.popularity with the value derived from all open edges (loaded once): 0 for a
+        discarded image, else max(1, 1 + its tree weight). Only existing images are compared, so trees whose
+        root image is gone are ignored."""
         edges = (await self.session.execute(
             select(PopularityAbsorption.winner_image_id, PopularityAbsorption.loser_image_id,
                    PopularityAbsorption.weight).where(
@@ -340,6 +380,7 @@ class PopularityRepository:
                         if child not in seen:
                             seen.add(child)
                             stack.append(child)
+                expected = max(1, expected)
             if cached != expected:
                 drifts.append(Drift(image_id, cached, expected))
         return drifts
