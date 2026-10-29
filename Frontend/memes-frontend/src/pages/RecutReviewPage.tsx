@@ -19,7 +19,7 @@ export default function RecutReviewPage({ memesApi }: Props) {
   const [params, setParams] = useSearchParams()
   const openId = params.get("cut")
   const queue = useRecutQueue(memesApi, openId)
-  const { items, total, listStatus, loadMore, detail, decision, decide } = queue
+  const { items, total, listStatus, loadMore, detail, decision, decide, settleConflict } = queue
 
   const open = useCallback((id: string, replace = false) => setParams({ cut: id }, { replace }), [setParams])
 
@@ -37,12 +37,13 @@ export default function RecutReviewPage({ memesApi }: Props) {
     if (openId === null || detailStatus === "missing") open(firstId, true)
   }, [listStatus, firstId, openId, detailStatus, open])
 
-  // After a 409 the queue is reloaded; the proposal that was refused is gone from it, so move to the first remaining one.
-  const conflicted = decision.status === "conflict"
+  // After a 409 the queue is reloaded: move to its head once, then leave the reviewer free to navigate.
+  const redirecting = decision.status === "conflict" && decision.redirect
   useEffect(() => {
-    if (!conflicted || listStatus !== "ready" || firstId === null || firstId === openId) return
-    open(firstId, true)
-  }, [conflicted, listStatus, firstId, openId, open])
+    if (!redirecting || listStatus !== "ready") return
+    if (firstId !== null && firstId !== openId) open(firstId, true)
+    settleConflict()
+  }, [redirecting, listStatus, firstId, openId, open, settleConflict])
 
   const position = items.findIndex((item) => item.id === openId)
   useEffect(() => {
@@ -58,6 +59,8 @@ export default function RecutReviewPage({ memesApi }: Props) {
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
       if (event.key === "ArrowLeft" && previousId !== null) open(previousId)
       if (event.key === "ArrowRight" && nextId !== null) open(nextId)
+      // A held key repeats: it must never decide the proposal that auto-advance just opened (there is no undo).
+      if (event.repeat) return
       if (decidable && event.key.toLowerCase() === "a") void onDecide("approve")
       if (decidable && event.key.toLowerCase() === "r") void onDecide("reject")
     }

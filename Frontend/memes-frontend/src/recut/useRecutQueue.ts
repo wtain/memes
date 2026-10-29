@@ -16,7 +16,8 @@ export type DecisionState =
   | { status: "idle" }
   | { status: "saving" }
   | { status: "failed" }
-  | { status: "conflict"; code: string }
+  // `redirect`: the page still has to move off the refused proposal once the reloaded queue is in (one-shot).
+  | { status: "conflict"; code: string; redirect: boolean }
 export type DecideResult = { outcome: "ignored" | "failed" | "conflict" } | { outcome: "done"; next: string | null }
 
 const LOADING: ListState = { items: [], total: 0, status: "loading" }
@@ -98,7 +99,7 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
       return { outcome: "done", next: current.nextId ?? current.previousId }
     } catch (error) {
       if (error instanceof CuratorRequestError && error.status === 409) {
-        setDecision({ status: "conflict", code: error.code ?? "" })
+        setDecision({ status: "conflict", code: error.code ?? "", redirect: true })
         reload()
         return { outcome: "conflict" }
       }
@@ -108,6 +109,10 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
       decidingRef.current = false
     }
   }, [memesApi, loaded, openId, reload])
+
+  const settleConflict = useCallback(() => {
+    setDecision((previous) => (previous.status === "conflict" ? { ...previous, redirect: false } : previous))
+  }, [])
 
   return {
     items: list.items,
@@ -119,5 +124,6 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
     reload,
     decision,
     decide,
+    settleConflict,
   }
 }

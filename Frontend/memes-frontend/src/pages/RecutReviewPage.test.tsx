@@ -242,6 +242,35 @@ describe("RecutReviewPage", () => {
     expect(list).toHaveBeenCalledTimes(2)
   })
 
+  it("lets the reviewer leave the first proposal after a 409 redirect (no bouncing back)", async () => {
+    const user = userEvent.setup()
+    const list = vi.fn()
+      .mockResolvedValueOnce(makeProposalPage(["a", "b", "c"], 3))
+      .mockResolvedValue(makeProposalPage(["b", "c", "d"], 3))
+    const api = setup({ listRecutProposals: list })
+    api.approveRecutProposal = vi.fn().mockRejectedValue(new CuratorRequestError(409, "source_flagged"))
+    await screen.findByText("1 of 3")
+
+    await user.click(screen.getByRole("button", { name: "Approve" }))
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("?cut=b"))
+    await screen.findByText("1 of 3")
+
+    await user.click(screen.getByRole("button", { name: "Next" }))
+    expect(await screen.findByText("2 of 3")).toBeInTheDocument()
+    expect(screen.getByTestId("where")).toHaveTextContent("?cut=c")
+  })
+
+  it("does not decide on a held-down key (auto-repeat)", async () => {
+    const api = setup()
+    await screen.findByText("1 of 3")
+
+    fireEvent.keyDown(window, { key: "a", repeat: true })
+    fireEvent.keyDown(window, { key: "r", repeat: true })
+
+    expect(api.approveRecutProposal).not.toHaveBeenCalled()
+    expect(api.rejectRecutProposal).not.toHaveBeenCalled()
+  })
+
   it("says why a flagged source cannot be approved", async () => {
     const user = userEvent.setup()
     const api = setup()
