@@ -9,6 +9,7 @@ from Backend.app.services.recut_decision_service import (
     ProposalConflictError, ProposalNotFoundError, RecutDecisionService)
 from Backend.app.types.generated.recutdecision import Schema as RecutDecision
 from Backend.app.types.generated.recutproposaldetail import Schema as RecutProposalDetail
+from Backend.app.types.generated.recutstats import Schema as RecutStats
 from Backend.app.types.generated.recutproposalpage import Schema as RecutProposalPage
 from Storage.db import get_async_db
 
@@ -28,6 +29,11 @@ async def list_proposals(offset: int = Query(0, ge=0), limit: int = Query(50, ge
                          repo: RecutRepository = Depends(get_recut_repository)):
     items, total = await repo.list_proposed(offset, limit)
     return {"items": items, "total": total}
+
+
+@router.get("/stats", response_model=RecutStats)
+async def get_stats(repo: RecutRepository = Depends(get_recut_repository)):
+    return await repo.band_stats()
 
 
 @router.get("/proposals/{proposal_id}", response_model=RecutProposalDetail)

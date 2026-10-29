@@ -4,7 +4,9 @@ import type { MemesApi } from "../api/MemesApi"
 import BeforeAfter from "../components/recut/BeforeAfter"
 import ProposalInfo from "../components/recut/ProposalInfo"
 import QueueStrip from "../components/recut/QueueStrip"
+import ReviewStats from "../components/recut/ReviewStats"
 import { useRecutQueue } from "../recut/useRecutQueue"
+import { useRecutStats } from "../recut/useRecutStats"
 
 type Props = { memesApi: MemesApi }
 
@@ -22,6 +24,9 @@ export default function RecutReviewPage({ memesApi }: Props) {
   const { items, total, listStatus, loadMore, detail, decision, decide, settleConflict } = queue
 
   const open = useCallback((id: string, replace = false) => setParams({ cut: id }, { replace }), [setParams])
+
+  // `total` drops by one after every decision and changes on a reload, so the statistics are requested again then.
+  const stats = useRecutStats(memesApi, listStatus === "ready" ? total : null)
 
   const saving = decision.status === "saving"
   const decidable = detail?.status === "ready" && detail.data.state === "proposed" && !saving
@@ -134,6 +139,7 @@ export default function RecutReviewPage({ memesApi }: Props) {
         <p role="alert" className="mb-3">{CONFLICT_TEXT[decision.code] ?? "This proposal can no longer be applied"}</p>
       )}
       {body}
+      {stats !== null && <div className="mt-6"><ReviewStats stats={stats} /></div>}
     </div>
   )
 }

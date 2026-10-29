@@ -17,6 +17,7 @@ from evaluation.gold import (
     GoldError, file_sha256, judgments_by_query, load_corpus, load_judgments, load_queries, save_corpus, Corpus,
 )
 from evaluation.ratings_job import check_environment, export_ratings, import_judgment_files, prepare_output_dir
+from evaluation.recut_report import format_report as format_recut_report, load_report as load_recut_report
 from evaluation.report import (
     CompareError, compare_baselines, format_report, git_commit, load_baseline, make_baseline, pooling_bias,
     save_baseline,
@@ -106,6 +107,15 @@ def cmd_list_baselines(args, gold: Path) -> int:
         ndcg = baseline["summary"]["overall"]["ndcg"]
         shown = "-" if ndcg is None else f"{ndcg:.3f}"
         print(f"{baseline['label']}\t{baseline['retriever']['name']}\t{baseline['date']}\tnDCG@10 {shown}")
+    return 0
+
+
+def cmd_recut_report(args, gold: Path) -> int:
+    try:
+        report = load_recut_report(gold / "recut")
+    except FileNotFoundError as error:
+        return _error(str(error))
+    print(format_recut_report(report))
     return 0
 
 
@@ -569,6 +579,7 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--force", action="store_true")
 
     commands.add_parser("list-baselines")
+    commands.add_parser("recut-report")
     return parser
 
 
@@ -576,7 +587,7 @@ def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     gold = Path(args.gold_dir)
     handlers = {"import-judgments": cmd_import_judgments, "compare": cmd_compare, "list-baselines": cmd_list_baselines,
-                "sheet": cmd_sheet}
+                "sheet": cmd_sheet, "recut-report": cmd_recut_report}
     async_handlers = {"build-corpus": cmd_build_corpus, "build-pools": cmd_build_pools, "run": cmd_run,
                       "parse-eval": cmd_parse_eval, "tune-weights": cmd_tune_weights,
                       "export-ratings": cmd_export_ratings}

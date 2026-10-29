@@ -296,6 +296,17 @@ data class RecutProposalDetail(
 )
 
 @Serializable
+data class RecutStatsBand(
+    @SerialName("label") val label: String,
+    @SerialName("lower") val lower: Float?,
+    @SerialName("upper") val upper: Float?,
+    @SerialName("waiting") val waiting: Int,
+    @SerialName("approved") val approved: Int,
+    @SerialName("rejected") val rejected: Int,
+    @SerialName("approveRate") val approveRate: Float?
+)
+
+@Serializable
 data class RunStatusResponse(
     @SerialName("run_id") val run_id: String,
     @SerialName("batch_name") val batch_name: String,
@@ -562,6 +573,12 @@ data class MemeSearchResponse(
     @SerialName("nextCursor") val nextCursor: String? = null,
     @SerialName("hasNext") val hasNext: Boolean? = null,
     @SerialName("previousCursor") val previousCursor: String? = null
+)
+
+@Serializable
+data class RecutStats(
+    @SerialName("bands") val bands: List<RecutStatsBand>,
+    @SerialName("total") val total: RecutStatsBand
 )
 
 @Serializable
