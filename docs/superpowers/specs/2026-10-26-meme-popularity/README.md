@@ -111,7 +111,7 @@ hard to find in this app, or both (the owner googles a meme they cannot find and
 | # | Signal / project | Why it matters | State |
 |---|---|---|---|
 | S1 | **Search-result appearance frequency**: how often a meme is shown in results | A meme that appears often but is never saved is a ranking problem; one that never appears is invisible | idea; needs impression capture |
-| S2 | **Save frequency**: how often a meme is saved with "save" in the app | The strongest "this was useful" signal the app can see | idea; needs an event on save |
+| S2 | **Save frequency**: how often a meme is saved with "save" in the app | The strongest "this was useful" signal the app can see | designed (draft, awaiting approval): `2026-10-30-s2-save-count-design.md` |
 | S3 | **Trending time window** (for example the last 30 days) | Separates "was popular once" from "is being re-dropped now"; the absorption log already has `created_at`, so no remodelling | done: `2026-10-30-s3-trending-window-design.md` |
 | S4 | **Discovery: why the owner googles instead of finding the meme here**, including capturing failed searches | Re-ingestion mixes "popular" and "hard to find"; failed searches would separate them | needs its own brainstorm |
 | S5 | **Evaluating the ranking boost**: does it help the owner find memes | P5 ships a conservative default without measurement | follow-up once S1/S2 exist |
