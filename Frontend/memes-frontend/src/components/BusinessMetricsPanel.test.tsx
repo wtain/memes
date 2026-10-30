@@ -38,6 +38,18 @@ describe('BusinessMetricsPanel', () => {
     expect(screen.getByText(/not counted as rejections/i)).toBeInTheDocument()
   })
 
+  it('shows the adjusted count and its share next to the other outcomes', async () => {
+    const item = makeItem({
+      counts: { proposed: 4, adjusted: 1, approved: 1, rejected: 1 },
+      metrics: { approve_rate: 0.5, decided_share: 0.5, pending: 2, adjusted_share: 0.25 },
+    })
+    renderPanel(vi.fn().mockResolvedValue(makeResponse({ items: [item] })))
+
+    expect(await screen.findByText('Adjusted')).toBeInTheDocument()
+    expect(screen.getByText('Adjusted share')).toBeInTheDocument()
+    expect(screen.getByText('25.0%')).toBeInTheDocument()
+  })
+
   it('shows a dash for a missing rate', async () => {
     renderPanel(vi.fn().mockResolvedValue(makeResponse({
       items: [makeItem({

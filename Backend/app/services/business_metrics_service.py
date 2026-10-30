@@ -40,8 +40,10 @@ class ProcessDefinition:
 PROCESSES: dict[str, ProcessDefinition] = {
     "recut": ProcessDefinition(
         name="recut",
-        events=("proposed", "approved", "rejected"),
+        # "adjusted" (R6): the owner corrected the box; it is not a decision, so it is outside the exclusive group below.
+        events=("proposed", "adjusted", "approved", "rejected"),
         metrics={
+            "adjusted_share": lambda c: _ratio(c["adjusted"], c["proposed"]),
             # Pending proposals are reported separately and are never counted as rejections.
             "approve_rate": lambda c: _ratio(c["approved"], c["approved"] + c["rejected"]),
             "decided_share": lambda c: _ratio(c["approved"] + c["rejected"], c["proposed"]),

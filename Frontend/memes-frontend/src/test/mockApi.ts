@@ -52,7 +52,7 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     }),
     triggerBatchRun: vi.fn().mockResolvedValue({ run_id: 'run-1', status: 'running' }),
     listBatchRuns: vi.fn().mockResolvedValue({ items: [], total: 0 }),
-    getBatchMetrics: vi.fn().mockResolvedValue({ process: 'recut', items: [], unattributed: { counts: { proposed: 0, approved: 0, rejected: 0 }, metrics: { approve_rate: null, decided_share: null, pending: 0 } } }),
+    getBatchMetrics: vi.fn().mockResolvedValue({ process: 'recut', items: [], unattributed: { counts: { proposed: 0, adjusted: 0, approved: 0, rejected: 0 }, metrics: { approve_rate: null, decided_share: null, pending: 0, adjusted_share: null } } }),
     searchMemeFromText: vi.fn().mockResolvedValue(makeResponse()),
     getTaxonomy: vi.fn().mockResolvedValue(TEST_TAXONOMY),
     putRating: vi.fn().mockResolvedValue({ queryHash: "a".repeat(64), imageId: "img", grade: 2 }),
