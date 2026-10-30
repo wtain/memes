@@ -1,6 +1,7 @@
 # M2b: Business metrics for the library duplicate review - design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-10-30-m2b-library-duplicate-metrics.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project M2, split into M2a and M2b)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 ADR: docs/superpowers/specs/2026-10-17-screenshot-recut/adr/ADR-002-business-metrics.md
