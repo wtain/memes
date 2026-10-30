@@ -1,6 +1,7 @@
 """The library /duplicates review records its decisions as business metrics (M2b), through the real ImageService.
 Requires a live PostgreSQL instance."""
 import random
+import uuid
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -208,3 +209,39 @@ async def test_a_metrics_failure_leaves_the_flag_and_the_dismissal_applied(db_se
     assert flagged is True
     assert len(pairs) == 1 and await DuplicateDecisionsRepository(db_session).images_with_decisions([l.id]) == {l.id}
     assert await _events(db_session, l.id) == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_keeper_without_an_image_row_is_not_confirmed(db_session):
+    l = await make_image(db_session, "l.jpg")
+    ghost = uuid.uuid4()
+    await _service(db_session).mark_flagged(str(l.id), "duplicate_review", str(ghost))
+    assert await _events(db_session, l.id) == {"confirmed"}
+    assert await _events(db_session, ghost) == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_reflag_to_another_keeper_confirms_only_the_keeper_of_the_edge(db_session):
+    k1 = await make_image(db_session, "k1.jpg")
+    k2 = await make_image(db_session, "k2.jpg")
+    l = await make_image(db_session, "l.jpg")
+    service = _service(db_session)
+    await service.mark_flagged(str(l.id), "duplicate_review", str(k1.id))
+    await service.mark_flagged(str(l.id), "duplicate_review", str(k2.id))
+    assert await _events(db_session, k1.id) == {"confirmed"}
+    assert await _events(db_session, k2.id) == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_unflagging_a_keeper_that_is_itself_flagged_keeps_its_own_confirmation(db_session):
+    k = await make_image(db_session, "k.jpg")
+    k2 = await make_image(db_session, "k2.jpg")
+    l1 = await make_image(db_session, "l1.jpg")
+    service = _service(db_session)
+    await service.mark_flagged(str(l1.id), "duplicate_review", str(k.id))
+    await service.mark_flagged(str(k.id), "duplicate_review", str(k2.id))
+
+    await service.unmark_flagged(str(k.id))
+
+    assert await _events(db_session, k.id) == {"confirmed"}      # l1's flag still points at it
+    assert await _events(db_session, k2.id) == set()

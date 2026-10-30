@@ -623,19 +623,18 @@ class ImageService:
             if winner_id == loser_id:
                 raise HTTPException(status_code=422, detail="duplicateOf must differ from the image")
         await self.repo.set_flagged(image_id, True, reason)
+        edge = None
         if winner_id is not None:
-            await guarded(
+            edge = await guarded(
                 self.repo.session, "flag",
                 lambda: PopularityRepository(self.repo.session).absorb(
                     loser_id, winner_id, FLAG_REASON_SOURCES[reason]))
         if reason == "duplicate_review":
-            confirmed = []
-            try:
-                confirmed.append(uuid.UUID(str(image_id)))
-            except ValueError:
-                pass
-            if winner_id is not None:
-                confirmed.append(winner_id)
+            confirmed = [uuid.UUID(str(image_id))]
+            # The keeper counts only as the edge that was really written says: not the request's duplicateOf when
+            # the recording failed, the image is gone, or the image was already discarded into another tree.
+            if edge is not None and edge.source == "cluster_review":
+                confirmed.append(edge.winner_image_id)
             await record_confirmed(self.repo.session, confirmed)
 
     async def unmark_flagged(self, image_id):

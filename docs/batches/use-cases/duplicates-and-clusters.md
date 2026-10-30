@@ -94,8 +94,9 @@ The owner's decisions on the page are recorded as business metrics (process `lib
   failed run never receives decisions.
 - **Undo.** Unflagging retracts the loser's `confirmed`, and the keeper's once no page flag points at it; undoing a dismissal
   retracts the `dismissed` of images with no decision pair left.
-- **Limits.** An image counts once per event, under the run of its first decision. If a flag's popularity edge failed, the
-  unflag cannot find the keeper and the keeper stays counted. A failed metrics write is logged and skipped, so a count can be
+- **Limits.** An image counts once per event, under the run of its first decision. The keeper counts only when the
+  flag's popularity edge was really written (a failed recording, a missing image or an image already discarded into another
+  tree confirms the loser alone). An image keeps its `confirmed` while any page flag still involves it, as loser or keeper. A failed metrics write is logged and skipped, so a count can be
   one short.
 
 ## Byte-level duplicates

@@ -53,9 +53,14 @@ async def open_keeper(session: AsyncSession, loser_id) -> uuid.UUID | None:
 async def retract_confirmed(session: AsyncSession, loser_id, keeper_id) -> None:
     async def call():
         service = BusinessMetricsService(session)
-        await service.retract(PROCESS, CONFIRMED, loser_id)
-        if keeper_id is not None and not await PopularityRepository(session).has_open_edge_to(keeper_id, _FLAG_SOURCES):
-            await service.retract(PROCESS, CONFIRMED, keeper_id)
+        pop = PopularityRepository(session)
+        # An image keeps its confirmation while a page flag still involves it, as a loser or as a keeper.
+        for image_id in (loser_id, keeper_id):
+            if image_id is None:
+                continue
+            if await pop.has_open_edge_to(image_id, _FLAG_SOURCES) or await pop.open_winner(image_id, _FLAG_SOURCES):
+                continue
+            await service.retract(PROCESS, CONFIRMED, image_id)
     await _swallowed(session, "retract confirmed", call)
 
 
