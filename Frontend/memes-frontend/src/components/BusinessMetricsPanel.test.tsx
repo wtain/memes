@@ -38,6 +38,30 @@ describe('BusinessMetricsPanel', () => {
     expect(screen.getByText(/not counted as rejections/i)).toBeInTheDocument()
   })
 
+  it('shows a custom note instead of the default one', async () => {
+    const api = makeMockApi({ getBatchMetrics: vi.fn().mockResolvedValue(makeResponse()) })
+    render(<BusinessMetricsPanel memesApi={api} process="ingest_tier_a" title="Tier A" emptyText="none"
+                                 note="Reject share, not precision." />)
+
+    expect(await screen.findByText('Reject share, not precision.')).toBeInTheDocument()
+    expect(screen.queryByText(/not counted as rejections/i)).not.toBeInTheDocument()
+  })
+
+  it('renders the ingestion columns and formats the reject share as a percentage', async () => {
+    const item = makeItem({
+      counts: { proposed: 4, rejected: 2, kept: 1 },
+      metrics: { reject_share: 0.6667, decided_share: 0.75, pending: 1 },
+    })
+    const api = makeMockApi({ getBatchMetrics: vi.fn().mockResolvedValue(makeResponse({ items: [item] })) })
+    render(<BusinessMetricsPanel memesApi={api} process="ingest_tier_a" title="Tier A" emptyText="none" />)
+
+    for (const header of ['Proposed', 'Rejected', 'Kept', 'Reject share', 'Decided share', 'Pending']) {
+      expect(await screen.findByText(header)).toBeInTheDocument()
+    }
+    expect(screen.getByText('66.7%')).toBeInTheDocument()
+    expect(screen.getByText('75.0%')).toBeInTheDocument()
+  })
+
   it('shows the adjusted count and its share next to the other outcomes', async () => {
     const item = makeItem({
       counts: { proposed: 4, adjusted: 1, approved: 1, rejected: 1 },

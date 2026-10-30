@@ -6,6 +6,9 @@ import DuplicateDecisionsPanel from "../components/DuplicateDecisionsPanel"
 
 type Props = { memesApi: MemesApi }
 
+const INGEST_NOTE =
+  "Reject share, not precision: a kept image can be the winner of a true duplicate group. Pending images are not counted as kept."
+
 const PAGE_SIZE = 20
 const POLL_INTERVAL_MS = 4000
 const CONFIRM_TIMEOUT_MS = 3000
@@ -249,6 +252,20 @@ export default function AdminBatchesPage({ memesApi }: Props) {
         process="recut"
         title="Recut outcomes"
         emptyText="No recut proposals yet"
+      />
+      <BusinessMetricsPanel
+        memesApi={memesApi}
+        process="ingest_tier_a"
+        title="Ingestion duplicates: Tier A"
+        emptyText="No tier A duplicate candidates yet"
+        note={INGEST_NOTE}
+      />
+      <BusinessMetricsPanel
+        memesApi={memesApi}
+        process="ingest_tier_b"
+        title="Ingestion duplicates: Tier B"
+        emptyText="No tier B duplicate candidates yet"
+        note={INGEST_NOTE}
       />
 
       <DuplicateDecisionsPanel memesApi={memesApi} />

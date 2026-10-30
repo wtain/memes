@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdminBatchesPage from './AdminBatchesPage'
 import { makeMockApi } from '../test/mockApi'
-import type { RunStatusResponse, RunListResponse } from '../types/generated/all'
+import type { BatchMetricsResponse, RunStatusResponse, RunListResponse } from '../types/generated/all'
 
 function makeRun(overrides: Partial<RunStatusResponse> = {}): RunStatusResponse {
   return {
@@ -219,6 +219,41 @@ describe('AdminBatchesPage', () => {
     expect(api.getBatchMetrics).toHaveBeenCalledWith('recut')
   })
 
+  it('shows one panel per ingestion review tier, each with its own empty text', async () => {
+    const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([])) })
+    render(<AdminBatchesPage memesApi={api} />)
+
+    expect(await screen.findByText('Ingestion duplicates: Tier A')).toBeInTheDocument()
+    expect(screen.getByText('Ingestion duplicates: Tier B')).toBeInTheDocument()
+    expect(api.getBatchMetrics).toHaveBeenCalledWith('ingest_tier_a')
+    expect(api.getBatchMetrics).toHaveBeenCalledWith('ingest_tier_b')
+    expect(await screen.findByText('No tier A duplicate candidates yet')).toBeInTheDocument()
+    expect(await screen.findByText('No tier B duplicate candidates yet')).toBeInTheDocument()
+  })
+
+  it('explains in the tier panels that the number is a reject share, not a precision', async () => {
+    const recut: BatchMetricsResponse = {
+      process: 'recut',
+      items: [],
+      unattributed: { counts: { proposed: 0, adjusted: 0, approved: 0, rejected: 0 }, metrics: { approve_rate: null, decided_share: null, pending: 0, adjusted_share: null } },
+    }
+    const tier = (process: string): BatchMetricsResponse => ({
+      process,
+      items: [{
+        run_id: 'r1', run_created_at: '2026-10-30T09:00:00Z',
+        counts: { proposed: 4, rejected: 2, kept: 1 },
+        metrics: { reject_share: 0.6667, decided_share: 0.75, pending: 1 },
+      }],
+      unattributed: { counts: { proposed: 0, rejected: 0, kept: 0 }, metrics: { reject_share: null, decided_share: null, pending: 0 } },
+    })
+    const getBatchMetrics = vi.fn((process: string) => Promise.resolve(process === 'recut' ? recut : tier(process)))
+    const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([])), getBatchMetrics })
+    render(<AdminBatchesPage memesApi={api} />)
+
+    expect(await screen.findAllByText(/Reject share, not precision/)).toHaveLength(2)
+    expect(screen.getAllByText('66.7%')).toHaveLength(2)
+  })
+
   it('a failing metrics fetch leaves the page usable', async () => {
     const api = makeMockApi({
       listBatchRuns: vi.fn().mockResolvedValue(makeList([])),
@@ -226,7 +261,7 @@ describe('AdminBatchesPage', () => {
     })
     render(<AdminBatchesPage memesApi={api} />)
 
-    expect(await screen.findByText('metrics down')).toBeInTheDocument()
+    expect((await screen.findAllByText('metrics down')).length).toBeGreaterThan(0)   // one per panel
     expect(screen.getByText('move_flagged')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Run' }).length).toBeGreaterThan(0)
   })
