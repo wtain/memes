@@ -358,3 +358,168 @@ describe("RecutReviewPage", () => {
     expect(list).toHaveBeenLastCalledWith(2, 50)
   })
 })
+
+describe("RecutReviewPage adjusting the box", () => {
+  const DETECTED = { x: 10, y: 20, w: 300, h: 200 }
+
+  function loadSource(width = 1000, height = 800) {
+    const image = screen.getByAltText("Source image") as HTMLImageElement
+    Object.defineProperty(image, "naturalWidth", { value: width, configurable: true })
+    Object.defineProperty(image, "naturalHeight", { value: height, configurable: true })
+    fireEvent.load(image)
+  }
+
+  async function startEditing(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByText("1 of 3")
+    loadSource()
+    await user.click(screen.getByRole("button", { name: "Adjust" }))
+  }
+
+  const field = (name: string) => screen.getByRole("spinbutton", { name })
+
+  async function setWidth(user: ReturnType<typeof userEvent.setup>, value: string) {
+    await user.clear(field("w"))
+    await user.type(field("w"), value)
+  }
+
+  const adjusted = (overrides = {}) => makeProposalDetail("a", {
+    box: { x: 10, y: 20, w: 250, h: 200 }, cutImageId: "cut-a2", detectedBox: DETECTED, nextId: "b", ...overrides })
+
+  it("has no Adjust button until the source image has loaded", async () => {
+    setup()
+    await screen.findByText("1 of 3")
+
+    expect(screen.getByRole("button", { name: "Adjust" })).toBeDisabled()
+    loadSource()
+    expect(screen.getByRole("button", { name: "Adjust" })).toBeEnabled()
+  })
+
+  it("switches the source pane to the editor and turns the decisions off", async () => {
+    const user = userEvent.setup()
+    setup()
+
+    await startEditing(user)
+
+    expect(screen.getByRole("group", { name: "Crop box editor" })).toBeInTheDocument()
+    expect(field("x")).toHaveValue(10)
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Adjust" })).toBeDisabled()
+  })
+
+  it("ignores A, R and the arrow keys while editing, and a key typed in a field", async () => {
+    const user = userEvent.setup()
+    const api = setup()
+    await startEditing(user)
+
+    fireEvent.keyDown(window, { key: "a" })
+    fireEvent.keyDown(window, { key: "r" })
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    fireEvent.keyDown(field("w"), { key: "a" })
+
+    expect(api.approveRecutProposal).not.toHaveBeenCalled()
+    expect(api.rejectRecutProposal).not.toHaveBeenCalled()
+    expect(screen.getByTestId("where")).toHaveTextContent("?cut=a")
+  })
+
+  it("sends the corrected box, then shows the new cut and the stale-data note", async () => {
+    const user = userEvent.setup()
+    const api = setup({ adjustRecutProposal: vi.fn().mockResolvedValue(adjusted()) })
+    await startEditing(user)
+
+    await setWidth(user, "250")
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+
+    await waitFor(() => expect(api.adjustRecutProposal).toHaveBeenCalledWith("a", { x: 10, y: 20, w: 250, h: 200 }))
+    expect(await screen.findByText(/Adjusted\. Derived data \(OCR, descriptions, embeddings\) is stale until recut_pipeline has run/)).toBeInTheDocument()
+    expect(screen.queryByRole("group", { name: "Crop box editor" })).not.toBeInTheDocument()
+    expect(screen.getByAltText("Proposed cut")).toHaveAttribute("src", "http://example.com/api/images/cut-a2")
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled()
+    expect(screen.getByText("10, 20, 250 x 200")).toBeInTheDocument()
+  })
+
+  it("leaves editing without a request on Cancel and on Escape", async () => {
+    const user = userEvent.setup()
+    const api = setup()
+    await startEditing(user)
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("group", { name: "Crop box editor" })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Adjust" }))
+    expect(screen.getByRole("group", { name: "Crop box editor" })).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(screen.queryByRole("group", { name: "Crop box editor" })).not.toBeInTheDocument()
+    expect(api.adjustRecutProposal).not.toHaveBeenCalled()
+  })
+
+  it("loads the detector's box into the fields on Reset and applies it like any other box", async () => {
+    const user = userEvent.setup()
+    const api = setup({
+      getRecutProposal: vi.fn((id: string) => Promise.resolve(makeProposalDetail(id, {
+        box: { x: 50, y: 40, w: 200, h: 120 }, detectedBox: { x: 0, y: 0, w: 900, h: 700 }, nextId: "b" }))),
+      adjustRecutProposal: vi.fn().mockResolvedValue(adjusted()),
+    })
+    await startEditing(user)
+
+    await user.click(screen.getByRole("button", { name: "Reset to detected box" }))
+    expect([field("x"), field("y"), field("w"), field("h")].map((input) => (input as HTMLInputElement).value))
+      .toEqual(["0", "0", "900", "700"])
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+
+    await waitFor(() => expect(api.adjustRecutProposal).toHaveBeenCalledWith("a", { x: 0, y: 0, w: 900, h: 700 }))
+  })
+
+  it("explains a 409 and reloads the queue", async () => {
+    const user = userEvent.setup()
+    const api = setup({
+      adjustRecutProposal: vi.fn().mockRejectedValue(new CuratorRequestError(409, "source_changed")),
+    })
+    await startEditing(user)
+    await setWidth(user, "250")
+
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+
+    expect(await screen.findByText("The source file changed after detection, so the box can't be applied")).toBeInTheDocument()
+    await waitFor(() => expect(api.listRecutProposals).toHaveBeenCalledTimes(2))
+  })
+
+  it("says the box does not fit on a 422 and keeps the draft editable", async () => {
+    const user = userEvent.setup()
+    setup({ adjustRecutProposal: vi.fn().mockRejectedValue(new CuratorRequestError(422)) })
+    await startEditing(user)
+    await setWidth(user, "250")
+
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+
+    expect(await screen.findByText("That box does not fit this image")).toBeInTheDocument()
+    expect(field("w")).toHaveValue(250)
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled()
+  })
+
+  it("says the adjustment failed on any other error and keeps the draft editable", async () => {
+    const user = userEvent.setup()
+    setup({ adjustRecutProposal: vi.fn().mockRejectedValue(new CuratorRequestError(500, "write_error")) })
+    await startEditing(user)
+    await setWidth(user, "250")
+
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+
+    expect(await screen.findByText("Could not adjust the box")).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Crop box editor" })).toBeInTheDocument()
+  })
+
+  it("disables the panel and sends one request while the adjustment is saving", async () => {
+    const user = userEvent.setup()
+    const adjustRecutProposal = vi.fn(() => new Promise<never>(() => {}))
+    setup({ adjustRecutProposal })
+    await startEditing(user)
+    await setWidth(user, "250")
+
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled())
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled()
+    expect(adjustRecutProposal).toHaveBeenCalledTimes(1)
+  })
+})

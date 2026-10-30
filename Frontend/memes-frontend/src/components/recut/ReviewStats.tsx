@@ -11,6 +11,7 @@ function Row({ band }: { band: RecutStatsBand }) {
       <td className="py-1 pr-4 text-right">{band.waiting}</td>
       <td className="py-1 pr-4 text-right">{band.approved}</td>
       <td className="py-1 pr-4 text-right">{band.rejected}</td>
+      <td className="py-1 pr-4 text-right">{band.adjusted}</td>
       <td className="py-1 text-right">{rate(band)}</td>
     </tr>
   )
@@ -28,6 +29,7 @@ export default function ReviewStats({ stats }: { stats: RecutStats }) {
             <th scope="col" className="pr-4 text-right font-medium">Waiting</th>
             <th scope="col" className="pr-4 text-right font-medium">Approved</th>
             <th scope="col" className="pr-4 text-right font-medium">Rejected</th>
+            <th scope="col" className="pr-4 text-right font-medium">Adjusted</th>
             <th scope="col" className="text-right font-medium">Approve rate</th>
           </tr>
         </thead>

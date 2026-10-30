@@ -5,14 +5,22 @@ import BoxEditor from "./BoxEditor"
 import BoxOverlay from "./BoxOverlay"
 
 /** `draft`: while the owner adjusts the box, the box being edited (the overlay becomes the editor); null or absent otherwise. */
-type Props = { sourceUrl: string; cutUrl: string; box: Box; draft?: Box | null; onDraftChange?: (box: Box) => void }
+type Props = {
+  sourceUrl: string
+  cutUrl: string
+  box: Box
+  draft?: Box | null
+  onDraftChange?: (box: Box) => void
+  /** Called with the natural size of the source once it has loaded (the page validates a draft against it). */
+  onSize?: (size: Size) => void
+}
 
 function Missing({ what }: { what: string }) {
   return <div className="flex h-48 items-center justify-center rounded border border-dashed text-sm text-gray-500">{what} file missing</div>
 }
 
 /** Mounted with a key of the proposal and its cut image, so the load state of one never leaks into the next. */
-export default function BeforeAfter({ sourceUrl, cutUrl, box, draft = null, onDraftChange }: Props) {
+export default function BeforeAfter({ sourceUrl, cutUrl, box, draft = null, onDraftChange, onSize }: Props) {
   const [size, setSize] = useState<Size | null>(null)
   const [sourceFailed, setSourceFailed] = useState(false)
   const [cutFailed, setCutFailed] = useState(false)
@@ -31,7 +39,11 @@ export default function BeforeAfter({ sourceUrl, cutUrl, box, draft = null, onDr
               src={sourceUrl}
               alt="Source image"
               className="block max-h-[70vh] max-w-full"
-              onLoad={(event) => setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
+              onLoad={(event) => {
+                const loaded = { width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight }
+                setSize(loaded)
+                onSize?.(loaded)
+              }}
               onError={() => setSourceFailed(true)}
             />
             {sized && (draft !== null

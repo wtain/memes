@@ -11,6 +11,15 @@ describe("ReviewStats", () => {
     expect(within(row).getByText("3")).toBeInTheDocument()
   })
 
+  it("shows how many proposals of each band were adjusted, and in total", () => {
+    render(<ReviewStats stats={makeStats()} />)
+
+    expect(screen.getByRole("columnheader", { name: "Adjusted" })).toBeInTheDocument()
+    const cells = (name: RegExp) => within(screen.getByRole("row", { name })).getAllByRole("cell").map((c) => c.textContent)
+    expect(cells(/0\.9-1\.0/)).toEqual(["3", "7", "1", "2", "88%"])
+    expect(cells(/total/i)).toEqual(["5", "7", "1", "2", "88%"])
+  })
+
   it("shows a dash instead of a rate while nothing in the band is decided", () => {
     render(<ReviewStats stats={makeStats()} />)
 
