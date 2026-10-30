@@ -5,13 +5,18 @@ Requires a live PostgreSQL instance with pgvector — see tests/integration/conf
 """
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 import pytest
+from sqlalchemy import select
 
 from batch.ingest_promote import get_promotable_ids, maybe_complete_run, promote
 from Backend.app.repositories.ingestion_repository import IngestionRepository
+from Backend.app.services.business_metrics_service import BusinessMetricsService
+from Backend.app.services.ingestion_metrics import record_decision, record_proposed
+from Backend.app.services.ingestion_service import IngestionService
 from repository.batch_runs import BatchRunRepository
-from Storage.models import Image, TmpDuplicates
+from Storage.models import Image, ProcessEvent, TmpDuplicates
 
 _TIER_B_THRESHOLD = 0.3
 
@@ -107,3 +112,48 @@ async def test_maybe_complete_run_leaves_run_started_when_pending_remains(db_ses
     assert remaining == 1
     run = await runs_repo.get_run(batch_id)
     assert run.status == "started"
+
+
+async def _process_events(session, process, subject):
+    rows = await session.execute(select(ProcessEvent.event).where(
+        ProcessEvent.process == process, ProcessEvent.subject_id == subject))
+    return set(rows.scalars())
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_promote_records_kept_for_proposed_images_nobody_decided(db_session):
+    batch_id = await _make_run(db_session)
+    undecided = await _make_image(db_session, "pending", batch_id)
+    decided = await _make_image(db_session, "pending", batch_id)
+    never = await _make_image(db_session, "pending", batch_id)
+    await record_proposed(db_session, "tier_a", batch_id, [undecided, decided])
+    await record_proposed(db_session, "tier_b", batch_id, [undecided])
+    await record_decision(db_session, "tier_a", "kept", decided, batch_id)
+
+    promoted = await promote(db_session, batch_id, _TIER_B_THRESHOLD)
+
+    assert set(promoted) == {undecided, decided, never}
+    assert await _process_events(db_session, "ingest_tier_a", undecided) == {"proposed", "kept"}
+    assert await _process_events(db_session, "ingest_tier_b", undecided) == {"proposed", "kept"}
+    assert await _process_events(db_session, "ingest_tier_a", decided) == {"proposed", "kept"}   # not counted twice
+    assert await _process_events(db_session, "ingest_tier_a", never) == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_an_image_released_by_its_partners_rejection_ends_kept_and_the_run_has_nothing_pending(db_session):
+    batch_id = await _make_run(db_session)
+    x = await _make_image(db_session, "pending", batch_id)
+    y = await _make_image(db_session, "pending", batch_id)
+    await _make_pair(db_session, x, y, distance=0.02, match_source="in_batch")
+    await record_proposed(db_session, "tier_a", batch_id, [x, y])
+    with patch("Backend.app.services.ingestion_service.image_store.move_to_rejected"):
+        await IngestionService(IngestionRepository(db_session)).resolve(
+            "tier_a", [{"image_id": y, "decision": "reject"}])
+
+    promoted = await promote(db_session, batch_id, _TIER_B_THRESHOLD)
+
+    assert promoted == [x]
+    assert await _process_events(db_session, "ingest_tier_a", x) == {"proposed", "kept"}
+    items = (await BusinessMetricsService(db_session).batch_metrics("ingest_tier_a"))["items"]
+    counts = next(i for i in items if i["run_id"] == str(batch_id))["counts"]
+    assert counts == {"proposed": 2, "rejected": 1, "kept": 1}

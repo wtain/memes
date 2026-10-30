@@ -2,7 +2,10 @@ import { useEffect, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import type { BatchMetricsBucket, BatchMetricsResponse } from "../types/generated/all"
 
-type Props = { memesApi: MemesApi; process: string; title: string; emptyText: string }
+/** `note`: the sentence under the table; the default is the recut one. */
+type Props = { memesApi: MemesApi; process: string; title: string; emptyText: string; note?: string }
+
+const DEFAULT_NOTE = "Pending proposals are not counted as rejections."
 
 type State =
   | { status: "loading" }
@@ -29,7 +32,7 @@ function Cells({ bucket, countKeys, metricKeys }: { bucket: BatchMetricsBucket; 
   )
 }
 
-export default function BusinessMetricsPanel({ memesApi, process, title, emptyText }: Props) {
+export default function BusinessMetricsPanel({ memesApi, process, title, emptyText, note = DEFAULT_NOTE }: Props) {
   const [state, setState] = useState<State>({ status: "loading" })
 
   useEffect(() => {
@@ -51,12 +54,12 @@ export default function BusinessMetricsPanel({ memesApi, process, title, emptyTe
   return (
     <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
       <h2 className="text-lg font-semibold mb-2">{title}</h2>
-      <Body state={state} emptyText={emptyText} />
+      <Body state={state} emptyText={emptyText} note={note} />
     </div>
   )
 }
 
-function Body({ state, emptyText }: { state: State; emptyText: string }) {
+function Body({ state, emptyText, note }: { state: State; emptyText: string; note: string }) {
   if (state.status === "loading") return <p className="text-sm text-gray-400">Loading…</p>
   if (state.status === "error") return <p className="text-sm text-red-500">{state.message}</p>
 
@@ -92,7 +95,7 @@ function Body({ state, emptyText }: { state: State; emptyText: string }) {
           )}
         </tbody>
       </table>
-      <p className="text-xs text-gray-500 mt-2">Pending proposals are not counted as rejections.</p>
+      <p className="text-xs text-gray-500 mt-2">{note}</p>
     </>
   )
 }

@@ -37,7 +37,24 @@ class ProcessDefinition:
     exclusive: tuple[tuple[str, ...], ...] = ()
 
 
+def _ingestion_process(name: str) -> ProcessDefinition:
+    """One ingestion review tier (M2a). Subject = the pending image; `kept` includes the winner of a true duplicate
+    group, so `reject_share` is a share of decisions, not a precision."""
+    return ProcessDefinition(
+        name=name,
+        events=("proposed", "rejected", "kept"),
+        metrics={
+            "reject_share": lambda c: _ratio(c["rejected"], c["rejected"] + c["kept"]),
+            "decided_share": lambda c: _ratio(c["rejected"] + c["kept"], c["proposed"]),
+            "pending": lambda c: c["proposed"] - c["rejected"] - c["kept"],
+        },
+        exclusive=(("rejected", "kept"),),
+    )
+
+
 PROCESSES: dict[str, ProcessDefinition] = {
+    "ingest_tier_a": _ingestion_process("ingest_tier_a"),
+    "ingest_tier_b": _ingestion_process("ingest_tier_b"),
     "recut": ProcessDefinition(
         name="recut",
         # "adjusted" (R6): the owner corrected the box; it is not a decision, so it is outside the exclusive group below.
@@ -83,6 +100,29 @@ class BusinessMetricsService:
             if others and await process_events.subject_has_any_event(self._session, process, subject_id, others):
                 raise ConflictingEventError(f"{process}: {event} after {others}")
         return await process_events.insert_event(self._session, process, event, batch_run_id, subject_id)
+
+    async def retract(self, process: str, event: str, subject_id: uuid.UUID) -> bool:
+        """Remove one event of one subject. Only for the undo of the decision the event describes (ADR-002, M2a).
+        Returns False if there was none. Never commits."""
+        definition = _definition(process)
+        if event not in definition.events:
+            raise UnknownEventError(f"{process}: {event}")
+        return await process_events.delete_event(self._session, process, event, subject_id)
+
+    async def with_event(self, process: str, event: str, subject_ids) -> set[uuid.UUID]:
+        """Which of `subject_ids` carry this event."""
+        definition = _definition(process)
+        if event not in definition.events:
+            raise UnknownEventError(f"{process}: {event}")
+        return await process_events.subjects_with_event(self._session, process, event, list(subject_ids))
+
+    async def undecided(self, process: str, proposed_event: str, decided_events: tuple[str, ...],
+                        subject_ids) -> set[uuid.UUID]:
+        """The subjects that carry `proposed_event` and none of `decided_events`."""
+        remaining = await self.with_event(process, proposed_event, subject_ids)
+        for event in decided_events:
+            remaining -= await self.with_event(process, event, remaining)
+        return remaining
 
     async def batch_metrics(self, process: str, limit: int = 50) -> dict:
         """Counts and rates for the newest `limit` runs that have events, newest first, plus the unattributed

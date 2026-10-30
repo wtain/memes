@@ -24,7 +24,8 @@ Epic-level ADRs (all `proposed`): ADR-001 status registry and staleness, ADR-002
 | R5b | Duplicate exclusion and batch audit | Source/cut pairs kept out of `rebuild_duplicates` and `ingest_find_duplicates`, audit of `move_flagged` and `ingest_hash_dedup` for cut files | R5a | FR-11, OQ-7 | done | `2026-10-29-r5b-duplicate-exclusion-and-batch-audit-design.md`, plan `docs/superpowers/plans/2026-10-29-r5b-duplicate-exclusion-and-batch-audit.md` |
 | R6 | Box adjustment | Drag-to-adjust in the review UI, cut regenerated from the corrected box | R4, R5 | FR-15 | done | `2026-10-30-r6-box-adjustment-design.md`, plan `docs/superpowers/plans/2026-10-30-r6-box-adjustment.md` |
 | R7 | Operations and evaluation | Batch registry and inventory entries, statistics, detection precision measured on the labelled sample, recut metrics shown, decision on scheduling | R2 to R5 | FR-16, NFR-3 | done | `2026-10-29-r7-operations-and-evaluation-design.md`, plan `docs/superpowers/plans/2026-10-29-r7-operations-and-evaluation.md` |
-| M2 | Business metrics for duplicate detection (follow-up) | Duplicate review decisions recorded as `process_events`, same counts and rates per batch | M1 | FR-14 | deferred: decide after M1 has been used on recut, in or out of this epic | - |
+| M2a | Business metrics for the ingestion duplicate review | `ingest_tier_a` and `ingest_tier_b` processes: proposed, rejected, kept per ingestion run, undo retraction, implicit keep at promote, two panels | M1 | FR-14 | done | `2026-10-30-m2a-ingestion-duplicate-metrics-design.md`, plan `docs/superpowers/plans/2026-10-30-m2a-ingestion-duplicate-metrics.md` |
+| M2b | Business metrics for the library duplicate review | `/duplicates` page decisions (dismiss, flag as duplicate) as `process_events`; needs a batch-attribution rule | M2a | FR-14 | not started | - |
 
 ## Order
 

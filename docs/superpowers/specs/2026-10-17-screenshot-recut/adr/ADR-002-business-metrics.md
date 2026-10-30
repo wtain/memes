@@ -35,3 +35,12 @@ records the outcome of a human decision that arrives days after the run, and non
 - One table, one service, one reporting query shape, reusable by M2.
 - Recording an event is a call at each decision point (R5 for approve and reject, R3 for proposed), inside the same transaction as the state change, so counts and states cannot disagree.
 - Open: retention of events (OQ-6) and how the numbers are shown (statistics page or admin batches), decided in the M1 design.
+
+## Amendment (M2a, 2026-10-30): retraction
+
+`process_events` stays append-only with one exception: `BusinessMetricsService.retract(process, event, subject_id)` deletes a single
+row. It exists for one case: a human undoes the decision an event describes (the ingestion review's `undo_reject` retracts the
+image's `rejected` event), so that the image can be decided again without tripping the exclusive group and is not counted twice.
+Nothing else removes events; a retention job (OQ-6) would be a separate decision. M2a's two ingestion processes
+(`ingest_tier_a`, `ingest_tier_b`) are the first users; see
+`docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-30-m2a-ingestion-duplicate-metrics-design.md`.

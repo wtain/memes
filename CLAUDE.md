@@ -737,7 +737,10 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                settings.DUPLICATES.THRESHOLD (0.12, lowered from 0.3 on
                                2026-09-18 -- see the setting's own comment in
                                environments/settings.yaml for the empirical basis) as its
-                               outer bound.
+                               outer bound. After each tier call it also records the tier's `proposed`
+                               business-metric events (processes ingest_tier_a / ingest_tier_b, M2a; the
+                               review's reject/keep decisions and ingest_promote record the rest -- see
+                               docs/batches/use-cases/ingestion.md, "Review metrics").
                                Each tier call now issues three probes, mirroring
                                rebuild_duplicates.py's own split (see
                                docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md):
@@ -767,6 +770,8 @@ ingest_promote              → Stage 4 (final): promotes pending images with no
                                -- files are already in BASE_PATH from Stage 1). Marks the run
                                `completed` once every pending image in the batch is resolved
                                (promoted or rejected); safe to re-run as more images clear review.
+                               Records a `kept` metric event for promoted images that were proposed in a
+                               tier and never decided there (M2a).
                                Admin-triggerable from /admin/batches (kind="ingest_promote"),
                                manual-trigger only; a click with no active ingestion run surfaces
                                as a failed run rather than being silently swallowed, since it's an

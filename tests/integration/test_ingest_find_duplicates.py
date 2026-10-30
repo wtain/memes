@@ -7,11 +7,14 @@ Requires a live PostgreSQL instance with pgvector — see tests/integration/conf
 import uuid
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 
-from batch.ingest_find_duplicates import find_batch_duplicates
+from Backend.app.services.business_metrics_service import BusinessMetricsService
+from batch.ingest_find_duplicates import find_batch_duplicates, record_proposals
 from repository.batch_runs import BatchRunRepository
-from Storage.models import Embedding, Image, ImageClassification, OCRLemma, OCRTextEmbedding
+from Storage.models import (
+    BatchRun, Embedding, Image, ImageClassification, OCRLemma, OCRTextEmbedding, ProcessEvent, RunStatus,
+    TmpDuplicates)
 
 _DIM = 512
 
@@ -303,3 +306,53 @@ async def test_ingestion_probe_ignores_cut_proposed_images(db_session):
     inserted = await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)
 
     assert inserted == 0
+
+
+async def _process_events(session, process, subject):
+    rows = await session.execute(select(ProcessEvent.event).where(
+        ProcessEvent.process == process, ProcessEvent.subject_id == subject))
+    return set(rows.scalars())
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_record_proposals_follows_the_tier_bands_and_is_idempotent(db_session):
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    near = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)     # identical to an active image: band A
+    loose = await _insert_image(db_session, _unit_vector(5), "pending", batch_id)    # a hand-made 0.08 pair: band B only
+    active = await _insert_image(db_session, _unit_vector(0), "active")
+    active_loose = await _insert_image(db_session, _unit_vector(9), "active")
+    await find_batch_duplicates(db_session, batch_id, k=20, threshold=0.3)
+    db_session.add(TmpDuplicates(image_id1=min(loose, active_loose), image_id2=max(loose, active_loose),
+                                 distance=0.08, match_source="cross_corpus"))
+    await db_session.flush()
+
+    await record_proposals(db_session, batch_id, "tier_a")
+    await record_proposals(db_session, batch_id, "tier_b")
+    await record_proposals(db_session, batch_id, "tier_a")        # a re-run adds nothing
+
+    assert await _process_events(db_session, "ingest_tier_a", near) == {"proposed"}
+    assert await _process_events(db_session, "ingest_tier_b", near) == set()
+    assert await _process_events(db_session, "ingest_tier_a", loose) == set()
+    assert await _process_events(db_session, "ingest_tier_b", loose) == {"proposed"}
+    assert await _process_events(db_session, "ingest_tier_a", active) == set()
+    items = (await BusinessMetricsService(db_session).batch_metrics("ingest_tier_a"))["items"]
+    assert next(i for i in items if i["run_id"] == str(batch_id))["counts"]["proposed"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_record_proposals_ignores_a_pending_image_of_another_run(db_session):
+    batch_id = await BatchRunRepository(db_session).create_run(kind="ingestion", trigger="manual", stage="hash_dedup")
+    other = BatchRun(kind="ingestion", trigger="manual", status=str(RunStatus.completed))
+    db_session.add(other)
+    await db_session.flush()
+    mine = await _insert_image(db_session, _unit_vector(0), "pending", batch_id)
+    theirs = await _insert_image(db_session, _unit_vector(0), "pending", other.run_id)
+    # A stale pair between the two runs' images (the find job itself never creates one): only this run's image counts.
+    db_session.add(TmpDuplicates(image_id1=min(mine, theirs), image_id2=max(mine, theirs), distance=0.02,
+                                 match_source="cross_corpus"))
+    await db_session.flush()
+
+    await record_proposals(db_session, batch_id, "tier_a")
+
+    assert await _process_events(db_session, "ingest_tier_a", mine) == {"proposed"}
+    assert await _process_events(db_session, "ingest_tier_a", theirs) == set()
