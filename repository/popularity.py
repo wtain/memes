@@ -280,8 +280,8 @@ class PopularityRepository:
 
     async def adjust(self, image_id: uuid.UUID, target: int) -> PopularityAbsorption | None:
         """Set the popularity of `image_id` (a root) to `target` by recording an `adjustment` edge with the signed
-        difference from the current derived value (P4, H1-H3). None, writing nothing, when it already reads
-        `target`. Raises ValueError for target < 1, AlreadyDiscardedError when the image is absorbed into another
+        difference from the raw tree value, 1 + the open edge weights (P4, H1-H3). None, writing nothing, when the
+        shown (floored) popularity already reads `target`. Raises ValueError for target < 1, AlreadyDiscardedError when the image is absorbed into another
         tree, WinnerGoneError when the image row is missing. Not meant for `guarded`: errors reach the caller."""
         if target < 1:
             raise ValueError(f"target popularity must be at least 1, got {target}")

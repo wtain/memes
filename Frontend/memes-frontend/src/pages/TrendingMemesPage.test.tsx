@@ -54,6 +54,34 @@ describe("TrendingMemesPage", () => {
     expect(screen.queryAllByRole("img")).toHaveLength(0)
   })
 
+  it("Retry after a failed first request loads the first page again", async () => {
+    const user = userEvent.setup()
+    const getTrendingMemes = vi.fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce(page([item("a", 4)]))
+    setup({ getTrendingMemes })
+    await user.click(await screen.findByRole("button", { name: "Retry" }))
+    expect(await screen.findByRole("img", { name: "a" })).toBeInTheDocument()
+    expect(getTrendingMemes.mock.calls[1][1]).toBeUndefined()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("a failed Show more keeps the cards and Retry resumes from the same cursor", async () => {
+    const user = userEvent.setup()
+    const getTrendingMemes = vi.fn()
+      .mockResolvedValueOnce(page([item("a", 5)], "c1"))
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce(page([item("b", 3)]))
+    setup({ getTrendingMemes })
+    await user.click(await screen.findByRole("button", { name: "Show more" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load trending memes")
+    expect(screen.getByRole("img", { name: "a" })).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Retry" }))
+    await screen.findByRole("img", { name: "b" })
+    expect(getTrendingMemes.mock.calls[2][1]).toBe("c1")
+    expect(screen.getByRole("img", { name: "a" })).toBeInTheDocument()
+  })
+
   it("opens the details modal on card click", async () => {
     const user = userEvent.setup()
     setup({ getTrendingMemes: vi.fn().mockResolvedValue(page([item("a", 1)])) })

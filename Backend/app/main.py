@@ -31,6 +31,7 @@ from Backend.app.scheduler import start_scheduler, stop_scheduler
 from Backend.app.services.meme_from_text_pipeline import get_pipeline
 from Backend.app.services.query_parser import get_query_parser
 from config.settings import settings
+from repository.search_ranking import validate_search_settings
 
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
 _LOG_DATEFMT = "%Y-%m-%dT%H:%M:%S"
@@ -86,8 +87,9 @@ async def _warm_models(pipeline, parser, interval_minutes: float) -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _configure_logging()
+    validate_search_settings()  # deliberately uncaught: a bad ranking setting must stop the app from starting
     try:
-        get_query_parser()      # builds and registers the parser (no Ollama call); a failure must not stop the app
+        get_query_parser()    # builds and registers the parser (no Ollama call); a failure must not stop the app
     except Exception as error:
         logging.getLogger(__name__).warning("query parser could not be built: %s", type(error).__name__)
     warm_task = None

@@ -134,6 +134,14 @@ def get_trending_min_popularity() -> int:
     return raw
 
 
+def validate_search_settings() -> None:
+    """Load every search setting this module owns so a missing or invalid key is a startup error (called from the
+    backend lifespan) instead of a 500 on the first request that needs it."""
+    get_weights()
+    get_popularity_boost()
+    get_trending_min_popularity()
+
+
 def score_images(token_hits: list[dict[uuid.UUID, float]]) -> dict[uuid.UUID, float]:
     """token_hits[i] maps image id -> that image's best hit weight for query token i. Returns the images
     present for EVERY token with score = sum of their per-token weights (AND semantics)."""
