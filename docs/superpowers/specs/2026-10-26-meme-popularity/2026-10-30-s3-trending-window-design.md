@@ -1,6 +1,7 @@
 # S3: Trending memes, last 30 days
 
-Status: draft
+Status: planned
+Plan: `docs/superpowers/plans/2026-10-30-s3-trending-window.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; signals tracker row S3) and `2026-10-29-p5-ranking-and-trending-design.md` (the all-time Trending page this extends; its L6 predicted this query)
 Follow-ups: none yet
 
