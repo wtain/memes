@@ -4,7 +4,7 @@ Spec: docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-29-p5-ranking-an
 Requires a live PostgreSQL instance -- see tests/integration/conftest.py.
 """
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -130,3 +130,80 @@ async def test_reads_only(db_session):
 
     after = [(await db_session.execute(q)).scalar_one() for q in queries]
     assert before == after
+
+
+# ---- window="30d" through ImageService with the real repository (S3) ----
+
+async def _edge(db_session, winner, weight, days_ago=1):
+    db_session.add(PopularityAbsorption(
+        kind="absorb", source="cluster_review", loser_image_id=uuid.uuid4(), winner_image_id=winner.id,
+        weight=weight, created_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
+    ))
+    await db_session.flush()
+
+
+async def _gain_memes(db_session):
+    """Four memes with very large gains (they head the list): 910004, 910003, then a tie of 910002."""
+    top = await _image(db_session, 5, minutes=0)
+    second = await _image(db_session, 6, minutes=0)
+    tie_old = await _image(db_session, 7, minutes=1)
+    tie_new = await _image(db_session, 8, minutes=2)
+    for meme, gain in ((top, 910004), (second, 910003), (tie_old, 910002), (tie_new, 910002)):
+        await _edge(db_session, meme, gain)
+    return top, second, tie_old, tie_new
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_window_30d_orders_items_and_carries_window_gain(db_session):
+    top, second, tie_old, tie_new = await _gain_memes(db_session)
+    service = _service(db_session)
+
+    page = await service.get_trending(cursor=None, limit=4, window="30d")
+
+    assert [(i.meme.id, i.windowGain, i.popularity) for i in page.items] == [
+        (str(top.id), 910004, 5), (str(second.id), 910003, 6),
+        (str(tie_new.id), 910002, 8), (str(tie_old.id), 910002, 7),
+    ]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_window_30d_next_cursor_continues_without_repeats_or_gaps(db_session):
+    top, second, tie_old, tie_new = await _gain_memes(db_session)
+    service = _service(db_session)
+    mine = [str(x.id) for x in (top, second, tie_new, tie_old)]
+
+    first = await service.get_trending(cursor=None, limit=3, window="30d")
+    assert [i.meme.id for i in first.items] == mine[:3] and first.hasNext is True
+    second_page = await service.get_trending(cursor=first.nextCursor, limit=3, window="30d")
+
+    assert second_page.items[0].meme.id == mine[3]
+    assert second_page.items[0].windowGain == 910002
+    assert not {i.meme.id for i in first.items} & {i.meme.id for i in second_page.items}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_all_window_serialised_response_has_no_window_gain(db_session):
+    from Backend.app.api.images import TrendingPageWire
+    await _image(db_session, 90010, minutes=0)
+    service = _service(db_session)
+
+    page = await service.get_trending(cursor=None, limit=5)
+    wire = TrendingPageWire.model_validate(page.model_dump()).model_dump(mode="json")
+
+    assert wire["items"] and all("windowGain" not in item for item in wire["items"])
+    assert "nextCursor" in wire and "hasNext" in wire
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cursor_from_the_other_window_restarts_at_page_one(db_session):
+    await _gain_memes(db_session)
+    await _image(db_session, 90011, minutes=0)
+    service = _service(db_session)
+
+    month_first = await service.get_trending(cursor=None, limit=2, window="30d")
+    all_first = await service.get_trending(cursor=None, limit=2)
+    all_with_month_cursor = await service.get_trending(cursor=month_first.nextCursor, limit=2)
+    month_with_all_cursor = await service.get_trending(cursor=all_first.nextCursor, limit=2, window="30d")
+
+    assert [i.meme.id for i in all_with_month_cursor.items] == [i.meme.id for i in all_first.items]
+    assert [i.meme.id for i in month_with_all_cursor.items] == [i.meme.id for i in month_first.items]

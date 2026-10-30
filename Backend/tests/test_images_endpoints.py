@@ -1688,6 +1688,15 @@ class TestGetTrendingImages:
         assert response.json()["items"][0]["windowGain"] == 3
         assert mock_image_service.get_trending.call_args.kwargs["window"] == "30d"
 
+    def test_trending_with_window_is_not_captured_by_image_id_route(self, client, mock_image_service):
+        mock_image_service.get_trending.return_value = self._response()
+
+        response = client.get("/api/images/trending?window=30d")
+
+        assert response.status_code == 200
+        mock_image_service.get_trending.assert_called_once()
+        mock_image_service.get_image_by_id.assert_not_called()
+
     @pytest.mark.parametrize("window", ["7d", "", "ALL"])
     def test_unknown_window_is_422(self, client, mock_image_service, window):
         response = client.get("/api/images/trending", params={"window": window})

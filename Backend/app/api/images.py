@@ -32,7 +32,8 @@ from Backend.app.types.generated.descriptionfeedbackresponse import Schema as De
 router = APIRouter(prefix="/images", tags=["images"])
 
 
-class _TrendingItem(TrendingMemeItem):
+# Names without a leading underscore on purpose: they become OpenAPI schema names.
+class TrendingItemWire(TrendingMemeItem):
     """Wire form of a trending item: the all-time view has no windowGain, so a None one is left out of the
     JSON instead of being sent as null (keeps the all-time response unchanged)."""
 
@@ -44,8 +45,8 @@ class _TrendingItem(TrendingMemeItem):
         return data
 
 
-class _TrendingPage(TrendingMemesResponse):
-    items: list[_TrendingItem]
+class TrendingPageWire(TrendingMemesResponse):
+    items: list[TrendingItemWire]
 
 
 class DuplicatePairModel(BaseModel):
@@ -275,7 +276,7 @@ async def get_untagged_images(
 
 
 # Must be before /{image_id} endpoint
-@router.get("/trending", response_model=_TrendingPage)
+@router.get("/trending", response_model=TrendingPageWire)
 async def get_trending_images(
     response: Response,
     limit: int = Query(36, ge=1, le=100),

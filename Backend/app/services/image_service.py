@@ -349,10 +349,11 @@ class ImageService:
             last = page[-1]
             key = last.gain if window == "30d" else last.popularity
             next_cursor = self._encode_trending_cursor(key, last.created_at, last.id, window=window)
-        if window == "30d":
-            items = [TrendingMemeItem(meme=m, popularity=r.popularity, windowGain=r.gain) for m, r in zip(memes, page)]
-        else:
-            items = [TrendingMemeItem(meme=m, popularity=r.popularity) for m, r in zip(memes, page)]
+        # The all-time result carries windowGain=None; the router's serializer drops a None windowGain from the JSON.
+        items = [
+            TrendingMemeItem(meme=m, popularity=r.popularity, windowGain=r.gain if window == "30d" else None)
+            for m, r in zip(memes, page)
+        ]
         return TrendingMemesResponse(items=items, nextCursor=next_cursor, hasNext=len(rows) > limit)
 
     @staticmethod
