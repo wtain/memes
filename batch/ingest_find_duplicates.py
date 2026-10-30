@@ -26,6 +26,7 @@ docs/superpowers/specs/2026-07-24-ingestion-pipeline-design.md.
 import argparse
 import asyncio
 
+from Backend.app.services.ingestion_metrics import record_tier_proposals
 from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
 from batch.rebuild_duplicates import (
     find_duplicates, _EXCLUDE_TEXT_HEAVY_PAIR, _TEXT_HEAVY_PAIR_ONLY, _OCR_LEMMA_OVERLAP_CHECK,
@@ -135,6 +136,14 @@ async def find_batch_duplicates(session, batch_id, k: int, threshold: float) -> 
     return inserted
 
 
+async def record_proposals(session, batch_id, tier: str) -> None:
+    """The pending images of the run that this tier's review will show are the denominators of its business metrics
+    (screenshot recut epic, M2a). Idempotent: a re-run, a late-dropped file or the other tier's call adds only what is new."""
+    from Backend.app.services.ingestion_service import _tier_band  # lazy: the service imports batch.clusterize
+    low, high = _tier_band(tier)
+    await record_tier_proposals(session, tier, batch_id, low, high)
+
+
 async def main(env: str | None, tier: str, k: int | None) -> None:
     load_env(env)
     resolved_k = k if k is not None else settings.DUPLICATES.K
@@ -147,6 +156,7 @@ async def main(env: str | None, tier: str, k: int | None) -> None:
             raise RuntimeError("No ingestion run is currently in progress -- run ingest_hash_dedup.py first.")
 
         inserted = await find_batch_duplicates(session, active_run.run_id, k=resolved_k, threshold=threshold)
+        await record_proposals(session, active_run.run_id, tier)
         target_stage = TIER_STAGE[tier]
         if should_advance_stage(active_run.stage, target_stage):
             await runs_repo.set_stage(active_run.run_id, target_stage)

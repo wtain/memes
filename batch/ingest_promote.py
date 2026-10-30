@@ -31,6 +31,7 @@ from sqlalchemy import func, select
 from batch.clusterize import PROXIMITY_THRESHOLD as TIER_A_THRESHOLD
 from batch.run_tracking import finish_existing_run, tracked_run
 from Backend.app.repositories.ingestion_repository import IngestionRepository
+from Backend.app.services.ingestion_metrics import record_implicit_keeps
 from config.settings import load_env, settings
 from repository.batch_runs import BatchRunRepository
 from Storage.db import AsyncSessionLocal
@@ -47,6 +48,8 @@ async def promote(session, batch_id, tier_b_threshold: float) -> list:
     repo = IngestionRepository(session)
     promotable = await get_promotable_ids(repo, batch_id, tier_b_threshold)
     await repo.promote_images(promotable)
+    # A promoted image that was flagged as a duplicate candidate and never decided was left in the library (M2a).
+    await record_implicit_keeps(session, batch_id, promotable)
     return promotable
 
 
