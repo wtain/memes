@@ -36,6 +36,17 @@ class DuplicateDecisionsRepository:
                 )
             )
 
+    async def images_with_decisions(self, image_ids) -> set[uuid.UUID]:
+        """Which of `image_ids` are on either side of some 'not duplicates' pair."""
+        ids = list(image_ids)
+        if not ids:
+            return set()
+        first = (await self.session.execute(
+            select(DuplicateDecision.image_id1).where(DuplicateDecision.image_id1.in_(ids)))).scalars()
+        second = (await self.session.execute(
+            select(DuplicateDecision.image_id2).where(DuplicateDecision.image_id2.in_(ids)))).scalars()
+        return set(first) | set(second)
+
     async def list_recent(
         self, limit: int, offset: int
     ) -> tuple[list[tuple[uuid.UUID, str, uuid.UUID, str, datetime]], int]:

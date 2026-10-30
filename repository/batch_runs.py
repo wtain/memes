@@ -81,6 +81,15 @@ class BatchRunRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_latest_completed_run(self, kind: str) -> BatchRun | None:
+        result = await self._session.execute(
+            select(BatchRun)
+            .where(BatchRun.kind == kind, BatchRun.status == str(RunStatus.completed))
+            .order_by(BatchRun.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def list_runs(self, kinds: list[str], limit: int, offset: int) -> tuple[list[BatchRun], int]:
         base_where = BatchRun.kind.in_(kinds)
         items_result = await self._session.execute(

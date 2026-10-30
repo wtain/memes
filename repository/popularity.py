@@ -333,6 +333,23 @@ class PopularityRepository:
 
     # ---- read-only checks ----
 
+    async def open_winner(self, loser_id: uuid.UUID, sources: Collection[str]) -> uuid.UUID | None:
+        """The winner of the loser's open absorb edge, only for an edge of one of `sources`."""
+        edge = await self._open_edge(loser_id)
+        return edge.winner_image_id if edge is not None and edge.source in sources else None
+
+    async def has_open_edge_to(self, winner_id: uuid.UUID, sources: Collection[str]) -> bool:
+        """Whether an open absorb edge of one of `sources` still points at `winner_id`."""
+        row = (await self.session.execute(
+            select(PopularityAbsorption.id).where(
+                PopularityAbsorption.winner_image_id == winner_id,
+                PopularityAbsorption.kind == PopularityKind.ABSORB,
+                PopularityAbsorption.reversed_by_id.is_(None),
+                PopularityAbsorption.source.in_(list(sources)),
+            ).limit(1)
+        )).first()
+        return row is not None
+
     async def popularity_of(self, image_id: uuid.UUID) -> int:
         """Popularity derived from the edges: 0 for a discarded image, else 1 + the weight of its tree, floored
         at 1 (a negative adjustment can take the raw sum lower; P4, H3)."""
