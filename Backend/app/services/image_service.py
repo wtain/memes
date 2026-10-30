@@ -11,6 +11,9 @@ from Backend.app.repositories.duplicate_decisions_repository import DuplicateDec
 from Backend.app.repositories.image_repository import ImageRepository
 from repository.ocr_lemmas import OCRLemmasRepository
 from Backend.app.services.history_recorder import record_history
+from Backend.app.services.library_metrics import (
+    open_keeper, record_confirmed, record_dismissed, retract_confirmed, retract_dismissed,
+)
 from Backend.app.types.generated.facet import Schema as Facet
 from Backend.app.types.generated.facetbucket import Schema as FacetBucket
 from Backend.app.types.generated.meme import Schema as Meme
@@ -559,6 +562,7 @@ class ImageService:
             for j in range(i + 1, len(target_ids))
         ]
         await self.decision_repo.record_decisions_bulk(pairs)
+        await record_dismissed(self.repo.session, target_ids)
         return pairs
 
     async def get_cluster_overlap_coefficients(self, cluster_id: int) -> dict[tuple[uuid.UUID, uuid.UUID], float]:
@@ -569,6 +573,7 @@ class ImageService:
 
     async def undo_dismiss(self, pairs: list[tuple[uuid.UUID, uuid.UUID]]) -> None:
         await self.decision_repo.delete_decisions(pairs)
+        await retract_dismissed(self.repo.session, {image_id for pair in pairs for image_id in pair})
 
     async def list_duplicate_decisions(self, limit: int, offset: int) -> tuple[list[tuple], int]:
         return await self.decision_repo.list_recent(limit, offset)
@@ -623,6 +628,15 @@ class ImageService:
                 self.repo.session, "flag",
                 lambda: PopularityRepository(self.repo.session).absorb(
                     loser_id, winner_id, FLAG_REASON_SOURCES[reason]))
+        if reason == "duplicate_review":
+            confirmed = []
+            try:
+                confirmed.append(uuid.UUID(str(image_id)))
+            except ValueError:
+                pass
+            if winner_id is not None:
+                confirmed.append(winner_id)
+            await record_confirmed(self.repo.session, confirmed)
 
     async def unmark_flagged(self, image_id):
         await self.repo.set_flagged(image_id, False)
@@ -630,10 +644,12 @@ class ImageService:
             loser_id = uuid.UUID(str(image_id))
         except ValueError:
             return
+        keeper_id = await open_keeper(self.repo.session, loser_id)   # before the edge is reversed
         await guarded(
             self.repo.session, "unflag",
             lambda: PopularityRepository(self.repo.session).reverse_open_edge(
                 loser_id, "unflag", {"cluster_review", "agent_review", "file_duplicates"}))
+        await retract_confirmed(self.repo.session, loser_id, keeper_id)
 
     async def get_is_flagged(self, image_id) -> bool:
         return await self.repo.get_is_flagged(image_id)
