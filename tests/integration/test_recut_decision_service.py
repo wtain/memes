@@ -229,6 +229,81 @@ async def test_a_popularity_failure_does_not_block_the_approval(db_session, monk
     assert await _status(db_session, cut.id) == ImageStatus.ACTIVE and await _flag(db_session, source.id) is True
 
 
+@pytest.mark.asyncio(loop_scope="session")
+async def test_approve_copies_the_source_file_to_pre_cuts_after_the_commit(db_session, tmp_path):
+    row, source, _ = await _proposal(db_session)
+    (tmp_path / source.filename).write_bytes(b"source pixels")
+
+    await RecutDecisionService(db_session, base_path=str(tmp_path)).approve(row.id)
+    assert not (tmp_path / "pre-cuts").exists()          # nothing before the commit
+
+    await db_session.commit()
+
+    assert (tmp_path / "pre-cuts" / source.filename).read_bytes() == b"source pixels"
+    assert (tmp_path / source.filename).exists()          # the source itself stays where it is
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_an_existing_pre_cuts_file_is_never_overwritten(db_session, tmp_path):
+    row, source, _ = await _proposal(db_session)
+    (tmp_path / source.filename).write_bytes(b"new")
+    (tmp_path / "pre-cuts").mkdir()
+    (tmp_path / "pre-cuts" / source.filename).write_bytes(b"older backup")
+
+    await RecutDecisionService(db_session, base_path=str(tmp_path)).approve(row.id)
+    await db_session.commit()
+
+    assert (tmp_path / "pre-cuts" / source.filename).read_bytes() == b"older backup"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_missing_source_file_does_not_block_the_approval(db_session, tmp_path):
+    row, source, cut = await _proposal(db_session)   # no file on disk
+
+    result = await RecutDecisionService(db_session, base_path=str(tmp_path)).approve(row.id)
+    await db_session.commit()                          # the copy fails inside the hook and is swallowed
+
+    assert result["state"] == "approved"
+    assert await _status(db_session, cut.id) == ImageStatus.ACTIVE
+    assert not (tmp_path / "pre-cuts" / source.filename).exists()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_an_unwritable_pre_cuts_folder_does_not_block_the_approval(db_session, tmp_path):
+    row, source, _ = await _proposal(db_session)
+    (tmp_path / source.filename).write_bytes(b"x")
+    (tmp_path / "pre-cuts").write_bytes(b"a file where the folder should be")
+
+    result = await RecutDecisionService(db_session, base_path=str(tmp_path)).approve(row.id)
+    await db_session.commit()
+
+    assert result["state"] == "approved"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_reject_copies_nothing(db_session, tmp_path):
+    row, source, _ = await _proposal(db_session)
+    (tmp_path / source.filename).write_bytes(b"x")
+
+    await RecutDecisionService(db_session, base_path=str(tmp_path)).reject(row.id)
+    await db_session.commit()
+
+    assert not (tmp_path / "pre-cuts").exists()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_refused_approval_copies_nothing(db_session, tmp_path):
+    row, source, _ = await _proposal(db_session)
+    (tmp_path / source.filename).write_bytes(b"x")
+    await ImageExtrasRepository(db_session).set_flagged(source.id, True, "something")
+
+    with pytest.raises(ProposalConflictError):
+        await RecutDecisionService(db_session, base_path=str(tmp_path)).approve(row.id)
+    await db_session.commit()
+
+    assert not (tmp_path / "pre-cuts").exists()
+
+
 def test_the_proposal_lock_is_a_row_lock():
     # The integration fixture runs on one savepointed connection, so a two-connection race cannot be staged here.
     from Backend.app.repositories import recut_repository
