@@ -34,7 +34,7 @@ and the approve and reject numbers tell the owner whether the detector deserves 
 | # | Decision | Consequence |
 |---|---|---|
 | D1 | The cut is **one axis-aligned rectangle**: no rotation, no perspective, no several memes per screenshot | A proposal is four numbers. Detection and the cut operation stay simple |
-| D2 | Review is **approve or reject only** for the first release. Adjusting the box is a follow-up project inside this epic (R6) | The box is stored from day one so R6 needs no migration |
+| D2 | Review is **approve or reject only** for the first release. Adjusting the box is a follow-up project inside this epic (R6) | The box is stored from day one, so R6 only overwrites it. (R6 did add four nullable columns, `detected_crop_*`, to keep the detector's original box for "reset to detected box" and the adjusted statistics: `2026-10-30-r6-box-adjustment-design.md`) |
 | D3 | The cut inherits derived data in three groups: human-authored data is copied, pixel-dependent data is recomputed, model-derived data is copied first and refreshed later | See `decomposition.md` section 3. The exact table list comes from the R1 inventory |
 | D4 | Staleness is a boolean `stale` column on each refreshable derived table (a shared mixin). Batch jobs get a third mode, "refresh stale", next to full and incremental | See ADR-001. The staleness knowledge reaches the batches through one shared helper |
 | D5 | The cut image has its own status, **`cut_proposed`**, not ingestion's `pending` | No entanglement with `ingest_promote` or `ingest_abort`. See ADR-001 |

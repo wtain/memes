@@ -63,3 +63,10 @@ The OCR refresh rewrites `ocr_texts`, so everything derived from OCR runs after 
 descriptions, then description embeddings, lemmas and tags, then the profile and its embedding. The driver `refresh_recut_cuts`
 runs them in this order (a job skips an image whose upstream rows are still stale). A cut whose source had no row in a table has
 nothing stale to replace there; the normal run of that job fills it once the cut is `active`. The order is part of the contract: a lemma row rebuilt before the OCR refresh would be fresh in name only.
+
+## An adjusted cut
+
+When the owner adjusts the box of a proposal on the review page (screenshot-recut R6), the cut is not edited: a NEW `cut_proposed`
+image is cropped from the source and its data is copied from the source exactly as for the first cut (this document's rules,
+OCR boxes shifted into the new box, group 3 stale again), and the previous cut image is deleted, so its rows go with it (every
+table off `images` cascades). Group 2 and group 3 therefore need `recut_pipeline` again before the cut is approved.

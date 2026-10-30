@@ -1,6 +1,6 @@
 # R6: Box adjustment - design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-10-30-r6-box-adjustment.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (project R6)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
