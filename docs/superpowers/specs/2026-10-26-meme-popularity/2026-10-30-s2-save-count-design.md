@@ -1,6 +1,7 @@
 # S2: Save count on the meme details page
 
-Status: draft
+Status: planned
+Plan: `docs/superpowers/plans/2026-10-30-s2-save-count.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; signals tracker row S2)
 Follow-ups: none yet
 
