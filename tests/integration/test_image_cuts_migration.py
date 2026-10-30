@@ -21,6 +21,17 @@ def _load():
     return module
 
 
+R6_MIGRATION = (Path(__file__).resolve().parents[2] / "Storage" / "alembic" / "versions"
+                / "e9c4a7b3d812_add_image_cuts_detected_box.py")
+
+
+def _load_r6():
+    spec = importlib.util.spec_from_file_location("migration_e9c4a7b3d812", R6_MIGRATION)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _load_r3a():
     spec = importlib.util.spec_from_file_location("migration_d7a3b9e2c451", R3A_MIGRATION)
     module = importlib.util.module_from_spec(spec)
@@ -76,7 +87,8 @@ async def _drop_what_the_migration_adds(connection):
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_the_migration_matches_the_model_and_downgrades(db_engine):
-    module, r3a = _load(), _load_r3a()  # image_cuts is created by b8d4f1a6c935, then extended by d7a3b9e2c451
+    # image_cuts is created by b8d4f1a6c935, then extended by d7a3b9e2c451 and e9c4a7b3d812
+    module, r3a, r6 = _load(), _load_r3a(), _load_r6()
     async with db_engine.connect() as connection:
         transaction = await connection.begin()
         try:
@@ -86,8 +98,10 @@ async def test_the_migration_matches_the_model_and_downgrades(db_engine):
             await _drop_what_the_migration_adds(connection)
             await connection.run_sync(lambda sync: _run(sync, module.upgrade))
             await connection.run_sync(lambda sync: _run(sync, r3a.upgrade))
+            await connection.run_sync(lambda sync: _run(sync, r6.upgrade))
             assert await connection.run_sync(_both) == model_shape
 
+            await connection.run_sync(lambda sync: _run(sync, r6.downgrade))
             await connection.run_sync(lambda sync: _run(sync, r3a.downgrade))
             await connection.run_sync(lambda sync: _run(sync, module.downgrade))
             tables = await connection.run_sync(lambda sync: inspect(sync).get_table_names())
@@ -140,3 +154,14 @@ def test_the_migration_continues_the_chain():
 def test_the_failure_reason_migration_follows_the_metrics_one():
     module = _load_r3a()
     assert module.revision == "d7a3b9e2c451" and module.down_revision == "c5e2a9d7b140"
+
+
+def test_the_detected_box_migration_follows_the_popularity_one():
+    module = _load_r6()
+    assert module.revision == "e9c4a7b3d812" and module.down_revision == "c8e2f5a1d093"
+
+
+def test_the_model_declares_the_detected_box_columns():
+    from Storage.models import ImageCut
+    for name in ("detected_crop_x", "detected_crop_y", "detected_crop_w", "detected_crop_h"):
+        assert ImageCut.__table__.c[name].nullable is True
