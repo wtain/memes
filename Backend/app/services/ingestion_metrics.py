@@ -50,14 +50,32 @@ async def record_tier_proposals(session: AsyncSession, tier: str, batch_id, low:
     await _swallowed(session, f"tier proposals {tier}", call)
 
 
-async def record_decision(session: AsyncSession, tier: str, event: str, image_id, batch_id) -> None:
+async def record_decision(session: AsyncSession, tier: str, event: str, image_id, batch_id=None) -> None:
+    """`batch_id` None: the image's own ingestion run (looked up inside the savepoint, so a failed lookup is swallowed too)."""
     async def call():
         service = BusinessMetricsService(session)
         process = TIER_PROCESS[tier]
         if not await service.with_event(process, PROPOSED, [image_id]):
             return  # it never entered this tier's review: a stale or out-of-queue decision counts for nothing
-        await service.record(process, event, batch_id, image_id)
+        run_id = batch_id if batch_id is not None else await IngestionRepository(session).get_batch_id(image_id)
+        await service.record(process, event, run_id, image_id)
     await _swallowed(session, f"{event} {tier}", call)
+
+
+async def record_rejection(session: AsyncSession, image_id) -> None:
+    """A rejected image leaves every review queue, so its proposals in both tiers are closed as rejected -- except a tier
+    where the owner already kept it, and a tier it was never proposed in. Without this, a proposal that was freed in one
+    tier and rejected in the other would stay pending for ever. `undo_reject` reopens both (retract_rejection)."""
+    async def call():
+        service = BusinessMetricsService(session)
+        run_id = await IngestionRepository(session).get_batch_id(image_id)
+        for process in TIER_PROCESS.values():
+            if not await service.with_event(process, PROPOSED, [image_id]):
+                continue
+            if await service.with_event(process, KEPT, [image_id]):
+                continue
+            await service.record(process, REJECTED, run_id, image_id)
+    await _swallowed(session, "rejection", call)
 
 
 async def retract_rejection(session: AsyncSession, image_id) -> None:

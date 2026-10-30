@@ -1563,7 +1563,8 @@ The two ingestion processes (`ingest_tier_a`, `ingest_tier_b`, M2a) have events 
 pending image, attributed to the ingestion run (`images.ingestion_batch_id`; the `run_id` of an item is that run). The metrics
 are `reject_share` = rejected / (rejected + kept), `decided_share` = (rejected + kept) / proposed and `pending` = proposed -
 rejected - kept; `proposed` is recorded when `ingest_find_duplicates` finds the image in the tier's review queue,
-`rejected` / `kept` by the review's reject / keep decision (undoing a reject retracts its `rejected`), and `ingest_promote`
+`rejected` / `kept` by the review's reject / keep decision (a reject also closes the image's open proposal in the other tier as
+`rejected`, unless the owner kept it there; undoing a reject retracts its `rejected` in both tiers), and `ingest_promote`
 records `kept` for promoted images that were proposed and never decided. `reject_share` is a share of decisions, not a
 precision: a kept image can be the winner of a true duplicate group. The images of an aborted run stay pending.
 

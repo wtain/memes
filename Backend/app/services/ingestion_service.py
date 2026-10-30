@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services import image_store
 from Backend.app.services.cluster_splitting import split_for_review
-from Backend.app.services.ingestion_metrics import record_decision, retract_rejection
+from Backend.app.services.ingestion_metrics import record_decision, record_rejection, retract_rejection
 # Reuses clusterize.py's existing constant rather than a second "confirmed duplicate"
 # threshold living in two places -- see
 # docs/superpowers/specs/2026-07-25-duplicate-clustering-incremental-design.md.
@@ -358,8 +358,7 @@ class IngestionService:
                     if filename is None:
                         continue
                     await self._record_reject(image_id, tier, reject_ids, keep_ids)
-                    await record_decision(self.repo.session, tier, "rejected", image_id,
-                                          await self.repo.get_batch_id(image_id))
+                    await record_rejection(self.repo.session, image_id)
                     await self.repo.commit()
                     try:
                         image_store.move_to_rejected(filename)
@@ -373,8 +372,7 @@ class IngestionService:
                     rejected.append(str(image_id))
                 elif decision == "keep":
                     await self.repo.mark_reviewed(image_id, tier)
-                    await record_decision(self.repo.session, tier, "kept", image_id,
-                                          await self.repo.get_batch_id(image_id))
+                    await record_decision(self.repo.session, tier, "kept", image_id)
                     await self.repo.commit()
                     kept.append(str(image_id))
                 else:

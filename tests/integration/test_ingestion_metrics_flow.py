@@ -129,6 +129,57 @@ async def test_undo_reject_then_keep_counts_one_outcome(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_a_rejection_closes_the_images_open_proposals_in_both_tiers(db_session):
+    run = await _make_run(db_session)
+    x, y, z = await _img(db_session, "pending", run), await _img(db_session, "pending", run), await _img(db_session, "active")
+    await _pair(db_session, x, y, 0.03)          # tier A pair
+    await _pair(db_session, x, z, 0.08)          # tier B pair
+    await record_proposed(db_session, "tier_a", run, [x])
+    await record_proposed(db_session, "tier_b", run, [x])
+
+    with patch(MOVE_OUT):
+        await _service(db_session).resolve("tier_b", [{"image_id": x, "decision": "reject"}])
+
+    assert await _events(db_session, "ingest_tier_b", x) == {"proposed", "rejected"}
+    assert await _events(db_session, "ingest_tier_a", x) == {"proposed", "rejected"}   # not pending for ever
+    items = (await BusinessMetricsService(db_session).batch_metrics("ingest_tier_a"))["items"]
+    assert next(i for i in items if i["run_id"] == str(run))["metrics"]["pending"] == 0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_rejection_leaves_a_decision_taken_in_the_other_tier_alone(db_session):
+    run = await _make_run(db_session)
+    x, z = await _img(db_session, "pending", run), await _img(db_session, "active")
+    await _pair(db_session, x, z, 0.03)
+    await record_proposed(db_session, "tier_a", run, [x])
+    await record_proposed(db_session, "tier_b", run, [x])
+    service = _service(db_session)
+    with patch(MOVE_OUT):
+        await service.resolve("tier_a", [{"image_id": x, "decision": "keep"}])
+        await service.resolve("tier_b", [{"image_id": x, "decision": "reject"}])
+
+    assert await _events(db_session, "ingest_tier_a", x) == {"proposed", "kept"}
+    assert await _events(db_session, "ingest_tier_b", x) == {"proposed", "rejected"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_undo_reject_reopens_the_proposal_in_both_tiers(db_session):
+    run = await _make_run(db_session)
+    x, z = await _img(db_session, "pending", run), await _img(db_session, "active")
+    await _pair(db_session, x, z, 0.08)
+    await record_proposed(db_session, "tier_a", run, [x])
+    await record_proposed(db_session, "tier_b", run, [x])
+    service = _service(db_session)
+    with patch(MOVE_OUT):
+        await service.resolve("tier_b", [{"image_id": x, "decision": "reject"}])
+    with patch(MOVE_BACK):
+        await service.undo_reject(x)
+
+    assert await _events(db_session, "ingest_tier_a", x) == {"proposed"}
+    assert await _events(db_session, "ingest_tier_b", x) == {"proposed"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_undo_reject_then_reject_again_counts_one_rejection(db_session):
     run = await _make_run(db_session)
     a, active = await _img(db_session, "pending", run), await _img(db_session, "active")

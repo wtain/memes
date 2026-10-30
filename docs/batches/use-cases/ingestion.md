@@ -118,7 +118,7 @@ ingestion run, what the owner decides about the detector's proposals (screenshot
 | Event | Recorded by | Meaning |
 |---|---|---|
 | `proposed` | `ingest_find_duplicates` (each tier call) | the pending image is in that tier's review queue (a candidate pair in the tier's band) |
-| `rejected` | review `reject` | the owner confirmed a duplicate; `undo_reject` retracts it |
+| `rejected` | review `reject` | the owner confirmed a duplicate; it also closes the image's open proposal in the other tier (unless it was kept there), so a rejected image never stays pending; `undo_reject` retracts both |
 | `kept` | review `keep`, or `ingest_promote` for a proposed image nobody decided | the owner left the image in the library |
 
 Rates: `reject_share`, `decided_share`, `pending` (see `backend_api.md`). Caveats: `kept` includes the winner of a true duplicate
