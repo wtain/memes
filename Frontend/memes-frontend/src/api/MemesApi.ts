@@ -23,7 +23,7 @@ export interface MemesApi {
 
   iterateUntaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>
 
-  getTrendingMemes(limit?: number, cursor?: string): Promise<TrendingMemesResponse>
+  getTrendingMemes(limit?: number, cursor?: string, window?: "all" | "30d"): Promise<TrendingMemesResponse>
 
   iterateNoOcrMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>
 

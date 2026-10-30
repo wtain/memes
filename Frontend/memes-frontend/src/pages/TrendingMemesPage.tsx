@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import MemeCard from "../components/MemeCard"
 import { MemeDetailsModal } from "../components/MemeDetailsModal"
 import type { MemesApi } from "../api/MemesApi"
@@ -6,10 +7,21 @@ import type { Meme, TrendingMemeItem } from "../types/generated/all"
 
 const PAGE_SIZE = 24
 
+type TrendingWindow = "all" | "30d"
+type List = { window: TrendingWindow; items: TrendingMemeItem[] }
+
 type Props = { memesApi: MemesApi }
 
+const OPTIONS: { value: TrendingWindow; label: string }[] = [
+  { value: "all", label: "All time" },
+  { value: "30d", label: "Last 30 days" },
+]
+
 export default function TrendingMemesPage({ memesApi }: Props) {
-  const [items, setItems] = useState<TrendingMemeItem[]>([])
+  const [searchParams, setSearchParams] = useSearchParams()
+  const window: TrendingWindow = searchParams.get("window") === "30d" ? "30d" : "all"
+
+  const [list, setList] = useState<List>({ window, items: [] })
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
   const [hasNext, setHasNext] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -17,16 +29,28 @@ export default function TrendingMemesPage({ memesApi }: Props) {
   const [selected, setSelected] = useState<Meme | null>(null)
   const requestId = useRef(0)
 
-  const load = useCallback((cursor?: string) => {
+  // Cards of another window are never shown, even for the render before its load starts.
+  const stale = list.window !== window
+  const items = stale ? [] : list.items
+
+  const load = useCallback((target: TrendingWindow, cursor?: string) => {
     const id = ++requestId.current
     setLoading(true)
     setError(false)
-    memesApi.getTrendingMemes(PAGE_SIZE, cursor)
+    if (cursor === undefined) {
+      setList({ window: target, items: [] })
+      setNextCursor(undefined)
+      setHasNext(false)
+    }
+    memesApi.getTrendingMemes(PAGE_SIZE, cursor, target)
       .then(response => {
         if (id !== requestId.current) return
-        setItems(prev => {
-          const seen = new Set(prev.map(entry => entry.meme.id))
-          return [...prev, ...response.items.filter(entry => !seen.has(entry.meme.id))]
+        setList(prev => {
+          const seen = new Set(prev.items.map(entry => entry.meme.id))
+          return {
+            window: target,
+            items: [...prev.items, ...response.items.filter(entry => !seen.has(entry.meme.id))],
+          }
         })
         setNextCursor(response.nextCursor)
         setHasNext(response.hasNext)
@@ -39,24 +63,49 @@ export default function TrendingMemesPage({ memesApi }: Props) {
       })
   }, [memesApi])
 
-  // StrictMode mounts effects twice; the guard keeps the first page to a single request.
-  const firstLoadStarted = useRef(false)
+  // StrictMode mounts effects twice; remembering the window whose first page was requested
+  // keeps each window to a single first request, while a window change loads again.
+  const startedWindow = useRef<TrendingWindow | null>(null)
   useEffect(() => {
-    if (firstLoadStarted.current) return
-    firstLoadStarted.current = true
-    load()
-  }, [load])
+    if (startedWindow.current === window) return
+    startedWindow.current = window
+    load(window)
+  }, [load, window])
+
+  const choose = (value: TrendingWindow) => {
+    if (value === window) return
+    setSearchParams(value === "30d" ? { window: "30d" } : {})
+  }
+
+  const isLoading = loading || stale
 
   return (
     <div className="p-4">
       <h1 className="text-xl font-semibold mb-4">Trending memes</h1>
 
-      {error && (
+      <div className="mb-4 flex gap-2" role="group" aria-label="Time window">
+        {OPTIONS.map(option => (
+          <button
+            key={option.value}
+            aria-pressed={window === option.value}
+            className={`rounded border px-4 py-2 min-h-11 ${
+              window === option.value
+                ? "border-amber-600 bg-amber-100 text-amber-900"
+                : "border-gray-300 hover:bg-gray-50"
+            }`}
+            onClick={() => choose(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {error && !stale && (
         <div role="alert" className="mb-4 text-red-600">
           Could not load trending memes.
           <button
             className="ml-3 underline"
-            onClick={() => load(items.length > 0 ? nextCursor : undefined)}
+            onClick={() => load(window, items.length > 0 ? nextCursor : undefined)}
           >
             Retry
           </button>
@@ -64,27 +113,38 @@ export default function TrendingMemesPage({ memesApi }: Props) {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {items.map(({ meme, popularity }) => (
+        {items.map(({ meme, popularity, windowGain }) => (
           <div key={meme.id} className="flex flex-col gap-1">
             <MemeCard meme={meme} memesApi={memesApi} onClick={() => setSelected(meme)} />
-            <span className="self-start rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-              Popularity {popularity}
-            </span>
+            <div className="flex flex-wrap gap-1">
+              {window === "30d" && windowGain !== undefined && (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                  +{windowGain} in 30 days
+                </span>
+              )}
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                Popularity {popularity}
+              </span>
+            </div>
           </div>
         ))}
       </div>
 
-      {loading && <div className="h-10 flex items-center justify-center">Loading...</div>}
+      {isLoading && <div className="h-10 flex items-center justify-center">Loading...</div>}
 
-      {!loading && !error && items.length === 0 && (
-        <div className="h-10 flex items-center justify-center">No trending memes yet.</div>
+      {!isLoading && !error && items.length === 0 && (
+        <div className="h-10 flex items-center justify-center">
+          {window === "30d"
+            ? "No memes picked up duplicates in the last 30 days."
+            : "No trending memes yet."}
+        </div>
       )}
 
-      {!loading && hasNext && (
+      {!isLoading && hasNext && (
         <div className="mt-4 flex justify-center">
           <button
             className="rounded border border-gray-300 px-4 py-2 min-h-11 hover:bg-gray-50"
-            onClick={() => load(nextCursor)}
+            onClick={() => load(window, nextCursor)}
           >
             Show more
           </button>

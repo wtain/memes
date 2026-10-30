@@ -23,6 +23,17 @@ describe("getTrendingMemes", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/images/trending")
   })
 
+  it("sends window=30d after the other parameters and never sends window for all", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+    vi.stubGlobal("fetch", fetchMock)
+    await api.getTrendingMemes(24, undefined, "30d")
+    await api.getTrendingMemes(24, undefined, "all")
+    await api.getTrendingMemes(24)
+    expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/images/trending?limit=24&window=30d")
+    expect(fetchMock.mock.calls[1][0]).toBe("http://backend/api/images/trending?limit=24")
+    expect(fetchMock.mock.calls[2][0]).toBe("http://backend/api/images/trending?limit=24")
+  })
+
   it("throws on a non-2xx response", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }))
     await expect(api.getTrendingMemes()).rejects.toThrow("500")

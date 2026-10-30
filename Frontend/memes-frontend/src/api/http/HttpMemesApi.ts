@@ -99,10 +99,11 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
-  async getTrendingMemes(limit?: number, cursor?: string): Promise<TrendingMemesResponse> {
+  async getTrendingMemes(limit?: number, cursor?: string, window?: "all" | "30d"): Promise<TrendingMemesResponse> {
     const params = new URLSearchParams()
     if (limit) params.set("limit", String(limit))
     if (cursor) params.set("cursor", cursor)
+    if (window === "30d") params.set("window", window)
     const query = params.toString()
     const response = await fetch(
       `${this.baseUrl}/api/images/trending${query ? `?${query}` : ""}`,
