@@ -25,7 +25,7 @@ COPIED_TABLES = frozenset({
 NOT_COPIED_TABLES = frozenset({
     "image_cuts", "meme_text_ratings", "embeddings", "image_classifications", "ocr_text_embeddings",
     "image_processing_status", "tmp_duplicates", "tmp_clusters", "duplicate_decisions", "processing_errors",
-    "image_metrics", "popularity_absorptions",
+    "image_metrics", "popularity_absorptions", "meme_saves",
 })
 
 

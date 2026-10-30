@@ -231,6 +231,21 @@ class PopularityAbsorption(Base):
     )
 
 
+class MemeSave(Base):
+    """Append-only log of meme saves (epic meme-popularity, S2): one row per save, never updated or deleted.
+    Deliberately no foreign key to images, for the same reason as PopularityAbsorption: ids outlive deleted
+    images so the counts of a duplicate tree survive deletion."""
+    __tablename__ = "meme_saves"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    image_id = Column(UUID(as_uuid=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_meme_saves_image_id", "image_id"),
+    )
+
+
 class ProcessEvent(Base):
     """One outcome of a process on one subject, kept forever (epic screenshot-recut, ADR-002). Append-only:
     rates are computed from these rows at read time. A subject has each event at most once, so recording is
