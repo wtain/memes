@@ -264,6 +264,14 @@ data class RatingResponse(
 )
 
 @Serializable
+data class RecutAdjustRequest(
+    @SerialName("x") val x: Int,
+    @SerialName("y") val y: Int,
+    @SerialName("w") val w: Int,
+    @SerialName("h") val h: Int
+)
+
+@Serializable
 data class RecutDecision(
     @SerialName("id") val id: String,
     @SerialName("state") val state: String,
@@ -291,6 +299,7 @@ data class RecutProposalDetail(
     @SerialName("detectorVersion") val detectorVersion: String,
     @SerialName("detectRunId") val detectRunId: String?,
     @SerialName("createdAt") val createdAt: String,
+    @SerialName("detectedBox") val detectedBox: JsonObject?,
     @SerialName("previousId") val previousId: String?,
     @SerialName("nextId") val nextId: String?
 )
@@ -303,6 +312,7 @@ data class RecutStatsBand(
     @SerialName("waiting") val waiting: Int,
     @SerialName("approved") val approved: Int,
     @SerialName("rejected") val rejected: Int,
+    @SerialName("adjusted") val adjusted: Int,
     @SerialName("approveRate") val approveRate: Float?
 )
 

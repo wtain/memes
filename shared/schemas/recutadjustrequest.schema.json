@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recutadjustrequest.schema.json",
+  "title": "RecutAdjustRequest",
+  "description": "The corrected box of a recut proposal, in pixels of the source image",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "x": { "type": "integer", "minimum": 0 },
+    "y": { "type": "integer", "minimum": 0 },
+    "w": { "type": "integer", "minimum": 16 },
+    "h": { "type": "integer", "minimum": 16 }
+  },
+  "required": ["x", "y", "w", "h"]
+}

@@ -26,9 +26,21 @@
     "detectorVersion": { "type": "string" },
     "detectRunId": { "type": ["string", "null"] },
     "createdAt": { "type": "string" },
+    "detectedBox": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "The detector's original box, stored by the first manual adjustment; null while the proposal was never adjusted",
+      "properties": {
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "w": { "type": "integer" },
+        "h": { "type": "integer" }
+      },
+      "required": ["x", "y", "w", "h"]
+    },
     "previousId": { "type": ["string", "null"] },
     "nextId": { "type": ["string", "null"] }
   },
   "required": ["id", "sourceImageId", "cutImageId", "confidence", "box", "state", "detector", "detectorVersion",
-               "detectRunId", "createdAt", "previousId", "nextId"]
+               "detectRunId", "createdAt", "detectedBox", "previousId", "nextId"]
 }

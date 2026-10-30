@@ -11,8 +11,9 @@ from Backend.app.services.recut_decision_service import ProposalConflictError, P
 ITEM = {"id": "c1", "sourceImageId": "s1", "cutImageId": "i1", "confidence": 0.93,
         "box": {"x": 10, "y": 20, "w": 300, "h": 200}}
 DETAIL = {**ITEM, "state": "proposed", "detector": "margin_trim", "detectorVersion": "1", "detectRunId": None,
-          "createdAt": "2026-10-28T10:00:00+00:00", "previousId": None, "nextId": "c2"}
-BAND = {"label": "0.9-1.0", "lower": 0.9, "upper": 1.0, "waiting": 3, "approved": 7, "rejected": 1, "approveRate": 0.875}
+          "createdAt": "2026-10-28T10:00:00+00:00", "detectedBox": None, "previousId": None, "nextId": "c2"}
+BAND = {"label": "0.9-1.0", "lower": 0.9, "upper": 1.0, "waiting": 3, "approved": 7, "rejected": 1, "adjusted": 0,
+        "approveRate": 0.875}
 STATS = {"bands": [BAND], "total": {**BAND, "label": "total", "lower": None, "upper": None}}
 
 

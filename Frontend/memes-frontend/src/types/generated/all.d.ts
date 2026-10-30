@@ -601,6 +601,15 @@ export interface RecutProposalDetail {
   detectorVersion: string;
   detectRunId: string | null;
   createdAt: string;
+  /**
+   * The detector's original box, stored by the first manual adjustment; null while the proposal was never adjusted
+   */
+  detectedBox: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null;
   previousId: string | null;
   nextId: string | null;
 }
@@ -614,6 +623,18 @@ export interface RecutDecision {
   id: string;
   state: string;
   decidedAt: string;
+}
+/**
+ * The corrected box of a recut proposal, in pixels of the source image
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "RecutAdjustRequest".
+ */
+export interface RecutAdjustRequest {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 /**
  * Recut review statistics by detector-confidence band, with a total
@@ -638,6 +659,10 @@ export interface RecutStatsBand {
   waiting: number;
   approved: number;
   rejected: number;
+  /**
+   * Proposals of this band whose box was adjusted by hand, in any state counted here
+   */
+  adjusted: number;
   approveRate: number | null;
 }
 /**
