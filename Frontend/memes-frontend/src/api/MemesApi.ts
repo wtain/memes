@@ -8,7 +8,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, TrendingMemesResponse,
+  RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, TrendingMemesResponse,
 } from "../types/generated/all";
 import type { Category } from "../curator/types";
 
@@ -113,4 +113,5 @@ export interface MemesApi {
   getRecutStats(): Promise<RecutStats>
   approveRecutProposal(id: string): Promise<RecutDecision>
   rejectRecutProposal(id: string): Promise<RecutDecision>
+  adjustRecutProposal(id: string, box: RecutAdjustRequest): Promise<RecutProposalDetail>
 }

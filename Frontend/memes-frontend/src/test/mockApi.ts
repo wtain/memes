@@ -70,6 +70,7 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     getRecutStats: vi.fn().mockResolvedValue(makeStats()),
     approveRecutProposal: vi.fn().mockResolvedValue(makeDecision('p1', 'approved')),
     rejectRecutProposal: vi.fn().mockResolvedValue(makeDecision('p1', 'rejected')),
+    adjustRecutProposal: vi.fn().mockResolvedValue(makeProposalDetail('p1', { cutImageId: 'cut-p1b' })),
     ...overrides,
   } as MemesApi
 }

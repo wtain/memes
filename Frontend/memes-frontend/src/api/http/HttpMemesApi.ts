@@ -9,7 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, TrendingMemesResponse,
+  RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, TrendingMemesResponse,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -689,6 +689,16 @@ export class HttpMemesApi implements MemesApi {
 
   rejectRecutProposal(id: string): Promise<RecutDecision> {
     return this.decideRecutProposal(id, "reject")
+  }
+
+  async adjustRecutProposal(id: string, box: RecutAdjustRequest): Promise<RecutProposalDetail> {
+    const response = await fetch(`${this.baseUrl}/api/recut/proposals/${encodeURIComponent(id)}/adjust`, {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ x: box.x, y: box.y, w: box.w, h: box.h }),
+    })
+    if (!response.ok) throw new CuratorRequestError(response.status, await readDetailCode(response))
+    return response.json()
   }
 
   private async decideRecutProposal(id: string, verb: "approve" | "reject"): Promise<RecutDecision> {

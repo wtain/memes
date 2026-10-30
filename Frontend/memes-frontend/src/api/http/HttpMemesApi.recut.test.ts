@@ -57,6 +57,26 @@ describe("recut API", () => {
       expect(fetchMock.mock.calls[0][1].method).toBe("POST")
     })
 
+  it("posts the corrected box as JSON and returns the updated detail", async () => {
+    const body = makeProposalDetail("a", { box: { x: 5, y: 6, w: 100, h: 50 } })
+    const fetchMock = stubFetch({ ok: true, status: 200, body })
+
+    expect(await api.adjustRecutProposal("a", { x: 5, y: 6, w: 100, h: 50 })).toEqual(body)
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/recut/proposals/a/adjust")
+    expect(fetchMock.mock.calls[0][1].method).toBe("POST")
+    expect(fetchMock.mock.calls[0][1].headers["Content-Type"]).toBe("application/json")
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ x: 5, y: 6, w: 100, h: 50 })
+  })
+
+  it("carries the 409 reason code of an adjustment and the status of a 422", async () => {
+    stubFetch({ ok: false, status: 409, body: { detail: "source_changed" } })
+    await expect(api.adjustRecutProposal("a", { x: 0, y: 0, w: 20, h: 20 })).rejects.toMatchObject({ status: 409, code: "source_changed" })
+
+    stubFetch({ ok: false, status: 422, body: { detail: "The box does not fit the source (400x300)" } })
+    await expect(api.adjustRecutProposal("a", { x: 0, y: 0, w: 20, h: 20 })).rejects.toMatchObject({ status: 422 })
+  })
+
   it("gets the review statistics", async () => {
     const body = makeStats()
     const fetchMock = stubFetch({ ok: true, status: 200, body })
