@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import { CuratorRequestError } from "../api/errors"
+import type { Box } from "./boxOverlay"
 import type { RecutProposal, RecutProposalDetail } from "./types"
 
 export const PAGE_SIZE = 50
@@ -19,6 +20,7 @@ export type DecisionState =
   // `redirect`: the page still has to move off the refused proposal once the reloaded queue is in (one-shot).
   | { status: "conflict"; code: string; redirect: boolean }
 export type DecideResult = { outcome: "ignored" | "failed" | "conflict" } | { outcome: "done"; next: string | null }
+export type AdjustResult = { outcome: "done" | "ignored" | "invalid" | "failed" | "conflict" }
 
 const LOADING: ListState = { items: [], total: 0, status: "loading" }
 
@@ -28,6 +30,7 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [decision, setDecision] = useState<DecisionState>({ status: "idle" })
+  const [adjusting, setAdjusting] = useState(false)
 
   // Only touched in handlers and effects: one next-page request at a time, one decision at a time.
   const loadingMoreRef = useRef(false)
@@ -110,6 +113,38 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
     }
   }, [memesApi, loaded, openId, reload])
 
+  // Shares decidingRef with decide(): an adjustment and a decision never overlap. A refusal (409) goes through the same
+  // conflict flow as a refused decision; a 422 or any other failure is the caller's to show (the draft stays editable).
+  const adjust = useCallback(async (box: Box): Promise<AdjustResult> => {
+    const current = loaded !== null && loaded.id === openId && loaded.state.status === "ready" ? loaded.state.data : null
+    if (current === null || current.state !== "proposed" || decidingRef.current) return { outcome: "ignored" }
+    decidingRef.current = true
+    setAdjusting(true)
+    try {
+      const updated = await memesApi.adjustRecutProposal(current.id, box)
+      // The reviewer may have moved on while this was in flight: never overwrite another proposal's detail.
+      setLoaded((previous) => (previous === null || previous.id === current.id
+        ? { id: current.id, state: { status: "ready", data: updated } } : previous))
+      setList((previous) => ({
+        ...previous,
+        items: previous.items.map((item) => item.id === updated.id
+          ? { ...item, box: updated.box, cutImageId: updated.cutImageId } : item),
+      }))
+      return { outcome: "done" }
+    } catch (error) {
+      if (error instanceof CuratorRequestError && error.status === 409) {
+        setDecision({ status: "conflict", code: error.code ?? "", redirect: true })
+        reload()
+        return { outcome: "conflict" }
+      }
+      if (error instanceof CuratorRequestError && error.status === 422) return { outcome: "invalid" }
+      return { outcome: "failed" }
+    } finally {
+      decidingRef.current = false
+      setAdjusting(false)
+    }
+  }, [memesApi, loaded, openId, reload])
+
   const settleConflict = useCallback(() => {
     setDecision((previous) => (previous.status === "conflict" ? { ...previous, redirect: false } : previous))
   }, [])
@@ -124,6 +159,8 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
     reload,
     decision,
     decide,
+    adjust,
+    adjusting,
     settleConflict,
   }
 }

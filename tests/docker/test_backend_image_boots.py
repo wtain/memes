@@ -110,3 +110,16 @@ def test_container_boots_and_stays_running(built_image):
         assert "Traceback" not in logs.stderr, f"traceback in container logs:\n{logs.stderr}"
     finally:
         _run(["docker", "rm", "-f", container_name])
+
+
+def test_image_can_import_the_recut_cutter(built_image):
+    result = _run([
+        "docker", "run", "--rm", *DUMMY_ENV, built_image,
+        "python", "-c",
+        "import PIL; from batch.utils.recut_cut import crop_to_file; from repository.cut_copier import CutCopier; "
+        "import Backend.app.api.recut",
+    ])
+    assert result.returncode == 0, (
+        f"the image cannot import the recut cutter (Pillow or a batch/utils COPY missing?):\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )

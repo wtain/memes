@@ -1,10 +1,12 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import type { MemesApi } from "../api/MemesApi"
+import AdjustPanel from "../components/recut/AdjustPanel"
 import BeforeAfter from "../components/recut/BeforeAfter"
 import ProposalInfo from "../components/recut/ProposalInfo"
 import QueueStrip from "../components/recut/QueueStrip"
 import ReviewStats from "../components/recut/ReviewStats"
+import type { Box, Size } from "../recut/boxOverlay"
 import { useRecutQueue } from "../recut/useRecutQueue"
 import { useRecutStats } from "../recut/useRecutStats"
 
@@ -14,14 +16,34 @@ const LOAD_AHEAD = 5
 
 const CONFLICT_TEXT: Record<string, string> = {
   already_decided: "Already decided",
+  cut_missing: "The cut image is missing",
+  source_missing: "The source image is missing",
+  source_not_active: "The source image is no longer active",
   source_flagged: "The source image is flagged, so it can't be approved",
+  source_changed: "The source file changed after detection, so the box can't be applied",
+  source_unreadable: "The source file can't be read",
+}
+
+const ADJUST_NOTE: Record<"adjusted" | "invalid" | "failed", string> = {
+  adjusted: "Adjusted. Derived data (OCR, descriptions, embeddings) is stale until recut_pipeline has run; run it before approving.",
+  invalid: "That box does not fit this image",
+  failed: "Could not adjust the box",
 }
 
 export default function RecutReviewPage({ memesApi }: Props) {
   const [params, setParams] = useSearchParams()
   const openId = params.get("cut")
   const queue = useRecutQueue(memesApi, openId)
-  const { items, total, listStatus, loadMore, detail, decision, decide, settleConflict } = queue
+  const { items, total, listStatus, loadMore, detail, decision, decide, adjust, adjusting, settleConflict } = queue
+
+  // Edit-mode state is keyed by the proposal it belongs to, so moving to another proposal drops it without an effect.
+  const [draftState, setDraftState] = useState<{ id: string; box: Box } | null>(null)
+  const [sizeState, setSizeState] = useState<{ id: string; size: Size } | null>(null)
+  const [noteState, setNoteState] = useState<{ id: string; kind: keyof typeof ADJUST_NOTE } | null>(null)
+  const draft = draftState !== null && draftState.id === openId ? draftState.box : null
+  const size = sizeState !== null && sizeState.id === openId ? sizeState.size : null
+  const note = noteState !== null && noteState.id === openId ? noteState.kind : null
+  const editing = draft !== null
 
   const open = useCallback((id: string, replace = false) => setParams({ cut: id }, { replace }), [setParams])
 
@@ -29,7 +51,8 @@ export default function RecutReviewPage({ memesApi }: Props) {
   const stats = useRecutStats(memesApi, listStatus === "ready" ? total : null)
 
   const saving = decision.status === "saving"
-  const decidable = detail?.status === "ready" && detail.data.state === "proposed" && !saving
+  const waiting = detail?.status === "ready" && detail.data.state === "proposed" && !saving && !adjusting
+  const decidable = waiting && !editing
   const onDecide = useCallback(async (kind: "approve" | "reject") => {
     const result = await decide(kind)
     if (result.outcome === "done" && result.next !== null) open(result.next)
@@ -60,6 +83,8 @@ export default function RecutReviewPage({ memesApi }: Props) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return  // Alt+arrow is the browser's back/forward
+      if (editing && event.key === "Escape" && !adjusting) setDraftState(null)
+      if (editing) return  // while the box is edited no key decides or navigates
       const target = event.target as HTMLElement | null
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
       if (event.key === "ArrowLeft" && previousId !== null) open(previousId)
@@ -71,7 +96,21 @@ export default function RecutReviewPage({ memesApi }: Props) {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [previousId, nextId, open, decidable, onDecide])
+  }, [previousId, nextId, open, decidable, onDecide, editing, adjusting])
+
+  async function onApply(proposalId: string) {
+    if (draft === null) return
+    setNoteState(null)
+    const result = await adjust(draft)
+    if (result.outcome === "done") {
+      setDraftState(null)
+      setNoteState({ id: proposalId, kind: "adjusted" })
+    } else if (result.outcome === "invalid" || result.outcome === "failed") {
+      setNoteState({ id: proposalId, kind: result.outcome })
+    } else if (result.outcome === "conflict") {
+      setDraftState(null)
+    }
+  }
 
   let body: React.ReactNode
   if (listStatus === "loading") {
@@ -95,17 +134,38 @@ export default function RecutReviewPage({ memesApi }: Props) {
                   className="min-h-11 rounded border px-3 disabled:opacity-50">Next</button>
         </div>
         <BeforeAfter
-          key={proposal.id}
+          key={`${proposal.id}:${proposal.cutImageId}`}
           sourceUrl={memesApi.getImageUrlById(proposal.sourceImageId)}
           cutUrl={memesApi.getImageUrlById(proposal.cutImageId)}
           box={proposal.box}
+          draft={draft}
+          onDraftChange={(box) => setDraftState({ id: proposal.id, box })}
+          onSize={(loaded) => setSizeState({ id: proposal.id, size: loaded })}
         />
+        {draft !== null && size !== null && (
+          <AdjustPanel
+            draft={draft}
+            size={size}
+            current={proposal.box}
+            detectedBox={proposal.detectedBox}
+            disabled={adjusting}
+            onChange={(box) => setDraftState({ id: proposal.id, box })}
+            onApply={() => void onApply(proposal.id)}
+            onCancel={() => setDraftState(null)}
+            onReset={() => { if (proposal.detectedBox !== null) setDraftState({ id: proposal.id, box: proposal.detectedBox }) }}
+          />
+        )}
+        {note === "adjusted" && <p role="status" className="mt-3 text-sm">{ADJUST_NOTE.adjusted}</p>}
+        {(note === "invalid" || note === "failed") && <p role="alert" className="mt-3 text-sm">{ADJUST_NOTE[note]}</p>}
         <div className="mt-4"><ProposalInfo detail={proposal} /></div>
         <div className="mt-4 flex items-center gap-3">
           <button type="button" disabled={!decidable} aria-keyshortcuts="a" onClick={() => void onDecide("approve")}
                   className="min-h-11 rounded border px-3 disabled:opacity-50">Approve</button>
           <button type="button" disabled={!decidable} aria-keyshortcuts="r" onClick={() => void onDecide("reject")}
                   className="min-h-11 rounded border px-3 disabled:opacity-50">Reject</button>
+          <button type="button" disabled={!decidable || size === null}
+                  onClick={() => { setNoteState(null); setDraftState({ id: proposal.id, box: proposal.box }) }}
+                  className="min-h-11 rounded border px-3 disabled:opacity-50">Adjust</button>
         </div>
         <QueueStrip items={items} openId={openId} imageUrl={(id) => memesApi.getImageUrlById(id)} onOpen={(id) => open(id)} />
       </>

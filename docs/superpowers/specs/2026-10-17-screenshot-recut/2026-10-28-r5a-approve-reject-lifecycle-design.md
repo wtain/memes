@@ -6,6 +6,7 @@ Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
 Follows: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-28-r4-review-api-and-ui-design.md
 Follow-ups: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-29-r5b-duplicate-exclusion-and-batch-audit-design.md
+Amended by: docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-30-r6-box-adjustment-design.md (decision 2 below, "moves no file": an approval now also copies the source file to `BASE_PATH/pre-cuts/` after the commit; nothing is moved or removed)
 
 R4 shows each `proposed` cut next to its source with the Approve and Reject buttons disabled. R5a makes them work: two endpoints that
 decide a proposal, the state transitions behind them, flagging through the existing removal path, the popularity edge, the move of

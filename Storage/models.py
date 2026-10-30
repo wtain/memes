@@ -135,6 +135,11 @@ class ImageCut(Base):
     decided_at = Column(DateTime(timezone=True), nullable=True)
     # Why a detected proposal could not be cut (R3a): source_missing, source_changed, unreadable, write_error.
     failure_reason = Column(String(40), nullable=True)
+    # The detector's box, stored by the first manual adjustment (R6); NULL means never adjusted. Metadata only.
+    detected_crop_x = Column(Integer, nullable=True)
+    detected_crop_y = Column(Integer, nullable=True)
+    detected_crop_w = Column(Integer, nullable=True)
+    detected_crop_h = Column(Integer, nullable=True)
 
     __table_args__ = (
         Index("uq_image_cuts_live_source", "source_image_id", unique=True,

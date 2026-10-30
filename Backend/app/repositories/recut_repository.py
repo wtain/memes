@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import CutState, Image, ImageCut, MemeTextRating
@@ -31,6 +31,7 @@ def _item(row: ImageCut) -> dict:
 _BANDS = (("0.6-0.7", 0.6, 0.7), ("0.7-0.8", 0.7, 0.8), ("0.8-0.9", 0.8, 0.9), ("0.9-1.0", 0.9, 1.0),
           ("1.0", 1.0, 1.0), ("unscored", None, None))
 _DECIDABLE = (CutState.PROPOSED, CutState.APPROVED, CutState.REJECTED)
+_ADJUSTED = "adjusted"  # key of the per-band adjusted count next to the per-state counts
 
 
 def _band_expression():
@@ -48,7 +49,8 @@ def _stats_band(label: str, lower, upper, counts: dict) -> dict:
     approved, rejected = counts.get(CutState.APPROVED, 0), counts.get(CutState.REJECTED, 0)
     decided = approved + rejected
     return {"label": label, "lower": lower, "upper": upper, "waiting": counts.get(CutState.PROPOSED, 0),
-            "approved": approved, "rejected": rejected, "approveRate": None if decided == 0 else approved / decided}
+            "approved": approved, "rejected": rejected, "adjusted": counts.get(_ADJUSTED, 0),
+            "approveRate": None if decided == 0 else approved / decided}
 
 
 def lock_statement(cut_id: uuid.UUID):
@@ -68,11 +70,14 @@ class RecutRepository:
         orphaned rows."""
         band = _band_expression().label("band")
         rows = (await self.session.execute(
-            select(band, ImageCut.state, func.count()).where(ImageCut.state.in_(_DECIDABLE)).group_by(band, ImageCut.state)
+            select(band, ImageCut.state, func.count(), func.count().filter(ImageCut.detected_crop_x.is_not(None)))
+            .where(ImageCut.state.in_(_DECIDABLE)).group_by(band, ImageCut.state)
         )).all()
         per_band: dict[str, dict] = {}
-        for label, state, count in rows:
-            per_band.setdefault(label, {})[state] = count
+        for label, state, count, adjusted in rows:
+            counts = per_band.setdefault(label, {})
+            counts[state] = count
+            counts[_ADJUSTED] = counts.get(_ADJUSTED, 0) + adjusted
         totals: dict[str, int] = {}
         for counts in per_band.values():
             for state, count in counts.items():
@@ -94,6 +99,18 @@ class RecutRepository:
         result = await self.session.execute(
             update(MemeTextRating).where(MemeTextRating.image_id == from_id).values(image_id=to_id))
         return result.rowcount
+
+    async def replace_cut(self, row: ImageCut, new_image_id: uuid.UUID, box: tuple[int, int, int, int]) -> None:
+        """Point the proposal at a rebuilt cut and a corrected box. The first adjustment keeps the detector's box."""
+        if row.detected_crop_x is None:
+            row.detected_crop_x, row.detected_crop_y = row.crop_x, row.crop_y
+            row.detected_crop_w, row.detected_crop_h = row.crop_w, row.crop_h
+        row.crop_x, row.crop_y, row.crop_w, row.crop_h = box
+        row.cut_image_id = new_image_id
+        await self.session.flush()
+
+    async def delete_image(self, image_id: uuid.UUID) -> None:
+        await self.session.execute(delete(Image).where(Image.id == image_id))
 
     async def mark_decided(self, row: ImageCut, state: str) -> datetime:
         decided_at = datetime.now(timezone.utc)
@@ -128,6 +145,8 @@ class RecutRepository:
             "detectorVersion": row.detector_version,
             "detectRunId": str(row.detect_run_id) if row.detect_run_id is not None else None,
             "createdAt": row.created_at.isoformat(),
+            "detectedBox": None if row.detected_crop_x is None else {
+                "x": row.detected_crop_x, "y": row.detected_crop_y, "w": row.detected_crop_w, "h": row.detected_crop_h},
             "previousId": previous_id,
             "nextId": next_id,
         }

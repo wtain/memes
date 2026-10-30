@@ -125,3 +125,15 @@ async def test_detail_is_none_for_an_unknown_id_and_for_a_row_without_images(db_
 
     assert await repo.get(uuid.uuid4()) is None
     assert await repo.get(orphan.id) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_detail_reports_the_detector_box_once_the_proposal_was_adjusted(db_session):
+    plain = await _cut(db_session, 0.9)
+    adjusted = await _cut(db_session, 0.9)
+    adjusted.detected_crop_x, adjusted.detected_crop_y, adjusted.detected_crop_w, adjusted.detected_crop_h = 1, 2, 303, 204
+    await db_session.flush()
+    repo = RecutRepository(db_session)
+
+    assert (await repo.get(plain.id))["detectedBox"] is None
+    assert (await repo.get(adjusted.id))["detectedBox"] == {"x": 1, "y": 2, "w": 303, "h": 204}

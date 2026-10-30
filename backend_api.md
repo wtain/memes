@@ -1386,7 +1386,7 @@ Reverts a `rejected` image back to `pending` and moves its file back out of
 
 ### Recut review
 
-The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-17-screenshot-recut/`): proposed cuts of badly cropped images, with the rectangle (in pixels of the source) the cut was taken from. The review page decides a proposal with the two POST endpoints below; a decision moves no file (removal is `move_flagged`, then `unregister_deleted_images`). Unauthenticated like the rest of the admin API. The images themselves are served by `GET /api/images/{id}`, which also serves `cut_proposed` images.
+The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-17-screenshot-recut/`): proposed cuts of badly cropped images, with the rectangle (in pixels of the source) the cut was taken from. The review page decides a proposal with the POST endpoints below; a decision moves no file (removal is `move_flagged`, then `unregister_deleted_images`), but an approval also copies the source file to `BASE_PATH/pre-cuts/<filename>` after the commit (never overwriting; a failed copy is logged and does not fail the approval). Unauthenticated like the rest of the admin API. The images themselves are served by `GET /api/images/{id}`, which also serves `cut_proposed` images.
 
 **List the proposals**
 
@@ -1400,14 +1400,14 @@ The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-1
 
 - **URL**: `/api/recut/proposals/{id}`
 - **Method**: `GET`
-- **Response** `200`: `RecutProposalDetail`: the item fields plus `state` (`proposed`, `approved`, `rejected`...), `detector`, `detectorVersion`, `detectRunId` (or `null`), `createdAt` (ISO 8601) and `previousId`/`nextId`, the neighbours in the list order (`null` at either end, and both `null` when the proposal is not `proposed`). A proposal of any state is answered as long as both its images still exist, so a link survives its decision.
+- **Response** `200`: `RecutProposalDetail`: the item fields plus `state` (`proposed`, `approved`, `rejected`...), `detector`, `detectorVersion`, `detectRunId` (or `null`), `createdAt` (ISO 8601), `detectedBox` (`{ x, y, w, h }`, the detector's original box once the owner has adjusted the proposal, otherwise `null`) and `previousId`/`nextId`, the neighbours in the list order (`null` at either end, and both `null` when the proposal is not `proposed`). A proposal of any state is answered as long as both its images still exist, so a link survives its decision.
 - **Error Responses**: `404` for an unknown id or a proposal whose source or cut image no longer exists; `422` for an `id` that is not a UUID
 
 **Review statistics**
 
 - **URL**: `/api/recut/stats`
 - **Method**: `GET`
-- **Response** `200`: `RecutStats`: `bands` (six, in a fixed order: `0.6-0.7`, `0.7-0.8`, `0.8-0.9`, `0.9-1.0`, `1.0`, `unscored`; each `{ label, lower, upper, waiting, approved, rejected, approveRate }`, `lower`/`upper` are `null` for `unscored`) and `total` (the same shape, label `total`). `waiting` counts proposals in state `proposed`; `approveRate` is `approved / (approved + rejected)`, or `null` while nothing in the band is decided. Counted by detector confidence, computed on every request. Bands: lower edge inclusive, anything under 0.7 is in the first band (the detector's floor is 0.6), `1.0` is its own band.
+- **Response** `200`: `RecutStats`: `bands` (six, in a fixed order: `0.6-0.7`, `0.7-0.8`, `0.8-0.9`, `0.9-1.0`, `1.0`, `unscored`; each `{ label, lower, upper, waiting, approved, rejected, adjusted, approveRate }`, `lower`/`upper` are `null` for `unscored`; `adjusted` counts the proposals of the band that carry a stored detector box, i.e. whose box was adjusted, in any of the three states) and `total` (the same shape, label `total`). `waiting` counts proposals in state `proposed`; `approveRate` is `approved / (approved + rejected)`, or `null` while nothing in the band is decided. Counted by detector confidence, computed on every request. Bands: lower edge inclusive, anything under 0.7 is in the first band (the detector's floor is 0.6), `1.0` is its own band.
 
 **Approve or reject a proposal**
 
@@ -1417,6 +1417,14 @@ The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-1
   - Approve: the cut becomes `active`, the source is flagged (remarks `recut_approved`) for `move_flagged`, the cut takes over the source's popularity and text ratings, and the `approved` event is recorded.
   - Reject: the cut is flagged (remarks `recut_rejected`), the source is untouched, and the `rejected` event is recorded.
 - **Error Responses**: `404` for an unknown id; `422` for an `id` that is not a UUID; `409` with `detail` one of `already_decided` (the proposal is not `proposed`), `cut_missing` (no cut image, or it is not `cut_proposed`), and for approve only `source_missing`, `source_not_active`, `source_flagged` (the source is already flagged for removal). Nothing is changed on a `409`.
+
+**Adjust the box of a proposal**
+
+- **URL**: `/api/recut/proposals/{id}/adjust`
+- **Method**: `POST`
+- **Body**: `RecutAdjustRequest`: `{ x, y, w, h }`, integers in pixels of the source image (`x`, `y` >= 0, `w`, `h` >= 16)
+- **Response** `200`: the updated `RecutProposalDetail`. The proposal keeps its id, state (`proposed`) and `confidence` (the detector's, for its original box); `box` is the new box, `cutImageId` is a NEW cut image (cropped from the source in its format, derived data copied from the source exactly like the first cut, so OCR, lemmas, tags and descriptions are stale until the next `recut_pipeline` run), the previous cut image is deleted, and `detectedBox` holds the detector's box (written by the first adjustment only). The `adjusted` event is recorded once per proposal. The old cut file is removed after the commit; a failed request leaves no new file.
+- **Error Responses**: `404` for an unknown id; `409` with `detail` one of `already_decided`, `cut_missing`, `source_missing`, `source_not_active`, `source_flagged` (as for approve), `source_changed` (the source file differs from the one the detector saw) or `source_unreadable`; `422` for an `id` that is not a UUID, a body that is malformed, a side under 16 px, a box equal to the current box, or a box that does not fit the source (`detail` says which); `500` with `detail` `write_error` when the new cut file could not be written. Nothing is changed on any error. The backend process must be able to write into `BASE_PATH`. Do not adjust while a recut batch job (`create_recut_cuts`, `refresh_recut_cuts`, `recut_pipeline`) is running: the old cut image and file are deleted and the endpoint does not check for a running job.
 
 ---
 
@@ -1531,13 +1539,13 @@ excluded even though they share the same `batch_runs` table.
     {
       "run_id": "b3f1c2a4-...",
       "run_created_at": "2026-10-18T09:00:00Z",
-      "counts": { "proposed": 4, "approved": 1, "rejected": 1 },
-      "metrics": { "approve_rate": 0.5, "decided_share": 0.5, "pending": 2 }
+      "counts": { "proposed": 4, "adjusted": 1, "approved": 1, "rejected": 1 },
+      "metrics": { "approve_rate": 0.5, "decided_share": 0.5, "pending": 2, "adjusted_share": 0.25 }
     }
   ],
   "unattributed": {
-    "counts": { "proposed": 0, "approved": 0, "rejected": 0 },
-    "metrics": { "approve_rate": null, "decided_share": null, "pending": 0 }
+    "counts": { "proposed": 0, "adjusted": 0, "approved": 0, "rejected": 0 },
+    "metrics": { "approve_rate": null, "decided_share": null, "pending": 0, "adjusted_share": null }
   }
 }
 ```
@@ -1545,7 +1553,9 @@ excluded even though they share the same `batch_runs` table.
 One item per detection run that has at least one event, newest run first. A decision is attributed to the run that
 produced the proposal, however late it arrives. Rates are computed on every request and never stored:
 `approve_rate` = approved / (approved + rejected), `decided_share` = (approved + rejected) / proposed, `pending` =
-proposed - approved - rejected (pending proposals are not counted as rejections). A rate is `null` when its
+proposed - approved - rejected (pending proposals are not counted as rejections), `adjusted_share` = adjusted / proposed
+(`adjusted` counts proposals whose box the owner corrected at least once; it is not a decision and is independent of
+`approved`/`rejected`). A rate is `null` when its
 denominator is zero. `unattributed` holds events whose batch run was pruned or never known; its counts are all zero when there
 are none. Events come from the process code (screenshot recut: projects R3 and R5), so the list is empty until they ship.
 

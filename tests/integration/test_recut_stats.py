@@ -85,3 +85,22 @@ async def test_the_total_is_the_sum_of_the_bands_and_a_rate_is_null_without_deci
     for band in [*stats["bands"], stats["total"]]:
         decided = band["approved"] + band["rejected"]
         assert band["approveRate"] == (None if decided == 0 else band["approved"] / decided)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_adjusted_counts_the_rows_with_a_stored_detector_box_in_any_decidable_state(db_session):
+    repo = RecutRepository(db_session)
+    before = await repo.band_stats()
+    for state in (CutState.PROPOSED, CutState.APPROVED):
+        await _row(db_session, 0.95, state)
+        db_session.add(ImageCut(
+            source_image_id=None, cut_image_id=None, crop_x=1, crop_y=1, crop_w=5, crop_h=5,
+            detected_crop_x=0, detected_crop_y=0, detected_crop_w=6, detected_crop_h=6,
+            detector="margin_trim", detector_version=str(uuid.uuid4())[:8], confidence=0.95, state=state))
+    await db_session.flush()
+
+    after = await repo.band_stats()
+
+    assert _by_label(after)["0.9-1.0"]["adjusted"] - _by_label(before)["0.9-1.0"]["adjusted"] == 2
+    assert after["total"]["adjusted"] - before["total"]["adjusted"] == 2
+    assert _by_label(after)["0.6-0.7"]["adjusted"] == _by_label(before)["0.6-0.7"]["adjusted"]

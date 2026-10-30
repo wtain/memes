@@ -72,6 +72,11 @@ COPY batch/run_tracking.py ./batch/run_tracking.py
 # Backend/app/services/admin_batch_service.py imports batch.registry.BatchRegistry
 # to read environments/batch_registry*.yaml (already copied above).
 COPY batch/registry.py ./batch/registry.py
+# Backend/app/services/recut_adjust_service.py rebuilds a cut inside the request: it needs the cropper
+# (batch/utils/recut_cut.py, which needs file_hash.py) and, through repository/cut_copier.py, the same module again.
+COPY batch/utils/__init__.py ./batch/utils/__init__.py
+COPY batch/utils/recut_cut.py ./batch/utils/recut_cut.py
+COPY batch/utils/file_hash.py ./batch/utils/file_hash.py
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app

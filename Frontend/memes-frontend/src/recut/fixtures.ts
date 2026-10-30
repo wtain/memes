@@ -3,11 +3,11 @@ import type { RecutDecision, RecutProposal, RecutProposalDetail, RecutProposalPa
 export function makeStats(overrides: Partial<RecutStats> = {}): RecutStats {
   return {
     bands: [
-      { label: "0.9-1.0", lower: 0.9, upper: 1, waiting: 3, approved: 7, rejected: 1, approveRate: 0.875 },
-      { label: "0.8-0.9", lower: 0.8, upper: 0.9, waiting: 2, approved: 0, rejected: 0, approveRate: null },
-      { label: "unscored", lower: null, upper: null, waiting: 0, approved: 0, rejected: 0, approveRate: null },
+      { label: "0.9-1.0", lower: 0.9, upper: 1, waiting: 3, approved: 7, rejected: 1, adjusted: 2, approveRate: 0.875 },
+      { label: "0.8-0.9", lower: 0.8, upper: 0.9, waiting: 2, approved: 0, rejected: 0, adjusted: 0, approveRate: null },
+      { label: "unscored", lower: null, upper: null, waiting: 0, approved: 0, rejected: 0, adjusted: 0, approveRate: null },
     ],
-    total: { label: "total", lower: null, upper: null, waiting: 5, approved: 7, rejected: 1, approveRate: 0.875 },
+    total: { label: "total", lower: null, upper: null, waiting: 5, approved: 7, rejected: 1, adjusted: 2, approveRate: 0.875 },
     ...overrides,
   }
 }
@@ -39,6 +39,7 @@ export function makeProposalDetail(id: string, overrides: Partial<RecutProposalD
     detectorVersion: "1",
     detectRunId: null,
     createdAt: "2026-10-28T10:00:00+00:00",
+    detectedBox: null,
     previousId: null,
     nextId: null,
     ...overrides,

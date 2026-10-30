@@ -397,6 +397,11 @@ recut_pipeline              → screenshot recut driver (R7): runs `create_recut
                                skipped. Admin-triggerable from /admin/batches, manual-trigger only, deliberately not scheduled (review, not
                                detection, is the bottleneck; revisit once the first pass is reviewed). See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-29-r7-operations-and-evaluation-design.md.
+                               The review page also adjusts a box (R6, POST /api/recut/proposals/{id}/adjust): the cut is
+                               rebuilt inside the request, so the backend image carries Pillow and
+                               batch/utils/{__init__,recut_cut,file_hash}.py (Dockerfile.backend, .dockerignore) and writes
+                               cut files into BASE_PATH; every approval also copies the source to BASE_PATH/pre-cuts/. See
+                               docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-30-r6-box-adjustment-design.md.
 create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each `detected` image_cuts proposal, highest
                                confidence first, into a cut file in BASE_PATH (same format as the source: JPEG at
                                recut.jpeg_quality keeping the subsampling, PNG as PNG), a `cut_proposed` images row, copies

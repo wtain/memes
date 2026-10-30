@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.recut_repository import RecutRepository
+from Backend.app.services.recut_adjust_service import InvalidBoxError, ProposalWriteError, RecutAdjustService
 from Backend.app.services.recut_decision_service import (
     ProposalConflictError, ProposalNotFoundError, RecutDecisionService)
+from Backend.app.types.generated.recutadjustrequest import Schema as RecutAdjustRequest
 from Backend.app.types.generated.recutdecision import Schema as RecutDecision
 from Backend.app.types.generated.recutproposaldetail import Schema as RecutProposalDetail
 from Backend.app.types.generated.recutstats import Schema as RecutStats
@@ -22,6 +24,10 @@ async def get_recut_repository(db: AsyncSession = Depends(get_async_db)) -> Asyn
 
 async def get_recut_decision_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[RecutDecisionService, None]:
     yield RecutDecisionService(db)
+
+
+async def get_recut_adjust_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[RecutAdjustService, None]:
+    yield RecutAdjustService(db)
 
 
 @router.get("/proposals", response_model=RecutProposalPage)
@@ -62,3 +68,24 @@ async def approve_proposal(proposal_id: uuid.UUID, service: RecutDecisionService
 @router.post("/proposals/{proposal_id}/reject", response_model=RecutDecision)
 async def reject_proposal(proposal_id: uuid.UUID, service: RecutDecisionService = Depends(get_recut_decision_service)):
     return await _decide(service.reject, proposal_id)
+
+
+@router.post("/proposals/{proposal_id}/adjust", response_model=RecutProposalDetail)
+async def adjust_proposal(proposal_id: uuid.UUID, body: RecutAdjustRequest,
+                          service: RecutAdjustService = Depends(get_recut_adjust_service),
+                          repo: RecutRepository = Depends(get_recut_repository)):
+    # Raising after the service wrote anything is safe: get_async_db rolls the whole request back (and the file hooks run).
+    try:
+        await service.adjust(proposal_id, body.x, body.y, body.w, body.h)
+    except ProposalNotFoundError:
+        raise HTTPException(status_code=404, detail="Proposal not found") from None
+    except ProposalConflictError as error:
+        raise HTTPException(status_code=409, detail=error.code) from None
+    except InvalidBoxError as error:
+        raise HTTPException(status_code=422, detail=error.message) from None
+    except ProposalWriteError:
+        raise HTTPException(status_code=500, detail="write_error") from None
+    detail = await repo.get(proposal_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    return detail
