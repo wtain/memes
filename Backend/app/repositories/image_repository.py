@@ -20,7 +20,7 @@ from graph.uf import UnionFind
 from repository.description_note_lemmas import DescriptionNoteLemmasSaver, compute_note_lemmas
 from repository.image_descriptions import description_not_rejected
 from repository.ocr_lemmas import scored_image_matches
-from repository.popularity import OPEN_EDGE_SQL
+from repository.popularity import MAX_HOPS, OPEN_EDGE_SQL
 from repository.search_ranking import _SCORE_DECIMALS, get_popularity_boost, get_weights
 from repository.tags import DESCRIPTION_TAG_SOURCE, NOTE_TAG_SOURCE, TagsRepository
 
@@ -31,15 +31,17 @@ TRENDING_WINDOW_DAYS = 30
 
 # Gain per tree root: seed with the recent open non-adjustment edges (weight credited to the edge's winner), climb
 # through open absorb edges (loser -> winner) with UNION ALL (UNION would merge equal-weight edges into one winner and
-# lose a copy), and sum the weights that arrive at a node with no open edge above it.
+# lose a copy), and sum the weights that arrive at a node with no open edge above it. Cycles are prevented at write
+# time; the depth cap (MAX_HOPS, as in repository/popularity.py) is defence in depth against a runaway climb.
 _TRENDING_WINDOW_SQL = text(f"""
-    WITH RECURSIVE climb(node, weight) AS (
-        SELECT a.winner_image_id, a.weight FROM popularity_absorptions a
+    WITH RECURSIVE climb(node, weight, depth) AS (
+        SELECT a.winner_image_id, a.weight, 0 FROM popularity_absorptions a
         WHERE {OPEN_EDGE_SQL} AND a.source <> 'adjustment' AND a.weight > 0
           AND a.created_at >= now() - make_interval(days => :days)
         UNION ALL
-        SELECT a.winner_image_id, c.weight FROM climb c
+        SELECT a.winner_image_id, c.weight, c.depth + 1 FROM climb c
         JOIN popularity_absorptions a ON a.loser_image_id = c.node AND {OPEN_EDGE_SQL}
+        WHERE c.depth < {MAX_HOPS}
     ),
     roots AS (
         SELECT c.node AS id, SUM(c.weight) AS gain FROM climb c
