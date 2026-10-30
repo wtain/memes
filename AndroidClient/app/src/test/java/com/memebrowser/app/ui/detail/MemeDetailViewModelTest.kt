@@ -103,6 +103,21 @@ class MemeDetailViewModelTest {
         viewModel.saveToGallery(context)
         awaitSaveSettled()
 
+        coVerify(exactly = 1, timeout = 5_000) { repo.recordSave("meme-1") }
+        assertTrue(viewModel.state.value.saveSuccess)
+        assertNull(viewModel.state.value.error)
+    }
+
+    @Test
+    fun `a throwing report does not fail the save`() = runTest {
+        val context = stubSaveEnvironment()
+        coEvery { repo.recordSave("meme-1") } throws RuntimeException("boom")
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+
+        viewModel.saveToGallery(context)
+        awaitSaveSettled()
+
+        coVerify(exactly = 1, timeout = 5_000) { repo.recordSave("meme-1") }
         assertTrue(viewModel.state.value.saveSuccess)
         assertNull(viewModel.state.value.error)
     }
