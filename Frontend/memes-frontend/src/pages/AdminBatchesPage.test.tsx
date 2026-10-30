@@ -246,12 +246,40 @@ describe('AdminBatchesPage', () => {
       }],
       unattributed: { counts: { proposed: 0, rejected: 0, kept: 0 }, metrics: { reject_share: null, decided_share: null, pending: 0 } },
     })
-    const getBatchMetrics = vi.fn((process: string) => Promise.resolve(process === 'recut' ? recut : tier(process)))
+    const getBatchMetrics = vi.fn((process: string) =>
+      Promise.resolve(process === 'recut' || process === 'library_duplicates' ? recut : tier(process)))
     const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([])), getBatchMetrics })
     render(<AdminBatchesPage memesApi={api} />)
 
     expect(await screen.findAllByText(/Reject share, not precision/)).toHaveLength(2)
     expect(screen.getAllByText('66.7%')).toHaveLength(2)
+  })
+
+  it('shows the library duplicates panel with its title, empty text and call', async () => {
+    const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([])) })
+    render(<AdminBatchesPage memesApi={api} />)
+
+    expect(await screen.findByText('Library duplicates')).toBeInTheDocument()
+    expect(api.getBatchMetrics).toHaveBeenCalledWith('library_duplicates')
+    expect(await screen.findByText('No library duplicate decisions yet')).toBeInTheDocument()
+  })
+
+  it('shows the library confirm share and says it is not detector precision', async () => {
+    const library: BatchMetricsResponse = {
+      process: 'library_duplicates',
+      items: [],
+      unattributed: { counts: { confirmed: 3, dismissed: 1 }, metrics: { confirm_share: 0.75 } },
+    }
+    const getBatchMetrics = vi.fn((process: string) => Promise.resolve(
+      process === 'library_duplicates' ? library : { process, items: [], unattributed: { counts: {}, metrics: {} } }))
+    const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([])), getBatchMetrics })
+    render(<AdminBatchesPage memesApi={api} />)
+
+    expect(await screen.findByText('Confirmed')).toBeInTheDocument()
+    expect(screen.getByText('Dismissed')).toBeInTheDocument()
+    expect(screen.getByText('Confirm share')).toBeInTheDocument()
+    expect(screen.getByText('75.0%')).toBeInTheDocument()
+    expect(screen.getByText(/Counts images in decided groups, not detector precision/)).toBeInTheDocument()
   })
 
   it('a failing metrics fetch leaves the page usable', async () => {
