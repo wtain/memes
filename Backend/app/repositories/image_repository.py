@@ -6,7 +6,7 @@ from typing import NamedTuple, Optional
 import uuid
 
 import sqlalchemy
-from sqlalchemy import select, tuple_, distinct, and_, union_all, func, delete
+from sqlalchemy import select, tuple_, distinct, and_, union_all, func, delete, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -20,10 +20,43 @@ from graph.uf import UnionFind
 from repository.description_note_lemmas import DescriptionNoteLemmasSaver, compute_note_lemmas
 from repository.image_descriptions import description_not_rejected
 from repository.ocr_lemmas import scored_image_matches
+from repository.popularity import OPEN_EDGE_SQL
 from repository.search_ranking import _SCORE_DECIMALS, get_popularity_boost, get_weights
 from repository.tags import DESCRIPTION_TAG_SOURCE, NOTE_TAG_SOURCE, TagsRepository
 
 logger = logging.getLogger(__name__)
+
+# Length of the "30d" window of GET /api/images/trending; a different length would be a new window value.
+TRENDING_WINDOW_DAYS = 30
+
+# Gain per tree root: seed with the recent open non-adjustment edges (weight credited to the edge's winner), climb
+# through open absorb edges (loser -> winner) with UNION ALL (UNION would merge equal-weight edges into one winner and
+# lose a copy), and sum the weights that arrive at a node with no open edge above it.
+_TRENDING_WINDOW_SQL = text(f"""
+    WITH RECURSIVE climb(node, weight) AS (
+        SELECT a.winner_image_id, a.weight FROM popularity_absorptions a
+        WHERE {OPEN_EDGE_SQL} AND a.source <> 'adjustment' AND a.weight > 0
+          AND a.created_at >= now() - make_interval(days => :days)
+        UNION ALL
+        SELECT a.winner_image_id, c.weight FROM climb c
+        JOIN popularity_absorptions a ON a.loser_image_id = c.node AND {OPEN_EDGE_SQL}
+    ),
+    roots AS (
+        SELECT c.node AS id, SUM(c.weight) AS gain FROM climb c
+        WHERE NOT EXISTS (
+            SELECT 1 FROM popularity_absorptions a WHERE a.loser_image_id = c.node AND {OPEN_EDGE_SQL}
+        )
+        GROUP BY c.node
+    )
+    SELECT i.id, i.filename, i.created_at, x.flagged, i.popularity, r.gain
+    FROM roots r
+    JOIN images i ON i.id = r.id
+    LEFT JOIN image_extras x ON x.image_id = i.id
+    WHERE i.status = 'active' AND COALESCE(x.flagged, FALSE) IS FALSE AND r.gain >= 1
+      AND (CAST(:use_cursor AS boolean) IS FALSE OR (r.gain, i.created_at, i.id) < (:c_gain, :c_created, :c_id))
+    ORDER BY r.gain DESC, i.created_at DESC, i.id DESC
+    LIMIT :limit_plus_one
+""")
 
 
 class RankedRow(NamedTuple):
@@ -512,6 +545,34 @@ class ImageRepository:
 
         results = await self.session.execute(
             query.order_by(img.popularity.desc(), img.created_at.desc(), img.id.desc()).limit(limit + 1)
+        )
+        return results.all()
+
+    async def get_trending_window(
+            self,
+            cursor_gain: Optional[int],
+            cursor_created_at: Optional[datetime],
+            cursor_id: Optional[uuid.UUID],
+            limit: int,
+    ):
+        """Active, unflagged tree roots ranked by the duplicates they gained in the last TRENDING_WINDOW_DAYS
+        days (open non-adjustment absorb edges, credited to the root of the tree today); gain >= 1. Keyset on
+        (gain, created_at, id) descending; returns up to limit + 1 rows with `gain`. Read-only."""
+        use_cursor = cursor_gain is not None and cursor_created_at is not None and cursor_id is not None
+        results = await self.session.execute(
+            _TRENDING_WINDOW_SQL.bindparams(
+                sqlalchemy.bindparam("c_gain", type_=sqlalchemy.BigInteger),
+                sqlalchemy.bindparam("c_created", type_=sqlalchemy.DateTime()),
+                sqlalchemy.bindparam("c_id", type_=sqlalchemy.Uuid),
+            ),
+            {
+                "days": TRENDING_WINDOW_DAYS,
+                "use_cursor": use_cursor,
+                "c_gain": cursor_gain if use_cursor else 0,
+                "c_created": cursor_created_at if use_cursor else datetime(2000, 1, 1),
+                "c_id": cursor_id if use_cursor else uuid.UUID(int=0),
+                "limit_plus_one": limit + 1,
+            },
         )
         return results.all()
 

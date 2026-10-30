@@ -20,26 +20,29 @@ T = TypeVar("T")
 MAX_HOPS = 10000
 MAX_ATTEMPTS = 3
 
-_TREE_WEIGHT_SQL = text("""
+# The one definition of an "open" absorb edge, for statements that alias popularity_absorptions as `a`.
+OPEN_EDGE_SQL = "a.kind = 'absorb' AND a.reversed_by_id IS NULL"
+
+_TREE_WEIGHT_SQL = text(f"""
     WITH RECURSIVE tree(id) AS (
         SELECT CAST(:root AS uuid)
         UNION
         SELECT a.loser_image_id FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
-        WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL AND a.loser_image_id IS NOT NULL
+        WHERE {OPEN_EDGE_SQL} AND a.loser_image_id IS NOT NULL
     )
     SELECT COALESCE(SUM(a.weight), 0) FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
-    WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL
+    WHERE {OPEN_EDGE_SQL}
 """)
 
-_BREAKDOWN_SQL = text("""
+_BREAKDOWN_SQL = text(f"""
     WITH RECURSIVE tree(id) AS (
         SELECT CAST(:root AS uuid)
         UNION
         SELECT a.loser_image_id FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
-        WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL AND a.loser_image_id IS NOT NULL
+        WHERE {OPEN_EDGE_SQL} AND a.loser_image_id IS NOT NULL
     )
     SELECT a.source, SUM(a.weight) FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
-    WHERE a.kind = 'absorb' AND a.reversed_by_id IS NULL
+    WHERE {OPEN_EDGE_SQL}
     GROUP BY a.source
 """)
 
