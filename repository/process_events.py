@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,23 @@ async def subject_has_any_event(session: AsyncSession, process: str, subject_id:
         .exists()
     )
     return bool(await session.scalar(statement))
+
+
+async def delete_event(session: AsyncSession, process: str, event: str, subject_id: uuid.UUID) -> bool:
+    """Remove one event of one subject (the retraction of an undone decision). Returns True if a row went. Never commits."""
+    result = await session.execute(delete(ProcessEvent).where(
+        ProcessEvent.process == process, ProcessEvent.event == event, ProcessEvent.subject_id == subject_id))
+    return result.rowcount == 1
+
+
+async def subjects_with_event(session: AsyncSession, process: str, event: str,
+                              subject_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """Which of `subject_ids` carry this event."""
+    if not subject_ids:
+        return set()
+    rows = await session.execute(select(ProcessEvent.subject_id).where(
+        ProcessEvent.process == process, ProcessEvent.event == event, ProcessEvent.subject_id.in_(subject_ids)))
+    return set(rows.scalars())
 
 
 async def latest_runs_with_events(session: AsyncSession, process: str, limit: int) -> list[tuple[uuid.UUID, datetime]]:

@@ -185,3 +185,73 @@ def test_the_adjusted_share_formula():
     metrics = PROCESSES["recut"].metrics
     assert metrics["adjusted_share"]({"proposed": 4, "adjusted": 1, "approved": 0, "rejected": 0}) == 0.25
     assert metrics["adjusted_share"]({"proposed": 0, "adjusted": 0, "approved": 0, "rejected": 0}) is None
+
+
+@pytest.mark.parametrize("process", ["ingest_tier_a", "ingest_tier_b"])
+def test_the_ingestion_formulas(process):
+    metrics = PROCESSES[process].metrics
+    counts = {"proposed": 10, "rejected": 3, "kept": 1}
+    assert metrics["reject_share"](counts) == 0.75
+    assert metrics["decided_share"](counts) == 0.4
+    assert metrics["pending"](counts) == 6
+    zero = {"proposed": 0, "rejected": 0, "kept": 0}
+    assert metrics["reject_share"](zero) is None and metrics["decided_share"](zero) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_rejected_and_kept_are_exclusive_in_an_ingestion_process(db_session):
+    service = BusinessMetricsService(db_session)
+    run, subject = await _run(db_session, 1), uuid.uuid4()
+    await service.record("ingest_tier_a", "rejected", run.run_id, subject)
+
+    with pytest.raises(ConflictingEventError):
+        await service.record("ingest_tier_a", "kept", run.run_id, subject)
+    assert await service.record("ingest_tier_b", "kept", run.run_id, subject) is True   # another tier is independent
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_retract_removes_only_that_event_and_is_a_no_op_the_second_time(db_session):
+    service = BusinessMetricsService(db_session)
+    run, subject = await _run(db_session, 1), uuid.uuid4()
+    await service.record("ingest_tier_a", "proposed", run.run_id, subject)
+    await service.record("ingest_tier_a", "rejected", run.run_id, subject)
+
+    assert await service.retract("ingest_tier_a", "rejected", subject) is True
+    assert await service.retract("ingest_tier_a", "rejected", subject) is False
+    assert await service.with_event("ingest_tier_a", "proposed", [subject]) == {subject}
+    assert await service.with_event("ingest_tier_a", "rejected", [subject]) == set()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_after_a_retract_the_subject_can_be_kept_or_rejected_again(db_session):
+    service = BusinessMetricsService(db_session)
+    run, subject = await _run(db_session, 1), uuid.uuid4()
+    await service.record("ingest_tier_a", "rejected", run.run_id, subject)
+    await service.retract("ingest_tier_a", "rejected", subject)
+
+    assert await service.record("ingest_tier_a", "kept", run.run_id, subject) is True
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_retract_and_lookups_reject_an_unknown_process_or_event(db_session):
+    service = BusinessMetricsService(db_session)
+    with pytest.raises(UnknownProcessError):
+        await service.retract("nope", "rejected", uuid.uuid4())
+    with pytest.raises(UnknownEventError):
+        await service.with_event("ingest_tier_a", "nope", [uuid.uuid4()])
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_undecided_returns_proposed_subjects_without_a_decision(db_session):
+    service = BusinessMetricsService(db_session)
+    run = await _run(db_session, 1)
+    open_, rejected, kept, never = (uuid.uuid4() for _ in range(4))
+    for subject in (open_, rejected, kept):
+        await service.record("ingest_tier_a", "proposed", run.run_id, subject)
+    await service.record("ingest_tier_a", "rejected", run.run_id, rejected)
+    await service.record("ingest_tier_a", "kept", run.run_id, kept)
+
+    result = await service.undecided("ingest_tier_a", "proposed", ("rejected", "kept"), [open_, rejected, kept, never])
+
+    assert result == {open_}
+    assert await service.undecided("ingest_tier_a", "proposed", ("rejected", "kept"), []) == set()
