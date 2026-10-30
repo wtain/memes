@@ -5,7 +5,8 @@
   "type": "object",
   "properties": {
     "meme": { "$ref": "./meme.schema.json" },
-    "popularity": { "type": "integer", "minimum": 0 }
+    "popularity": { "type": "integer", "minimum": 0 },
+    "windowGain": { "type": "integer", "minimum": 1 }
   },
   "required": ["meme", "popularity"]
 }

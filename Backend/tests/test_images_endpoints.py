@@ -1652,14 +1652,48 @@ class TestGetTrendingImages:
         assert data["nextCursor"] == "c1" and data["hasNext"] is True
         assert "facets" not in data
         assert "no-cache" in response.headers["cache-control"]
-        assert mock_image_service.get_trending.call_args.kwargs == {"cursor": None, "limit": 36}
+        assert mock_image_service.get_trending.call_args.kwargs == {"cursor": None, "limit": 36, "window": "all"}
+        assert "windowGain" not in data["items"][0]
 
     def test_passes_cursor_and_limit(self, client, mock_image_service):
         mock_image_service.get_trending.return_value = self._response()
 
         client.get("/api/images/trending", params={"limit": 100, "cursor": "abc"})
 
-        assert mock_image_service.get_trending.call_args.kwargs == {"cursor": "abc", "limit": 100}
+        assert mock_image_service.get_trending.call_args.kwargs == {"cursor": "abc", "limit": 100, "window": "all"}
+
+    def test_all_window_response_keeps_null_next_cursor_and_omits_window_gain(self, client, mock_image_service):
+        from Backend.app.types.generated.trendingmemeitem import Schema as TrendingMemeItem
+        from Backend.app.types.generated.trendingmemesresponse import Schema as TrendingMemesResponse
+        meme = Meme(id="t-1", imageUrl="/api/images/t-1", text=[], tags=[], originalFileName="t1.jpg", flagged=False)
+        mock_image_service.get_trending.return_value = TrendingMemesResponse(
+            items=[TrendingMemeItem(meme=meme, popularity=5)], nextCursor=None, hasNext=False)
+
+        data = client.get("/api/images/trending").json()
+
+        assert set(data) == {"items", "nextCursor", "hasNext"} and data["nextCursor"] is None
+        assert set(data["items"][0]) == {"meme", "popularity"}
+        assert "clusterId" in data["items"][0]["meme"]   # nested nulls are still sent, as before
+
+    def test_30d_window_is_passed_and_items_carry_window_gain(self, client, mock_image_service):
+        from Backend.app.types.generated.trendingmemeitem import Schema as TrendingMemeItem
+        from Backend.app.types.generated.trendingmemesresponse import Schema as TrendingMemesResponse
+        meme = Meme(id="t-1", imageUrl="/api/images/t-1", text=[], tags=[], originalFileName="t1.jpg", flagged=False)
+        mock_image_service.get_trending.return_value = TrendingMemesResponse(
+            items=[TrendingMemeItem(meme=meme, popularity=5, windowGain=3)], nextCursor=None, hasNext=False)
+
+        response = client.get("/api/images/trending", params={"window": "30d"})
+
+        assert response.status_code == 200
+        assert response.json()["items"][0]["windowGain"] == 3
+        assert mock_image_service.get_trending.call_args.kwargs["window"] == "30d"
+
+    @pytest.mark.parametrize("window", ["7d", "", "ALL"])
+    def test_unknown_window_is_422(self, client, mock_image_service, window):
+        response = client.get("/api/images/trending", params={"window": window})
+
+        assert response.status_code == 422
+        mock_image_service.get_trending.assert_not_called()
 
     @pytest.mark.parametrize("limit", [0, 101])
     def test_limit_out_of_range_is_422(self, client, mock_image_service, limit):

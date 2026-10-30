@@ -304,18 +304,30 @@ class ImageService:
 
         return self._paginate_response(rows, items, limit)
 
-    async def get_trending(self, cursor: Optional[str], limit: int) -> TrendingMemesResponse:
-        """All-time trending list (P5): active, unflagged memes with at least search.trending.min_popularity
-        copies, most popular first. Read-only; an unusable cursor restarts at page 1."""
-        cursor_popularity, cursor_created_at, cursor_id = self._decode_trending_cursor(cursor)
+    async def get_trending(
+            self, cursor: Optional[str], limit: int, window: Literal["all", "30d"] = "all",
+    ) -> TrendingMemesResponse:
+        """Trending list. window "all" (P5): active, unflagged memes with at least search.trending.min_popularity
+        copies, most popular first. window "30d" (S3): memes ranked by the duplicates they picked up in the last
+        30 days (items carry windowGain). Read-only; an unusable cursor, including one from the other window,
+        restarts at page 1."""
+        cursor_value, cursor_created_at, cursor_id = self._decode_trending_cursor(cursor, window=window)
 
-        rows = await self.repo.get_trending(
-            cursor_popularity=cursor_popularity,
-            cursor_created_at=cursor_created_at,
-            cursor_id=cursor_id,
-            limit=limit,
-            min_popularity=get_trending_min_popularity(),
-        )
+        if window == "30d":
+            rows = await self.repo.get_trending_window(
+                cursor_gain=cursor_value,
+                cursor_created_at=cursor_created_at,
+                cursor_id=cursor_id,
+                limit=limit,
+            )
+        else:
+            rows = await self.repo.get_trending(
+                cursor_popularity=cursor_value,
+                cursor_created_at=cursor_created_at,
+                cursor_id=cursor_id,
+                limit=limit,
+                min_popularity=get_trending_min_popularity(),
+            )
 
         page = rows[:limit]
         memes = [
@@ -335,30 +347,33 @@ class ImageService:
         next_cursor = None
         if page:
             last = page[-1]
-            next_cursor = self._encode_trending_cursor(last.popularity, last.created_at, last.id)
-        return TrendingMemesResponse(
-            items=[TrendingMemeItem(meme=m, popularity=r.popularity) for m, r in zip(memes, page)],
-            nextCursor=next_cursor,
-            hasNext=len(rows) > limit,
-        )
+            key = last.gain if window == "30d" else last.popularity
+            next_cursor = self._encode_trending_cursor(key, last.created_at, last.id, window=window)
+        if window == "30d":
+            items = [TrendingMemeItem(meme=m, popularity=r.popularity, windowGain=r.gain) for m, r in zip(memes, page)]
+        else:
+            items = [TrendingMemeItem(meme=m, popularity=r.popularity) for m, r in zip(memes, page)]
+        return TrendingMemesResponse(items=items, nextCursor=next_cursor, hasNext=len(rows) > limit)
 
     @staticmethod
-    def _encode_trending_cursor(popularity: int, created_at: datetime, id) -> str:
-        payload = {"popularity": popularity, "created_at": created_at.isoformat(), "id": str(id)}
+    def _encode_trending_cursor(value: int, created_at: datetime, id, window: str = "all") -> str:
+        key = "gain" if window == "30d" else "popularity"
+        payload = {key: value, "created_at": created_at.isoformat(), "id": str(id)}
         return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
 
     @staticmethod
-    def _decode_trending_cursor(cursor: Optional[str]):
-        """(popularity, created_at, id), or (None, None, None) for no cursor or any unusable one (invalid,
-        truncated, or in another endpoint's format), which restarts the list at page 1."""
+    def _decode_trending_cursor(cursor: Optional[str], window: str = "all"):
+        """(popularity or gain, created_at, id), or (None, None, None) for no cursor or any unusable one (invalid,
+        truncated, in another endpoint's format or from the other window), which restarts the list at page 1."""
         if not cursor:
             return None, None, None
+        key = "gain" if window == "30d" else "popularity"
         try:
             obj = json.loads(base64.urlsafe_b64decode(cursor).decode())
-            popularity = obj["popularity"]
-            if isinstance(popularity, bool) or not isinstance(popularity, int):
+            value = obj[key]
+            if isinstance(value, bool) or not isinstance(value, int):
                 return None, None, None
-            return popularity, datetime.fromisoformat(obj["created_at"]), uuid.UUID(obj["id"])
+            return value, datetime.fromisoformat(obj["created_at"]), uuid.UUID(obj["id"])
         except (ValueError, KeyError, TypeError, AttributeError):
             return None, None, None
 

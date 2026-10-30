@@ -550,7 +550,8 @@ data class SearchHistoryResponse(
 @Serializable
 data class TrendingMemeItem(
     @SerialName("meme") val meme: Meme,
-    @SerialName("popularity") val popularity: Int
+    @SerialName("popularity") val popularity: Int,
+    @SerialName("windowGain") val windowGain: Int? = null
 )
 
 @Serializable

@@ -95,6 +95,7 @@ export interface MemeSearchResponse {
 export interface TrendingMemeItem {
   meme: Meme;
   popularity: number;
+  windowGain?: number;
   [k: string]: unknown;
 }
 /**

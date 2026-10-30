@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 import unicodedata
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, model_serializer
 
 logger = logging.getLogger(__name__)
 from fastapi.responses import FileResponse
@@ -24,11 +24,28 @@ from Backend.app.types.generated.meme import Schema as Meme
 from Backend.app.types.generated.memepopularity import Schema as MemePopularity
 from Backend.app.types.generated.memepopularityupdate import Schema as MemePopularityUpdate
 from Backend.app.types.generated.imagedescription import Schema as ImageDescription
+from Backend.app.types.generated.trendingmemeitem import Schema as TrendingMemeItem
 from Backend.app.types.generated.trendingmemesresponse import Schema as TrendingMemesResponse
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from Backend.app.types.generated.descriptionfeedbackresponse import Schema as DescriptionFeedbackResponse
 
 router = APIRouter(prefix="/images", tags=["images"])
+
+
+class _TrendingItem(TrendingMemeItem):
+    """Wire form of a trending item: the all-time view has no windowGain, so a None one is left out of the
+    JSON instead of being sent as null (keeps the all-time response unchanged)."""
+
+    @model_serializer(mode="wrap")
+    def _drop_empty_window_gain(self, handler):
+        data = handler(self)
+        if data.get("windowGain") is None:
+            data.pop("windowGain", None)
+        return data
+
+
+class _TrendingPage(TrendingMemesResponse):
+    items: list[_TrendingItem]
 
 
 class DuplicatePairModel(BaseModel):
@@ -258,15 +275,16 @@ async def get_untagged_images(
 
 
 # Must be before /{image_id} endpoint
-@router.get("/trending", response_model=TrendingMemesResponse)
+@router.get("/trending", response_model=_TrendingPage)
 async def get_trending_images(
     response: Response,
     limit: int = Query(36, ge=1, le=100),
     cursor: Optional[str] = None,
+    window: Literal["all", "30d"] = "all",
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    return await service.get_trending(cursor=cursor, limit=limit)
+    return await service.get_trending(cursor=cursor, limit=limit, window=window)
 
 
 # Must be before /{image_id} endpoint

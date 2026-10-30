@@ -905,6 +905,77 @@ class TestTrendingCursor:
             assert ImageService._decode_trending_cursor(bad) == (None, None, None), bad
 
 
+class TestTrendingWindowCursor:
+    def test_window_cursor_round_trips_and_is_rejected_by_the_all_time_decoder(self):
+        created_at = datetime(2026, 1, 1, 12, 0, 0)
+        image_id = uuid.uuid4()
+        cursor = ImageService._encode_trending_cursor(4, created_at, image_id, window="30d")
+        assert ImageService._decode_trending_cursor(cursor, window="30d") == (4, created_at, image_id)
+        assert ImageService._decode_trending_cursor(cursor) == (None, None, None)
+
+    def test_all_time_cursor_is_rejected_by_the_window_decoder(self):
+        cursor = ImageService._encode_trending_cursor(7, datetime(2026, 1, 1), uuid.uuid4())
+        assert ImageService._decode_trending_cursor(cursor, window="30d") == (None, None, None)
+
+
+class TestGetTrendingWindow:
+    @staticmethod
+    def _rows(n):
+        base = datetime(2026, 1, 1, 12, 0, 0)
+        return [
+            SimpleNamespace(
+                id=uuid.UUID(int=i + 1), filename=f"{i}.jpg", created_at=base.replace(minute=59 - i),
+                flagged=None, popularity=20 + i, gain=5 - i,
+            )
+            for i in range(n)
+        ]
+
+    async def test_window_uses_window_repo_method_and_items_carry_gain(self, service, mock_repo, monkeypatch):
+        rows = self._rows(4)
+        mock_repo.get_trending_window.return_value = rows
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+
+        response = await service.get_trending(cursor=None, limit=3, window="30d")
+
+        mock_repo.get_trending.assert_not_called()
+        assert [(i.popularity, i.windowGain) for i in response.items] == [(r.popularity, r.gain) for r in rows[:3]]
+        assert response.hasNext is True
+        assert ImageService._decode_trending_cursor(response.nextCursor, window="30d") == (
+            rows[2].gain, rows[2].created_at, rows[2].id,
+        )
+        kwargs = mock_repo.get_trending_window.call_args.kwargs
+        assert kwargs["limit"] == 3 and kwargs["cursor_gain"] is None
+
+    async def test_all_time_cursor_on_window_request_restarts_at_page_one(self, service, mock_repo, monkeypatch):
+        mock_repo.get_trending_window.return_value = []
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+        cursor = ImageService._encode_trending_cursor(7, datetime(2026, 1, 1), uuid.uuid4())
+
+        await service.get_trending(cursor=cursor, limit=3, window="30d")
+
+        kwargs = mock_repo.get_trending_window.call_args.kwargs
+        assert (kwargs["cursor_gain"], kwargs["cursor_created_at"], kwargs["cursor_id"]) == (None, None, None)
+
+    async def test_window_cursor_on_all_request_restarts_at_page_one(self, service, mock_repo, monkeypatch):
+        mock_repo.get_trending.return_value = []
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+        cursor = ImageService._encode_trending_cursor(4, datetime(2026, 1, 1), uuid.uuid4(), window="30d")
+
+        await service.get_trending(cursor=cursor, limit=3)
+
+        assert mock_repo.get_trending.call_args.kwargs["cursor_popularity"] is None
+
+    async def test_all_window_items_have_no_window_gain(self, service, mock_repo, monkeypatch):
+        mock_repo.get_trending.return_value = [
+            SimpleNamespace(id=uuid.uuid4(), filename="a.jpg", created_at=datetime(2026, 1, 1), flagged=None, popularity=3)
+        ]
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+
+        response = await service.get_trending(cursor=None, limit=3)
+
+        assert response.items[0].windowGain is None
+
+
 class TestGetTrending:
     @staticmethod
     def _rows(n):

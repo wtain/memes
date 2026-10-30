@@ -627,19 +627,21 @@ Retrieve images that have no OCR text at all.
 
 #### Get Trending Memes
 
-The all-time "Trending memes" list: memes with the most copies, most popular first. Read-only.
+The "Trending memes" list. `window=all` (default): memes with the most copies, most popular first. `window=30d`: memes that picked up the most duplicates in the last 30 days. Read-only.
 
 - **URL**: `/api/images/trending`
 - **Method**: `GET`
 - **Query Parameters**:
   - `limit` (optional): Number of results (1-100, default: 36)
   - `cursor` (optional): Pagination cursor for next page
-- **Response**: `TrendingMemesResponse`: `items` (each `{meme: Meme, popularity: int}`), `nextCursor` (optional), `hasNext`. No facets.
-- **Eligibility**: `status = 'active'`, not flagged (an image without an `image_extras` row counts as not flagged) and `popularity >= search.trending.min_popularity` (setting in `environments/settings.yaml`, int >= 1, required, default 2). A discarded image (popularity 0) is therefore never listed.
-- **Order**: `popularity` descending, then `created_at` descending, then `id` descending.
-- **Cursor**: opaque; keyset over `(popularity, created_at, id)` and it addresses the last returned item. An invalid, truncated or foreign cursor (for example one from the search endpoint) is not an error: the list restarts at page 1.
+  - `window` (optional): `all` (default, the all-time list) or `30d` (last 30 days). Any other value is a 422.
+- **Response**: `TrendingMemesResponse`: `items` (each `{meme: Meme, popularity: int, windowGain?: int}`), `nextCursor` (optional), `hasNext`. No facets. `windowGain` (integer >= 1) is present only with `window=30d`; all-time items omit the key.
+- **Window `30d`**: `windowGain` of a meme is the sum of the weights of `absorb` edges in `popularity_absorptions` that are open (not reversed), were created in the last 30 days (database clock), have `weight > 0` and are not `adjustment` edges (a manual "set popularity to N" does not count), credited to the root of the duplicate tree today (a chain A absorbed B, then A absorbed into C credits C with both edges). Eligible roots: `status = 'active'`, not flagged, `windowGain >= 1`; `search.trending.min_popularity` is not applied. Order: `windowGain` descending, then `created_at` descending, then `id` descending. `popularity` is the meme's current total and can be below `windowGain` after a manual adjustment.
+- **Eligibility** (`window=all`): `status = 'active'`, not flagged (an image without an `image_extras` row counts as not flagged) and `popularity >= search.trending.min_popularity` (setting in `environments/settings.yaml`, int >= 1, required, default 2). A discarded image (popularity 0) is therefore never listed.
+- **Order** (`window=all`): `popularity` descending, then `created_at` descending, then `id` descending.
+- **Cursor**: opaque; keyset over `(popularity, created_at, id)` (`window=30d`: `(windowGain, created_at, id)`) and it addresses the last returned item. A cursor from the other window is foreign too. An invalid, truncated or foreign cursor (for example one from the search endpoint) is not an error: the list restarts at page 1.
 - **Cache**: no-cache
-- **Example**: `GET /api/images/trending?limit=36`
+- **Example**: `GET /api/images/trending?limit=36`, `GET /api/images/trending?window=30d`
 
 #### Get Duplicate Images
 
