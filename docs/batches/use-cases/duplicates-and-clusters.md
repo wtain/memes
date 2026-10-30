@@ -81,6 +81,23 @@ Recommended full refresh on the existing corpus:
 `rebuild_duplicates` (which chains `clusterize`). For an in-flight ingestion batch, the same three prerequisite steps
 run with `--status pending` (see [ingestion.md](ingestion.md)).
 
+## Review metrics (library `/duplicates` page)
+
+The owner's decisions on the page are recorded as business metrics (process `library_duplicates`, M2b) and shown in the
+"Library duplicates" panel of `/admin/batches`.
+
+- **What counts.** `confirmed`: each image flagged with reason `duplicate_review` plus its keeper. `dismissed`: every member of a
+  dismissed set. Flags by the `/review-duplicates` agent and by `detect_file_duplicates` count for nothing.
+- **Symmetric groups.** Both sides count the images of a decided group, so a confirmed and a dismissed group of equal size weigh
+  the same. `confirm_share` = confirmed / (confirmed + dismissed) is a share of decided images, not detector precision.
+- **Attribution.** To the latest completed `clusterize` run at decision time (unattributed before the first one). A started or
+  failed run never receives decisions.
+- **Undo.** Unflagging retracts the loser's `confirmed`, and the keeper's once no page flag points at it; undoing a dismissal
+  retracts the `dismissed` of images with no decision pair left.
+- **Limits.** An image counts once per event, under the run of its first decision. If a flag's popularity edge failed, the
+  unflag cannot find the keeper and the keeper stays counted. A failed metrics write is logged and skipped, so a count can be
+  one short.
+
 ## Byte-level duplicates
 
 `detect_file_duplicates`: hashes every registered file (backfilling `content_hash`), groups identical hashes, verifies

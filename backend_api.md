@@ -1530,7 +1530,7 @@ excluded even though they share the same `batch_runs` table.
 
 - **URL**: `/api/admin/batches/metrics`
 - **Method**: `GET`
-- **Query params**: `process` (required; `recut`, `ingest_tier_a` or `ingest_tier_b`), `limit` (number of runs, `1` to `200`, default `50`)
+- **Query params**: `process` (required; `recut`, `ingest_tier_a`, `ingest_tier_b` or `library_duplicates`), `limit` (number of runs, `1` to `200`, default `50`)
 - **Response**: `BatchMetricsResponse`; unknown `process` is `404`, a `limit` out of range is `422`
 - **Example**: `GET /api/admin/batches/metrics?process=recut&limit=10`
 
@@ -1569,6 +1569,15 @@ rejected - kept; `proposed` is recorded when `ingest_find_duplicates` finds the 
 `rejected`, unless the owner kept it there; undoing a reject retracts its `rejected` in both tiers), and `ingest_promote`
 records `kept` for promoted images that were proposed and never decided. `reject_share` is a share of decisions, not a
 precision: a kept image can be the winner of a true duplicate group. The images of an aborted run stay pending.
+
+The library process (`library_duplicates`, M2b) counts the owner's decisions on the `/duplicates` page, with events `confirmed`
+and `dismissed` (no `proposed`, the page has no queue), one per image, attributed to the latest completed `clusterize` run at
+decision time (`unattributed` when none exists yet). `confirmed` = the images flagged with reason `duplicate_review` plus
+their keeper (`duplicateOf`); flags by the review agent or by `detect_file_duplicates` count for nothing. `dismissed` = every
+member of a dismissed set. The metric is `confirm_share` = confirmed / (confirmed + dismissed). Unflagging retracts the loser's
+`confirmed` (and the keeper's once no page flag points at it); undoing a dismissal retracts the `dismissed` of every image
+left with no decision pair. An image counts once per event, under the run of its first decision. `confirm_share` is a share of
+decided images, not a detector precision. A metrics failure never fails the flag or the dismissal (counts can then be one short).
 
 ---
 

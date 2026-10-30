@@ -44,3 +44,7 @@ image's `rejected` event), so that the image can be decided again without trippi
 Nothing else removes events; a retention job (OQ-6) would be a separate decision. M2a's two ingestion processes
 (`ingest_tier_a`, `ingest_tier_b`) are the first users; see
 `docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-30-m2a-ingestion-duplicate-metrics-design.md`.
+
+M2b (`library_duplicates`, the library `/duplicates` review) is the second user of `retract`: unflagging and undoing a dismissal
+retract the matching events. The ingestion and library metrics writes run in a savepoint and are swallowed on failure, so a
+count can be one short of, or disagree by one with, the states it describes.

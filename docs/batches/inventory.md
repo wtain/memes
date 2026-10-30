@@ -91,7 +91,7 @@ Detail: [use-cases/duplicates-and-clusters.md](use-cases/duplicates-and-clusters
 | Script | What it does | Tracked kind | Admin | Sched | Notes |
 |---|---|---|---|---|---|
 | `rebuild_duplicates` | Three probes (general CLIP, tight CLIP safety net, OCR-text) into `tmp_duplicates` | `rebuild_duplicates` | yes | no | `--full`, `--k`, `--threshold`. **Chains into `clusterize`** unless `--no-chain` |
-| `clusterize` | Union-find over `tmp_duplicates`, splits oversized clusters, writes `tmp_clusters` | `clusterize` | yes | no | Config: `clustering.*` |
+| `clusterize` | Union-find over `tmp_duplicates`, splits oversized clusters, writes `tmp_clusters` | `clusterize` | yes | no | Config: `clustering.*`. The library `/duplicates` review's business metrics (`library_duplicates`) are attributed to its latest completed run |
 | `detect_file_duplicates` | Byte-level duplicates: backfills `content_hash`, flags all but the oldest of each identical group | none | no | no | Skips clusters that already have a flagged member. Records the keeper as winner of each flagged copy (metric `popularity_skipped` for failed recordings); unflagging reverses it |
 | `deduplicate_ocr_texts` | Deletes duplicate `ocr_texts` rows | none | no | no | No `--env` flag, relies on `APP_ENV` / `DATABASE_URL` |
 | `remove_singletons` | Deletes `tmp_clusters` rows of single-member clusters | none | no | no | Auto-run by `unregister_deleted_images` |

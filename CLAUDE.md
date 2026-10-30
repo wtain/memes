@@ -219,7 +219,9 @@ rebuild_duplicates         → near-duplicate candidate pairs; HNSW-assisted KNN
                               independently admin-triggerable from /admin/batches, manual-trigger
                               only (not scheduled).
 clusterize                 → optimize cluster index; admin-triggerable from /admin/batches,
-                              manual-trigger only. Union-find over tmp_duplicates pairs, gated
+                              manual-trigger only. The library /duplicates review's business metrics
+                              (process library_duplicates, M2b) are attributed to its latest completed run.
+                              Union-find over tmp_duplicates pairs, gated
                               per distance_source: clip-sourced pairs below PROXIMITY_THRESHOLD
                               (0.05), ocr_text-sourced pairs below the separate
                               PROXIMITY_THRESHOLD_OCR_TEXT (0.05, independently configured, not
