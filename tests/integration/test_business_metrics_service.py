@@ -198,6 +198,21 @@ def test_the_ingestion_formulas(process):
     assert metrics["reject_share"](zero) is None and metrics["decided_share"](zero) is None
 
 
+def test_the_library_formula():
+    share = PROCESSES["library_duplicates"].metrics["confirm_share"]
+    assert share({"confirmed": 3, "dismissed": 1}) == 0.75
+    assert share({"confirmed": 0, "dismissed": 0}) is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_confirmed_and_dismissed_can_coexist_on_one_subject(db_session):
+    service = BusinessMetricsService(db_session)
+    run, subject = await _run(db_session, 1), uuid.uuid4()
+
+    assert await service.record("library_duplicates", "confirmed", run.run_id, subject) is True
+    assert await service.record("library_duplicates", "dismissed", run.run_id, subject) is True
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_rejected_and_kept_are_exclusive_in_an_ingestion_process(db_session):
     service = BusinessMetricsService(db_session)

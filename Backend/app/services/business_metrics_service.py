@@ -68,6 +68,13 @@ PROCESSES: dict[str, ProcessDefinition] = {
         },
         exclusive=(("approved", "rejected"),),
     ),
+    "library_duplicates": ProcessDefinition(
+        name="library_duplicates",
+        # The owner's decisions on the library /duplicates page (M2b). Images in a confirmed group (flagged copies and
+        # their keeper) are `confirmed`, members of a dismissed set `dismissed`; an image may be both over time.
+        events=("confirmed", "dismissed"),
+        metrics={"confirm_share": lambda c: _ratio(c["confirmed"], c["confirmed"] + c["dismissed"])},
+    ),
 }
 
 
