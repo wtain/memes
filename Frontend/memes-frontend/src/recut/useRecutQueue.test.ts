@@ -184,6 +184,26 @@ describe("useRecutQueue adjust", () => {
     await act(async () => { resolve(makeProposalDetail("p1", { box: NEW_BOX })); await first })
   })
 
+  it("does not overwrite the detail of the proposal the reviewer moved to while the adjustment was in flight", async () => {
+    let resolveAdjust: (value: ReturnType<typeof makeProposalDetail>) => void = () => {}
+    const api = makeMockApi({
+      listRecutProposals: vi.fn().mockResolvedValue(makeProposalPage(["p1", "p2"], 2)),
+      getRecutProposal: vi.fn((id: string) => Promise.resolve(makeProposalDetail(id))),
+      adjustRecutProposal: vi.fn(() => new Promise<ReturnType<typeof makeProposalDetail>>((r) => { resolveAdjust = r })),
+    })
+    const { result, rerender } = renderHook(({ id }) => useRecutQueue(api, id), { initialProps: { id: "p1" } })
+    await waitFor(() => expect(result.current.detail).toMatchObject({ status: "ready", data: { id: "p1" } }))
+
+    let pending: Promise<{ outcome: string }> = Promise.resolve({ outcome: "" })
+    act(() => { pending = result.current.adjust(NEW_BOX) })
+    rerender({ id: "p2" })
+    await waitFor(() => expect(result.current.detail).toMatchObject({ status: "ready", data: { id: "p2" } }))
+    await act(async () => { resolveAdjust(makeProposalDetail("p1", { box: NEW_BOX, cutImageId: "cut-p1b" })); await pending })
+
+    expect(result.current.detail).toMatchObject({ status: "ready", data: { id: "p2" } })
+    expect(result.current.items.find((item) => item.id === "p1")).toMatchObject({ box: NEW_BOX, cutImageId: "cut-p1b" })
+  })
+
   it("ignores the request when the proposal is no longer waiting", async () => {
     const { api, result } = await opened({
       getRecutProposal: vi.fn().mockResolvedValue(makeProposalDetail("p1", { state: "approved" })),

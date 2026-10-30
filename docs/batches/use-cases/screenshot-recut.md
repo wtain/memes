@@ -61,6 +61,10 @@ edited Approve, Reject and the keys are off.
 - An adjusted cut is a NEW `cut_proposed` image copied from the source like the first one, so its OCR, lemmas, tags and
   descriptions are stale again: **run `recut_pipeline` before approving** (the page says so after Apply). The previous cut image
   and its file are removed.
+- **Do not adjust while `recut_pipeline`, `refresh_recut_cuts` or `create_recut_cuts` is running** (check `/admin/batches`).
+  Adjusting deletes the old cut image and its file; a running job may be reading that file or about to write rows for that
+  image id, so the job can fail on that image (or on its commit chunk). Nothing refuses this for you. If it happens, adjust again
+  or trigger `recut_pipeline` again: every step selects only what is still waiting.
 - The detector's confidence stays the value for its original box; the "Adjusted" column of the statistics table and the
   `adjusted` / `adjusted_share` metrics on `/admin/batches` count how often boxes were corrected.
 - Refusals: the proposal was already decided, the source changed after detection (`source_changed`; the cut is not rebuilt from

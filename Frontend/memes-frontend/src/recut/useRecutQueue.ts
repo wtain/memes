@@ -122,7 +122,9 @@ export function useRecutQueue(memesApi: MemesApi, openId: string | null) {
     setAdjusting(true)
     try {
       const updated = await memesApi.adjustRecutProposal(current.id, box)
-      setLoaded({ id: current.id, state: { status: "ready", data: updated } })
+      // The reviewer may have moved on while this was in flight: never overwrite another proposal's detail.
+      setLoaded((previous) => (previous === null || previous.id === current.id
+        ? { id: current.id, state: { status: "ready", data: updated } } : previous))
       setList((previous) => ({
         ...previous,
         items: previous.items.map((item) => item.id === updated.id
