@@ -142,7 +142,10 @@ class MemeDetailViewModel @Inject constructor(
                     } catch (e: Exception) {
                         Log.e(TAG, "saveToGallery: body read/write failed id=${meme.id}", e)
                         _state.update { it.copy(isSaving = false, error = "Save failed: ${e.message}") }
+                        return@onSuccess
                     }
+                    // Best effort: the repository logs a failure; it never changes the save outcome.
+                    runCatching { repo.recordSave(meme.id) }
                 }
                 .onFailure { e ->
                     Log.e(TAG, "saveToGallery: download failed id=${meme.id}", e)

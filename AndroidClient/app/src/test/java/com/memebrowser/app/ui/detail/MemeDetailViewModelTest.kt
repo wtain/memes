@@ -11,16 +11,29 @@ import com.memebrowser.app.util.MainDispatcherRule
 import com.memebrowser.app.util.fakeMeme
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import android.content.Context
+import android.net.Uri
+import com.memebrowser.app.util.saveImageToGallery
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -45,6 +58,78 @@ class MemeDetailViewModelTest {
         coEvery { repo.getMeme("meme-1") } returns Result.success(fakeMeme)
         coEvery { repo.getSimilarMemes("meme-1", "image") } returns Result.success(emptyList())
         coEvery { repo.getDescriptions("meme-1") } returns Result.success(emptyList())
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic("com.memebrowser.app.util.MediaStoreHelperKt")
+    }
+
+    private fun stubSaveEnvironment(): Context {
+        mockkStatic("com.memebrowser.app.util.MediaStoreHelperKt")
+        coEvery { saveImageToGallery(any(), any(), any(), any(), any()) } returns mockk<Uri>()
+        coEvery { repo.downloadImage("meme-1") } returns
+            Result.success("x".toResponseBody("image/jpeg".toMediaType()))
+        return mockk<Context>()
+    }
+
+    /** The body read runs on Dispatchers.IO (a real thread), so wait for the save to settle. */
+    private suspend fun awaitSaveSettled() = withContext(Dispatchers.Default) {
+        withTimeout(10_000) { viewModel.state.first { !it.isSaving && (it.saveSuccess || it.error != null) } }
+    }
+
+    @Test
+    fun `save reports the save once after the gallery write`() = runTest {
+        val context = stubSaveEnvironment()
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+
+        viewModel.saveToGallery(context)
+        awaitSaveSettled()
+
+        coVerify(exactly = 1, timeout = 5_000) { repo.recordSave("meme-1") }
+        coVerifyOrder {
+            saveImageToGallery(any(), any(), any(), any(), any())
+            repo.recordSave("meme-1")
+        }
+        assertTrue(viewModel.state.value.saveSuccess)
+    }
+
+    @Test
+    fun `a failing report does not fail the save`() = runTest {
+        val context = stubSaveEnvironment()
+        coEvery { repo.recordSave("meme-1") } returns Result.failure(RuntimeException("boom"))
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+
+        viewModel.saveToGallery(context)
+        awaitSaveSettled()
+
+        assertTrue(viewModel.state.value.saveSuccess)
+        assertNull(viewModel.state.value.error)
+    }
+
+    @Test
+    fun `no report when the gallery write fails`() = runTest {
+        val context = stubSaveEnvironment()
+        coEvery { saveImageToGallery(any(), any(), any(), any(), any()) } throws RuntimeException("disk full")
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+
+        viewModel.saveToGallery(context)
+        awaitSaveSettled()
+
+        coVerify(exactly = 0) { repo.recordSave(any()) }
+        assertTrue(viewModel.state.value.error!!.startsWith("Save failed"))
+    }
+
+    @Test
+    fun `no report when the download fails`() = runTest {
+        val context = stubSaveEnvironment()
+        coEvery { repo.downloadImage("meme-1") } returns Result.failure(RuntimeException("offline"))
+        viewModel = MemeDetailViewModel(savedStateHandle, repo, envRepo)
+
+        viewModel.saveToGallery(context)
+        awaitSaveSettled()
+
+        coVerify(exactly = 0) { repo.recordSave(any()) }
     }
 
     @Test

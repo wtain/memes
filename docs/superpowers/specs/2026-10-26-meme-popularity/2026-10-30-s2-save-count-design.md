@@ -1,6 +1,6 @@
 # S2: Save count on the meme details page
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-10-30-s2-save-count.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; signals tracker row S2)
 Follow-ups: none yet
@@ -77,3 +77,9 @@ touched only if it needs a line on the new table.
 - Android unit test: a failing `recordSave` leaves the save successful; a successful one is called once with the meme id,
   after the gallery write.
 - Docs guards (`tests/docs/`): the new table is classified in `docs/image-derived-data.md`.
+
+## Addendum
+
+One deviation from the plan. The migration `d5b8e3a07c41` (creates `meme_saves`) has `down_revision` `e9c4a7b3d812`,
+not `c8e2f5a1d093` as planned: the recut R6 migration `e9c4a7b3d812` is the real head. The owner must run migrations in
+that order (`alembic upgrade head` from `Storage/` applies them correctly).
