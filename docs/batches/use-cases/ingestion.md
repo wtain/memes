@@ -110,6 +110,22 @@ removed from `scheduler.jobs`; `settings.yaml` still carries a comment saying so
   `rebuild_duplicates` so Explore, Duplicates shows the new relationships (`tmp_duplicates` already has them, but
   `tmp_clusters` is rebuilt by `clusterize`).
 
+## Review metrics
+
+Two panels on `/admin/batches` ("Ingestion duplicates: Tier A / Tier B", processes `ingest_tier_a` / `ingest_tier_b`) count, per
+ingestion run, what the owner decides about the detector's proposals (screenshot recut epic, M2a). One event per image and tier:
+
+| Event | Recorded by | Meaning |
+|---|---|---|
+| `proposed` | `ingest_find_duplicates` (each tier call) | the pending image is in that tier's review queue (a candidate pair in the tier's band) |
+| `rejected` | review `reject` | the owner confirmed a duplicate; `undo_reject` retracts it |
+| `kept` | review `keep`, or `ingest_promote` for a proposed image nobody decided | the owner left the image in the library |
+
+Rates: `reject_share`, `decided_share`, `pending` (see `backend_api.md`). Caveats: `kept` includes the winner of a true duplicate
+group, so `reject_share` is a share of decisions, not a precision; the images of an aborted run stay pending; a metrics write that
+fails is logged and skipped (the review decision is never affected), so a count can be one short. The library `/duplicates`
+page is not measured yet (M2b).
+
 ## Related UI/API
 
 `GET /api/ingestion/run`, `GET /api/ingestion/pending`, `GET /api/ingestion/clusters/{tier}`,

@@ -1528,7 +1528,7 @@ excluded even though they share the same `batch_runs` table.
 
 - **URL**: `/api/admin/batches/metrics`
 - **Method**: `GET`
-- **Query params**: `process` (required; today `recut`), `limit` (number of runs, `1` to `200`, default `50`)
+- **Query params**: `process` (required; `recut`, `ingest_tier_a` or `ingest_tier_b`), `limit` (number of runs, `1` to `200`, default `50`)
 - **Response**: `BatchMetricsResponse`; unknown `process` is `404`, a `limit` out of range is `422`
 - **Example**: `GET /api/admin/batches/metrics?process=recut&limit=10`
 
@@ -1558,6 +1558,14 @@ proposed - approved - rejected (pending proposals are not counted as rejections)
 `approved`/`rejected`). A rate is `null` when its
 denominator is zero. `unattributed` holds events whose batch run was pruned or never known; its counts are all zero when there
 are none. Events come from the process code (screenshot recut: projects R3 and R5), so the list is empty until they ship.
+
+The two ingestion processes (`ingest_tier_a`, `ingest_tier_b`, M2a) have events `proposed`, `rejected` and `kept`, one per
+pending image, attributed to the ingestion run (`images.ingestion_batch_id`; the `run_id` of an item is that run). The metrics
+are `reject_share` = rejected / (rejected + kept), `decided_share` = (rejected + kept) / proposed and `pending` = proposed -
+rejected - kept; `proposed` is recorded when `ingest_find_duplicates` finds the image in the tier's review queue,
+`rejected` / `kept` by the review's reject / keep decision (undoing a reject retracts its `rejected`), and `ingest_promote`
+records `kept` for promoted images that were proposed and never decided. `reject_share` is a share of decisions, not a
+precision: a kept image can be the winner of a true duplicate group. The images of an aborted run stay pending.
 
 ---
 

@@ -39,10 +39,10 @@ Detail and diagrams: [use-cases/ingestion.md](use-cases/ingestion.md).
 | `build_ocr_lemmas --status pending --incremental` | Lemma index; needed by the OCR-text duplicate corroboration | `build_ocr_lemmas` | yes | no | `--status pending` requires `--incremental` |
 | `classify_text_heavy --status pending` | Text-heavy classifier | `classify_text_heavy` | yes | no | |
 | `build_ocr_text_embeddings --status pending` | 384-dim OCR-text embeddings for text-heavy images | `build_ocr_text_embeddings` | yes | no | Needs `classify_text_heavy` first |
-| `ingest_find_duplicates --tier tier_a\|tier_b` | Candidate pairs into `tmp_duplicates`, advances stage to `tier_a_review` / `tier_b_review` | none | no (use the wrapper below) | no | Stage can only move forward |
+| `ingest_find_duplicates --tier tier_a\|tier_b` | Candidate pairs into `tmp_duplicates`, advances stage to `tier_a_review` / `tier_b_review`; records the tier's `proposed` business-metric events (M2a) | none | no (use the wrapper below) | no | Stage can only move forward |
 | `ingest_find_duplicates_tier_b` | Thin driver: `ingest_find_duplicates.main(tier="tier_b")` | `ingest_find_duplicates_tier_b` | yes | no | Manual: needs Tier A review finished |
 | `ingest_auto_prep` | Driver: hash dedup, validate, embeddings, OCR, lemmas, text-heavy, OCR-text embeddings, Tier A. Stops the tick quietly if a tracked child is already running | `ingestion_auto_prep` | yes | **no** (was designed for a 15 min schedule, removed) | Distinct kind so the scheduler's orphan guard never touches the long-lived `ingestion` run |
-| `ingest_promote` | Stage 4. `pending` to `active` for images with no unresolved candidates; completes the run when none remain pending | `ingest_promote` | yes | no | Fails (visibly) if no active run |
+| `ingest_promote` | Stage 4. `pending` to `active` for images with no unresolved candidates; completes the run when none remain pending; records `kept` metric events for proposed images nobody decided (M2a) | `ingest_promote` | yes | no | Fails (visibly) if no active run |
 | `ingest_abort` | Abandon the active run: move files back to the inbox, delete rows, mark run `aborted` | none (aborts the `ingestion` row) | no | no | Does not undo WebP conversion. Reverses popularity edges into surviving images (metrics `popularity_reversed`, `popularity_skipped`) |
 
 ## 2. Core signals: OCR, embeddings, lemmas, text classification
