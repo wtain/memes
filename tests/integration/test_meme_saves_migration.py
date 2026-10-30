@@ -64,4 +64,4 @@ async def test_the_migration_matches_the_model_and_downgrades(db_engine):
 
 def test_the_migration_continues_the_chain():
     module = _load()
-    assert module.revision == "d5b8e3a07c41" and module.down_revision == "c8e2f5a1d093"
+    assert module.revision == "d5b8e3a07c41" and module.down_revision == "e9c4a7b3d812"

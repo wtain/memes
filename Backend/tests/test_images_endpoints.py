@@ -1710,3 +1710,46 @@ class TestGetTrendingImages:
 
         assert response.status_code == 422
         mock_image_service.get_trending.assert_not_called()
+
+
+class TestMemeSaves:
+    """Tests for POST/GET /api/images/meme/{image_id}/saves."""
+
+    ID = "550e8400-e29b-41d4-a716-446655440000"
+
+    def test_post_answers_204_empty_and_records_once(self, client, mock_image_service):
+        mock_image_service.record_save.return_value = None
+
+        response = client.post(f"/api/images/meme/{self.ID}/saves")
+
+        assert response.status_code == 204
+        assert response.content == b""
+        assert "no-cache" in response.headers["cache-control"]
+        mock_image_service.record_save.assert_called_once_with(self.ID)
+
+    def test_get_returns_three_camel_case_keys(self, client, mock_image_service):
+        from Backend.app.types.generated.memesaves import Schema as MemeSaves
+        mock_image_service.get_saves.return_value = MemeSaves(
+            imageId=self.ID, count=2, lastSavedAt=datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc))
+
+        response = client.get(f"/api/images/meme/{self.ID}/saves")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert set(body) == {"imageId", "count", "lastSavedAt"}
+        assert body["imageId"] == self.ID and body["count"] == 2 and body["lastSavedAt"] is not None
+        assert "no-cache" in response.headers["cache-control"]
+        mock_image_service.get_saves.assert_called_once_with(self.ID)
+
+    def test_get_with_no_saves_has_null_last_saved_at(self, client, mock_image_service):
+        from Backend.app.types.generated.memesaves import Schema as MemeSaves
+        mock_image_service.get_saves.return_value = MemeSaves(imageId=self.ID, count=0, lastSavedAt=None)
+        assert client.get(f"/api/images/meme/{self.ID}/saves").json() == {
+            "imageId": self.ID, "count": 0, "lastSavedAt": None}
+
+    def test_service_404_maps_to_404(self, client, mock_image_service):
+        from fastapi import HTTPException
+        mock_image_service.record_save.side_effect = HTTPException(status_code=404, detail="Image not found")
+        mock_image_service.get_saves.side_effect = HTTPException(status_code=404, detail="Image not found")
+        assert client.post("/api/images/meme/nope/saves").status_code == 404
+        assert client.get("/api/images/meme/nope/saves").status_code == 404

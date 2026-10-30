@@ -561,6 +561,41 @@ by value: setting the number the image already has writes nothing.
 - **Cache**: no-cache
 - **Example**: `PUT /api/images/meme/550e8400-e29b-41d4-a716-446655440000/popularity` with `{"popularity": 40}`
 
+#### Record Meme Save
+
+Appends one row to the save log (epic meme-popularity, S2). Android calls it after a save to the gallery has
+succeeded. Needs the S2 migration (`meme_saves`).
+
+- **URL**: `/api/images/meme/{image_id}/saves`
+- **Method**: `POST`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image (UUID); an image of any status is accepted
+- **Body**: none
+- **Response**: `204`, no body
+- **Idempotency**: none. Every call counts, repeat saves of the same meme included, so a client must not retry
+  (a retry double counts). Clients treat the report as best effort: any failure is ignored and never fails the save.
+- **Errors**: `404` for an unknown or non-UUID `image_id`; nothing is inserted in that case
+- **Cache**: no-cache
+- **Example**: `POST /api/images/meme/550e8400-e29b-41d4-a716-446655440000/saves`
+
+#### Get Meme Saves
+
+How often a meme was saved. Read-only: writes nothing.
+
+- **URL**: `/api/images/meme/{image_id}/saves`
+- **Method**: `GET`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image (UUID)
+- **Response**: `MemeSaves`
+  - `imageId`: the requested id, canonical form
+  - `count` (integer >= 0): saves of the image itself plus saves of every copy folded into it, transitively,
+    through open popularity absorption edges (undoing a fold hands the saves back). Saves of a deleted image still
+    count. This is a separate number from popularity and is never added to it.
+  - `lastSavedAt` (date-time or `null`): newest save among those counted; `null` when `count` is 0
+- **Errors**: `404` for an unknown or non-UUID `image_id`
+- **Cache**: no-cache
+- **Example**: `GET /api/images/meme/550e8400-e29b-41d4-a716-446655440000/saves`
+
 #### Unmark Meme as Flagged
 
 Remove flagged status from a meme. Unflagging reverses the image's open popularity edge (reason `unflag`) when its

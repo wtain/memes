@@ -1,7 +1,7 @@
 """add meme_saves
 
 Revision ID: d5b8e3a07c41
-Revises: c8e2f5a1d093
+Revises: e9c4a7b3d812
 Create Date: 2026-10-30 12:00:00.000000
 
 Epic meme-popularity, project S2. Append-only log of meme saves, one row per save. No foreign key to
@@ -14,7 +14,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = 'd5b8e3a07c41'
-down_revision: Union[str, Sequence[str], None] = 'c8e2f5a1d093'
+down_revision: Union[str, Sequence[str], None] = 'e9c4a7b3d812'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

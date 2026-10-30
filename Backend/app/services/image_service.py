@@ -18,10 +18,12 @@ from Backend.app.types.generated.imagedescription import Schema as ImageDescript
 from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from Backend.app.types.generated.memepopularity import Schema as MemePopularity
+from Backend.app.types.generated.memesaves import Schema as MemeSaves
 from Backend.app.types.generated.popularitybreakdownrow import Schema as PopularityBreakdownRow
 from Backend.app.types.generated.trendingmemeitem import Schema as TrendingMemeItem
 from Backend.app.types.generated.trendingmemesresponse import Schema as TrendingMemesResponse
 from graph.uf import UnionFind
+from repository.meme_saves import MemeSaveRepository
 from repository.popularity import AlreadyDiscardedError, PopularityRepository, WinnerGoneError, guarded
 from repository.search_ranking import get_trending_min_popularity
 
@@ -194,6 +196,27 @@ class ImageService:
         except WinnerGoneError:
             raise HTTPException(status_code=404, detail="Image not found")
         return await self.get_popularity(image_id)
+
+    async def _existing_image_uuid(self, image_id: str) -> uuid.UUID:
+        """Parse the id and require that the image exists (any status); 404 otherwise."""
+        try:
+            image_uuid = uuid.UUID(image_id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Image not found")
+        if await self.repo.get_status(str(image_uuid)) is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+        return image_uuid
+
+    async def record_save(self, image_id: str) -> None:
+        """Append one save for an existing image of any status (S2). No de-duplication: every call counts."""
+        image_uuid = await self._existing_image_uuid(image_id)
+        await MemeSaveRepository(self.repo.session).record(image_uuid)
+
+    async def get_saves(self, image_id: str) -> MemeSaves:
+        """Read-only. Saves of the image and of the copies folded into it (S2)."""
+        image_uuid = await self._existing_image_uuid(image_id)
+        count, last_saved_at = await MemeSaveRepository(self.repo.session).summary(image_uuid)
+        return MemeSaves(imageId=str(image_uuid), count=count, lastSavedAt=last_saved_at)
 
     async def get_descriptions(self, image_id: str) -> list[ImageDescription]:
         rows = await self.repo.get_descriptions(image_id)

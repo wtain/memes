@@ -1077,3 +1077,22 @@ class TestTrendingSetting:
     def test_missing_key_is_rejected(self, monkeypatch):
         with pytest.raises(ValueError, match="search.trending"):
             self._load(monkeypatch, None, present=False)
+
+
+class TestRecordSave:
+    async def test_unknown_image_is_404_before_touching_saves_repository(self, service, mock_repo):
+        from unittest.mock import patch
+        mock_repo.get_status.return_value = None
+
+        with patch("Backend.app.services.image_service.MemeSaveRepository") as saves_repo:
+            with pytest.raises(HTTPException) as exc_info:
+                await service.record_save(str(uuid.uuid4()))
+
+        assert exc_info.value.status_code == 404
+        saves_repo.assert_not_called()
+
+    async def test_unparsable_id_is_404(self, service, mock_repo):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.record_save("not-a-uuid")
+        assert exc_info.value.status_code == 404
+        mock_repo.get_status.assert_not_called()
