@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import CutState, Image, ImageCut, MemeTextRating
@@ -99,6 +99,18 @@ class RecutRepository:
         result = await self.session.execute(
             update(MemeTextRating).where(MemeTextRating.image_id == from_id).values(image_id=to_id))
         return result.rowcount
+
+    async def replace_cut(self, row: ImageCut, new_image_id: uuid.UUID, box: tuple[int, int, int, int]) -> None:
+        """Point the proposal at a rebuilt cut and a corrected box. The first adjustment keeps the detector's box."""
+        if row.detected_crop_x is None:
+            row.detected_crop_x, row.detected_crop_y = row.crop_x, row.crop_y
+            row.detected_crop_w, row.detected_crop_h = row.crop_w, row.crop_h
+        row.crop_x, row.crop_y, row.crop_w, row.crop_h = box
+        row.cut_image_id = new_image_id
+        await self.session.flush()
+
+    async def delete_image(self, image_id: uuid.UUID) -> None:
+        await self.session.execute(delete(Image).where(Image.id == image_id))
 
     async def mark_decided(self, row: ImageCut, state: str) -> datetime:
         decided_at = datetime.now(timezone.utc)
