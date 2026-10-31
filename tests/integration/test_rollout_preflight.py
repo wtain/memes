@@ -83,3 +83,64 @@ async def test_several_version_rows_fail(db_session):
     await db_session.execute(text("INSERT INTO alembic_version VALUES ('0123456789ab')"))
     status, _ = await rp.revision_vs_head(db_session)
     assert status == rp.FAIL
+
+
+from Storage.models import BatchRun, Image, RunStatus  # noqa: E402
+
+
+async def test_schema_present_when_everything_exists(db_session):
+    await set_version(db_session, rp.chain()[-1].revision)
+    status, detail = await rp.schema_matches_models(db_session)
+    assert status == rp.OK, detail
+
+
+async def test_missing_object_with_its_revision_pending_is_a_warning(db_session):
+    ids = [r.revision for r in rp.chain()]
+    await set_version(db_session, ids[ids.index("d5b8e3a07c41") - 1])
+    await db_session.execute(text("DROP TABLE meme_saves"))
+    status, detail = await rp.schema_matches_models(db_session)
+    assert status == rp.WARN
+    assert "meme_saves" in detail and "missing, created by d5b8e3a07c41" in detail
+
+
+async def test_missing_object_with_its_revision_applied_is_a_failure(db_session):
+    await set_version(db_session, rp.chain()[-1].revision)
+    await db_session.execute(text("DROP TABLE meme_saves"))
+    status, detail = await rp.schema_matches_models(db_session)
+    assert status == rp.FAIL
+    assert "meme_saves" in detail and "revision applied" in detail
+
+
+async def test_missing_column_is_named(db_session):
+    await set_version(db_session, rp.chain()[-1].revision)
+    await db_session.execute(text("ALTER TABLE image_cuts DROP COLUMN failure_reason"))
+    status, detail = await rp.schema_matches_models(db_session)
+    assert status == rp.FAIL and "image_cuts.failure_reason" in detail
+
+
+async def test_image_status_counts_lists_counts(db_session):
+    db_session.add_all([Image(filename="a.jpg", status="active"), Image(filename="b.jpg", status="active"),
+                        Image(filename="c.jpg", status="pending")])
+    await db_session.flush()
+    status, detail = await rp.image_status_counts(db_session)
+    assert status == rp.OK
+    assert "active 2" in detail and "pending 1" in detail
+
+
+async def test_cut_proposed_images_warn(db_session):
+    db_session.add(Image(filename="cut.jpg", status="cut_proposed"))
+    await db_session.flush()
+    status, detail = await rp.image_status_counts(db_session)
+    assert status == rp.WARN and "cut_proposed 1" in detail
+
+
+async def test_started_batch_run_fails_and_names_its_kind(db_session):
+    db_session.add(BatchRun(kind="rp_test_kind", trigger="manual", status=str(RunStatus.started)))
+    await db_session.flush()
+    status, detail = await rp.active_jobs(db_session)
+    assert status == rp.FAIL and "rp_test_kind" in detail
+
+
+async def test_no_started_run_passes(db_session):
+    status, _ = await rp.active_jobs(db_session)
+    assert status == rp.OK

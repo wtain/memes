@@ -111,3 +111,67 @@ def format_report(env: str, results: list[Result], url: str | None = None) -> st
         lines += [f"        {line}" for line in rest]
     lines.append("NOT READY" if any(r.status == FAIL for r in results) else "READY")
     return scrub("\n".join(lines), url)
+
+
+# (table, columns, revision that creates them). Revisions that only change a constraint (c8e2f5a1d093) have no entry:
+# the revision line already reports them. tests/integration/test_rollout_preflight.py ties every name to Storage/models.py.
+EXPECTED: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("image_cuts", ("id", "source_image_id", "cut_image_id", "source_content_hash", "crop_x", "crop_y", "crop_w", "crop_h",
+                    "detector", "detector_version", "confidence", "detect_run_id", "state", "created_at", "decided_at"),
+     "b8d4f1a6c935"),
+    ("ocr_texts", ("stale",), "b8d4f1a6c935"),
+    ("ocr_lemmas", ("stale",), "b8d4f1a6c935"),
+    ("image_descriptions", ("stale",), "b8d4f1a6c935"),
+    ("tags", ("stale",), "b8d4f1a6c935"),
+    ("process_events", ("id", "process", "event", "batch_run_id", "subject_id", "occurred_at"), "c5e2a9d7b140"),
+    ("image_cuts", ("failure_reason",), "d7a3b9e2c451"),
+    ("images", ("popularity",), "a4f7c1e92b68"),
+    ("popularity_absorptions", ("id", "kind", "source", "loser_image_id", "winner_image_id", "weight", "dedupe_key",
+                                "batch_run_id", "reverses_id", "reversed_by_id", "reason", "created_at"),
+     "a4f7c1e92b68"),
+    ("image_cuts", ("detected_crop_x", "detected_crop_y", "detected_crop_w", "detected_crop_h"), "e9c4a7b3d812"),
+    ("meme_saves", ("id", "image_id", "created_at"), "d5b8e3a07c41"),
+)
+
+
+async def schema_matches_models(session, revs: list | None = None) -> tuple[str, str]:
+    revs = revs if revs is not None else chain()
+    current = await current_revisions(session)
+    try:
+        pending = {r.revision for r in pending_after(current[0] if current else None, revs)}
+    except UnknownRevision:
+        pending = set()  # the revision line reports it; every gap below is then a failure
+    rows = (await session.execute(text(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'"
+    ))).all()
+    present = {(t, c) for t, c in rows}
+    lines, worst = [], OK
+    for table, columns, revision in EXPECTED:
+        for column in columns:
+            if (table, column) in present:
+                continue
+            if revision in pending:
+                lines.append(f"{table}.{column}: missing, created by {revision}")
+                worst = worst if worst == FAIL else WARN
+            else:
+                lines.append(f"{table}.{column}: missing although revision applied ({revision})")
+                worst = FAIL
+    if not lines:
+        return OK, f"{sum(len(c) for _, c, _ in EXPECTED)} expected columns present"
+    return worst, "\n".join(lines)
+
+
+async def image_status_counts(session) -> tuple[str, str]:
+    rows = (await session.execute(text("SELECT status, count(*) FROM images GROUP BY status ORDER BY status"))).all()
+    detail = ", ".join(f"{status} {count}" for status, count in rows) or "no images"
+    if any(status == "cut_proposed" and count for status, count in rows):
+        return WARN, f"{detail}; cut_proposed images are expected only after the first recut run"
+    return OK, detail
+
+
+async def active_jobs(session) -> tuple[str, str]:
+    kinds = list((await session.execute(text(
+        "SELECT kind FROM batch_runs WHERE status = 'started' ORDER BY kind"))).scalars())
+    if kinds:
+        return FAIL, f"{len(kinds)} job(s) running: {', '.join(kinds)}; wait or stop them first"
+    return OK, "no batch job is running"
