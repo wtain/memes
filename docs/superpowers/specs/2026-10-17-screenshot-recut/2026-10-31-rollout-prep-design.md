@@ -1,6 +1,6 @@
 # Rollout prep: runbook and preflight check - design
 
-Status: implementation
+Status: done
 Plan: docs/superpowers/plans/2026-10-31-rollout-prep.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (follow-up after R1 to R7, M1, M2a and M2b)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
