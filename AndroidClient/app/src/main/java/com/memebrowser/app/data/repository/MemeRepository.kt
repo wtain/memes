@@ -121,4 +121,13 @@ open class MemeRepository @Inject constructor(
                 Log.e(TAG, "downloadImage: failed id=$id", e)
             }
     }
+
+    /** Best-effort report of a successful gallery save. Never throws. */
+    suspend fun recordSave(id: String): Result<Unit> =
+        runCatching {
+            val response = api.recordSave(id)
+            if (!response.isSuccessful) error("recordSave: HTTP ${response.code()}")
+        }.onFailure { e ->
+            Log.e(TAG, "recordSave: failed id=$id", e)
+        }
 }

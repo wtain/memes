@@ -95,6 +95,31 @@ describe('MemeDetails', () => {
     })
   })
 
+  describe('saves', () => {
+    it('shows the save count for the meme', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getMemeSaves: vi.fn().mockResolvedValue({ imageId: 'x', count: 3, lastSavedAt: null }),
+      })
+      await waitFor(() => expect(screen.getByTestId('save-count-value')).toHaveTextContent('3'))
+    })
+
+    it('never shows the previous meme count after navigating', async () => {
+      const api = makeMockApi({
+        getMemeSaves: vi.fn()
+          .mockResolvedValueOnce({ imageId: 'meme-A', count: 3, lastSavedAt: null })
+          .mockReturnValueOnce(new Promise(() => {})),
+      })
+      const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+      const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+      const { rerender } = render(<MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>)
+      await waitFor(() => expect(screen.getByTestId('save-count-value')).toHaveTextContent('3'))
+      rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+      expect(api.getMemeSaves).toHaveBeenCalledWith('meme-B')
+      expect(screen.queryByTestId('save-count-value')).not.toBeInTheDocument()
+    })
+  })
+
   describe('popularity after the flag toggle', () => {
     it('refetches the block once the flag call succeeds and shows the new response', async () => {
       const api = makeMockApi({

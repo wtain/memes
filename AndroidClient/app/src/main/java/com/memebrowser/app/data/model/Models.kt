@@ -195,6 +195,13 @@ data class MemePopularityUpdate(
 )
 
 @Serializable
+data class MemeSaves(
+    @SerialName("imageId") val imageId: String,
+    @SerialName("count") val count: Int,
+    @SerialName("lastSavedAt") val lastSavedAt: String?
+)
+
+@Serializable
 data class MemeTag(
     @SerialName("name") val name: String,
     @SerialName("category") val category: String? = null,

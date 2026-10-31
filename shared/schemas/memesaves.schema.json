@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memesaves.schema.json",
+  "title": "MemeSaves",
+  "type": "object",
+  "properties": {
+    "imageId": { "type": "string" },
+    "count": { "type": "integer", "minimum": 0 },
+    "lastSavedAt": { "type": ["string", "null"], "format": "date-time" }
+  },
+  "required": ["imageId", "count", "lastSavedAt"]
+}

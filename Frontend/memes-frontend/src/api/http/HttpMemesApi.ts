@@ -9,7 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, TrendingMemesResponse,
+  RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, MemeSaves, TrendingMemesResponse,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -241,6 +241,23 @@ export class HttpMemesApi implements MemesApi {
 
     if (!response.ok) {
       throw new Error(`Failed to set popularity: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async getMemeSaves(id: string): Promise<MemeSaves> {
+    const response = await fetch(
+      `${this.baseUrl}/api/images/meme/${id}/saves`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch saves: ${response.status}`)
     }
 
     return response.json()
