@@ -26,17 +26,22 @@ between the recut ones. All seven only add tables, columns, constraints and inde
 1. Run `tests/integration/` on `main` against the test database and read the result.
 2. Find out which code each always-on backend runs. They start with `--reload`; if one runs from the main checkout, the merged code
    already serves against an unmigrated database, and the preflight's revision line shows the gap. Write the answer down here.
-3. Set the read-only URL for the environment in the shell (the value is never printed):
-   `$env:DATABASE_URL_READONLY = (Select-String -Path environments\.env.general -Pattern '^DATABASE_URL_READONLY=').Line.Split('=',2)[1]`
+3. The read-only URL is set per environment in the first per-environment step below.
 
 ## Per environment (general, then metal, then it)
 
 Replace `general` and port `5434` (metal 5432, it 5436) as needed.
 
+0. **Set the read-only URL for this environment, every time** (the migration step's variable loading overwrites it, so a value
+   left over from the previous environment would point the preflight at the wrong database; the report's `target` line shows
+   host:port/database and warns when the port is another environment's). The value is never printed:
+   `$env:DATABASE_URL_READONLY = (Select-String -Path environments\.env.general -Pattern '^DATABASE_URL_READONLY=').Line.Split('=',2)[1]`
 1. **Preflight before.**
    `& $py -m tools.rollout_preflight --env general --backup-dir Storage\backups`
    Expect `NOT READY` only because of the seven pending revisions (and `WARN` lines for the missing objects they create).
-   Anything else that fails (a running batch job, no free space, an unwritable `BASE_PATH`) must be fixed first.
+   Anything else that fails (a running batch job, no free space, an unwritable `BASE_PATH`) must be fixed first. A `started`
+   `batch_runs` row names its kind and age; an old one whose process is gone is orphaned (check `/admin/batches` and the running
+   Python processes) and must be closed by the owner before the upgrade. An open ingestion review run only warns; stay off `/ingestion`.
    *If this fails:* nothing changed; fix and rerun.
 2. **Backup.** From `Storage/` (asks for the password):
    `pg_dump -h localhost -p 5434 -U ocr -Fc -f ./backups/ocrdb-YYYY-MM-DD-general.dump ocrdb`
@@ -44,9 +49,11 @@ Replace `general` and port `5434` (metal 5432, it 5436) as needed.
    `(Get-Item ./backups/ocrdb-YYYY-MM-DD-general.dump).Length`. Record the revision from the preflight in your notes.
    *If this fails:* nothing changed; do not continue without a listed dump.
 3. **Quiet the writers.** No batch job running (the preflight checked it), nobody on `/duplicates`, `/ingestion` or `/admin/recut`.
+   The backend's own scheduler also writes (for example `build_statistics` hourly): do the upgrade away from a tick, or stop that
+   backend until step 6, because the DDL needs exclusive locks on `images` and other tables.
 4. **Upgrade.** From `Storage/`, with that environment's variables loaded as in CLAUDE.md ("Database migrations"): `alembic upgrade head`.
-   *If this fails midway:* Postgres DDL is transactional, so the failing revision rolls back by itself; read the error, rerun the
-   preflight to see where it stopped. Never edit `alembic_version` by hand.
+   *If this fails midway:* `Storage/alembic/env.py` runs the whole upgrade in one transaction, so a failure rolls all seven
+   back and the database stays at the starting revision; read the error and rerun the preflight to confirm. Never edit `alembic_version` by hand.
 5. **Preflight after.** Same command as step 1. Expect `READY` and `at head d5b8e3a07c41`.
 6. **Restart the backend** of that environment on matching code. Where an image is used, rebuild it first: it now needs Pillow,
    `batch/utils/{__init__,recut_cut,file_hash}.py` and write access to `BASE_PATH`. Smoke test:

@@ -46,9 +46,9 @@ def test_filesystem_without_a_base_path_fails():
 def test_read_base_path_handles_quotes_spaces_and_a_missing_key(tmp_path):
     env_dir = tmp_path / "environments"
     env_dir.mkdir()
-    (env_dir / ".env.general").write_text('DATABASE_URL=x\nBASE_PATH="D:\memes lib"\n', encoding="utf-8")
+    (env_dir / ".env.general").write_text('DATABASE_URL=x\nBASE_PATH="D:/memes lib"\n', encoding="utf-8")
     (env_dir / ".env.it").write_text("DATABASE_URL=x\n", encoding="utf-8")
-    assert rp.read_base_path("general", tmp_path) == "D:\memes lib"
+    assert rp.read_base_path("general", tmp_path) == "D:/memes lib"
     assert rp.read_base_path("it", tmp_path) is None
     assert rp.read_base_path("metal", tmp_path) is None  # no file
 
@@ -71,3 +71,15 @@ def test_main_without_the_read_only_url_exits_two(monkeypatch, capsys):
     monkeypatch.delenv("DATABASE_URL_READONLY", raising=False)
     assert rp.main(["--env", "general", "--base-path", "."]) == 2
     assert "DATABASE_URL_READONLY" in capsys.readouterr().err
+
+
+def test_target_names_host_port_and_database_without_the_password():
+    status, detail = rp.target_check("general", "postgresql+asyncpg://ocr_readonly:s3cretpw@localhost:5434/ocrdb")
+    assert status == rp.OK
+    assert "localhost:5434/ocrdb" in detail and "s3cretpw" not in detail
+
+
+def test_target_warns_when_the_port_belongs_to_another_environment():
+    status, detail = rp.target_check("metal", "postgresql+asyncpg://u:p@localhost:5434/ocrdb")
+    assert status == rp.WARN
+    assert "5432" in detail and "5434" in detail

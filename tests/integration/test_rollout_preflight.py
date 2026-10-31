@@ -180,3 +180,18 @@ async def test_one_failing_check_does_not_hide_the_others(db_session, tmp_path):
     assert by_name["revision_vs_head"].detail.startswith("check failed")
     assert by_name["active_jobs"].status == rp.OK
     assert code == 1
+
+
+async def test_open_ingestion_review_run_only_warns(db_session):
+    db_session.add(BatchRun(kind="ingestion", trigger="manual", status=str(RunStatus.started)))
+    await db_session.flush()
+    status, detail = await rp.active_jobs(db_session)
+    assert status == rp.WARN and "ingestion" in detail and "started" in detail
+
+
+async def test_ingestion_run_next_to_a_real_job_still_fails(db_session):
+    db_session.add_all([BatchRun(kind="ingestion", trigger="manual", status=str(RunStatus.started)),
+                        BatchRun(kind="rp_test_kind", trigger="manual", status=str(RunStatus.started))])
+    await db_session.flush()
+    status, detail = await rp.active_jobs(db_session)
+    assert status == rp.FAIL and "rp_test_kind" in detail

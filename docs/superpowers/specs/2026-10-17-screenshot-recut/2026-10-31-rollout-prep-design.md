@@ -1,6 +1,6 @@
 # Rollout prep: runbook and preflight check - design
 
-Status: planned
+Status: implementation
 Plan: docs/superpowers/plans/2026-10-31-rollout-prep.md
 Originates from: docs/superpowers/specs/2026-10-17-screenshot-recut/tracker.md (follow-up after R1 to R7, M1, M2a and M2b)
 Epic: docs/superpowers/specs/2026-10-17-screenshot-recut/README.md
@@ -85,8 +85,8 @@ link to it, and the R7 spec's paragraph points at it.
 Each step carries an "if this fails" line:
 
 - Preflight or backup fails: nothing changed; fix and re-run.
-- `alembic upgrade` fails midway: Postgres DDL is transactional, so the failing revision rolls back by itself; read the error and
-  re-run the preflight to see where it stopped. Never edit `alembic_version` by hand.
+- `alembic upgrade` fails midway: `env.py` runs the whole upgrade in one transaction, so a failure rolls back all of it; read the error and
+  re-run the preflight to confirm the starting revision. Never edit `alembic_version` by hand.
 - Smoke test fails with no new writes yet: `alembic downgrade` to the revision noted before the upgrade; if that fails, restore the dump.
 - Anything fails after the app wrote new data: restore the dump of that environment only; the cost is the writes since the backup.
 - A `recut_pipeline` step fails: trigger it again (each step selects only what is still waiting).

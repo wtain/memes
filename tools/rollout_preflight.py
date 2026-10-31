@@ -175,12 +175,36 @@ async def image_status_counts(session) -> tuple[str, str]:
     return OK, detail
 
 
+# The ingestion review run stays `started` for days during human review; it is not a job to wait for.
+LONG_LIVED_KINDS = {"ingestion"}
+
+
 async def active_jobs(session) -> tuple[str, str]:
-    kinds = list((await session.execute(text(
-        "SELECT kind FROM batch_runs WHERE status = 'started' ORDER BY kind"))).scalars())
-    if kinds:
-        return FAIL, f"{len(kinds)} job(s) running: {', '.join(kinds)}; wait or stop them first"
+    rows = (await session.execute(text(
+        "SELECT kind, round(extract(epoch FROM now() - created_at) / 3600)::int FROM batch_runs "
+        "WHERE status = 'started' ORDER BY kind"))).all()
+    jobs = [f"{kind} (started {hours} h ago)" for kind, hours in rows if kind not in LONG_LIVED_KINDS]
+    review = [kind for kind, _ in rows if kind in LONG_LIVED_KINDS]
+    if jobs:
+        return FAIL, (f"{len(jobs)} job(s) running: {', '.join(jobs)}; wait for them, or if a row is orphaned "
+                      "(its process is gone) see the runbook")
+    if review:
+        return WARN, "an ingestion review run is still started (normal while a review is open); do not use /ingestion during the upgrade"
     return OK, "no batch job is running"
+
+
+EXPECTED_PORTS = {"metal": 5432, "general": 5434, "it": 5436}
+
+
+def target_check(env: str, url: str) -> tuple[str, str]:
+    """Names the database the URL points at (no secret) and warns when its port is another environment's."""
+    u = make_url(url)
+    detail = f"{u.host}:{u.port}/{u.database}"
+    expected = EXPECTED_PORTS[env]
+    if u.port != expected:
+        return WARN, f"{detail}; the {env} database is on port {expected}: is DATABASE_URL_READONLY for the right environment?"
+    return OK, detail
+
 
 
 GB = 1024 ** 3
@@ -264,6 +288,7 @@ async def _run(url: str, env: str, **kwargs) -> int:
     try:
         async with AsyncSession(engine) as session:
             results, code = await run_checks(session, **kwargs)
+            results = [Result("target", *target_check(env, url))] + results
     finally:
         await engine.dispose()
     print(format_report(env, results, url))
