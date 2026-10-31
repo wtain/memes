@@ -6,12 +6,18 @@ and never prints the database URL. Design: docs/superpowers/specs/2026-10-17-scr
 """
 from __future__ import annotations
 
+import argparse
+import asyncio
+import os
+import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 REPO = Path(__file__).resolve().parents[1]
 ALEMBIC_DIR = REPO / "Storage" / "alembic"
@@ -175,3 +181,116 @@ async def active_jobs(session) -> tuple[str, str]:
     if kinds:
         return FAIL, f"{len(kinds)} job(s) running: {', '.join(kinds)}; wait or stop them first"
     return OK, "no batch job is running"
+
+
+GB = 1024 ** 3
+
+
+def filesystem(base_path: str | None, backup_dir: str | None, min_free_gb: float) -> tuple[str, str]:
+    if not base_path:
+        return FAIL, "BASE_PATH unknown; pass --base-path"
+    base = Path(base_path)
+    if not base.exists():
+        return FAIL, f"BASE_PATH {base} does not exist"
+    if not base.is_dir():
+        return FAIL, f"BASE_PATH {base} is not a directory"
+    probe = base / ".rollout_preflight_probe"
+    try:
+        probe.write_text("probe")
+        probe.unlink()
+    except OSError as exc:
+        return FAIL, f"BASE_PATH {base} is not writable ({type(exc).__name__}); the backend writes cut files and pre-cuts here"
+    pre_cuts = base / "pre-cuts"
+    if pre_cuts.exists() and not pre_cuts.is_dir():
+        return FAIL, f"{pre_cuts} exists and is not a directory"
+    notes = []
+    for label, path in (("BASE_PATH", base), ("backup dir", Path(backup_dir) if backup_dir else None)):
+        if path is None:
+            continue
+        if not path.is_dir():
+            return FAIL, f"{label} {path} does not exist"
+        free = shutil.disk_usage(path).free / GB
+        if free < min_free_gb:
+            return FAIL, f"{label} {path} has {free:.1f} GB free, below {min_free_gb:g} GB"
+        notes.append(f"{label} {free:.1f} GB free")
+    return OK, f"{base} writable, pre-cuts creatable; " + ", ".join(notes)
+
+
+def read_base_path(env: str, root: Path = REPO) -> str | None:
+    """BASE_PATH from environments/.env.<env>, read as text; no other line of the file is looked at."""
+    try:
+        lines = (root / "environments" / f".env.{env}").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        key, sep, value = line.partition("=")
+        if sep and key.strip() == "BASE_PATH":
+            return value.strip().strip('"').strip("'") or None
+    return None
+
+
+async def run_checks(session, *, base_path, backup_dir, min_free_gb) -> tuple[list[Result], int]:
+    """Role gate first (a writable role returns only that result and code 2), then every check, each in a savepoint
+    so one error cannot hide the rest. Code: 0 ready, 1 not ready, 2 writable role."""
+    async def guarded(name, call):
+        try:
+            async with session.begin_nested():
+                status, detail = await call()
+        except Exception as exc:
+            status, detail = FAIL, f"check failed: {type(exc).__name__}: {exc}"
+        return Result(name, status, detail)
+
+    role = await guarded("role_is_read_only", lambda: role_is_read_only(session))
+    if role.status != OK:
+        return [role], 2
+
+    async def fs():
+        return filesystem(base_path, backup_dir, min_free_gb)
+
+    results = [role]
+    for name, call in (
+        ("revision_vs_head", lambda: revision_vs_head(session)),
+        ("schema_matches_models", lambda: schema_matches_models(session)),
+        ("image_status_counts", lambda: image_status_counts(session)),
+        ("filesystem", fs),
+        ("active_jobs", lambda: active_jobs(session)),
+    ):
+        results.append(await guarded(name, call))
+    return results, 1 if any(r.status == FAIL for r in results) else 0
+
+
+async def _run(url: str, env: str, **kwargs) -> int:
+    engine = create_async_engine(url, connect_args={"server_settings": {"default_transaction_read_only": "on"}})
+    try:
+        async with AsyncSession(engine) as session:
+            results, code = await run_checks(session, **kwargs)
+    finally:
+        await engine.dispose()
+    print(format_report(env, results, url))
+    return code
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Read-only readiness check for the screenshot-recut rollout")
+    parser.add_argument("--env", required=True, choices=["metal", "general", "it"])
+    parser.add_argument("--base-path", help="default: BASE_PATH from environments/.env.<env>")
+    parser.add_argument("--backup-dir", help="directory that will receive the dump; its free space is checked")
+    parser.add_argument("--min-free-gb", type=float, default=5.0)
+    args = parser.parse_args(argv)
+    url = os.environ.get("DATABASE_URL_READONLY")
+    if not url:
+        print("DATABASE_URL_READONLY is not set in the shell (the read-only role's URL; never the main DATABASE_URL)",
+              file=sys.stderr)
+        return 2
+    if url.startswith("postgresql://"):
+        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+    try:
+        return asyncio.run(_run(url, args.env, base_path=args.base_path or read_base_path(args.env),
+                                backup_dir=args.backup_dir, min_free_gb=args.min_free_gb))
+    except Exception as exc:
+        print(scrub(f"could not run the preflight: {type(exc).__name__}: {exc}", url), file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
