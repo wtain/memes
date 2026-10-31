@@ -1,6 +1,6 @@
 # Use case: screenshot recut
 
-Status: draft (written 2026-10-29, not yet run against a live database). Epic: `docs/superpowers/specs/2026-10-17-screenshot-recut/README.md`;
+Status: draft (written 2026-10-29, not yet run against a live database; rollout runbook: screenshot-recut-rollout.md). Epic: `docs/superpowers/specs/2026-10-17-screenshot-recut/README.md`;
 operations design: `2026-10-29-r7-operations-and-evaluation-design.md`.
 
 Some memes are saved as screenshots with a flat border around the picture. The recut finds them, cuts the picture out as a
@@ -100,15 +100,8 @@ version. Revisit once the first pass is reviewed and the queue is empty: schedul
 
 ## First rollout
 
-Nothing here has run against a live database. Every step needs the owner's explicit go-ahead.
-
-1. Migrations in order: R1 `b8d4f1a6c935`, M1 `c5e2a9d7b140`, R3a `d7a3b9e2c451`, R6 `e9c4a7b3d812` (its parent is the popularity
-   migration `c8e2f5a1d093`), checked against the current alembic head.
-2. A confirmed backup, one environment at a time, each verified with the read-only role.
-3. A first limited `detect_recut_crops --limit 500` on `general`, then `recut_pipeline`, then review a few dozen cuts.
-4. A visual check of the box overlay on a tall source image in a real browser, and of the Adjust mode: the eight handles and
-   the body line up with the box on a tall and a wide image, dragging is smooth, and it works with touch (jsdom cannot test
-   layout, so none of this is covered by the automated tests).
-5. The `refresh_recut_cuts` GPU steps (OCR, descriptions) have never run for real; watch the first run.
-6. The backend deployment can write into `BASE_PATH` (adjusting a box writes a new cut file; approving writes `pre-cuts/`).
-   The backend image carries Pillow for this; rebuild it before the first adjustment.
+The step-by-step runbook, with the order across environments, the backup, the migrations and the rollback, is
+`screenshot-recut-rollout.md`. Nothing has run against a live database; every step needs the owner's explicit go-ahead. Points the
+runbook covers: the box overlay and Adjust mode need a real-browser check (tall and wide image, touch; jsdom cannot test layout),
+the `refresh_recut_cuts` GPU steps have never run for real, and the backend deployment must be able to write into `BASE_PATH`
+(adjusting writes a new cut file, approving writes `pre-cuts/`; the backend image carries Pillow for this).

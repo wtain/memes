@@ -192,3 +192,5 @@ Caveats:
 - Runs are restart-safe: the first fire after a backend restart waits for the remainder of the interval, based on the
   most recent `batch_runs` row of that kind. A `started` row older than `max_runtime_minutes` is marked failed as
   orphaned so it stops blocking.
+
+The shell-only readiness check `python -m tools.rollout_preflight` (rollout-prep, see `use-cases/screenshot-recut-rollout.md`) is not a batch job: it is read-only, not run-tracked and not registered.

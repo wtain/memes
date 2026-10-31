@@ -113,7 +113,7 @@ New `docs/batches/use-cases/screenshot-recut.md`, in the style of the other use-
   (R1 `b8d4f1a6c935`, M1 `c5e2a9d7b140`, R3a `d7a3b9e2c451`, checked against the current alembic head), a confirmed backup, one
   environment at a time verified with the read-only role; a first limited `detect_recut_crops --limit 500` on `general`, then
   `recut_pipeline`; a visual check of the box overlay on a tall source image in a real browser; and the R3c refresh on the GPU,
-  which has never run for real.
+  which has never run for real. The runbook and a read-only preflight are in `docs/batches/use-cases/screenshot-recut-rollout.md` (rollout-prep, 2026-10-31).
 
 ## 5. Docs touched
 

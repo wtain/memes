@@ -404,6 +404,8 @@ recut_pipeline              → screenshot recut driver (R7): runs `create_recut
                                batch/utils/{__init__,recut_cut,file_hash}.py (Dockerfile.backend, .dockerignore) and writes
                                cut files into BASE_PATH; every approval also copies the source to BASE_PATH/pre-cuts/. See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-30-r6-box-adjustment-design.md.
+tools/rollout_preflight → read-only readiness check before the recut migrations (shell only, not a batch job): `python -m tools.rollout_preflight --env {metal,general,it}` with `DATABASE_URL_READONLY` in the shell; it refuses a role that can write. See docs/batches/use-cases/screenshot-recut-rollout.md.
+
 create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each `detected` image_cuts proposal, highest
                                confidence first, into a cut file in BASE_PATH (same format as the source: JPEG at
                                recut.jpeg_quality keeping the subsampling, PNG as PNG), a `cut_proposed` images row, copies
