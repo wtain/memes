@@ -1,7 +1,7 @@
 # Meme popularity (epic)
 
 Status: approved
-Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md` (done), `2026-10-29-p5-ranking-and-trending-design.md` (done), `2026-11-01-s1-search-impressions-design.md` (draft); the signals tracker below lists the future projects
+Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md` (done), `2026-10-29-p5-ranking-and-trending-design.md` (done), `2026-11-01-s1-search-impressions-design.md` (planned); the signals tracker below lists the future projects
 
 ## Intent
 
