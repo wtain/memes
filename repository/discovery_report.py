@@ -254,7 +254,8 @@ _CUTOFF_SQL = text("""
 
 # Sessions: rows of one client and kind, a new session after a pause longer than :gap minutes. Rows with no query
 # text and no tags are the browse feed, not searches (S6 A1). A session is open (and not reported) while its last
-# row is newer than the gap (A2).
+# row is newer than the gap (A2). The web has no save action, so a web session is a miss only when the button was
+# pressed; an unpressed web session says nothing (A6).
 _MISSES_SQL = """
     WITH h AS (
         SELECT s.id, s.searched_at, s.kind, s.client,
@@ -289,6 +290,7 @@ _MISSES_SQL = """
            count(*) FILTER (WHERE client = 'web') AS web, count(*) FILTER (WHERE client = 'android') AS android
     FROM agg
     WHERE NOT saved AND last_at <= now() - make_interval(mins => :gap)
+      AND (client <> 'web' OR pressed)
       AND (NOT CAST(:explicit_only AS boolean) OR pressed)
     GROUP BY qn, tag_text, kind
     HAVING count(*) >= :min_times

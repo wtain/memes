@@ -19,7 +19,7 @@ async def anchor(session):
     await session.flush()
 
 
-async def hist(session, query, at, *, client="web", kind="search", tags=(), count=5):
+async def hist(session, query, at, *, client="android", kind="search", tags=(), count=5):
     row = SearchHistory(searched_at=at, query=query, client=client, result_count=count, kind=kind,
                         tags=[SearchHistoryTag(category=c, value=v) for c, v in tags])
     session.add(row)
@@ -82,10 +82,23 @@ async def test_gap_minutes_is_an_option(db_session):
 
 async def test_clients_never_share_a_session(db_session):
     await anchor(db_session)
-    await hist(db_session, "cat", T, client="web")
+    web = await hist(db_session, "cat", T, client="web")
+    await press_for(db_session, web)
     await hist(db_session, "cat", T + timedelta(minutes=1), client="android")
     row = (await report(db_session))[("cat", "")]
     assert row.times == 2 and row.web == 1 and row.android == 1
+
+
+async def test_a_web_session_is_a_miss_only_when_the_button_was_pressed(db_session):
+    # The web has no save action, so an unpressed web session says nothing; only Android's absence of a save does.
+    await anchor(db_session)
+    await hist(db_session, "web browsing", T, client="web")
+    pressed = await hist(db_session, "web pressed", T + timedelta(hours=1), client="web")
+    await press_for(db_session, pressed)
+    await hist(db_session, "phone", T + timedelta(hours=2), client="android")
+    rows = await report(db_session)
+    assert set(rows) == {("web pressed", ""), ("phone", "")}
+    assert rows[("web pressed", "")].explicit == 1 and rows[("phone", "")].explicit == 0
 
 
 async def test_browse_rows_are_not_searches_and_do_not_join_sessions(db_session):

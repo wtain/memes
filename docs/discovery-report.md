@@ -63,8 +63,9 @@ Search sessions that ended without a save (epic meme-popularity, S6): the direct
 
 How it decides. The search history is cut into sessions: rows of one client (and kind) belong to one session until a
 pause longer than `--gap-minutes` (default 5). A session is *resolved* if any of its rows is the search a save came from
-(Android sends the `searchId` of the search list with the save), otherwise it is a *miss*. A miss is *explicit* if the
-web "I didn't find it" button was pressed for any of its rows; a save wins over a press. Rows with no query text and no
+(Android sends the `searchId` of the search list with the save), otherwise it is a *miss*. The web has no save action,
+so a web session counts as a miss only when the "I didn't find it" button was pressed for any of its rows (an *explicit*
+miss); an unpressed web session says nothing and is left out. A save wins over a press. Rows with no query text and no
 filters (the browse feed) are not searches and are skipped, and a session whose last row is newer than the gap is left
 out because it may still be going. Misses are grouped by the session's last query and filters (lower-cased, whitespace
 collapsed); a search with only filters shows `(no text)` and its tags.
