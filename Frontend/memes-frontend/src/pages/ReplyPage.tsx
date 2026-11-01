@@ -5,6 +5,7 @@ import AxisFacets from "../components/reply/AxisFacets"
 import MessageBox from "../components/reply/MessageBox"
 import ReadingPanel from "../components/reply/ReadingPanel"
 import ForgetTextButton from "../components/reply/ForgetTextButton"
+import NotFoundButton from "../components/NotFoundButton"
 import ResultCard from "../components/reply/ResultCard"
 import StatusBanner from "../components/reply/StatusBanner"
 import { MemeDetailsModal } from "../components/MemeDetailsModal"
@@ -190,6 +191,8 @@ export default function ReplyPage({ memesApi }: Props) {
                 </button>
               </div>
             )}
+
+            {state.searchId && finished && <NotFoundButton key={state.searchId} memesApi={memesApi} searchId={state.searchId} />}
           </section>
         </div>
       )}

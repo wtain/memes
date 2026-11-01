@@ -51,6 +51,9 @@ export interface MemesApi {
 
   getMemeImpressions(id: string): Promise<MemeImpressions>
 
+  /** The "I didn't find it" press for the search with this id (epic meme-popularity, S6). */
+  reportNotFound(searchId: string): Promise<void>
+
   setDescriptionFeedback(imageId: string, promptKey: string, action: "approve" | "reject"): Promise<{ feedback?: string }>
 
   setDescriptionNote(imageId: string, text: string): Promise<void>

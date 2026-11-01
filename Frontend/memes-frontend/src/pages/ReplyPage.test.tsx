@@ -658,4 +658,24 @@ describe("ReplyPage ratings (fix wave)", () => {
     await waitFor(() => expect(within(again).getByRole("button", { name: "Acceptable" })).toHaveAttribute("aria-pressed", "true"))
     expect(api.getRatings).toHaveBeenCalledWith(HASH)
   })
+
+  it("offers 'I didn't find it' for a fresh search and reports its id", async () => {
+    const user = userEvent.setup()
+    const api = renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")], searchId: "s1" })),
+    }))
+    await search(user)
+    await user.click(await screen.findByRole("button", { name: "I didn't find it" }))
+    expect(api.reportNotFound).toHaveBeenCalledWith("s1")
+  })
+
+  it("has no 'I didn't find it' button when the response carries no search id", async () => {
+    const user = userEvent.setup()
+    renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")] })),
+    }))
+    await search(user)
+    await screen.findByText("1 meme found")
+    expect(screen.queryByRole("button", { name: "I didn't find it" })).not.toBeInTheDocument()
+  })
 })
