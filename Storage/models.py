@@ -5,7 +5,7 @@ import sqlalchemy as sa
 from sqlalchemy import (
     Column, String, Integer, Float, Text, ForeignKey,
     DateTime, JSON, func, Numeric, Index, Boolean,
-    BigInteger, UniqueConstraint, CheckConstraint, text
+    BigInteger, SmallInteger, UniqueConstraint, CheckConstraint, text
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
@@ -243,6 +243,27 @@ class MemeSave(Base):
 
     __table_args__ = (
         Index("ix_meme_saves_image_id", "image_id"),
+    )
+
+
+class MemeImpression(Base):
+    """Append-only log of search impressions (epic meme-popularity, S1): one row per image the server returned in a
+    search result page, never updated or deleted. Deliberately no foreign keys: image_id for the same reason as
+    MemeSave and PopularityAbsorption (ids outlive deleted images), search_history_id so that clearing the search
+    history never erases impression counts. rank is the 1-based position within the returned page."""
+    __tablename__ = "meme_impressions"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    image_id = Column(UUID(as_uuid=True), nullable=False)
+    shown_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    rank = Column(SmallInteger, nullable=False)
+    surface = Column(String(16), nullable=False)
+    search_history_id = Column(UUID(as_uuid=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_meme_impressions_image_id_shown_at", "image_id", "shown_at"),
+        Index("ix_meme_impressions_search_history_id", "search_history_id"),
+        CheckConstraint("surface IN ('search','similar','reply')", name="ck_meme_impressions_surface"),
     )
 
 
