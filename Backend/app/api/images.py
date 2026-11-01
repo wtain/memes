@@ -23,6 +23,7 @@ from Backend.app.services.image_store import get_image_path, image_exists
 from Backend.app.types.generated.meme import Schema as Meme
 from Backend.app.types.generated.memepopularity import Schema as MemePopularity
 from Backend.app.types.generated.memepopularityupdate import Schema as MemePopularityUpdate
+from Backend.app.types.generated.memeimpressions import Schema as MemeImpressions
 from Backend.app.types.generated.memesaves import Schema as MemeSaves
 from Backend.app.types.generated.imagedescription import Schema as ImageDescription
 from Backend.app.types.generated.trendingmemeitem import Schema as TrendingMemeItem
@@ -240,6 +241,16 @@ async def get_meme_saves(
 ):
     response.headers.update(no_cache_headers())
     return await service.get_saves(image_id)
+
+
+@router.get("/meme/{image_id}/impressions", response_model=MemeImpressions)
+async def get_meme_impressions(
+    image_id: str,
+    response: Response,
+    service: ImageService = Depends(get_image_service),
+):
+    response.headers.update(no_cache_headers())
+    return await service.get_impressions(image_id)
 
 
 @router.put("/meme/{image_id}/mark_flagged")

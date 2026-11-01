@@ -11,6 +11,7 @@ from Backend.app.repositories.duplicate_decisions_repository import DuplicateDec
 from Backend.app.repositories.image_repository import ImageRepository
 from repository.ocr_lemmas import OCRLemmasRepository
 from Backend.app.services.history_recorder import record_history
+from Backend.app.services.impression_recorder import record_impressions
 from Backend.app.services.library_metrics import (
     open_keeper, record_confirmed, record_dismissed, retract_confirmed, retract_dismissed,
 )
@@ -21,11 +22,13 @@ from Backend.app.types.generated.imagedescription import Schema as ImageDescript
 from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from Backend.app.types.generated.memepopularity import Schema as MemePopularity
+from Backend.app.types.generated.memeimpressions import Schema as MemeImpressions
 from Backend.app.types.generated.memesaves import Schema as MemeSaves
 from Backend.app.types.generated.popularitybreakdownrow import Schema as PopularityBreakdownRow
 from Backend.app.types.generated.trendingmemeitem import Schema as TrendingMemeItem
 from Backend.app.types.generated.trendingmemesresponse import Schema as TrendingMemesResponse
 from graph.uf import UnionFind
+from repository.meme_impressions import MemeImpressionRepository, window_days
 from repository.meme_saves import MemeSaveRepository
 from repository.popularity import AlreadyDiscardedError, PopularityRepository, WinnerGoneError, guarded
 from repository.search_ranking import get_trending_min_popularity
@@ -119,7 +122,12 @@ class ImageService:
 
         client = "android" if "okhttp" in user_agent.lower() else "web"
         tag_pairs = [(cat, val) for cat, vals in tags.items() for val in vals]
-        await self._record_history(q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
+        search_history_id = await self._record_history(
+            q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
+        # An unfiltered listing (no query, no facets) is the browse feed, not a search: it is not an impression (S1, M2).
+        if (q or "").strip() or tags:
+            await record_impressions(
+                self.repo.session, "search", [meme.id for meme in result.items or []], search_history_id)
 
         return result
 
@@ -129,8 +137,8 @@ class ImageService:
         client: str,
         result_count: int,
         tags: list[tuple[str, str]],
-    ) -> None:
-        await record_history(query=q, client=client, result_count=result_count, tags=tags)
+    ) -> Optional[uuid.UUID]:
+        return await record_history(query=q, client=client, result_count=result_count, tags=tags)
 
     async def _fill_texts_and_tags(self, items):
         ids = {meme.id for meme in items}
@@ -221,6 +229,16 @@ class ImageService:
         count, last_saved_at = await MemeSaveRepository(self.repo.session).summary(image_uuid)
         return MemeSaves(imageId=str(image_uuid), count=count, lastSavedAt=last_saved_at)
 
+    async def get_impressions(self, image_id: str) -> MemeImpressions:
+        """Read-only. Search impressions of the image and of the copies folded into it, all time and within the
+        configured window (S1)."""
+        image_uuid = await self._existing_image_uuid(image_id)
+        days = window_days()
+        count, count_window, last_shown_at = await MemeImpressionRepository(self.repo.session).summary(
+            image_uuid, days)
+        return MemeImpressions(imageId=str(image_uuid), count=count, countWindow=count_window, windowDays=days,
+                               lastShownAt=last_shown_at)
+
     async def get_descriptions(self, image_id: str) -> list[ImageDescription]:
         rows = await self.repo.get_descriptions(image_id)
         return [
@@ -299,6 +317,7 @@ class ImageService:
             )
             for iid, dist, fname, flagged in rows
         ]
+        await record_impressions(self.repo.session, "similar", [meme.id for meme in items])
         return MemeSearchResponse(items=items)
 
     async def get_untagged(

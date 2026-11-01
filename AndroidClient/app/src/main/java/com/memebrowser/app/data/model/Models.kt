@@ -190,6 +190,15 @@ data class IngestionUndoRejectResponse(
 )
 
 @Serializable
+data class MemeImpressions(
+    @SerialName("imageId") val imageId: String,
+    @SerialName("count") val count: Int,
+    @SerialName("countWindow") val countWindow: Int,
+    @SerialName("windowDays") val windowDays: Int,
+    @SerialName("lastShownAt") val lastShownAt: String?
+)
+
+@Serializable
 data class MemePopularityUpdate(
     @SerialName("popularity") val popularity: Int
 )

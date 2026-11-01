@@ -716,6 +716,18 @@ export interface MemeSaves {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "MemeImpressions".
+ */
+export interface MemeImpressions {
+  imageId: string;
+  count: number;
+  countWindow: number;
+  windowDays: number;
+  lastShownAt: string | null;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "Concept".
  */
 export interface Concept {

@@ -9,7 +9,7 @@ import type {
   MemeFromTextRequest, MemeFromTextResponse, TaxonomyResponse,
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
-  RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, MemeSaves, TrendingMemesResponse,
+  RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, MemeSaves, MemeImpressions, TrendingMemesResponse,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
@@ -258,6 +258,23 @@ export class HttpMemesApi implements MemesApi {
 
     if (!response.ok) {
       throw new Error(`Failed to fetch saves: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
+  async getMemeImpressions(id: string): Promise<MemeImpressions> {
+    const response = await fetch(
+      `${this.baseUrl}/api/images/meme/${id}/impressions`,
+      {
+        headers: {
+          "Accept": "application/json",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch impressions: ${response.status}`)
     }
 
     return response.json()

@@ -1079,6 +1079,19 @@ class TestTrendingSetting:
             self._load(monkeypatch, None, present=False)
 
 
+class TestGetImpressions:
+    async def test_unknown_image_is_404_before_touching_impressions_repository(self, service, mock_repo):
+        from unittest.mock import patch
+        mock_repo.get_status.return_value = None
+
+        with patch("Backend.app.services.image_service.MemeImpressionRepository") as impressions_repo:
+            with pytest.raises(HTTPException) as exc_info:
+                await service.get_impressions(str(uuid.uuid4()))
+
+        assert exc_info.value.status_code == 404
+        impressions_repo.assert_not_called()
+
+
 class TestRecordSave:
     async def test_unknown_image_is_404_before_touching_saves_repository(self, service, mock_repo):
         from unittest.mock import patch

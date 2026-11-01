@@ -91,6 +91,11 @@ search:
     page: {default_limit: 20, max_limit: 50}
     query_log: {enabled: true}    # record each fresh message in search_history (kind meme_text); see docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-10-query-log-and-gold-set-jobs-design.md
 
+# Search impressions (epic meme-popularity, S1; docs/superpowers/specs/2026-10-26-meme-popularity/2026-11-01-s1-search-impressions-design.md).
+# A missing key is a startup error. enabled false stops recording; window_days is the span of countWindow.
+popularity:
+  impressions: {enabled: true, window_days: 30}
+
 duplicates:
   # Candidate cutoff for rebuild_duplicates.py's KNN search -- cheap/loose, decides what's
   # worth storing in tmp_duplicates at all. Distinct from clusterize.py's own tighter

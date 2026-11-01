@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "memeimpressions.schema.json",
+  "title": "MemeImpressions",
+  "type": "object",
+  "properties": {
+    "imageId": { "type": "string" },
+    "count": { "type": "integer", "minimum": 0 },
+    "countWindow": { "type": "integer", "minimum": 0 },
+    "windowDays": { "type": "integer", "minimum": 1 },
+    "lastShownAt": { "type": ["string", "null"], "format": "date-time" }
+  },
+  "required": ["imageId", "count", "countWindow", "windowDays", "lastShownAt"]
+}

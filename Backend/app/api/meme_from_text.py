@@ -1,3 +1,4 @@
+import functools
 import logging
 from typing import AsyncGenerator
 
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from Backend.app.repositories.image_repository import ImageRepository
 from Backend.app.services.cache import no_cache_headers
 from Backend.app.services.history_recorder import record_history
+from Backend.app.services.impression_recorder import record_impressions
 from Backend.app.services.meme_from_text_pipeline import get_pipeline
 from Backend.app.services.meme_from_text_taxonomy import cached_taxonomy_payload
 from Backend.app.services.meme_from_text_service import MemeFromTextService
@@ -28,7 +30,8 @@ async def get_meme_from_text_service(
 ) -> AsyncGenerator[MemeFromTextService, None]:
     recorder = record_history if settings.get("search.meme_from_text.query_log.enabled", False) else None
     yield MemeFromTextService(get_pipeline(), MemeRetrievalRepository(db), ImageRepository(db), recorder,
-                                 int(settings.get("parse.max_input_chars")))
+                                 int(settings.get("parse.max_input_chars")),
+                                 impression_recorder=functools.partial(record_impressions, db))
 
 
 @router.post("/search", response_model=MemeFromTextResponse, response_model_exclude_none=True)

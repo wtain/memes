@@ -71,3 +71,10 @@ async def test_delete_by_query_hash_removes_only_matching_meme_text_rows(db_sess
     remaining = sorted(r.query for r in await _list(repository, kind="all"))
     assert remaining == ["search with same hash column", "someone else"]
     assert (await db_session.execute(select(func.count()).select_from(SearchHistoryTag))).scalar_one() == 0
+
+
+async def test_add_returns_the_id_of_the_stored_row(db_session):
+    repository = HistoryRepository(db_session)
+    new_id = await repository.add(query="cats", client="web", result_count=1, tags=[])
+    await db_session.flush()
+    assert [row.id for row in await _list(repository)] == [new_id]

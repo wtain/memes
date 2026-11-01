@@ -386,6 +386,7 @@ Search for memes with optional query, facets, and pagination.
 - **Ordering**: with a non-empty `q`, results are ordered by relevance (per-token best hit, source weight x match-tier weight, summed across tokens) plus a small capped popularity bonus (`weight * min(log2(popularity), max_log2)`, from `search.ranking.popularity.weight` and `.max_log2`; weight 0 turns it off), then by recency. Without `q` they are ordered by recency (unchanged). `nextCursor` stays an opaque string; relevance pages embed the score in it. A cursor in the other format (e.g. a recency cursor sent with `q`) is ignored and the listing restarts at the first page. Weights live in `search.ranking.*` in `environments/settings.yaml`.
 - **Pagination contract**: `nextCursor` addresses the last returned item, so the next page neither skips nor repeats a result. This holds for `GET /api/images` (search), `GET /api/images/untagged`, `GET /api/images/no-ocr` and `GET /api/images/flagged`.
 - **Response**: `MemeSearchResponse`
+- **Impressions**: every image in the returned page is recorded as a search impression in `meme_impressions` (epic meme-popularity, S1), "show more" pages included, but only when the request has a non-blank `q` or at least one facet: a listing with neither is the browse feed (Explore, the empty Search page) and is not recorded. Rank is the 1-based position within the page. Best effort: a failed write is logged and never changes the response; `popularity.impressions.enabled: false` switches it off. Needs the S1 migration (`meme_impressions`). Read the counts with `GET /api/images/meme/{image_id}/impressions`.
 - **Cache**: no-cache
 - **Example**: `GET /api/images?q=funny&limit=50`
 
@@ -401,6 +402,7 @@ Find images similar to a given image.
   - `limit` (optional): Number of results (1-100, default: 10)
   - `source` (optional): `image` (default) ranks by CLIP visual-embedding similarity; `description` ranks by LLM-description text-embedding similarity (only images sharing at least one prompt's description embedding with the source image are candidates; descriptions the user rejected are ignored on both sides, and the source image 404s if all of its descriptions are rejected); `description_note` ranks by human-written description-note text-embedding similarity; `description_all` ranks by the minimum cosine distance across all of the image's non-rejected Ollama description embeddings and its note embedding, versus every other active image's (no prompt_key restriction; `cosineDistance` is that minimum; 404 when the image has no non-rejected description embedding and no note embedding, so an image whose only descriptions are rejected also 404s). Returns 404 if the source image has no embedding of the requested kind.
 - **Response**: `MemeSearchResponse` — each `Meme` item includes `cosineDistance` (float, lower = more similar; not comparable between `source=image` and `source=description` responses — different embedding spaces)
+- **Impressions**: the returned images (never the source image) are recorded as `similar` impressions, with the same best-effort rule as in Search Images.
 - **Example**: `GET /api/images/abc123/similar?limit=10`
 - **Example**: `GET /api/images/abc123/similar?source=description&limit=10`
 - **Example**: `GET /api/images/abc123/similar?source=description_note&limit=10`
@@ -595,6 +597,29 @@ How often a meme was saved. Read-only: writes nothing.
 - **Errors**: `404` for an unknown or non-UUID `image_id`
 - **Cache**: no-cache
 - **Example**: `GET /api/images/meme/550e8400-e29b-41d4-a716-446655440000/saves`
+
+#### Get Meme Impressions
+
+How often search showed a meme (epic meme-popularity, S1). Read-only: writes nothing. There is no write route: only the
+server records impressions, as a side effect of `GET /api/images`, `GET /api/images/{image_id}/similar` and
+`POST /api/meme-from-text/search`. Needs the S1 migration (`meme_impressions`); before it has run this route answers 500
+while searches keep working.
+
+- **URL**: `/api/images/meme/{image_id}/impressions`
+- **Method**: `GET`
+- **Path Parameters**:
+  - `image_id`: Unique identifier of the image (UUID); an image of any status is accepted
+- **Response**: `MemeImpressions`
+  - `imageId`: the requested id, canonical form
+  - `count` (integer >= 0): impressions of the image itself plus those of every copy folded into it, transitively,
+    through open popularity absorption edges (undoing a fold hands them back). Impressions of a deleted image still
+    count. A separate number from popularity and saves, never added to either.
+  - `countWindow` (integer >= 0): the same count restricted to the last `windowDays` days
+  - `windowDays` (integer >= 1): the window, from `popularity.impressions.window_days` (default 30)
+  - `lastShownAt` (date-time or `null`): newest impression among those counted; `null` when `count` is 0
+- **Errors**: `404` for an unknown or non-UUID `image_id`
+- **Cache**: no-cache
+- **Example**: `GET /api/images/meme/550e8400-e29b-41d4-a716-446655440000/impressions`
 
 #### Unmark Meme as Flagged
 
@@ -794,6 +819,7 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
   - `filters` (object, optional): `emotion`, `stance`, `topic`, `tone` (arrays of taxonomy keys) and `tags` (array of `{ "key", "value" }`). Values within one axis are OR-ed, different axes are AND-ed; a tag filter matches any of the listed pairs. Each array holds at most 64 entries and every key, value or tag string is at most 128 characters
   - `cursor` (string, optional): opaque cursor from a previous response; it is tied to the same request (text, profile and filters); at most 512 characters
   - `limit` (integer, optional, 1 to 50, default 20)
+- **Impressions**: the returned items are recorded as `reply` impressions (every page, "show more" included; rank is the position within the page), with the same best-effort rule as in Search Images. The impression carries the id of the message's `search_history` row only for a fresh message that was logged; otherwise it has none. It stores no message text.
 - **Response**: `MemeFromTextResponse`
   - `items` (array of `MemeFromTextResult`):
     - `meme`: the existing `Meme` object

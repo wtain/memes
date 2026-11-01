@@ -34,6 +34,7 @@ REVISION_LABELS = {
     "c8e2f5a1d093": "popularity adjustment source (same upgrade)",
     "e9c4a7b3d812": "R6 detected box",
     "d5b8e3a07c41": "saves meme_saves (same upgrade)",
+    "a2f6d8c3b715": "S1 meme_impressions (same upgrade)",
 }
 
 
@@ -137,6 +138,7 @@ EXPECTED: tuple[tuple[str, tuple[str, ...], str], ...] = (
      "a4f7c1e92b68"),
     ("image_cuts", ("detected_crop_x", "detected_crop_y", "detected_crop_w", "detected_crop_h"), "e9c4a7b3d812"),
     ("meme_saves", ("id", "image_id", "created_at"), "d5b8e3a07c41"),
+    ("meme_impressions", ("id", "image_id", "shown_at", "rank", "surface", "search_history_id"), "a2f6d8c3b715"),
 )
 
 

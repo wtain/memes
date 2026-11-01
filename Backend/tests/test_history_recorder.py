@@ -36,3 +36,18 @@ async def test_a_failing_write_logs_the_error_type_but_never_the_fields(caplog):
         await history_recorder.record_history(query="SECRET-QUERY", client="web", result_count=0, tags=[])
     assert "history write failed: RuntimeError" in caplog.text
     assert "SECRET-QUERY" not in caplog.text
+
+
+async def test_the_id_of_the_stored_row_is_returned():
+    import uuid
+    new_id = uuid.uuid4()
+    add = AsyncMock(return_value=new_id)
+    with patch.object(history_recorder, "AsyncSessionLocal", _session_factory(add)),          patch.object(history_recorder, "HistoryRepository") as repository_class:
+        repository_class.return_value.add = add
+        result = await history_recorder.record_history(query="q", client="web", result_count=0, tags=[])
+    assert result == new_id
+
+
+async def test_a_failing_write_returns_none():
+    with patch.object(history_recorder, "AsyncSessionLocal", side_effect=RuntimeError("db down")):
+        assert await history_recorder.record_history(query="q", client="web", result_count=0, tags=[]) is None

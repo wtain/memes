@@ -30,3 +30,16 @@ async def test_lifespan_propagates_a_settings_error(monkeypatch):
     with pytest.raises(ValueError, match="search.ranking.popularity"):
         async with main.lifespan(main.app):
             pass
+
+
+async def test_lifespan_propagates_an_impression_settings_error(monkeypatch):
+    from Backend.app import main
+
+    def broken():
+        raise ValueError("popularity.impressions.window_days missing")
+
+    monkeypatch.setattr(main, "validate_impression_settings", broken)
+
+    with pytest.raises(ValueError, match="popularity.impressions.window_days"):
+        async with main.lifespan(main.app):
+            pass
