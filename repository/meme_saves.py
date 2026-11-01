@@ -24,9 +24,12 @@ class MemeSaveRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def record(self, image_id: uuid.UUID) -> None:
-        """Append one save row. Flushes, never commits."""
-        await self.session.execute(insert(MemeSave).values(image_id=image_id))
+    async def record(self, image_id: uuid.UUID, search_history_id: uuid.UUID | None = None) -> None:
+        """Append one save row, linked to the search that led to it when known (S6). Flushes, never commits."""
+        values = {"image_id": image_id}
+        if search_history_id is not None:
+            values["search_history_id"] = search_history_id
+        await self.session.execute(insert(MemeSave).values(**values))
         await self.session.flush()
 
     async def summary(self, image_id: uuid.UUID) -> tuple[int, datetime | None]:

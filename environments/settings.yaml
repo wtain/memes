@@ -95,6 +95,9 @@ search:
 # A missing key is a startup error. enabled false stops recording; window_days is the span of countWindow.
 popularity:
   impressions: {enabled: true, window_days: 30}
+  # S6 (docs/superpowers/specs/2026-10-26-meme-popularity/2026-11-01-s6-failed-search-capture-design.md): saves link to
+  # their search and the web "didn't find it" press is stored. enabled false stops both and makes searchId null.
+  search_outcomes: {enabled: true}
 
 duplicates:
   # Candidate cutoff for rebuild_duplicates.py's KNN search -- cheap/loose, decides what's

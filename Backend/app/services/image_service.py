@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import uuid
 from collections import defaultdict
 from datetime import datetime
@@ -31,7 +32,10 @@ from graph.uf import UnionFind
 from repository.meme_impressions import MemeImpressionRepository, window_days
 from repository.meme_saves import MemeSaveRepository
 from repository.popularity import AlreadyDiscardedError, PopularityRepository, WinnerGoneError, guarded
+from repository.search_outcomes import outcomes_enabled
 from repository.search_ranking import get_trending_min_popularity
+
+logger = logging.getLogger(__name__)
 
 # Flag reasons that may name the surviving copy (duplicateOf), mapped to the popularity edge source.
 FLAG_REASON_SOURCES = {"duplicate_review": "cluster_review", "agent_review": "agent_review"}
@@ -218,10 +222,26 @@ class ImageService:
             raise HTTPException(status_code=404, detail="Image not found")
         return image_uuid
 
-    async def record_save(self, image_id: str) -> None:
-        """Append one save for an existing image of any status (S2). No de-duplication: every call counts."""
+    async def record_save(self, image_id: str, search_id: str | None = None) -> None:
+        """Append one save for an existing image of any status (S2), linked to the search that led to it when
+        `search_id` is a valid id and the switch is on (S6). No de-duplication: every call counts. A link that
+        cannot be stored (for example before the migration) never costs the save."""
         image_uuid = await self._existing_image_uuid(image_id)
-        await MemeSaveRepository(self.repo.session).record(image_uuid)
+        repository = MemeSaveRepository(self.repo.session)
+        link = None
+        if search_id and outcomes_enabled():
+            try:
+                link = uuid.UUID(search_id)
+            except ValueError:
+                link = None
+        if link is not None:
+            try:
+                async with self.repo.session.begin_nested():
+                    await repository.record(image_uuid, link)
+                return
+            except Exception as error:
+                logger.warning("save link failed: error=%s", type(error).__name__)
+        await repository.record(image_uuid)
 
     async def get_saves(self, image_id: str) -> MemeSaves:
         """Read-only. Saves of the image and of the copies folded into it (S2)."""

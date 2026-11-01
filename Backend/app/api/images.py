@@ -227,9 +227,10 @@ async def set_meme_popularity(
 @router.post("/meme/{image_id}/saves", status_code=204)
 async def record_meme_save(
     image_id: str,
+    searchId: Optional[str] = Query(None, max_length=64),
     service: ImageService = Depends(get_image_service),
 ):
-    await service.record_save(image_id)
+    await service.record_save(image_id, searchId)
     return Response(status_code=204, headers=no_cache_headers())
 
 

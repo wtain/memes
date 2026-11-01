@@ -48,3 +48,16 @@ def test_kind_meme_text_and_all_are_passed_through(client_and_repo):
 def test_an_unknown_kind_is_a_422(client_and_repo):
     client, _ = client_and_repo
     assert client.get("/api/history?kind=bogus").status_code == 422
+
+
+def test_not_found_press_answers_204_and_records(client_and_repo, monkeypatch):
+    from unittest.mock import AsyncMock
+    from Backend.app.api import history
+    recorder = AsyncMock()
+    monkeypatch.setattr(history, "record_not_found", recorder)
+    client, _ = client_and_repo
+    from Storage.db import get_async_db
+    client.app.dependency_overrides[get_async_db] = lambda: "session"
+    response = client.post("/api/history/abc/not-found")
+    assert response.status_code == 204 and response.content == b""
+    recorder.assert_awaited_once_with("session", "abc")
