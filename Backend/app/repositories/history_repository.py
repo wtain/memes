@@ -28,8 +28,9 @@ class HistoryRepository:
         fallback: Optional[str] = None,
         parse_ms: Optional[int] = None,
         retrieval_ms: Optional[int] = None,
-    ) -> None:
+    ) -> uuid.UUID:
         record = SearchHistory(
+            id=uuid.uuid4(),
             query=query,
             client=client,
             result_count=result_count,
@@ -44,6 +45,7 @@ class HistoryRepository:
             tags=[SearchHistoryTag(category=category, value=value) for category, value in tags],
         )
         self.session.add(record)
+        return record.id
 
     async def list(
         self,

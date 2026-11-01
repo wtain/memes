@@ -66,10 +66,11 @@ def _history_fields(request: MemeFromTextRequest, result, item_count: int, user_
 
 class MemeFromTextService:
     def __init__(self, pipeline: Optional[MemeFromTextPipeline], retrieval_repository, image_repository,
-                 history_recorder=None, max_chars: Optional[int] = None):
+                 history_recorder=None, max_chars: Optional[int] = None, impression_recorder=None):
         if history_recorder is not None and max_chars is None:
             raise ValueError("max_chars is required when a history recorder is set")
         self.history_recorder = history_recorder
+        self.impression_recorder = impression_recorder
         self.max_chars = max_chars
         self.pipeline = pipeline
         self.retrieval_repository = retrieval_repository
@@ -85,12 +86,17 @@ class MemeFromTextService:
             filters=_filters(request), cursor=request.cursor, limit=request.limit)
         result = await self.pipeline.search(search_request, self.retrieval_repository)
         items = [result_item_dict(item) for item in result.items]
+        image_ids = [item["imageId"] for item in items]  # _hydrate replaces imageId by the meme object
         await self._hydrate(items)
+        search_history_id = None
         if self.history_recorder is not None and _is_fresh_message(request):
             try:
-                await self.history_recorder(**_history_fields(request, result, len(items), user_agent, self.max_chars))
+                search_history_id = await self.history_recorder(
+                    **_history_fields(request, result, len(items), user_agent, self.max_chars))
             except Exception:
                 pass
+        if self.impression_recorder is not None:
+            await self.impression_recorder("reply", image_ids, search_history_id)
         payload = {
             "items": items, "facets": facets_list(result.facets), "hasNext": result.has_next,
             "profile": result.profile, "degraded": result.degraded, "fallback": result.fallback, "meta": result.meta,

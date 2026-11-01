@@ -190,3 +190,55 @@ async def test_the_recorded_query_is_normalised_and_capped():
 def test_a_recorder_without_a_cap_is_rejected():
     with pytest.raises(ValueError):
         MemeFromTextService(None, MagicMock(), MagicMock(), AsyncMock())
+
+
+# --- search impressions (epic meme-popularity, S1) ---
+
+IMAGE_A = "11111111-1111-1111-1111-111111111111"
+IMAGE_B = "22222222-2222-2222-2222-222222222222"
+
+
+async def test_a_fresh_message_records_impressions_with_the_history_id():
+    import uuid
+    history_id = uuid.uuid4()
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item(IMAGE_A), _item(IMAGE_B)]))
+    service, _ = _service(pipeline)
+    service.history_recorder = AsyncMock(return_value=history_id)
+    service.max_chars = 600
+    service.impression_recorder = AsyncMock()
+    await service.search(Request.model_validate({"text": "x"}))
+    service.impression_recorder.assert_awaited_once_with(
+        "reply", [IMAGE_A, IMAGE_B], history_id)
+
+
+async def test_a_show_more_page_records_impressions_with_a_null_search_id():
+    import uuid
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item(IMAGE_A)]))
+    service, _ = _service(pipeline)
+    service.history_recorder = AsyncMock(return_value=uuid.uuid4())
+    service.max_chars = 600
+    service.impression_recorder = AsyncMock()
+    await service.search(Request.model_validate({"text": "x", "cursor": "abc"}))
+    service.impression_recorder.assert_awaited_once_with("reply", [IMAGE_A], None)
+
+
+async def test_impressions_are_recorded_when_the_query_log_is_off_or_fails():
+    import uuid
+    for recorder in (None, AsyncMock(side_effect=RuntimeError("boom"))):
+        pipeline = MagicMock()
+        pipeline.search = AsyncMock(return_value=_result([_item(IMAGE_A)]))
+        service, _ = _service(pipeline)
+        service.history_recorder = recorder
+        service.max_chars = 600
+        service.impression_recorder = AsyncMock()
+        await service.search(Request.model_validate({"text": "x"}))
+        service.impression_recorder.assert_awaited_once_with("reply", [IMAGE_A], None)
+
+
+async def test_the_unavailable_answer_records_no_impressions():
+    service, _ = _service(None)
+    service.impression_recorder = AsyncMock()
+    await service.search(Request.model_validate({"text": "x"}))
+    service.impression_recorder.assert_not_awaited()

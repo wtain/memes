@@ -11,6 +11,7 @@ from Backend.app.repositories.duplicate_decisions_repository import DuplicateDec
 from Backend.app.repositories.image_repository import ImageRepository
 from repository.ocr_lemmas import OCRLemmasRepository
 from Backend.app.services.history_recorder import record_history
+from Backend.app.services.impression_recorder import record_impressions
 from Backend.app.services.library_metrics import (
     open_keeper, record_confirmed, record_dismissed, retract_confirmed, retract_dismissed,
 )
@@ -119,7 +120,10 @@ class ImageService:
 
         client = "android" if "okhttp" in user_agent.lower() else "web"
         tag_pairs = [(cat, val) for cat, vals in tags.items() for val in vals]
-        await self._record_history(q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
+        search_history_id = await self._record_history(
+            q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
+        await record_impressions(
+            self.repo.session, "search", [meme.id for meme in result.items or []], search_history_id)
 
         return result
 
@@ -129,8 +133,8 @@ class ImageService:
         client: str,
         result_count: int,
         tags: list[tuple[str, str]],
-    ) -> None:
-        await record_history(query=q, client=client, result_count=result_count, tags=tags)
+    ) -> Optional[uuid.UUID]:
+        return await record_history(query=q, client=client, result_count=result_count, tags=tags)
 
     async def _fill_texts_and_tags(self, items):
         ids = {meme.id for meme in items}
@@ -299,6 +303,7 @@ class ImageService:
             )
             for iid, dist, fname, flagged in rows
         ]
+        await record_impressions(self.repo.session, "similar", [meme.id for meme in items])
         return MemeSearchResponse(items=items)
 
     async def get_untagged(
