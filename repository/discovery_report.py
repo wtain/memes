@@ -5,7 +5,7 @@ docs/superpowers/specs/2026-10-26-meme-popularity/2026-11-01-s4-discovery-report
 """
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -139,3 +139,93 @@ async def memes_report(session: AsyncSession, *, window_days: int, sources: tupl
         saves=int(row.saves), impressions=None if row.impressions is None else int(row.impressions),
         impressions_window=None if row.impressions_window is None else int(row.impressions_window),
         last_back=row.last_back, per_100=row.per_100) for row in rows], available
+
+
+QUERY_KINDS = ("search", "meme_text", "all")
+QUERY_SORTS = ("times", "last", "min_results")
+TAIL_PAGE_MINUTES = 30
+
+_QUERY_ORDER = {
+    "times": "times DESC, last_at DESC",
+    "last": "last_at DESC, times DESC",
+    "min_results": "min_results ASC, times DESC",
+}
+
+
+@dataclass(frozen=True)
+class QueryRow:
+    query: str          # normalised (lower-cased, whitespace collapsed); "" when the search had no text
+    tags: str           # "category:value" pairs, sorted, joined by ","; "" when none
+    kind: str
+    times: int
+    first_at: datetime
+    last_at: datetime
+    min_results: int
+    avg_results: float
+    web: int
+    android: int
+    degraded: int
+    fallbacks: str      # distinct fallback reasons joined by ","
+
+
+# Every page of a search writes its own row and the row does not say whether it came from a cursor, so a low count
+# right after a higher one (same normalised query, same client, within TAIL_PAGE_MINUTES) is the last page of a search
+# that worked, not a failure. recent_max includes the row itself, so `recent_max > result_count` means a higher
+# count came before it. An empty page is always a failure.
+_QUERIES_SQL = f"""
+    WITH h AS (
+        SELECT s.id, s.searched_at, s.kind, s.client, s.result_count, s.degraded, s.fallback,
+               lower(regexp_replace(btrim(coalesce(s.query, '')), '\\s+', ' ', 'g')) AS qn,
+               coalesce((SELECT string_agg(t.category || ':' || t.value, ',' ORDER BY t.category, t.value)
+                         FROM search_history_tags t WHERE t.search_id = s.id), '') AS tag_text
+        FROM search_history s
+        WHERE (:kind = 'all' OR s.kind = :kind)
+          AND (CAST(:since AS timestamptz) IS NULL
+               OR s.searched_at >= CAST(:since AS timestamptz) - interval '{TAIL_PAGE_MINUTES} minutes')
+    ),
+    f AS (
+        SELECT h.*, max(h.result_count) OVER (
+                   PARTITION BY h.kind, h.qn, h.tag_text, h.client ORDER BY h.searched_at
+                   RANGE BETWEEN INTERVAL '{TAIL_PAGE_MINUTES} minutes' PRECEDING AND CURRENT ROW) AS recent_max
+        FROM h
+    )
+    SELECT f.qn AS query, f.tag_text AS tags, f.kind, count(*) AS times, min(f.searched_at) AS first_at,
+           max(f.searched_at) AS last_at, min(f.result_count) AS min_results,
+           avg(f.result_count)::float8 AS avg_results,
+           count(*) FILTER (WHERE f.client = 'web') AS web,
+           count(*) FILTER (WHERE f.client = 'android') AS android,
+           count(*) FILTER (WHERE f.degraded IS TRUE) AS degraded,
+           coalesce(string_agg(DISTINCT f.fallback, ','), '') AS fallbacks
+    FROM f
+    WHERE (CAST(:since AS timestamptz) IS NULL OR f.searched_at >= CAST(:since AS timestamptz))
+      AND (f.result_count = 0
+           OR (f.result_count <= :max_results AND NOT f.recent_max > f.result_count)
+           OR (CAST(:include_degraded AS boolean) AND (f.degraded IS TRUE OR f.fallback IS NOT NULL)))
+    GROUP BY f.qn, f.tag_text, f.kind
+    HAVING count(*) >= :min_times
+    ORDER BY {{order}}, f.qn, f.tag_text
+    LIMIT :limit
+"""
+
+
+async def queries_report(session: AsyncSession, *, kind: str = "search", max_results: int = 3,
+                         include_degraded: bool = False, since_days: int | None = None, min_times: int = 1,
+                         sort: str = "times", limit: int = 50) -> list[QueryRow]:
+    """Searches that found nothing or little, grouped by normalised query and facet pairs (see the tail-page rule
+    above). Reads search_history only."""
+    if kind not in QUERY_KINDS:
+        raise ValueError(f"unknown kind {kind!r}; choose one of {', '.join(QUERY_KINDS)}")
+    if sort not in _QUERY_ORDER:
+        raise ValueError(f"unknown sort {sort!r}; choose one of {', '.join(QUERY_SORTS)}")
+    if max_results < 0 or min_times < 1 or limit < 1:
+        raise ValueError("max_results must be >= 0, min_times and limit >= 1")
+    since = None if since_days is None else datetime.now(timezone.utc) - timedelta(days=since_days)
+    statement = _QUERIES_SQL.format(order=_QUERY_ORDER[sort])
+    rows = (await session.execute(text(statement), {
+        "kind": kind, "since": since, "max_results": max_results, "include_degraded": include_degraded,
+        "min_times": min_times, "limit": limit})).all()
+    return [QueryRow(
+        query=row.query, tags=row.tags, kind=row.kind, times=int(row.times), first_at=row.first_at,
+        last_at=row.last_at, min_results=int(row.min_results), avg_results=float(row.avg_results),
+        web=int(row.web), android=int(row.android), degraded=int(row.degraded), fallbacks=row.fallbacks)
+        for row in rows]
