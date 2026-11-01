@@ -1,7 +1,7 @@
 # Meme popularity (epic)
 
 Status: approved
-Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md` (done), `2026-10-29-p5-ranking-and-trending-design.md` (done), `2026-11-01-s1-search-impressions-design.md` (implementation); the signals tracker below lists the future projects
+Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md` (done), `2026-10-29-p5-ranking-and-trending-design.md` (done), `2026-11-01-s1-search-impressions-design.md` (done); the signals tracker below lists the future projects
 
 ## Intent
 
@@ -110,7 +110,7 @@ hard to find in this app, or both (the owner googles a meme they cannot find and
 
 | # | Signal / project | Why it matters | State |
 |---|---|---|---|
-| S1 | **Search-result appearance frequency**: how often a meme is shown in results | A meme that appears often but is never saved is a ranking problem; one that never appears is invisible | implementation: `2026-11-01-s1-search-impressions-design.md` |
+| S1 | **Search-result appearance frequency**: how often a meme is shown in results | A meme that appears often but is never saved is a ranking problem; one that never appears is invisible | done: `2026-11-01-s1-search-impressions-design.md` |
 | S2 | **Save frequency**: how often a meme is saved with "save" in the app | The strongest "this was useful" signal the app can see | done: `2026-10-30-s2-save-count-design.md` |
 | S3 | **Trending time window** (for example the last 30 days) | Separates "was popular once" from "is being re-dropped now"; the absorption log already has `created_at`, so no remodelling | done: `2026-10-30-s3-trending-window-design.md` |
 | S4 | **Discovery: why the owner googles instead of finding the meme here**, including capturing failed searches | Re-ingestion mixes "popular" and "hard to find"; failed searches would separate them | needs its own brainstorm |

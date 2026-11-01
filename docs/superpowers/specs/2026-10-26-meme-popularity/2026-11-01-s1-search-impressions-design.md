@@ -1,6 +1,6 @@
 # S1: Search impressions on the meme details page
 
-Status: implementation
+Status: done
 Plan: `docs/superpowers/plans/2026-11-01-s1-search-impressions.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; signals tracker row S1)
 Follow-ups: none yet
