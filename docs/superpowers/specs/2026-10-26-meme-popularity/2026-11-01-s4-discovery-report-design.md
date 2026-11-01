@@ -3,7 +3,7 @@
 Status: done
 Plan: `docs/superpowers/plans/2026-11-01-s4-discovery-report.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; signals tracker row S4)
-Follow-ups: none yet
+Follow-ups: `2026-11-01-s6-failed-search-capture-design.md`
 
 ## Purpose
 
