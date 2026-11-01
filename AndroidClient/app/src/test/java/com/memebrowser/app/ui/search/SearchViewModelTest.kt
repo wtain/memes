@@ -237,4 +237,56 @@ class SearchViewModelTest {
 
         assertNull(handle.get<String>("pending_tag"))
     }
+
+    // --- search id for the failed-search capture (epic meme-popularity, S6) ---
+
+    @Test
+    fun `the search id of the response is kept in the state`() = runTest {
+        coEvery { repo.search(any(), any(), any(), any()) } returns Result.success(fakeSearchPage1.copy(searchId = "s1"))
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+
+        viewModel.state.test { assertEquals("s1", awaitItem().searchId) }
+    }
+
+    @Test
+    fun `loadMore replaces the id with the new page's id and keeps it when the page has none`() = runTest {
+        coEvery { repo.search(null, null, null, any()) } returns Result.success(fakeSearchPage1.copy(searchId = "s1"))
+        coEvery { repo.search(null, null, "cursor-abc", any()) } returns Result.success(fakeSearchPage2.copy(searchId = "s2"))
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel.loadMore()
+        viewModel.state.test { assertEquals("s2", awaitItem().searchId) }
+
+        coEvery { repo.search(null, null, "cursor-abc", any()) } returns Result.success(fakeSearchPage2)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel.loadMore()
+        viewModel.state.test { assertEquals("s1", awaitItem().searchId) }
+    }
+
+    @Test
+    fun `a new search whose response has no id clears the id`() = runTest(mainDispatcherRule.dispatcher) {
+        coEvery { repo.search(null, null, null, any()) } returns Result.success(fakeSearchPage1.copy(searchId = "s1"))
+        coEvery { repo.search("cats", null, null, any()) } returns Result.success(fakeSearchPage1)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        advanceTimeBy(500)
+        assertEquals("s1", viewModel.state.value.searchId)
+
+        viewModel.onQueryChange("cats")
+        advanceTimeBy(500)
+
+        assertNull(viewModel.state.value.searchId)
+    }
+
+    @Test
+    fun `switching environment drops the id of the previous environment`() = runTest(mainDispatcherRule.dispatcher) {
+        coEvery { repo.search(any(), any(), any(), any()) } returnsMany listOf(
+            Result.success(fakeSearchPage1.copy(searchId = "s1")), Result.success(fakeSearchPage1))
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        advanceTimeBy(500)
+        assertEquals("s1", viewModel.state.value.searchId)
+
+        selectedEnvId.value = "env-2"
+        advanceTimeBy(500)
+
+        assertNull(viewModel.state.value.searchId)
+    }
 }

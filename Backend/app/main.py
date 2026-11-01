@@ -32,6 +32,7 @@ from Backend.app.services.meme_from_text_pipeline import get_pipeline
 from Backend.app.services.query_parser import get_query_parser
 from config.settings import settings
 from repository.meme_impressions import validate_impression_settings
+from repository.search_outcomes import validate_outcome_settings
 from repository.search_ranking import validate_search_settings
 
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
@@ -90,6 +91,7 @@ async def lifespan(_app: FastAPI):
     _configure_logging()
     validate_search_settings()  # deliberately uncaught: a bad ranking setting must stop the app from starting
     validate_impression_settings()  # likewise for popularity.impressions.*
+    validate_outcome_settings()  # and popularity.search_outcomes.*
     try:
         get_query_parser()    # builds and registers the parser (no Ollama call); a failure must not stop the app
     except Exception as error:

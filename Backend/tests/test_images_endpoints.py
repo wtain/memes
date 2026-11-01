@@ -1760,7 +1760,15 @@ class TestMemeSaves:
         assert response.status_code == 204
         assert response.content == b""
         assert "no-cache" in response.headers["cache-control"]
-        mock_image_service.record_save.assert_called_once_with(self.ID)
+        mock_image_service.record_save.assert_called_once_with(self.ID, None)
+
+    def test_post_passes_the_search_id_query_parameter(self, client, mock_image_service):
+        mock_image_service.record_save.return_value = None
+
+        response = client.post(f"/api/images/meme/{self.ID}/saves?searchId=abc-123")
+
+        assert response.status_code == 204
+        mock_image_service.record_save.assert_called_once_with(self.ID, "abc-123")
 
     def test_get_returns_three_camel_case_keys(self, client, mock_image_service):
         from Backend.app.types.generated.memesaves import Schema as MemeSaves

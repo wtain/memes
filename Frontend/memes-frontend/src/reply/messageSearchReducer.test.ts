@@ -150,3 +150,28 @@ describe("listReading", () => {
     expect(reducer(edited, { type: "findStarted", submitted: "n" }).listReading).toBe("parsed")
   })
 })
+
+describe("search id (S6)", () => {
+  const request = { text: "t", limit: 20 }
+  const succeed = (state: State, mode: "find" | "refine" | "more", searchId?: string) =>
+    reducer(state, { type: "succeeded", mode, response: makeResponse({ items: [makeResult("a")], searchId }), request })
+
+  it("a find stores the id of the fresh search, or none when the response has none", () => {
+    expect(succeed({ ...base, status: "reading" }, "find", "s1").searchId).toBe("s1")
+    expect(succeed({ ...base, searchId: "old", status: "reading" }, "find").searchId).toBeNull()
+  })
+
+  it("a new find clears the previous id while it runs", () => {
+    expect(reducer({ ...base, searchId: "s1" }, { type: "findStarted", submitted: "n" }).searchId).toBeNull()
+  })
+
+  it("a refine or show-more response without an id keeps the id of the fresh search", () => {
+    const fresh = { ...base, searchId: "s1" }
+    expect(succeed({ ...fresh, status: "refining" }, "refine").searchId).toBe("s1")
+    expect(succeed({ ...fresh, items: [makeResult("z")] }, "more").searchId).toBe("s1")
+  })
+
+  it("a refine or show-more response that does carry an id replaces it", () => {
+    expect(succeed({ ...base, searchId: "s1", status: "refining" }, "refine", "s2").searchId).toBe("s2")
+  })
+})

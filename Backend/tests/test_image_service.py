@@ -712,6 +712,40 @@ class TestSearchCursor:
         assert kwargs["cursor_created_at"] == created_at and kwargs["cursor_id"] == image_id
 
 
+class TestSearchId:
+    """S6: the response carries the id of the search_history row for a real search only."""
+
+    @pytest.fixture
+    def wired(self, service, mock_repo, monkeypatch):
+        mock_repo.search.return_value = ([], {})
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+        self.history_id = uuid.uuid4()
+        monkeypatch.setattr(ImageService, "_record_history", AsyncMock(return_value=self.history_id))
+        return service
+
+    async def test_a_text_search_returns_the_history_id(self, wired):
+        result = await wired.search(q="cat", raw_facets=None, cursor=None, limit=10)
+        assert result.searchId == str(self.history_id)
+
+    async def test_a_facet_only_search_returns_the_history_id(self, wired):
+        result = await wired.search(q=None, raw_facets="topic:work", cursor=None, limit=10)
+        assert result.searchId == str(self.history_id)
+
+    async def test_the_unfiltered_browse_feed_has_no_search_id(self, wired):
+        result = await wired.search(q="  ", raw_facets=None, cursor=None, limit=10)
+        assert result.searchId is None
+
+    async def test_switch_off_means_no_search_id(self, wired, monkeypatch):
+        monkeypatch.setattr("Backend.app.services.image_service.outcomes_enabled", lambda: False)
+        result = await wired.search(q="cat", raw_facets=None, cursor=None, limit=10)
+        assert result.searchId is None
+
+    async def test_a_failed_history_write_means_no_search_id(self, wired, monkeypatch):
+        monkeypatch.setattr(ImageService, "_record_history", AsyncMock(return_value=None))
+        result = await wired.search(q="cat", raw_facets=None, cursor=None, limit=10)
+        assert result.searchId is None
+
+
 class TestPopularity:
     IMAGE_ID = "550e8400-e29b-41d4-a716-446655440000"
 

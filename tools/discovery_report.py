@@ -3,6 +3,7 @@ visible they are, and which searches found nothing or little.
 
     python -m tools.discovery_report memes   --env general
     python -m tools.discovery_report queries --env general --kind all --include-degraded
+    python -m tools.discovery_report misses  --env general --gap-minutes 5
 
 Reads DATABASE_URL_READONLY from the shell (never the main DATABASE_URL), opens its own short-lived read-only
 connection, refuses a role that can write, never imports Storage.db and never prints the database URL. Query text is
@@ -20,8 +21,8 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from repository.discovery_report import (DEFAULT_SOURCES, MEME_SORTS, QUERY_KINDS, QUERY_SORTS, MemeRow, QueryRow,
-                                         memes_report, queries_report)
+from repository.discovery_report import (DEFAULT_SOURCES, MEME_SORTS, MISS_SORTS, QUERY_KINDS, QUERY_SORTS, MemeRow,
+                                         MissRow, QueryRow, memes_report, misses_report, queries_report)
 from repository.meme_impressions import window_days
 from Storage.models import PopularitySource
 from tools import rollout_preflight as rp
@@ -30,6 +31,7 @@ MEME_HEADERS = ["id", "filename", "redrops", "redrops_window", "sources", "popul
                 "impressions_window", "last_back", "per_100"]
 QUERY_HEADERS = ["query", "tags", "kind", "times", "first_at", "last_at", "min_results", "avg_results", "web",
                  "android", "degraded", "fallbacks"]
+MISS_HEADERS = ["query", "tags", "kind", "times", "explicit", "searches", "first_at", "last_at", "web", "android"]
 
 
 def _positive(value: str) -> int:
@@ -78,6 +80,13 @@ def build_parser() -> argparse.ArgumentParser:
     queries.add_argument("--since-days", type=_positive, default=None)
     queries.add_argument("--min-times", type=_positive, default=1)
     queries.add_argument("--sort", choices=QUERY_SORTS, default="times")
+    misses = commands.add_parser("misses", parents=[common], help="search sessions that ended without a save")
+    misses.add_argument("--gap-minutes", type=_positive, default=5, help="pause that ends a session (default 5)")
+    misses.add_argument("--kind", choices=QUERY_KINDS, default="search")
+    misses.add_argument("--since-days", type=_positive, default=None)
+    misses.add_argument("--min-times", type=_positive, default=1)
+    misses.add_argument("--explicit-only", action="store_true", help="only sessions with a web 'didn't find it' press")
+    misses.add_argument("--sort", choices=MISS_SORTS, default="times")
     return parser
 
 
@@ -107,6 +116,12 @@ def query_table(rows: list[QueryRow]) -> tuple[list[str], list[list[str]]]:
         row.query or "(no text)", row.tags, row.kind, str(row.times), _stamp(row.first_at), _stamp(row.last_at),
         str(row.min_results), f"{row.avg_results:.1f}", str(row.web), str(row.android), str(row.degraded),
         row.fallbacks] for row in rows]
+
+
+def miss_table(rows: list[MissRow]) -> tuple[list[str], list[list[str]]]:
+    return MISS_HEADERS, [[
+        row.query or "(no text)", row.tags, row.kind, str(row.times), str(row.explicit), f"{row.searches:.1f}",
+        _stamp(row.first_at), _stamp(row.last_at), str(row.web), str(row.android)] for row in rows]
 
 
 def format_table(headers: list[str], rows: list[list[str]]) -> str:
@@ -145,6 +160,19 @@ async def _run_session(session, args, url: str | None = None) -> int:
             title = (f"Discovery report: memes ({args.env}, window {args.window_days} days, "
                      f"sources: {', '.join(sources)}, {len(rows)} rows)")
             note = None if available else "impressions are n/a: the meme_impressions table does not exist here yet"
+        elif args.command == "misses":
+            report = await misses_report(
+                session, gap_minutes=args.gap_minutes, kind=args.kind, since_days=args.since_days,
+                min_times=args.min_times, explicit_only=args.explicit_only, sort=args.sort, limit=args.limit)
+            rows = report.rows
+            headers, cells = miss_table(rows)
+            cutoff = "n/a" if report.cutoff is None else report.cutoff.strftime("%Y-%m-%d")
+            title = (f"Discovery report: misses ({args.env}, kind {args.kind}, gap {args.gap_minutes} min, "
+                     f"outcome data since {cutoff}, {len(rows)} rows)")
+            note = {"no_schema": "the S6 migration has not run here yet: no outcome data to report",
+                    "no_outcomes": "no linked save or 'didn't find it' press has been recorded yet",
+                    "ok": "sessions are a time-gap approximation; sessions before the outcome data began are invisible",
+                    }[report.status]
         else:
             rows = await queries_report(
                 session, kind=args.kind, max_results=args.max_results, include_degraded=args.include_degraded,
@@ -163,7 +191,7 @@ async def _run_session(session, args, url: str | None = None) -> int:
         print(f"note: {note}")
     if args.csv:
         write_csv(args.csv, headers, cells)
-        if args.command == "queries":
+        if args.command in ("queries", "misses"):
             print(f"note: {args.csv} contains search text; keep it out of the repository", file=sys.stderr)
         else:
             print(f"wrote {args.csv}", file=sys.stderr)

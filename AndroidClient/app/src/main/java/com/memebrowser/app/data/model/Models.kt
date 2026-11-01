@@ -612,7 +612,8 @@ data class MemeSearchResponse(
     @SerialName("facets") val facets: List<Facet>? = null,
     @SerialName("nextCursor") val nextCursor: String? = null,
     @SerialName("hasNext") val hasNext: Boolean? = null,
-    @SerialName("previousCursor") val previousCursor: String? = null
+    @SerialName("previousCursor") val previousCursor: String? = null,
+    @SerialName("searchId") val searchId: String? = null
 )
 
 @Serializable
@@ -635,6 +636,7 @@ data class MemeFromTextResponse(
     @SerialName("facets") val facets: List<Facet>? = null,
     @SerialName("nextCursor") val nextCursor: String? = null,
     @SerialName("hasNext") val hasNext: Boolean,
+    @SerialName("searchId") val searchId: String? = null,
     @SerialName("profile") val profile: QueryProfile,
     @SerialName("degraded") val degraded: Boolean,
     @SerialName("fallback") val fallback: String,

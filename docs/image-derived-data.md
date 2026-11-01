@@ -42,8 +42,9 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | `processing_errors` | none | Not copied | produced by the jobs |
 | `image_metrics` | none | Not copied | produced by the jobs |
 | `popularity_absorptions` | none | Not copied; it has no foreign key to `images` (plain ids, so history survives deletion). A cut's `images.popularity` is set by the recut approval edge (popularity epic P2), never copied | not applicable |
-| `meme_saves` | none | Not copied; it has no foreign key to `images` (plain ids, so history survives deletion). A cut starts with no saves | not applicable |
+| `meme_saves` | none | Not copied; it has no foreign key to `images` (plain ids, so history survives deletion). A cut starts with no saves. Its `search_history_id` links a save to the search that led to it (S6), also without a foreign key | not applicable |
 | `meme_impressions` | none | Not copied; it has no foreign keys (plain image and search-history ids, so history survives deletion and a cleared search history). A cut starts with no impressions | not applicable |
+| `search_not_found` | none | Not copied; it has no foreign keys and no image column (one "I didn't find it" press per search-history id, S6). Not tied to any image | not applicable |
 
 `images.popularity` is a column of `images`, not a table: a new image starts at 1, and a cut gets its popularity from the recut approval edge (popularity epic P2), never by copying the source's value.
 

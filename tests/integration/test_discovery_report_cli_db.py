@@ -60,6 +60,47 @@ async def test_the_queries_view_prints_the_text_to_stdout_only(db_session, capsy
     assert "quokka nightmare" in csv_path.read_text(encoding="utf-8")
 
 
+async def seed_miss(session):
+    from datetime import timedelta
+    from Storage.models import SearchNotFound
+    import uuid
+    long_ago = datetime.now(timezone.utc) - timedelta(days=3)
+    session.add(SearchNotFound(search_history_id=uuid.uuid4(), created_at=long_ago - timedelta(days=1)))
+    session.add(SearchHistory(searched_at=long_ago, query="lost quokka", client="android", result_count=7,
+                              kind="search"))
+    await session.flush()
+
+
+async def test_the_misses_view_prints_the_text_to_stdout_only(db_session, capsys, caplog, tmp_path):
+    await seed_miss(db_session)
+    await become_readonly(db_session)
+    csv_path = tmp_path / "misses.csv"
+    with caplog.at_level(logging.DEBUG):
+        code = await cli._run_session(db_session, parse("misses", "--env", "general", "--csv", str(csv_path)))
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "Discovery report: misses (general" in captured.out and "gap 5 min" in captured.out
+    assert "lost quokka" in captured.out and "lost quokka" not in caplog.text
+    assert "contains search text" in captured.err
+    assert "lost quokka" in csv_path.read_text(encoding="utf-8")
+
+
+async def test_the_misses_view_says_so_when_there_is_no_outcome_data_yet(db_session, capsys):
+    await become_readonly(db_session)
+    code = await cli._run_session(db_session, parse("misses", "--env", "general"))
+    out = capsys.readouterr().out
+    assert code == 0 and "0 rows" in out and "no linked save" in out
+
+
+async def test_the_misses_view_says_so_before_the_migration(db_session, capsys):
+    from sqlalchemy import text
+    await db_session.execute(text("DROP TABLE search_not_found"))
+    await become_readonly(db_session)
+    code = await cli._run_session(db_session, parse("misses", "--env", "general"))
+    out = capsys.readouterr().out
+    assert code == 0 and "migration has not run" in out
+
+
 async def test_no_csv_is_written_and_no_reminder_printed_without_the_option(db_session, capsys, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     await become_readonly(db_session)

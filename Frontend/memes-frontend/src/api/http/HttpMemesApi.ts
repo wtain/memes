@@ -280,6 +280,17 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
+  async reportNotFound(searchId: string): Promise<void> {
+    const response = await fetch(
+      `${this.baseUrl}/api/history/${encodeURIComponent(searchId)}/not-found`,
+      { method: "POST" }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to report: ${response.status}`)
+    }
+  }
+
   async setDescriptionFeedback(imageId: string, promptKey: string, action: "approve" | "reject"): Promise<{ feedback?: string }> {
     const response = await fetch(
       `${this.baseUrl}/api/images/${imageId}/descriptions/${promptKey}/${action}`,

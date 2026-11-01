@@ -386,6 +386,7 @@ Search for memes with optional query, facets, and pagination.
 - **Ordering**: with a non-empty `q`, results are ordered by relevance (per-token best hit, source weight x match-tier weight, summed across tokens) plus a small capped popularity bonus (`weight * min(log2(popularity), max_log2)`, from `search.ranking.popularity.weight` and `.max_log2`; weight 0 turns it off), then by recency. Without `q` they are ordered by recency (unchanged). `nextCursor` stays an opaque string; relevance pages embed the score in it. A cursor in the other format (e.g. a recency cursor sent with `q`) is ignored and the listing restarts at the first page. Weights live in `search.ranking.*` in `environments/settings.yaml`.
 - **Pagination contract**: `nextCursor` addresses the last returned item, so the next page neither skips nor repeats a result. This holds for `GET /api/images` (search), `GET /api/images/untagged`, `GET /api/images/no-ocr` and `GET /api/images/flagged`.
 - **Response**: `MemeSearchResponse`
+- **`searchId`** (optional string): the id of the `search_history` row this search wrote, for the client to pass on with a save (`POST /api/images/meme/{image_id}/saves?searchId=`) or a miss (`POST /api/history/{search_id}/not-found`), epic meme-popularity S6. Absent for the unfiltered browse feed (no `q`, no facets), when the history write failed, and when `popularity.search_outcomes.enabled` is false.
 - **Impressions**: every image in the returned page is recorded as a search impression in `meme_impressions` (epic meme-popularity, S1), "show more" pages included, but only when the request has a non-blank `q` or at least one facet: a listing with neither is the browse feed (Explore, the empty Search page) and is not recorded. Rank is the 1-based position within the page. Best effort: a failed write is logged and never changes the response; `popularity.impressions.enabled: false` switches it off. Needs the S1 migration (`meme_impressions`). Read the counts with `GET /api/images/meme/{image_id}/impressions`.
 - **Cache**: no-cache
 - **Example**: `GET /api/images?q=funny&limit=50`
@@ -572,6 +573,11 @@ succeeded. Needs the S2 migration (`meme_saves`).
 - **Method**: `POST`
 - **Path Parameters**:
   - `image_id`: Unique identifier of the image (UUID); an image of any status is accepted
+- **Query Parameters**:
+  - `searchId` (optional): the `searchId` of the search that led to this save (epic meme-popularity, S6). It links the
+    save to that `search_history` row (`meme_saves.search_history_id`) so the discovery report's `misses` view can tell
+    a search that ended in a save from one that did not. A malformed value is ignored; when the link cannot be stored
+    (switch `popularity.search_outcomes.enabled` off, or the S6 migration has not run) the save is still recorded without it
 - **Body**: none
 - **Response**: `204`, no body
 - **Idempotency**: none. Every call counts, repeat saves of the same meme included, so a client must not retry
@@ -819,6 +825,7 @@ Finds memes that make a good reply to a pasted message (English, Russian or Span
   - `filters` (object, optional): `emotion`, `stance`, `topic`, `tone` (arrays of taxonomy keys) and `tags` (array of `{ "key", "value" }`). Values within one axis are OR-ed, different axes are AND-ed; a tag filter matches any of the listed pairs. Each array holds at most 64 entries and every key, value or tag string is at most 128 characters
   - `cursor` (string, optional): opaque cursor from a previous response; it is tied to the same request (text, profile and filters); at most 512 characters
   - `limit` (integer, optional, 1 to 50, default 20)
+- **`searchId`** (optional string): the id of the message's `search_history` row, present only on the response to a fresh message that was logged (a refine, filter change or "show more" has none; a client keeps the fresh search's id for those) and only while `popularity.search_outcomes.enabled` is true.
 - **Impressions**: the returned items are recorded as `reply` impressions (every page, "show more" included; rank is the position within the page), with the same best-effort rule as in Search Images. The impression carries the id of the message's `search_history` row only for a fresh message that was logged; otherwise it has none. It stores no message text.
 - **Response**: `MemeFromTextResponse`
   - `items` (array of `MemeFromTextResult`):
@@ -1144,6 +1151,18 @@ Time series of label/name counts across all runs.
 ### Search History
 
 Search history is recorded automatically as a side-effect of `GET /api/images` — there is no separate write endpoint. The client identity (`web` or `android`) is inferred from the `User-Agent` header (`okhttp/*` → `android`, anything else → `web`).
+
+#### Report "I didn't find it"
+
+The web's explicit miss for one search (epic meme-popularity, S6). Needs the S6 migration (`search_not_found`).
+
+- **URL**: `/api/history/{search_id}/not-found`
+- **Method**: `POST`
+- **Path Parameters**:
+  - `search_id`: the `searchId` returned by a search response
+- **Response**: `204`, no body, for any value (an unknown, pruned or malformed id is not an error). Best effort: the press
+  is stored once per search (a repeat is a no-op); with `popularity.search_outcomes.enabled: false` nothing is stored
+- **Cache**: no-cache
 
 #### Get Search History
 

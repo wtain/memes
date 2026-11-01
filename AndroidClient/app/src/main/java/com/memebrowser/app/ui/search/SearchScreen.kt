@@ -94,7 +94,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    onMemeClick: (String) -> Unit,
+    onMemeClick: (memeId: String, searchId: String?) -> Unit,
     onEnvironmentsClick: () -> Unit,
     onFlaggedClick: () -> Unit,
     onUploadClick: () -> Unit = {},
@@ -228,7 +228,7 @@ fun SearchScreen(
                         items = state.items,
                         hasNext = state.hasNext,
                         isLoadingMore = state.isLoadingMore,
-                        onMemeClick = onMemeClick,
+                        onMemeClick = { memeId -> onMemeClick(memeId, state.searchId) },
                         onLoadMore = viewModel::loadMore
                     )
                 }

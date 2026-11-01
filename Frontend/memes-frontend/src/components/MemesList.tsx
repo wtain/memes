@@ -10,6 +10,8 @@ type MemesListProps = {
   memesApi: MemesApi
   filter?: string
   onFacetsChanged?: (facets: Facet[]) => void
+  /** The id of the search_history row of the page just fetched (null for none); only text searches report one. */
+  onSearchId?: (searchId: string | null) => void
   tagFilters?: Record<string, string[]>
   listUntagged?: boolean
   listFlagged?: boolean
@@ -35,11 +37,12 @@ function chunkIntoAlignedRows(items: Meme[], globalStart: number): Meme[][] {
   return rows
 }
 
-export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listUntagged, listFlagged, listNoOcr, listRecommendations }: MemesListProps) {
+export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFilters, listUntagged, listFlagged, listNoOcr, listRecommendations }: MemesListProps) {
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null)
 
   const fetchPage: FetchPageFn = useCallback(async (cursor) => {
     if (filter && filter.length > 0 && filter.length < 2) {
+      onSearchId?.(null)
       return { items: [], hasNext: false }
     }
 
@@ -60,6 +63,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
       response = await memesApi.getRecommendations(filter, 36, cursor)
     } else {
       response = await memesApi.searchMemes({ cursor, limit: 36, query: filter, tags })
+      onSearchId?.(response.searchId ?? null)
     }
 
     if (onFacetsChanged) onFacetsChanged(response.facets ?? [])
@@ -69,7 +73,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, tagFilters, listU
       nextCursor: response.nextCursor,
       hasNext: response.hasNext,
     }
-  }, [filter, tagFilters, memesApi, onFacetsChanged, listUntagged, listFlagged, listNoOcr, listRecommendations])
+  }, [filter, tagFilters, memesApi, onFacetsChanged, onSearchId, listUntagged, listFlagged, listNoOcr, listRecommendations])
 
   const resetKey = `${filter ?? ""}:${JSON.stringify(tagFilters ?? {})}:${listUntagged}:${listFlagged}:${listNoOcr}:${listRecommendations}`
 

@@ -6,6 +6,7 @@ import { useState } from "react"
 import type { Facet } from "../types/generated/all"
 import type { MemesApi } from "../api/MemesApi"
 import { MemesList } from "../components/MemesList"
+import NotFoundButton from "../components/NotFoundButton"
 import { useDebounce } from "../utils/useDebounce"
 
 type SearchPageProps = {
@@ -24,6 +25,7 @@ export default function SearchPage({ memesApi }: SearchPageProps) {
     const [debouncedQuery, setDebouncedQuery] = useDebounce<string>(query, 300);
 
     const [facets, setFacets] = useState<Facet[]>([])
+    const [searchId, setSearchId] = useState<string | null>(null)
 
 
     function updateSearch(
@@ -69,8 +71,11 @@ export default function SearchPage({ memesApi }: SearchPageProps) {
             onFacetsChanged={(facets: Facet[]) => {
               setFacets(facets)
             }}
+            onSearchId={setSearchId}
             tagFilters={filters}
           />
+
+          {searchId && <NotFoundButton key={searchId} memesApi={memesApi} searchId={searchId} />}
 
         </section>
 

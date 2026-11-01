@@ -68,4 +68,18 @@ describe('SearchPage', () => {
       )
     })
   })
+
+  it("offers 'I didn't find it' when the search has an id, and reports that id", async () => {
+    const api = makeMockApi({ searchMemes: vi.fn().mockResolvedValue({ items: [], hasNext: false, searchId: 's1' }) })
+    renderPage(api, '?q=cats')
+    fireEvent.click(await screen.findByRole('button', { name: "I didn't find it" }))
+    await waitFor(() => expect(api.reportNotFound).toHaveBeenCalledWith('s1'))
+  })
+
+  it("has no 'I didn't find it' button when the response carries no search id", async () => {
+    const api = makeMockApi({ searchMemes: vi.fn().mockResolvedValue({ items: [], hasNext: false }) })
+    renderPage(api, '?q=cats')
+    await waitFor(() => expect(api.searchMemes).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: "I didn't find it" })).not.toBeInTheDocument()
+  })
 })

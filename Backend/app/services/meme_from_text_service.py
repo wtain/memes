@@ -3,6 +3,7 @@ from typing import Optional
 
 from Backend.app.types.generated.memefromtextrequest import Schema as MemeFromTextRequest
 from Backend.app.types.generated.memefromtextresponse import Schema as MemeFromTextResponse
+from repository.search_outcomes import outcomes_enabled
 from parse.language import guess_language
 from parse.parser import normalise_text
 from parse.prompt import PARSER_VERSION
@@ -103,6 +104,8 @@ class MemeFromTextService:
         }
         if result.next_cursor:
             payload["nextCursor"] = result.next_cursor
+        if search_history_id is not None and outcomes_enabled():
+            payload["searchId"] = str(search_history_id)
         return MemeFromTextResponse.model_validate(payload)
 
     async def _hydrate(self, items: list[dict]) -> None:

@@ -95,6 +95,18 @@ class MemeDetailViewModelTest {
     }
 
     @Test
+    fun `save sends the search id the detail screen was opened with`() = runTest {
+        val context = stubSaveEnvironment()
+        viewModel = MemeDetailViewModel(
+            SavedStateHandle(mapOf("memeId" to "meme-1", "searchId" to "s1")), repo, envRepo)
+
+        viewModel.saveToGallery(context)
+        awaitSaveSettled()
+
+        coVerify(exactly = 1, timeout = 5_000) { repo.recordSave("meme-1", "s1") }
+    }
+
+    @Test
     fun `a failing report does not fail the save`() = runTest {
         val context = stubSaveEnvironment()
         coEvery { repo.recordSave("meme-1") } returns Result.failure(RuntimeException("boom"))

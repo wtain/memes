@@ -18,6 +18,7 @@
     },
     "nextCursor": { "type": "string" },
     "hasNext": { "type": "boolean" },
-    "previousCursor": { "type": "string" }
+    "previousCursor": { "type": "string" },
+    "searchId": { "type": "string", "description": "Id of the search_history row of this search, when one was stored; absent for the browse feed or when outcome capture is off" }
   }
 }

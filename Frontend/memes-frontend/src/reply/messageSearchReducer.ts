@@ -29,6 +29,9 @@ export type State = {
   listReading: "parsed" | "edited"
   /** Bumped on every successful response; the page uses it to retry a vocabulary load that failed. */
   searchCount: number
+  /** Id of the search_history row of the fresh search that produced the list (epic meme-popularity, S6). Refine and
+   *  show-more responses carry none, so this keeps the fresh search's id; never persisted. */
+  searchId: string | null
 }
 
 export type Action =
@@ -52,7 +55,7 @@ export function initialState(saved: Saved | null): State {
     filters: saved?.filters ?? { ...EMPTY_FILTERS },
     items: [], facets: [], nextCursor: null, hasNext: false, fallback: "none", meta: null, lastRequest: null,
     status: saved?.submitted ? "refining" : "idle",
-    error: null, loadingMore: false, hasList: false, listReading: "parsed", searchCount: 0,
+    error: null, loadingMore: false, hasList: false, listReading: "parsed", searchCount: 0, searchId: null,
   }
 }
 
@@ -73,7 +76,7 @@ export function reducer(state: State, action: Action): State {
       return {
         ...state, submitted: action.submitted, originalProfile: null, editedProfile: null, filters: { ...EMPTY_FILTERS },
         items: [], facets: [], nextCursor: null, hasNext: false, fallback: "none", meta: null, lastRequest: null,
-        status: "reading", error: null, loadingMore: false, hasList: false, listReading: "parsed",
+        status: "reading", error: null, loadingMore: false, hasList: false, listReading: "parsed", searchId: null,
       }
     case "refineStarted":
       return { ...state, status: "refining", error: null }
@@ -88,6 +91,7 @@ export function reducer(state: State, action: Action): State {
         facets: response.facets ?? [], nextCursor: response.nextCursor ?? null, hasNext: response.hasNext,
         fallback: response.fallback, meta: response.meta, status: statusFor(response), error: null, loadingMore: false,
         lastRequest: requestWithoutCursor, hasList: true, listReading, searchCount: state.searchCount + 1,
+        searchId: mode === "find" ? (response.searchId ?? null) : (response.searchId ?? state.searchId),
       }
       if (mode === "more") {
         // When the cached list expires the server recomputes it, and the positional cursor then pages a different
@@ -100,7 +104,7 @@ export function reducer(state: State, action: Action): State {
         const shown = new Set(state.items.map((r) => r.meme.id))
         return {
           ...state, nextCursor: common.nextCursor, hasNext: common.hasNext, error: null, loadingMore: false,
-          lastRequest: requestWithoutCursor, hasList: true, searchCount: common.searchCount,
+          lastRequest: requestWithoutCursor, hasList: true, searchCount: common.searchCount, searchId: common.searchId,
           items: [...state.items, ...response.items.filter((r) => !shown.has(r.meme.id))],
         }
       }

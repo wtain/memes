@@ -119,6 +119,7 @@ apps and old rows are unaffected; `misses` reports that the schema is missing.
 | A3 | **`searchId` is also null when the switch is off**, so a client never shows the button or sends a link that the server will not store. |
 | A4 | **Routes and shapes.** The save link is a query parameter, `POST /api/images/meme/{id}/saves?searchId=...` (the Android call has no body today); a malformed `searchId` is ignored, not a 422. The press lives on the existing history router: `POST /api/history/{searchId}/not-found`. If the link cannot be stored (for example the migration has not run) the save is still recorded without it. |
 | A5 | **Reply pages.** Only a fresh message writes a `search_history` row, so a `/reply` response to a refine or "show more" has no `searchId`; the web keeps the id of the list's fresh search for those. |
+| A6 | **Web sessions are misses only when pressed** (found in the final review). The web has no save action, so an unpressed web session can never be resolved and would drown the Android signal. `misses` therefore counts an unsaved session as a miss when its client is not `web`, and a web session only when the button was pressed. |
 
 ## Out of scope
 
