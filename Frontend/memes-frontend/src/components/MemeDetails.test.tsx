@@ -120,6 +120,32 @@ describe('MemeDetails', () => {
     })
   })
 
+  describe('impressions', () => {
+    it('shows the impression count for the meme', async () => {
+      renderMemeDetails(DEFAULT_MOCK_MEME, {
+        getMemeImpressions: vi.fn().mockResolvedValue({
+          imageId: 'x', count: 7, countWindow: 2, windowDays: 30, lastShownAt: null }),
+      })
+      await waitFor(() => expect(screen.getByTestId('impression-count')).toHaveTextContent('7'))
+    })
+
+    it('never shows the previous meme count after navigating', async () => {
+      const api = makeMockApi({
+        getMemeImpressions: vi.fn()
+          .mockResolvedValueOnce({ imageId: 'meme-A', count: 7, countWindow: 2, windowDays: 30, lastShownAt: null })
+          .mockReturnValueOnce(new Promise(() => {})),
+      })
+      const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+      const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+      const { rerender } = render(<MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>)
+      await waitFor(() => expect(screen.getByTestId('impression-count')).toHaveTextContent('7'))
+      rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+      await act(async () => {})
+      expect(api.getMemeImpressions).toHaveBeenCalledWith('meme-B')
+      expect(screen.queryByTestId('impression-count')).not.toBeInTheDocument()
+    })
+  })
+
   describe('popularity after the flag toggle', () => {
     it('refetches the block once the flag call succeeds and shows the new response', async () => {
       const api = makeMockApi({

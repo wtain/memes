@@ -1,6 +1,6 @@
 # S1: Search impressions on the meme details page
 
-Status: planned
+Status: implementation
 Plan: `docs/superpowers/plans/2026-11-01-s1-search-impressions.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; signals tracker row S1)
 Follow-ups: none yet
@@ -86,6 +86,23 @@ Tests are written first and watched failing.
 - Frontend: the block renders the counts and the window text, and renders nothing on a failed read.
 - Whole roots run: `Backend/tests`, all of `tests/integration`, `tests/docs`, `batch/tests`, `tests/rules`, the
   frontend `tsc -b`, `eslint src/` (0 warnings) and `vitest run`, and the Android unit tests if generated files change.
+
+## Addendum: decisions taken during implementation
+
+- **Rank is page-local on all three surfaces** (N3): neither the search cursor (score, created_at, id) nor the
+  retrieval cursor (score, image id) carries an offset, so a "show more" page restarts at 1.
+- **`search_history_id` is null** for `similar` (it has no history row), for "show more" meme-from-text pages (only a
+  fresh message is logged), and whenever the log is off or its write failed. Search pages each have their own
+  `search_history` row, so they link.
+- **The history writer returns the new row's id**: `HistoryRepository.add` assigns the id itself and
+  `record_history` returns it (or `None` when its separate-session write failed).
+- **`record_impressions` accepts UUIDs or UUID strings** and converts inside its guarded block, so a malformed id is a
+  logged, swallowed failure like any other.
+- **The rollout guards were part of the change**: the new migration is listed in
+  `docs/batches/use-cases/screenshot-recut-rollout.md` (eight migrations, head `a2f6d8c3b715`) and in
+  `tools/rollout_preflight.py` (`REVISION_LABELS`, `EXPECTED`); `tests/docs/` and the preflight tests fail otherwise.
+- **Web**: `ImpressionBlock` uses its own React key (`impressions:<id>`); sharing `meme.id` with the sibling
+  `SaveCountBlock` made React keep the old save count across a navigation.
 
 ## Out of scope
 
