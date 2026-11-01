@@ -1,7 +1,7 @@
 # Meme popularity (epic)
 
 Status: approved
-Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md` (done), `2026-10-29-p5-ranking-and-trending-design.md` (done), `2026-11-01-s1-search-impressions-design.md` (done), `2026-11-01-s4-discovery-report-design.md` (done), `2026-11-01-s6-failed-search-capture-design.md` (draft); the signals tracker below lists the future projects
+Follow-ups: `2026-10-26-p1-data-model-and-absorption-rules-design.md`, `2026-10-27-p2-recording-winners-design.md`, `2026-10-28-p3-api-and-details-page-design.md` (done), `2026-10-29-p4-manual-adjustment-design.md` (done), `2026-10-29-p5-ranking-and-trending-design.md` (done), `2026-11-01-s1-search-impressions-design.md` (done), `2026-11-01-s4-discovery-report-design.md` (done), `2026-11-01-s6-failed-search-capture-design.md` (planned); the signals tracker below lists the future projects
 
 ## Intent
 
@@ -115,7 +115,7 @@ hard to find in this app, or both (the owner googles a meme they cannot find and
 | S3 | **Trending time window** (for example the last 30 days) | Separates "was popular once" from "is being re-dropped now"; the absorption log already has `created_at`, so no remodelling | done: `2026-10-30-s3-trending-window-design.md` |
 | S4 | **Discovery: why the owner googles instead of finding the meme here**, including capturing failed searches | Re-ingestion mixes "popular" and "hard to find"; failed searches would separate them | done: `2026-11-01-s4-discovery-report-design.md`; a read-only report over existing data, no capture |
 | S5 | **Evaluating the ranking boost**: does it help the owner find memes | P5 ships a conservative default without measurement | follow-up once S1/S2 exist |
-| S6 | **Failed-search capture in the clients**: Android treats a search that does not end with a save (the download action) as a miss, no extra tap; the web gets an explicit "didn't find it" button | The direct signal for "hard to find"; S4 only infers it from existing data | draft: `2026-11-01-s6-failed-search-capture-design.md` |
+| S6 | **Failed-search capture in the clients**: Android treats a search that does not end with a save (the download action) as a miss, no extra tap; the web gets an explicit "didn't find it" button | The direct signal for "hard to find"; S4 only infers it from existing data | planned: `2026-11-01-s6-failed-search-capture-design.md` |
 | S7 | **Admin page for the discovery report** | Browsable, with thumbnails and links, built on `repository/discovery_report.py` | after the S4 report has been used on real data |
 
 ## Left to the builder
