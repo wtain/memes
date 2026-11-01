@@ -231,3 +231,116 @@ async def queries_report(session: AsyncSession, *, kind: str = "search", max_res
         last_at=row.last_at, min_results=int(row.min_results), avg_results=float(row.avg_results),
         web=int(row.web), android=int(row.android), degraded=int(row.degraded), fallbacks=row.fallbacks)
         for row in rows]
+
+
+# --- misses view (epic meme-popularity, S6) ---
+
+MISS_SORTS = ("times", "explicit", "last")
+_MISS_ORDER = {
+    "times": "times DESC, last_at DESC",
+    "explicit": "explicit DESC, times DESC, last_at DESC",
+    "last": "last_at DESC, times DESC",
+}
+
+_SCHEMA_SQL = text("""
+    SELECT to_regclass('public.search_not_found') IS NOT NULL
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public'
+                   AND table_name = 'meme_saves' AND column_name = 'search_history_id')
+""")
+_CUTOFF_SQL = text("""
+    SELECT least((SELECT min(created_at) FROM meme_saves WHERE search_history_id IS NOT NULL),
+                 (SELECT min(created_at) FROM search_not_found))
+""")
+
+# Sessions: rows of one client and kind, a new session after a pause longer than :gap minutes. Rows with no query
+# text and no tags are the browse feed, not searches (S6 A1). A session is open (and not reported) while its last
+# row is newer than the gap (A2).
+_MISSES_SQL = """
+    WITH h AS (
+        SELECT s.id, s.searched_at, s.kind, s.client,
+               lower(regexp_replace(btrim(coalesce(s.query, '')), '\\s+', ' ', 'g')) AS qn,
+               coalesce((SELECT string_agg(t.category || ':' || t.value, ',' ORDER BY t.category, t.value)
+                         FROM search_history_tags t WHERE t.search_id = s.id), '') AS tag_text
+        FROM search_history s
+        WHERE (:kind = 'all' OR s.kind = :kind) AND s.searched_at >= :from_at
+    ),
+    r AS (SELECT * FROM h WHERE qn <> '' OR tag_text <> ''),
+    g AS (
+        SELECT r.*, CASE WHEN lag(r.searched_at) OVER w IS NULL
+                           OR r.searched_at - lag(r.searched_at) OVER w > make_interval(mins => :gap)
+                         THEN 1 ELSE 0 END AS starts
+        FROM r WINDOW w AS (PARTITION BY r.client, r.kind ORDER BY r.searched_at, r.id)
+    ),
+    sess AS (
+        SELECT g.*, sum(g.starts) OVER (PARTITION BY g.client, g.kind ORDER BY g.searched_at, g.id) AS sid,
+               EXISTS (SELECT 1 FROM meme_saves m WHERE m.search_history_id = g.id) AS has_save,
+               EXISTS (SELECT 1 FROM search_not_found n WHERE n.search_history_id = g.id) AS has_press
+        FROM g
+    ),
+    agg AS (
+        SELECT client, kind, sid, count(*) AS searches, min(searched_at) AS first_at, max(searched_at) AS last_at,
+               (array_agg(qn ORDER BY searched_at DESC, id DESC))[1] AS qn,
+               (array_agg(tag_text ORDER BY searched_at DESC, id DESC))[1] AS tag_text,
+               bool_or(has_save) AS saved, bool_or(has_press) AS pressed
+        FROM sess GROUP BY client, kind, sid
+    )
+    SELECT qn AS query, tag_text AS tags, kind, count(*) AS times, count(*) FILTER (WHERE pressed) AS explicit,
+           avg(searches)::float8 AS searches, min(first_at) AS first_at, max(last_at) AS last_at,
+           count(*) FILTER (WHERE client = 'web') AS web, count(*) FILTER (WHERE client = 'android') AS android
+    FROM agg
+    WHERE NOT saved AND last_at <= now() - make_interval(mins => :gap)
+      AND (NOT CAST(:explicit_only AS boolean) OR pressed)
+    GROUP BY qn, tag_text, kind
+    HAVING count(*) >= :min_times
+    ORDER BY {order}, qn, tag_text
+    LIMIT :limit
+"""
+
+
+@dataclass(frozen=True)
+class MissRow:
+    query: str
+    tags: str
+    kind: str
+    times: int
+    explicit: int
+    searches: float
+    first_at: datetime
+    last_at: datetime
+    web: int
+    android: int
+
+
+@dataclass(frozen=True)
+class MissesReport:
+    rows: list[MissRow]
+    status: str            # "ok", "no_schema" (migration not run) or "no_outcomes" (no linked save or press yet)
+    cutoff: datetime | None
+
+
+async def misses_report(session: AsyncSession, *, gap_minutes: int = 5, kind: str = "search",
+                        since_days: int | None = None, min_times: int = 1, explicit_only: bool = False,
+                        sort: str = "times", limit: int = 50) -> MissesReport:
+    """Search sessions that ended without a linked save, grouped by their last query and facet pairs. Reads
+    search_history, meme_saves and search_not_found only."""
+    if kind not in QUERY_KINDS:
+        raise ValueError(f"unknown kind {kind!r}; choose one of {', '.join(QUERY_KINDS)}")
+    if sort not in _MISS_ORDER:
+        raise ValueError(f"unknown sort {sort!r}; choose one of {', '.join(MISS_SORTS)}")
+    if gap_minutes < 1 or min_times < 1 or limit < 1:
+        raise ValueError("gap_minutes, min_times and limit must be at least 1")
+    if not (await session.execute(_SCHEMA_SQL)).scalar_one():
+        return MissesReport([], "no_schema", None)
+    cutoff = (await session.execute(_CUTOFF_SQL)).scalar_one()
+    if cutoff is None:
+        return MissesReport([], "no_outcomes", None)
+    from_at = cutoff
+    if since_days is not None:
+        from_at = max(cutoff, datetime.now(timezone.utc) - timedelta(days=since_days))
+    rows = (await session.execute(text(_MISSES_SQL.format(order=_MISS_ORDER[sort])), {
+        "kind": kind, "from_at": from_at, "gap": gap_minutes, "explicit_only": explicit_only,
+        "min_times": min_times, "limit": limit})).all()
+    return MissesReport([MissRow(
+        query=row.query, tags=row.tags, kind=row.kind, times=int(row.times), explicit=int(row.explicit),
+        searches=float(row.searches), first_at=row.first_at, last_at=row.last_at, web=int(row.web),
+        android=int(row.android)) for row in rows], "ok", cutoff)
