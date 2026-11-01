@@ -62,7 +62,7 @@ _MEMES_SQL = f"""
     edges AS (
         SELECT t.root_id, a.source, a.weight, a.created_at
         FROM popularity_absorptions a JOIN tree t ON a.winner_image_id = t.id
-        WHERE {OPEN_EDGE_SQL} AND a.source = ANY(CAST(:sources AS text[])) AND a.weight > 0
+        WHERE {OPEN_EDGE_SQL} AND a.source = ANY(CAST(:sources AS text[])) AND a.weight <> 0
     ),
     by_source AS (SELECT root_id, source, sum(weight) AS n FROM edges GROUP BY root_id, source),
     agg AS (
@@ -121,7 +121,9 @@ async def memes_report(session: AsyncSession, *, window_days: int, sources: tupl
     available = await _impressions_available(session)
     if max_impressions is not None and not available:
         raise ValueError("max_impressions needs the meme_impressions table, which does not exist yet")
-    order = _MEME_ORDER[sort] if available else _MEME_ORDER["redrops_window"]
+    # Without impression data only the sorts that depend on it fall back; an explicit other sort is honoured.
+    needs_impressions = sort in ("per_100", "impressions")
+    order = _MEME_ORDER["redrops_window"] if needs_impressions and not available else _MEME_ORDER[sort]
     statement = _MEMES_SQL.format(
         imp_select=_IMP_AVAILABLE if available else _IMP_MISSING,
         impressions="coalesce(imp.n, 0)" if available else "NULL::bigint",

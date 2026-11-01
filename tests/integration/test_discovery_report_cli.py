@@ -100,6 +100,16 @@ def test_write_csv_writes_header_and_rows_utf8(tmp_path):
         assert list(csv.reader(handle)) == [["query", "times"]]
 
 
+def test_output_is_utf8_even_when_the_stream_is_not():
+    import io
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding="cp1252", errors="strict")  # a redirected Windows stdout
+    cli.configure_output(stream)
+    stream.write("смешной кот")
+    stream.flush()
+    assert raw.getvalue().decode("utf-8") == "смешной кот"
+
+
 def test_main_without_the_readonly_url_exits_2_and_prints_no_url(monkeypatch, capsys):
     monkeypatch.delenv("DATABASE_URL_READONLY", raising=False)
     assert cli.main(["memes", "--env", "general"]) == 2

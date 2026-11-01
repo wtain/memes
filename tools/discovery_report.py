@@ -179,6 +179,12 @@ async def _run(url: str, args) -> int:
         await engine.dispose()
 
 
+def configure_output(stream) -> None:
+    """Query text can be any language: a redirected Windows stdout defaults to cp1252 and would turn it into '?'."""
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     url = os.environ.get("DATABASE_URL_READONLY")
@@ -188,8 +194,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if url.startswith("postgresql://"):
         url = "postgresql+asyncpg://" + url[len("postgresql://"):]
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(errors="replace")  # a Windows console may not encode every character of a query
+    configure_output(sys.stdout)
     try:
         return asyncio.run(_run(url, args))
     except ValueError as exc:  # our own validation messages: they never contain query text

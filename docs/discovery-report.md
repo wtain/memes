@@ -34,7 +34,7 @@ One row per meme (the image that survives in a duplicate tree) with at least one
 | `last_back` | When the newest counted copy came back. |
 | `per_100` | `redrops_window * 100 / impressions_window`. **High means it keeps coming back while search rarely shows it.** `inf` means it came back and search never showed it in the window; 0 means no re-drops in the window. |
 
-Options: `--min-redrops N` (re-drops in the window, default 1), `--max-impressions N`, `--sort per_100|redrops|redrops_window|popularity|saves|impressions`
+Options: `--min-redrops N` (re-drops in the window, default 1), `--max-impressions N` (impressions in the window), `--sort per_100|redrops|redrops_window|popularity|saves|impressions`
 (default `per_100`), `--limit N` (default 50), `--csv PATH`.
 
 ## Queries view
@@ -48,6 +48,9 @@ with the `fallbacks` reasons.
 Options: `--kind search|meme_text|all` (default `search`: typed searches; pasted meme-from-text messages are opt-in),
 `--max-results N` (default 3; 0 means no results at all), `--include-degraded` (also counts meme-from-text searches whose
 parser failed), `--since-days N`, `--min-times N`, `--sort times|last|min_results`, `--limit N`, `--csv PATH`.
+
+`--include-degraded` only matters with `--kind meme_text` or `--kind all`: typed searches never record a parser failure.
+Output is always UTF-8, so redirecting it to a file keeps non-Latin queries intact.
 
 The query text is printed to your terminal and nowhere else. A `--csv` file contains it too: keep it out of the
 repository.

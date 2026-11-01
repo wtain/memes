@@ -160,36 +160,37 @@ async def test_min_redrops_max_impressions_and_limit(db_session):
 
 
 async def test_every_sort_orders_descending_and_the_default_is_per_100(db_session):
-    a, b, c = [await make_image(db_session, f"{n}.jpg") for n in "abc"]
-    # a: 1 re-drop, 0 impressions (inf), popularity 1, saves 0
-    await edge(db_session, a)
-    # b: 3 re-drops, 30 impressions (10.0), popularity 9, saves 2
-    for _ in range(3):
-        await edge(db_session, b)
-    await db_session.execute(text("UPDATE images SET popularity = 9 WHERE id = :i"), {"i": b.id})
-    db_session.add_all([MemeSave(image_id=b.id), MemeSave(image_id=b.id)])
-    await MemeImpressionRepository(db_session).record_many("search", [b.id] * 30)
-    # c: 2 re-drops, 4 impressions (50.0), popularity 5, saves 1
-    for _ in range(2):
-        await edge(db_session, c)
-    await db_session.execute(text("UPDATE images SET popularity = 5 WHERE id = :i"), {"i": c.id})
-    db_session.add(MemeSave(image_id=c.id))
-    await MemeImpressionRepository(db_session).record_many("search", [c.id] * 4)
+    # Four images whose six sort keys all give a different order (found by search), so a sort mapped to the wrong
+    # key fails. Per image: (re-drops older than the window, re-drops in the window, popularity, saves,
+    # impressions in the window). Window re-drops, saves and impressions are placed inside the window.
+    spec = [(3, 2, 5, 4, 3), (0, 4, 2, 3, 11), (0, 1, 7, 2, 19), (0, 3, 4, 0, 5)]
+    images = []
+    for index, (old, recent, popularity, saves, shown) in enumerate(spec):
+        image = await make_image(db_session, f"{index}.jpg")
+        images.append(image)
+        for _ in range(old):
+            await edge(db_session, image, created_at=ago(days=40))
+        for _ in range(recent):
+            await edge(db_session, image, created_at=ago(days=1))
+        await db_session.execute(text("UPDATE images SET popularity = :p WHERE id = :i"),
+                                 {"p": popularity, "i": image.id})
+        db_session.add_all([MemeSave(image_id=image.id) for _ in range(saves)])
+        await MemeImpressionRepository(db_session).record_many("search", [image.id] * shown)
     await db_session.flush()
-    expected = {
-        "per_100": [a.id, c.id, b.id],
-        "redrops": [b.id, c.id, a.id],
-        "redrops_window": [b.id, c.id, a.id],
-        "popularity": [b.id, c.id, a.id],
-        "saves": [b.id, c.id, a.id],
-        "impressions": [b.id, c.id, a.id],
+    by_index = {
+        "per_100": (0, 3, 1, 2),
+        "redrops": (0, 1, 3, 2),
+        "redrops_window": (1, 3, 0, 2),
+        "popularity": (2, 0, 3, 1),
+        "saves": (0, 1, 2, 3),
+        "impressions": (2, 1, 3, 0),
     }
-    assert set(expected) == set(MEME_SORTS)
-    for name, order in expected.items():
+    assert set(by_index) == set(MEME_SORTS) and len(set(by_index.values())) == 6
+    for name, order in by_index.items():
         rows, _ = await memes_report(db_session, window_days=30, sort=name)
-        assert [r.image_id for r in rows] == order, name
+        assert [r.image_id for r in rows] == [images[i].id for i in order], name
     rows, _ = await memes_report(db_session, window_days=30)
-    assert [r.image_id for r in rows] == expected["per_100"]
+    assert [r.image_id for r in rows] == [images[i].id for i in by_index["per_100"]]
 
 
 async def test_without_the_impressions_table_the_columns_are_n_a_and_the_sort_falls_back(db_session):
@@ -204,6 +205,28 @@ async def test_without_the_impressions_table_the_columns_are_n_a_and_the_sort_fa
     assert all(r.impressions is None and r.impressions_window is None and r.per_100 is None for r in rows)
     with pytest.raises(ValueError):
         await memes_report(db_session, window_days=30, max_impressions=1)
+
+
+async def test_an_explicit_sort_that_needs_no_impressions_is_kept_without_the_table(db_session):
+    popular, often = await make_image(db_session, "p.jpg"), await make_image(db_session, "o.jpg")
+    for _ in range(3):
+        await edge(db_session, often)
+    await edge(db_session, popular)
+    await db_session.execute(text("UPDATE images SET popularity = 9 WHERE id = :i"), {"i": popular.id})
+    await db_session.execute(text("DROP TABLE meme_impressions"))
+    for name, order in (("popularity", [popular.id, often.id]), ("redrops_window", [often.id, popular.id]),
+                        ("impressions", [often.id, popular.id]), ("per_100", [often.id, popular.id])):
+        rows, available = await memes_report(db_session, window_days=30, sort=name)
+        assert available is False
+        assert [r.image_id for r in rows] == order, name
+
+
+async def test_adjustments_count_with_their_sign_when_asked_for(db_session):
+    img = await make_image(db_session, "a.jpg")
+    await edge(db_session, img, None, "adjustment", weight=5)
+    await edge(db_session, img, None, "adjustment", weight=-3)
+    rows, _ = await report(db_session, sources=("adjustment",))
+    assert rows[img.id].redrops == 2
 
 
 async def test_invalid_arguments_raise_before_any_sql(db_session):
