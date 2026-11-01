@@ -234,16 +234,29 @@ class PopularityAbsorption(Base):
 class MemeSave(Base):
     """Append-only log of meme saves (epic meme-popularity, S2): one row per save, never updated or deleted.
     Deliberately no foreign key to images, for the same reason as PopularityAbsorption: ids outlive deleted
-    images so the counts of a duplicate tree survive deletion."""
+    images so the counts of a duplicate tree survive deletion. search_history_id links a save to the search that led
+    to it (S6); also no foreign key, so clearing the search history never erases a save."""
     __tablename__ = "meme_saves"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     image_id = Column(UUID(as_uuid=True), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    search_history_id = Column(UUID(as_uuid=True), nullable=True)
 
     __table_args__ = (
         Index("ix_meme_saves_image_id", "image_id"),
+        Index("ix_meme_saves_search_history_id", "search_history_id"),
     )
+
+
+class SearchNotFound(Base):
+    """Append-only log of "I didn't find it" presses on a search (epic meme-popularity, S6). One row per search
+    (unique), never updated or deleted. No foreign key: clearing the search history must not erase the press."""
+    __tablename__ = "search_not_found"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    search_history_id = Column(UUID(as_uuid=True), nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class MemeImpression(Base):

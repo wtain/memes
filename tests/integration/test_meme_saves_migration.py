@@ -53,6 +53,10 @@ async def test_the_migration_matches_the_model_and_downgrades(db_engine):
 
             await connection.execute(text("DROP TABLE meme_saves"))
             await connection.run_sync(lambda sync: _run(sync, module.upgrade))
+            # The S6 migration (b4c9e1f7a028) adds the search link on top of this table; apply it so the shape
+            # is the model's.
+            await connection.execute(text("ALTER TABLE meme_saves ADD COLUMN search_history_id uuid"))
+            await connection.execute(text("CREATE INDEX ix_meme_saves_search_history_id ON meme_saves (search_history_id)"))
             assert await connection.run_sync(_shape) == model_shape
 
             await connection.run_sync(lambda sync: _run(sync, module.downgrade))
