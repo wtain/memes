@@ -48,6 +48,8 @@ class MemeDetailViewModel @Inject constructor(
 
     private val memeId: String = checkNotNull(savedStateHandle["memeId"])
     private val initialSimilarSource: String = savedStateHandle["source"] ?: "image"
+    /** The search list this screen was opened from (S6); null from any other entry point. */
+    private val searchId: String? = savedStateHandle["searchId"]
 
     private val _state = MutableStateFlow(DetailUiState(similarSource = initialSimilarSource))
     val state: StateFlow<DetailUiState> = _state.asStateFlow()
@@ -145,7 +147,7 @@ class MemeDetailViewModel @Inject constructor(
                         return@onSuccess
                     }
                     // Best effort: the repository logs a failure; it never changes the save outcome.
-                    runCatching { repo.recordSave(meme.id) }
+                    runCatching { repo.recordSave(meme.id, searchId) }
                 }
                 .onFailure { e ->
                     Log.e(TAG, "saveToGallery: download failed id=${meme.id}", e)

@@ -122,10 +122,13 @@ open class MemeRepository @Inject constructor(
             }
     }
 
-    /** Best-effort report of a successful gallery save. Never throws. */
-    suspend fun recordSave(id: String): Result<Unit> =
+    /**
+     * Best-effort report of a successful gallery save, linked to the search that led to it when [searchId] is
+     * known (epic meme-popularity, S6). Never throws.
+     */
+    suspend fun recordSave(id: String, searchId: String? = null): Result<Unit> =
         runCatching {
-            val response = api.recordSave(id)
+            val response = api.recordSave(id, searchId)
             if (!response.isSuccessful) error("recordSave: HTTP ${response.code()}")
         }.onFailure { e ->
             Log.e(TAG, "recordSave: failed id=$id", e)

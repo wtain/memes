@@ -33,6 +33,8 @@ data class SearchUiState(
     val error: String? = null,
     val nextCursor: String? = null,
     val hasNext: Boolean = false,
+    /** Id of the latest search_history row the server returned for this list; sent with a save (S6). */
+    val searchId: String? = null,
     val healthStatus: HealthStatus = HealthStatus.Unknown
 )
 
@@ -122,6 +124,7 @@ class SearchViewModel @Inject constructor(
                     items = (it.items + (response.items ?: emptyList())).distinctBy { m -> m.id },
                     nextCursor = response.nextCursor,
                     hasNext = response.hasNext ?: false,
+                    searchId = response.searchId ?: it.searchId,
                     isLoadingMore = false
                 )}
             }.onFailure { e ->
@@ -145,7 +148,7 @@ class SearchViewModel @Inject constructor(
         searchJob?.cancel()
         val s = _state.value
         searchJob = viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, items = emptyList(), nextCursor = null, hasNext = false) }
+            _state.update { it.copy(isLoading = true, error = null, items = emptyList(), nextCursor = null, hasNext = false, searchId = null) }
             repo.search(
                 query = s.query.takeIf { it.isNotBlank() },
                 facets = s.activeFacets.joinToString(",").takeIf { it.isNotEmpty() },
@@ -156,6 +159,7 @@ class SearchViewModel @Inject constructor(
                     facets = response.facets ?: emptyList(),
                     nextCursor = response.nextCursor,
                     hasNext = response.hasNext ?: false,
+                    searchId = response.searchId,
                     isLoading = false
                 )}
             }.onFailure { e ->

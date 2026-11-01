@@ -66,7 +66,7 @@ interface MemeApiService {
     suspend fun downloadImage(@Path("id") id: String): ResponseBody
 
     @POST("api/images/meme/{id}/saves")
-    suspend fun recordSave(@Path("id") id: String): Response<Unit>
+    suspend fun recordSave(@Path("id") id: String, @Query("searchId") searchId: String? = null): Response<Unit>
 
     @Multipart
     @POST("api/uploads")

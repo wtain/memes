@@ -23,7 +23,11 @@ fun NavGraph() {
     NavHost(navController = navController, startDestination = "search") {
         composable("search") {
             SearchScreen(
-                onMemeClick = { memeId -> navController.navigate("detail/$memeId") },
+                onMemeClick = { memeId, searchId ->
+                    navController.navigate(
+                        if (searchId != null) "detail/$memeId?searchId=$searchId" else "detail/$memeId"
+                    )
+                },
                 onEnvironmentsClick = { navController.navigate("environments") },
                 onFlaggedClick = { navController.navigate("flagged") },
                 onUploadClick = { navController.navigate("upload") },
@@ -34,10 +38,11 @@ fun NavGraph() {
             )
         }
         composable(
-            route = "detail/{memeId}?source={source}",
+            route = "detail/{memeId}?source={source}&searchId={searchId}",
             arguments = listOf(
                 navArgument("memeId") { type = NavType.StringType },
-                navArgument("source") { type = NavType.StringType; defaultValue = "image" }
+                navArgument("source") { type = NavType.StringType; defaultValue = "image" },
+                navArgument("searchId") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) { backStack ->
             val memeId = backStack.arguments!!.getString("memeId")!!
@@ -46,7 +51,7 @@ fun NavGraph() {
                 onBack = { navController.popBackStack() },
                 onNavigateToMeme = { id, source ->
                     navController.navigate("detail/$id?source=$source") {
-                        popUpTo("detail/{memeId}?source={source}") { inclusive = true }
+                        popUpTo("detail/{memeId}?source={source}&searchId={searchId}") { inclusive = true }
                     }
                 },
                 onTagClick = { category, value ->
