@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from Backend.app.repositories.image_repository import ImageRepository
 from Backend.app.services.image_service import ImageService
 from repository.meme_impressions import MemeImpressionRepository
-from Storage.models import Embedding, Image, MemeImpression, OCRLemma
+from Storage.models import Embedding, Image, ImageTag, MemeImpression, OCRLemma
 
 _T0 = datetime(2026, 1, 1, 12, 0, 0)
 _WORD = "quokkaberry"
@@ -88,6 +88,26 @@ async def test_an_empty_search_writes_nothing(db_session, monkeypatch):
         q="nomatchzzyzx", raw_facets=None, cursor=None, limit=20)
     assert page.items == []
     assert await _count(db_session) == before
+
+
+@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("blank", [None, "", "   "])
+async def test_an_unfiltered_browse_listing_is_not_an_impression(db_session, monkeypatch, blank):
+    images = await _matching_images(db_session, 2)
+    page = await _service(db_session, monkeypatch).search(q=blank, raw_facets=None, cursor=None, limit=20)
+    assert page.items
+    assert await _rows(db_session, [i.id for i in images]) == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_facet_only_search_is_recorded(db_session, monkeypatch):
+    image = await _image(db_session)
+    db_session.add(ImageTag(image_id=image.id, key="animal", value="quokka", source="rules"))
+    await db_session.flush()
+    page = await _service(db_session, monkeypatch).search(
+        q=None, raw_facets="animal:quokka", cursor=None, limit=20)
+    assert [i.id for i in page.items] == [str(image.id)]
+    assert len(await _rows(db_session, [image.id])) == 1
 
 
 @pytest.mark.asyncio(loop_scope="session")

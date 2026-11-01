@@ -124,8 +124,10 @@ class ImageService:
         tag_pairs = [(cat, val) for cat, vals in tags.items() for val in vals]
         search_history_id = await self._record_history(
             q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
-        await record_impressions(
-            self.repo.session, "search", [meme.id for meme in result.items or []], search_history_id)
+        # An unfiltered listing (no query, no facets) is the browse feed, not a search: it is not an impression (S1, M2).
+        if (q or "").strip() or tags:
+            await record_impressions(
+                self.repo.session, "search", [meme.id for meme in result.items or []], search_history_id)
 
         return result
 

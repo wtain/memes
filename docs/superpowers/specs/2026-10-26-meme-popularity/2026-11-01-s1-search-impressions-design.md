@@ -101,6 +101,9 @@ Tests are written first and watched failing.
 - **The rollout guards were part of the change**: the new migration is listed in
   `docs/batches/use-cases/screenshot-recut-rollout.md` (eight migrations, head `a2f6d8c3b715`) and in
   `tools/rollout_preflight.py` (`REVISION_LABELS`, `EXPECTED`); `tests/docs/` and the preflight tests fail otherwise.
+- **An unfiltered `GET /api/images` is not an impression** (found by the final review): with no `q` (blank counts as
+  none) and no facets the endpoint is the Explore and empty-Search browse feed, which M2 excludes. A text query or a
+  facet filter, with or without a cursor, is recorded.
 - **Web**: `ImpressionBlock` uses its own React key (`impressions:<id>`); sharing `meme.id` with the sibling
   `SaveCountBlock` made React keep the old save count across a navigation.
 
