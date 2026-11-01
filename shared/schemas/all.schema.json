@@ -37,6 +37,7 @@
     "MemePopularity": { "$ref": "memepopularity.schema.json" },
     "MemePopularityUpdate": { "$ref": "memepopularityupdate.schema.json" },
     "MemeSaves": { "$ref": "memesaves.schema.json" },
+    "MemeImpressions": { "$ref": "memeimpressions.schema.json" },
     "PopularityBreakdownRow": { "$ref": "popularitybreakdownrow.schema.json" },
     "Concept": { "$ref": "concept.schema.json" },
     "TrendsRun": { "$ref": "trendsrun.schema.json" },
