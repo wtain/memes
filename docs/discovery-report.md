@@ -13,6 +13,7 @@ Design: `docs/superpowers/specs/2026-10-26-meme-popularity/2026-11-01-s4-discove
 $env:DATABASE_URL_READONLY = "postgresql+asyncpg://ocr_readonly:...@localhost:5434/ocrdb"
 python -m tools.discovery_report memes   --env general
 python -m tools.discovery_report queries --env general
+python -m tools.discovery_report misses  --env general
 ```
 
 `--env` only names the environment in the header and warns when the URL's port belongs to another environment
@@ -55,7 +56,33 @@ Output is always UTF-8, so redirecting it to a file keeps non-Latin queries inta
 The query text is printed to your terminal and nowhere else. A `--csv` file contains it too: keep it out of the
 repository.
 
+## Misses view
+
+Search sessions that ended without a save (epic meme-popularity, S6): the direct signal that a meme was hard to find.
+`python -m tools.discovery_report misses --env general`.
+
+How it decides. The search history is cut into sessions: rows of one client (and kind) belong to one session until a
+pause longer than `--gap-minutes` (default 5). A session is *resolved* if any of its rows is the search a save came from
+(Android sends the `searchId` of the search list with the save), otherwise it is a *miss*. A miss is *explicit* if the
+web "I didn't find it" button was pressed for any of its rows; a save wins over a press. Rows with no query text and no
+filters (the browse feed) are not searches and are skipped, and a session whose last row is newer than the gap is left
+out because it may still be going. Misses are grouped by the session's last query and filters (lower-cased, whitespace
+collapsed); a search with only filters shows `(no text)` and its tags.
+
+Columns: `times` (sessions), `explicit` (of them pressed on the web), `searches` (average searches per session; a high
+number means you kept refining), `first_at`, `last_at`, and the `web` and `android` counts.
+
+Options: `--gap-minutes N`, `--kind search|meme_text|all` (default `search`), `--since-days N`, `--min-times N`,
+`--explicit-only`, `--sort times|explicit|last`, `--limit N`, `--csv PATH`. The header states the date the outcome data
+begins. Search text is printed to your terminal only; a `--csv` file contains it too.
+
 ## What the numbers cannot tell you
+
+- **The misses view only sees sessions after the S6 migration (`b4c9e1f7a028`) has run and the first linked save or
+  press was recorded**; earlier sessions would all look like misses, so they are ignored. Until then the view says so.
+  Only the Search list of the Android app sends the link: a save from Explore, a deep link or a similar-meme hop counts
+  as a save but resolves no session. Sessions are a time-gap approximation: two hunts within the gap merge, and one long
+  hunt with a long pause splits.
 
 - **Impressions start when the S1 migration (`a2f6d8c3b715`) has run** on that environment. Before that the impression
   columns and `per_100` show `n/a`, and the memes view sorts by `redrops_window`. The picture sharpens over the weeks

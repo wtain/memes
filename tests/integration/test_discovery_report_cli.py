@@ -79,6 +79,40 @@ def test_query_table_shows_no_text_for_an_empty_query():
     assert cells["query"] == "(no text)" and cells["tags"] == "animal:cat" and cells["avg_results"] == "0.5"
 
 
+def test_misses_parser_defaults_and_options():
+    args = cli.build_parser().parse_args(["misses", "--env", "metal"])
+    assert (args.command, args.gap_minutes, args.kind, args.sort, args.limit, args.min_times) == (
+        "misses", 5, "search", "times", 50, 1)
+    assert args.explicit_only is False and args.since_days is None and args.csv is None
+    args = cli.build_parser().parse_args(["misses", "--env", "metal", "--explicit-only", "--gap-minutes", "10",
+                                          "--sort", "explicit"])
+    assert args.explicit_only is True and args.gap_minutes == 10 and args.sort == "explicit"
+
+
+@pytest.mark.parametrize("argv", [
+    ["misses", "--env", "general", "--gap-minutes", "0"],
+    ["misses", "--env", "general", "--sort", "nope"],
+    ["misses", "--env", "general", "--kind", "nope"],
+    ["misses", "--env", "general", "--min-times", "0"],
+])
+def test_bad_misses_options_are_usage_errors(argv):
+    with pytest.raises(SystemExit) as exit_info:
+        cli.build_parser().parse_args(argv)
+    assert exit_info.value.code == 2
+
+
+def test_miss_table_shows_no_text_for_an_empty_query_and_one_decimal():
+    from repository.discovery_report import MissRow
+    row = MissRow(query="", tags="animal:cat", kind="search", times=3, explicit=1, searches=2.0,
+                  first_at=datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc),
+                  last_at=datetime(2026, 11, 1, 11, 0, tzinfo=timezone.utc), web=2, android=1)
+    headers, rows = cli.miss_table([row])
+    cells = dict(zip(headers, rows[0]))
+    assert headers == ["query", "tags", "kind", "times", "explicit", "searches", "first_at", "last_at", "web",
+                       "android"]
+    assert cells["query"] == "(no text)" and cells["searches"] == "2.0" and cells["explicit"] == "1"
+
+
 def test_format_table_aligns_columns_and_handles_zero_rows():
     text = cli.format_table(["id", "name"], [["1", "longer name"], ["22", "x"]])
     lines = text.splitlines()

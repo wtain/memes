@@ -405,7 +405,7 @@ recut_pipeline              → screenshot recut driver (R7): runs `create_recut
                                cut files into BASE_PATH; every approval also copies the source to BASE_PATH/pre-cuts/. See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-30-r6-box-adjustment-design.md.
 tools/rollout_preflight → read-only readiness check before the recut migrations (shell only, not a batch job): `python -m tools.rollout_preflight --env {metal,general,it}` with `DATABASE_URL_READONLY` in the shell; it refuses a role that can write. See docs/batches/use-cases/screenshot-recut-rollout.md.
-tools/discovery_report  → read-only report of memes that keep coming back through ingestion (with their impressions and saves) and of searches that found little (shell only, not a batch job): `python -m tools.discovery_report {memes,queries} --env {metal,general,it}` with `DATABASE_URL_READONLY` in the shell; it refuses a role that can write and prints query text to the terminal only. See docs/discovery-report.md.
+tools/discovery_report  → read-only report of memes that keep coming back through ingestion (with their impressions and saves) and of searches that found little or that ended without a save (the `misses` view, S6) (shell only, not a batch job): `python -m tools.discovery_report {memes,queries,misses} --env {metal,general,it}` with `DATABASE_URL_READONLY` in the shell; it refuses a role that can write and prints query text to the terminal only. See docs/discovery-report.md.
 
 create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each `detected` image_cuts proposal, highest
                                confidence first, into a cut file in BASE_PATH (same format as the source: JPEG at
