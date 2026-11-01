@@ -8,6 +8,7 @@
     "facets": { "type": "array", "items": { "$ref": "./facet.schema.json" } },
     "nextCursor": { "type": "string" },
     "hasNext": { "type": "boolean" },
+    "searchId": { "type": "string", "description": "Id of the search_history row of a fresh message, when one was stored; absent for refine and show-more responses, or when outcome capture is off" },
     "profile": { "$ref": "./queryprofile.schema.json" },
     "degraded": { "type": "boolean" },
     "fallback": { "type": "string", "description": "none, or the reason: unavailable, timeout, invalid_output, empty_input, breaker_open, embed_unavailable, or a combination joined with +" },

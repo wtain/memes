@@ -237,6 +237,31 @@ async def test_impressions_are_recorded_when_the_query_log_is_off_or_fails():
         service.impression_recorder.assert_awaited_once_with("reply", [IMAGE_A], None)
 
 
+# --- search id for the clients (epic meme-popularity, S6) ---
+
+async def _fresh_response(recorder_result, monkeypatch=None, enabled=True):
+    from unittest.mock import patch
+    pipeline = MagicMock()
+    pipeline.search = AsyncMock(return_value=_result([_item(IMAGE_A)]))
+    service, _ = _service(pipeline)
+    service.history_recorder = AsyncMock(return_value=recorder_result)
+    service.max_chars = 600
+    with patch("Backend.app.services.meme_from_text_service.outcomes_enabled", return_value=enabled):
+        return await service.search(Request.model_validate({"text": "x"}))
+
+
+async def test_a_fresh_message_returns_the_search_id():
+    import uuid
+    history_id = uuid.uuid4()
+    assert (await _fresh_response(history_id)).searchId == str(history_id)
+
+
+async def test_no_search_id_when_the_switch_is_off_or_the_write_failed():
+    import uuid
+    assert (await _fresh_response(uuid.uuid4(), enabled=False)).searchId is None
+    assert (await _fresh_response(None)).searchId is None
+
+
 async def test_the_unavailable_answer_records_no_impressions():
     service, _ = _service(None)
     service.impression_recorder = AsyncMock()

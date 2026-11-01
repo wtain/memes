@@ -132,6 +132,9 @@ class ImageService:
         if (q or "").strip() or tags:
             await record_impressions(
                 self.repo.session, "search", [meme.id for meme in result.items or []], search_history_id)
+        # The id lets a client link a save to this search or report a miss (S6); the browse feed is no search.
+        if search_history_id is not None and ((q or "").strip() or tags) and outcomes_enabled():
+            result.searchId = str(search_history_id)
 
         return result
 

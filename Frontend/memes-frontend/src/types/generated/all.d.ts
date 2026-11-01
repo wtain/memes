@@ -86,6 +86,10 @@ export interface MemeSearchResponse {
   nextCursor?: string;
   hasNext?: boolean;
   previousCursor?: string;
+  /**
+   * Id of the search_history row of this search, when one was stored; absent for the browse feed or when outcome capture is off
+   */
+  searchId?: string;
   [k: string]: unknown;
 }
 /**
@@ -320,6 +324,10 @@ export interface MemeFromTextResponse {
   facets?: Facet[];
   nextCursor?: string;
   hasNext: boolean;
+  /**
+   * Id of the search_history row of a fresh message, when one was stored; absent for refine and show-more responses, or when outcome capture is off
+   */
+  searchId?: string;
   profile: QueryProfile;
   degraded: boolean;
   /**
