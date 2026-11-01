@@ -1,6 +1,6 @@
 # S6: Failed-search capture in the clients
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-11-01-s6-failed-search-capture.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; signals tracker row S6) and `2026-11-01-s4-discovery-report-design.md` (decision M8)
 Follow-ups: none yet
