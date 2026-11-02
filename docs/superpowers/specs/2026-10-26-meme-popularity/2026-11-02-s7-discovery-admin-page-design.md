@@ -1,6 +1,7 @@
 # S7: Admin page for the discovery report
 
-Status: draft
+Status: planned
+Plan: `docs/superpowers/plans/2026-11-02-s7-discovery-admin-page.md`
 Originates from: `docs/superpowers/specs/2026-10-26-meme-popularity/README.md` (epic; signals tracker row S7)
 Follow-ups: none yet
 
