@@ -77,6 +77,24 @@ Options: `--gap-minutes N`, `--kind search|meme_text|all` (default `search`), `-
 `--explicit-only`, `--sort times|explicit|last`, `--limit N`, `--csv PATH`. The header states the date the outcome data
 begins. Search text is printed to your terminal only; a `--csv` file contains it too.
 
+## Admin page
+
+The same three views are browsable at `/admin/discovery` (the "Discovery" link in the header; epic meme-popularity,
+S7). The tab is in the URL (`?view=memes|queries|misses`) and each tab has its own filters, which are the CLI options
+above under the same names. The memes tab shows thumbnails that link to the meme page. A size choice (50, 100 or 200)
+replaces `--limit`; there is no paging, so to go deeper change the sort or tighten a filter. Every row of the queries and
+misses tabs that has query text or filters has a "Search this" link to `/search` with that query and its filters filled
+in, so you see what the app returns now; rows of kind `meme_text` have no link, because the Reply page cannot be filled
+from a URL.
+
+The page reads through `GET /api/admin/discovery/{memes,queries,misses}`, which call the very same report functions as the
+CLI inside a read-only transaction, so the two always agree. Notes it shows: "impressions are n/a" when the S1 table is
+missing (`∞` still means re-dropped in the window and never shown there), "the S6 migration has not run here yet" or "no
+linked save or press" for the misses tab, and the date the outcome data begins. The query text crosses HTTP to the page
+the same way `GET /api/history` already does (the admin API has no authentication, see
+`docs/security/admin-permissions-todo.md`), and the backend never logs it. Each load runs the report query once; the
+memes query walks the whole duplicate tree, so it can be slow on a large library.
+
 ## What the numbers cannot tell you
 
 - **The misses view only sees sessions after the S6 migration (`b4c9e1f7a028`) has run and the first linked save or

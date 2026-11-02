@@ -12,6 +12,11 @@ import type {
   RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, MemeSaves, MemeImpressions, TrendingMemesResponse,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
+import {
+  DiscoveryRequestError,
+  type DiscoveryMemes, type DiscoveryMisses, type DiscoveryQueries,
+  type MemesParams, type MissesParams, type QueriesParams,
+} from "../../discovery/types"
 import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
 
 export class HttpMemesApi implements MemesApi {
@@ -681,6 +686,41 @@ export class HttpMemesApi implements MemesApi {
       method: "DELETE",
     })
     if (!response.ok) throw new CuratorRequestError(response.status)
+  }
+
+  private async getDiscovery<T>(
+    view: string, params: Record<string, string | number | boolean | string[] | undefined>, signal?: AbortSignal,
+  ): Promise<T> {
+    const query = new URLSearchParams()
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined) continue
+      query.set(key, Array.isArray(value) ? value.join(",") : String(value))
+    }
+    const text = query.toString()
+    const response = await fetch(`${this.baseUrl}/api/admin/discovery/${view}${text ? `?${text}` : ""}`, {
+      headers: { "Accept": "application/json" }, signal,
+    })
+    if (!response.ok) {
+      let detail = ""
+      try {
+        const body = await response.json()
+        if (typeof body?.detail === "string") detail = body.detail
+      } catch { /* not JSON: keep the empty detail */ }
+      throw new DiscoveryRequestError(response.status, detail)
+    }
+    return response.json()
+  }
+
+  getDiscoveryMemes(params: MemesParams, signal?: AbortSignal): Promise<DiscoveryMemes> {
+    return this.getDiscovery("memes", params, signal)
+  }
+
+  getDiscoveryQueries(params: QueriesParams, signal?: AbortSignal): Promise<DiscoveryQueries> {
+    return this.getDiscovery("queries", params, signal)
+  }
+
+  getDiscoveryMisses(params: MissesParams, signal?: AbortSignal): Promise<DiscoveryMisses> {
+    return this.getDiscovery("misses", params, signal)
   }
 
   async getProfileCoverage(): Promise<ProfileCoverage> {

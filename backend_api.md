@@ -982,6 +982,38 @@ Live numbers on how much of the active library has a profile, and the images beh
 - **Response** `200`: `ProfileCoverageImages`: `items` (array of `{ id, imageUrl, humanVerified }`, `imageUrl` is `/api/images/{id}`), `nextCursor` (string or `null` on the last page), `total` (images in the whole category). Pages are ordered by image id.
 - **Error Responses**: `422` for an unknown `category`, a `limit` outside 1 to 100 or a `cursor` that is not a valid id; `500` for an unexpected failure
 
+#### Discovery report (admin)
+
+The three views of `python -m tools.discovery_report` (see `docs/discovery-report.md`), served for the `/admin/discovery` page. Read only: each request runs in a `READ ONLY` transaction. Unauthenticated like the rest of the admin API (see `docs/security/admin-permissions-todo.md`). Search text is returned to the caller and never logged. Responses are sent with no-cache headers. Every route returns the top `limit` rows by `sort`; there is no paging.
+
+**Memes that keep coming back**
+
+- **URL**: `/api/admin/discovery/memes`
+- **Method**: `GET`
+- **Query Parameters** (defaults equal the CLI's):
+  - `windowDays` (optional, at least 1, default `popularity.impressions.window_days`)
+  - `sources` (optional, comma list of absorption sources, default every source except `adjustment`)
+  - `minRedrops` (optional, default 1), `maxImpressions` (optional, at least 0; needs the impressions table)
+  - `sort` (optional): `per_100` (default), `redrops`, `redrops_window`, `popularity`, `saves`, `impressions`
+  - `limit` (optional, 1 to 200, default 50)
+- **Response** `200`: `DiscoveryMemes`: `windowDays`, `sources`, `impressionsAvailable` (false when the impressions table does not exist yet), `items`. Each item: `id`, `imageUrl` (`/api/images/{id}`), `filename`, `redrops`, `redropsWindow`, `sources` (array of `{ source, count }`), `popularity`, `saves`, `impressions` and `impressionsWindow` (`null` without the impressions table), `lastBack` (ISO time or `null`), `per100` and `per100Infinite`. `per100` is re-drops in the window per 100 impressions in the window; JSON cannot carry infinity, so a meme re-dropped in the window and never shown there has `per100: null` and `per100Infinite: true`; without impression data `per100` is `null` and `per100Infinite` false.
+
+**Searches that found little**
+
+- **URL**: `/api/admin/discovery/queries`
+- **Method**: `GET`
+- **Query Parameters**: `kind` (`search` default, `meme_text`, `all`), `maxResults` (default 3), `includeDegraded` (default false), `sinceDays`, `minTimes` (default 1), `sort` (`times` default, `last`, `min_results`), `limit` (1 to 200, default 50)
+- **Response** `200`: `DiscoveryQueries`: `kind` and `items`: `query` (normalised, empty for a facet-only search), `tags` (array of `category:value`), `kind`, `times`, `firstAt`, `lastAt`, `minResults`, `avgResults`, `web`, `android`, `degraded`, `fallbacks` (array)
+
+**Searches that ended without a save**
+
+- **URL**: `/api/admin/discovery/misses`
+- **Method**: `GET`
+- **Query Parameters**: `gapMinutes` (default 5), `kind` (`search` default, `meme_text`, `all`), `sinceDays`, `minTimes` (default 1), `explicitOnly` (default false), `sort` (`times` default, `explicit`, `last`), `limit` (1 to 200, default 50)
+- **Response** `200`: `DiscoveryMisses`: `status` (`ok`, `no_schema` when the search-outcomes migration has not run, `no_outcomes` when there is no linked save or press yet), `cutoff` (ISO time of the first outcome, or `null`; older searches are not counted), `gapMinutes`, `kind` and `items`: `query`, `tags`, `kind`, `times` (sessions), `explicit` (presses of "I didn't find it"), `searches` (average searches per session), `firstAt`, `lastAt`, `web`, `android`
+
+**Errors (all three)**: `422` for a value out of range or an unknown `sort`, `kind` or source (the body is `{"detail": "<our message>"}`, never search text); `500` with `{"detail": "discovery request failed"}` for an unexpected failure.
+
 ---
 
 ### Recommendations

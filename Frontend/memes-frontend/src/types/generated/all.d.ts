@@ -355,6 +355,97 @@ export interface MemeFromTextResponse {
   [k: string]: unknown;
 }
 /**
+ * Memes that keep coming back through ingestion and how visible they are (discovery report, memes view)
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DiscoveryMemes".
+ */
+export interface DiscoveryMemes {
+  windowDays: number;
+  sources: string[];
+  impressionsAvailable: boolean;
+  items: {
+    id: string;
+    imageUrl: string;
+    filename: string | null;
+    redrops: number;
+    redropsWindow: number;
+    sources: {
+      source: string;
+      count: number;
+    }[];
+    popularity: number;
+    saves: number;
+    impressions: number | null;
+    impressionsWindow: number | null;
+    lastBack: string | null;
+    /**
+     * Re-drops in the window per 100 impressions in the window; null when infinite or unavailable
+     */
+    per100: number | null;
+    /**
+     * True when there were re-drops in the window and no impressions in it
+     */
+    per100Infinite: boolean;
+  }[];
+}
+/**
+ * Searches that found little (discovery report, queries view)
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DiscoveryQueries".
+ */
+export interface DiscoveryQueries {
+  kind: string;
+  items: {
+    query: string;
+    /**
+     * category:value pairs
+     */
+    tags: string[];
+    kind: string;
+    times: number;
+    firstAt: string;
+    lastAt: string;
+    minResults: number;
+    avgResults: number;
+    web: number;
+    android: number;
+    degraded: number;
+    fallbacks: string[];
+  }[];
+}
+/**
+ * Searches that ended without a save (discovery report, misses view)
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "DiscoveryMisses".
+ */
+export interface DiscoveryMisses {
+  status: "ok" | "no_schema" | "no_outcomes";
+  /**
+   * Earliest linked save or press; older searches have no outcome data
+   */
+  cutoff: string | null;
+  gapMinutes: number;
+  kind: string;
+  items: {
+    query: string;
+    /**
+     * category:value pairs
+     */
+    tags: string[];
+    kind: string;
+    times: number;
+    explicit: number;
+    searches: number;
+    firstAt: string;
+    lastAt: string;
+    web: number;
+    android: number;
+  }[];
+}
+/**
  * The meme-from-text vocabulary served to the web UI: axes, value keys, definitions and labels
  *
  * This interface was referenced by `AllSchema`'s JSON-Schema

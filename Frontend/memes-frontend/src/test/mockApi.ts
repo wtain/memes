@@ -2,6 +2,7 @@ import type { MemesApi } from '../api/MemesApi'
 import type { Meme } from '../types/generated/all'
 import { makeResponse, TEST_TAXONOMY } from '../reply/fixtures'
 import { makeCuratedProfile, makeCoverage, makeCoverageImages } from '../curator/fixtures'
+import { makeDiscoveryMemes, makeDiscoveryMisses, makeDiscoveryQueries } from '../discovery/fixtures'
 import { makeDecision, makeProposalDetail, makeProposalPage, makeStats } from '../recut/fixtures'
 
 export const DEFAULT_MOCK_MEME: Meme = {
@@ -68,6 +69,9 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     resetCuratedProfile: vi.fn().mockResolvedValue(undefined),
     getProfileCoverage: vi.fn().mockResolvedValue(makeCoverage()),
     getProfileCoverageImages: vi.fn().mockResolvedValue(makeCoverageImages()),
+    getDiscoveryMemes: vi.fn().mockResolvedValue(makeDiscoveryMemes()),
+    getDiscoveryQueries: vi.fn().mockResolvedValue(makeDiscoveryQueries()),
+    getDiscoveryMisses: vi.fn().mockResolvedValue(makeDiscoveryMisses()),
     listRecutProposals: vi.fn().mockResolvedValue(makeProposalPage([])),
     getRecutProposal: vi.fn().mockResolvedValue(makeProposalDetail('p1')),
     getRecutStats: vi.fn().mockResolvedValue(makeStats()),

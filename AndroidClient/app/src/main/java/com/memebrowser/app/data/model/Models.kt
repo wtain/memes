@@ -82,6 +82,29 @@ data class DescriptionFeedbackResponse(
 )
 
 @Serializable
+data class DiscoveryMemes(
+    @SerialName("windowDays") val windowDays: Int,
+    @SerialName("sources") val sources: List<String>,
+    @SerialName("impressionsAvailable") val impressionsAvailable: Boolean,
+    @SerialName("items") val items: List<JsonObject>
+)
+
+@Serializable
+data class DiscoveryMisses(
+    @SerialName("status") val status: String,
+    @SerialName("cutoff") val cutoff: String?,
+    @SerialName("gapMinutes") val gapMinutes: Int,
+    @SerialName("kind") val kind: String,
+    @SerialName("items") val items: List<JsonObject>
+)
+
+@Serializable
+data class DiscoveryQueries(
+    @SerialName("kind") val kind: String,
+    @SerialName("items") val items: List<JsonObject>
+)
+
+@Serializable
 data class DuplicateDecisionItem(
     @SerialName("image_id1") val image_id1: String,
     @SerialName("filename1") val filename1: String,

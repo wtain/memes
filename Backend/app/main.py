@@ -19,6 +19,7 @@ from Backend.app.api.meme_from_text import router as meme_from_text_router
 from Backend.app.api.meme_text_ratings import router as meme_text_ratings_router
 from Backend.app.api.meme_profiles import router as meme_profiles_router
 from Backend.app.api.admin_profiles import router as admin_profiles_router
+from Backend.app.api.admin_discovery import router as admin_discovery_router
 from Backend.app.api.concepts import router as concepts_router
 from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.trends import router as trends_router
@@ -149,6 +150,7 @@ app.include_router(meme_from_text_router, prefix="/api")
 app.include_router(meme_text_ratings_router, prefix="/api")
 app.include_router(meme_profiles_router, prefix="/api")
 app.include_router(admin_profiles_router, prefix="/api")
+app.include_router(admin_discovery_router, prefix="/api")
 app.include_router(concepts_router, prefix="/api")
 app.include_router(recommendations_router, prefix="/api")
 app.include_router(trends_router, prefix="/api")
