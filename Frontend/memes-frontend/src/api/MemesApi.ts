@@ -11,6 +11,9 @@ import type {
   RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemeSaves, MemeImpressions, TrendingMemesResponse,
 } from "../types/generated/all";
 import type { Category } from "../curator/types";
+import type {
+  DiscoveryMemes, DiscoveryMisses, DiscoveryQueries, MemesParams, MissesParams, QueriesParams,
+} from "../discovery/types";
 
 export type IngestionTier = "tier_a" | "tier_b"
 
@@ -115,6 +118,9 @@ export interface MemesApi {
   resetCuratedProfile(imageId: string): Promise<void>;
   getProfileCoverage(): Promise<ProfileCoverage>;
   getProfileCoverageImages(category: Category, cursor?: string, limit?: number): Promise<ProfileCoverageImages>;
+  getDiscoveryMemes(params: MemesParams, signal?: AbortSignal): Promise<DiscoveryMemes>
+  getDiscoveryQueries(params: QueriesParams, signal?: AbortSignal): Promise<DiscoveryQueries>
+  getDiscoveryMisses(params: MissesParams, signal?: AbortSignal): Promise<DiscoveryMisses>
   listRecutProposals(offset?: number, limit?: number): Promise<RecutProposalPage>
   getRecutProposal(id: string): Promise<RecutProposalDetail>
   getRecutStats(): Promise<RecutStats>
