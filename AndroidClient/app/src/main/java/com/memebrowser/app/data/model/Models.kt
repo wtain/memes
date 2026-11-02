@@ -40,10 +40,9 @@ data class BatchNamesResponse(
 )
 
 @Serializable
-data class ClusterSimilarityPair(
-    @SerialName("image_id1") val image_id1: String,
-    @SerialName("image_id2") val image_id2: String,
-    @SerialName("overlap") val overlap: Float
+data class ClusterSimilarityCandidate(
+    @SerialName("distance") val distance: Float,
+    @SerialName("source") val source: String
 )
 
 @Serializable
@@ -455,8 +454,17 @@ data class UploadedFile(
 )
 
 @Serializable
+data class ClusterSimilarityPair(
+    @SerialName("image_id1") val image_id1: String,
+    @SerialName("image_id2") val image_id2: String,
+    @SerialName("overlap") val overlap: Float?,
+    @SerialName("candidates") val candidates: List<ClusterSimilarityCandidate>
+)
+
+@Serializable
 data class ClusterSimilarityResponse(
-    @SerialName("pairs") val pairs: List<ClusterSimilarityPair>
+    @SerialName("pairs") val pairs: List<ClusterSimilarityPair>,
+    @SerialName("capped") val capped: Boolean
 )
 
 @Serializable

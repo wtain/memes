@@ -752,17 +752,25 @@ the full membership) and records all `C(N, 2)` pairs among the target set. Does 
 
 #### Get Cluster Similarity
 
-Presentation-only pairwise OCR-lemma overlap coefficients for a duplicate cluster's members, to
-help a human reviewer judge which members are most/least alike before dismissing a subset. Never
-written anywhere — computed fresh on each request. See
-`docs/superpowers/specs/2026-09-26-duplicate-cluster-partial-resolution.md`.
+Presentation-only pairwise details for a duplicate cluster's active members, to help a human reviewer
+judge which members are most/least alike before dismissing a subset: the OCR-lemma overlap
+coefficient and the stored candidate rows (distance and signal) of each pair. Never written
+anywhere — computed fresh on each request. See
+`docs/superpowers/specs/2026-09-26-duplicate-cluster-partial-resolution.md` and
+`docs/superpowers/specs/2026-11-02-ocr-dedup-review-details-design.md`.
 
 - **URL**: `/api/images/duplicates/clusters/{cluster_id}/similarity`
 - **Method**: `GET`
 - **Path Parameters**:
   - `cluster_id`: The cluster's `clusterId` as returned by `GET /api/images/duplicates`
-- **Response**: `{"pairs": [{"image_id1": "...", "image_id2": "...", "overlap": 0.75}, ...]}` —
-  overlap is a coefficient between 0.0 and 1.0
+- **Response**: `{"pairs": [{"image_id1": "...", "image_id2": "...", "overlap": 0.75,
+  "candidates": [{"distance": 0.031, "source": "clip"}, ...]}, ...], "capped": false}`
+  - `pairs` has one entry for every combination of two active members (`image_id1 < image_id2`).
+  - `overlap` is a coefficient between 0.0 and 1.0, or `null` when either image has no OCR lemmas.
+  - `candidates` are the stored `tmp_duplicates` rows of the pair, closest first; `source` is `clip`
+    or `ocr_text` (safety-net rows are stored as `clip`). Empty when the two members are only
+    linked through other members of the cluster.
+  - `capped` is `true` and `pairs` is empty when the cluster has more than 100 members.
 - **Cache**: no-cache
 - **Example**: `GET /api/images/duplicates/clusters/141/similarity`
 

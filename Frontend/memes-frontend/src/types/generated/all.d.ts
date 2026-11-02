@@ -1427,15 +1427,34 @@ export interface DuplicateDecisionListResponse {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ClusterSimilarityCandidate".
+ */
+export interface ClusterSimilarityCandidate {
+  /**
+   * Embedding distance of the stored candidate pair. Lower is closer.
+   */
+  distance: number;
+  /**
+   * Which embedding signal produced the pair: CLIP image vectors or OCR-text vectors. Safety-net rows are stored as clip.
+   */
+  source: "clip" | "ocr_text";
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "ClusterSimilarityPair".
  */
 export interface ClusterSimilarityPair {
   image_id1: string;
   image_id2: string;
   /**
-   * OCR-lemma overlap coefficient, 0.0-1.0. Presentation-only, never written anywhere.
+   * OCR-lemma overlap coefficient, 0.0-1.0; null when either image has no OCR lemmas. Presentation-only, never written anywhere.
    */
-  overlap: number;
+  overlap: number | null;
+  /**
+   * The stored candidate rows for this pair, closest first. Empty when the two images are only linked through other members of the cluster.
+   */
+  candidates: ClusterSimilarityCandidate[];
   [k: string]: unknown;
 }
 /**
@@ -1444,5 +1463,9 @@ export interface ClusterSimilarityPair {
  */
 export interface ClusterSimilarityResponse {
   pairs: ClusterSimilarityPair[];
+  /**
+   * True when the cluster has more members than the pair limit (100); pairs is then empty.
+   */
+  capped: boolean;
   [k: string]: unknown;
 }

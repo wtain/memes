@@ -6,7 +6,8 @@
   "properties": {
     "image_id1": { "type": "string" },
     "image_id2": { "type": "string" },
-    "overlap": { "type": "number", "description": "OCR-lemma overlap coefficient, 0.0-1.0. Presentation-only, never written anywhere." }
+    "overlap": { "type": ["number", "null"], "description": "OCR-lemma overlap coefficient, 0.0-1.0; null when either image has no OCR lemmas. Presentation-only, never written anywhere." },
+    "candidates": { "type": "array", "items": { "$ref": "./clustersimilaritycandidate.schema.json" }, "description": "The stored candidate rows for this pair, closest first. Empty when the two images are only linked through other members of the cluster." }
   },
-  "required": ["image_id1", "image_id2", "overlap"]
+  "required": ["image_id1", "image_id2", "overlap", "candidates"]
 }

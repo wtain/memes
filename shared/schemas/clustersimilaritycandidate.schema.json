@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "clustersimilaritycandidate.schema.json",
+  "title": "ClusterSimilarityCandidate",
+  "type": "object",
+  "properties": {
+    "distance": { "type": "number", "description": "Embedding distance of the stored candidate pair. Lower is closer." },
+    "source": { "type": "string", "enum": ["clip", "ocr_text"], "description": "Which embedding signal produced the pair: CLIP image vectors or OCR-text vectors. Safety-net rows are stored as clip." }
+  },
+  "required": ["distance", "source"]
+}
