@@ -1,6 +1,7 @@
 # OCR-Assisted Deduplication — Draft
 
 Status: draft
+Follow-ups: `docs/superpowers/specs/2026-11-02-ocr-dedup-review-details-design.md` (web review page details; options (a) and (b) above were superseded by the shipped OCR-text probe and lemma corroboration)
 
 ## Idea
 
