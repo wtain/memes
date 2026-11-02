@@ -4,7 +4,11 @@ Living checklist of backend functionality that has no authorization model today 
 before it's safe to expose beyond a trusted network. Not a spec — no status/lifecycle, just append
 to it as new admin-only functionality ships without permission checks.
 
-## Current state (as of the query log and gold-set jobs, 2026-10-11)
+## Current state (as of the discovery admin page, 2026-11-02)
+
+Update 2026-11-02: three read-only routes under `/api/admin/discovery/*` were added (S7, 60 routes in
+total). The memes route is admin data; the queries and misses routes return search text, so they are
+listed under "Personal data" below. None of them logs search text.
 
 There is no authentication or authorization anywhere in this backend today. Anyone who can reach a
 backend process's port can call any endpoint, including the ones below.
@@ -80,6 +84,9 @@ Page names below are the frontend routes (`router.tsx`). The batch admin page is
 | Route | Why | Called from |
 |---|---|---|
 | `GET /api/history` | Search history, which now also holds the meme-from-text messages the owner pasted (`?kind=meme_text`, text, parse, timings). Default `kind=search` is the old behaviour. Anyone can read all of it | no page today |
+| `GET /api/admin/discovery/memes` | Discovery report, memes view (S7): memes that keep being re-dropped, with impression and save counts. No search text, but it is admin data | `/admin/discovery` |
+| `GET /api/admin/discovery/queries` | Discovery report, queries view: normalised search text and facets of searches that found little, with times and clients. Anyone can read it | `/admin/discovery` |
+| `GET /api/admin/discovery/misses` | Discovery report, misses view: search text of sessions that ended without a save. Same data as `GET /api/history`, aggregated | `/admin/discovery` |
 | `PUT /api/meme-from-text/ratings` | Writes a rating and the message text that goes with it | `/reply` |
 | `GET /api/meme-from-text/ratings` | Returns the stored ratings for a message | `/reply` |
 | `DELETE /api/meme-from-text/ratings` | Removes one rating | `/reply` |
