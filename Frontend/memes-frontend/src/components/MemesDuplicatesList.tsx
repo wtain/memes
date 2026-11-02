@@ -5,6 +5,8 @@ import { MemeDetailsModal } from "./MemeDetailsModal"
 import { useWindowedPagination, cursorForVirtualIndex, type FetchPageFn, type Page } from "../hooks/useWindowedPagination"
 import type { MemesApi } from "../api/MemesApi"
 import type { Meme, DuplicatePair } from "../types/generated/all"
+import { ClusterDetailsPanel } from "./duplicates/ClusterDetailsPanel"
+import { useClusterSimilarity } from "../duplicates/useClusterSimilarity"
 
 type Props = {
   memesApi: MemesApi
@@ -37,8 +39,8 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
   const [keeperByCluster, setKeeperByCluster] = useState<Map<number, string | undefined>>(new Map())
   const [flaggedMembers, setFlaggedMembers] = useState<Map<number, Set<string>>>(new Map())
   const [resolvedMembers, setResolvedMembers] = useState<Map<number, Set<string>>>(new Map())
-  const [similarityByCluster, setSimilarityByCluster] = useState<Map<number, Map<string, number>>>(new Map())
-  const fetchedSimilarityRef = useRef<Set<number>>(new Set())
+  const { entries: similarityEntries, load: loadSimilarity, retry: retrySimilarity } = useClusterSimilarity(memesApi)
+  const [openDetails, setOpenDetails] = useState<Set<number>>(new Set())
   const cursorChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onCursorChangeRef = useRef(onCursorChange)
   useEffect(() => { onCursorChangeRef.current = onCursorChange })
@@ -174,35 +176,21 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     setKeeperByCluster(prev => { const next = new Map(prev); next.delete(clusterId); return next })
   }, [memesApi, dismissedClusters, flaggedMembers])
 
-  const maybeFetchSimilarity = useCallback((clusterId: number) => {
-    if (fetchedSimilarityRef.current.has(clusterId)) return
-    fetchedSimilarityRef.current.add(clusterId)
-    memesApi.getClusterSimilarity(clusterId).then(response => {
-      const map = new Map<string, number>()
-      for (const pair of response.pairs) {
-        if (pair.overlap !== null) map.set(`${pair.image_id1}:${pair.image_id2}`, pair.overlap)
-      }
-      setSimilarityByCluster(prev => new Map(prev).set(clusterId, map))
-    }).catch(() => {
-      // Presentation-only aid -- a failed fetch just leaves no badges for that row.
-    })
-  }, [memesApi])
-
   const toggleSelect = useCallback((clusterId: number, memberId: string) => {
     setSelectedMembers(prev => {
       const next = new Map(prev)
       const set = new Set(next.get(clusterId) ?? [])
       if (set.has(memberId)) set.delete(memberId); else set.add(memberId)
       next.set(clusterId, set)
-      if (set.size >= 2) maybeFetchSimilarity(clusterId)
+      if (set.size >= 2) loadSimilarity(clusterId)
       return next
     })
-  }, [maybeFetchSimilarity])
+  }, [loadSimilarity])
 
   const selectAll = useCallback((clusterId: number, memberIds: string[]) => {
     setSelectedMembers(prev => new Map(prev).set(clusterId, new Set(memberIds)))
-    if (memberIds.length >= 2) maybeFetchSimilarity(clusterId)
-  }, [maybeFetchSimilarity])
+    if (memberIds.length >= 2) loadSimilarity(clusterId)
+  }, [loadSimilarity])
 
   const clearSelection = useCallback((clusterId: number) => {
     setSelectedMembers(prev => { const next = new Map(prev); next.delete(clusterId); return next })
@@ -354,7 +342,10 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
 
           const selected = typeof clusterId === "number" ? (selectedMembers.get(clusterId) ?? new Set<string>()) : new Set<string>()
           const keeper = typeof clusterId === "number" ? keeperByCluster.get(clusterId) : undefined
-          const similarityMap = typeof clusterId === "number" ? similarityByCluster.get(clusterId) : undefined
+          const similarityEntry = typeof clusterId === "number" ? similarityEntries.get(clusterId) : undefined
+          const similarityMap = similarityEntry?.status === "ok"
+            ? new Map<string, number>(similarityEntry.pairs.flatMap(p => p.overlap === null ? [] : [[`${p.image_id1}:${p.image_id2}`, p.overlap] as const]))
+            : undefined
 
           return (
             <div>
@@ -397,6 +388,32 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
                   )
                 })}
               </div>
+              {typeof clusterId === "number" && (
+                <div className="mt-2">
+                  <button
+                    className="min-h-11 rounded bg-gray-100 px-4 text-sm hover:bg-gray-200"
+                    aria-expanded={openDetails.has(clusterId)}
+                    onClick={() => {
+                      if (!openDetails.has(clusterId)) loadSimilarity(clusterId)
+                      setOpenDetails(prev => {
+                        const next = new Set(prev)
+                        if (next.has(clusterId)) next.delete(clusterId); else next.add(clusterId)
+                        return next
+                      })
+                    }}
+                  >
+                    Details
+                  </button>
+                  {openDetails.has(clusterId) && (
+                    <ClusterDetailsPanel
+                      members={visibleMembers}
+                      entry={similarityEntry}
+                      memesApi={memesApi}
+                      onRetry={() => retrySimilarity(clusterId)}
+                    />
+                  )}
+                </div>
+              )}
               {typeof clusterId === "number" && (
                 <div className="mt-2 flex gap-2">
                   <button
