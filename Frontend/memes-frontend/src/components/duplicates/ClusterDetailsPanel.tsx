@@ -45,7 +45,7 @@ export function ClusterDetailsPanel({ members, entry, memesApi, onRetry }: Props
 
       {entry?.status === 'ok' && !entry.capped && (
         <ul className="space-y-2">
-          {sortPairs(entry.pairs).map(pair => {
+          {sortPairs(entry.pairs.filter(p => byId.has(p.image_id1) && byId.has(p.image_id2))).map(pair => {
             const percent = overlapPercent(pair.overlap)
             return (
               <li

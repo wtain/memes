@@ -43,6 +43,16 @@ describe('ClusterDetailsPanel', () => {
     expect(within(rows[1]).getByText('clip 0.090')).toBeInTheDocument()
   })
 
+  it('leaves out pairs that involve a member the page no longer shows', () => {
+    const shown = makeSimilarityPair({ image_id1: 'a', image_id2: 'b', candidates: [{ distance: 0.05, source: 'clip' }] })
+    const hidden = makeSimilarityPair({ image_id1: 'a', image_id2: 'c', candidates: [{ distance: 0.01, source: 'clip' }] })
+    render(<ClusterDetailsPanel members={[member('a'), member('b')]} entry={{ status: 'ok', pairs: [hidden, shown], capped: false }} memesApi={api} onRetry={() => {}} />)
+    const rows = screen.getAllByRole('listitem', { name: /pair/i })
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]).getByText('clip 0.050')).toBeInTheDocument()
+    expect(screen.queryByText(/clip 0\.010/)).not.toBeInTheDocument()
+  })
+
   it('says a pair is linked through other members when it has no candidates', () => {
     render(<ClusterDetailsPanel members={[member('a'), member('b')]} entry={{ status: 'ok', pairs: [makeSimilarityPair({ overlap: null })], capped: false }} memesApi={api} onRetry={() => {}} />)
     expect(screen.getByText(/linked through other members/i)).toBeInTheDocument()

@@ -40,7 +40,8 @@ decides, as today (the principle set on 2026-09-04 in the draft). Detection and 
 - Opening Details on a cluster of 2 to 100 members shows the member rows and the pair list. A cluster over 100 shows the
   member rows and a notice.
 - A pair stored once as `(LEAST, GREATEST)` is displayed regardless of the order in which the page lists the two members.
-- Flagged and non-active members are left out, as `get_cluster_member_ids` does today.
+- The backend returns pairs for the cluster's active members (`get_cluster_member_ids` filters on `status = 'active'`, not on flagged). The panel shows only pairs between members the page still displays, so members already resolved on this page (kept-best flagged, dismissed) do not appear in the pair list.
+- A pair has at most one stored candidate row (`uq_tmp_duplicates_pair` is on the two ids), so in practice one chip shows; when the CLIP probe and the OCR-text probe both match a pair, the first insert wins and the page shows that source only.
 
 ## Testing
 
