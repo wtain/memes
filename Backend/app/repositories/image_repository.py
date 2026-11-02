@@ -801,6 +801,27 @@ class ImageRepository:
         rows = await self.session.execute(query)
         return [row[0] for row in rows]
 
+    async def get_cluster_pair_candidates(
+            self, member_ids: list[uuid.UUID]
+    ) -> dict[tuple[uuid.UUID, uuid.UUID], list[tuple[float, str]]]:
+        """Every tmp_duplicates row between two of member_ids, keyed by (min id, max id), as
+        (distance, distance_source) sorted by distance. Presentation-only; a pair that was
+        only linked through other members has no row and so no key."""
+        if len(member_ids) < 2:
+            return {}
+        rows = await self.session.execute(
+            select(
+                TmpDuplicates.image_id1, TmpDuplicates.image_id2,
+                TmpDuplicates.distance, TmpDuplicates.distance_source,
+            )
+            .where(TmpDuplicates.image_id1.in_(member_ids), TmpDuplicates.image_id2.in_(member_ids))
+            .order_by(TmpDuplicates.distance)
+        )
+        result: dict[tuple[uuid.UUID, uuid.UUID], list[tuple[float, str]]] = {}
+        for id1, id2, distance, source in rows:
+            result.setdefault((min(id1, id2), max(id1, id2)), []).append((distance, source))
+        return result
+
     async def get_flagged(
             self,
             cursor_created_at: Optional[datetime],

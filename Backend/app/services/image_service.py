@@ -3,7 +3,9 @@ import json
 import logging
 import uuid
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
+from itertools import combinations
 from typing import Optional, Literal
 
 from fastapi import HTTPException
@@ -48,6 +50,20 @@ FLAG_REASON_SOURCES = {"duplicate_review": "cluster_review", "agent_review": "ag
 # This cap is deliberately generous (never expected to fire in practice) and simply skips the
 # computation for a cluster past it, rather than either crashing or paying an unbounded cost.
 SIMILARITY_MEMBER_CAP = 100
+
+
+@dataclass
+class ClusterPairDetail:
+    image_id1: uuid.UUID
+    image_id2: uuid.UUID
+    overlap: float | None
+    candidates: list[tuple[float, str]]
+
+
+@dataclass
+class ClusterPairDetails:
+    pairs: list[ClusterPairDetail]
+    capped: bool
 
 
 def popularity_status(popularity: int, flagged: bool) -> str:
@@ -630,11 +646,17 @@ class ImageService:
         await record_dismissed(self.repo.session, target_ids)
         return pairs
 
-    async def get_cluster_overlap_coefficients(self, cluster_id: int) -> dict[tuple[uuid.UUID, uuid.UUID], float]:
+    async def get_cluster_pair_details(self, cluster_id: int) -> ClusterPairDetails:
         member_ids = await self.repo.get_cluster_member_ids(cluster_id)
         if len(member_ids) > SIMILARITY_MEMBER_CAP:
-            return {}
-        return await self.ocr_lemmas_repo.get_pairwise_overlap_coefficients(member_ids)
+            return ClusterPairDetails(pairs=[], capped=True)
+        overlaps = await self.ocr_lemmas_repo.get_pairwise_overlap_coefficients(member_ids)
+        candidates = await self.repo.get_cluster_pair_candidates(member_ids)
+        pairs = [
+            ClusterPairDetail(a, b, overlaps.get((a, b)), candidates.get((a, b), []))
+            for a, b in combinations(sorted(member_ids), 2)
+        ]
+        return ClusterPairDetails(pairs=pairs, capped=False)
 
     async def undo_dismiss(self, pairs: list[tuple[uuid.UUID, uuid.UUID]]) -> None:
         await self.decision_repo.delete_decisions(pairs)
