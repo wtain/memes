@@ -12,8 +12,8 @@ deep dives use `open`, `in progress`, `done` or `dropped`. Work happens in a wor
 
 | ID | Project | Delivers | Depends on | Status | Spec / plan |
 |---|---|---|---|---|---|
-| C0 | Epic charter and tracker | This folder | none | draft (awaiting owner's check of the split) | `README.md`, `tracker.md` |
-| C1 | Data model and status registry | `comics` and ordered `comics_images` tables, new image status for retired panels, link from the built image to its comics, rows in `docs/image-status.md` and `docs/image-derived-data.md` | C0 | not started | |
+| C0 | Epic charter and tracker | This folder | none | done (split approved and merged 2026-11-02) | `README.md`, `tracker.md` |
+| C1 | Data model and registry | `comics` and ordered `comics_panels` tables, repository enforcing one comics per image and the draft rules, name rules, popularity source `comics_build`, entries in `docs/image-status.md` and `docs/image-derived-data.md` (no new image status: panels leave through the duplicates path) | C0 | draft (design awaiting owner's approval) | `2026-11-02-c1-data-model-and-status-registry-design.md` |
 | C2 | Tiling composer | Pure function: ordered panels to one image (2 per row, 3rd centered, scaling and format rules), plus preview; no database | C0 | not started | |
 | C3 | Comics management API and UI | Create, rename, search, list; add an image to a comics from the meme page (existing or new); reorder; remove a panel; `backend_api.md`, shared schemas and generated types | C1 | not started | |
 | C4 | Build | Build action (compose with C2, register the new image, move sources to `comics-sources/<name>/`, status changes), derived data for the new image, errors and partial-failure handling | C1, C2, C3 | not started | |
@@ -31,6 +31,7 @@ deep dives use `open`, `in progress`, `done` or `dropped`. Work happens in a wor
 | D4 | Layout details: panels of different sizes or aspect ratios, more than 3 panels, output format and quality, size cap | open | Decide in C2 design |
 | D5 | Comics name rules: uniqueness, Cyrillic and Windows-forbidden characters in a directory name, collisions in `comics-sources/` | open | Decide in C1 or C4 design |
 | D6 | Failure and atomicity of the build: files move, database rows change, a crash in between | open | Decide in C4 design |
+| D7 | Recut approval flags and moves its source image; a recut starting on an image that is already a panel of a draft comics would leave a missing panel. Guard in recut code (skip images in a comics) or accept the missing-panel handling | open | Decide with C3 or C4; C1 only blocks the other direction |
 
 ## Order
 
