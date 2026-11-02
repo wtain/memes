@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "discoveryqueries.schema.json",
+  "title": "DiscoveryQueries",
+  "description": "Searches that found little (discovery report, queries view)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "type": "string" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" }, "description": "category:value pairs" },
+          "kind": { "type": "string" },
+          "times": { "type": "integer" },
+          "firstAt": { "type": "string" },
+          "lastAt": { "type": "string" },
+          "minResults": { "type": "integer" },
+          "avgResults": { "type": "number" },
+          "web": { "type": "integer" },
+          "android": { "type": "integer" },
+          "degraded": { "type": "integer" },
+          "fallbacks": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["query", "tags", "kind", "times", "firstAt", "lastAt", "minResults", "avgResults", "web",
+                     "android", "degraded", "fallbacks"]
+      }
+    }
+  },
+  "required": ["kind", "items"]
+}

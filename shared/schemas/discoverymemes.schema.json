@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "discoverymemes.schema.json",
+  "title": "DiscoveryMemes",
+  "description": "Memes that keep coming back through ingestion and how visible they are (discovery report, memes view)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "windowDays": { "type": "integer" },
+    "sources": { "type": "array", "items": { "type": "string" } },
+    "impressionsAvailable": { "type": "boolean" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "imageUrl": { "type": "string" },
+          "filename": { "type": ["string", "null"] },
+          "redrops": { "type": "integer" },
+          "redropsWindow": { "type": "integer" },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "source": { "type": "string" }, "count": { "type": "integer" } },
+              "required": ["source", "count"]
+            }
+          },
+          "popularity": { "type": "integer" },
+          "saves": { "type": "integer" },
+          "impressions": { "type": ["integer", "null"] },
+          "impressionsWindow": { "type": ["integer", "null"] },
+          "lastBack": { "type": ["string", "null"] },
+          "per100": { "type": ["number", "null"], "description": "Re-drops in the window per 100 impressions in the window; null when infinite or unavailable" },
+          "per100Infinite": { "type": "boolean", "description": "True when there were re-drops in the window and no impressions in it" }
+        },
+        "required": ["id", "imageUrl", "filename", "redrops", "redropsWindow", "sources", "popularity", "saves",
+                     "impressions", "impressionsWindow", "lastBack", "per100", "per100Infinite"]
+      }
+    }
+  },
+  "required": ["windowDays", "sources", "impressionsAvailable", "items"]
+}
