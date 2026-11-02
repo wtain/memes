@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
 from Backend.app.api.images import router as images_router
+from Backend.app.services.image_service import ClusterPairDetail, ClusterPairDetails
 from Backend.app.types.generated.meme import Schema as Meme
 from Backend.app.types.generated.memetag import Schema as MemeTag
 from Backend.app.types.generated.facet import Schema as Facet
@@ -1588,18 +1589,53 @@ class TestUndoDismissDuplicates:
 class TestClusterSimilarity:
     """Tests for GET /api/images/duplicates/clusters/{cluster_id}/similarity."""
 
+    A = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    B = uuid.UUID("22222222-2222-2222-2222-222222222222")
+
     def test_similarity_success(self, client, mock_image_service):
-        a = uuid.UUID("11111111-1111-1111-1111-111111111111")
-        b = uuid.UUID("22222222-2222-2222-2222-222222222222")
-        mock_image_service.get_cluster_overlap_coefficients.return_value = {(a, b): 0.75}
+        mock_image_service.get_cluster_pair_details.return_value = ClusterPairDetails(
+            pairs=[ClusterPairDetail(self.A, self.B, 0.75, [(0.03, "clip"), (0.08, "ocr_text")])],
+            capped=False,
+        )
 
         response = client.get("/api/images/duplicates/clusters/141/similarity")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["pairs"] == [{
-            "image_id1": str(a), "image_id2": str(b), "overlap": 0.75,
-        }]
+        assert response.json() == {
+            "pairs": [{
+                "image_id1": str(self.A), "image_id2": str(self.B), "overlap": 0.75,
+                "candidates": [
+                    {"distance": 0.03, "source": "clip"},
+                    {"distance": 0.08, "source": "ocr_text"},
+                ],
+            }],
+            "capped": False,
+        }
+        mock_image_service.get_cluster_pair_details.assert_awaited_once_with(141)
+
+    def test_null_overlap_and_no_candidates(self, client, mock_image_service):
+        mock_image_service.get_cluster_pair_details.return_value = ClusterPairDetails(
+            pairs=[ClusterPairDetail(self.A, self.B, None, [])], capped=False,
+        )
+
+        data = client.get("/api/images/duplicates/clusters/141/similarity").json()
+
+        assert data["pairs"][0]["overlap"] is None
+        assert data["pairs"][0]["candidates"] == []
+
+    def test_capped_cluster_has_no_pairs(self, client, mock_image_service):
+        mock_image_service.get_cluster_pair_details.return_value = ClusterPairDetails(pairs=[], capped=True)
+
+        data = client.get("/api/images/duplicates/clusters/141/similarity").json()
+
+        assert data == {"pairs": [], "capped": True}
+
+    def test_response_is_not_cached(self, client, mock_image_service):
+        mock_image_service.get_cluster_pair_details.return_value = ClusterPairDetails(pairs=[], capped=False)
+
+        response = client.get("/api/images/duplicates/clusters/141/similarity")
+
+        assert "no-store" in response.headers["cache-control"]
 
 
 class TestListDuplicateDecisions:

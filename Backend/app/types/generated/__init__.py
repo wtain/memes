@@ -14,6 +14,7 @@ from . import (
     batchmetricsitem,
     batchmetricsresponse,
     batchnamesresponse,
+    clustersimilaritycandidate,
     clustersimilaritypair,
     clustersimilarityresponse,
     concept,
@@ -395,6 +396,10 @@ class DuplicateDecisionItem(RootModel[duplicatedecisionitem.Schema]):
 
 class DuplicateDecisionListResponse(RootModel[duplicatedecisionlistresponse.Schema]):
     root: duplicatedecisionlistresponse.Schema
+
+
+class ClusterSimilarityCandidate(RootModel[clustersimilaritycandidate.Schema]):
+    root: clustersimilaritycandidate.Schema
 
 
 class ClusterSimilarityPair(RootModel[clustersimilaritypair.Schema]):

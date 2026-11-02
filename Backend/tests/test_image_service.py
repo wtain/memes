@@ -591,26 +591,58 @@ class TestMarkFlaggedDuplicateOf:
         mock_repo.set_flagged.assert_not_awaited()
 
 
-class TestClusterOverlapCoefficients:
-    async def test_delegates_member_ids_to_ocr_lemmas_repo(self, service, mock_repo, mock_ocr_lemmas_repo):
-        a, b = uuid.uuid4(), uuid.uuid4()
-        mock_repo.get_cluster_member_ids.return_value = [a, b]
+class TestClusterPairDetails:
+    async def test_returns_every_member_pair_with_overlap_and_candidates(self, service, mock_repo, mock_ocr_lemmas_repo):
+        a, b, c = sorted([uuid.uuid4(), uuid.uuid4(), uuid.uuid4()])
+        mock_repo.get_cluster_member_ids.return_value = [c, a, b]
         mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.return_value = {(a, b): 0.5}
+        mock_repo.get_cluster_pair_candidates.return_value = {
+            (a, b): [(0.03, "clip"), (0.08, "ocr_text")],
+        }
 
-        result = await service.get_cluster_overlap_coefficients(141)
+        result = await service.get_cluster_pair_details(141)
 
-        mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.assert_awaited_once_with([a, b])
-        assert result == {(a, b): 0.5}
+        mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.assert_awaited_once_with([c, a, b])
+        mock_repo.get_cluster_pair_candidates.assert_awaited_once_with([c, a, b])
+        assert result.capped is False
+        assert [(p.image_id1, p.image_id2) for p in result.pairs] == [(a, b), (a, c), (b, c)]
+        assert result.pairs[0].overlap == 0.5
+        assert result.pairs[0].candidates == [(0.03, "clip"), (0.08, "ocr_text")]
+        # No lemmas and no tmp_duplicates row: still returned, with nothing to show.
+        assert result.pairs[1].overlap is None
+        assert result.pairs[1].candidates == []
 
     async def test_skips_computation_above_the_member_cap(self, service, mock_repo, mock_ocr_lemmas_repo):
         from Backend.app.services.image_service import SIMILARITY_MEMBER_CAP
-        oversized = [uuid.uuid4() for _ in range(SIMILARITY_MEMBER_CAP + 1)]
-        mock_repo.get_cluster_member_ids.return_value = oversized
+        mock_repo.get_cluster_member_ids.return_value = [uuid.uuid4() for _ in range(SIMILARITY_MEMBER_CAP + 1)]
 
-        result = await service.get_cluster_overlap_coefficients(141)
+        result = await service.get_cluster_pair_details(141)
 
         mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.assert_not_awaited()
-        assert result == {}
+        mock_repo.get_cluster_pair_candidates.assert_not_awaited()
+        assert result.pairs == []
+        assert result.capped is True
+
+    async def test_exactly_at_the_cap_still_returns_pairs(self, service, mock_repo, mock_ocr_lemmas_repo):
+        from Backend.app.services.image_service import SIMILARITY_MEMBER_CAP
+        mock_repo.get_cluster_member_ids.return_value = [uuid.uuid4() for _ in range(SIMILARITY_MEMBER_CAP)]
+        mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.return_value = {}
+        mock_repo.get_cluster_pair_candidates.return_value = {}
+
+        result = await service.get_cluster_pair_details(141)
+
+        assert result.capped is False
+        assert len(result.pairs) == SIMILARITY_MEMBER_CAP * (SIMILARITY_MEMBER_CAP - 1) // 2
+
+    async def test_single_member_cluster_has_no_pairs(self, service, mock_repo, mock_ocr_lemmas_repo):
+        mock_repo.get_cluster_member_ids.return_value = [uuid.uuid4()]
+        mock_ocr_lemmas_repo.get_pairwise_overlap_coefficients.return_value = {}
+        mock_repo.get_cluster_pair_candidates.return_value = {}
+
+        result = await service.get_cluster_pair_details(141)
+
+        assert result.pairs == []
+        assert result.capped is False
 
 
 class TestFeedbackChangeDeletesDescriptionTags:

@@ -332,6 +332,76 @@ describe('MemesDuplicatesList dismiss/undo', () => {
   })
 })
 
+describe('MemesDuplicatesList details panel', () => {
+  async function renderCluster(overrides = {}) {
+    const members = [
+      { ...clusterMeme('a', 1), text: ['alpha words (0.9)'] },
+      { ...clusterMeme('b', 1), text: [] },
+    ]
+    const api = makeMockApi({
+      iterateDuplicates: vi.fn().mockResolvedValue({ items: members, hasNext: false, facets: [] }),
+      ...overrides,
+    })
+    render(<MemesDuplicatesList memesApi={api} />)
+    await screen.findByRole('button', { name: 'Details' })
+    return api
+  }
+
+  it('is collapsed by default and fetches nothing until opened', async () => {
+    const api = await renderCluster()
+    expect(screen.queryByText('alpha words (0.9)')).not.toBeInTheDocument()
+    expect(api.getClusterSimilarity).not.toHaveBeenCalled()
+  })
+
+  it('opening Details shows member OCR text and fetches once', async () => {
+    const api = await renderCluster()
+    const toggle = screen.getByRole('button', { name: 'Details' })
+    expect(toggle.className).toContain('min-h-11')
+    fireEvent.click(toggle)
+    expect(await screen.findByText('alpha words (0.9)')).toBeInTheDocument()
+    await waitFor(() => expect(api.getClusterSimilarity).toHaveBeenCalledTimes(1))
+    expect(api.getClusterSimilarity).toHaveBeenCalledWith(1)
+  })
+
+  it('closing and reopening does not fetch again', async () => {
+    const api = await renderCluster()
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    await screen.findByText('alpha words (0.9)')
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    await waitFor(() => expect(api.getClusterSimilarity).toHaveBeenCalledTimes(1))
+  })
+
+  it('selecting two members after opening Details still makes one request', async () => {
+    const api = await renderCluster()
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    await screen.findByText('alpha words (0.9)')
+    fireEvent.click(screen.getByLabelText('Select all'))
+    await waitFor(() => expect(api.getClusterSimilarity).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows a retry after a failed fetch and recovers', async () => {
+    const getClusterSimilarity = vi.fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ pairs: [], capped: false })
+    await renderCluster({ getClusterSimilarity })
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument())
+    expect(getClusterSimilarity).toHaveBeenCalledTimes(2)
+  })
+
+  it('a card badge with a null overlap shows no score and does not crash', async () => {
+    const getClusterSimilarity = vi.fn().mockResolvedValue({
+      pairs: [{ image_id1: 'a', image_id2: 'b', overlap: null, candidates: [] }], capped: false,
+    })
+    await renderCluster({ getClusterSimilarity })
+    fireEvent.click(screen.getByLabelText('Select all'))
+    await waitFor(() => expect(getClusterSimilarity).toHaveBeenCalled())
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument()
+  })
+})
+
 describe('MemesDuplicatesList partial selection', () => {
   it('leaves the Not duplicates button disabled until 2+ members are selected', async () => {
     const api = makeMockApi({

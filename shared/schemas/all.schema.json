@@ -84,6 +84,7 @@
     "DuplicateUndoDismissRequest":    { "$ref": "duplicateundodismissrequest.schema.json" },
     "DuplicateDecisionItem":          { "$ref": "duplicatedecisionitem.schema.json" },
     "DuplicateDecisionListResponse":  { "$ref": "duplicatedecisionlistresponse.schema.json" },
+    "ClusterSimilarityCandidate":     { "$ref": "clustersimilaritycandidate.schema.json" },
     "ClusterSimilarityPair":          { "$ref": "clustersimilaritypair.schema.json" },
     "ClusterSimilarityResponse":      { "$ref": "clustersimilarityresponse.schema.json" }
   }

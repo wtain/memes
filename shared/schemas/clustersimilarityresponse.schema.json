@@ -4,7 +4,8 @@
   "title": "ClusterSimilarityResponse",
   "type": "object",
   "properties": {
-    "pairs": { "type": "array", "items": { "$ref": "./clustersimilaritypair.schema.json" } }
+    "pairs": { "type": "array", "items": { "$ref": "./clustersimilaritypair.schema.json" } },
+    "capped": { "type": "boolean", "description": "True when the cluster has more members than the pair limit (100); pairs is then empty." }
   },
-  "required": ["pairs"]
+  "required": ["pairs", "capped"]
 }

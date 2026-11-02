@@ -68,14 +68,21 @@ class DuplicateDismissRequestModel(BaseModel):
     member_ids: list[uuid.UUID] | None = None
 
 
+class ClusterSimilarityCandidateModel(BaseModel):
+    distance: float
+    source: Literal["clip", "ocr_text"]
+
+
 class ClusterSimilarityPairModel(BaseModel):
     image_id1: str
     image_id2: str
-    overlap: float
+    overlap: float | None
+    candidates: list[ClusterSimilarityCandidateModel]
 
 
 class ClusterSimilarityResponseModel(BaseModel):
     pairs: list[ClusterSimilarityPairModel]
+    capped: bool
 
 
 class DescriptionNoteRequest(BaseModel):
@@ -367,12 +374,21 @@ async def get_cluster_similarity(
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    pairs = await service.get_cluster_overlap_coefficients(cluster_id)
+    details = await service.get_cluster_pair_details(cluster_id)
     return ClusterSimilarityResponseModel(
         pairs=[
-            ClusterSimilarityPairModel(image_id1=str(a), image_id2=str(b), overlap=coeff)
-            for (a, b), coeff in pairs.items()
-        ]
+            ClusterSimilarityPairModel(
+                image_id1=str(pair.image_id1),
+                image_id2=str(pair.image_id2),
+                overlap=pair.overlap,
+                candidates=[
+                    ClusterSimilarityCandidateModel(distance=distance, source=source)
+                    for distance, source in pair.candidates
+                ],
+            )
+            for pair in details.pairs
+        ],
+        capped=details.capped,
     )
 
 
