@@ -1,6 +1,6 @@
 # OCR and distance details on the /duplicates review page
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-11-02-ocr-dedup-review-details.md`
 Originates from: `docs/superpowers/specs/drafts/2026-08-19-ocr-assisted-deduplication-draft.md`
 Follow-ups: none yet
