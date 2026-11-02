@@ -191,6 +191,15 @@ export default function AppLayout() {
           >
             Recut
           </NavLink>
+
+          <NavLink
+            to="/admin/discovery"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Discovery
+          </NavLink>
         </div>
       </header>
 
