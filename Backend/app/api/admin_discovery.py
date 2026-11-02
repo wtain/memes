@@ -44,7 +44,12 @@ async def get_memes(
         sort: MemeSort = "per_100", limit: int = _limit(),
         service: DiscoveryReportService = Depends(get_discovery_service)):
     response.headers.update(no_cache_headers())
-    chosen = DEFAULT_SOURCES if not sources else tuple(part for part in sources.split(",") if part)
+    if sources is None:
+        chosen = DEFAULT_SOURCES
+    else:
+        chosen = tuple(part.strip() for part in sources.split(",") if part.strip())
+        if not chosen:
+            raise HTTPException(status_code=422, detail="choose at least one source")
     try:
         return await service.memes(
             window_days=windowDays if windowDays is not None else window_days(), sources=chosen,

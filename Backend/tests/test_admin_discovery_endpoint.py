@@ -74,6 +74,20 @@ def test_bad_parameters_are_422(client_and_service, path):
     assert client.get(f"/api/admin/discovery/{path}").status_code == 422
 
 
+@pytest.mark.parametrize("value", ["", ",", " , "])
+def test_an_empty_source_list_is_a_422_not_every_source(client_and_service, value):
+    client, service = client_and_service
+    response = client.get("/api/admin/discovery/memes", params={"sources": value})
+    assert response.status_code == 422 and "source" in response.json()["detail"]
+    service.memes.assert_not_awaited()
+
+
+def test_source_names_are_stripped(client_and_service):
+    client, service = client_and_service
+    client.get("/api/admin/discovery/memes", params={"sources": "recut, hash_cross_corpus"})
+    assert service.memes.await_args.kwargs["sources"] == ("recut", "hash_cross_corpus")
+
+
 def test_an_unknown_source_is_a_422_with_our_message(client_and_service):
     client, service = client_and_service
     service.memes.side_effect = ValueError("unknown popularity source(s): nope")
