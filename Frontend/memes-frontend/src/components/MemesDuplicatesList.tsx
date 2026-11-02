@@ -180,7 +180,7 @@ export function MemesDuplicatesList({ memesApi, initialCursor, onCursorChange }:
     memesApi.getClusterSimilarity(clusterId).then(response => {
       const map = new Map<string, number>()
       for (const pair of response.pairs) {
-        map.set(`${pair.image_id1}:${pair.image_id2}`, pair.overlap)
+        if (pair.overlap !== null) map.set(`${pair.image_id1}:${pair.image_id2}`, pair.overlap)
       }
       setSimilarityByCluster(prev => new Map(prev).set(clusterId, map))
     }).catch(() => {
