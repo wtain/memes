@@ -1,5 +1,6 @@
-"""Pixel-free layout arithmetic of the comics tiling composer (C2).
-No database access: plans where each panel goes on a canvas."""
+"""Tiling composer of the multi-image comics (C2; docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-03-c2-tiling-composer-design.md).
+No database access: plans where each panel goes on a canvas (pure arithmetic), then composes the panels into one
+image file or a JPEG preview."""
 import io
 import os
 from dataclasses import dataclass
@@ -81,7 +82,6 @@ def plan_layout(sizes: list[tuple[int, int]]) -> Layout:
 PREVIEW_QUALITY = 85
 _ACCEPTED = {"JPEG", "PNG", "WEBP"}
 _CAN_ANIMATE = {"GIF", "PNG", "WEBP"}
-_ICC_MODES = {"RGB", "RGBA", "L", "LA", "P"}  # other modes (CMYK, ...) carry a profile unfit for RGB output
 _PILLOW_ERRORS =(OSError, ValueError, SyntaxError, PILImage.DecompressionBombError)
 
 
@@ -117,7 +117,9 @@ def _read_header(path: str, position: int) -> _Header:
             w, h = im.size
             if im.getexif().get(0x0112) in (5, 6, 7, 8):
                 w, h = h, w
-            icc = im.info.get("icc_profile") if im.mode in _ICC_MODES else None
+            icc = im.info.get("icc_profile")
+            if not (icc and len(icc) >= 20 and icc[16:20] == b"RGB "):  # ICC header colour space
+                icc = None
             return _Header((w, h), fmt, icc)
     except ComposeError:
         raise
@@ -143,6 +145,8 @@ def _load_panel(path: str, position: int, size: tuple[int, int] | None = None):
                 flat.paste(rgba, mask=rgba.getchannel("A"))
                 im = flat
             elif im.mode != "RGB":
+                if im.mode in ("I", "F") or im.mode.startswith("I;16"):
+                    im = im.point(lambda v: v / 256).convert("L")  # scale 16-bit to 8-bit, convert() would clip
                 im = im.convert("RGB")
             if size is not None and im.size != size:
                 im = im.resize(size, PILImage.Resampling.LANCZOS)

@@ -235,6 +235,52 @@ def test_cmyk_icc_profile_is_not_embedded_in_rgb_output(tmp_path):
         assert im.info.get("icc_profile") is None
 
 
+def test_16_bit_grayscale_panel_is_scaled_not_clipped(tmp_path):
+    import numpy as np
+    arr = np.full((60, 60), 30000, dtype=np.uint16)
+    p = str(tmp_path / "g16.png")
+    PILImage.fromarray(arr).save(p)
+    with PILImage.open(p) as im:
+        assert im.mode.startswith("I")
+    dst = str(tmp_path / "o.png")
+    compose_to_file([p], dst, 90)
+    pl = plan_layout([(60, 60)]).placements[0]
+    with PILImage.open(dst) as out:
+        px = out.convert("RGB").getpixel((pl.x + 30, pl.y + 30))
+    assert all(abs(c - 117) <= 4 for c in px), px
+
+
+def _icc_blob(space: bytes) -> bytes:
+    blob = bytearray(128)
+    blob[16:20] = space
+    return bytes(blob)
+
+
+def test_non_rgb_icc_profile_on_gray_panels_is_not_embedded(tmp_path):
+    paths = []
+    for n in ("a", "b"):
+        p = str(tmp_path / f"{n}.jpg")
+        PILImage.new("L", (50, 50), 128).save(p, icc_profile=_icc_blob(b"GRAY"))
+        paths.append(p)
+    dst = str(tmp_path / "o.jpg")
+    compose_to_file(paths, dst, 90)
+    with PILImage.open(dst) as im:
+        assert im.info.get("icc_profile") is None
+
+
+def test_rgb_icc_profile_shared_by_rgb_panels_is_embedded(tmp_path):
+    blob = _icc_blob(b"RGB ")
+    paths = []
+    for n in ("a", "b"):
+        p = str(tmp_path / f"{n}.jpg")
+        PILImage.new("RGB", (50, 50), "red").save(p, icc_profile=blob)
+        paths.append(p)
+    dst = str(tmp_path / "o.jpg")
+    compose_to_file(paths, dst, 90)
+    with PILImage.open(dst) as im:
+        assert im.info.get("icc_profile") == blob
+
+
 def test_preview_of_a_png_set_is_jpeg(tmp_path):
     a = _make(tmp_path, "a.png", (100, 100), (255, 0, 0))
     with PILImage.open(io.BytesIO(compose_preview([a], 1000))) as im:
