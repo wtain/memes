@@ -187,3 +187,53 @@ async def test_a_built_comics_cannot_be_renamed_or_deleted(db_session):
     with pytest.raises(ComicsError) as exc:
         await repo.delete(comics.id)
     assert exc.value.code == "built"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_name_race_is_translated_and_leaves_the_session_usable(db_session, monkeypatch):
+    repo = ComicsRepository(db_session)
+    await repo.create("Race")
+    other = await repo.create("Other")
+    other_id = other.id
+
+    async def _no_check(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(repo, "_ensure_name_free", _no_check)
+    with pytest.raises(ComicsError) as exc:
+        await repo.create("RACE")
+    assert exc.value.code == "name_taken"
+    with pytest.raises(ComicsError) as exc:
+        await repo.rename(other_id, "race")
+    assert exc.value.code == "name_taken"
+    assert (await repo.create("After")).name == "After"
+    assert (await repo.get(other_id)).name == "Other"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_search_matches_non_ascii_case_insensitively(db_session):
+    repo = ComicsRepository(db_session)
+    created = await repo.create("Привет Мир")
+    found = await repo.search("привет")
+    assert created.id in {c.id for c in found}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_search_is_nfc_aware_both_ways(db_session):
+    repo = ComicsRepository(db_session)
+    composed = await repo.create("Zq café")
+    decomposed = await repo.create("Zq naïve")
+    assert composed.id in {c.id for c in await repo.search("CAFÉ")}
+    assert decomposed.id in {c.id for c in await repo.search("naïve")}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_search_wildcards_are_literal_and_empty_lists_all(db_session):
+    repo = ComicsRepository(db_session)
+    await repo.create("plain one")
+    await repo.create("plain two")
+    assert await repo.search("%") == []
+    assert await repo.search("_") == []
+    assert await repo.search("?*") == []
+    assert len(await repo.search(None)) >= 2
+    assert len(await repo.search("")) >= 2

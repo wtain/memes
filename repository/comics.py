@@ -6,9 +6,11 @@ Every refusal is a ComicsError with a stable `code` and a `detail` dict:
   image_not_addable (reason: not_found, not_active, flagged, live_cut), reorder_mismatch,
   not_buildable (reason: too_few_panels, panel_missing, image_not_active).
 """
+import unicodedata
 import uuid
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from repository.comics_name import ComicsNameError, normalize_name
@@ -26,6 +28,15 @@ class ComicsError(Exception):
 
 def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _search_key(query: str) -> str:
+    """The query in the form name_key is stored in (NFC, casefolded). No name validation: a search never raises."""
+    return unicodedata.normalize("NFC", query).casefold()
+
+
+def _is_name_key_violation(exc: IntegrityError) -> bool:
+    return "uq_comics_name_key" in str(exc.orig)
 
 
 class ComicsRepository:
@@ -66,18 +77,31 @@ class ComicsRepository:
         name, name_key = self._normalize(name)
         await self._ensure_name_free(name_key)
         comics = Comics(name=name, name_key=name_key, state=ComicsState.DRAFT)
-        self.session.add(comics)
-        await self.session.flush()
+        try:
+            async with self.session.begin_nested():
+                self.session.add(comics)
+                await self.session.flush()
+        except IntegrityError as exc:
+            if not _is_name_key_violation(exc):
+                raise
+            raise ComicsError("name_taken") from exc
         return await self._load(comics.id)
 
     async def rename(self, comics_id: uuid.UUID, name: str) -> Comics:
         comics = await self._load_draft(comics_id)
         name, name_key = self._normalize(name)
         await self._ensure_name_free(name_key, exclude_id=comics.id)
-        comics.name = name
-        comics.name_key = name_key
-        await self.session.flush()
-        return comics
+        comics_id = comics.id
+        try:
+            async with self.session.begin_nested():
+                comics.name = name
+                comics.name_key = name_key
+                await self.session.flush()
+        except IntegrityError as exc:
+            if not _is_name_key_violation(exc):
+                raise
+            raise ComicsError("name_taken") from exc
+        return await self._load(comics_id)
 
     async def get(self, comics_id: uuid.UUID) -> Comics:
         return await self._load(comics_id)
@@ -85,7 +109,7 @@ class ComicsRepository:
     async def search(self, query: str | None, limit: int = 50, offset: int = 0) -> list[Comics]:
         stmt = select(Comics).options(selectinload(Comics.panels))
         if query:
-            stmt = stmt.where(Comics.name.ilike(f"%{_escape_like(query)}%", escape="\\"))
+            stmt = stmt.where(Comics.name_key.like(f"%{_escape_like(_search_key(query))}%", escape="\\"))
         stmt = stmt.order_by(Comics.created_at.desc(), Comics.id).limit(limit).offset(offset)
         return list((await self.session.execute(stmt)).scalars().all())
 
