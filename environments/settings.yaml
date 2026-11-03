@@ -11,6 +11,9 @@ recut:                          # screenshot recut, crop detection (docs/superpo
   # max_cuts_per_run: 500       # optional cap on proposals cut per recut_pipeline run (passed to create_recut_cuts as --limit); unset = unlimited
   jpeg_quality: 95             # quality of a cut saved from a JPEG source (R3a); the source's subsampling is kept
 
+comics:                        # multi-image comics (docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-03-c2-tiling-composer-design.md)
+  jpeg_quality: 95             # quality of the tiled image when every panel is JPEG
+
 rules:
   lemmatize: false
 
