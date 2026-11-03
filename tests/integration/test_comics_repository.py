@@ -16,7 +16,7 @@ async def _image(s, status="active"):
 
 async def _panel(s, comics, position, image):
     s.add(ComicsPanel(comics_id=comics.id, image_id=image.id if image else None, position=position,
-                      source_filename=image.filename if image else "gone.png"))
+                      source_image_id=image.id if image else uuid.uuid4(), source_filename=image.filename if image else "gone.png"))
     await s.flush()
 
 
@@ -237,3 +237,24 @@ async def test_search_wildcards_are_literal_and_empty_lists_all(db_session):
     assert await repo.search("?*") == []
     assert len(await repo.search(None)) >= 2
     assert len(await repo.search("")) >= 2
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_with_lock_returns_panels_in_order(db_session):
+    repo = ComicsRepository(db_session)
+    comics = await _two_panel_comics(db_session, repo, "Locked")
+    got = await repo.get(comics.id, lock=True)
+    assert [p.position for p in got.panels] == [0, 1]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_mark_built_refuses_a_built_image_used_by_another_comics(db_session):
+    repo = ComicsRepository(db_session)
+    first = await _two_panel_comics(db_session, repo, "BuiltOne")
+    second = await _two_panel_comics(db_session, repo, "BuiltTwo")
+    built = await _image(db_session)
+    await repo.mark_built(first.id, built.id, "h")
+    with pytest.raises(ComicsError) as exc:
+        await repo.mark_built(second.id, built.id, "h")
+    assert exc.value.code == "not_buildable"
+    assert exc.value.detail["reason"] == "image_already_built"

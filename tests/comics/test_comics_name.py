@@ -30,6 +30,11 @@ def test_length_boundary():
         ("a" * 81, "too_long"),
         *[(f"a{c}b", "forbidden_character") for c in '<>:"/\\|?*'],
         ("a\tb", "forbidden_character"),
+        ("\u200b", "forbidden_character"),
+        ("a\u200bb", "forbidden_character"),
+        ("a\u202eb", "forbidden_character"),
+        ("a\u2028b", "forbidden_character"),
+        ("a\u2029b", "forbidden_character"),
         ("abc.", "trailing_dot_or_space"),
         ("abc. ", "trailing_dot_or_space"),
         ("con", "reserved_name"),
@@ -48,3 +53,7 @@ def test_refusals(raw, reason):
 @pytest.mark.parametrize("raw", ["console", "com10"])
 def test_allowed(raw):
     assert normalize_name(raw)[0] == raw
+
+
+def test_key_is_equal_for_composed_and_decomposed_accents():
+    assert normalize_name("Caf\u00e9")[1] == normalize_name("Cafe\u0301")[1]

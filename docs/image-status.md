@@ -21,7 +21,7 @@ otherwise. The constants live in `Storage/models.py` (`ImageStatus`); the column
 - `pending` or `rejected` to removed: `ingest_abort` moves the file back to the ingestion source and deletes the row. It never touches `active` images.
 - `cut_proposed` to `active`: the proposal is approved (screenshot-recut R5). The source image is flagged for the existing `move_flagged` path in the same change.
 - `cut_proposed` to removed: the proposal is rejected (screenshot-recut R5). The cut is flagged and its file is moved by `move_flagged`. `unregister_deleted_images` reconciles `cut_proposed` images that are flagged (never an unflagged one, so an unplugged drive cannot wipe the review queue), so the rejected cut's row goes once `move_flagged` has moved its file; the `image_cuts` row stays as `rejected`.
-- An `active` image that becomes a comics panel leaves the library by the duplicates path (flag with reason `comics_source`, move, unregister); it gets no status of its own (multi-image comics C1).
+- The panels of a built comics leave the library by the duplicates path (flag with reason `comics_source`, move, unregister) when it is built (multi-image comics C4); an image that is merely a panel of a draft comics stays `active`. A panel gets no status of its own.
 - `active` has no outgoing status change. An `active` image leaves the library by being flagged (`image_extras.flagged`), not by a status.
 
 ## Accepted by `--status`

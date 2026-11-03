@@ -4,16 +4,19 @@ Never commits: the caller (the request's get_async_db session) controls commit t
 Every refusal is a ComicsError with a stable `code` and a `detail` dict:
   name_invalid (reason), name_taken, not_found, built, image_in_comics (comics_id, comics_name),
   image_not_addable (reason: not_found, not_active, flagged, live_cut), reorder_mismatch,
-  not_buildable (reason: too_few_panels, panel_missing, image_not_active).
+  not_buildable (reason: too_few_panels, panel_missing, image_not_active, image_already_built).
+
+Concurrency: every mutator takes the comics row lock (SELECT ... FOR UPDATE) as its first read. A caller that
+reads the panels to compose an image and then calls mark_built (C4) must take the lock at the start with
+get(comics_id, lock=True) in the same transaction, so no panel change or build can slip in between.
 """
-import unicodedata
 import uuid
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from repository.comics_name import ComicsNameError, normalize_name
+from repository.comics_name import ComicsNameError, name_key_of, normalize_name
 from Storage.models import (Comics, ComicsPanel, ComicsState, CutState, Image, ImageCut, ImageExtras,
                             ImageStatus)
 
@@ -33,7 +36,7 @@ def _escape_like(text: str) -> str:
 
 def _search_key(query: str) -> str:
     """The query in the form name_key is stored in (NFC, casefolded). No name validation: a search never raises."""
-    return unicodedata.normalize("NFC", query).casefold()
+    return name_key_of(query)
 
 
 def _is_name_key_violation(exc: IntegrityError) -> bool:
@@ -92,7 +95,7 @@ class ComicsRepository:
         return await self._load(comics.id)
 
     async def rename(self, comics_id: uuid.UUID, name: str) -> Comics:
-        comics = await self._load_draft(comics_id)
+        comics = await self._load_draft(comics_id, lock=True)
         name, name_key = self._normalize(name)
         await self._ensure_name_free(name_key, exclude_id=comics.id)
         comics_id = comics.id
@@ -107,8 +110,8 @@ class ComicsRepository:
             raise ComicsError("name_taken") from exc
         return await self._load(comics_id)
 
-    async def get(self, comics_id: uuid.UUID) -> Comics:
-        return await self._load(comics_id)
+    async def get(self, comics_id: uuid.UUID, lock: bool = False) -> Comics:
+        return await self._load(comics_id, lock=lock)
 
     async def search(self, query: str | None, limit: int = 50, offset: int = 0) -> list[Comics]:
         stmt = select(Comics).options(selectinload(Comics.panels))
@@ -118,12 +121,12 @@ class ComicsRepository:
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def delete(self, comics_id: uuid.UUID) -> None:
-        comics = await self._load_draft(comics_id)
+        comics = await self._load_draft(comics_id, lock=True)
         await self.session.delete(comics)
         await self.session.flush()
 
     async def mark_built(self, comics_id: uuid.UUID, built_image_id: uuid.UUID, built_content_hash: str) -> Comics:
-        comics = await self._load_draft(comics_id)
+        comics = await self._load_draft(comics_id, lock=True)
         if len(comics.panels) < MIN_BUILD_PANELS:
             raise ComicsError("not_buildable", reason="too_few_panels")
         if any(p.image_id is None for p in comics.panels):
@@ -132,6 +135,10 @@ class ComicsRepository:
             select(Image.status).where(Image.id == built_image_id))).scalar_one_or_none()
         if status != ImageStatus.ACTIVE:
             raise ComicsError("not_buildable", reason="image_not_active")
+        used = (await self.session.execute(
+            select(Comics.id).where(Comics.built_image_id == built_image_id).limit(1))).first()
+        if used is not None:
+            raise ComicsError("not_buildable", reason="image_already_built")
         comics.state = ComicsState.BUILT
         comics.built_image_id = built_image_id
         comics.built_content_hash = built_content_hash
@@ -152,6 +159,12 @@ class ComicsRepository:
             if panel.position != index:
                 panel.position = index
         await self.session.flush()
+
+    async def _panel_owner(self, image_id: uuid.UUID):
+        """(id, name) of the comics that holds the image as a panel, or None."""
+        return (await self.session.execute(
+            select(Comics.id, Comics.name).join(ComicsPanel, ComicsPanel.comics_id == Comics.id)
+            .where(ComicsPanel.image_id == image_id))).first()
 
     async def _check_addable(self, image_id: uuid.UUID) -> Image:
         image = (await self.session.execute(
@@ -174,16 +187,24 @@ class ComicsRepository:
 
     async def add_image(self, comics_id: uuid.UUID, image_id: uuid.UUID) -> ComicsPanel:
         comics = await self._load_draft(comics_id, lock=True)
-        owner = (await self.session.execute(
-            select(Comics.id, Comics.name).join(ComicsPanel, ComicsPanel.comics_id == Comics.id)
-            .where(ComicsPanel.image_id == image_id))).first()
+        owner = await self._panel_owner(image_id)
         if owner is not None:
             raise ComicsError("image_in_comics", comics_id=owner.id, comics_name=owner.name)
         image = await self._check_addable(image_id)
         panel = ComicsPanel(comics_id=comics.id, image_id=image.id, position=len(comics.panels),
-                            source_filename=image.filename, source_content_hash=image.content_hash)
-        self.session.add(panel)
-        await self.session.flush()
+                            source_image_id=image.id, source_filename=image.filename,
+                            source_content_hash=image.content_hash)
+        try:
+            async with self.session.begin_nested():
+                self.session.add(panel)
+                await self.session.flush()
+        except IntegrityError as exc:
+            if "uq_comics_panels_image_id" not in str(exc.orig):
+                raise
+            owner = await self._panel_owner(image_id)
+            if owner is None:
+                raise
+            raise ComicsError("image_in_comics", comics_id=owner.id, comics_name=owner.name) from exc
         return panel
 
     async def move_image(self, image_id: uuid.UUID, to_comics_id: uuid.UUID) -> ComicsPanel:
@@ -202,7 +223,8 @@ class ComicsRepository:
         if panel is None:  # moved by someone else while we waited for the locks
             raise ComicsError("not_found")
         panel.comics_id = to_comics_id
-        panel.position = len([p for p in target.panels if p.id != panel.id])
+        others = [p.position for p in target.panels if p.id != panel.id]
+        panel.position = max(others) + 1 if others else 0
         await self.session.flush()
         await self._compact(from_comics_id)
         return panel

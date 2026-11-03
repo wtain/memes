@@ -186,7 +186,7 @@ class Comics(Base):
 
 
 class ComicsPanel(Base):
-    """One image in a comics. image_id is SET NULL when the image row goes; source_filename and
+    """One image in a comics. image_id is SET NULL when the image row goes; source_image_id, source_filename and
     source_content_hash are snapshots taken when the image is added. One comics per image (unique image_id;
     NULLs are distinct). (comics_id, position) is deferrable so a reorder can swap positions in one transaction."""
     __tablename__ = "comics_panels"
@@ -195,6 +195,8 @@ class ComicsPanel(Base):
     comics_id = Column(UUID(as_uuid=True), ForeignKey("comics.id", ondelete="CASCADE"), nullable=False)
     image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="SET NULL"), nullable=True)
     position = Column(Integer, nullable=False)
+    # Snapshot of the image's id (no foreign key): provenance survives the image row, like popularity_absorptions.loser_image_id.
+    source_image_id = Column(UUID(as_uuid=True), nullable=False)
     source_filename = Column(String, nullable=False)
     source_content_hash = Column(String, nullable=True)
 

@@ -28,7 +28,7 @@ Append-only log of duplicate absorptions (epic meme-popularity): when a duplicat
 |---|---|---|
 | `id` | UUID PK | |
 | `kind` | String(10) NOT NULL | `absorb` \| `reverse` |
-| `source` | String(30) NOT NULL | Which flow dropped the loser: `hash_in_batch`, `hash_cross_corpus`, `ingest_tier_a`, `ingest_tier_b`, `cluster_review`, `agent_review`, `file_duplicates`, `recut`, `comics_build` (a built comics absorbing its panels, set by C4), and the ninth, `adjustment` (a manual "set popularity to N": no loser image, `winner_image_id` is the adjusted meme; `PopularitySource` in `Storage/models.py`) |
+| `source` | String(30) NOT NULL | Which flow dropped the loser: `hash_in_batch`, `hash_cross_corpus`, `ingest_tier_a`, `ingest_tier_b`, `cluster_review`, `agent_review`, `file_duplicates`, `recut`, `adjustment` (the ninth: a manual "set popularity to N": no loser image, `winner_image_id` is the adjusted meme; `PopularitySource` in `Storage/models.py`), and the tenth, `comics_build` (a built comics absorbing its panels, set by C4) |
 | `loser_image_id` | UUID nullable | Plain id, no FK. Null for a loser that never became an image row |
 | `winner_image_id` | UUID NOT NULL | Plain id, no FK |
 | `weight` | Integer NOT NULL | CHECK `weight >= 0` for every source except `adjustment`, whose weight is signed and non-zero (the difference between the target and the raw tree value, 1 plus the weight below the image). Copies carried over to the winner |
@@ -68,6 +68,7 @@ One image in a comics. The image row may later go (panels leave the library afte
 | `comics_id` | UUID FK → comics NOT NULL | `ON DELETE CASCADE` |
 | `image_id` | UUID FK → images nullable | `ON DELETE SET NULL`; unique index `uq_comics_panels_image_id` (one comics per image; NULLs do not collide) |
 | `position` | Integer NOT NULL | 0-based order in the tiling; CHECK `position >= 0`; `(comics_id, position)` unique, `DEFERRABLE INITIALLY DEFERRED` so a reorder can swap in one transaction |
+| `source_image_id` | UUID NOT NULL, no foreign key | Snapshot of the image's id taken when the image is added and kept on move; provenance survives the image row (like `popularity_absorptions.loser_image_id`) |
 | `source_filename` | String NOT NULL | Snapshot taken when the image is added |
 | `source_content_hash` | String nullable | Snapshot taken when the image is added |
 

@@ -23,7 +23,7 @@ async def make_comics(session, name="One", **kw):
 
 def panel(comics, image, position, name="p.jpg"):
     return ComicsPanel(comics_id=comics.id, image_id=image.id if image else None, position=position,
-                       source_filename=name, source_content_hash="h")
+                       source_image_id=image.id if image else uuid.uuid4(), source_filename=name, source_content_hash="h")
 
 
 @pytest.mark.asyncio(loop_scope="session")

@@ -8,6 +8,8 @@ import unicodedata
 
 MAX_NAME_LENGTH = 80
 _FORBIDDEN = set('<>:"/\\|?*')
+# Control, format (zero-width, bidi overrides), line and paragraph separators.
+_FORBIDDEN_CATEGORIES = {"Cc", "Cf", "Zl", "Zp"}
 _RESERVED = {"CON", "PRN", "AUX", "NUL"}
 _RESERVED |= {f"COM{i}" for i in range(1, 10)}
 _RESERVED |= {f"LPT{i}" for i in range(1, 10)}
@@ -19,6 +21,11 @@ class ComicsNameError(ValueError):
         self.reason = reason
 
 
+def name_key_of(text: str) -> str:
+    """The comparison key: NFC(casefold(NFC(text))); casefold can leave text unnormalized."""
+    return unicodedata.normalize("NFC", unicodedata.normalize("NFC", text).casefold())
+
+
 def normalize_name(raw: str) -> tuple[str, str]:
     """Return (name, name_key) or raise ComicsNameError."""
     name = unicodedata.normalize("NFC", raw.strip())
@@ -28,10 +35,10 @@ def normalize_name(raw: str) -> tuple[str, str]:
         raise ComicsNameError("empty")
     if len(name) > MAX_NAME_LENGTH:
         raise ComicsNameError("too_long")
-    if any(ch in _FORBIDDEN or unicodedata.category(ch) == "Cc" for ch in name):
+    if any(ch in _FORBIDDEN or unicodedata.category(ch) in _FORBIDDEN_CATEGORIES for ch in name):
         raise ComicsNameError("forbidden_character")
     if name.endswith(".") or name.endswith(" "):
         raise ComicsNameError("trailing_dot_or_space")
     if name.split(".", 1)[0].strip().upper() in _RESERVED:
         raise ComicsNameError("reserved_name")
-    return name, name.casefold()
+    return name, name_key_of(name)

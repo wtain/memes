@@ -200,3 +200,98 @@ async def test_every_panel_operation_refuses_on_a_built_comics(db_session):
         with pytest.raises(ComicsError) as exc:
             await call()
         assert exc.value.code == "built"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_source_image_id_is_a_snapshot_that_survives_the_image_and_a_move(db_session):
+    repo = ComicsRepository(db_session)
+    src, panels = await _filled(db_session, repo, "SnapSrc", 1)
+    dst = await repo.create("SnapDst")
+    panel_id, image_id = panels[0].id, panels[0].image_id
+    assert panels[0].source_image_id == image_id
+    moved = await repo.move_image(image_id, dst.id)
+    assert moved.source_image_id == image_id
+    await db_session.execute(text("DELETE FROM images WHERE id=:i"), {"i": image_id})
+    db_session.expire_all()
+    row = (await db_session.execute(select(ComicsPanel.image_id, ComicsPanel.source_image_id)
+                                    .where(ComicsPanel.id == panel_id))).one()
+    assert row.image_id is None and row.source_image_id == image_id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_move_into_its_own_comics_places_the_panel_last(db_session):
+    repo = ComicsRepository(db_session)
+    comics, panels = await _filled(db_session, repo, "Own", 3)
+    a, b, c = panels
+    ids = (a.id, b.id, c.id)
+    await repo.move_image(a.image_id, comics.id)
+    await db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+    rows = (await db_session.execute(select(ComicsPanel.id, ComicsPanel.position)
+                                     .where(ComicsPanel.comics_id == comics.id)
+                                     .order_by(ComicsPanel.position))).all()
+    assert [r.id for r in rows] == [ids[1], ids[2], ids[0]]
+    assert [r.position for r in rows] == [0, 1, 2]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_image_in_comics_takes_precedence_over_not_addable(db_session):
+    repo = ComicsRepository(db_session)
+    first, panels = await _filled(db_session, repo, "Prec", 1)
+    other = await repo.create("PrecOther")
+    db_session.add(ImageExtras(image_id=panels[0].image_id, flagged=True))
+    await db_session.flush()
+    with pytest.raises(ComicsError) as exc:
+        await repo.add_image(other.id, panels[0].image_id)
+    assert exc.value.code == "image_in_comics"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_built_target_blocks_add_image(db_session):
+    repo = ComicsRepository(db_session)
+    comics = await repo.create("BuiltTarget")
+    await _build(db_session, comics.id)
+    with pytest.raises(ComicsError) as exc:
+        await repo.add_image(comics.id, (await _image(db_session)).id)
+    assert exc.value.code == "built"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_positions_are_unique_after_move_and_remove(db_session):
+    repo = ComicsRepository(db_session)
+    src, panels = await _filled(db_session, repo, "UqSrc", 3)
+    dst, _ = await _filled(db_session, repo, "UqDst", 2)
+    p0_image, p1_id = panels[0].image_id, panels[1].id
+    await repo.move_image(p0_image, dst.id)
+    await repo.remove_panel(p1_id)
+    await db_session.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+    assert await _positions(db_session, src.id) == [0]
+    assert await _positions(db_session, dst.id) == [0, 1, 2]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_add_image_translates_an_image_id_race(db_session, monkeypatch):
+    repo = ComicsRepository(db_session)
+    first, panels = await _filled(db_session, repo, "RaceA", 1)
+    other = await repo.create("RaceB")
+    image_id, first_id = panels[0].image_id, first.id
+
+    async def no_owner(self, image_id):
+        return None
+    real = ComicsRepository._panel_owner
+    monkeypatch.setattr(ComicsRepository, "_panel_owner", no_owner)
+    calls = []
+
+    async def owner_after(self, image_id):
+        calls.append(1)
+        return await real(self, image_id)
+    # first call (pre-check) sees nothing; the translation re-query uses the real lookup
+    state = {"n": 0}
+
+    async def flaky(self, image_id):
+        state["n"] += 1
+        return None if state["n"] == 1 else await real(self, image_id)
+    monkeypatch.setattr(ComicsRepository, "_panel_owner", flaky)
+    with pytest.raises(ComicsError) as exc:
+        await repo.add_image(other.id, image_id)
+    assert exc.value.code == "image_in_comics"
+    assert exc.value.detail == {"comics_id": first_id, "comics_name": "RaceA"}

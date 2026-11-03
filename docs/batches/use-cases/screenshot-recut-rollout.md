@@ -8,8 +8,8 @@ The commands are PowerShell from the repo root unless a step says `Storage/`. `$
 
 ## The migrations
 
-A behind environment receives these eight in one `alembic upgrade head`, in this order. The popularity, saves and impressions migrations sit
-between the recut ones. All eight only add tables, columns, constraints and indexes and rewrite no existing row.
+A behind environment receives these ten in one `alembic upgrade head`, in this order. The popularity, saves and impressions migrations sit
+between the recut ones. All ten only add tables, columns, constraints and indexes and rewrite no existing row.
 
 1. `b8d4f1a6c935` R1: `image_cuts`, `stale` columns
 2. `c5e2a9d7b140` M1: `process_events`
@@ -41,7 +41,7 @@ Replace `general` and port `5434` (metal 5432, it 5436) as needed.
    `$env:DATABASE_URL_READONLY = (Select-String -Path environments\.env.general -Pattern '^DATABASE_URL_READONLY=').Line.Split('=',2)[1]`
 1. **Preflight before.**
    `& $py -m tools.rollout_preflight --env general --backup-dir Storage\backups`
-   Expect `NOT READY` only because of the eight pending revisions (and `WARN` lines for the missing objects they create).
+   Expect `NOT READY` only because of the ten pending revisions (and `WARN` lines for the missing objects they create).
    Anything else that fails (a running batch job, no free space, an unwritable `BASE_PATH`) must be fixed first. A `started`
    `batch_runs` row names its kind and age; an old one whose process is gone is orphaned (check `/admin/batches` and the running
    Python processes) and must be closed by the owner before the upgrade. An open ingestion review run only warns; stay off `/ingestion`.
@@ -63,7 +63,7 @@ Replace `general` and port `5434` (metal 5432, it 5436) as needed.
    `/api/diagnostics/health`, `/api/images?limit=1`, `GET /api/admin/batches/metrics?process=recut`, and `/admin/batches` showing
    all four metric panels.
    *If the smoke test fails and nothing new was written:* `alembic downgrade` to the revision noted in step 2 (the downgrades drop
-   what was added; `c8e2f5a1d093` refuses once an `adjustment` popularity row exists). If that fails, restore the dump.
+   what was added; `c8e2f5a1d093` refuses once an `adjustment` popularity row exists; `d7a3b9c5e214` refuses once a `comics_build` popularity row exists, and its downgrade drops the comics tables, including the records of built comics). If that fails, restore the dump.
    *If anything fails after the app wrote new data:* restore the dump of that environment only; the cost is the writes since the backup.
 
 ## First recut pass (general only)

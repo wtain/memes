@@ -57,6 +57,7 @@ def upgrade() -> None:
         sa.Column('image_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('images.id', ondelete='SET NULL'),
                   nullable=True),
         sa.Column('position', sa.Integer(), nullable=False),
+        sa.Column('source_image_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('source_filename', sa.String(), nullable=False),
         sa.Column('source_content_hash', sa.String(), nullable=True),
         sa.UniqueConstraint('comics_id', 'position', name='uq_comics_panels_position',
