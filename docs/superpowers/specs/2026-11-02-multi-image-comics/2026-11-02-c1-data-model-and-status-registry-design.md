@@ -1,6 +1,7 @@
 # C1: Data model and registry for comics
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-11-03-c1-comics-data-model.md
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C1)
 Follow-ups: none yet
 
