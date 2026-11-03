@@ -153,6 +153,61 @@ class ImageCut(Base):
     )
 
 
+class ComicsState:
+    """Values of comics.state (epic multi-image-comics). A comics is not an image status: see docs/image-status.md."""
+    DRAFT = "draft"
+    BUILT = "built"
+    ALL = (DRAFT, BUILT)
+
+
+class Comics(Base):
+    """A named, ordered list of images that C4 builds into one tiled image (epic multi-image-comics, C1).
+    name_key is the NFC-normalized, case-folded name, computed in code; its unique index makes names unique
+    the way a Windows directory name is. built_image_id is SET NULL so the record outlives the built image."""
+    __tablename__ = "comics"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    name_key = Column(String, nullable=False)
+    state = Column(String(20), nullable=False, server_default=ComicsState.DRAFT)
+    built_image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="SET NULL"), nullable=True)
+    built_content_hash = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    built_at = Column(DateTime(timezone=True), nullable=True)
+
+    panels = relationship("ComicsPanel", order_by="ComicsPanel.position", cascade="all, delete-orphan",
+                          passive_deletes=True)
+
+    __table_args__ = (
+        Index("uq_comics_name_key", "name_key", unique=True),
+        Index("uq_comics_built_image_id", "built_image_id", unique=True),
+        CheckConstraint("state IN ('draft', 'built')", name="ck_comics_state"),
+    )
+
+
+class ComicsPanel(Base):
+    """One image in a comics. image_id is SET NULL when the image row goes; source_image_id, source_filename and
+    source_content_hash are snapshots taken when the image is added. One comics per image (unique image_id;
+    NULLs are distinct). (comics_id, position) is deferrable so a reorder can swap positions in one transaction."""
+    __tablename__ = "comics_panels"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    comics_id = Column(UUID(as_uuid=True), ForeignKey("comics.id", ondelete="CASCADE"), nullable=False)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="SET NULL"), nullable=True)
+    position = Column(Integer, nullable=False)
+    # Snapshot of the image's id (no foreign key): provenance survives the image row, like popularity_absorptions.loser_image_id.
+    source_image_id = Column(UUID(as_uuid=True), nullable=False)
+    source_filename = Column(String, nullable=False)
+    source_content_hash = Column(String, nullable=True)
+
+    __table_args__ = (
+        Index("uq_comics_panels_image_id", "image_id", unique=True),
+        UniqueConstraint("comics_id", "position", name="uq_comics_panels_position",
+                         deferrable=True, initially="DEFERRED"),
+        CheckConstraint("position >= 0", name="ck_comics_panels_position"),
+    )
+
+
 class PopularitySource:
     """Values of popularity_absorptions.source (epic meme-popularity)."""
     HASH_IN_BATCH = "hash_in_batch"
@@ -164,8 +219,9 @@ class PopularitySource:
     FILE_DUPLICATES = "file_duplicates"
     RECUT = "recut"
     ADJUSTMENT = "adjustment"
+    COMICS_BUILD = "comics_build"
     ALL = (HASH_IN_BATCH, HASH_CROSS_CORPUS, INGEST_TIER_A, INGEST_TIER_B,
-           CLUSTER_REVIEW, AGENT_REVIEW, FILE_DUPLICATES, RECUT, ADJUSTMENT)
+           CLUSTER_REVIEW, AGENT_REVIEW, FILE_DUPLICATES, RECUT, ADJUSTMENT, COMICS_BUILD)
 
 
 class PopularityKind:

@@ -1,6 +1,6 @@
 # C1: Data model and registry for comics
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-11-03-c1-comics-data-model.md
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C1)
 Follow-ups: none yet
@@ -49,6 +49,7 @@ constraint.
 | `comics_id` | FK to `comics`, `ON DELETE CASCADE` |
 | `image_id` | FK to `images`, `ON DELETE SET NULL`, nullable |
 | `position` | integer, 0-based order in the tiling; the order the owner sets |
+| `source_image_id` | UUID, not null, **no foreign key**: snapshot of the image's id taken when it is added (added during the final review of C1 so provenance can be linked to the popularity edges and process events, which refer to plain image ids, like `popularity_absorptions.loser_image_id`) |
 | `source_filename`, `source_content_hash` | snapshot of the image at the time it is added, kept when the image row is later deleted |
 
 Constraints: unique index on `image_id` (one comics per image; PostgreSQL treats NULLs as distinct, so deleted panels do not
@@ -63,7 +64,8 @@ UI shows it as missing and the owner removes it, and build refuses a comics with
 ## Name rules (my call, D5)
 
 The name is trimmed and NFC-normalized before it is stored; 1 to 80 characters after trimming; Cyrillic and other Unicode letters are allowed; it must not contain control
-characters or any of `< > : " / \ | ? *`; it must not end in a dot or space and must not be a Windows reserved device name
+characters or format and separator characters (Unicode categories Cc, Cf, Zl, Zp: zero-width characters, bidi overrides, line and
+paragraph separators) or any of `< > : " / \ | ? *`; it must not end in a dot or space and must not be a Windows reserved device name
 (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, with or without an extension). The check is one pure function in
 a shared module, so the API (C3) and the build (C4) use the same rule. The name of a `built` comics is frozen, because its
 directory exists; a draft can be renamed.
@@ -89,6 +91,12 @@ requires the comics to be a draft with at least 2 panels, none of them missing (
 `built_image_id`; it sets `state`, `built_image_id`, `built_content_hash` and `built_at`. It does not touch the panel rows:
 they keep their `image_id` until the panels' rows are deleted by the existing flag-move-unregister path, which SET NULL then
 turns into the snapshot-only record. C4 decides when to call it.
+
+**Locking (added in the final review).** Every function that changes a comics or its panels takes `SELECT ... FOR UPDATE` on the
+comics row (rename, delete and `mark_built` too, so a rename or delete cannot slip in beside a build), and `move_image` locks both
+comics in sorted-id order. `get(comics_id, lock=True)` is the locking read for C4: C4 must take it at the start of its build
+transaction, compose from the locked panel set, and take the panel image ids for flagging and popularity edges from that same
+set; otherwise a panel could be added between composing and marking built.
 
 "Move an image between drafts" is one function in one transaction: both comics must be drafts, the panel row is updated in place
 (`comics_id`, new last position; the snapshot is kept), and the source's positions are made contiguous again.

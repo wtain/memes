@@ -29,6 +29,19 @@ def _load_adjustment():
     return module
 
 
+COMICS_MIGRATION = (Path(__file__).resolve().parents[2] / "Storage" / "alembic" / "versions"
+                    / "d7a3b9c5e214_add_comics_tables.py")
+
+
+def _add_comics_source():
+    """The comics migration (C1) widens the source check on top of the adjustment one; apply just that step
+    (its tables already exist here, created from the models)."""
+    spec = importlib.util.spec_from_file_location("migration_d7a3b9c5e214", COMICS_MIGRATION)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module._replace_source_check(module._NEW_SOURCES)
+
+
 def _run(connection, function):
     context = MigrationContext.configure(connection)
     with Operations.context(context):
@@ -90,6 +103,7 @@ async def test_the_migration_matches_the_model_and_downgrades(db_engine):
             await _drop_what_the_migration_adds(connection)
             await connection.run_sync(lambda sync: _run(sync, module.upgrade))
             await connection.run_sync(lambda sync: _run(sync, adjustment.upgrade))
+            await connection.run_sync(lambda sync: _run(sync, _add_comics_source))
             assert await connection.run_sync(_both) == model_shape
 
             await connection.run_sync(lambda sync: _run(sync, adjustment.downgrade))
@@ -162,6 +176,7 @@ async def test_the_adjustment_downgrade_restores_the_old_checks(db_engine):
             assert "recut" in old_checks["ck_popularity_absorptions_source"]
 
             await connection.run_sync(lambda sync: _run(sync, module.upgrade))
+            await connection.run_sync(lambda sync: _run(sync, _add_comics_source))
             assert await connection.run_sync(_checks) == new_checks
         finally:
             await transaction.rollback()

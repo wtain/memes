@@ -17,6 +17,8 @@ The cut's `images` row: new `id` and `filename`; `created_at` inherited from the
 | Table | Group | At cut time | Refresh path |
 |---|---|---|---|
 | `image_cuts` | relation | The proposal itself | not applicable |
+| `comics` | relation | Not copied; bookkeeping of the comics epic, see docs/superpowers/specs/2026-11-02-multi-image-comics/README.md; never copied to a cut | not applicable |
+| `comics_panels` | relation | Not copied; bookkeeping of the comics epic, see docs/superpowers/specs/2026-11-02-multi-image-comics/README.md; never copied to a cut | not applicable |
 | `description_notes` | 1 | Copied as is, including `lemmas_built_at` and `embedding_built_at` | none |
 | `description_note_lemmas` | 1 | Copied | none |
 | `description_note_embeddings` | 1 | Copied | none |

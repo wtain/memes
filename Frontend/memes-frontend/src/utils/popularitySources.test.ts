@@ -9,6 +9,10 @@ describe("sourceLabel", () => {
     expect(sourceLabel("adjustment")).toBe("Manual adjustment")
   })
 
+  it("labels the comics build source", () => {
+    expect(sourceLabel("comics_build")).toBe("Comics built")
+  })
+
   it("falls back to the raw key for an unknown source", () => {
     expect(sourceLabel("manual")).toBe("manual")
   })

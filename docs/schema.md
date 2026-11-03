@@ -28,7 +28,7 @@ Append-only log of duplicate absorptions (epic meme-popularity): when a duplicat
 |---|---|---|
 | `id` | UUID PK | |
 | `kind` | String(10) NOT NULL | `absorb` \| `reverse` |
-| `source` | String(30) NOT NULL | Which flow dropped the loser: `hash_in_batch`, `hash_cross_corpus`, `ingest_tier_a`, `ingest_tier_b`, `cluster_review`, `agent_review`, `file_duplicates`, `recut`, and the ninth, `adjustment` (a manual "set popularity to N": no loser image, `winner_image_id` is the adjusted meme; `PopularitySource` in `Storage/models.py`) |
+| `source` | String(30) NOT NULL | Which flow dropped the loser: `hash_in_batch`, `hash_cross_corpus`, `ingest_tier_a`, `ingest_tier_b`, `cluster_review`, `agent_review`, `file_duplicates`, `recut`, `adjustment` (the ninth: a manual "set popularity to N": no loser image, `winner_image_id` is the adjusted meme; `PopularitySource` in `Storage/models.py`), and the tenth, `comics_build` (a built comics absorbing its panels, set by C4) |
 | `loser_image_id` | UUID nullable | Plain id, no FK. Null for a loser that never became an image row |
 | `winner_image_id` | UUID NOT NULL | Plain id, no FK |
 | `weight` | Integer NOT NULL | CHECK `weight >= 0` for every source except `adjustment`, whose weight is signed and non-zero (the difference between the target and the raw tree value, 1 plus the weight below the image). Copies carried over to the winner |
@@ -43,6 +43,34 @@ Append-only log of duplicate absorptions (epic meme-popularity): when a duplicat
 | `created_at` | DateTime(tz) | Server default `now()` |
 
 Constraints: CHECK on `kind`, `source`, `reason`, `weight >= 0` and on the row shape (an `absorb` has no `reverses_id` and no `reason`, a `reverse` has both). Indexes: partial unique `(loser_image_id)` over open `absorb` edges (a loser is absorbed by at most one winner at a time), partial `(winner_image_id)` over open edges, and `batch_run_id`.
+
+### `comics`
+
+A named, ordered list of images that is later built into one tiled image (epic multi-image-comics, C1). Written through `repository/comics.py`, which never commits.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `name` | String NOT NULL | The owner-visible name; also the directory name in `comics-sources/` |
+| `name_key` | String NOT NULL | Name NFC-normalized and case-folded (computed in code); unique index `uq_comics_name_key` |
+| `state` | String(20) NOT NULL | `draft` \| `built` (`ComicsState`), CHECK `ck_comics_state`; server default `draft` |
+| `built_image_id` | UUID FK → images nullable | `ON DELETE SET NULL`; unique; NULL while a draft |
+| `built_content_hash` | String nullable | Audit anchor for the built image |
+| `created_at`, `built_at` | DateTime(tz) | `created_at` has server default `now()`; `built_at` is NULL while a draft |
+
+### `comics_panels`
+
+One image in a comics. The image row may later go (panels leave the library after a build); the snapshot columns keep what it was.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `comics_id` | UUID FK → comics NOT NULL | `ON DELETE CASCADE` |
+| `image_id` | UUID FK → images nullable | `ON DELETE SET NULL`; unique index `uq_comics_panels_image_id` (one comics per image; NULLs do not collide) |
+| `position` | Integer NOT NULL | 0-based order in the tiling; CHECK `position >= 0`; `(comics_id, position)` unique, `DEFERRABLE INITIALLY DEFERRED` so a reorder can swap in one transaction |
+| `source_image_id` | UUID NOT NULL, no foreign key | Snapshot of the image's id taken when the image is added and kept on move; provenance survives the image row (like `popularity_absorptions.loser_image_id`) |
+| `source_filename` | String NOT NULL | Snapshot taken when the image is added |
+| `source_content_hash` | String nullable | Snapshot taken when the image is added |
 
 ### `image_extras`
 Optional per-image flags. Separate table so that the `images` row stays small and extras are only joined when needed.
