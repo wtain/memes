@@ -20,6 +20,7 @@ between the recut ones. All eight only add tables, columns, constraints and inde
 7. `d5b8e3a07c41` saves: `meme_saves`
 8. `a2f6d8c3b715` S1: `meme_impressions`
 9. `b4c9e1f7a028` S6: `search_not_found` and `meme_saves.search_history_id`
+10. `d7a3b9c5e214` C1: `comics` and `comics_panels`, and the `comics_build` popularity source
 
 `tools/rollout_preflight.py` reads the same chain from `Storage/alembic`; a test fails when this list and the chain differ.
 
@@ -54,9 +55,9 @@ Replace `general` and port `5434` (metal 5432, it 5436) as needed.
    The backend's own scheduler also writes (for example `build_statistics` hourly): do the upgrade away from a tick, or stop that
    backend until step 6, because the DDL needs exclusive locks on `images` and other tables.
 4. **Upgrade.** From `Storage/`, with that environment's variables loaded as in CLAUDE.md ("Database migrations"): `alembic upgrade head`.
-   *If this fails midway:* `Storage/alembic/env.py` runs the whole upgrade in one transaction, so a failure rolls all nine
+   *If this fails midway:* `Storage/alembic/env.py` runs the whole upgrade in one transaction, so a failure rolls all ten
    back and the database stays at the starting revision; read the error and rerun the preflight to confirm. Never edit `alembic_version` by hand.
-5. **Preflight after.** Same command as step 1. Expect `READY` and `at head b4c9e1f7a028`.
+5. **Preflight after.** Same command as step 1. Expect `READY` and `at head d7a3b9c5e214`.
 6. **Restart the backend** of that environment on matching code. Where an image is used, rebuild it first: it now needs Pillow,
    `batch/utils/{__init__,recut_cut,file_hash}.py` and write access to `BASE_PATH`. Smoke test:
    `/api/diagnostics/health`, `/api/images?limit=1`, `GET /api/admin/batches/metrics?process=recut`, and `/admin/batches` showing

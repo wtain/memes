@@ -8,6 +8,7 @@ const SOURCE_LABELS: Record<string, string> = {
   agent_review: "Duplicate review command",
   file_duplicates: "Identical files found in the collection",
   adjustment: "Manual adjustment",
+  comics_build: "Comics built",
 }
 
 /** Count as shown in the breakdown: only the adjustment is signed (+28, -4); the other sources are never negative. */
