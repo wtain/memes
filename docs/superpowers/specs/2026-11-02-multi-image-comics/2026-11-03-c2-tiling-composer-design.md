@@ -1,6 +1,7 @@
 # C2: Tiling composer
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-11-03-c2-tiling-composer.md
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C2)
 Follow-ups: none yet
 
