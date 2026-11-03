@@ -14,7 +14,7 @@ deep dives use `open`, `in progress`, `done` or `dropped`. Work happens in a wor
 |---|---|---|---|---|---|
 | C0 | Epic charter and tracker | This folder | none | done (split approved and merged 2026-11-02) | `README.md`, `tracker.md` |
 | C1 | Data model and registry | `comics` and ordered `comics_panels` tables, repository enforcing one comics per image and the draft rules, name rules, popularity source `comics_build`, entries in `docs/image-status.md` and `docs/image-derived-data.md` (no new image status: panels leave through the duplicates path) | C0 | approved (design approved 2026-11-03; plan not yet written) | `2026-11-02-c1-data-model-and-status-registry-design.md` |
-| C2 | Tiling composer | Pure function: ordered panels to one image (2 per row, 3rd centered, scaling and format rules), plus preview; no database | C0 | not started | |
+| C2 | Tiling composer | Pure function: ordered panels to one image (2 per row, 3rd centered, scaling and format rules), plus preview; no database | C0 | draft (design awaiting owner's approval) | `2026-11-03-c2-tiling-composer-design.md` |
 | C3 | Comics management API and UI | Create, rename, search, list; add an image to a comics from the meme page (existing or new); reorder; remove a panel; `backend_api.md`, shared schemas and generated types | C1 | not started | |
 | C4 | Build | Build action (compose with C2, register the new image, move sources to `comics-sources/<name>/`, status changes), derived data for the new image, errors and partial-failure handling | C1, C2, C3 | not started | |
 | C5 | Operations | Batch inventory and registry entries if the build runs as a job, statistics, runbook, rollout | C4 | not started | |
