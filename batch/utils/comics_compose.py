@@ -80,7 +80,9 @@ def plan_layout(sizes: list[tuple[int, int]]) -> Layout:
 
 PREVIEW_QUALITY = 85
 _ACCEPTED = {"JPEG", "PNG", "WEBP"}
-_PILLOW_ERRORS = (OSError, ValueError, SyntaxError, PILImage.DecompressionBombError)
+_CAN_ANIMATE = {"GIF", "PNG", "WEBP"}
+_ICC_MODES = {"RGB", "RGBA", "L", "LA", "P"}  # other modes (CMYK, ...) carry a profile unfit for RGB output
+_PILLOW_ERRORS =(OSError, ValueError, SyntaxError, PILImage.DecompressionBombError)
 
 
 @dataclass(frozen=True)
@@ -106,14 +108,17 @@ def _read_header(path: str, position: int) -> _Header:
     try:
         with PILImage.open(path) as im:
             fmt = im.format
-            if getattr(im, "is_animated", False) or getattr(im, "n_frames", 1) > 1:
+            if fmt == "MPO":  # multi-picture JPEG (phone photos): a static JPEG, first frame
+                fmt = "JPEG"
+            elif fmt in _CAN_ANIMATE and (getattr(im, "is_animated", False) or getattr(im, "n_frames", 1) > 1):
                 raise ComposeError("animated", position)
             if fmt not in _ACCEPTED:
                 raise ComposeError("unsupported_format", position, str(fmt))
             w, h = im.size
             if im.getexif().get(0x0112) in (5, 6, 7, 8):
                 w, h = h, w
-            return _Header((w, h), fmt, im.info.get("icc_profile"))
+            icc = im.info.get("icc_profile") if im.mode in _ICC_MODES else None
+            return _Header((w, h), fmt, icc)
     except ComposeError:
         raise
     except _PILLOW_ERRORS as e:

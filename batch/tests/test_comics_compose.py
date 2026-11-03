@@ -206,6 +206,35 @@ def test_preview_matches_the_layout_at_a_smaller_scale(tmp_path):
         assert im.size == (layout.canvas_width, layout.canvas_height)
 
 
+def test_mpo_photo_is_accepted_as_jpeg(tmp_path):
+    first = PILImage.new("RGB", (120, 80), (200, 30, 30))
+    second = PILImage.new("RGB", (120, 80), (30, 30, 200))
+    mpo = str(tmp_path / "phone.jpg")
+    first.save(mpo, format="MPO", save_all=True, append_images=[second])
+    with PILImage.open(mpo) as im:
+        assert im.format == "MPO" and im.n_frames > 1
+    b = _make(tmp_path, "b.jpg", (120, 80), (0, 0, 255))
+    dst = str(tmp_path / "o.out")
+    res = compose_to_file([mpo, b], dst, 90)
+    assert res.format == "JPEG"
+    pl = plan_layout([(120, 80), (120, 80)]).placements[0]
+    with PILImage.open(dst) as out:
+        assert out.format == "JPEG"
+        assert _near(out.convert("RGB").getpixel((pl.x + 60, pl.y + 40)), (200, 30, 30))
+
+
+def test_cmyk_icc_profile_is_not_embedded_in_rgb_output(tmp_path):
+    paths = []
+    for n in ("a", "b"):
+        p = str(tmp_path / f"{n}.jpg")
+        PILImage.new("CMYK", (50, 50), (0, 0, 0, 0)).save(p, icc_profile=b"fake-cmyk-profile")
+        paths.append(p)
+    dst = str(tmp_path / "o.jpg")
+    compose_to_file(paths, dst, 90)
+    with PILImage.open(dst) as im:
+        assert im.info.get("icc_profile") is None
+
+
 def test_preview_of_a_png_set_is_jpeg(tmp_path):
     a = _make(tmp_path, "a.png", (100, 100), (255, 0, 0))
     with PILImage.open(io.BytesIO(compose_preview([a], 1000))) as im:
