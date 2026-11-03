@@ -1,6 +1,6 @@
 # C2: Tiling composer
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-11-03-c2-tiling-composer.md
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C2)
 Follow-ups: none yet
@@ -60,7 +60,7 @@ preview, C4 for the build.
 ## Interface
 
 A module in `batch/utils/`, next to `recut_cut.py`. One error class `ComposeError(reason, position, detail)` with reasons such as `unreadable`, `animated`,
-`unsupported_format`, `too_large`, `no_panels`.
+`unsupported_format`, `too_large`, `no_panels`, and `write_error` (writing the output file failed; position is `None`, added during implementation).
 
 - `plan_layout(sizes: list[tuple[int, int]]) -> Layout`: pure arithmetic, no files. Takes the (width, height) of each panel after
   orientation and returns the rows, each panel's scaled size and its position, the gutter, and the canvas size. Unit-testable
