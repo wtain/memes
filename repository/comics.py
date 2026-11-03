@@ -9,12 +9,13 @@ Every refusal is a ComicsError with a stable `code` and a `detail` dict:
 import unicodedata
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from repository.comics_name import ComicsNameError, normalize_name
-from Storage.models import Comics, ComicsState, Image, ImageStatus
+from Storage.models import (Comics, ComicsPanel, ComicsState, CutState, Image, ImageCut, ImageExtras,
+                            ImageStatus)
 
 MIN_BUILD_PANELS = 2
 
@@ -58,17 +59,20 @@ class ComicsRepository:
         if (await self.session.execute(query.limit(1))).first() is not None:
             raise ComicsError("name_taken")
 
-    async def _load(self, comics_id: uuid.UUID) -> Comics:
-        """The comics with its panels in order, refreshed from the database; raises not_found."""
+    async def _load(self, comics_id: uuid.UUID, lock: bool = False) -> Comics:
+        """The comics with its panels in order, refreshed from the database; raises not_found.
+        lock=True takes the comics row lock (FOR UPDATE) so concurrent panel changes of one comics serialise."""
         query = (select(Comics).where(Comics.id == comics_id)
                  .options(selectinload(Comics.panels)).execution_options(populate_existing=True))
+        if lock:
+            query = query.with_for_update(of=Comics)
         comics = (await self.session.execute(query)).scalar_one_or_none()
         if comics is None:
             raise ComicsError("not_found")
         return comics
 
-    async def _load_draft(self, comics_id: uuid.UUID) -> Comics:
-        comics = await self._load(comics_id)
+    async def _load_draft(self, comics_id: uuid.UUID, lock: bool = False) -> Comics:
+        comics = await self._load(comics_id, lock=lock)
         if comics.state != ComicsState.DRAFT:
             raise ComicsError("built")
         return comics
@@ -135,3 +139,92 @@ class ComicsRepository:
         await self.session.flush()
         await self.session.refresh(comics, ["built_at"])
         return comics
+
+    # ---- panel operations (draft comics only) ----
+
+    async def _compact(self, comics_id: uuid.UUID) -> None:
+        """Renumber the comics' panels 0..n-1 in their current order; the deferred unique constraint lets
+        the whole renumbering happen in one flush."""
+        query = (select(ComicsPanel).where(ComicsPanel.comics_id == comics_id)
+                 .order_by(ComicsPanel.position).execution_options(populate_existing=True))
+        panels = (await self.session.execute(query)).scalars().all()
+        for index, panel in enumerate(panels):
+            if panel.position != index:
+                panel.position = index
+        await self.session.flush()
+
+    async def _check_addable(self, image_id: uuid.UUID) -> Image:
+        image = (await self.session.execute(
+            select(Image).where(Image.id == image_id).execution_options(populate_existing=True))).scalar_one_or_none()
+        if image is None:
+            raise ComicsError("image_not_addable", reason="not_found")
+        if image.status != ImageStatus.ACTIVE:
+            raise ComicsError("image_not_addable", reason="not_active")
+        flagged = (await self.session.execute(
+            select(ImageExtras.flagged).where(ImageExtras.image_id == image_id))).scalar_one_or_none()
+        if flagged:
+            raise ComicsError("image_not_addable", reason="flagged")
+        live = (await self.session.execute(
+            select(ImageCut.id).where(ImageCut.state.in_(CutState.LIVE),
+                                      or_(ImageCut.source_image_id == image_id, ImageCut.cut_image_id == image_id))
+            .limit(1))).first()
+        if live is not None:
+            raise ComicsError("image_not_addable", reason="live_cut")
+        return image
+
+    async def add_image(self, comics_id: uuid.UUID, image_id: uuid.UUID) -> ComicsPanel:
+        comics = await self._load_draft(comics_id, lock=True)
+        owner = (await self.session.execute(
+            select(Comics.id, Comics.name).join(ComicsPanel, ComicsPanel.comics_id == Comics.id)
+            .where(ComicsPanel.image_id == image_id))).first()
+        if owner is not None:
+            raise ComicsError("image_in_comics", comics_id=owner.id, comics_name=owner.name)
+        image = await self._check_addable(image_id)
+        panel = ComicsPanel(comics_id=comics.id, image_id=image.id, position=len(comics.panels),
+                            source_filename=image.filename, source_content_hash=image.content_hash)
+        self.session.add(panel)
+        await self.session.flush()
+        return panel
+
+    async def move_image(self, image_id: uuid.UUID, to_comics_id: uuid.UUID) -> ComicsPanel:
+        panel = (await self.session.execute(
+            select(ComicsPanel).where(ComicsPanel.image_id == image_id)
+            .execution_options(populate_existing=True))).scalar_one_or_none()
+        if panel is None:
+            raise ComicsError("not_found")
+        from_comics_id = panel.comics_id
+        # Lock in a fixed order so two opposite moves cannot deadlock.
+        loaded = {}
+        for cid in sorted({from_comics_id, to_comics_id}, key=str):
+            loaded[cid] = await self._load_draft(cid, lock=True)
+        target = loaded[to_comics_id]
+        panel = next((p for p in loaded[from_comics_id].panels if p.id == panel.id), None)
+        if panel is None:  # moved by someone else while we waited for the locks
+            raise ComicsError("not_found")
+        panel.comics_id = to_comics_id
+        panel.position = len([p for p in target.panels if p.id != panel.id])
+        await self.session.flush()
+        await self._compact(from_comics_id)
+        return panel
+
+    async def remove_panel(self, panel_id: uuid.UUID) -> None:
+        comics_id = (await self.session.execute(
+            select(ComicsPanel.comics_id).where(ComicsPanel.id == panel_id))).scalar_one_or_none()
+        if comics_id is None:
+            raise ComicsError("not_found")
+        comics = await self._load_draft(comics_id, lock=True)
+        panel = next((p for p in comics.panels if p.id == panel_id), None)
+        if panel is None:
+            raise ComicsError("not_found")
+        await self.session.delete(panel)
+        await self.session.flush()
+        await self._compact(comics_id)
+
+    async def reorder(self, comics_id: uuid.UUID, panel_ids: list[uuid.UUID]) -> None:
+        comics = await self._load_draft(comics_id, lock=True)
+        current = {p.id: p for p in comics.panels}
+        if len(panel_ids) != len(current) or set(panel_ids) != set(current):
+            raise ComicsError("reorder_mismatch")
+        for index, panel_id in enumerate(panel_ids):
+            current[panel_id].position = index
+        await self.session.flush()
