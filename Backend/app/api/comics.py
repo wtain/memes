@@ -4,7 +4,8 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from Backend.app.services.comics_service import MAX_ADDABILITY_IDS, ComicsService, http_error
+from Backend.app.services.comics_service import (MAX_ADDABILITY_IDS, ComicsService, compose_http_error,
+                                                  http_error)
 from Backend.app.types.generated.comicsaddability import Schema as ComicsAddabilitySchema
 from Backend.app.types.generated.comicsaddpanelrequest import Schema as AddPanelRequest
 from Backend.app.types.generated.comicsbyimage import Schema as ComicsByImageSchema
@@ -12,6 +13,7 @@ from Backend.app.types.generated.comicscreaterequest import Schema as ComicsCrea
 from Backend.app.types.generated.comicsdetail import Schema as ComicsDetailSchema
 from Backend.app.types.generated.comicspage import Schema as ComicsPageSchema
 from Backend.app.types.generated.comicsreorderrequest import Schema as ReorderRequest
+from batch.utils.comics_compose import ComposeError
 from repository.comics import ComicsError
 from Storage.db import get_async_db
 
@@ -28,6 +30,8 @@ async def _run(call, *args):
         return await call(*args)
     except ComicsError as error:
         raise http_error(error) from None
+    except ComposeError as error:
+        raise compose_http_error(error) from None
 
 
 def _uuid(value: str) -> uuid.UUID:
@@ -65,6 +69,13 @@ async def get_by_image(image_id: uuid.UUID, service: ComicsService = Depends(get
 @router.get("/{comics_id}", response_model=ComicsDetailSchema)
 async def get_comics(comics_id: uuid.UUID, service: ComicsService = Depends(get_comics_service)):
     return await _run(service.detail, comics_id)
+
+
+@router.get("/{comics_id}/preview", response_class=Response, responses={200: {"content": {"image/jpeg": {}}}})
+async def preview_comics(comics_id: uuid.UUID, maxWidth: int = Query(1200, ge=200, le=2400),
+                         service: ComicsService = Depends(get_comics_service)):
+    data = await _run(service.preview, comics_id, maxWidth)
+    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
 @router.patch("/{comics_id}", response_model=ComicsDetailSchema)

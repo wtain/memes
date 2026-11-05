@@ -1619,6 +1619,14 @@ Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt,
 - **Response** `200`: `ComicsDetail`
 - **Error Responses**: `404` `not_found`; `409` `built`; `422` `reorder_mismatch` (the list is stale: nothing is changed) or an id that is not a UUID
 
+**Preview of a draft**
+
+- **URL**: `/api/comics/{id}/preview?maxWidth=1200`
+- **Method**: `GET`
+- **Query Parameters**: `maxWidth` (optional, 200 to 2400, default 1200): the preview is scaled down to this width, never up.
+- **Response** `200`: `image/jpeg` bytes of the panels tiled in position order (2 per row), with `Cache-Control: no-store`. Nothing is stored. At most two previews are composed at a time per backend process; others wait.
+- **Error Responses**: `404` `not_found`; `409` `built` (only drafts have a preview); `422` `{ code: "compose_failed", reason, position }` where `reason` is `no_panels` (position `null`), `unreadable` (a missing or damaged file), `unsupported_format`, `animated` or `too_large`, and `position` is the 1-based panel it concerns or `null`; `422` for a `maxWidth` out of range
+
 **Addability of images**
 
 - **URL**: `/api/comics/addability?imageIds=<id>,<id>,...`

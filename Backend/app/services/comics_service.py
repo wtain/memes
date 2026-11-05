@@ -2,15 +2,22 @@
 The repository is built from the request session; mutations only flush (get_async_db commits)."""
 from __future__ import annotations  # the method named `list` would otherwise shadow list[...] in annotations
 
+import asyncio
+import os
 import uuid
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from batch.utils.comics_compose import ComposeError, compose_preview
+from config.settings import settings
 from repository.comics import ComicsError, ComicsRepository
-from Storage.models import ComicsState
+from Storage.models import ComicsState, Image
 
 MAX_ADDABILITY_IDS = 100
+# Process-wide: at most two previews compose at once (each decodes every panel); `async with` releases on failure.
+_PREVIEW_SEMAPHORE = asyncio.Semaphore(2)
 
 
 def _camel(key: str) -> str:
@@ -30,6 +37,13 @@ def http_error(error: ComicsError) -> HTTPException:
         status = 409
     body = {_camel(k): (str(v) if isinstance(v, uuid.UUID) else v) for k, v in error.detail.items()}
     return HTTPException(status_code=status, detail={"code": error.code, **body})
+
+
+def compose_http_error(error: ComposeError) -> HTTPException:
+    """422 compose_failed; ComposeError.position is 0-based or None, the body's is 1-based or null."""
+    position = error.position + 1 if error.position is not None else None
+    return HTTPException(status_code=422, detail={"code": "compose_failed", "reason": error.reason,
+                                                  "position": position})
 
 
 def _iso(value) -> str | None:
@@ -66,9 +80,10 @@ def _summary(comics) -> dict:
 
 class ComicsService:
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, base_path: str | None = None):
         self.session = session
         self.repo = ComicsRepository(session)
+        self.base_path = base_path
 
     async def list(self, q: str | None, limit: int, offset: int) -> dict:
         rows = await self.repo.search(q, limit + 1, offset)
@@ -108,6 +123,28 @@ class ComicsService:
         return {"items": [{"imageId": str(a.image_id), "addable": a.addable, "reason": a.reason,
                            "comicsId": str(a.comics_id) if a.comics_id else None,
                            "comicsName": a.comics_name} for a in found.values()]}
+
+    async def _filenames(self, image_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+        rows = await self.session.execute(select(Image.id, Image.filename).where(Image.id.in_(image_ids)))
+        return {row[0]: row[1] for row in rows}
+
+    async def preview(self, comics_id: uuid.UUID, max_width: int) -> bytes:
+        """JPEG preview of a draft's panels (read only, no write lock: a concurrent edit may show either state)."""
+        comics = await self.repo.get(comics_id)
+        if comics.state == ComicsState.BUILT:
+            raise ComicsError("built")
+        panels = _sorted_panels(comics)
+        ids = [p.image_id for p in panels if p.image_id]
+        found = await self._filenames(ids) if ids else {}
+        base = self.base_path or settings.get("BASE_PATH")
+        paths = []
+        for index, panel in enumerate(panels):
+            filename = found.get(panel.image_id) if panel.image_id else None
+            if filename is None:  # cannot happen in a draft; report it as that panel being unreadable
+                raise ComposeError("unreadable", index, "the panel's image is gone")
+            paths.append(os.path.join(base, filename))
+        async with _PREVIEW_SEMAPHORE:
+            return await asyncio.to_thread(compose_preview, paths, max_width)
 
     async def by_image(self, image_id: uuid.UUID) -> dict:
         found = await self.repo.find_by_image(image_id)
