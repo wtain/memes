@@ -4,8 +4,11 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from Backend.app.services.comics_service import (MAX_ADDABILITY_IDS, ComicsService, compose_http_error,
+from Backend.app.services.comics_build_service import ComicsBuildService
+from Backend.app.services.comics_service import (MAX_ADDABILITY_IDS, ComicsService, _detail, compose_http_error,
                                                   http_error)
+from Backend.app.types.generated.comicsbuildrequest import Schema as ComicsBuildRequest
+from Backend.app.types.generated.comicsbuildresult import Schema as ComicsBuildResultSchema
 from Backend.app.types.generated.comicsaddability import Schema as ComicsAddabilitySchema
 from Backend.app.types.generated.comicsaddpanelrequest import Schema as AddPanelRequest
 from Backend.app.types.generated.comicsbyimage import Schema as ComicsByImageSchema
@@ -22,6 +25,10 @@ router = APIRouter(prefix="/comics", tags=["comics"])
 
 async def get_comics_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[ComicsService, None]:
     yield ComicsService(db)
+
+
+async def get_comics_build_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[ComicsBuildService, None]:
+    yield ComicsBuildService(db)
 
 
 async def _run(call, *args):
@@ -76,6 +83,14 @@ async def preview_comics(comics_id: uuid.UUID, maxWidth: int = Query(1200, ge=20
                          service: ComicsService = Depends(get_comics_service)):
     data = await _run(service.preview, comics_id, maxWidth)
     return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@router.post("/{comics_id}/build", response_model=ComicsBuildResultSchema)
+async def build_comics(comics_id: uuid.UUID, body: ComicsBuildRequest | None = None,
+                       service: ComicsBuildService = Depends(get_comics_build_service)):
+    keep = [_uuid(p) for p in (body.keepPanelIds if body else [])]
+    comics, built_image_id = await _run(service.build, comics_id, keep)
+    return {"comics": _detail(comics), "builtImageId": str(built_image_id)}
 
 
 @router.patch("/{comics_id}", response_model=ComicsDetailSchema)

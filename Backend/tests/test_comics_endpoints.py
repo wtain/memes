@@ -1,11 +1,13 @@
 import uuid
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from Backend.app.api.comics import get_comics_service, router
+from Backend.app.api.comics import get_comics_build_service, get_comics_service, router
 from repository.comics import ComicsError
 
 CID = str(uuid.uuid4())
@@ -165,3 +167,72 @@ def test_errors_map_to_status_and_code(client_and_service, error, status, body):
     service.create.side_effect = error
     response = client.post("/api/comics", json={"name": "x"})
     assert response.status_code == status and response.json() == {"detail": body}
+
+
+BUILT_ID = uuid.uuid4()
+
+
+def _built_comics():
+    panel = SimpleNamespace(id=uuid.UUID(PID), position=0, image_id=uuid.UUID(IID), source_filename="a.jpg",
+                            kept=True, source_image_id=uuid.UUID(IID))
+    return SimpleNamespace(id=uuid.UUID(CID), name="Story", state="built", built_image_id=BUILT_ID,
+                           built_at=datetime(2026, 11, 5, tzinfo=timezone.utc), panels=[panel])
+
+
+@pytest.fixture
+def build_client():
+    service = type("B", (), {})()
+    service.build = AsyncMock(return_value=(_built_comics(), BUILT_ID))
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    app.dependency_overrides[get_comics_build_service] = lambda: service
+    return TestClient(app), service
+
+
+def test_build_success_body(build_client):
+    client, service = build_client
+    response = client.post(f"/api/comics/{CID}/build", json={"keepPanelIds": [PID]})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["builtImageId"] == str(BUILT_ID)
+    assert body["comics"]["state"] == "built" and body["comics"]["builtImageId"] == str(BUILT_ID)
+    assert body["comics"]["panels"][0]["kept"] is True
+    service.build.assert_awaited_once_with(uuid.UUID(CID), [uuid.UUID(PID)])
+
+
+def test_build_omitted_keep_is_empty(build_client):
+    client, service = build_client
+    assert client.post(f"/api/comics/{CID}/build", json={}).status_code == 200
+    service.build.assert_awaited_once_with(uuid.UUID(CID), [])
+
+
+@pytest.mark.parametrize("error,status,body", [
+    (ComicsError("not_found"), 404, {"code": "not_found"}),
+    (ComicsError("built"), 409, {"code": "built"}),
+    (ComicsError("keep_invalid"), 422, {"code": "keep_invalid"}),
+    (ComicsError("popularity_conflict"), 409, {"code": "popularity_conflict"}),
+    (ComicsError("compose_failed", reason="unreadable", position=2), 422,
+     {"code": "compose_failed", "reason": "unreadable", "position": 2}),
+    (ComicsError("not_buildable", reason="too_few_panels"), 409,
+     {"code": "not_buildable", "reason": "too_few_panels"}),
+    (ComicsError("not_buildable", reason="panel_unavailable", position=1, cause="file_changed"), 409,
+     {"code": "not_buildable", "reason": "panel_unavailable", "position": 1, "cause": "file_changed"}),
+    (ComicsError("not_buildable", reason="same_as_existing", image_id=uuid.UUID(IID)), 409,
+     {"code": "not_buildable", "reason": "same_as_existing", "imageId": IID}),
+])
+def test_build_errors(build_client, error, status, body):
+    client, service = build_client
+    service.build.side_effect = error
+    response = client.post(f"/api/comics/{CID}/build", json={})
+    assert response.status_code == status and response.json() == {"detail": body}
+
+
+@pytest.mark.parametrize("path,payload", [
+    ("not-a-uuid", {}),
+    (CID, {"keepPanelIds": ["nope"]}),
+    (CID, {"extra": 1}),
+])
+def test_build_malformed_is_422(build_client, path, payload):
+    client, service = build_client
+    assert client.post(f"/api/comics/{path}/build", json=payload).status_code == 422
+    service.build.assert_not_awaited()

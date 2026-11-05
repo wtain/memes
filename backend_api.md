@@ -1555,7 +1555,7 @@ The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-1
 
 A comics is a named, ordered list of images (panels) that is later built into one image (epic `docs/superpowers/specs/2026-11-02-multi-image-comics/`). A comics is a `draft` (panels can change) or `built` (frozen). An image is a panel of at most one comics. Panel `position` values are stored 0-based. Unauthenticated like the rest of the API. Every error body is `{ "detail": { "code": <code>, ... } }`.
 
-Error codes: `not_found` (404); `name_taken`, `built` (the comics is built and cannot change), `image_in_comics` (+ `comicsId`, `comicsName` of the comics holding the image), `not_buildable` (+ `reason`; not returned yet) (409); `image_not_addable` (+ `reason`: `not_active`, `flagged`, `live_cut` 409; `not_found` 404); `name_invalid` (+ `reason`), `reorder_mismatch` (422). A body or parameter that does not validate is a plain 422.
+Error codes: `not_found` (404); `name_taken`, `built` (the comics is built and cannot change), `image_in_comics` (+ `comicsId`, `comicsName` of the comics holding the image), `not_buildable` (+ `reason`, see Build), `popularity_conflict` (409); `image_not_addable` (+ `reason`: `not_active`, `flagged`, `live_cut` 409; `not_found` 404); `name_invalid` (+ `reason`), `reorder_mismatch`, `keep_invalid`, `compose_failed` (+ `reason`, `position`) (422). A body or parameter that does not validate is a plain 422.
 
 Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt, builtAt }` (cover is the built image for a built comics, else the first panel's image, `null` when none or retired); `ComicsDetail` `{ id, name, state, builtImageId, builtAt, panels: [{ id, position, imageId, sourceFilename, kept, sourceImageId }] }` (panels in position order; `imageId` is `null` when the source image is gone; `kept` is true when the panel's source image stayed active after a build; `sourceImageId` is the panel's original source image id, kept after `imageId` is cleared).
 
@@ -1627,6 +1627,14 @@ Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt,
 - **Query Parameters**: `maxWidth` (optional, 200 to 2400, default 1200): the preview is scaled down to this width, never up.
 - **Response** `200`: `image/jpeg` bytes of the panels tiled in position order (2 per row), with `Cache-Control: no-store`. Nothing is stored. At most two previews are composed at a time per backend process; others wait.
 - **Error Responses**: `404` `not_found`; `409` `built` (only drafts have a preview); `422` `{ code: "compose_failed", reason, position }` where `reason` is `no_panels` (position `null`), `unreadable` (a missing or damaged file), `unsupported_format`, `animated` or `too_large`, and `position` is the 1-based panel it concerns or `null`; `422` for a `maxWidth` out of range
+
+**Build a comics**
+
+- **URL**: `/api/comics/{id}/build`
+- **Method**: `POST`
+- **Body** (optional): `{ keepPanelIds? }`, default `[]`: panel ids of this comics whose source image stays active. The source of every other panel is flagged with `reason` `comics_source` and moves to `comics-sources/<name>` at the next move flagged run.
+- **Response** `200`: `ComicsBuildResult` `{ comics: ComicsDetail, builtImageId }`. The comics is now `built` and frozen; the new image is registered active. Its derived data (embedding, OCR, tags, ...) is filled by the incremental jobs, not by this call.
+- **Error Responses**: `404` `not_found`; `409` `built` (already built), `not_buildable` (`reason`: `too_few_panels`, `panel_missing`, `panel_unavailable` with 1-based `position` and `cause`, or `same_as_existing` with `imageId`), `popularity_conflict`; `422` `keep_invalid` (an id that is not a panel of this comics), `compose_failed` (`reason` as for the preview, `position` 1-based or `null`), or an id that is not a UUID. On any error nothing is changed. Flagging or unflagging a comics source through the images API is refused with `409` `comics_source_flag`.
 
 **Addability of images**
 

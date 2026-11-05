@@ -31,9 +31,9 @@ def http_error(error: ComicsError) -> HTTPException:
         status = 404
     elif error.code == "image_not_addable":
         status = 404 if error.detail.get("reason") == "not_found" else 409
-    elif error.code in ("name_invalid", "reorder_mismatch"):
+    elif error.code in ("name_invalid", "reorder_mismatch", "keep_invalid", "compose_failed"):
         status = 422
-    else:  # name_taken, built, image_in_comics, not_buildable
+    else:  # name_taken, built, image_in_comics, not_buildable, popularity_conflict
         status = 409
     body = {_camel(k): (str(v) if isinstance(v, uuid.UUID) else v) for k, v in error.detail.items()}
     return HTTPException(status_code=status, detail={"code": error.code, **body})
