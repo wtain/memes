@@ -193,6 +193,15 @@ export default function AppLayout() {
           </NavLink>
 
           <NavLink
+            to="/admin/comics"
+            className={({ isActive }) =>
+              isActive ? "font-semibold text-blue-600" : "text-gray-600"
+            }
+          >
+            Comics
+          </NavLink>
+
+          <NavLink
             to="/admin/discovery"
             className={({ isActive }) =>
               isActive ? "font-semibold text-blue-600" : "text-gray-600"
