@@ -199,6 +199,8 @@ class ComicsPanel(Base):
     source_image_id = Column(UUID(as_uuid=True), nullable=False)
     source_filename = Column(String, nullable=False)
     source_content_hash = Column(String, nullable=True)
+    # True when the owner chose to keep this panel's image in the library after the build (C4).
+    kept = Column(Boolean, nullable=False, server_default=sa.false(), default=False)
 
     __table_args__ = (
         Index("uq_comics_panels_image_id", "image_id", unique=True),

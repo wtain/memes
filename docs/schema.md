@@ -71,6 +71,7 @@ One image in a comics. The image row may later go (panels leave the library afte
 | `source_image_id` | UUID NOT NULL, no foreign key | Snapshot of the image's id taken when the image is added and kept on move; provenance survives the image row (like `popularity_absorptions.loser_image_id`) |
 | `source_filename` | String NOT NULL | Snapshot taken when the image is added |
 | `source_content_hash` | String nullable | Snapshot taken when the image is added |
+| `kept` | Boolean NOT NULL | Server default `false` (migration `f3a8c1d6b952`, C4, chained after `d7a3b9c5e214`). True when the owner chose to keep the panel's image in the library after the build |
 
 ### `image_extras`
 Optional per-image flags. Separate table so that the `images` row stays small and extras are only joined when needed.

@@ -37,6 +37,7 @@ REVISION_LABELS = {
     "a2f6d8c3b715": "S1 meme_impressions (same upgrade)",
     "b4c9e1f7a028": "S6 search outcomes (same upgrade)",
     "d7a3b9c5e214": "C1 comics tables (same upgrade)",
+    "f3a8c1d6b952": "C4 comics_panels.kept (same upgrade)",
 }
 
 
@@ -145,8 +146,9 @@ EXPECTED: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("search_not_found", ("id", "search_history_id", "created_at"), "b4c9e1f7a028"),
     ("comics", ("id", "name", "name_key", "state", "built_image_id", "built_content_hash", "created_at", "built_at"),
      "d7a3b9c5e214"),
-    ("comics_panels", ("id", "comics_id", "image_id", "position", "source_filename", "source_content_hash"),
-     "d7a3b9c5e214"),
+    ("comics_panels", ("id", "comics_id", "image_id", "position", "source_image_id", "source_filename",
+                       "source_content_hash"), "d7a3b9c5e214"),
+    ("comics_panels", ("kept",), "f3a8c1d6b952"),
 )
 
 
