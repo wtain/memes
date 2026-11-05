@@ -350,7 +350,11 @@ detect_file_duplicates      → byte-identical files: keeps the oldest, flags th
                                a 422. Unflagging reverses cluster_review / agent_review / file_duplicates edges.
 
 move_flagged                → also runs unregister_deleted_images automatically afterward,
-                               reconciling the DB with whatever was moved; --no-chain skips this.
+                               reconciling the DB with whatever was moved; --no-chain skips this. An image flagged
+                               `comics_source` (an unkept panel of a built comics) that still has a comics panel is moved to
+                               BASE_PATH/comics-sources/<comics name>/ instead of excluded/ (counter moved_to_comics_sources
+                               besides moved; without a panel it falls back to excluded/). Unflagging such an image through
+                               the API is refused (409 comics_source_flag). See docs/batches/use-cases/comics-build.md.
 unregister_deleted_images   → also runs remove_singletons automatically afterward, deleting
                                tmp_clusters rows for clusters its cascade-deletes reduced to a
                                single member; --no-chain skips this. It also deletes flagged

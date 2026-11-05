@@ -23,6 +23,11 @@ flowchart LR
 Popularity: flagging with `duplicateOf` (or `detect_file_duplicates`) records an absorption into the survivor, and
 unflagging reverses it. A flag without `duplicateOf` never changes popularity.
 
+Images flagged with reason `comics_source` (the panels of a built comics that were not kept) are not moved to `excluded/`:
+`move_flagged` puts them in `BASE_PATH/comics-sources/<comics name>/` and counts them in `moved_to_comics_sources` (besides
+`moved`). One with no panel or comics row falls back to `excluded/`. Unflagging a `comics_source` image is refused (`409`
+`comics_source_flag`). See [comics-build.md](comics-build.md).
+
 Name collisions in `excluded/` are resolved by renaming, not overwriting (`move_without_overwrite`). Missing files are
 counted as `error.file_not_found` and skipped. If you only want the reconcile after deleting files by hand, run
 `unregister_deleted_images` alone.

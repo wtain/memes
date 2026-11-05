@@ -103,7 +103,7 @@ Detail: [use-cases/maintenance-and-cleanup.md](use-cases/maintenance-and-cleanup
 
 | Script | What it does | Tracked kind | Admin | Sched | Notes |
 |---|---|---|---|---|---|
-| `move_flagged` | Move flagged images to `BASE_PATH/excluded` | `move_flagged` | yes | no | **Chains `unregister_deleted_images`** (then `remove_singletons`); `--no-chain` |
+| `move_flagged` | Move flagged images to `BASE_PATH/excluded`; a `comics_source` image with a comics panel goes to `BASE_PATH/comics-sources/<comics name>/` instead (counter `moved_to_comics_sources`) | `move_flagged` | yes | no | **Chains `unregister_deleted_images`** (then `remove_singletons`); `--no-chain` |
 | `unregister_deleted_images` | Delete DB rows whose files are gone | `unregister_deleted_images` | yes | no | **Chains `remove_singletons`**; `--no-chain` |
 | `fix_image_formats` | Retroactive format fix for the existing corpus; only path that backfills `Image.width/height` | `fix_image_formats` | yes | no | `--status` (default `active`, the only value the admin path uses) |
 | `detect_recut_crops` | Screenshot recut: stores a `detected` `image_cuts` proposal for active images with a flat margin (R2) | `detect_recut_crops` | yes | no | `--limit`; checks each image once per detector version (`recut_detect_v1`); skips the frozen evaluation corpus, flagged images and images that already have a live cut; unreadable files are recorded `failed` and not retried under the same detector version, 20 in a row stop the run. Scheduling: see `recut_pipeline` |
