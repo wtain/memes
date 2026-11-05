@@ -13,7 +13,7 @@ get(comics_id, lock=True) in the same transaction, so no panel change or build c
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -167,17 +167,34 @@ class ComicsRepository:
             select(Image.status).where(Image.id == built_image_id))).scalar_one_or_none()
         if status != ImageStatus.ACTIVE:
             raise ComicsError("not_buildable", reason="image_not_active")
-        used = (await self.session.execute(
-            select(Comics.id).where(Comics.built_image_id == built_image_id).limit(1))).first()
-        if used is not None:
+        if await self._built_image_used(built_image_id):
             raise ComicsError("not_buildable", reason="image_already_built")
-        comics.state = ComicsState.BUILT
-        comics.built_image_id = built_image_id
-        comics.built_content_hash = built_content_hash
-        comics.built_at = func.now()
-        await self.session.flush()
+        try:
+            async with self.session.begin_nested():
+                comics.state = ComicsState.BUILT
+                comics.built_image_id = built_image_id
+                comics.built_content_hash = built_content_hash
+                comics.built_at = func.now()
+                await self.session.flush()
+        except IntegrityError as exc:
+            if "uq_comics_built_image_id" not in str(exc.orig):
+                raise
+            raise ComicsError("not_buildable", reason="image_already_built") from exc
         await self.session.refresh(comics, ["built_at"])
         return comics
+
+    async def _built_image_used(self, image_id: uuid.UUID) -> bool:
+        return (await self.session.execute(
+            select(Comics.id).where(Comics.built_image_id == image_id).limit(1))).first() is not None
+
+    async def release_panels(self, panel_ids: list[uuid.UUID]) -> None:
+        """Keep these panels' images in the library after a build: kept = true and image_id = NULL, for exactly
+        the given panels (the unique image_id then no longer ties the image to this comics)."""
+        if not panel_ids:
+            return
+        await self.session.execute(
+            update(ComicsPanel).where(ComicsPanel.id.in_(panel_ids)).values(kept=True, image_id=None))
+        await self.session.flush()
 
     # ---- panel operations (draft comics only) ----
 

@@ -15,7 +15,7 @@ from repository.batch_runs import BatchAlreadyRunningError
 
 def _mock_session(filenames):
     session = AsyncMock()
-    session.execute = AsyncMock(return_value=[(f,) for f in filenames])
+    session.execute = AsyncMock(return_value=[(None, f, None, None) for f in filenames])
     return session
 
 

@@ -376,6 +376,24 @@ class TestUnmarkFlagged:
         assert response.status_code == 200
         mock_image_service.unmark_flagged.assert_called_once_with("123")
 
+    def test_unmark_flagged_comics_source_is_409(self, client, mock_image_service):
+        from fastapi import HTTPException
+        mock_image_service.unmark_flagged.side_effect = HTTPException(409, detail={"code": "comics_source_flag"})
+
+        response = client.put("/api/images/meme/123/unmark_flagged")
+
+        assert response.status_code == 409
+        assert response.json() == {"detail": {"code": "comics_source_flag"}}
+
+    def test_mark_flagged_comics_source_is_409(self, client, mock_image_service):
+        from fastapi import HTTPException
+        mock_image_service.mark_flagged.side_effect = HTTPException(409, detail={"code": "comics_source_flag"})
+
+        response = client.put("/api/images/meme/123/mark_flagged?reason=duplicate_review")
+
+        assert response.status_code == 409
+        assert response.json() == {"detail": {"code": "comics_source_flag"}}
+
     def test_unmark_flagged_multiple_times(self, client, mock_image_service):
         """Test unmarking the same image as flagged multiple times (should be idempotent)."""
         # Arrange

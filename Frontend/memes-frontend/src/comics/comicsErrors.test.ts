@@ -58,6 +58,43 @@ describe("describeComicsError", () => {
     expect(describeComicsError(err(422, { code: "compose_failed", reason, position }))).toBe(text)
   })
 
+  it("explains popularity_conflict, keep_invalid and comics_source_flag", () => {
+    expect(describeComicsError(err(409, { code: "popularity_conflict" })))
+      .toBe("The popularity of a panel changed in the meantime, reload and try again")
+    expect(describeComicsError(err(422, { code: "keep_invalid" })))
+      .toBe("A panel marked to keep is not in this comics, reload and try again")
+    expect(describeComicsError(err(409, { code: "comics_source_flag" })))
+      .toBe("That image is a panel source of a built comics, its flag can't be changed")
+  })
+
+  it.each([
+    ["too_few_panels", {}, "A comics needs at least two panels to be built"],
+    ["panel_missing", {}, "A panel has no image, reload and try again"],
+    ["image_not_active", {}, "A panel's image is not in the active library"],
+    ["image_already_built", {}, "A panel's image is already a built comics"],
+    ["same_as_existing", { imageId: "i9" }, "The built comics would be identical to an image already in the library"],
+    ["other", {}, "The comics can't be built"],
+  ])("explains not_buildable / %s", (reason, extra, text) => {
+    expect(describeComicsError(err(409, { code: "not_buildable", reason, ...extra }))).toBe(text)
+  })
+
+  it.each([
+    ["not_active", "Panel 2 is not in the active library"],
+    ["flagged", "Panel 2 is flagged"],
+    ["live_cut", "Panel 2 has a recut cut, use the cut instead"],
+    ["file_missing", "The file of panel 2 is missing"],
+    ["file_changed", "The file of panel 2 changed since it was added"],
+    ["already_discarded", "Panel 2 was already merged into another meme"],
+    ["weird", "Panel 2 can't be used"],
+  ])("explains panel_unavailable / %s with the panel number", (cause, text) => {
+    expect(describeComicsError(err(409, { code: "not_buildable", reason: "panel_unavailable", position: 2, cause }))).toBe(text)
+  })
+
+  it("explains panel_unavailable without a position", () => {
+    expect(describeComicsError(err(409, { code: "not_buildable", reason: "panel_unavailable", cause: "flagged" })))
+      .toBe("A panel is flagged")
+  })
+
   it("has a generic fallback", () => {
     expect(describeComicsError(err(500))).toBe("Something went wrong, try again")
     expect(describeComicsError(new Error("x"))).toBe("Something went wrong, try again")

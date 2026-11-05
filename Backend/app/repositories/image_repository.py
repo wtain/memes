@@ -858,6 +858,13 @@ class ImageRepository:
         )
         await self.session.execute(stmt)
 
+    async def get_flag_reason(self, image_id) -> str | None:
+        """The flag reason when the image is flagged, else None."""
+        row = (await self.session.execute(
+            select(ImageExtras.flagged, ImageExtras.flagged_reason).where(ImageExtras.image_id == image_id)
+        )).first()
+        return row.flagged_reason if row is not None and row.flagged else None
+
     async def get_is_flagged(self, image_id) -> bool:
         query = (
             select(

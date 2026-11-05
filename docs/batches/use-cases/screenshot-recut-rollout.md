@@ -8,8 +8,8 @@ The commands are PowerShell from the repo root unless a step says `Storage/`. `$
 
 ## The migrations
 
-A behind environment receives these ten in one `alembic upgrade head`, in this order. The popularity, saves and impressions migrations sit
-between the recut ones. All ten only add tables, columns, constraints and indexes and rewrite no existing row.
+A behind environment receives these eleven in one `alembic upgrade head`, in this order. The popularity, saves and impressions migrations sit
+between the recut ones. All eleven only add tables, columns, constraints and indexes and rewrite no existing row.
 
 1. `b8d4f1a6c935` R1: `image_cuts`, `stale` columns
 2. `c5e2a9d7b140` M1: `process_events`
@@ -21,6 +21,7 @@ between the recut ones. All ten only add tables, columns, constraints and indexe
 8. `a2f6d8c3b715` S1: `meme_impressions`
 9. `b4c9e1f7a028` S6: `search_not_found` and `meme_saves.search_history_id`
 10. `d7a3b9c5e214` C1: `comics` and `comics_panels`, and the `comics_build` popularity source
+11. `f3a8c1d6b952` C4: `comics_panels.kept`
 
 `tools/rollout_preflight.py` reads the same chain from `Storage/alembic`; a test fails when this list and the chain differ.
 
@@ -41,7 +42,7 @@ Replace `general` and port `5434` (metal 5432, it 5436) as needed.
    `$env:DATABASE_URL_READONLY = (Select-String -Path environments\.env.general -Pattern '^DATABASE_URL_READONLY=').Line.Split('=',2)[1]`
 1. **Preflight before.**
    `& $py -m tools.rollout_preflight --env general --backup-dir Storage\backups`
-   Expect `NOT READY` only because of the ten pending revisions (and `WARN` lines for the missing objects they create).
+   Expect `NOT READY` only because of the eleven pending revisions (and `WARN` lines for the missing objects they create).
    Anything else that fails (a running batch job, no free space, an unwritable `BASE_PATH`) must be fixed first. A `started`
    `batch_runs` row names its kind and age; an old one whose process is gone is orphaned (check `/admin/batches` and the running
    Python processes) and must be closed by the owner before the upgrade. An open ingestion review run only warns; stay off `/ingestion`.
@@ -55,9 +56,9 @@ Replace `general` and port `5434` (metal 5432, it 5436) as needed.
    The backend's own scheduler also writes (for example `build_statistics` hourly): do the upgrade away from a tick, or stop that
    backend until step 6, because the DDL needs exclusive locks on `images` and other tables.
 4. **Upgrade.** From `Storage/`, with that environment's variables loaded as in CLAUDE.md ("Database migrations"): `alembic upgrade head`.
-   *If this fails midway:* `Storage/alembic/env.py` runs the whole upgrade in one transaction, so a failure rolls all ten
+   *If this fails midway:* `Storage/alembic/env.py` runs the whole upgrade in one transaction, so a failure rolls all eleven
    back and the database stays at the starting revision; read the error and rerun the preflight to confirm. Never edit `alembic_version` by hand.
-5. **Preflight after.** Same command as step 1. Expect `READY` and `at head d7a3b9c5e214`.
+5. **Preflight after.** Same command as step 1. Expect `READY` and `at head f3a8c1d6b952`.
 6. **Restart the backend** of that environment on matching code. Where an image is used, rebuild it first: it now needs Pillow,
    `batch/utils/{__init__,recut_cut,file_hash}.py` and write access to `BASE_PATH`. Smoke test:
    `/api/diagnostics/health`, `/api/images?limit=1`, `GET /api/admin/batches/metrics?process=recut`, and `/admin/batches` showing

@@ -42,6 +42,8 @@
     "ComicsReorderRequest": { "$ref": "comicsreorderrequest.schema.json" },
     "ComicsAddability": { "$ref": "comicsaddability.schema.json" },
     "ComicsByImage": { "$ref": "comicsbyimage.schema.json" },
+    "ComicsBuildRequest": { "$ref": "comicsbuildrequest.schema.json" },
+    "ComicsBuildResult": { "$ref": "comicsbuildresult.schema.json" },
     "RecutAdjustRequest": { "$ref": "recutadjustrequest.schema.json" },
     "RecutStats": { "$ref": "recutstats.schema.json" },
     "RecutStatsBand": { "$ref": "recutstatsband.schema.json" },

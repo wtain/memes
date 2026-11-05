@@ -761,6 +761,8 @@ export interface ComicsPanel {
   position: number;
   imageId: string | null;
   sourceFilename: string;
+  kept: boolean;
+  sourceImageId: string;
 }
 /**
  * One comics with its panels in order
@@ -832,6 +834,25 @@ export interface ComicsByImage {
     state: string;
     position: number;
   } | null;
+}
+/**
+ * Body of the build call; the panels listed in keepPanelIds keep their source image active
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsBuildRequest".
+ */
+export interface ComicsBuildRequest {
+  keepPanelIds?: string[];
+}
+/**
+ * The built comics and the id of the image the build registered
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsBuildResult".
+ */
+export interface ComicsBuildResult {
+  comics: ComicsDetail;
+  builtImageId: string;
 }
 /**
  * The corrected box of a recut proposal, in pixels of the source image

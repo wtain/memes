@@ -700,6 +700,9 @@ class ImageService:
         return self._paginate_response(rows, items, limit)
 
     async def mark_flagged(self, image_id, reason: str | None = None, duplicate_of: str | None = None):
+        if reason == "comics_source":
+            # Reserved for the comics build, which sets the flag through the repository directly.
+            raise HTTPException(status_code=422, detail={"code": "comics_source_reserved"})
         winner_id = None
         if duplicate_of is not None:
             if reason not in FLAG_REASON_SOURCES:
@@ -714,6 +717,7 @@ class ImageService:
                 raise HTTPException(status_code=422, detail="image_id must be an image id")
             if winner_id == loser_id:
                 raise HTTPException(status_code=422, detail="duplicateOf must differ from the image")
+        await self._refuse_comics_source_change(image_id)
         await self.repo.set_flagged(image_id, True, reason)
         edge = None
         if winner_id is not None:
@@ -729,7 +733,14 @@ class ImageService:
                 confirmed.append(edge.winner_image_id)
             await record_confirmed(self.repo.session, confirmed)
 
+    async def _refuse_comics_source_change(self, image_id):
+        """A comics source flag belongs to the comic build: it is neither cleared nor re-reasoned here."""
+        current = await self.repo.get_flag_reason(image_id)
+        if current == "comics_source":
+            raise HTTPException(status_code=409, detail={"code": "comics_source_flag"})
+
     async def unmark_flagged(self, image_id):
+        await self._refuse_comics_source_change(image_id)
         await self.repo.set_flagged(image_id, False)
         try:
             loser_id = uuid.UUID(str(image_id))

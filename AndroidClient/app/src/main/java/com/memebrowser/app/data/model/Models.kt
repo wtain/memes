@@ -57,6 +57,11 @@ data class ComicsAddPanelRequest(
 )
 
 @Serializable
+data class ComicsBuildRequest(
+    @SerialName("keepPanelIds") val keepPanelIds: List<String>? = null
+)
+
+@Serializable
 data class ComicsByImage(
     @SerialName("comics") val comics: JsonObject?
 )
@@ -71,7 +76,9 @@ data class ComicsPanel(
     @SerialName("id") val id: String,
     @SerialName("position") val position: Int,
     @SerialName("imageId") val imageId: String?,
-    @SerialName("sourceFilename") val sourceFilename: String
+    @SerialName("sourceFilename") val sourceFilename: String,
+    @SerialName("kept") val kept: Boolean,
+    @SerialName("sourceImageId") val sourceImageId: String
 )
 
 @Serializable
@@ -510,6 +517,12 @@ data class ClusterSimilarityPair(
 data class ClusterSimilarityResponse(
     @SerialName("pairs") val pairs: List<ClusterSimilarityPair>,
     @SerialName("capped") val capped: Boolean
+)
+
+@Serializable
+data class ComicsBuildResult(
+    @SerialName("comics") val comics: ComicsDetail,
+    @SerialName("builtImageId") val builtImageId: String
 )
 
 @Serializable

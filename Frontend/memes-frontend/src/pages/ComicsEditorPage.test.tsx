@@ -7,7 +7,7 @@ import { makeMockApi } from "../test/mockApi"
 import type { ComicsDetail, ComicsPanel } from "../types/generated/all"
 
 function panel(id: string, position: number): ComicsPanel {
-  return { id, position, imageId: `img-${id}`, sourceFilename: `${id}.jpg` }
+  return { id, position, imageId: `img-${id}`, sourceFilename: `${id}.jpg`, kept: false, sourceImageId: `img-${id}` }
 }
 function detail(panelIds: string[], over: Partial<ComicsDetail> = {}): ComicsDetail {
   return { id: "c1", name: "My comics", state: "draft", builtImageId: null, builtAt: null,
@@ -38,13 +38,57 @@ async function search(text = "cat") {
 }
 
 describe("ComicsEditorPage draft", () => {
-  it("shows the panel strip, numbered, and the disabled build button", async () => {
+  it("shows the panel strip, numbered, and an enabled build button for two panels", async () => {
     setup()
     expect(await screen.findByText("p1.jpg")).toBeInTheDocument()
     expect(screen.getByText("p2.jpg")).toBeInTheDocument()
     const build = screen.getByRole("button", { name: "Build" })
-    expect(build).toBeDisabled()
-    expect(build).toHaveAttribute("title", "Build is not available yet")
+    expect(build).toBeEnabled()
+    expect(build).not.toHaveAttribute("title")
+  })
+
+  it("disables build below two panels", async () => {
+    setup({ getComics: vi.fn().mockResolvedValue(detail(["p1"])) })
+    expect(await screen.findByText("p1.jpg")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Build" })).toBeDisabled()
+  })
+
+  it("builds through the dialog and navigates to the built meme", async () => {
+    const buildComics = vi.fn().mockResolvedValue({ comics: detail(["p1", "p2"], { state: "built", builtImageId: "b9" }), builtImageId: "b9" })
+    const api = makeMockApi({
+      getComics: vi.fn().mockResolvedValue(detail(["p1", "p2"])), buildComics,
+      comicsPreviewUrl: vi.fn(() => "http://x/p"),
+    })
+    render(
+      <MemoryRouter initialEntries={["/admin/comics/c1"]}>
+        <Routes>
+          <Route path="/admin/comics/:id" element={<ComicsEditorPage memesApi={api} />} />
+          <Route path="/memes/:id" element={<p>meme page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await userEvent.click(await screen.findByRole("button", { name: "Build" }))
+    await userEvent.click(screen.getByRole("button", { name: "Build comics" }))
+    expect(buildComics).toHaveBeenCalledWith("c1", [])
+    expect(await screen.findByText("meme page")).toBeInTheDocument()
+  })
+
+  it.each(["built", "not_found"])("re-fetches the comics after a %s error from an editor action", async (code) => {
+    const getComics = vi.fn().mockResolvedValueOnce(detail(["p1", "p2"]))
+      .mockResolvedValue(detail(["p1", "p2"], { state: "built", builtImageId: "b1" }))
+    setup({ getComics, reorderComicsPanels: vi.fn().mockRejectedValue(new ComicsRequestError(409, { code })) })
+    await userEvent.click(await screen.findByLabelText("Move panel 2 up"))
+    expect(await screen.findByAltText("Built comics")).toBeInTheDocument()
+    expect(getComics).toHaveBeenCalledTimes(2)
+    expect(screen.queryByLabelText("Move panel 2 up")).not.toBeInTheDocument()
+  })
+
+  it("does not re-fetch after other errors", async () => {
+    const getComics = vi.fn().mockResolvedValue(detail(["p1", "p2"]))
+    setup({ getComics, reorderComicsPanels: vi.fn().mockRejectedValue(new ComicsRequestError(409, { code: "reorder_mismatch" })) })
+    await userEvent.click(await screen.findByLabelText("Move panel 2 up"))
+    await screen.findByRole("alert")
+    expect(getComics).toHaveBeenCalledTimes(1)
   })
 
   it("searches with record false and checks addability once for the results", async () => {
@@ -201,6 +245,23 @@ describe("ComicsEditorPage preview", () => {
 })
 
 describe("ComicsEditorPage built", () => {
+  it("shows kept panels with a link to the source image and the others retired", async () => {
+    const kept = { ...panel("p1", 0), imageId: null, kept: true, sourceImageId: "orig-1" }
+    const retired = { ...panel("p2", 1), imageId: null, kept: false, sourceImageId: "orig-2" }
+    // flagged but not yet deleted: still kept=false, so shown retired
+    const flagged = { ...panel("p3", 2), imageId: "img-p3", kept: false, sourceImageId: "orig-3" }
+    setup({ getComics: vi.fn().mockResolvedValue(detail([], { state: "built", builtImageId: "b1", panels: [kept, retired, flagged] })) })
+    const items = within(await screen.findByRole("list", { name: "Source panels" })).getAllByRole("listitem")
+    expect(items[0]).toHaveTextContent("kept")
+    expect(within(items[0]).getByRole("link")).toHaveAttribute("href", "/memes/orig-1")
+    expect(items[1]).toHaveTextContent("retired")
+    expect(items[1]).toHaveTextContent("p2.jpg")
+    expect(within(items[1]).queryByRole("link")).not.toBeInTheDocument()
+    expect(items[2]).toHaveTextContent("retired")
+    expect(items[2]).toHaveTextContent("p3.jpg")
+    expect(items[2]).not.toHaveTextContent("kept")
+  })
+
   it("is read-only with provenance and a link to the result", async () => {
     const api = setup({
       getComics: vi.fn().mockResolvedValue(detail(["p1", "p2"], { state: "built", builtImageId: "built-1" })),

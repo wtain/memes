@@ -236,3 +236,17 @@ async def test_invalid_arguments_raise_before_any_sql(db_session):
         await memes_report(db_session, window_days=30, sort="nope")
     with pytest.raises(ValueError):
         await memes_report(db_session, window_days=30, limit=0)
+
+
+async def test_default_sources_exclude_comics_build():
+    assert "comics_build" not in DEFAULT_SOURCES
+    assert "adjustment" not in DEFAULT_SOURCES
+
+
+async def test_comics_build_edge_is_not_counted_as_a_redrop_by_default(db_session):
+    img = await make_image(db_session, "a.jpg")
+    await edge(db_session, img, None, "comics_build")
+    rows, _ = await report(db_session)
+    assert img.id not in rows
+    rows, _ = await report(db_session, sources=("comics_build",))
+    assert rows[img.id].redrops == 1

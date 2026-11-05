@@ -556,6 +556,68 @@ class TestMarkFlaggedReason:
         mock_repo.set_flagged.assert_awaited_once_with(image_id, True, None)
 
 
+class TestComicsSourceFlagGuard:
+    async def test_unflag_of_comics_source_is_409_and_writes_nothing(self, service, mock_repo):
+        from unittest.mock import MagicMock, patch
+        mock_repo.get_flag_reason.return_value = "comics_source"
+        pop_cls = MagicMock()
+        with patch("Backend.app.services.image_service.PopularityRepository", pop_cls):
+            with pytest.raises(HTTPException) as exc_info:
+                await service.unmark_flagged(str(uuid.uuid4()))
+
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.detail == {"code": "comics_source_flag"}
+        mock_repo.set_flagged.assert_not_awaited()
+        pop_cls.assert_not_called()
+
+    async def test_reflag_with_other_reason_is_409_and_writes_nothing(self, service, mock_repo):
+        mock_repo.get_flag_reason.return_value = "comics_source"
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.mark_flagged(str(uuid.uuid4()), "duplicate_review")
+
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.detail == {"code": "comics_source_flag"}
+        mock_repo.set_flagged.assert_not_awaited()
+
+    async def test_reflag_without_reason_is_409(self, service, mock_repo):
+        mock_repo.get_flag_reason.return_value = "comics_source"
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.mark_flagged(str(uuid.uuid4()))
+
+        assert exc_info.value.status_code == 409
+        mock_repo.set_flagged.assert_not_awaited()
+
+    async def test_requested_comics_source_reason_is_422_and_writes_nothing(self, service, mock_repo):
+        for current in (None, "comics_source", "other"):
+            mock_repo.get_flag_reason.return_value = current
+            mock_repo.set_flagged.reset_mock()
+
+            with pytest.raises(HTTPException) as exc_info:
+                await service.mark_flagged(str(uuid.uuid4()), "comics_source")
+
+            assert exc_info.value.status_code == 422
+            assert exc_info.value.detail == {"code": "comics_source_reserved"}
+            mock_repo.set_flagged.assert_not_awaited()
+
+    async def test_ordinary_flagged_image_still_unflags(self, service, mock_repo):
+        image_id = str(uuid.uuid4())
+        mock_repo.get_flag_reason.return_value = "duplicate_review"
+
+        await service.unmark_flagged(image_id)
+
+        mock_repo.set_flagged.assert_awaited_once_with(image_id, False)
+
+    async def test_unflagged_image_still_flags(self, service, mock_repo):
+        image_id = str(uuid.uuid4())
+        mock_repo.get_flag_reason.return_value = None
+
+        await service.mark_flagged(image_id, "duplicate_review")
+
+        mock_repo.set_flagged.assert_awaited_once_with(image_id, True, "duplicate_review")
+
+
 class TestMarkFlaggedDuplicateOf:
     @staticmethod
     async def _passthrough(session, label, call):

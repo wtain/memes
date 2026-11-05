@@ -12,6 +12,13 @@ def test_every_expected_name_exists_in_the_models_and_the_chain():
         assert revision in ids, revision
 
 
+def test_comics_panels_expectations_list_the_snapshot_and_kept_columns():
+    columns = {c for t, cols, _ in rp.EXPECTED if t == "comics_panels" for c in cols}
+    assert {"source_image_id", "kept"} <= columns
+    assert any(t == "comics_panels" and "kept" in cols and rev == "f3a8c1d6b952" for t, cols, rev in rp.EXPECTED)
+    assert rp.REVISION_LABELS["f3a8c1d6b952"]
+
+
 def test_filesystem_passes_for_a_temp_directory(tmp_path):
     status, detail = rp.filesystem(str(tmp_path), str(tmp_path), 0.0)
     assert status == rp.OK, detail

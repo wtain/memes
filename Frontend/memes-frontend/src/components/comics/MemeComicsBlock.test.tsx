@@ -133,6 +133,17 @@ describe("MemeComicsBlock", () => {
     expect(await screen.findByText(/Added to/)).toBeInTheDocument()
   })
 
+  it("says the source comics is built when Move from X fails with built", async () => {
+    const addComicsPanel = vi.fn()
+      .mockRejectedValueOnce(new ComicsRequestError(409, { code: "image_in_comics", comicsId: "z", comicsName: "Zed" }))
+      .mockRejectedValueOnce(new ComicsRequestError(409, { code: "built" }))
+    setup({ addComicsPanel })
+    await userEvent.click(await screen.findByRole("button", { name: "Add to comics…" }))
+    await userEvent.click(await screen.findByRole("button", { name: /Comics a/ }))
+    await userEvent.click(await screen.findByRole("button", { name: "Move from Zed" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent('The comics "Zed" is built')
+  })
+
   it("shows other add errors in words", async () => {
     setup({ addComicsPanel: vi.fn().mockRejectedValue(new ComicsRequestError(409, { code: "built" })) })
     await userEvent.click(await screen.findByRole("button", { name: "Add to comics…" }))
