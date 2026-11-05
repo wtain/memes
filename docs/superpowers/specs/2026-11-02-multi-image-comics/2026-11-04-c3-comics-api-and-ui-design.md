@@ -1,6 +1,6 @@
 # C3: Comics management API and UI
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-11-05-c3-comics-api-and-ui.md
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C3)
 Follow-ups: none yet
@@ -103,8 +103,8 @@ resamples; file paths are resolved from `BASE_PATH` the way `recut_files.py` doe
 - **`/admin/comics/:id`** (`ComicsEditorPage`), draft layout A as above. Left column: name with an inline rename; panel strip (each
   panel: thumbnail, 1-based number, up, down, remove); the preview area with its loading state and, on a compose error, the reason
   in words and the 1-based panel number; the Build button (disabled, with the explanation, in C3). Right column: the search column.
-  A built comics shows the result image, the panel provenance list (position, source filename, whether the source id still exists
-  in the library) and a link to the built meme; no controls.
+  A built comics shows the result image, the panel provenance list (position and source filename; whether the source image
+  still exists in the library is left to C4, see D10) and a link to the built meme; no controls.
 - **Search column.** Uses the existing search function of `MemesApi` with `record=false`. After each page of results arrives, one
   `addability` call for those ids decides each "+"'s state. Adding calls `POST .../panels`, then refreshes the comics and the
   addability of the visible results. An `image_in_comics` 409 is not shown as an error: the "+" is already disabled with a link.
@@ -120,8 +120,10 @@ resamples; file paths are resolved from `BASE_PATH` the way `recut_files.py` doe
 C3 leaves the Build button and nothing behind it. C4 owns: the build endpoint (`POST /api/comics/{id}/build` with `keepPanelIds`),
 the Build dialog with the keep checkboxes, the file moves, the status changes and the derived data. Two things C3 asks of C4:
 (1) take `ComicsRepository.get(lock=True)` first; (2) decide how a released kept panel is recorded on a built comics so the built
-page can tell "kept in the library" from "retired" (today both would have `image_id` NULL; the editor's built view currently checks
-whether `source_image_id` still exists as an image). Tracker D10.
+page can tell "kept in the library" from "retired" (today both would have `image_id` NULL; the C3 built view lists position and
+source filename only, because `ComicsPanel` does not expose `source_image_id`). Tracker D10. Two more things become reachable
+once the build exists (tracker D11): the editor must refresh when an operation fails with `built` or `not_found`, and "Move from X"
+should say that X is built when that is the reason it was refused.
 
 ## Non-goals
 
