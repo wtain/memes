@@ -1,6 +1,7 @@
 # C3: Comics management API and UI
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-11-05-c3-comics-api-and-ui.md
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C3)
 Follow-ups: none yet
 
