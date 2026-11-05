@@ -105,6 +105,7 @@ export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props
 
   async function addTo(targetId: string, move: boolean) {
     if (busy) return
+    const fromName = conflict?.fromName
     setBusy(true)
     setError(null)
     setConflict(null)
@@ -115,7 +116,10 @@ export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props
       setAdded(detail)
       onAdded(detail)
     } catch (e) {
-      setError(describeComicsError(e))
+      // A move that fails with `built` means the comics the image is in (the source) is built.
+      setError(move && e instanceof ComicsRequestError && e.code === "built" && fromName !== undefined
+        ? `The comics "${fromName}" is built, its panels can't be moved`
+        : describeComicsError(e))
       if (e instanceof ComicsRequestError && e.code === "image_in_comics" && typeof e.detail.comicsName === "string") {
         setConflict({ targetId, fromName: e.detail.comicsName })
       }

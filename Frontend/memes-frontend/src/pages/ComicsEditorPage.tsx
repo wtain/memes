@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import type { MemesApi } from "../api/MemesApi"
 import { ComicsRequestError } from "../api/errors"
 import { describeComicsError } from "../comics/comicsErrors"
 import { movedOrder, panelSignature } from "../comics/editorReducer"
+import BuildDialog from "../components/comics/BuildDialog"
 import ComicsPreview from "../components/comics/ComicsPreview"
 import ComicsSearchColumn from "../components/comics/ComicsSearchColumn"
 import type { AddOutcome } from "../components/comics/ComicsSearchColumn"
 import PanelStrip from "../components/comics/PanelStrip"
-import type { ComicsDetail } from "../types/generated/all"
+import type { ComicsBuildResult, ComicsDetail } from "../types/generated/all"
 
 type Props = { memesApi: MemesApi }
 
@@ -33,6 +34,8 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
   const [error, setError] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState("")
+  const [building, setBuilding] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     let cancelled = false
@@ -63,6 +66,20 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
     setLoaded({ id, detail: next, failed: false })
   }
 
+  /** After `built` or `not_found` the view is stale: re-fetch so draft controls do not stay live. */
+  function refreshIfStale(e: unknown) {
+    if (!(e instanceof ComicsRequestError) || (e.code !== "built" && e.code !== "not_found")) return
+    memesApi.getComics(id).then(
+      (next) => setLoaded({ id, detail: next, failed: false }),
+      () => setLoaded({ id, detail: null, failed: true }),
+    )
+  }
+
+  function onBuilt(result: ComicsBuildResult) {
+    setBuilding(false)
+    navigate(`/memes/${result.builtImageId}`)
+  }
+
   async function mutate(action: () => Promise<void>) {
     if (busyRef.current) return
     busyRef.current = true
@@ -72,6 +89,7 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
       await action()
     } catch (e) {
       setError(describeComicsError(e))
+      refreshIfStale(e)
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -89,6 +107,7 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
     } catch (e) {
       if (e instanceof ComicsRequestError && (e.code === "image_in_comics" || e.code === "image_not_addable")) return "conflict"
       setError(describeComicsError(e))
+      refreshIfStale(e)
       return "error"
     } finally {
       busyRef.current = false
@@ -158,7 +177,21 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
         <h2 className="mb-2 font-medium">Source panels</h2>
         <ol aria-label="Source panels" className="flex flex-col gap-1">
           {detail.panels.map((panel, index) => (
-            <li key={panel.id} className="flex gap-3 text-sm"><span className="w-6">{index + 1}</span><span>{panel.sourceFilename}</span></li>
+            <li key={panel.id} className="flex items-center gap-3 text-sm">
+              <span className="w-6">{index + 1}</span>
+              {panel.kept ? (
+                <>
+                  <img src={memesApi.getImageUrlById(panel.sourceImageId)} alt={`Panel ${index + 1}`} className="h-12 w-12 shrink-0 rounded object-cover" />
+                  <span className="rounded border px-1.5 text-xs">kept</span>
+                  <Link to={`/memes/${panel.sourceImageId}`} className="underline">{panel.sourceFilename}</Link>
+                </>
+              ) : (
+                <>
+                  <span className="rounded border px-1.5 text-xs">retired</span>
+                  <span>{panel.sourceFilename}</span>
+                </>
+              )}
+            </li>
           ))}
         </ol>
       </div>
@@ -180,7 +213,12 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
               <ComicsPreview url={memesApi.comicsPreviewUrl(id, PREVIEW_WIDTH, String(version))} />
             )}
           </div>
-          <button type="button" disabled title="Build is not available yet" className="min-h-11 rounded border px-3 opacity-50">Build</button>
+          <button type="button" disabled={detail.panels.length < 2 || busy} onClick={() => setBuilding(true)}
+                  className="min-h-11 rounded border px-3 disabled:opacity-50">Build</button>
+          {building && (
+            <BuildDialog memesApi={memesApi} comics={detail} onClose={() => setBuilding(false)} onBuilt={onBuilt}
+                         onFailed={refreshIfStale} />
+          )}
         </div>
         <ComicsSearchColumn memesApi={memesApi} comicsId={id} panelSignature={signature} busy={busy} onAdd={addPanel} />
       </div>
