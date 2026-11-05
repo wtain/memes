@@ -44,6 +44,33 @@ async def test_a_savepoint_rollback_does_not_fire_the_rollback_hook(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_a_released_savepoint_settles_nothing(db_session):
+    """SQLAlchemy dispatches after_commit for a released begin_nested(); that is not the request committing, so the
+    rollback hook must stay armed (comics C4: mark_built opens a savepoint after the built file is written)."""
+    calls = []
+    file_effects(db_session, on_commit=lambda: calls.append("commit"), on_rollback=lambda: calls.append("rollback"))
+
+    async with db_session.begin_nested():
+        await db_session.execute(text("SELECT 1"))
+    assert calls == []
+
+    await db_session.rollback()
+    assert calls == ["rollback"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_a_released_savepoint_then_commit_runs_the_commit_hook_once(db_session):
+    calls = []
+    file_effects(db_session, on_commit=lambda: calls.append("commit"), on_rollback=lambda: calls.append("rollback"))
+
+    async with db_session.begin_nested():
+        await db_session.execute(text("SELECT 1"))
+    await db_session.commit()
+
+    assert calls == ["commit"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_a_failing_callback_is_swallowed(db_session):
     def boom():
         raise RuntimeError("disk gone")

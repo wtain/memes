@@ -161,12 +161,21 @@ def _headers(paths: list[str]) -> list[_Header]:
     return [_read_header(p, i) for i, p in enumerate(paths)]
 
 
+def _output_format(headers: list[_Header]) -> str:
+    return "PNG" if any(h.format == "PNG" for h in headers) else "JPEG"
+
+
+def output_format(paths: list[str]) -> str:
+    """Header-only: the format compose_to_file will write for these panels ("PNG" or "JPEG")."""
+    return _output_format(_headers(paths))
+
+
 def compose_to_file(paths: list[str], dst: str, jpeg_quality: int) -> ComposedFile:
     """Tile the panels into `dst` (PNG when any panel is PNG, else JPEG). `dst` appears atomically via `dst + '.tmp'`;
     on any failure an existing `dst` is untouched and no `.tmp` stays."""
     headers = _headers(paths)
     layout = plan_layout([h.size for h in headers])
-    fmt = "PNG" if any(h.format == "PNG" for h in headers) else "JPEG"
+    fmt = _output_format(headers)
     profiles = {h.icc for h in headers}
     icc = next(iter(profiles)) if len(profiles) == 1 else None
 

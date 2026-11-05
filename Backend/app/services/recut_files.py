@@ -39,7 +39,9 @@ def copy_to_pre_cuts(base_path: str, filename: str) -> None:
 def file_effects(session: AsyncSession, on_commit: Callable[[], None] | None = None,
                  on_rollback: Callable[[], None] | None = None) -> None:
     """Run `on_commit` once after the session's outermost transaction commits, or `on_rollback` once after it rolls
-    back; whichever happens first cancels the other. A savepoint rolling back is not the request failing."""
+    back; whichever happens first cancels the other. A savepoint rolling back is not the request failing, and a
+    savepoint being released is not the request committing: SQLAlchemy dispatches after_commit for a released
+    begin_nested() too, which would otherwise settle the effects early and cancel the rollback action (comics C4)."""
     sync = session.sync_session
     state = {"done": False}
 
@@ -54,7 +56,10 @@ def file_effects(session: AsyncSession, on_commit: Callable[[], None] | None = N
         except Exception:
             logger.exception("recut: a file action after the transaction failed")
 
-    def committed(_session) -> None:
+    def committed(committing) -> None:
+        # During the dispatch the committing transaction is still the session's current one.
+        if committing.in_nested_transaction():
+            return
         settle(on_commit)
 
     def rolled_back(_session, previous_transaction) -> None:
