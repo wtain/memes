@@ -9,6 +9,7 @@ import type {
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
   RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemeSaves, MemeImpressions, TrendingMemesResponse,
+  ComicsPage, ComicsDetail, ComicsAddability, ComicsByImage,
 } from "../types/generated/all";
 import type { Category } from "../curator/types";
 import type {
@@ -127,4 +128,16 @@ export interface MemesApi {
   approveRecutProposal(id: string): Promise<RecutDecision>
   rejectRecutProposal(id: string): Promise<RecutDecision>
   adjustRecutProposal(id: string, box: RecutAdjustRequest): Promise<RecutProposalDetail>
+
+  listComics(q?: string, offset?: number, limit?: number): Promise<ComicsPage>
+  createComics(name: string): Promise<ComicsDetail>
+  getComics(id: string): Promise<ComicsDetail>
+  renameComics(id: string, name: string): Promise<ComicsDetail>
+  deleteComics(id: string): Promise<void>
+  addComicsPanel(id: string, imageId: string, move?: boolean): Promise<ComicsDetail>
+  removeComicsPanel(id: string, panelId: string): Promise<void>
+  reorderComicsPanels(id: string, panelIds: string[]): Promise<ComicsDetail>
+  comicsAddability(imageIds: string[]): Promise<ComicsAddability>
+  comicsByImage(imageId: string): Promise<ComicsByImage>
+  comicsPreviewUrl(id: string, maxWidth: number, version: string): string
 }

@@ -78,6 +78,17 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     approveRecutProposal: vi.fn().mockResolvedValue(makeDecision('p1', 'approved')),
     rejectRecutProposal: vi.fn().mockResolvedValue(makeDecision('p1', 'rejected')),
     adjustRecutProposal: vi.fn().mockResolvedValue(makeProposalDetail('p1', { cutImageId: 'cut-p1b' })),
+    listComics: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    createComics: vi.fn().mockResolvedValue({}),
+    getComics: vi.fn().mockResolvedValue({}),
+    renameComics: vi.fn().mockResolvedValue({}),
+    deleteComics: vi.fn().mockResolvedValue(undefined),
+    addComicsPanel: vi.fn().mockResolvedValue({}),
+    removeComicsPanel: vi.fn().mockResolvedValue(undefined),
+    reorderComicsPanels: vi.fn().mockResolvedValue({}),
+    comicsAddability: vi.fn().mockResolvedValue({ items: [] }),
+    comicsByImage: vi.fn().mockResolvedValue({ comics: null }),
+    comicsPreviewUrl: vi.fn().mockReturnValue('http://example.com/api/comics/c/preview'),
     ...overrides,
   } as MemesApi
 }

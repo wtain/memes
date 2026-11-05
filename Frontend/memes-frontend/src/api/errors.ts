@@ -41,6 +41,20 @@ export class CuratorRequestError extends Error {
   }
 }
 
+/** A comics request failed. `detail` is the server's `detail` object (empty when the body has none, is not JSON or is a string). */
+export class ComicsRequestError extends Error {
+  readonly status: number
+  readonly code?: string
+  readonly detail: Record<string, unknown>
+  constructor(status: number, detail: Record<string, unknown> = {}) {
+    super(`Comics request failed (HTTP ${status})`)
+    this.name = "ComicsRequestError"
+    this.status = status
+    this.detail = detail
+    this.code = typeof detail.code === "string" ? detail.code : undefined
+  }
+}
+
 export function isAbortError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === "AbortError") return true
   if (error && typeof error === "object") {
