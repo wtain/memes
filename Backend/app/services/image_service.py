@@ -101,6 +101,7 @@ class ImageService:
         cursor: Optional[str],
         limit: int,
         user_agent: str = "",
+        record: bool = True,
     ) -> MemeSearchResponse:
         tags = self._parse_facets(raw_facets)
         cursor_score, cursor_created_at, cursor_id = self._decode_search_cursor(cursor)
@@ -140,7 +141,11 @@ class ImageService:
 
         result = self._paginate_response(rows, items, limit, facets)
 
-        client = "android" if "okhttp" in user_agent.lower() else "web"
+        if not record:
+            # Admin tools (the comics editor) search without counting as a search: no history, impressions or searchId.
+            return result
+
+        client ="android" if "okhttp" in user_agent.lower() else "web"
         tag_pairs = [(cat, val) for cat, vals in tags.items() for val in vals]
         search_history_id = await self._record_history(
             q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
