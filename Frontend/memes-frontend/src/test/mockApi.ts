@@ -78,6 +78,17 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     approveRecutProposal: vi.fn().mockResolvedValue(makeDecision('p1', 'approved')),
     rejectRecutProposal: vi.fn().mockResolvedValue(makeDecision('p1', 'rejected')),
     adjustRecutProposal: vi.fn().mockResolvedValue(makeProposalDetail('p1', { cutImageId: 'cut-p1b' })),
+    listComics: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
+    createComics: vi.fn().mockResolvedValue({ id: '', name: '', state: 'draft', builtImageId: null, builtAt: null, panels: [] }),
+    getComics: vi.fn().mockResolvedValue({ id: '', name: '', state: 'draft', builtImageId: null, builtAt: null, panels: [] }),
+    renameComics: vi.fn().mockResolvedValue({ id: '', name: '', state: 'draft', builtImageId: null, builtAt: null, panels: [] }),
+    deleteComics: vi.fn().mockResolvedValue(undefined),
+    addComicsPanel: vi.fn().mockResolvedValue({ id: '', name: '', state: 'draft', builtImageId: null, builtAt: null, panels: [] }),
+    removeComicsPanel: vi.fn().mockResolvedValue(undefined),
+    reorderComicsPanels: vi.fn().mockResolvedValue({ id: '', name: '', state: 'draft', builtImageId: null, builtAt: null, panels: [] }),
+    comicsAddability: vi.fn().mockResolvedValue({ items: [] }),
+    comicsByImage: vi.fn().mockResolvedValue({ comics: null }),
+    comicsPreviewUrl: vi.fn().mockReturnValue('http://example.com/api/comics/c/preview'),
     ...overrides,
   } as MemesApi
 }

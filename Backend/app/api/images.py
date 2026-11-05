@@ -126,11 +126,13 @@ async def get_images(
     limit: int = Query(20, ge=1, le=100),
     facets: Optional[str] = None,
     cursor: Optional[str] = None,
+    record: bool = True,
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
     ua = request.headers.get("user-agent", "")
-    return await service.search(q=q, raw_facets=facets, cursor=cursor, limit=limit, user_agent=ua)
+    return await service.search(
+        q=q, raw_facets=facets, cursor=cursor, limit=limit, user_agent=ua, record=record)
 
 
 @router.get("/{image_id}/similar", response_model=MemeSearchResponse)

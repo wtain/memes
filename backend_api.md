@@ -383,6 +383,7 @@ Search for memes with optional query, facets, and pagination.
   - `limit` (optional): Number of results (1-100, default: 20)
   - `facets` (optional): Facet filter string
   - `cursor` (optional): Pagination cursor for next page
+  - `record` (optional, default `true`): `false` suppresses the search-history row, the search impressions and the `searchId`; intended for admin tools (the comics editor) whose searches must not count as user searches.
 - **Ordering**: with a non-empty `q`, results are ordered by relevance (per-token best hit, source weight x match-tier weight, summed across tokens) plus a small capped popularity bonus (`weight * min(log2(popularity), max_log2)`, from `search.ranking.popularity.weight` and `.max_log2`; weight 0 turns it off), then by recency. Without `q` they are ordered by recency (unchanged). `nextCursor` stays an opaque string; relevance pages embed the score in it. A cursor in the other format (e.g. a recency cursor sent with `q`) is ignored and the listing restarts at the first page. Weights live in `search.ranking.*` in `environments/settings.yaml`.
 - **Pagination contract**: `nextCursor` addresses the last returned item, so the next page neither skips nor repeats a result. This holds for `GET /api/images` (search), `GET /api/images/untagged`, `GET /api/images/no-ocr` and `GET /api/images/flagged`.
 - **Response**: `MemeSearchResponse`
@@ -1547,6 +1548,100 @@ The review queue of the screenshot recut (epic `docs/superpowers/specs/2026-10-1
 - **Body**: `RecutAdjustRequest`: `{ x, y, w, h }`, integers in pixels of the source image (`x`, `y` >= 0, `w`, `h` >= 16)
 - **Response** `200`: the updated `RecutProposalDetail`. The proposal keeps its id, state (`proposed`) and `confidence` (the detector's, for its original box); `box` is the new box, `cutImageId` is a NEW cut image (cropped from the source in its format, derived data copied from the source exactly like the first cut, so OCR, lemmas, tags and descriptions are stale until the next `recut_pipeline` run), the previous cut image is deleted, and `detectedBox` holds the detector's box (written by the first adjustment only). The `adjusted` event is recorded once per proposal. The old cut file is removed after the commit; a failed request leaves no new file.
 - **Error Responses**: `404` for an unknown id; `409` with `detail` one of `already_decided`, `cut_missing`, `source_missing`, `source_not_active`, `source_flagged` (as for approve), `source_changed` (the source file differs from the one the detector saw) or `source_unreadable`; `422` for an `id` that is not a UUID, a body that is malformed, a side under 16 px, a box equal to the current box, or a box that does not fit the source (`detail` says which); `500` with `detail` `write_error` when the new cut file could not be written. Nothing is changed on any error. The backend process must be able to write into `BASE_PATH`. Do not adjust while a recut batch job (`create_recut_cuts`, `refresh_recut_cuts`, `recut_pipeline`) is running: the old cut image and file are deleted and the endpoint does not check for a running job.
+
+---
+
+### Comics
+
+A comics is a named, ordered list of images (panels) that is later built into one image (epic `docs/superpowers/specs/2026-11-02-multi-image-comics/`). A comics is a `draft` (panels can change) or `built` (frozen). An image is a panel of at most one comics. Panel `position` values are stored 0-based. Unauthenticated like the rest of the API. Every error body is `{ "detail": { "code": <code>, ... } }`.
+
+Error codes: `not_found` (404); `name_taken`, `built` (the comics is built and cannot change), `image_in_comics` (+ `comicsId`, `comicsName` of the comics holding the image), `not_buildable` (+ `reason`; not returned yet) (409); `image_not_addable` (+ `reason`: `not_active`, `flagged`, `live_cut` 409; `not_found` 404); `name_invalid` (+ `reason`), `reorder_mismatch` (422). A body or parameter that does not validate is a plain 422.
+
+Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt, builtAt }` (cover is the built image for a built comics, else the first panel's image, `null` when none or retired); `ComicsDetail` `{ id, name, state, builtImageId, builtAt, panels: [{ id, position, imageId, sourceFilename }] }` (panels in position order; `imageId` is `null` when the source image is gone).
+
+**List comics**
+
+- **URL**: `/api/comics?q=<text>&limit=<n>&offset=<n>`
+- **Method**: `GET`
+- **Query Parameters**: `q` (optional, case-insensitive substring of the name), `limit` (1 to 100, default 50), `offset` (>= 0, default 0)
+- **Response** `200`: `ComicsPage`: `items` (`ComicsSummary`, newest first) and `hasMore`.
+- **Error Responses**: `422` for a bad `limit` or `offset`
+
+**Create a comics**
+
+- **URL**: `/api/comics`
+- **Method**: `POST`
+- **Body**: `{ name }`
+- **Response** `201`: `ComicsDetail` (an empty draft)
+- **Error Responses**: `409` `name_taken`; `422` `name_invalid`
+
+**One comics**
+
+- **URL**: `/api/comics/{id}`
+- **Method**: `GET`
+- **Response** `200`: `ComicsDetail`
+- **Error Responses**: `404` `not_found`; `422` for an `id` that is not a UUID
+
+**Rename a comics**
+
+- **URL**: `/api/comics/{id}`
+- **Method**: `PATCH`
+- **Body**: `{ name }`
+- **Response** `200`: `ComicsDetail`
+- **Error Responses**: `404` `not_found`; `409` `built`, `name_taken`; `422` `name_invalid`
+
+**Delete a comics**
+
+- **URL**: `/api/comics/{id}`
+- **Method**: `DELETE`
+- **Response** `204` (no body); its panels go with it, the images are untouched
+- **Error Responses**: `404` `not_found`; `409` `built`
+
+**Add a panel**
+
+- **URL**: `/api/comics/{id}/panels`
+- **Method**: `POST`
+- **Body**: `{ imageId, move? }`. The image becomes the last panel. With `move: true` an image that is already a panel of another draft comics is taken from it (the other comics' panels are renumbered).
+- **Response** `201`: the `ComicsDetail` of `{id}`
+- **Error Responses**: `404` `not_found` (comics, or with `move` the image is in no comics), `image_not_addable` with reason `not_found`; `409` `built`, `image_in_comics` (without `move`), `image_not_addable`; `422` for an `imageId` that is not a UUID
+
+**Remove a panel**
+
+- **URL**: `/api/comics/{id}/panels/{panelId}`
+- **Method**: `DELETE`
+- **Response** `204` (no body); the remaining panels are renumbered 0..n-1
+- **Error Responses**: `404` `not_found` (unknown comics, or the panel is not a panel of `{id}`); `409` `built`
+
+**Reorder the panels**
+
+- **URL**: `/api/comics/{id}/panels/order`
+- **Method**: `PUT`
+- **Body**: `{ panelIds }`, every panel id of the comics exactly once, in the new order
+- **Response** `200`: `ComicsDetail`
+- **Error Responses**: `404` `not_found`; `409` `built`; `422` `reorder_mismatch` (the list is stale: nothing is changed) or an id that is not a UUID
+
+**Preview of a draft**
+
+- **URL**: `/api/comics/{id}/preview?maxWidth=1200`
+- **Method**: `GET`
+- **Query Parameters**: `maxWidth` (optional, 200 to 2400, default 1200): the preview is scaled down to this width, never up.
+- **Response** `200`: `image/jpeg` bytes of the panels tiled in position order (2 per row), with `Cache-Control: no-store`. Nothing is stored. At most two previews are composed at a time per backend process; others wait.
+- **Error Responses**: `404` `not_found`; `409` `built` (only drafts have a preview); `422` `{ code: "compose_failed", reason, position }` where `reason` is `no_panels` (position `null`), `unreadable` (a missing or damaged file), `unsupported_format`, `animated` or `too_large`, and `position` is the 1-based panel it concerns or `null`; `422` for a `maxWidth` out of range
+
+**Addability of images**
+
+- **URL**: `/api/comics/addability?imageIds=<id>,<id>,...`
+- **Method**: `GET`
+- **Query Parameters**: `imageIds` (required, 1 to 100 comma-separated UUIDs)
+- **Response** `200`: `{ items: [{ imageId, addable, reason, comicsId, comicsName }] }`. `reason` is `null` when addable, else `not_found`, `not_active`, `flagged`, `live_cut` or `in_comics` (the last with `comicsId`/`comicsName`).
+- **Error Responses**: `422` for no ids, more than 100 or a malformed UUID
+
+**The comics of an image**
+
+- **URL**: `/api/comics/by-image/{imageId}`
+- **Method**: `GET`
+- **Response** `200`: `{ comics: { id, name, state, position } | null }`; `null` when the image is no panel of any comics
+- **Error Responses**: `422` for an `imageId` that is not a UUID
 
 ---
 

@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicsaddpanelrequest.schema.json",
+  "title": "ComicsAddPanelRequest",
+  "description": "Add an image as the last panel of a comics; move takes it from the comics it is already in",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "imageId": {
+      "type": "string"
+    },
+    "move": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "imageId"
+  ]
+}

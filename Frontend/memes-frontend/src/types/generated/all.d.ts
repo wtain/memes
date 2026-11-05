@@ -73,6 +73,7 @@ export interface MemeSearchRequest {
   query?: string;
   cursor?: string;
   limit?: number;
+  record?: boolean;
   tags?: MemeTag[];
   [k: string]: unknown;
 }
@@ -723,6 +724,114 @@ export interface RecutDecision {
   id: string;
   state: string;
   decidedAt: string;
+}
+/**
+ * One comics in the list: name, state, panel count and cover
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsSummary".
+ */
+export interface ComicsSummary {
+  id: string;
+  name: string;
+  state: string;
+  panelCount: number;
+  coverImageId: string | null;
+  createdAt: string;
+  builtAt: string | null;
+}
+/**
+ * One page of comics, newest first
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsPage".
+ */
+export interface ComicsPage {
+  items: ComicsSummary[];
+  hasMore: boolean;
+}
+/**
+ * One panel of a comics; imageId is null when the source image is gone
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsPanel".
+ */
+export interface ComicsPanel {
+  id: string;
+  position: number;
+  imageId: string | null;
+  sourceFilename: string;
+}
+/**
+ * One comics with its panels in order
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsDetail".
+ */
+export interface ComicsDetail {
+  id: string;
+  name: string;
+  state: string;
+  builtImageId: string | null;
+  builtAt: string | null;
+  panels: ComicsPanel[];
+}
+/**
+ * Create an empty comics with a name
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsCreateRequest".
+ */
+export interface ComicsCreateRequest {
+  name: string;
+}
+/**
+ * Add an image as the last panel of a comics; move takes it from the comics it is already in
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsAddPanelRequest".
+ */
+export interface ComicsAddPanelRequest {
+  imageId: string;
+  move?: boolean;
+}
+/**
+ * The full list of panel ids in the new order
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsReorderRequest".
+ */
+export interface ComicsReorderRequest {
+  panelIds: string[];
+}
+/**
+ * Whether each asked image can be added to a comics, and why not
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsAddability".
+ */
+export interface ComicsAddability {
+  items: {
+    imageId: string;
+    addable: boolean;
+    reason: string | null;
+    comicsId: string | null;
+    comicsName: string | null;
+  }[];
+}
+/**
+ * The comics an image is a panel of, or null
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsByImage".
+ */
+export interface ComicsByImage {
+  comics: {
+    id: string;
+    name: string;
+    state: string;
+    position: number;
+  } | null;
 }
 /**
  * The corrected box of a recut proposal, in pixels of the source image

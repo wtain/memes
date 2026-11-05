@@ -778,6 +778,31 @@ class TestSearchId:
         assert result.searchId is None
 
 
+class TestSearchRecord:
+    @pytest.fixture
+    def wired(self, service, mock_repo, monkeypatch):
+        mock_repo.search.return_value = ([], {})
+        monkeypatch.setattr(ImageService, "_fill_texts_and_tags", AsyncMock())
+        self.history_id = uuid.uuid4()
+        self.record_history = AsyncMock(return_value=self.history_id)
+        monkeypatch.setattr(ImageService, "_record_history", self.record_history)
+        self.impressions = AsyncMock()
+        monkeypatch.setattr("Backend.app.services.image_service.record_impressions", self.impressions)
+        return service
+
+    async def test_search_with_record_false_records_nothing_and_has_no_search_id(self, wired):
+        result = await wired.search(q="cat", raw_facets=None, cursor=None, limit=10, record=False)
+        self.record_history.assert_not_called()
+        self.impressions.assert_not_called()
+        assert result.searchId is None
+
+    async def test_search_default_still_records(self, wired):
+        result = await wired.search(q="cat", raw_facets=None, cursor=None, limit=10)
+        self.record_history.assert_called_once()
+        self.impressions.assert_called_once()
+        assert result.searchId == str(self.history_id)
+
+
 class TestPopularity:
     IMAGE_ID = "550e8400-e29b-41d4-a716-446655440000"
 

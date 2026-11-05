@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicsaddability.schema.json",
+  "title": "ComicsAddability",
+  "description": "Whether each asked image can be added to a comics, and why not",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "imageId": {
+            "type": "string"
+          },
+          "addable": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "comicsId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "comicsName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "imageId",
+          "addable",
+          "reason",
+          "comicsId",
+          "comicsName"
+        ]
+      }
+    }
+  },
+  "required": [
+    "items"
+  ]
+}

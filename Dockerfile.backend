@@ -77,6 +77,9 @@ COPY batch/registry.py ./batch/registry.py
 COPY batch/utils/__init__.py ./batch/utils/__init__.py
 COPY batch/utils/recut_cut.py ./batch/utils/recut_cut.py
 COPY batch/utils/file_hash.py ./batch/utils/file_hash.py
+# Backend/app/services/comics_service.py composes the comics preview with the tiling composer
+# (batch/utils/comics_compose.py: Pillow and file_hash.py only, both already available here).
+COPY batch/utils/comics_compose.py ./batch/utils/comics_compose.py
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app

@@ -102,6 +102,31 @@ class TestGetImages:
         assert call_kwargs["limit"] == 20
         assert call_kwargs["cursor"] is None
 
+    def test_endpoint_passes_record_through(self, client, mock_image_service):
+        mock_image_service.search.return_value = MemeSearchResponse(
+            items=[], nextCursor=None, hasNext=False, facets=[])
+
+        client.get("/api/images?record=false")
+        assert mock_image_service.search.call_args.kwargs["record"] is False
+
+        client.get("/api/images")
+        assert mock_image_service.search.call_args.kwargs["record"] is True
+
+    def test_endpoint_record_zero_is_false(self, client, mock_image_service):
+        mock_image_service.search.return_value = MemeSearchResponse(
+            items=[], nextCursor=None, hasNext=False, facets=[])
+
+        response = client.get("/api/images?record=0")
+        assert response.status_code == 200
+        assert mock_image_service.search.call_args.kwargs["record"] is False
+
+    def test_endpoint_record_garbage_is_422(self, client, mock_image_service):
+        mock_image_service.search.reset_mock()
+
+        response = client.get("/api/images?record=maybe")
+        assert response.status_code == 422
+        mock_image_service.search.assert_not_called()
+
     def test_get_images_with_search_query(self, client, mock_image_service):
         """Test getting images with search query."""
         # Arrange

@@ -10,6 +10,7 @@ import type {
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
   RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, MemeSaves, MemeImpressions, TrendingMemesResponse,
+  ComicsPage, ComicsDetail, ComicsAddability, ComicsByImage,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import {
@@ -17,7 +18,7 @@ import {
   type DiscoveryMemes, type DiscoveryMisses, type DiscoveryQueries,
   type MemesParams, type MissesParams, type QueriesParams,
 } from "../../discovery/types"
-import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError } from "../errors"
+import { MessageSearchFailedError, MessageSearchValidationError, RatingFailedError, CuratorRequestError, ComicsRequestError } from "../errors"
 
 export class HttpMemesApi implements MemesApi {
   private readonly baseUrl: string
@@ -31,6 +32,7 @@ export class HttpMemesApi implements MemesApi {
     if (request.query) params.set("q", request.query)
     if (request.cursor) params.set("cursor", request.cursor)
     if (request.limit) params.set("limit", String(request.limit))
+    if (request.record === false) params.set("record", "false")
     if (request.tags?.length) {
       params.set("facets", request.tags.map(tag => {
         return `${tag.category}:${tag.name}`
@@ -794,6 +796,83 @@ export class HttpMemesApi implements MemesApi {
     })
     if (!response.ok) throw new CuratorRequestError(response.status, await readDetailCode(response))
     return response.json()
+  }
+
+  async listComics(q?: string, offset?: number, limit?: number): Promise<ComicsPage> {
+    const params = new URLSearchParams()
+    if (q) params.set("q", q)
+    if (offset !== undefined) params.set("offset", String(offset))
+    if (limit !== undefined) params.set("limit", String(limit))
+    const query = params.toString()
+    return this.comicsJson(`/api/comics${query ? `?${query}` : ""}`)
+  }
+
+  createComics(name: string): Promise<ComicsDetail> {
+    return this.comicsJson("/api/comics", "POST", { name })
+  }
+
+  getComics(id: string): Promise<ComicsDetail> {
+    return this.comicsJson(`/api/comics/${encodeURIComponent(id)}`)
+  }
+
+  renameComics(id: string, name: string): Promise<ComicsDetail> {
+    return this.comicsJson(`/api/comics/${encodeURIComponent(id)}`, "PATCH", { name })
+  }
+
+  async deleteComics(id: string): Promise<void> {
+    await this.comicsFetch(`/api/comics/${encodeURIComponent(id)}`, "DELETE")
+  }
+
+  addComicsPanel(id: string, imageId: string, move?: boolean): Promise<ComicsDetail> {
+    const body = move === undefined ? { imageId } : { imageId, move }
+    return this.comicsJson(`/api/comics/${encodeURIComponent(id)}/panels`, "POST", body)
+  }
+
+  async removeComicsPanel(id: string, panelId: string): Promise<void> {
+    await this.comicsFetch(`/api/comics/${encodeURIComponent(id)}/panels/${encodeURIComponent(panelId)}`, "DELETE")
+  }
+
+  reorderComicsPanels(id: string, panelIds: string[]): Promise<ComicsDetail> {
+    return this.comicsJson(`/api/comics/${encodeURIComponent(id)}/panels/order`, "PUT", { panelIds })
+  }
+
+  comicsAddability(imageIds: string[]): Promise<ComicsAddability> {
+    const params = new URLSearchParams({ imageIds: imageIds.join(",") })
+    return this.comicsJson(`/api/comics/addability?${params.toString()}`)
+  }
+
+  comicsByImage(imageId: string): Promise<ComicsByImage> {
+    return this.comicsJson(`/api/comics/by-image/${encodeURIComponent(imageId)}`)
+  }
+
+  comicsPreviewUrl(id: string, maxWidth: number, version: string): string {
+    return `${this.baseUrl}/api/comics/${encodeURIComponent(id)}/preview?maxWidth=${maxWidth}&v=${encodeURIComponent(version)}`
+  }
+
+  private async comicsFetch(path: string, method = "GET", body?: unknown): Promise<Response> {
+    const headers: Record<string, string> = { "Accept": "application/json" }
+    if (body !== undefined) headers["Content-Type"] = "application/json"
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    if (!response.ok) throw new ComicsRequestError(response.status, await readDetailObject(response))
+    return response
+  }
+
+  private async comicsJson<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+    return (await this.comicsFetch(path, method, body)).json()
+  }
+}
+
+/** The `detail` object of an error body; empty when the body is not JSON or the detail is a string or missing. */
+async function readDetailObject(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const detail = (await response.json())?.detail
+    return detail && typeof detail === "object" && !Array.isArray(detail) ? (detail as Record<string, unknown>) : {}
+  } catch {
+    return {}
   }
 }
 

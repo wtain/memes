@@ -3,6 +3,7 @@ import { TagList } from "./TagList"
 import { PopularityBlock } from "./PopularityBlock"
 import { SaveCountBlock } from "./SaveCountBlock"
 import { ImpressionBlock } from "./ImpressionBlock"
+import { MemeComicsBlock } from "./comics/MemeComicsBlock"
 import type { MemesApi } from "../api/MemesApi"
 import MemeCard from "./MemeCard"
 import type { Concept, ImageDescription, Meme } from "../types/generated/all"
@@ -305,6 +306,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
         <PopularityBlock key={`${meme.id}:${popularityVersion}`} imageId={meme.id} memesApi={memesApi} />
         <SaveCountBlock key={meme.id} imageId={meme.id} memesApi={memesApi} />
         <ImpressionBlock key={`impressions:${meme.id}`} imageId={meme.id} memesApi={memesApi} />
+        <MemeComicsBlock key={`comics:${meme.id}`} imageId={meme.id} memesApi={memesApi} />
 
         <div>
           <table className="w-full border">

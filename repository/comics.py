@@ -11,6 +11,7 @@ reads the panels to compose an image and then calls mark_built (C4) must take th
 get(comics_id, lock=True) in the same transaction, so no panel change or build can slip in between.
 """
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -41,6 +42,37 @@ def _search_key(query: str) -> str:
 
 def _is_name_key_violation(exc: IntegrityError) -> bool:
     return "uq_comics_name_key" in str(exc.orig)
+
+
+@dataclass(frozen=True)
+class Addability:
+    """Whether an image can be added to a comics now. reason: not_found, not_active, flagged, live_cut, in_comics
+    (in that precedence); comics_id and comics_name are set only for in_comics."""
+    image_id: uuid.UUID
+    addable: bool
+    reason: str | None
+    comics_id: uuid.UUID | None = None
+    comics_name: str | None = None
+
+
+async def _statuses(session, image_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+    rows = await session.execute(select(Image.id, Image.status).where(Image.id.in_(image_ids)))
+    return {row.id: row.status for row in rows}
+
+
+async def _flagged_ids(session, image_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    rows = await session.execute(select(ImageExtras.image_id)
+                                 .where(ImageExtras.image_id.in_(image_ids), ImageExtras.flagged.is_(True)))
+    return {row[0] for row in rows}
+
+
+async def _live_cut_ids(session, image_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    rows = await session.execute(
+        select(ImageCut.source_image_id, ImageCut.cut_image_id)
+        .where(ImageCut.state.in_(CutState.LIVE),
+               or_(ImageCut.source_image_id.in_(image_ids), ImageCut.cut_image_id.in_(image_ids))))
+    wanted = set(image_ids)
+    return {i for row in rows for i in (row.source_image_id, row.cut_image_id) if i in wanted}
 
 
 class ComicsRepository:
@@ -171,19 +203,54 @@ class ComicsRepository:
             select(Image).where(Image.id == image_id).execution_options(populate_existing=True))).scalar_one_or_none()
         if image is None:
             raise ComicsError("image_not_addable", reason="not_found")
-        if image.status != ImageStatus.ACTIVE:
+        if (await _statuses(self.session, [image_id]))[image_id] != ImageStatus.ACTIVE:
             raise ComicsError("image_not_addable", reason="not_active")
-        flagged = (await self.session.execute(
-            select(ImageExtras.flagged).where(ImageExtras.image_id == image_id))).scalar_one_or_none()
-        if flagged:
+        if await _flagged_ids(self.session, [image_id]):
             raise ComicsError("image_not_addable", reason="flagged")
-        live = (await self.session.execute(
-            select(ImageCut.id).where(ImageCut.state.in_(CutState.LIVE),
-                                      or_(ImageCut.source_image_id == image_id, ImageCut.cut_image_id == image_id))
-            .limit(1))).first()
-        if live is not None:
+        if await _live_cut_ids(self.session, [image_id]):
             raise ComicsError("image_not_addable", reason="live_cut")
         return image
+
+    async def addability(self, image_ids: list[uuid.UUID]) -> dict[uuid.UUID, Addability]:
+        """Addability of each image, in four queries whatever the count. Precedence: not_found, not_active,
+        flagged, live_cut, in_comics (the same checks as add_image)."""
+        ids = list(dict.fromkeys(image_ids))
+        if not ids:
+            return {}
+        statuses = await _statuses(self.session, ids)
+        flagged = await _flagged_ids(self.session, ids)
+        live = await _live_cut_ids(self.session, ids)
+        owner_rows = await self.session.execute(
+            select(ComicsPanel.image_id, Comics.id, Comics.name)
+            .join(Comics, ComicsPanel.comics_id == Comics.id).where(ComicsPanel.image_id.in_(ids)))
+        owners = {row.image_id: row for row in owner_rows}
+        result = {}
+        for image_id in ids:
+            if image_id not in statuses:
+                result[image_id] = Addability(image_id, False, "not_found")
+            elif statuses[image_id] != ImageStatus.ACTIVE:
+                result[image_id] = Addability(image_id, False, "not_active")
+            elif image_id in flagged:
+                result[image_id] = Addability(image_id, False, "flagged")
+            elif image_id in live:
+                result[image_id] = Addability(image_id, False, "live_cut")
+            elif image_id in owners:
+                owner = owners[image_id]
+                result[image_id] = Addability(image_id, False, "in_comics", owner.id, owner.name)
+            else:
+                result[image_id] = Addability(image_id, True, None)
+        return result
+
+    async def find_by_image(self, image_id: uuid.UUID) -> tuple[Comics, ComicsPanel] | None:
+        """The comics holding the image as a panel, with that panel; None when no panel references the image."""
+        panel_id = (await self.session.execute(
+            select(ComicsPanel.id).where(ComicsPanel.image_id == image_id))).scalar_one_or_none()
+        if panel_id is None:
+            return None
+        comics_id = (await self.session.execute(
+            select(ComicsPanel.comics_id).where(ComicsPanel.id == panel_id))).scalar_one()
+        comics = await self._load(comics_id)
+        return comics, next(p for p in comics.panels if p.id == panel_id)
 
     async def add_image(self, comics_id: uuid.UUID, image_id: uuid.UUID) -> ComicsPanel:
         comics = await self._load_draft(comics_id, lock=True)

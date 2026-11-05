@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicsdetail.schema.json",
+  "title": "ComicsDetail",
+  "description": "One comics with its panels in order",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "builtImageId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "builtAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "panels": {
+      "type": "array",
+      "items": {
+        "$ref": "./comicspanel.schema.json"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "state",
+    "builtImageId",
+    "builtAt",
+    "panels"
+  ]
+}

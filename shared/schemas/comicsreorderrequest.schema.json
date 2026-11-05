@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicsreorderrequest.schema.json",
+  "title": "ComicsReorderRequest",
+  "description": "The full list of panel ids in the new order",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "panelIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "panelIds"
+  ]
+}
