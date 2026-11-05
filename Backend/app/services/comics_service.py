@@ -140,7 +140,7 @@ class ComicsService:
         paths = []
         for index, panel in enumerate(panels):
             filename = found.get(panel.image_id) if panel.image_id else None
-            if filename is None:  # cannot happen in a draft; report it as that panel being unreadable
+            if filename is None:  # the image row is gone (deleting it nulls a draft panel's image_id); report that panel as unreadable
                 raise ComposeError("unreadable", index, "the panel's image is gone")
             paths.append(os.path.join(base, filename))
         async with _PREVIEW_SEMAPHORE:

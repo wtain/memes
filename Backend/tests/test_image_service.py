@@ -804,7 +804,7 @@ class TestSearchRecord:
 
 
 class TestPopularity:
-    IMAGE_ID ="550e8400-e29b-41d4-a716-446655440000"
+    IMAGE_ID = "550e8400-e29b-41d4-a716-446655440000"
 
     @pytest.mark.parametrize("popularity,flagged,expected", [
         (0, False, "discarded"), (0, True, "discarded"),
