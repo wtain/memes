@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicsbuildrequest.schema.json",
+  "title": "ComicsBuildRequest",
+  "description": "Body of the build call; the panels listed in keepPanelIds keep their source image active",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "keepPanelIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  }
+}

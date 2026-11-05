@@ -7,7 +7,7 @@ import { makeMockApi } from "../test/mockApi"
 import type { ComicsDetail, ComicsPanel } from "../types/generated/all"
 
 function panel(id: string, position: number): ComicsPanel {
-  return { id, position, imageId: `img-${id}`, sourceFilename: `${id}.jpg` }
+  return { id, position, imageId: `img-${id}`, sourceFilename: `${id}.jpg`, kept: false, sourceImageId: `img-${id}` }
 }
 function detail(panelIds: string[], over: Partial<ComicsDetail> = {}): ComicsDetail {
   return { id: "c1", name: "My comics", state: "draft", builtImageId: null, builtAt: null,

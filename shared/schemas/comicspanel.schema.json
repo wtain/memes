@@ -20,12 +20,20 @@
     },
     "sourceFilename": {
       "type": "string"
+    },
+    "kept": {
+      "type": "boolean"
+    },
+    "sourceImageId": {
+      "type": "string"
     }
   },
   "required": [
     "id",
     "position",
     "imageId",
-    "sourceFilename"
+    "sourceFilename",
+    "kept",
+    "sourceImageId"
   ]
 }

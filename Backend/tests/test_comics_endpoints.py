@@ -12,7 +12,8 @@ CID = str(uuid.uuid4())
 PID = str(uuid.uuid4())
 IID = str(uuid.uuid4())
 DETAIL = {"id": CID, "name": "Story", "state": "draft", "builtImageId": None, "builtAt": None,
-          "panels": [{"id": PID, "position": 0, "imageId": IID, "sourceFilename": "a.jpg"}]}
+          "panels": [{"id": PID, "position": 0, "imageId": IID, "sourceFilename": "a.jpg", "kept": False,
+                      "sourceImageId": IID}]}
 SUMMARY = {"id": CID, "name": "Story", "state": "draft", "panelCount": 1, "coverImageId": IID,
            "createdAt": "2026-11-05T10:00:00+00:00", "builtAt": None}
 

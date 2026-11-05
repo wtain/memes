@@ -1557,7 +1557,7 @@ A comics is a named, ordered list of images (panels) that is later built into on
 
 Error codes: `not_found` (404); `name_taken`, `built` (the comics is built and cannot change), `image_in_comics` (+ `comicsId`, `comicsName` of the comics holding the image), `not_buildable` (+ `reason`; not returned yet) (409); `image_not_addable` (+ `reason`: `not_active`, `flagged`, `live_cut` 409; `not_found` 404); `name_invalid` (+ `reason`), `reorder_mismatch` (422). A body or parameter that does not validate is a plain 422.
 
-Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt, builtAt }` (cover is the built image for a built comics, else the first panel's image, `null` when none or retired); `ComicsDetail` `{ id, name, state, builtImageId, builtAt, panels: [{ id, position, imageId, sourceFilename }] }` (panels in position order; `imageId` is `null` when the source image is gone).
+Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt, builtAt }` (cover is the built image for a built comics, else the first panel's image, `null` when none or retired); `ComicsDetail` `{ id, name, state, builtImageId, builtAt, panels: [{ id, position, imageId, sourceFilename, kept, sourceImageId }] }` (panels in position order; `imageId` is `null` when the source image is gone; `kept` is true when the panel's source image stayed active after a build; `sourceImageId` is the panel's original source image id, kept after `imageId` is cleared).
 
 **List comics**
 

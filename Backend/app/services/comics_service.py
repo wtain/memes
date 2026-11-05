@@ -63,7 +63,8 @@ def _detail(comics) -> dict:
         "builtAt": _iso(comics.built_at),
         "panels": [{"id": str(p.id), "position": p.position,
                     "imageId": str(p.image_id) if p.image_id else None,
-                    "sourceFilename": p.source_filename} for p in _sorted_panels(comics)],
+                    "sourceFilename": p.source_filename, "kept": bool(p.kept),
+                    "sourceImageId": str(p.source_image_id)} for p in _sorted_panels(comics)],
     }
 
 
