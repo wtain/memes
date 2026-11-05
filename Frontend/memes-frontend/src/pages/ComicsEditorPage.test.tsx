@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom"
 import ComicsEditorPage from "./ComicsEditorPage"
 import { ComicsRequestError } from "../api/errors"
 import { makeMockApi } from "../test/mockApi"
@@ -21,6 +21,7 @@ function setup(overrides: Parameters<typeof makeMockApi>[0] = {}) {
     comicsPreviewUrl: vi.fn((id: string, w: number, v: string) => `http://x/api/comics/${id}/preview?w=${w}&v=${v}`),
     searchMemes: vi.fn().mockResolvedValue({ items: [{ id: "m1", imageUrl: "/i/m1", originalFileName: "m1.jpg" }], hasNext: false }),
     comicsAddability: vi.fn().mockResolvedValue({ items: [free("m1")] }),
+    getImageUrl: vi.fn((meme: { imageUrl: string }) => `https://backend.test${meme.imageUrl}`),
     ...overrides,
   })
   render(
@@ -217,5 +218,122 @@ describe("ComicsEditorPage built", () => {
     expect(screen.queryByLabelText("Remove panel 1")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Rename" })).not.toBeInTheDocument()
     expect(api.comicsPreviewUrl).not.toHaveBeenCalled()
+  })
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => { resolve = r })
+  return { promise, resolve }
+}
+
+describe("ComicsEditorPage fixes", () => {
+  it("resolves result thumbnails through the API", async () => {
+    setup()
+    await search()
+    expect(await screen.findByAltText("m1.jpg")).toHaveAttribute("src", "https://backend.test/i/m1")
+  })
+
+  it("a double click on + sends one add", async () => {
+    const add = deferred<ComicsDetail>()
+    const api = setup({ addComicsPanel: vi.fn().mockReturnValue(add.promise) })
+    await search()
+    const button = await screen.findByRole("button", { name: "Add m1.jpg" })
+    await userEvent.dblClick(button)
+    expect(api.addComicsPanel).toHaveBeenCalledTimes(1)
+    await act(async () => { add.resolve(detail(["p1", "p2", "p3"])) })
+  })
+
+  it("disables panel moves while an add is in flight", async () => {
+    const add = deferred<ComicsDetail>()
+    const api = setup({ addComicsPanel: vi.fn().mockReturnValue(add.promise) })
+    await search()
+    await userEvent.click(await screen.findByRole("button", { name: "Add m1.jpg" }))
+    expect(screen.getByLabelText("Move panel 2 up")).toBeDisabled()
+    expect(api.reorderComicsPanels).not.toHaveBeenCalled()
+    await act(async () => { add.resolve(detail(["p1", "p2", "p3"])) })
+  })
+
+  it("starts clean when the route id changes", async () => {
+    function Harness({ api }: { api: ReturnType<typeof makeMockApi> }) {
+      const navigate = useNavigate()
+      return (
+        <>
+          <button type="button" onClick={() => navigate("/admin/comics/c2")}>go</button>
+          <ComicsEditorPage memesApi={api} />
+        </>
+      )
+    }
+    const api = makeMockApi({
+      getComics: vi.fn().mockImplementation(async (cid: string) => detail(["p1", "p2"], { id: cid, name: `Name ${cid}` })),
+      reorderComicsPanels: vi.fn().mockResolvedValue(detail(["p2", "p1"])),
+      comicsPreviewUrl: vi.fn((cid: string, w: number, v: string) => `http://x/api/comics/${cid}/preview?w=${w}&v=${v}`),
+    })
+    render(
+      <MemoryRouter initialEntries={["/admin/comics/c1"]}>
+        <Routes><Route path="/admin/comics/:id" element={<Harness api={api} />} /></Routes>
+      </MemoryRouter>,
+    )
+    await userEvent.click(await screen.findByLabelText("Move panel 2 up"))
+    await waitFor(() => expect(screen.getByAltText("Comics preview").getAttribute("src")).toContain("v=1"))
+    await userEvent.click(screen.getByRole("button", { name: "go" }))
+    await screen.findByRole("heading", { name: "Name c2" })
+    const c2Calls = (api.comicsPreviewUrl as ReturnType<typeof vi.fn>).mock.calls.filter((call) => call[0] === "c2")
+    expect(c2Calls.length).toBeGreaterThan(0)
+    expect(c2Calls.every((call) => call[2] === "0")).toBe(true)
+  })
+
+  it("two panel changes within 400 ms bump the preview version once", async () => {
+    vi.useFakeTimers()
+    try {
+      const reorder = vi.fn().mockResolvedValueOnce(detail(["p2", "p1"])).mockResolvedValueOnce(detail(["p1", "p2"]))
+      setup({ reorderComicsPanels: reorder })
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(screen.getByAltText("Comics preview").getAttribute("src")).toContain("v=0")
+      fireEvent.click(screen.getByLabelText("Move panel 2 up"))
+      await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+      fireEvent.click(screen.getByLabelText("Move panel 2 up"))
+      await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+      expect(screen.getByAltText("Comics preview").getAttribute("src")).toContain("v=0")
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+      expect(screen.getByAltText("Comics preview").getAttribute("src")).toContain("v=1")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("an older addability response resolving last does not overwrite a newer one", async () => {
+    const older = deferred<{ items: ReturnType<typeof free>[] }>()
+    const newer = deferred<{ items: { imageId: string; addable: boolean; reason: string; comicsId: string; comicsName: string }[] }>()
+    const addability = vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+    setup({ comicsAddability: addability, reorderComicsPanels: vi.fn().mockResolvedValue(detail(["p2", "p1"])) })
+    await search()
+    await waitFor(() => expect(addability).toHaveBeenCalledTimes(1))
+    await userEvent.click(await screen.findByLabelText("Move panel 2 up"))
+    await waitFor(() => expect(addability).toHaveBeenCalledTimes(2))
+    await act(async () => { newer.resolve({ items: [{ imageId: "m1", addable: false, reason: "in_comics", comicsId: "other", comicsName: "Other one" }] }) })
+    expect(await screen.findByRole("link", { name: "Other one" })).toBeInTheDocument()
+    await act(async () => { older.resolve({ items: [free("m1")] }) })
+    expect(screen.getByRole("link", { name: "Other one" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Add m1.jpg" })).toBeDisabled()
+  })
+
+  it("a preview failure with a non-JSON body shows a generic message", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false, status: 500, json: async () => { throw new Error("not json") },
+    }))
+    try {
+      setup()
+      fireEvent.error(await screen.findByAltText("Comics preview"))
+      expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong")
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("a built comics makes no search request", async () => {
+    const api = setup({ getComics: vi.fn().mockResolvedValue(detail(["p1"], { state: "built", builtImageId: "b1" })) })
+    await screen.findByAltText("Built comics")
+    expect(api.searchMemes).not.toHaveBeenCalled()
   })
 })

@@ -18,11 +18,18 @@ const PREVIEW_DEBOUNCE_MS = 400
 /** The comics a load produced; `id` ties it to the route it was fetched for. */
 type Loaded = { id: string; detail: ComicsDetail | null; failed: boolean }
 
+/** Keyed by the route id, so moving between comics starts with clean editor state. */
 export default function ComicsEditorPage({ memesApi }: Props) {
   const { id = "" } = useParams()
+  return <ComicsEditor key={id} id={id} memesApi={memesApi} />
+}
+
+function ComicsEditor({ id, memesApi }: Props & { id: string }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [version, setVersion] = useState(0)
   const [busy, setBusy] = useState(false)
+  // Synchronous gate: state alone would let two quick clicks both pass before the re-render.
+  const busyRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState("")
@@ -57,6 +64,8 @@ export default function ComicsEditorPage({ memesApi }: Props) {
   }
 
   async function mutate(action: () => Promise<void>) {
+    if (busyRef.current) return
+    busyRef.current = true
     setBusy(true)
     setError(null)
     try {
@@ -64,11 +73,15 @@ export default function ComicsEditorPage({ memesApi }: Props) {
     } catch (e) {
       setError(describeComicsError(e))
     } finally {
+      busyRef.current = false
       setBusy(false)
     }
   }
 
   async function addPanel(imageId: string): Promise<AddOutcome> {
+    if (busyRef.current) return "error"
+    busyRef.current = true
+    setBusy(true)
     setError(null)
     try {
       replaceDetail(await memesApi.addComicsPanel(id, imageId))
@@ -77,6 +90,9 @@ export default function ComicsEditorPage({ memesApi }: Props) {
       if (e instanceof ComicsRequestError && (e.code === "image_in_comics" || e.code === "image_not_addable")) return "conflict"
       setError(describeComicsError(e))
       return "error"
+    } finally {
+      busyRef.current = false
+      setBusy(false)
     }
   }
 
@@ -166,7 +182,7 @@ export default function ComicsEditorPage({ memesApi }: Props) {
           </div>
           <button type="button" disabled title="Build is not available yet" className="min-h-11 rounded border px-3 opacity-50">Build</button>
         </div>
-        <ComicsSearchColumn memesApi={memesApi} comicsId={id} panelSignature={signature} onAdd={addPanel} />
+        <ComicsSearchColumn memesApi={memesApi} comicsId={id} panelSignature={signature} busy={busy} onAdd={addPanel} />
       </div>
     </div>
   )

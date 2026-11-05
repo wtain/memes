@@ -11,6 +11,8 @@ type Props = {
   comicsId: string
   /** Changes whenever the open comics' panels change; the visible results are then re-checked. */
   panelSignature: string | null
+  /** The editor is saving a change; adding waits. */
+  busy: boolean
   onAdd: (imageId: string) => Promise<AddOutcome>
 }
 
@@ -24,7 +26,7 @@ const REASON_TEXT: Record<string, string> = {
   not_found: "Not found",
 }
 
-export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature, onAdd }: Props) {
+export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature, busy, onAdd }: Props) {
   const [state, dispatch] = useReducer(searchReducer, initialSearchState)
   const [input, setInput] = useState("")
   const [query, setQuery] = useState("")
@@ -106,7 +108,7 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
     }
     if (info.addable) {
       return (
-        <button type="button" aria-label={`Add ${label}`} disabled={adding !== null}
+        <button type="button" aria-label={`Add ${label}`} disabled={busy || adding !== null}
                 onClick={() => void add(imageId)} className="min-h-11 min-w-11 rounded border px-2 disabled:opacity-50">+</button>
       )
     }
@@ -142,7 +144,7 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
             const label = meme.originalFileName ?? meme.id
             return (
               <li key={meme.id} className="flex items-center gap-2 rounded border p-2">
-                <img src={meme.imageUrl} alt={label} className="h-16 w-16 shrink-0 rounded object-cover" />
+                <img src={memesApi.getImageUrl(meme)} alt={label} className="h-16 w-16 shrink-0 rounded object-cover" />
                 <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
                 {renderState(meme.id, state.addability[meme.id], label)}
               </li>
