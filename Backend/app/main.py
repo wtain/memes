@@ -28,6 +28,7 @@ from Backend.app.api.bug_reports import router as bug_reports_router
 from Backend.app.api.ingestion import router as ingestion_router
 from Backend.app.api.admin import router as admin_router
 from Backend.app.api.recut import router as recut_router
+from Backend.app.api.comics import router as comics_router
 from Backend.app.scheduler import start_scheduler, stop_scheduler
 from Backend.app.services.meme_from_text_pipeline import get_pipeline
 from Backend.app.services.query_parser import get_query_parser
@@ -159,6 +160,7 @@ app.include_router(bug_reports_router, prefix="/api")
 app.include_router(ingestion_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(recut_router, prefix="/api")
+app.include_router(comics_router, prefix="/api")
 
 
 @app.get("/health")
