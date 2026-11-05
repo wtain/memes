@@ -46,6 +46,51 @@ data class ClusterSimilarityCandidate(
 )
 
 @Serializable
+data class ComicsAddability(
+    @SerialName("items") val items: List<JsonObject>
+)
+
+@Serializable
+data class ComicsAddPanelRequest(
+    @SerialName("imageId") val imageId: String,
+    @SerialName("move") val move: Boolean? = null
+)
+
+@Serializable
+data class ComicsByImage(
+    @SerialName("comics") val comics: JsonObject?
+)
+
+@Serializable
+data class ComicsCreateRequest(
+    @SerialName("name") val name: String
+)
+
+@Serializable
+data class ComicsPanel(
+    @SerialName("id") val id: String,
+    @SerialName("position") val position: Int,
+    @SerialName("imageId") val imageId: String?,
+    @SerialName("sourceFilename") val sourceFilename: String
+)
+
+@Serializable
+data class ComicsReorderRequest(
+    @SerialName("panelIds") val panelIds: List<String>
+)
+
+@Serializable
+data class ComicsSummary(
+    @SerialName("id") val id: String,
+    @SerialName("name") val name: String,
+    @SerialName("state") val state: String,
+    @SerialName("panelCount") val panelCount: Int,
+    @SerialName("coverImageId") val coverImageId: String?,
+    @SerialName("createdAt") val createdAt: String,
+    @SerialName("builtAt") val builtAt: String?
+)
+
+@Serializable
 data class Concept(
     @SerialName("id") val id: Int,
     @SerialName("name") val name: String
@@ -468,6 +513,22 @@ data class ClusterSimilarityResponse(
 )
 
 @Serializable
+data class ComicsDetail(
+    @SerialName("id") val id: String,
+    @SerialName("name") val name: String,
+    @SerialName("state") val state: String,
+    @SerialName("builtImageId") val builtImageId: String?,
+    @SerialName("builtAt") val builtAt: String?,
+    @SerialName("panels") val panels: List<ComicsPanel>
+)
+
+@Serializable
+data class ComicsPage(
+    @SerialName("items") val items: List<ComicsSummary>,
+    @SerialName("hasMore") val hasMore: Boolean
+)
+
+@Serializable
 data class DuplicateDecisionListResponse(
     @SerialName("items") val items: List<DuplicateDecisionItem>,
     @SerialName("total") val total: Int
@@ -556,6 +617,7 @@ data class MemeSearchRequest(
     @SerialName("query") val query: String? = null,
     @SerialName("cursor") val cursor: String? = null,
     @SerialName("limit") val limit: Int? = null,
+    @SerialName("record") val record: Boolean? = null,
     @SerialName("tags") val tags: List<MemeTag>? = null
 )
 

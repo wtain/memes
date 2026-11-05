@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicsbyimage.schema.json",
+  "title": "ComicsByImage",
+  "description": "The comics an image is a panel of, or null",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "comics": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "position": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "state",
+        "position"
+      ]
+    }
+  },
+  "required": [
+    "comics"
+  ]
+}

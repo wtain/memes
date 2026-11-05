@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicssummary.schema.json",
+  "title": "ComicsSummary",
+  "description": "One comics in the list: name, state, panel count and cover",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "panelCount": {
+      "type": "integer"
+    },
+    "coverImageId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "builtAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "state",
+    "panelCount",
+    "coverImageId",
+    "createdAt",
+    "builtAt"
+  ]
+}
