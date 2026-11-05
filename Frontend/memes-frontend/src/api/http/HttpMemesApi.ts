@@ -10,7 +10,7 @@ import type {
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
   RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, MemeSaves, MemeImpressions, TrendingMemesResponse,
-  ComicsPage, ComicsDetail, ComicsAddability, ComicsByImage,
+  ComicsPage, ComicsDetail, ComicsAddability, ComicsByImage, ComicsBuildResult,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import {
@@ -834,6 +834,10 @@ export class HttpMemesApi implements MemesApi {
 
   reorderComicsPanels(id: string, panelIds: string[]): Promise<ComicsDetail> {
     return this.comicsJson(`/api/comics/${encodeURIComponent(id)}/panels/order`, "PUT", { panelIds })
+  }
+
+  buildComics(id: string, keepPanelIds: string[]): Promise<ComicsBuildResult> {
+    return this.comicsJson(`/api/comics/${encodeURIComponent(id)}/build`, "POST", { keepPanelIds })
   }
 
   comicsAddability(imageIds: string[]): Promise<ComicsAddability> {

@@ -107,6 +107,24 @@ describe("comics API", () => {
     expect(JSON.parse(init.body)).toEqual({ panelIds: ["b", "a"] })
   })
 
+  it("builds a comics with POST and keepPanelIds", async () => {
+    const result = { comics: detail, builtImageId: "b1" }
+    const fetchMock = stubFetch({ ok: true, status: 200, body: result })
+    expect(await api.buildComics("c1", ["p2"])).toEqual(result)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe("http://backend/api/comics/c1/build")
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(init.body)).toEqual({ keepPanelIds: ["p2"] })
+  })
+
+  it("keeps detail of a build refusal", async () => {
+    stubFetch({ ok: false, status: 409, body: { detail: { code: "not_buildable", reason: "panel_unavailable", position: 2, cause: "flagged" } } })
+    const error = await api.buildComics("c1", []).catch(e => e)
+    expect(error).toBeInstanceOf(ComicsRequestError)
+    expect(error.code).toBe("not_buildable")
+    expect(error.detail.position).toBe(2)
+  })
+
   it("asks addability with comma-joined ids", async () => {
     const fetchMock = stubFetch({ ok: true, status: 200, body: { items: [] } })
     await api.comicsAddability(["a", "b"])
