@@ -1,6 +1,8 @@
 """
 Moves every image flagged in ImageExtras to BASE_PATH/excluded (renaming instead of overwriting; missing
-files are counted and skipped). Run-tracked (kind move_flagged); unless chain=False (--no-chain) it then runs
+files are counted and skipped). An image flagged `comics_source` that still has a comics panel goes to
+BASE_PATH/comics-sources/<comics name>/ instead (created on demand; counter moved_to_comics_sources besides
+moved); a comics_source image with no panel or comics row falls back to excluded. Run-tracked (kind move_flagged); unless chain=False (--no-chain) it then runs
 unregister_deleted_images, which in turn runs remove_singletons. Admin-triggerable, manual only.
 """
 import argparse
@@ -17,7 +19,9 @@ from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from repository.batch_runs import BatchAlreadyRunningError, BatchRunRepository
 from Storage.db import AsyncSessionLocal
-from Storage.models import Image, ImageExtras
+from Storage.models import Comics, ComicsPanel, Image, ImageExtras
+
+COMICS_SOURCE_REASON = "comics_source"
 
 
 async def run(session, base_path) -> SimpleMetricsListener:
@@ -25,9 +29,14 @@ async def run(session, base_path) -> SimpleMetricsListener:
 
     query = (
         select(
+            Image.id,
             Image.filename,
+            ImageExtras.flagged_reason,
+            Comics.name,
         )
         .join(ImageExtras, ImageExtras.image_id == Image.id)
+        .outerjoin(ComicsPanel, ComicsPanel.image_id == Image.id)
+        .outerjoin(Comics, Comics.id == ComicsPanel.comics_id)
         .where(ImageExtras.flagged == True)
     )
     images = await session.execute(query)
@@ -35,15 +44,21 @@ async def run(session, base_path) -> SimpleMetricsListener:
     flagged_path = os.path.join(base_path, "excluded")
     os.makedirs(flagged_path, exist_ok=True)
 
-    for (filename, ) in images:
+    for (_image_id, filename, reason, comics_name) in images:
         path_from = os.path.join(base_path, filename)
+        to_comics = reason == COMICS_SOURCE_REASON and comics_name is not None
+        dest = os.path.join(base_path, "comics-sources", comics_name) if to_comics else flagged_path
         try:
-            print(f"Moving {filename} from {path_from} to {flagged_path}")
-            final_filename = move_without_overwrite(path_from, flagged_path)
+            if to_comics:
+                os.makedirs(dest, exist_ok=True)
+            print(f"Moving {filename} from {path_from} to {dest}")
+            final_filename = move_without_overwrite(path_from, dest)
             if final_filename != filename:
                 print(f"Renamed to avoid overwrite: {filename} -> {final_filename}")
                 metrics.increment("renamed_to_avoid_overwrite")
             metrics.increment("moved")
+            if to_comics:
+                metrics.increment("moved_to_comics_sources")
         except FileNotFoundError as e:
             print(f"Skipping {filename}: not found ({e})")
             metrics.increment("error.file_not_found")
