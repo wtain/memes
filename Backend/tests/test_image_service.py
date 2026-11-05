@@ -589,13 +589,17 @@ class TestComicsSourceFlagGuard:
         assert exc_info.value.status_code == 409
         mock_repo.set_flagged.assert_not_awaited()
 
-    async def test_reflag_with_comics_source_is_a_noop_write(self, service, mock_repo):
-        image_id = str(uuid.uuid4())
-        mock_repo.get_flag_reason.return_value = "comics_source"
+    async def test_requested_comics_source_reason_is_422_and_writes_nothing(self, service, mock_repo):
+        for current in (None, "comics_source", "other"):
+            mock_repo.get_flag_reason.return_value = current
+            mock_repo.set_flagged.reset_mock()
 
-        await service.mark_flagged(image_id, "comics_source")
+            with pytest.raises(HTTPException) as exc_info:
+                await service.mark_flagged(str(uuid.uuid4()), "comics_source")
 
-        mock_repo.set_flagged.assert_awaited_once_with(image_id, True, "comics_source")
+            assert exc_info.value.status_code == 422
+            assert exc_info.value.detail == {"code": "comics_source_reserved"}
+            mock_repo.set_flagged.assert_not_awaited()
 
     async def test_ordinary_flagged_image_still_unflags(self, service, mock_repo):
         image_id = str(uuid.uuid4())

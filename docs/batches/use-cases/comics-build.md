@@ -26,4 +26,5 @@ All of them are also triggerable from `/admin/batches`.
   views at once, because flagged images are filtered out, but its file stays where it is until the next `move_flagged` run.
 - `move_flagged` moves such a file to `BASE_PATH/comics-sources/<comics name>/` (not `excluded/`) and counts it in
   `moved_to_comics_sources`. `unregister_deleted_images` then removes the rows, as for any moved file.
-- Unflagging a `comics_source` image through the images API is refused with `409` `comics_source_flag`, and so is flagging one again.
+- Unflagging a `comics_source` image through the images API is refused with `409` `comics_source_flag`, and so is flagging it again with a different reason. A request with reason `comics_source` is refused too (`422` `comics_source_reserved`): the reason is reserved for the build.
+- A leftover file in `BASE_PATH` from a crashed or cancelled build (`comics-<hash12>.*`, or a hidden `.comics-build-*` file) with no image row is picked up by `extract_text_from_memes` as an ordinary new image. Check `BASE_PATH` for such files before running the after-build jobs.

@@ -517,7 +517,10 @@ Mark a meme as flagged.
 - **Errors**: `422` when `duplicateOf` is given with another or no `reason`, when `duplicateOf` or `image_id` is
   not a well-formed UUID, or when they are equal. A well-formed UUID with no image row returns `200` and records
   nothing. Validation happens before anything is written. A popularity recording failure never fails the flag;
-  re-flagging against another survivor keeps the first recorded edge.
+  re-flagging against another survivor keeps the first recorded edge. `422` `{detail: {code: "comics_source_reserved"}}`
+  when `reason` is `comics_source` (reserved for the comics build; nothing is written). `409`
+  `{detail: {code: "comics_source_flag"}}` when the image is already flagged with reason `comics_source`: flagging it
+  again with a different reason is refused.
 - **Response**: Success (no content)
 - **Example**: `PUT /api/images/meme/abc123/mark_flagged`
 - **Example (with reason)**: `PUT /api/images/meme/abc123/mark_flagged?reason=duplicate_review`
@@ -639,6 +642,7 @@ untouched.
 - **Method**: `PUT`
 - **Path Parameters**:
   - `image_id`: Unique identifier of the image
+- **Errors**: `409` `{detail: {code: "comics_source_flag"}}` when the image's flag reason is `comics_source`: unflagging it is refused and nothing is changed.
 - **Response**: Success (no content)
 - **Example**: `PUT /api/images/meme/abc123/unmark_flagged`
 
@@ -1634,7 +1638,7 @@ Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt,
 - **Method**: `POST`
 - **Body** (optional): `{ keepPanelIds? }`, default `[]`: panel ids of this comics whose source image stays active. The source of every other panel is flagged with `reason` `comics_source` and moves to `comics-sources/<name>` at the next move flagged run.
 - **Response** `200`: `ComicsBuildResult` `{ comics: ComicsDetail, builtImageId }`. The comics is now `built` and frozen; the new image is registered active. Its derived data (embedding, OCR, tags, ...) is filled by the incremental jobs, not by this call.
-- **Error Responses**: `404` `not_found`; `409` `built` (already built), `not_buildable` (`reason`: `too_few_panels`, `panel_missing`, `panel_unavailable` with 1-based `position` and `cause` (`not_active`, `flagged`, `live_cut`, `file_missing`, `file_changed` or `already_discarded`), or `same_as_existing` with `imageId`), `popularity_conflict`; `422` `keep_invalid` (an id that is not a panel of this comics), `compose_failed` (`reason` as for the preview, `position` 1-based or `null`), or an id that is not a UUID. On any error nothing is changed. Flagging or unflagging a comics source through the images API is refused with `409` `comics_source_flag`.
+- **Error Responses**: `404` `not_found`; `409` `built` (already built), `not_buildable` (`reason`: `too_few_panels`, `panel_missing`, `image_not_active` and `image_already_built` (internal consistency refusals, not expected in normal use), `panel_unavailable` with 1-based `position` and `cause` (`not_active`, `flagged`, `live_cut`, `file_missing`, `file_changed` or `already_discarded`), or `same_as_existing` with `imageId`), `popularity_conflict`; `422` `keep_invalid` (an id that is not a panel of this comics), `compose_failed` (`reason` as for the preview, `position` 1-based or `null`), or an id that is not a UUID. On any error nothing is changed. Flagging or unflagging a comics source through the images API is refused with `409` `comics_source_flag`.
 
 **Addability of images**
 

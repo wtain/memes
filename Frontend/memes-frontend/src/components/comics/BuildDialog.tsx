@@ -51,7 +51,7 @@ export default function BuildDialog({ memesApi, comics, onClose, onBuilt, onFail
   }
 
   return (
-    <Modal title="Build comics" onClose={onClose}>
+    <Modal title="Build comics" onClose={() => { if (!busyRef.current) onClose() }}>
       <div className="space-y-4">
         <ComicsPreview url={memesApi.comicsPreviewUrl(comics.id, PREVIEW_WIDTH, "build")} />
         <ul aria-label="Panels to keep" className="flex flex-col gap-2">
@@ -75,7 +75,8 @@ export default function BuildDialog({ memesApi, comics, onClose, onBuilt, onFail
         <div className="flex gap-3">
           <button type="button" disabled={busy} onClick={() => void build()}
                   className="min-h-11 rounded border px-3 disabled:opacity-50">Build comics</button>
-          <button type="button" onClick={onClose} className="min-h-11 rounded border px-3">Cancel</button>
+          <button type="button" disabled={busy} onClick={onClose}
+                  className="min-h-11 rounded border px-3 disabled:opacity-50">Cancel</button>
         </div>
       </div>
     </Modal>

@@ -79,4 +79,22 @@ describe("BuildDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }))
     expect(onClose).toHaveBeenCalled()
   })
+
+  it("is inert while the build runs and works again after an error", async () => {
+    let reject!: (e: unknown) => void
+    const pending = new Promise<typeof built>((_, r) => { reject = r })
+    const { onClose } = setup({ buildComics: vi.fn().mockReturnValue(pending) })
+    await userEvent.click(screen.getByRole("button", { name: "Build comics" }))
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled()
+    await userEvent.keyboard("{Escape}")
+    await userEvent.click(screen.getByText("Build comics", { selector: "h2" }).closest(".fixed")!)
+    await userEvent.click(screen.getByRole("button", { name: "✕" }))
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => { reject(new ComicsRequestError(409, { code: "keep_invalid" })) })
+    expect(await screen.findByRole("alert")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled()
+    await userEvent.keyboard("{Escape}")
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })
