@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from repository.popularity import OPEN_EDGE_SQL
 from Storage.models import PopularitySource
 
-DEFAULT_SOURCES = tuple(source for source in PopularitySource.ALL if source != PopularitySource.ADJUSTMENT)
+DEFAULT_SOURCES = tuple(source for source in PopularitySource.ALL
+                        if source not in (PopularitySource.ADJUSTMENT, PopularitySource.COMICS_BUILD))
 MEME_SORTS = ("per_100", "redrops", "redrops_window", "popularity", "saves", "impressions")
 
 _TIE = "redrops_window DESC, redrops DESC"
