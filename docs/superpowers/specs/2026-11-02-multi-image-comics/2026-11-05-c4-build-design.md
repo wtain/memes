@@ -1,6 +1,6 @@
 # C4: Build
 
-Status: draft
+Status: approved
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C4)
 Follow-ups: none yet
 
