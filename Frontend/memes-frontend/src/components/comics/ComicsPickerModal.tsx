@@ -16,11 +16,33 @@ type Props = {
 
 const PAGE_SIZE = 20
 const DEBOUNCE_MS = 300
+/** Pages without a draft that are skipped in a row before the user is asked to continue. */
+const MAX_EMPTY_PAGES = 10
 
 /** The drafts shown for one search request; `key` ties them to the request that produced them. */
 type Loaded = { key: string; drafts: ComicsSummary[]; rawCount: number; hasMore: boolean; failed: boolean }
 
 type Conflict = { targetId: string; fromName: string }
+
+/**
+ * Reads pages from `offset` until one has a draft, the list ends, or MAX_EMPTY_PAGES pages in a row
+ * had none. `count` is how many rows were read (the next offset is `offset + count`).
+ * Returns null when `isCancelled` turned true while reading.
+ */
+async function readDrafts(
+  memesApi: MemesApi, q: string, offset: number, isCancelled: () => boolean,
+): Promise<{ drafts: ComicsSummary[]; count: number; hasMore: boolean } | null> {
+  let count = 0
+  for (let empty = 1; ; empty++) {
+    const page = await memesApi.listComics(q, offset + count, PAGE_SIZE)
+    if (isCancelled()) return null
+    count += page.items.length
+    const drafts = page.items.filter((c) => c.state === "draft")
+    if (drafts.length > 0 || !page.hasMore || empty >= MAX_EMPTY_PAGES) {
+      return { drafts, count, hasMore: page.hasMore }
+    }
+  }
+}
 
 export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props) {
   const [mode, setMode] = useState<"pick" | "new">("pick")
@@ -33,6 +55,8 @@ export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props
   const [error, setError] = useState<string | null>(null)
   const [conflict, setConflict] = useState<Conflict | null>(null)
   const [added, setAdded] = useState<ComicsDetail | null>(null)
+  // The comics a "Create and add" made; a retry after a failed add reuses it instead of creating another.
+  const [createdId, setCreatedId] = useState<string | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(search.trim()), DEBOUNCE_MS)
@@ -42,11 +66,10 @@ export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props
   const key = debounced
   useEffect(() => {
     let cancelled = false
-    memesApi.listComics(debounced, 0, PAGE_SIZE).then(
-      (page) => {
-        if (!cancelled) setLoaded({
-          key, drafts: page.items.filter((c) => c.state === "draft"), rawCount: page.items.length,
-          hasMore: page.hasMore, failed: false,
+    readDrafts(memesApi, debounced, 0, () => cancelled).then(
+      (result) => {
+        if (result !== null) setLoaded({
+          key, drafts: result.drafts, rawCount: result.count, hasMore: result.hasMore, failed: false,
         })
       },
       () => { if (!cancelled) setLoaded({ key, drafts: [], rawCount: 0, hasMore: false, failed: true }) },
@@ -60,11 +83,11 @@ export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props
     if (current === null || loadingMore) return
     setLoadingMore(true)
     try {
-      const page = await memesApi.listComics(debounced, current.rawCount, PAGE_SIZE)
-      setLoaded((prev) => prev !== null && prev.key === key
+      const result = await readDrafts(memesApi, debounced, current.rawCount, () => false)
+      setLoaded((prev) => prev !== null && prev.key === key && result !== null
         ? {
-          ...prev, drafts: [...prev.drafts, ...page.items.filter((c) => c.state === "draft")],
-          rawCount: prev.rawCount + page.items.length, hasMore: page.hasMore,
+          ...prev, drafts: [...prev.drafts, ...result.drafts],
+          rawCount: prev.rawCount + result.count, hasMore: result.hasMore,
         }
         : prev)
     } catch {
@@ -72,6 +95,12 @@ export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props
     } finally {
       setLoadingMore(false)
     }
+  }
+
+  function switchMode(next: "pick" | "new") {
+    setMode(next)
+    setError(null)
+    setConflict(null)
   }
 
   async function addTo(targetId: string, move: boolean) {
@@ -100,13 +129,20 @@ export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props
     setBusy(true)
     setError(null)
     setConflict(null)
+    let targetId = createdId
     try {
-      const created = await memesApi.createComics(newName.trim())
-      const detail = await memesApi.addComicsPanel(created.id, imageId)
+      if (targetId === null) {
+        targetId = (await memesApi.createComics(newName.trim())).id
+        setCreatedId(targetId)
+      }
+      const detail = await memesApi.addComicsPanel(targetId, imageId)
       setAdded(detail)
       onAdded(detail)
     } catch (e) {
       setError(describeComicsError(e))
+      if (e instanceof ComicsRequestError && e.code === "image_in_comics" && typeof e.detail.comicsName === "string" && targetId !== null) {
+        setConflict({ targetId, fromName: e.detail.comicsName })
+      }
     } finally {
       setBusy(false)
     }
@@ -125,11 +161,11 @@ export function ComicsPickerModal({ memesApi, imageId, onClose, onAdded }: Props
       ) : (
         <div className="space-y-3">
           <div className="flex gap-2">
-            <button type="button" aria-pressed={mode === "pick"} onClick={() => setMode("pick")}
+            <button type="button" aria-pressed={mode === "pick"} onClick={() => switchMode("pick")}
               className={`px-3 py-1 border rounded cursor-pointer ${mode === "pick" ? "bg-gray-200" : ""}`}>
               Existing comics
             </button>
-            <button type="button" aria-pressed={mode === "new"} onClick={() => setMode("new")}
+            <button type="button" aria-pressed={mode === "new"} onClick={() => switchMode("new")}
               className={`px-3 py-1 border rounded cursor-pointer ${mode === "new" ? "bg-gray-200" : ""}`}>
               New comics
             </button>

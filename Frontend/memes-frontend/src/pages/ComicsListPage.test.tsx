@@ -1,10 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import ComicsListPage from "./ComicsListPage"
 import { ComicsRequestError } from "../api/errors"
 import { makeMockApi } from "../test/mockApi"
-import type { ComicsSummary } from "../types/generated/all"
+import type { ComicsPage, ComicsSummary } from "../types/generated/all"
 
 function row(id: string, over: Partial<ComicsSummary> = {}): ComicsSummary {
   return { id, name: `Comics ${id}`, state: "draft", panelCount: 2, coverImageId: `img-${id}`,
@@ -47,19 +47,64 @@ describe("ComicsListPage", () => {
   })
 
   it("searches by name after a 300 ms debounce", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.useFakeTimers()
     try {
       const api = setup()
-      await screen.findByText("Comics a")
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-      await user.type(screen.getByLabelText("Search comics"), "cat")
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(screen.getByText("Comics a")).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText("Search comics"), { target: { value: "cat" } })
       expect(api.listComics).toHaveBeenCalledTimes(1)
-      await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-      await waitFor(() => expect(api.listComics).toHaveBeenLastCalledWith("cat", 0, expect.any(Number)))
+      await act(async () => { await vi.advanceTimersByTimeAsync(299) })
+      expect(api.listComics).toHaveBeenCalledTimes(1)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      expect(api.listComics).toHaveBeenLastCalledWith("cat", 0, expect.any(Number))
       expect(api.listComics).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it("ignores a search response that resolves after a newer one", async () => {
+    let resolveOld: (v: ComicsPage) => void = () => {}
+    const listComics = vi.fn((q: string) => q === "old"
+      ? new Promise<ComicsPage>((resolve) => { resolveOld = resolve })
+      : Promise.resolve({ items: [row(q === "" ? "a" : "new")], hasMore: false }))
+    setup({ listComics })
+    await screen.findByText("Comics a")
+    await userEvent.type(screen.getByLabelText("Search comics"), "old")
+    await waitFor(() => expect(listComics).toHaveBeenCalledWith("old", 0, expect.any(Number)))
+    await userEvent.clear(screen.getByLabelText("Search comics"))
+    await userEvent.type(screen.getByLabelText("Search comics"), "new")
+    expect(await screen.findByText("Comics new")).toBeInTheDocument()
+    await act(async () => { resolveOld({ items: [row("stale")], hasMore: false }) })
+    expect(screen.queryByText("Comics stale")).not.toBeInTheDocument()
+    expect(screen.getByText("Comics new")).toBeInTheDocument()
+  })
+
+  it("does not merge a late Show more page into a different search", async () => {
+    let resolveMore: (v: ComicsPage) => void = () => {}
+    const listComics = vi.fn((q: string, offset: number) => {
+      if (offset > 0) return new Promise<ComicsPage>((resolve) => { resolveMore = resolve })
+      return Promise.resolve(q === "" ? { items: [row("a")], hasMore: true } : { items: [row("z")], hasMore: false })
+    })
+    setup({ listComics })
+    await userEvent.click(await screen.findByRole("button", { name: "Show more" }))
+    await userEvent.type(screen.getByLabelText("Search comics"), "zz")
+    expect(await screen.findByText("Comics z")).toBeInTheDocument()
+    await act(async () => { resolveMore({ items: [row("old-page")], hasMore: false }) })
+    expect(screen.queryByText("Comics old-page")).not.toBeInTheDocument()
+    expect(screen.getByText("Comics z")).toBeInTheDocument()
+  })
+
+  it("keeps the loaded rows and says so when Show more fails", async () => {
+    const listComics = vi.fn()
+      .mockResolvedValueOnce({ items: [row("a")], hasMore: true })
+      .mockRejectedValueOnce(new Error("boom"))
+    setup({ listComics })
+    await userEvent.click(await screen.findByRole("button", { name: "Show more" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load more comics")
+    expect(screen.getByText("Comics a")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
   })
 
   it("shows more by appending the next page at the offset of the loaded items", async () => {
@@ -89,7 +134,7 @@ describe("ComicsListPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "No" }))
     expect(api.deleteComics).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole("button", { name: "Delete Comics a" }))
-    await userEvent.click(screen.getByRole("button", { name: "Yes" }))
+    await userEvent.click(screen.getByRole("button", { name: "Confirm delete Comics a" }))
     expect(api.deleteComics).toHaveBeenCalledWith("a")
     await waitFor(() => expect(screen.queryByText("Comics a")).not.toBeInTheDocument())
     expect(screen.getByText("Comics b")).toBeInTheDocument()
@@ -98,7 +143,7 @@ describe("ComicsListPage", () => {
   it("shows the reason when a delete fails", async () => {
     setup({ deleteComics: vi.fn().mockRejectedValue(new ComicsRequestError(409, { code: "built" })) })
     await userEvent.click(await screen.findByRole("button", { name: "Delete Comics a" }))
-    await userEvent.click(screen.getByRole("button", { name: "Yes" }))
+    await userEvent.click(screen.getByRole("button", { name: "Confirm delete Comics a" }))
     expect(await screen.findByRole("alert")).toHaveTextContent("This comics is built and can't be changed")
   })
 
@@ -108,14 +153,18 @@ describe("ComicsListPage", () => {
       await userEvent.click(screen.getByRole("button", { name: "New comics" }))
     }
 
-    it("creates and prepends the new draft, and sends a Cyrillic name unchanged", async () => {
+    it("creates, reloads the list from the server, and sends a Cyrillic name unchanged", async () => {
       const createComics = vi.fn().mockResolvedValue({ id: "n", name: "Мой комикс", state: "draft", panels: [], builtImageId: null, builtAt: null })
-      const api = setup({ createComics })
+      const listComics = vi.fn()
+        .mockResolvedValueOnce({ items: [row("a")], hasMore: false })
+        .mockResolvedValue({ items: [row("n", { name: "Мой комикс" }), row("a")], hasMore: false })
+      const api = setup({ createComics, listComics })
       await openForm()
       await userEvent.type(screen.getByLabelText("Name"), "  Мой комикс ")
       await userEvent.click(screen.getByRole("button", { name: "Create" }))
       expect(api.createComics).toHaveBeenCalledWith("Мой комикс")
       expect(await screen.findByRole("link", { name: /Мой комикс/ })).toHaveAttribute("href", "/admin/comics/n")
+      expect(listComics).toHaveBeenCalledTimes(2)
     })
 
     it.each([

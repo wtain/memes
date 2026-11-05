@@ -65,12 +65,8 @@ export default function ComicsListPage({ memesApi }: Props) {
     setSaving(true)
     setCreateError(null)
     try {
-      const made = await memesApi.createComics(name)
-      const summary: ComicsSummary = {
-        id: made.id, name: made.name, state: made.state, panelCount: 0,
-        coverImageId: null, createdAt: new Date().toISOString(), builtAt: null,
-      }
-      setLoaded((prev) => prev !== null ? { ...prev, items: [summary, ...prev.items] } : prev)
+      await memesApi.createComics(name)
+      setReloads((n) => n + 1)
       setCreating(false)
       setNewName("")
     } catch (error) {
@@ -128,7 +124,7 @@ export default function ComicsListPage({ memesApi }: Props) {
               {item.state === "draft" && (confirmId === item.id ? (
                 <span className="flex items-center gap-2 text-sm">
                   Delete?
-                  <button type="button" onClick={() => void remove(item.id)} className="min-h-11 rounded border px-3">Yes</button>
+                  <button type="button" aria-label={`Confirm delete ${item.name}`} onClick={() => void remove(item.id)} className="min-h-11 rounded border px-3">Yes</button>
                   <button type="button" onClick={() => setConfirmId(null)} className="min-h-11 rounded border px-3">No</button>
                 </span>
               ) : (

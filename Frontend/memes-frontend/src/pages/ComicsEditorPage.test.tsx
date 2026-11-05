@@ -234,12 +234,13 @@ describe("ComicsEditorPage fixes", () => {
     expect(await screen.findByAltText("m1.jpg")).toHaveAttribute("src", "https://backend.test/i/m1")
   })
 
-  it("a double click on + sends one add", async () => {
+  it("two adds in the same tick send one add (the page gate, not the column's disabled button)", async () => {
     const add = deferred<ComicsDetail>()
     const api = setup({ addComicsPanel: vi.fn().mockReturnValue(add.promise) })
     await search()
     const button = await screen.findByRole("button", { name: "Add m1.jpg" })
-    await userEvent.dblClick(button)
+    // both clicks run inside one act(), before React re-renders the button as disabled
+    act(() => { button.click(); button.click() })
     expect(api.addComicsPanel).toHaveBeenCalledTimes(1)
     await act(async () => { add.resolve(detail(["p1", "p2", "p3"])) })
   })

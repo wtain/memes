@@ -17,6 +17,8 @@ type Props = {
 }
 
 const PAGE_SIZE = 24
+/** The backend rejects more ids than this in one addability request. */
+const ADDABILITY_CHUNK = 100
 
 const REASON_TEXT: Record<string, string> = {
   in_comics: "In another comics",
@@ -40,16 +42,18 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
   const latestFor = useRef(new Map<string, number>())
 
   const checkAddability = useCallback((ids: string[]) => {
-    if (ids.length === 0) return
-    const seq = ++requestSeq.current
-    for (const id of ids) latestFor.current.set(id, seq)
-    memesApi.comicsAddability(ids).then(
-      (result) => {
-        const items = (result.items ?? []).filter((item) => latestFor.current.get(item.imageId) === seq)
-        if (items.length > 0) dispatch({ type: "addability", items })
-      },
-      () => { /* addability stays unknown: "+" stays disabled */ },
-    )
+    for (let start = 0; start < ids.length; start += ADDABILITY_CHUNK) {
+      const chunk = ids.slice(start, start + ADDABILITY_CHUNK)
+      const seq = ++requestSeq.current
+      for (const id of chunk) latestFor.current.set(id, seq)
+      memesApi.comicsAddability(chunk).then(
+        (result) => {
+          const items = (result.items ?? []).filter((item) => latestFor.current.get(item.imageId) === seq)
+          if (items.length > 0) dispatch({ type: "addability", items })
+        },
+        () => { /* addability stays unknown: "+" stays disabled */ },
+      )
+    }
   }, [memesApi])
 
   useEffect(() => {

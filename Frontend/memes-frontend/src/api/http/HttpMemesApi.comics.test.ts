@@ -35,6 +35,18 @@ describe("comics API", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/comics")
   })
 
+  it("encodes a non-ASCII query and keeps offset 0", async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, body: { items: [], hasMore: false } })
+    await api.listComics("привет", 0)
+    expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/comics?q=%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82&offset=0")
+  })
+
+  it("omits an empty q", async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, body: { items: [], hasMore: false } })
+    await api.listComics("", 0)
+    expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/comics?offset=0")
+  })
+
   it("creates a comics", async () => {
     const fetchMock = stubFetch({ ok: true, status: 201, body: detail })
     expect(await api.createComics("N")).toEqual(detail)
