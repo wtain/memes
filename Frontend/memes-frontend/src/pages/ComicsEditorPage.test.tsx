@@ -262,6 +262,14 @@ describe("ComicsEditorPage built", () => {
     expect(items[2]).not.toHaveTextContent("kept")
   })
 
+  it("a kept panel whose thumbnail fails to load shows a placeholder, not a broken image", async () => {
+    const kept = { ...panel("p1", 0), imageId: null, kept: true, sourceImageId: "orig-1" }
+    setup({ getComics: vi.fn().mockResolvedValue(detail([], { state: "built", builtImageId: "b1", panels: [kept] })) })
+    fireEvent.error(await screen.findByAltText("Panel 1"))
+    expect(screen.queryByAltText("Panel 1")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Panel 1 image unavailable")).toBeInTheDocument()
+  })
+
   it("is read-only with provenance and a link to the result", async () => {
     const api = setup({
       getComics: vi.fn().mockResolvedValue(detail(["p1", "p2"], { state: "built", builtImageId: "built-1" })),
