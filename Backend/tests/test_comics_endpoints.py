@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from Backend.app.api.comics import get_comics_build_service, get_comics_service, router
 from repository.comics import ComicsError
+from Storage.db import get_async_db
 
 CID = str(uuid.uuid4())
 PID = str(uuid.uuid4())
@@ -180,12 +181,19 @@ def _built_comics():
 
 
 @pytest.fixture
-def build_client():
+def build_client(monkeypatch):
+    calls = []
     service = type("B", (), {})()
-    service.build = AsyncMock(return_value=(_built_comics(), BUILT_ID))
+    service.build = AsyncMock(side_effect=lambda *a: calls.append("build") or (_built_comics(), BUILT_ID))
+    db = AsyncMock()
+    db.commit = AsyncMock(side_effect=lambda: calls.append("commit"))
+    service.trigger = AsyncMock(side_effect=lambda: calls.append("trigger") or "run-id")
+    service.calls = calls
+    monkeypatch.setattr("Backend.app.api.comics.start_comics_pipeline", service.trigger)
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.dependency_overrides[get_comics_build_service] = lambda: service
+    app.dependency_overrides[get_async_db] = lambda: db
     return TestClient(app), service
 
 
@@ -198,6 +206,21 @@ def test_build_success_body(build_client):
     assert body["comics"]["state"] == "built" and body["comics"]["builtImageId"] == str(BUILT_ID)
     assert body["comics"]["panels"][0]["kept"] is True
     service.build.assert_awaited_once_with(uuid.UUID(CID), [uuid.UUID(PID)])
+
+
+def test_build_commits_then_starts_the_pipeline_once(build_client):
+    client, service = build_client
+    assert client.post(f"/api/comics/{CID}/build", json={}).status_code == 200
+    assert service.calls == ["build", "commit", "trigger"]
+    service.trigger.assert_awaited_once_with()
+
+
+def test_build_succeeds_when_the_trigger_raises(build_client):
+    # start_comics_pipeline never raises; this pins that the endpoint would not turn a slip there into a failure.
+    client, service = build_client
+    service.trigger.side_effect = RuntimeError("spawn trouble")
+    response = client.post(f"/api/comics/{CID}/build", json={})
+    assert response.status_code == 200 and response.json()["builtImageId"] == str(BUILT_ID)
 
 
 def test_build_omitted_keep_is_empty(build_client):
@@ -225,6 +248,8 @@ def test_build_errors(build_client, error, status, body):
     service.build.side_effect = error
     response = client.post(f"/api/comics/{CID}/build", json={})
     assert response.status_code == status and response.json() == {"detail": body}
+    assert service.calls == []  # a refused build neither commits nor starts the pipeline
+    service.trigger.assert_not_awaited()
 
 
 @pytest.mark.parametrize("path,payload", [
@@ -236,3 +261,4 @@ def test_build_malformed_is_422(build_client, path, payload):
     client, service = build_client
     assert client.post(f"/api/comics/{path}/build", json=payload).status_code == 422
     service.build.assert_not_awaited()
+    service.trigger.assert_not_awaited()

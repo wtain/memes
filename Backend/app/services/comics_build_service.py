@@ -6,7 +6,8 @@ lock is taken first, so two builds of one comics serialise and the second sees `
 is done before composing. The composed file is written under a unique hidden temporary name, hashed, and only then
 moved onto its final name `comics-<hash12>.<ext>`; from that moment a rollback removes it (recut_files.file_effects),
 and the file of an existing image is never touched because a final name that an images row already holds is refused
-(`same_as_existing`) before the move. Source files are only read.
+(`same_as_existing`) before the move. That check runs under a transaction-scoped advisory lock on the content hash, so two
+builds of different comics with byte-identical output serialise there and the second is refused (C5, D12(b)). Source files are only read.
 
 Errors are ComicsError (positions are 1-based): built, not_found, keep_invalid, not_buildable (reason too_few_panels,
 panel_missing, image_not_active, image_already_built, same_as_existing with image_id, panel_unavailable with position
@@ -16,7 +17,7 @@ import asyncio
 import os
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.image_repository import ImageRepository
@@ -158,6 +159,10 @@ class ComicsBuildService:
             raise ComicsError("compose_failed", reason=error.reason, position=position) from error
         try:
             final_name = f"comics-{composed.content_hash[:12]}.{_EXTENSIONS[composed.format]}"
+            # Two builds of different comics with byte-identical output would otherwise both pass the check below
+            # (neither sees the other's uncommitted row). Held until this transaction ends, so the second waits for the
+            # first's commit or rollback and then sees its row, or none (D12(b)).
+            await self.session.execute(select(func.pg_advisory_xact_lock(func.hashtext(composed.content_hash))))
             existing = (await self.session.execute(
                 select(Image.id).where(or_(Image.content_hash == composed.content_hash, Image.filename == final_name))
                 .order_by(Image.created_at, Image.id).limit(1))).scalar_one_or_none()
