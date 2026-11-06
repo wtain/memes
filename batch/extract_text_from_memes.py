@@ -48,6 +48,10 @@ async def io_producer(path, io_queue, pipeline, metrics_listener, tracker: Progr
         status_repo = ImageProcessingStatusRepository(session, pipeline)
         image_repo = ImagesRepository(session)
         for file in os.listdir(path):
+            # Hidden files (e.g. a leftover .comics-build-* temp file) are never memes.
+            if file.startswith("."):
+                metrics_listener.increment("skipped.hidden")
+                continue
             fullFilePath = os.path.join(path, file)
             if os.path.isdir(fullFilePath):
                 metrics_listener.increment("skipped.directory")
