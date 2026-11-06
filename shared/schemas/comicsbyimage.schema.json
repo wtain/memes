@@ -7,30 +7,13 @@
   "additionalProperties": false,
   "properties": {
     "comics": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "string"
+      "oneOf": [
+        {
+          "$ref": "./comicsbyimagecomics.schema.json"
         },
-        "name": {
-          "type": "string"
-        },
-        "state": {
-          "type": "string"
-        },
-        "position": {
-          "type": "integer"
+        {
+          "type": "null"
         }
-      },
-      "required": [
-        "id",
-        "name",
-        "state",
-        "position"
       ]
     }
   },

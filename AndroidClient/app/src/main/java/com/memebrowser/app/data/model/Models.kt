@@ -46,8 +46,12 @@ data class ClusterSimilarityCandidate(
 )
 
 @Serializable
-data class ComicsAddability(
-    @SerialName("items") val items: List<JsonObject>
+data class ComicsAddabilityItem(
+    @SerialName("imageId") val imageId: String,
+    @SerialName("addable") val addable: Boolean,
+    @SerialName("reason") val reason: String?,
+    @SerialName("comicsId") val comicsId: String?,
+    @SerialName("comicsName") val comicsName: String?
 )
 
 @Serializable
@@ -62,8 +66,11 @@ data class ComicsBuildRequest(
 )
 
 @Serializable
-data class ComicsByImage(
-    @SerialName("comics") val comics: JsonObject?
+data class ComicsByImageComics(
+    @SerialName("id") val id: String,
+    @SerialName("name") val name: String,
+    @SerialName("state") val state: String,
+    @SerialName("position") val position: Int
 )
 
 @Serializable
@@ -529,9 +536,19 @@ data class ClusterSimilarityResponse(
 )
 
 @Serializable
+data class ComicsAddability(
+    @SerialName("items") val items: List<ComicsAddabilityItem>
+)
+
+@Serializable
 data class ComicsBuildResult(
     @SerialName("comics") val comics: ComicsDetail,
     @SerialName("builtImageId") val builtImageId: String
+)
+
+@Serializable
+data class ComicsByImage(
+    @SerialName("comics") val comics: ComicsByImageComics?
 )
 
 @Serializable
