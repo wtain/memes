@@ -50,6 +50,12 @@ def resolve_kotlin_type(
     """Return (kotlin_type, default_suffix) e.g. ('String?', ' = null')."""
     is_required = field_name in required
 
+    # Nullable reference: { "oneOf": [ { "$ref": ... }, { "type": "null" } ] }
+    nullable_ref = _nullable_ref(prop)
+    if nullable_ref is not None:
+        cls = ref_to_class_name(nullable_ref, schemas_by_id)
+        return (f"{cls}?", "" if is_required else " = null")
+
     if "$ref" in prop:
         cls = ref_to_class_name(prop["$ref"], schemas_by_id)
         return (cls, "") if is_required else (f"{cls}?", " = null")
@@ -122,11 +128,21 @@ def generate_data_class(schema: dict, schemas_by_id: dict[str, dict]) -> str:
     return "\n".join(lines)
 
 
+def _nullable_ref(prop: dict) -> str | None:
+    """The $ref of a { "oneOf": [ {"$ref": R}, {"type": "null"} ] } property, else None."""
+    options = prop.get("oneOf")
+    if not options or len(options) != 2:
+        return None
+    refs = [o["$ref"] for o in options if "$ref" in o]
+    nulls = [o for o in options if o.get("type") == "null"]
+    return refs[0] if len(refs) == 1 and len(nulls) == 1 else None
+
+
 def dependency_count(schema: dict) -> int:
     """Count how many $refs a schema has, for topological-ish ordering."""
     n = 0
     for prop in schema.get("properties", {}).values():
-        if "$ref" in prop:
+        if "$ref" in prop or _nullable_ref(prop) is not None:
             n += 1
         if "$ref" in prop.get("items", {}):
             n += 1

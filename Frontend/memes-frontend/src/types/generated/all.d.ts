@@ -813,13 +813,20 @@ export interface ComicsReorderRequest {
  * via the `definition` "ComicsAddability".
  */
 export interface ComicsAddability {
-  items: {
-    imageId: string;
-    addable: boolean;
-    reason: string | null;
-    comicsId: string | null;
-    comicsName: string | null;
-  }[];
+  items: ComicsAddabilityItem[];
+}
+/**
+ * Whether one asked image can be added to a comics
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsAddabilityItem".
+ */
+export interface ComicsAddabilityItem {
+  imageId: string;
+  addable: boolean;
+  reason: string | null;
+  comicsId: string | null;
+  comicsName: string | null;
 }
 /**
  * The comics an image is a panel of, or null
@@ -828,12 +835,19 @@ export interface ComicsAddability {
  * via the `definition` "ComicsByImage".
  */
 export interface ComicsByImage {
-  comics: {
-    id: string;
-    name: string;
-    state: string;
-    position: number;
-  } | null;
+  comics: ComicsByImageComics | null;
+}
+/**
+ * The comics an image is a panel of
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsByImageComics".
+ */
+export interface ComicsByImageComics {
+  id: string;
+  name: string;
+  state: string;
+  position: number;
 }
 /**
  * Body of the build call; the panels listed in keepPanelIds keep their source image active
@@ -1155,12 +1169,40 @@ export interface StatisticsTrendsStats {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "StatisticsComicsStats".
+ */
+export interface StatisticsComicsStats {
+  /**
+   * Comics in state draft
+   */
+  draft: number;
+  /**
+   * Comics in state built
+   */
+  built: number;
+  /**
+   * Panels whose image the owner chose to keep in the library (kept = true), in any comics
+   */
+  panelsKept: number;
+  /**
+   * Panels of built comics that were not kept (kept = false)
+   */
+  panelsRetired: number;
+  /**
+   * Built comics images still missing derived data: the OCR job has not marked them done (image_processing_status easyocr:en) or they have no embedding
+   */
+  builtUnprocessed: number;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "StatisticsResponse".
  */
 export interface StatisticsResponse {
   memes: StatisticsMemeStats;
   content: StatisticsContentStats;
   trends: StatisticsTrendsStats;
+  comics: StatisticsComicsStats;
   /**
    * When this snapshot was computed (UTC); null when unknown.
    */

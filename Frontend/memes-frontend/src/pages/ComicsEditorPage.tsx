@@ -19,6 +19,14 @@ const PREVIEW_DEBOUNCE_MS = 400
 /** The comics a load produced; `id` ties it to the route it was fetched for. */
 type Loaded = { id: string; detail: ComicsDetail | null; failed: boolean }
 
+/** A kept panel's source image can be deleted later, so a thumbnail that fails to load becomes a placeholder. */
+function KeptThumbnail({ src, label }: { src: string; label: string }) {
+  const [broken, setBroken] = useState(false)
+  const box = "h-12 w-12 shrink-0 rounded"
+  if (broken) return <span role="img" aria-label={`${label} image unavailable`} className={`${box} border bg-gray-100`} />
+  return <img src={src} alt={label} onError={() => setBroken(true)} className={`${box} object-cover`} />
+}
+
 /** Keyed by the route id, so moving between comics starts with clean editor state. */
 export default function ComicsEditorPage({ memesApi }: Props) {
   const { id = "" } = useParams()
@@ -181,7 +189,7 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
               <span className="w-6">{index + 1}</span>
               {panel.kept ? (
                 <>
-                  <img src={memesApi.getImageUrlById(panel.sourceImageId)} alt={`Panel ${index + 1}`} className="h-12 w-12 shrink-0 rounded object-cover" />
+                  <KeptThumbnail src={memesApi.getImageUrlById(panel.sourceImageId)} label={`Panel ${index + 1}`} />
                   <span className="rounded border px-1.5 text-xs">kept</span>
                   <Link to={`/memes/${panel.sourceImageId}`} className="underline">{panel.sourceFilename}</Link>
                 </>

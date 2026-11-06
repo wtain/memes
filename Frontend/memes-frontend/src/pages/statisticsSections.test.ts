@@ -17,15 +17,31 @@ function makeStats(over: { memes?: object; content?: object } = {}): StatisticsR
       ...over.content,
     },
     trends: { runs: 1, trend_sources: 2 },
+    comics: { draft: 2, built: 3, panelsKept: 7, panelsRetired: 4, builtUnprocessed: 1 },
     computed_at: null,
   }
 }
 
 describe("buildSections", () => {
-  it("returns the four sections in order", () => {
+  it("returns the five sections in order", () => {
     expect(buildSections(makeStats()).map((s) => s.title)).toEqual([
-      "Library", "Pipeline coverage", "Tags", "Knowledge base",
+      "Library", "Pipeline coverage", "Tags", "Knowledge base", "Comics",
     ])
+  })
+
+  it("shows the comics counts", () => {
+    expect(buildSections(makeStats())[4].cells).toEqual([
+      { label: "Draft comics", value: "2" },
+      { label: "Built comics", value: "3" },
+      { label: "Kept panels", value: "7" },
+      { label: "Retired panels", value: "4" },
+      { label: "Built comics not fully processed", value: "1" },
+    ])
+  })
+
+  it("leaves the comics section out of a snapshot that predates the block", () => {
+    const old = { ...makeStats(), comics: undefined } as unknown as StatisticsResponse
+    expect(buildSections(old).map((s) => s.title)).not.toContain("Comics")
   })
 
   it("formats cells exactly as the page does", () => {

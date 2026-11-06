@@ -112,6 +112,7 @@ A partial unique index on `batch_runs` allows one `started` row per `kind`. `cre
 | Chained call (`rebuild_duplicates` to `clusterize`, `move_flagged` to `unregister_deleted_images`, `build_concept_embeddings` to `tag_images_from_concepts`) | Prints "Skipping chained ..." and continues |
 | `description_pipeline` children | Step becomes `skipped_busy`, not a failure |
 | `ingest_auto_prep` children | Prints that the child is busy and ends the tick quietly (run completes); the next trigger resumes. Running Tier A over images that still lack lemma/OCR-text coverage would weaken review |
+| Comics build trigger (`POST /api/comics/{id}/build` starting `comics_pipeline`) | Busy run is swallowed with an INFO log; the built image waits for the next run |
 | Direct CLI | Raises |
 
 Orphan recovery exists only in the scheduler's tick (`max_runtime_minutes`). A run started from the CLI or admin that
@@ -140,7 +141,7 @@ Driver differences:
 |---|---|---|
 | Order semantics | Strict chain; stops quietly when there is no active ingestion run | Dependency graph; a failure only skips dependents |
 | Child tracking | Steps are in-process calls. Tracked ones (embeddings, OCR, lemmas, text-heavy, OCR-text embeddings) write their own rows; hash dedup (its own `ingestion` row), validate and Tier A are separate. A `BatchAlreadyRunningError` from a child ends the tick quietly | Each child self-tracks under its own kind; a busy child is `skipped_busy` |
-| Result recording | Driver row only | `stats.steps` with `ok / failed / skipped_dependency / skipped_busy` |
+| Result recording | Driver row only | `stats.steps` with `ok / failed / skipped_dependency / skipped_busy / skipped_not_configured` |
 | Failure | First real error aborts the run (a busy child is not an error) | Run fails at the end if any step failed |
 
 ## 5. Quick reference: starting things

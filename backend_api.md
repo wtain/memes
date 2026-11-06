@@ -1313,9 +1313,18 @@ Returns row counts across all major tables from a precomputed snapshot (table `s
     "runs": 14,
     "trend_sources": 6
   },
+  "comics": {
+    "draft": 2,
+    "built": 5,
+    "panelsKept": 9,
+    "panelsRetired": 11,
+    "builtUnprocessed": 1
+  },
   "computed_at": "2026-09-29T12:00:00Z"
 }
 ```
+
+`comics` counts the multi-image comics (draft and built by `comics.state`), `panelsKept` (panels with `kept = true`, in any comics), `panelsRetired` (panels with `kept = false` in built comics) and `builtUnprocessed`: built comics images (`comics.built_image_id`) for which the OCR job has not recorded a `done` marker (`image_processing_status`, pipeline `easyocr:en`) or that have no embedding. The OCR marker is used instead of `ocr_texts` rows because an image without text legitimately has no OCR row. A stored snapshot written before the `comics` block existed fails response validation and is recomputed on read (the same path as any other stale payload shape), so the block is always present in the response.
 
 ---
 
@@ -1637,7 +1646,7 @@ Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt,
 - **URL**: `/api/comics/{id}/build`
 - **Method**: `POST`
 - **Body** (optional): `{ keepPanelIds? }`, default `[]`: panel ids of this comics whose source image stays active. The source of every other panel is flagged with `reason` `comics_source` and moves to `comics-sources/<name>` at the next move flagged run.
-- **Response** `200`: `ComicsBuildResult` `{ comics: ComicsDetail, builtImageId }`. The comics is now `built` and frozen; the new image is registered active. Its derived data (embedding, OCR, tags, ...) is filled by the incremental jobs, not by this call.
+- **Response** `200`: `ComicsBuildResult` `{ comics: ComicsDetail, builtImageId }`. The comics is now `built` and frozen; the new image is registered active. Its derived data (embedding, OCR, tags, ...) is filled by the incremental jobs, not by this call: once the build is committed, the call starts the `comics_pipeline` batch (the same start as `POST /api/admin/batches/comics_pipeline/run`, a detached subprocess, trigger `manual`) and returns without waiting for it. The start is best effort: if a `comics_pipeline` run is already going nothing is started and the image waits for the next run, and any failure to start is only logged; the response is `200` either way. A refused build never starts it. Two builds whose output is byte-identical are serialised on the content hash, so the second is refused with `same_as_existing`.
 - **Error Responses**: `404` `not_found`; `409` `built` (already built), `not_buildable` (`reason`: `too_few_panels`, `panel_missing`, `image_not_active` and `image_already_built` (internal consistency refusals, not expected in normal use), `panel_unavailable` with 1-based `position` and `cause` (`not_active`, `flagged`, `live_cut`, `file_missing`, `file_changed` or `already_discarded`), or `same_as_existing` with `imageId`), `popularity_conflict`; `422` `keep_invalid` (an id that is not a panel of this comics), `compose_failed` (`reason` as for the preview, `position` 1-based or `null`), or an id that is not a UUID. On any error nothing is changed. Flagging or unflagging a comics source through the images API is refused with `409` `comics_source_flag`.
 
 **Addability of images**

@@ -9,41 +9,7 @@
     "items": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "imageId": {
-            "type": "string"
-          },
-          "addable": {
-            "type": "boolean"
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "comicsId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "comicsName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "imageId",
-          "addable",
-          "reason",
-          "comicsId",
-          "comicsName"
-        ]
+        "$ref": "./comicsaddabilityitem.schema.json"
       }
     }
   },

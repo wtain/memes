@@ -8,20 +8,28 @@ import os
 import re
 import shutil
 import uuid
+from unittest.mock import AsyncMock
 
+import httpx
 import pytest
+from fastapi import Depends, FastAPI
 from PIL import Image as PILImage
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from Backend.app.api import comics as comics_api
+from Backend.app.api.comics import get_comics_build_service
+from Backend.app.api.comics import router as comics_router
 from Backend.app.repositories.image_repository import ImageRepository
+from Backend.app.services import comics_build_service
 from Backend.app.services.comics_build_service import ComicsBuildService
 from batch.utils.comics_compose import compose_to_file
 from batch.utils.file_hash import sha256_file
 from repository.comics import ComicsError, ComicsRepository
 from repository.popularity import (AlreadyDiscardedError, CycleError, PopularityConflictError,
                                    PopularityRepository, WinnerGoneError)
+from Storage.db import get_async_db
 from Storage.models import (Comics, ComicsPanel, ComicsState, CutState, Image, ImageCut, ImageExtras,
                             ImageMetrics, ImageProcessingStatus, ImageStatus, PopularityAbsorption, PopularityKind,
                             ProcessEvent)
@@ -590,3 +598,98 @@ async def test_concurrent_builds_exactly_one_wins(db_engine, tmp_path):
         assert len([f for f in _files(tmp_path) if BUILT_NAME.match(f)]) == 1
     finally:
         await _cleanup(db_engine, [comics_id], cleanup_ids)
+
+
+async def test_concurrent_builds_with_identical_output_one_wins_the_other_is_same_as_existing(
+        db_engine, tmp_path, monkeypatch):
+    """Two different comics (different panels, so no shared row lock) whose composed output is byte-identical: the
+    advisory lock on the content hash makes the second wait for the first's commit and then see its row (D12(b))."""
+    first_id, first_images, _ = await _committed_comics(db_engine, tmp_path, 2)
+    second_id, second_images, _ = await _committed_comics(db_engine, tmp_path, 2)
+    cleanup_ids = list(first_images) + list(second_images)
+    async with AsyncSession(db_engine) as s:
+        fixed = [str(tmp_path / (await _image(s, i)).filename) for i in first_images]
+    real = comics_build_service._compose_to_temp
+    # Both builds compose the first comics' panels, so their bytes (and content hash) are the same.
+    monkeypatch.setattr(comics_build_service, "_compose_to_temp", lambda paths, base, q: real(fixed, base, q))
+    try:
+        async with AsyncSession(db_engine, expire_on_commit=False) as a, \
+                AsyncSession(db_engine, expire_on_commit=False) as b:
+            sessions = {}
+            for s, comics_id in ((a, first_id), (b, second_id)):
+                task = asyncio.ensure_future(_service(s, tmp_path).build(comics_id, []))
+                sessions[task] = (s, comics_id)
+            done, pending = await asyncio.wait(set(sessions), timeout=30, return_when=asyncio.FIRST_COMPLETED)
+            assert len(done) == 1, "both builds finished while one should wait on the content-hash lock"
+            winner, loser = done.pop(), pending.pop()
+            _, built_id = winner.result()
+            cleanup_ids.append(built_id)
+            await asyncio.sleep(BLOCKED_FOR)
+            assert not loser.done(), "the second build proceeded while the first held the content-hash lock"
+            await sessions[winner][0].commit()
+            with pytest.raises(ComicsError) as exc:
+                await asyncio.wait_for(loser, GUARD)
+            assert exc.value.code == "not_buildable"
+            assert exc.value.detail == {"reason": "same_as_existing", "image_id": built_id}
+            await sessions[loser][0].rollback()
+
+        async with AsyncSession(db_engine) as s:
+            assert [i.id for i in await _built_rows(s)] == [built_id]
+            await _assert_built_image(s, tmp_path, sessions[winner][1], built_id)
+            assert (await _comics_row(s, sessions[loser][1])).state == ComicsState.DRAFT
+        assert len([f for f in _files(tmp_path) if BUILT_NAME.match(f)]) == 1
+    finally:
+        await _cleanup(db_engine, [first_id, second_id], cleanup_ids)
+
+
+# ---- the endpoint starts comics_pipeline only after the build is committed (C5) ----
+
+def _build_app(tmp_path):
+    """The real router with the real get_async_db (the test database); only the base path is the test's."""
+    async def build_service(db: AsyncSession = Depends(get_async_db)):
+        yield ComicsBuildService(db, base_path=str(tmp_path), jpeg_quality=QUALITY)
+    app = FastAPI()
+    app.include_router(comics_router, prefix="/api")
+    app.dependency_overrides[get_comics_build_service] = build_service
+    return app
+
+
+async def _post_build(tmp_path, comics_id):
+    transport = httpx.ASGITransport(app=_build_app(tmp_path))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.post(f"/api/comics/{comics_id}/build", json={})
+
+
+async def test_endpoint_starts_the_pipeline_after_the_built_row_is_committed(db_engine, tmp_path, monkeypatch):
+    comics_id, image_ids, _ = await _committed_comics(db_engine, tmp_path, 2)
+    cleanup_ids = list(image_ids)
+    seen = []
+
+    async def trigger():
+        # What the pipeline's subprocess would see: a second session, not the request's.
+        async with AsyncSession(db_engine) as other:
+            built_id = (await _comics_row(other, comics_id)).built_image_id
+            built = await _image(other, built_id) if built_id is not None else None
+            seen.append(None if built is None else (built.id, built.status))
+        return "run-id"
+    monkeypatch.setattr(comics_api, "start_comics_pipeline", trigger)
+    try:
+        response = await _post_build(tmp_path, comics_id)
+        assert response.status_code == 200, response.text
+        built_id = uuid.UUID(response.json()["builtImageId"])
+        cleanup_ids.append(built_id)
+        assert seen == [(built_id, ImageStatus.ACTIVE)]
+    finally:
+        await _cleanup(db_engine, [comics_id], cleanup_ids)
+
+
+async def test_endpoint_refused_build_does_not_start_the_pipeline(db_engine, tmp_path, monkeypatch):
+    comics_id, image_ids, _ = await _committed_comics(db_engine, tmp_path, 1)
+    trigger = AsyncMock()
+    monkeypatch.setattr(comics_api, "start_comics_pipeline", trigger)
+    try:
+        response = await _post_build(tmp_path, comics_id)
+        assert response.status_code == 409 and response.json()["detail"]["reason"] == "too_few_panels"
+        trigger.assert_not_awaited()
+    finally:
+        await _cleanup(db_engine, [comics_id], list(image_ids))

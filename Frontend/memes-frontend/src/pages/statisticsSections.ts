@@ -20,6 +20,9 @@ export function buildSections(stats: StatisticsResponse): StatSection[] {
     ? ((content.tags ?? 0) / (memes.with_tags ?? 1)).toFixed(1)
     : "—"
 
+  // A snapshot stored before the comics block existed lacks it; the section is then left out.
+  const comics: StatisticsResponse["comics"] | undefined = stats.comics
+
   return [
     {
       title: "Library",
@@ -64,6 +67,16 @@ export function buildSections(stats: StatisticsResponse): StatSection[] {
         { label: "Concept image sets", value: n(content.concept_image_sets) },
       ],
     },
+    ...(comics ? [{
+      title: "Comics",
+      cells: [
+        { label: "Draft comics", value: n(comics.draft) },
+        { label: "Built comics", value: n(comics.built) },
+        { label: "Kept panels", value: n(comics.panelsKept) },
+        { label: "Retired panels", value: n(comics.panelsRetired) },
+        { label: "Built comics not fully processed", value: n(comics.builtUnprocessed) },
+      ],
+    }] : []),
   ]
 }
 

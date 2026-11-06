@@ -7,6 +7,7 @@ function makeStats(total: number): StatisticsResponse {
     memes: { total } as StatisticsResponse["memes"],
     content: {} as StatisticsResponse["content"],
     trends: {} as StatisticsResponse["trends"],
+    comics: {} as StatisticsResponse["comics"],
     computed_at: null,
   }
 }

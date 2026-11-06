@@ -6,6 +6,7 @@ function makeStats(total: number, tags: number, runs: number): StatisticsRespons
     memes: { total, with_tags: total / 2 } as StatisticsResponse["memes"],
     content: { tags } as StatisticsResponse["content"],
     trends: { runs } as StatisticsResponse["trends"],
+    comics: { built: runs * 2 } as StatisticsResponse["comics"],
     computed_at: null,
   }
 }
@@ -31,6 +32,13 @@ describe("lerpStats", () => {
     expect(r.content.tags).toBe(200)
     expect(r.trends.runs).toBe(3) // 2.5 rounds up
     expect(r.memes.with_tags).toBe(8) // 5 -> 10, 7.5 rounds up
+  })
+
+  it("glides the comics block and tolerates a side without it", () => {
+    expect(lerpStats(from, to, 0.5).comics.built).toBe(5)
+    const old = { ...from, comics: undefined } as unknown as StatisticsResponse
+    expect(lerpStats(old, to, 0.5).comics).toEqual(to.comics)
+    expect(lerpStats(from, old, 0.5).comics).toBeUndefined()
   })
 
   it("takes computed_at from to", () => {

@@ -46,8 +46,12 @@ data class ClusterSimilarityCandidate(
 )
 
 @Serializable
-data class ComicsAddability(
-    @SerialName("items") val items: List<JsonObject>
+data class ComicsAddabilityItem(
+    @SerialName("imageId") val imageId: String,
+    @SerialName("addable") val addable: Boolean,
+    @SerialName("reason") val reason: String?,
+    @SerialName("comicsId") val comicsId: String?,
+    @SerialName("comicsName") val comicsName: String?
 )
 
 @Serializable
@@ -62,8 +66,11 @@ data class ComicsBuildRequest(
 )
 
 @Serializable
-data class ComicsByImage(
-    @SerialName("comics") val comics: JsonObject?
+data class ComicsByImageComics(
+    @SerialName("id") val id: String,
+    @SerialName("name") val name: String,
+    @SerialName("state") val state: String,
+    @SerialName("position") val position: Int
 )
 
 @Serializable
@@ -430,6 +437,15 @@ data class SearchHistoryTag(
 )
 
 @Serializable
+data class StatisticsComicsStats(
+    @SerialName("draft") val draft: Int,
+    @SerialName("built") val built: Int,
+    @SerialName("panelsKept") val panelsKept: Int,
+    @SerialName("panelsRetired") val panelsRetired: Int,
+    @SerialName("builtUnprocessed") val builtUnprocessed: Int
+)
+
+@Serializable
 data class StatisticsContentStats(
     @SerialName("ocr_texts") val ocr_texts: Int,
     @SerialName("tags") val tags: Int,
@@ -520,9 +536,19 @@ data class ClusterSimilarityResponse(
 )
 
 @Serializable
+data class ComicsAddability(
+    @SerialName("items") val items: List<ComicsAddabilityItem>
+)
+
+@Serializable
 data class ComicsBuildResult(
     @SerialName("comics") val comics: ComicsDetail,
     @SerialName("builtImageId") val builtImageId: String
+)
+
+@Serializable
+data class ComicsByImage(
+    @SerialName("comics") val comics: ComicsByImageComics?
 )
 
 @Serializable
@@ -750,14 +776,6 @@ data class MemeFromTextResponse(
 )
 
 @Serializable
-data class StatisticsResponse(
-    @SerialName("memes") val memes: StatisticsMemeStats,
-    @SerialName("content") val content: StatisticsContentStats,
-    @SerialName("trends") val trends: StatisticsTrendsStats,
-    @SerialName("computed_at") val computed_at: String? = null
-)
-
-@Serializable
 data class MemeProfile(
     @SerialName("taxonomyVersion") val taxonomyVersion: Int,
     @SerialName("situation") val situation: String? = null,
@@ -783,4 +801,13 @@ data class QueryProfile(
     @SerialName("stance") val stance: List<ProfileValue>,
     @SerialName("topic") val topic: List<ProfileValue>,
     @SerialName("tone") val tone: List<ProfileValue>
+)
+
+@Serializable
+data class StatisticsResponse(
+    @SerialName("memes") val memes: StatisticsMemeStats,
+    @SerialName("content") val content: StatisticsContentStats,
+    @SerialName("trends") val trends: StatisticsTrendsStats,
+    @SerialName("comics") val comics: StatisticsComicsStats,
+    @SerialName("computed_at") val computed_at: String? = null
 )

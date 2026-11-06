@@ -128,7 +128,7 @@ def test_http_error_status_and_body(code, detail, status):
 
 
 def test_panel_shaping_has_kept_and_source_image_id_for_draft_kept_and_retired():
-    from Backend.app.services.comics_service import _detail
+    from Backend.app.services.comics_service import detail
     src = [uuid.uuid4() for _ in range(3)]
     p0 = panel(0, uuid.uuid4())
     p1 = panel(1, uuid.uuid4())
@@ -136,6 +136,6 @@ def test_panel_shaping_has_kept_and_source_image_id_for_draft_kept_and_retired()
     for p, s, k in zip((p0, p1, p2), src, (False, True, False)):
         p.source_image_id = s
         p.kept = k
-    shaped = _detail(comics(state="built", panels=[p0, p1, p2], built_image_id=uuid.uuid4()))["panels"]
+    shaped = detail(comics(state="built", panels=[p0, p1, p2], built_image_id=uuid.uuid4()))["panels"]
     assert [(x["kept"], x["sourceImageId"]) for x in shaped] == [
         (False, str(src[0])), (True, str(src[1])), (False, str(src[2]))]

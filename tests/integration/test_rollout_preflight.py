@@ -118,6 +118,29 @@ async def test_missing_column_is_named(db_session):
     assert status == rp.FAIL and "image_cuts.failure_reason" in detail
 
 
+async def test_expected_lists_every_comics_column_of_the_models():
+    from Storage.models import Comics, ComicsPanel
+    for model in (Comics, ComicsPanel):
+        listed = {c for t, cols, _ in rp.EXPECTED if t == model.__tablename__ for c in cols}
+        assert listed == {c.name for c in model.__table__.columns}, model.__tablename__
+
+
+async def test_comics_kept_column_pending_is_a_warning(db_session):
+    ids = [r.revision for r in rp.chain()]
+    await set_version(db_session, ids[ids.index("f3a8c1d6b952") - 1])
+    await db_session.execute(text("ALTER TABLE comics_panels DROP COLUMN kept"))
+    status, detail = await rp.schema_matches_models(db_session)
+    assert status == rp.WARN
+    assert "comics_panels.kept: missing, created by f3a8c1d6b952" in detail
+
+
+async def test_comics_table_missing_with_revision_applied_fails(db_session):
+    await set_version(db_session, rp.chain()[-1].revision)
+    await db_session.execute(text("DROP TABLE comics_panels"))
+    status, detail = await rp.schema_matches_models(db_session)
+    assert status == rp.FAIL and "comics_panels.image_id" in detail
+
+
 async def test_image_status_counts_lists_counts(db_session):
     db_session.add_all([Image(filename="a.jpg", status="active"), Image(filename="b.jpg", status="active"),
                         Image(filename="c.jpg", status="pending")])

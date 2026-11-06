@@ -10,6 +10,7 @@ import pytest
 from Backend.app.repositories.diagnostics_repository import DiagnosticsRepository
 from Storage.models import Embedding, Image, ImageExtras, ImageTag, OCRText
 from rules.text_heavy_result import CLASSIFIER_NAME, NOT_TEXT_HEAVY, TEXT_HEAVY
+from Storage.models import Comics, ComicsPanel, ImageProcessingStatus
 from Storage.models import ImageClassification, OCR_TEXT_EMBEDDING_DIM, OCRLemma, OCRTextEmbedding
 
 
@@ -155,6 +156,53 @@ async def test_get_statistics_fully_covered_image_appears_in_no_gap_count(db_ses
     assert after.ocr_missing_text_heavy_classification == before.ocr_missing_text_heavy_classification
     assert after.text_heavy_missing_embeddings == before.text_heavy_missing_embeddings
     assert after.embeddings_missing_lemmas == before.embeddings_missing_lemmas
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_statistics_counts_comics(db_session):
+    before = await DiagnosticsRepository(db_session).get_statistics()
+
+    draft = Comics(name="draft", name_key=f"draft-{uuid.uuid4()}")
+    # built, OCR marker missing (never reached the OCR job): unprocessed
+    no_ocr = await _new_image(db_session)
+    # built, OCR job ran and found no text (marker done, no ocr_texts row), embedded: processed
+    text_free = await _new_image(db_session)
+    # built, OCR text present but no embedding: unprocessed
+    no_embedding = await _new_image(db_session)
+    # built, OCR text and embedding: processed
+    done = await _new_image(db_session)
+    built = []
+    for image in (no_ocr, text_free, no_embedding, done):
+        built.append(Comics(name="built", name_key=f"built-{uuid.uuid4()}", state="built", built_image_id=image.id))
+    db_session.add_all([draft, *built])
+    await db_session.flush()
+
+    def panel(comics, position, kept):
+        return ComicsPanel(comics_id=comics.id, position=position, kept=kept, source_image_id=uuid.uuid4(),
+                           source_filename="p.jpg")
+
+    db_session.add_all([
+        panel(draft, 0, True),               # a draft panel marked kept still counts as kept
+        panel(built[0], 0, True), panel(built[0], 1, True), panel(built[0], 2, False),
+        panel(draft, 1, False),              # a draft panel is not "retired"
+        Embedding(image_id=no_ocr.id, embedding=[0.0] * 512),
+        Embedding(image_id=text_free.id, embedding=[0.0] * 512),
+        ImageProcessingStatus(image_id=text_free.id, pipeline="easyocr:en", status="done"),
+        ImageProcessingStatus(image_id=no_embedding.id, pipeline="easyocr:en", status="done"),
+        OCRText(image_id=no_embedding.id, text="hi", confidence=0.9),
+        Embedding(image_id=done.id, embedding=[0.0] * 512),
+        ImageProcessingStatus(image_id=done.id, pipeline="easyocr:en", status="done"),
+        OCRText(image_id=done.id, text="hi", confidence=0.9),
+    ])
+    await db_session.flush()
+
+    after = await DiagnosticsRepository(db_session).get_statistics()
+
+    assert after.comics_draft == before.comics_draft + 1
+    assert after.comics_built == before.comics_built + 4
+    assert after.comics_panels_kept == before.comics_panels_kept + 3
+    assert after.comics_panels_retired == before.comics_panels_retired + 1
+    assert after.comics_built_unprocessed == before.comics_built_unprocessed + 2
 
 
 async def _new_image(session) -> Image:

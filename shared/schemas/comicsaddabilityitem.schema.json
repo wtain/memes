@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicsaddabilityitem.schema.json",
+  "title": "ComicsAddabilityItem",
+  "description": "Whether one asked image can be added to a comics",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "imageId": {
+      "type": "string"
+    },
+    "addable": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "comicsId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "comicsName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "imageId",
+    "addable",
+    "reason",
+    "comicsId",
+    "comicsName"
+  ]
+}

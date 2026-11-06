@@ -57,6 +57,13 @@ def statistics_payload(row) -> dict:
             "runs": row.trends_runs,
             "trend_sources": row.trend_sources,
         },
+        "comics": {
+            "draft": row.comics_draft,
+            "built": row.comics_built,
+            "panelsKept": row.comics_panels_kept,
+            "panelsRetired": row.comics_panels_retired,
+            "builtUnprocessed": row.comics_built_unprocessed,
+        },
     }
 
 

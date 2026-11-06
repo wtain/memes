@@ -7,7 +7,8 @@
     "memes":   { "$ref": "./statisticsmemestats.schema.json" },
     "content": { "$ref": "./statisticscontentstats.schema.json" },
     "trends":  { "$ref": "./statisticstrendsstats.schema.json" },
+    "comics":  { "$ref": "./statisticscomicsstats.schema.json" },
     "computed_at": { "type": ["string", "null"], "format": "date-time", "description": "When this snapshot was computed (UTC); null when unknown." }
   },
-  "required": ["memes", "content", "trends"]
+  "required": ["memes", "content", "trends", "comics"]
 }

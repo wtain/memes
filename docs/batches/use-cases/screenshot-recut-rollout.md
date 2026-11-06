@@ -24,6 +24,8 @@ between the recut ones. All eleven only add tables, columns, constraints and ind
 11. `f3a8c1d6b952` C4: `comics_panels.kept`
 
 `tools/rollout_preflight.py` reads the same chain from `Storage/alembic`; a test fails when this list and the chain differ.
+The last two (10 and 11) are the comics migrations; the comics-specific steps (what the build triggers, the smoke build, the
+rollback limits) are in `comics-rollout.md`, which uses this runbook for the shared steps.
 
 ## Step 0: before anything
 

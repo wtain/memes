@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import AsyncGenerator
 
@@ -5,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.services.comics_build_service import ComicsBuildService
-from Backend.app.services.comics_service import (MAX_ADDABILITY_IDS, ComicsService, _detail, compose_http_error,
+from Backend.app.services.comics_pipeline_trigger import start_comics_pipeline
+from Backend.app.services.comics_service import (MAX_ADDABILITY_IDS, ComicsService, detail, compose_http_error,
                                                   http_error)
 from Backend.app.types.generated.comicsbuildrequest import Schema as ComicsBuildRequest
 from Backend.app.types.generated.comicsbuildresult import Schema as ComicsBuildResultSchema
@@ -20,6 +22,7 @@ from batch.utils.comics_compose import ComposeError
 from repository.comics import ComicsError
 from Storage.db import get_async_db
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/comics", tags=["comics"])
 
 
@@ -87,10 +90,20 @@ async def preview_comics(comics_id: uuid.UUID, maxWidth: int = Query(1200, ge=20
 
 @router.post("/{comics_id}/build", response_model=ComicsBuildResultSchema)
 async def build_comics(comics_id: uuid.UUID, body: ComicsBuildRequest | None = None,
-                       service: ComicsBuildService = Depends(get_comics_build_service)):
+                       service: ComicsBuildService = Depends(get_comics_build_service),
+                       db: AsyncSession = Depends(get_async_db)):
     keep = [_uuid(p) for p in (body.keepPanelIds if body else [])]
     comics, built_image_id = await _run(service.build, comics_id, keep)
-    return {"comics": _detail(comics), "builtImageId": str(built_image_id)}
+    result = {"comics": detail(comics), "builtImageId": str(built_image_id)}
+    # The same session as the service's (FastAPI caches get_async_db per request). Committed here, not left to
+    # get_async_db: that dependency exits after the response is sent (and after any background task), but the
+    # pipeline's subprocess must find the image row. Like AdminBatchService.trigger_run's own early commit.
+    await db.commit()
+    try:
+        await start_comics_pipeline()  # best effort, never raises; the build stands either way
+    except Exception:
+        logger.warning("comics: starting comics_pipeline after build failed", exc_info=True)
+    return result
 
 
 @router.patch("/{comics_id}", response_model=ComicsDetailSchema)

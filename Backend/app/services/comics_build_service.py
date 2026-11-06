@@ -6,7 +6,8 @@ lock is taken first, so two builds of one comics serialise and the second sees `
 is done before composing. The composed file is written under a unique hidden temporary name, hashed, and only then
 moved onto its final name `comics-<hash12>.<ext>`; from that moment a rollback removes it (recut_files.file_effects),
 and the file of an existing image is never touched because a final name that an images row already holds is refused
-(`same_as_existing`) before the move. Source files are only read.
+(`same_as_existing`) before the move. That check runs under a transaction-scoped advisory lock on the content hash, so two
+builds of different comics with byte-identical output serialise there and the second is refused (C5, D12(b)). Source files are only read.
 
 Errors are ComicsError (positions are 1-based): built, not_found, keep_invalid, not_buildable (reason too_few_panels,
 panel_missing, image_not_active, image_already_built, same_as_existing with image_id, panel_unavailable with position
@@ -16,7 +17,7 @@ import asyncio
 import os
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.image_repository import ImageRepository
@@ -24,7 +25,7 @@ from Backend.app.services.recut_files import file_effects, remove_quietly
 from batch.utils.comics_compose import ComposedFile, ComposeError, compose_to_file, output_format
 from batch.utils.file_hash import sha256_file
 from config.settings import settings
-from repository.comics import MIN_BUILD_PANELS, ComicsError, ComicsRepository, _flagged_ids, _live_cut_ids, _statuses
+from repository.comics import MIN_BUILD_PANELS, ComicsError, ComicsRepository, flagged_ids, live_cut_ids, statuses
 from repository.popularity import (AlreadyDiscardedError, CycleError, PopularityConflictError, PopularityRepository,
                                    WinnerGoneError)
 from Storage.models import Comics, ComicsState, Image, ImageStatus, PopularitySource
@@ -32,6 +33,8 @@ from Storage.models import Comics, ComicsState, Image, ImageStatus, PopularitySo
 COMICS_SOURCE_REASON = "comics_source"
 TEMP_PREFIX = ".comics-build-"
 _EXTENSIONS = {"JPEG": "jpg", "PNG": "png"}
+# First key of the two-int advisory lock, so it never shares a key space with single-key locks such as ingest_hash_dedup's.
+COMICS_LOCK_NAMESPACE = 0x434F4D58  # "COMX"
 # Process-wide: one build composes at a time (rare and heavy: every panel decoded at full size).
 _BUILD_SEMAPHORE = asyncio.Semaphore(1)
 
@@ -125,15 +128,15 @@ class ComicsBuildService:
     async def _recheck(self, base: str, image_ids: list[uuid.UUID]) -> list[str]:
         """The panels' file paths, in order; the first panel that fails a check is refused by its 1-based position,
         with the causes in the order not_active, flagged, live_cut, file_missing, file_changed."""
-        statuses = await _statuses(self.session, image_ids)
-        flagged = await _flagged_ids(self.session, image_ids)
-        live = await _live_cut_ids(self.session, image_ids)
+        status_by_id = await statuses(self.session, image_ids)
+        flagged = await flagged_ids(self.session, image_ids)
+        live = await live_cut_ids(self.session, image_ids)
         rows = await self.session.execute(
             select(Image.id, Image.filename, Image.content_hash).where(Image.id.in_(image_ids)))
         files = {row.id: (row.filename, row.content_hash) for row in rows}
         paths = []
         for position, image_id in enumerate(image_ids, start=1):
-            if statuses.get(image_id) != ImageStatus.ACTIVE:
+            if status_by_id.get(image_id) != ImageStatus.ACTIVE:
                 raise _unavailable(position, "not_active")
             if image_id in flagged:
                 raise _unavailable(position, "flagged")
@@ -158,6 +161,11 @@ class ComicsBuildService:
             raise ComicsError("compose_failed", reason=error.reason, position=position) from error
         try:
             final_name = f"comics-{composed.content_hash[:12]}.{_EXTENSIONS[composed.format]}"
+            # Two builds of different comics with byte-identical output would otherwise both pass the check below
+            # (neither sees the other's uncommitted row). Held until this transaction ends, so the second waits for the
+            # first's commit or rollback and then sees its row, or none (D12(b)).
+            await self.session.execute(select(func.pg_advisory_xact_lock(
+                COMICS_LOCK_NAMESPACE, func.hashtext(composed.content_hash))))
             existing = (await self.session.execute(
                 select(Image.id).where(or_(Image.content_hash == composed.content_hash, Image.filename == final_name))
                 .order_by(Image.created_at, Image.id).limit(1))).scalar_one_or_none()

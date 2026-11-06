@@ -54,7 +54,7 @@ def _sorted_panels(comics) -> list:
     return sorted(comics.panels, key=lambda p: p.position)
 
 
-def _detail(comics) -> dict:
+def detail(comics) -> dict:
     return {
         "id": str(comics.id),
         "name": comics.name,
@@ -91,13 +91,13 @@ class ComicsService:
         return {"items": [_summary(c) for c in rows[:limit]], "hasMore": len(rows) > limit}
 
     async def create(self, name: str) -> dict:
-        return _detail(await self.repo.create(name))
+        return detail(await self.repo.create(name))
 
     async def detail(self, comics_id: uuid.UUID) -> dict:
-        return _detail(await self.repo.get(comics_id))
+        return detail(await self.repo.get(comics_id))
 
     async def rename(self, comics_id: uuid.UUID, name: str) -> dict:
-        return _detail(await self.repo.rename(comics_id, name))
+        return detail(await self.repo.rename(comics_id, name))
 
     async def delete(self, comics_id: uuid.UUID) -> None:
         await self.repo.delete(comics_id)
@@ -107,7 +107,7 @@ class ComicsService:
             await self.repo.move_image(image_id, comics_id)
         else:
             await self.repo.add_image(comics_id, image_id)
-        return _detail(await self.repo.get(comics_id))
+        return detail(await self.repo.get(comics_id))
 
     async def remove_panel(self, comics_id: uuid.UUID, panel_id: uuid.UUID) -> None:
         comics = await self.repo.get(comics_id)
@@ -117,7 +117,7 @@ class ComicsService:
 
     async def reorder(self, comics_id: uuid.UUID, panel_ids: list[uuid.UUID]) -> dict:
         await self.repo.reorder(comics_id, panel_ids)
-        return _detail(await self.repo.get(comics_id))
+        return detail(await self.repo.get(comics_id))
 
     async def addability(self, image_ids: list[uuid.UUID]) -> dict:
         found = await self.repo.addability(image_ids)

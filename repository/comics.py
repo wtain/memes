@@ -55,18 +55,18 @@ class Addability:
     comics_name: str | None = None
 
 
-async def _statuses(session, image_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+async def statuses(session, image_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
     rows = await session.execute(select(Image.id, Image.status).where(Image.id.in_(image_ids)))
     return {row.id: row.status for row in rows}
 
 
-async def _flagged_ids(session, image_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+async def flagged_ids(session, image_ids: list[uuid.UUID]) -> set[uuid.UUID]:
     rows = await session.execute(select(ImageExtras.image_id)
                                  .where(ImageExtras.image_id.in_(image_ids), ImageExtras.flagged.is_(True)))
     return {row[0] for row in rows}
 
 
-async def _live_cut_ids(session, image_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+async def live_cut_ids(session, image_ids: list[uuid.UUID]) -> set[uuid.UUID]:
     rows = await session.execute(
         select(ImageCut.source_image_id, ImageCut.cut_image_id)
         .where(ImageCut.state.in_(CutState.LIVE),
@@ -220,11 +220,11 @@ class ComicsRepository:
             select(Image).where(Image.id == image_id).execution_options(populate_existing=True))).scalar_one_or_none()
         if image is None:
             raise ComicsError("image_not_addable", reason="not_found")
-        if (await _statuses(self.session, [image_id]))[image_id] != ImageStatus.ACTIVE:
+        if (await statuses(self.session, [image_id]))[image_id] != ImageStatus.ACTIVE:
             raise ComicsError("image_not_addable", reason="not_active")
-        if await _flagged_ids(self.session, [image_id]):
+        if await flagged_ids(self.session, [image_id]):
             raise ComicsError("image_not_addable", reason="flagged")
-        if await _live_cut_ids(self.session, [image_id]):
+        if await live_cut_ids(self.session, [image_id]):
             raise ComicsError("image_not_addable", reason="live_cut")
         return image
 
@@ -234,18 +234,18 @@ class ComicsRepository:
         ids = list(dict.fromkeys(image_ids))
         if not ids:
             return {}
-        statuses = await _statuses(self.session, ids)
-        flagged = await _flagged_ids(self.session, ids)
-        live = await _live_cut_ids(self.session, ids)
+        status_by_id = await statuses(self.session, ids)
+        flagged = await flagged_ids(self.session, ids)
+        live = await live_cut_ids(self.session, ids)
         owner_rows = await self.session.execute(
             select(ComicsPanel.image_id, Comics.id, Comics.name)
             .join(Comics, ComicsPanel.comics_id == Comics.id).where(ComicsPanel.image_id.in_(ids)))
         owners = {row.image_id: row for row in owner_rows}
         result = {}
         for image_id in ids:
-            if image_id not in statuses:
+            if image_id not in status_by_id:
                 result[image_id] = Addability(image_id, False, "not_found")
-            elif statuses[image_id] != ImageStatus.ACTIVE:
+            elif status_by_id[image_id] != ImageStatus.ACTIVE:
                 result[image_id] = Addability(image_id, False, "not_active")
             elif image_id in flagged:
                 result[image_id] = Addability(image_id, False, "flagged")
