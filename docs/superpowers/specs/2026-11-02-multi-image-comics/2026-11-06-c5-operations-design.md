@@ -1,6 +1,7 @@
 # C5: Operations
 
-Status: approved
+Status: planned
+Plan: docs/superpowers/plans/2026-11-06-c5-operations.md
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C5)
 Follow-ups: none yet
 
