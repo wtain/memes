@@ -45,9 +45,14 @@ build_image_embeddings --incremental (embeddings)      no dependency
 
 ## Concurrent builds with identical output
 
-Two different comics whose composed output is byte-identical cannot both become images (the content hash is unique). The check,
+Two different comics whose composed output is byte-identical cannot both become images (the build refuses an existing content hash; no unique constraint backs it). The check,
 the file replace and the insert run under a transaction-scoped advisory lock on the content hash, so the second build sees the
 first and is refused (`same_as_existing`). Accepted residual, very rare: if the first build fails late and rolls back, the
 rollback releases the lock before the first build's cleanup removes its file. A second build waiting on the lock can write the
-same file name in that gap and then lose it to the first build's removal, leaving a built image without a file. Check the
-second comics' image and rebuild it if its file is missing (`unregister_deleted_images` removes a row without a file).
+same file name in that gap and then lose it to the first build's removal, leaving a built image without a file. Such a comics
+cannot be rebuilt: `build` refuses every state except `draft`, and once `unregister_deleted_images` removes the file-less image
+row the comics stays `built` with `built_image_id` NULL. Restore the image's file by hand (the composed output can be
+regenerated from the retired panels in `comics-sources/<name>/` with the same tiling) or recreate the comics as a new one.
+
+Accepted residual, tens of milliseconds wide: if an OCR walk lists `comics-<hash>.<ext>` between the build's file replace and
+its commit, it could register a second `images` row for that file (`images.filename` is not unique). Very unlikely; accepted.

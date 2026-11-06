@@ -112,6 +112,7 @@ A partial unique index on `batch_runs` allows one `started` row per `kind`. `cre
 | Chained call (`rebuild_duplicates` to `clusterize`, `move_flagged` to `unregister_deleted_images`, `build_concept_embeddings` to `tag_images_from_concepts`) | Prints "Skipping chained ..." and continues |
 | `description_pipeline` children | Step becomes `skipped_busy`, not a failure |
 | `ingest_auto_prep` children | Prints that the child is busy and ends the tick quietly (run completes); the next trigger resumes. Running Tier A over images that still lack lemma/OCR-text coverage would weaken review |
+| Comics build trigger (`POST /api/comics/{id}/build` starting `comics_pipeline`) | Busy run is swallowed with an INFO log; the built image waits for the next run |
 | Direct CLI | Raises |
 
 Orphan recovery exists only in the scheduler's tick (`max_runtime_minutes`). A run started from the CLI or admin that

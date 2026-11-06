@@ -33,6 +33,8 @@ from Storage.models import Comics, ComicsState, Image, ImageStatus, PopularitySo
 COMICS_SOURCE_REASON = "comics_source"
 TEMP_PREFIX = ".comics-build-"
 _EXTENSIONS = {"JPEG": "jpg", "PNG": "png"}
+# First key of the two-int advisory lock, so it never shares a key space with single-key locks such as ingest_hash_dedup's.
+COMICS_LOCK_NAMESPACE = 0x434F4D58  # "COMX"
 # Process-wide: one build composes at a time (rare and heavy: every panel decoded at full size).
 _BUILD_SEMAPHORE = asyncio.Semaphore(1)
 
@@ -162,7 +164,8 @@ class ComicsBuildService:
             # Two builds of different comics with byte-identical output would otherwise both pass the check below
             # (neither sees the other's uncommitted row). Held until this transaction ends, so the second waits for the
             # first's commit or rollback and then sees its row, or none (D12(b)).
-            await self.session.execute(select(func.pg_advisory_xact_lock(func.hashtext(composed.content_hash))))
+            await self.session.execute(select(func.pg_advisory_xact_lock(
+                COMICS_LOCK_NAMESPACE, func.hashtext(composed.content_hash))))
             existing = (await self.session.execute(
                 select(Image.id).where(or_(Image.content_hash == composed.content_hash, Image.filename == final_name))
                 .order_by(Image.created_at, Image.id).limit(1))).scalar_one_or_none()

@@ -29,7 +29,7 @@ steps (read-only URL, backup, upgrade); this one adds what is specific to comics
 2. **Backup**, **quiet the writers**, **upgrade** (`alembic upgrade head` from `Storage/`): as in the recut runbook.
 3. **Preflight after.** Expect `READY` and `at head f3a8c1d6b952`, and `expected columns present`.
 4. **Restart the backend** of that environment on matching code. The backend image needs Pillow and
-   `batch/utils/{__init__,recut_cut,file_hash}.py` (the build composes the image in the request and writes into `BASE_PATH`).
+   `batch/utils/{__init__,recut_cut,file_hash,comics_compose}.py` (the build composes the image in the request and writes into `BASE_PATH`).
    Smoke test: `/api/diagnostics/health`, `/api/images?limit=1`, `GET /api/comics?limit=1`, and the `comics` block of
    `GET /api/diagnostics/statistics?live=true` (counts zero, `builtUnprocessed` zero).
 
@@ -67,6 +67,16 @@ accept to see flagged), then:
 - *After a real build:* do not downgrade. A built comics has an image, flagged sources and absorbed popularity; restoring the
   dump loses those along with the build.
 - *The pipeline did not start or a step failed:* trigger `comics_pipeline` again from `/admin/batches`; every step is incremental.
+- *`comics.builtUnprocessed` stays above zero and no new run appears:* look for a stuck `started` `batch_runs` row of kind
+  `comics_pipeline`. A busy run makes later build triggers no-ops, and nothing reaps it for an unscheduled kind; it needs manual
+  cleanup (mark it failed), see `docs/batches/execution-model.md` section 3, "Concurrency: one active run per kind".
+
+## Known cost
+
+Every pipeline run walks the whole `BASE_PATH` in `extract_text_from_memes`, about two queries per file
+(`find_image_by_filename` and `should_process`). At about 22,000 files on a local database the expected order is a minute or
+two, but it is unmeasured. Measure it with the first smoke build and narrow the walk to unprocessed images only if it is slow
+(tracker D13).
 
 ## What to record afterwards
 
