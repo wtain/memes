@@ -63,6 +63,7 @@
     "StatisticsMemeStats":    { "$ref": "statisticsmemestats.schema.json" },
     "StatisticsContentStats": { "$ref": "statisticscontentstats.schema.json" },
     "StatisticsTrendsStats":  { "$ref": "statisticstrendsstats.schema.json" },
+    "StatisticsComicsStats":  { "$ref": "statisticscomicsstats.schema.json" },
     "StatisticsResponse":     { "$ref": "statisticsresponse.schema.json" },
     "HealthResponse":         { "$ref": "healthresponse.schema.json" },
     "UploadedFile":           { "$ref": "uploadedfile.schema.json" },

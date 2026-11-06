@@ -27,6 +27,7 @@ function makeStats(flagged: number, computedAt: string | null = null): Statistic
       descriptions_feedback_total: 2,
     },
     trends: { runs: 1, trend_sources: 2 },
+    comics: { draft: 2, built: 3, panelsKept: 7, panelsRetired: 4, builtUnprocessed: 1 },
     computed_at: computedAt,
   }
 }
@@ -71,6 +72,30 @@ describe("StatisticsPage", () => {
     expect(getStatistics).toHaveBeenCalledTimes(2)
     expect(getStatistics).toHaveBeenCalledWith()
     expect(getStatistics).toHaveBeenCalledWith({ live: true })
+  })
+
+  it("renders the comics block", async () => {
+    const { snapshot } = setup()
+    await act(async () => { snapshot.resolve(makeStats(1)) })
+
+    expect(screen.getByText("Comics")).toBeTruthy()
+    expect(value("Draft comics")).toBe("2")
+    expect(value("Built comics")).toBe("3")
+    expect(value("Kept panels")).toBe("7")
+    expect(value("Retired panels")).toBe("4")
+    expect(value("Built comics not fully processed")).toBe("1")
+  })
+
+  it("renders without the comics block when the snapshot predates it", async () => {
+    const { snapshot, live } = setup()
+    const old = { ...makeStats(1), comics: undefined } as unknown as StatisticsResponse
+    await act(async () => { snapshot.resolve(old) })
+    expect(value("Flagged")).toBe("1")
+    expect(screen.queryByText("Comics")).toBeNull()
+
+    await act(async () => { live.resolve(makeStats(1)) })
+    await advance(2000)
+    expect(value("Draft comics")).toBe("2")
   })
 
   it("glides to the live values, drops the indicator and reads 'Updated just now'", async () => {

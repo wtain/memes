@@ -18,5 +18,9 @@ export function lerpStats(from: StatisticsResponse, to: StatisticsResponse, t: n
     memes: lerpGroup(from.memes, to.memes, t),
     content: lerpGroup(from.content, to.content, t),
     trends: lerpGroup(from.trends, to.trends, t),
+    // Either side may predate the comics block (an old snapshot): glide only when both have it.
+    comics: (to.comics as StatisticsResponse["comics"] | undefined)
+      ? lerpGroup((from.comics as StatisticsResponse["comics"] | undefined) ?? to.comics, to.comics, t)
+      : to.comics,
   }
 }

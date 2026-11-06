@@ -59,10 +59,19 @@ class TrendsStats(BaseModel):
     trend_sources: int
 
 
+class ComicsStats(BaseModel):
+    draft: int
+    built: int
+    panelsKept: int
+    panelsRetired: int
+    builtUnprocessed: int
+
+
 class StatisticsResponse(BaseModel):
     memes: MemeStats
     content: ContentStats
     trends: TrendsStats
+    comics: ComicsStats
     computed_at: datetime | None = None
 
 

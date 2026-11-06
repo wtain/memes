@@ -26,6 +26,8 @@ def _fake_stats_row(**overrides):
         trends_runs=4, trend_sources=2,
         descriptions_approved=21, descriptions_rejected=3, descriptions_feedback_total=24,
         ocr_missing_text_heavy_classification=7, text_heavy_missing_embeddings=4, embeddings_missing_lemmas=2,
+        comics_draft=2, comics_built=5, comics_panels_kept=9, comics_panels_retired=11,
+        comics_built_unprocessed=1,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -49,6 +51,7 @@ class TestStatisticsPayload:
                 "descriptions_approved": 21, "descriptions_rejected": 3, "descriptions_feedback_total": 24,
             },
             "trends": {"runs": 4, "trend_sources": 2},
+            "comics": {"draft": 2, "built": 5, "panelsKept": 9, "panelsRetired": 11, "builtUnprocessed": 1},
         }
 
 

@@ -62,6 +62,8 @@ def _fake_stats_row(**overrides):
         trends_runs=4, trend_sources=2,
         descriptions_approved=21, descriptions_rejected=3, descriptions_feedback_total=24,
         ocr_missing_text_heavy_classification=7, text_heavy_missing_embeddings=4, embeddings_missing_lemmas=2,
+        comics_draft=2, comics_built=5, comics_panels_kept=9, comics_panels_retired=11,
+        comics_built_unprocessed=1,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -106,6 +108,29 @@ class TestStatistics:
         assert data["memes"]["ocr_missing_text_heavy_classification"] == 7
         assert data["memes"]["text_heavy_missing_embeddings"] == 4
         assert data["memes"]["embeddings_missing_lemmas"] == 2
+
+    def test_statistics_includes_comics_block(self, client, mock_diagnostics_repo):
+        mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row()
+
+        response = client.get("/api/diagnostics/statistics")
+
+        assert response.status_code == 200
+        assert response.json()["comics"] == {
+            "draft": 2, "built": 5, "panelsKept": 9, "panelsRetired": 11, "builtUnprocessed": 1,
+        }
+
+    def test_snapshot_without_comics_block_is_recomputed(self, client, mock_diagnostics_repo, mock_snapshots_repo):
+        # a snapshot stored before the comics block existed
+        old_payload = statistics_payload(_fake_stats_row())
+        del old_payload["comics"]
+        mock_snapshots_repo.get.return_value = SimpleNamespace(payload=old_payload, computed_at=_fresh_time())
+        mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(comics_built=42)
+
+        response = client.get("/api/diagnostics/statistics")
+
+        assert response.status_code == 200
+        assert response.json()["comics"]["built"] == 42
+        mock_snapshots_repo.upsert.assert_awaited_once()
 
     def test_statistics_zero_feedback(self, client, mock_diagnostics_repo):
         mock_diagnostics_repo.get_statistics.return_value = _fake_stats_row(

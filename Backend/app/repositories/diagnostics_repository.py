@@ -1,13 +1,18 @@
-from sqlalchemy import exists, func, select, text, true, false
+from sqlalchemy import exists, func, or_, select, text, true, false
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.models import (
+    Comics, ComicsPanel, ComicsState, ImageProcessingStatus,
     Concept, ConceptImage, ConceptImageSet,
     Embedding, Image, ImageExtras,
     ImageTag, OCRText, ImageDescription, ImageDescriptionFeedback, TmpImageClusters, BatchRun, TrendSource,
     ImageClassification, OCRLemma, OCRTextEmbedding,
 )
 from rules.text_heavy_result import CLASSIFIER_NAME, TEXT_HEAVY
+
+
+# batch/extract_text_from_memes.py's PIPELINE (the backend image does not ship the batch package).
+OCR_PIPELINE = "easyocr:en"
 
 
 class DiagnosticsRepository:
@@ -130,6 +135,37 @@ class DiagnosticsRepository:
                     .scalar_subquery().label("descriptions_rejected"),
                 select(func.count()).select_from(ImageDescriptionFeedback)
                     .scalar_subquery().label("descriptions_feedback_total"),
+                select(func.count()).select_from(Comics)
+                    .where(Comics.state == ComicsState.DRAFT)
+                    .scalar_subquery().label("comics_draft"),
+                select(func.count()).select_from(Comics)
+                    .where(Comics.state == ComicsState.BUILT)
+                    .scalar_subquery().label("comics_built"),
+                select(func.count()).select_from(ComicsPanel)
+                    .where(ComicsPanel.kept == true())
+                    .scalar_subquery().label("comics_panels_kept"),
+                select(func.count()).select_from(ComicsPanel).join(Comics, Comics.id == ComicsPanel.comics_id)
+                    .where(ComicsPanel.kept == false(), Comics.state == ComicsState.BUILT)
+                    .scalar_subquery().label("comics_panels_retired"),
+                # A built comics image is unprocessed until the OCR job has marked it done AND it has an
+                # embedding. OCR is judged by the job's image_processing_status marker (pipeline easyocr:en,
+                # status done), not by ocr_texts rows: an image with no text legitimately has no OCR row.
+                select(func.count()).select_from(Comics)
+                    .where(
+                        Comics.state == ComicsState.BUILT,
+                        Comics.built_image_id.is_not(None),
+                        or_(
+                            ~exists(
+                                select(ImageProcessingStatus.image_id).where(
+                                    ImageProcessingStatus.image_id == Comics.built_image_id,
+                                    ImageProcessingStatus.pipeline == OCR_PIPELINE,
+                                    ImageProcessingStatus.status == "done",
+                                )
+                            ),
+                            ~exists(select(Embedding.image_id).where(Embedding.image_id == Comics.built_image_id)),
+                        ),
+                    )
+                    .scalar_subquery().label("comics_built_unprocessed"),
             )
         )
         return result.one()

@@ -1313,9 +1313,18 @@ Returns row counts across all major tables from a precomputed snapshot (table `s
     "runs": 14,
     "trend_sources": 6
   },
+  "comics": {
+    "draft": 2,
+    "built": 5,
+    "panelsKept": 9,
+    "panelsRetired": 11,
+    "builtUnprocessed": 1
+  },
   "computed_at": "2026-09-29T12:00:00Z"
 }
 ```
+
+`comics` counts the multi-image comics (draft and built by `comics.state`), `panelsKept` (panels with `kept = true`, in any comics), `panelsRetired` (panels with `kept = false` in built comics) and `builtUnprocessed`: built comics images (`comics.built_image_id`) for which the OCR job has not recorded a `done` marker (`image_processing_status`, pipeline `easyocr:en`) or that have no embedding. The OCR marker is used instead of `ocr_texts` rows because an image without text legitimately has no OCR row. A stored snapshot written before the `comics` block existed fails response validation and is recomputed on read (the same path as any other stale payload shape), so the block is always present in the response.
 
 ---
 
