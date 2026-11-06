@@ -25,7 +25,7 @@ from Backend.app.services.recut_files import file_effects, remove_quietly
 from batch.utils.comics_compose import ComposedFile, ComposeError, compose_to_file, output_format
 from batch.utils.file_hash import sha256_file
 from config.settings import settings
-from repository.comics import MIN_BUILD_PANELS, ComicsError, ComicsRepository, _flagged_ids, _live_cut_ids, _statuses
+from repository.comics import MIN_BUILD_PANELS, ComicsError, ComicsRepository, flagged_ids, live_cut_ids, statuses
 from repository.popularity import (AlreadyDiscardedError, CycleError, PopularityConflictError, PopularityRepository,
                                    WinnerGoneError)
 from Storage.models import Comics, ComicsState, Image, ImageStatus, PopularitySource
@@ -126,15 +126,15 @@ class ComicsBuildService:
     async def _recheck(self, base: str, image_ids: list[uuid.UUID]) -> list[str]:
         """The panels' file paths, in order; the first panel that fails a check is refused by its 1-based position,
         with the causes in the order not_active, flagged, live_cut, file_missing, file_changed."""
-        statuses = await _statuses(self.session, image_ids)
-        flagged = await _flagged_ids(self.session, image_ids)
-        live = await _live_cut_ids(self.session, image_ids)
+        status_by_id = await statuses(self.session, image_ids)
+        flagged = await flagged_ids(self.session, image_ids)
+        live = await live_cut_ids(self.session, image_ids)
         rows = await self.session.execute(
             select(Image.id, Image.filename, Image.content_hash).where(Image.id.in_(image_ids)))
         files = {row.id: (row.filename, row.content_hash) for row in rows}
         paths = []
         for position, image_id in enumerate(image_ids, start=1):
-            if statuses.get(image_id) != ImageStatus.ACTIVE:
+            if status_by_id.get(image_id) != ImageStatus.ACTIVE:
                 raise _unavailable(position, "not_active")
             if image_id in flagged:
                 raise _unavailable(position, "flagged")
