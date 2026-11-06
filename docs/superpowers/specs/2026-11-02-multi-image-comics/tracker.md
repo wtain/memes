@@ -17,7 +17,7 @@ deep dives use `open`, `in progress`, `done` or `dropped`. Work happens in a wor
 | C2 | Tiling composer | Pure function: ordered panels to one image (2 per row, 3rd centered, scaling and format rules), plus preview; no database | C0 | done (2026-11-03) | `2026-11-03-c2-tiling-composer-design.md`, plan `docs/superpowers/plans/2026-11-03-c2-tiling-composer.md`, review `docs/superpowers/reviews/2026-11-03-c2-tiling-composer-review.md` |
 | C3 | Comics management API and UI | Create, rename, search, list; add an image to a comics from the meme page (existing or new); reorder; remove a panel; `backend_api.md`, shared schemas and generated types | C1 | done (2026-11-05) | `2026-11-04-c3-comics-api-and-ui-design.md`, plan `docs/superpowers/plans/2026-11-05-c3-comics-api-and-ui.md`, review `docs/superpowers/reviews/2026-11-05-c3-comics-api-and-ui-review.md` |
 | C4 | Build | Build action (compose with C2, register the new image, move sources to `comics-sources/<name>/`, status changes), derived data for the new image, errors and partial-failure handling | C1, C2, C3 | done (2026-11-06) | `2026-11-05-c4-build-design.md`, plan `docs/superpowers/plans/2026-11-05-c4-build.md`, review `docs/superpowers/reviews/2026-11-06-c4-build-review.md` |
-| C5 | Operations | Batch inventory and registry entries if the build runs as a job, statistics, runbook, rollout | C4 | not started | |
+| C5 | Operations | `comics_pipeline` driver started by the build after commit (exact data only, no stopgap), statistics (counts plus unprocessed built images), D11/D12 leftovers, rollout document and preflight, runbook | C4 | approved (design approved 2026-11-06, plan next) | `2026-11-06-c5-operations-design.md` |
 
 ## Spikes and deep dives
 
