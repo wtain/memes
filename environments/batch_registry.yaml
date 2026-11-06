@@ -85,6 +85,9 @@ refresh_recut_cuts:
 recut_pipeline:
   module: batch.recut_pipeline
   kind: recut_pipeline
+comics_pipeline:
+  module: batch.comics_pipeline
+  kind: comics_pipeline
 build_meme_profiles:
   module: batch.build_meme_profiles
   kind: build_meme_profiles

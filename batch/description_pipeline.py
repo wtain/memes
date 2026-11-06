@@ -37,6 +37,7 @@ OK = "ok"
 FAILED = "failed"
 SKIPPED_DEPENDENCY = "skipped_dependency"
 SKIPPED_BUSY = "skipped_busy"
+SKIPPED_NOT_CONFIGURED = "skipped_not_configured"
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class Step:
     name: str
     run: Callable[[str], Awaitable[None]]  # takes the trigger string
     needs: tuple[str, ...] = ()            # earlier steps whose failure (or skip) skips this one
+    configured: Callable[[], bool] | None = None  # None = always runs; False = recorded skipped_not_configured
 
 
 async def _describe(trigger: str) -> None:
@@ -82,6 +84,10 @@ async def run_steps(steps: list[Step], trigger: str) -> dict[str, dict]:
         if blocked:
             results[step.name] = {"status": SKIPPED_DEPENDENCY, "error": f"needs {', '.join(blocked)}"}
             print(f"description_pipeline: skipping {step.name} (needs {', '.join(blocked)})")
+            continue
+        if step.configured is not None and not step.configured():
+            results[step.name] = {"status": SKIPPED_NOT_CONFIGURED}
+            print(f"description_pipeline: skipping {step.name} (not configured in this environment)")
             continue
         print(f"description_pipeline: running {step.name}")
         try:
