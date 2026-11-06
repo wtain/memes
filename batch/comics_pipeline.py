@@ -39,7 +39,7 @@ STEPS = [
     Step("embeddings", lambda t: build_image_embeddings.main(trigger=t, incremental=True)),
     Step("ocr_lemmas", lambda t: build_ocr_lemmas.main(trigger=t, incremental=True), needs=("ocr",)),
     Step("ocr_tags", lambda t: build_tags_from_ocr.main(trigger=t, incremental=True), needs=("ocr",),
-         configured=lambda: tagging_configured()),
+         configured=lambda: tagging_configured()),  # must stay a lambda: tests patch the module attribute
     Step("classify", lambda t: classify_text_heavy.main(trigger=t), needs=("ocr",)),
     Step("ocr_text_embeddings", lambda t: build_ocr_text_embeddings.main(trigger=t), needs=("classify",)),
 ]

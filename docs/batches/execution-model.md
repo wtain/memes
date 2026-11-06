@@ -140,7 +140,7 @@ Driver differences:
 |---|---|---|
 | Order semantics | Strict chain; stops quietly when there is no active ingestion run | Dependency graph; a failure only skips dependents |
 | Child tracking | Steps are in-process calls. Tracked ones (embeddings, OCR, lemmas, text-heavy, OCR-text embeddings) write their own rows; hash dedup (its own `ingestion` row), validate and Tier A are separate. A `BatchAlreadyRunningError` from a child ends the tick quietly | Each child self-tracks under its own kind; a busy child is `skipped_busy` |
-| Result recording | Driver row only | `stats.steps` with `ok / failed / skipped_dependency / skipped_busy` |
+| Result recording | Driver row only | `stats.steps` with `ok / failed / skipped_dependency / skipped_busy / skipped_not_configured` |
 | Failure | First real error aborts the run (a busy child is not an error) | Run fails at the end if any step failed |
 
 ## 5. Quick reference: starting things

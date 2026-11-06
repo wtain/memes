@@ -24,6 +24,6 @@ digraph description_pipeline {
   s5 -> s6 [label="needs"]; s5 -> s7 [label="needs"]; s5 -> s8 [label="needs"]; s5 -> s9 [label="needs"];
   s9 -> s10 [label="needs"];
 
-  rules [shape=note fillcolor="#f3f4f6" label="step result: ok | failed | skipped_dependency | skipped_busy\nrun fails at the end if any step failed\nre-trigger to resume (everything is incremental)"];
+  rules [shape=note fillcolor="#f3f4f6" label="step result: ok | failed | skipped_dependency | skipped_busy | skipped_not_configured\nrun fails at the end if any step failed\nre-trigger to resume (everything is incremental)"];
   s10 -> rules [style=dotted];
 }

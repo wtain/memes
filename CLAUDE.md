@@ -185,7 +185,9 @@ registry or scheduler status.
 
 ```
 extract_text_from_memes    → registers images + EasyOCR (EN/ES/RU). Run-tracked and admin-triggerable
-                              from /admin/batches (always --status active there), manual-trigger only
+                              from /admin/batches (always --status active there), manual-trigger only.
+                              Skips hidden files (names starting with a dot, metric skipped.hidden), such as the
+                              temporary .comics-build-* file of a comics build
 build_image_embeddings     → CLIP 512-dim vectors. Run-tracked and admin-triggerable (always incremental,
                               --status active there; a full rebuild stays shell-only), manual-trigger only. --status also takes cut_proposed
                               (recut cuts: --status cut_proposed --incremental, shell only)
@@ -322,6 +324,15 @@ description_pipeline      → one admin-triggerable driver (manual-trigger only,
                               already-running child is skipped, not failed. Excludes tag_images_from_concepts,
                               detect_entities_and_tag and concept drafting. See
                               docs/superpowers/specs/2026-10-01-description-tagging-pipeline-driver-design.md.
+comics_pipeline            → multi-image comics (C5): the after-build driver. POST /api/comics/{id}/build starts it after its
+                              commit (best effort, same spawn path as /admin/batches, a busy run is swallowed), and it is
+                              admin-triggerable; manual-trigger only, not scheduled. Runs extract_text_from_memes,
+                              build_image_embeddings --incremental, build_ocr_lemmas --incremental, build_tags_from_ocr
+                              --incremental, classify_text_heavy and build_ocr_text_embeddings; children self-track, a failed
+                              step skips only its dependents, ocr_tags is skipped_not_configured where there is no tagging
+                              vocabulary (`it`). Descriptions and profiles stay in description_pipeline. The comics build
+                              serialises byte-identical outputs with an advisory lock on the content hash. See
+                              docs/batches/use-cases/comics-build.md and comics-rollout.md (migrations d7a3b9c5e214, f3a8c1d6b952).
 build_concept_embeddings   → concept CLIP embeddings + mappings; also runs tag_images_from_concepts
                               automatically afterward (--no-chain skips this); both are
                               admin-triggerable, manual-trigger only, not scheduled
@@ -408,7 +419,7 @@ recut_pipeline              → screenshot recut driver (R7): runs `create_recut
                                batch/utils/{__init__,recut_cut,file_hash}.py (Dockerfile.backend, .dockerignore) and writes
                                cut files into BASE_PATH; every approval also copies the source to BASE_PATH/pre-cuts/. See
                                docs/superpowers/specs/2026-10-17-screenshot-recut/2026-10-30-r6-box-adjustment-design.md.
-tools/rollout_preflight → read-only readiness check before the recut migrations (shell only, not a batch job): `python -m tools.rollout_preflight --env {metal,general,it}` with `DATABASE_URL_READONLY` in the shell; it refuses a role that can write. See docs/batches/use-cases/screenshot-recut-rollout.md.
+tools/rollout_preflight → read-only readiness check before the recut migrations (shell only, not a batch job): `python -m tools.rollout_preflight --env {metal,general,it}` with `DATABASE_URL_READONLY` in the shell; it refuses a role that can write. See docs/batches/use-cases/screenshot-recut-rollout.md (the comics migrations: docs/batches/use-cases/comics-rollout.md).
 tools/discovery_report  → read-only report of memes that keep coming back through ingestion (with their impressions and saves) and of searches that found little or that ended without a save (the `misses` view, S6) (shell only, not a batch job): `python -m tools.discovery_report {memes,queries,misses} --env {metal,general,it}` with `DATABASE_URL_READONLY` in the shell; it refuses a role that can write and prints query text to the terminal only; the same three views are browsable at `/admin/discovery` (S7). See docs/discovery-report.md.
 
 create_recut_cuts           → screenshot recut, cut and copy (R3a): turns each `detected` image_cuts proposal, highest
