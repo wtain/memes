@@ -1,6 +1,6 @@
 # C6: Finding images for a comics
 
-Status: approved
+Status: done
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/README.md (tracker project C6)
 Follow-ups: none yet
 
