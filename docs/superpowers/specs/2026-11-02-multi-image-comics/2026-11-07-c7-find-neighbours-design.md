@@ -1,6 +1,6 @@
 # C7: Find neighbours in the comics editor
 
-Status: approved
+Status: done
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/tracker.md (spike S3, idea a)
 Follow-ups: none yet
 
