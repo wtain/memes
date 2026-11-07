@@ -1,8 +1,9 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import type { MemesApi } from "../../api/MemesApi"
 import { ComicsRequestError } from "../../api/errors"
 import { describeComicsError } from "../../comics/comicsErrors"
+import { defaultComicsName } from "../../comics/comicsNaming"
 import type { ComicsDetail } from "../../types/generated/all"
 import { useFetchById } from "../../utils/useFetchById"
 import { ComicsPickerModal } from "./ComicsPickerModal"
@@ -41,6 +42,9 @@ export function MemeComicsBlock({ memesApi, imageId }: Props) {
   const [known, setKnown] = useState<Known | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [blocked, setBlocked] = useState<Blocked | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   useFetchById(
     imageId,
@@ -66,6 +70,34 @@ export function MemeComicsBlock({ memesApi, imageId }: Props) {
     })
   }
 
+  /** A new draft named after the image, holding it; then the editor opens. */
+  async function createComicsFromImage() {
+    setCreating(true)
+    setCreateError(null)
+    try {
+      const fileName = await memesApi.getMeme(imageId).then(m => m.originalFileName, () => undefined)
+      let created: ComicsDetail
+      try {
+        created = await memesApi.createComics(defaultComicsName(fileName, imageId))
+      } catch (e) {
+        if (!(e instanceof ComicsRequestError) || e.code !== "name_taken") throw e
+        created = await memesApi.createComics(defaultComicsName(fileName, imageId, true))
+      }
+      try {
+        await memesApi.addComicsPanel(created.id, imageId)
+      } catch (e) {
+        // Do not leave an empty draft behind; the cleanup is best effort.
+        await memesApi.deleteComics(created.id).catch(() => undefined)
+        throw e
+      }
+      navigate(`/admin/comics/${created.id}`)
+    } catch (e) {
+      setCreateError(describeComicsError(e))
+    } finally {
+      setCreating(false)
+    }
+  }
+
   if (known === null || known.imageId !== imageId) return null
   const membership = known.value
   const answered = blocked !== null && blocked.imageId === imageId
@@ -82,9 +114,14 @@ export function MemeComicsBlock({ memesApi, imageId }: Props) {
       ) : blockedText !== null ? (
         <p data-testid="comics-not-addable">{blockedText}</p>
       ) : answered ? (
-        <button type="button" onClick={() => setPickerOpen(true)}
-          className="px-3 py-1 border rounded cursor-pointer">Add to comics…</button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setPickerOpen(true)}
+            className="px-3 py-1 border rounded cursor-pointer">Add to comics…</button>
+          <button type="button" disabled={creating} onClick={() => void createComicsFromImage()}
+            className="px-3 py-1 border rounded cursor-pointer disabled:opacity-50">Create comics</button>
+        </div>
       ) : null}
+      {createError !== null && <p role="alert">{createError}</p>}
       {pickerOpen && (
         <ComicsPickerModal
           memesApi={memesApi}

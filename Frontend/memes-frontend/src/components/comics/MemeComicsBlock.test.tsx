@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { StrictMode } from "react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { MemeComicsBlock } from "./MemeComicsBlock"
 import { ComicsRequestError } from "../../api/errors"
 import { makeMockApi } from "../../test/mockApi"
@@ -17,12 +17,16 @@ function detail(id: string, imageId: string, position = 0, over: Partial<ComicsD
     panels: [{ id: "p1", position, imageId } as ComicsDetail["panels"][number]], ...over }
 }
 
+function Where() {
+  return <p data-testid="where">{useLocation().pathname}</p>
+}
+
 function setup(overrides: Parameters<typeof makeMockApi>[0] = {}) {
   const api = makeMockApi({
     listComics: vi.fn().mockResolvedValue({ items: [row("a"), row("b", { state: "built" })], hasMore: false }),
     ...overrides,
   })
-  render(<StrictMode><MemoryRouter><MemeComicsBlock memesApi={api} imageId="img1" /></MemoryRouter></StrictMode>)
+  render(<StrictMode><MemoryRouter><MemeComicsBlock memesApi={api} imageId="img1" /><Where /></MemoryRouter></StrictMode>)
   return api
 }
 
@@ -242,5 +246,68 @@ describe("MemeComicsBlock", () => {
     await userEvent.click(screen.getByRole("button", { name: "New comics" }))
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Move from/ })).not.toBeInTheDocument()
+  })
+
+  describe("Create comics", () => {
+    const meme = { id: "img1", imageUrl: "/i", originalFileName: "cat.jpg" }
+
+    it("creates a draft named after the file, adds the image and opens the editor", async () => {
+      const api = setup({
+        getMeme: vi.fn().mockResolvedValue(meme),
+        createComics: vi.fn().mockResolvedValue(detail("n", "x", 0, { name: "Comics cat" })),
+      })
+      await userEvent.click(await screen.findByRole("button", { name: "Create comics" }))
+      await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/admin/comics/n"))
+      expect(api.createComics).toHaveBeenCalledWith("Comics cat")
+      expect(api.addComicsPanel).toHaveBeenCalledWith("n", "img1")
+      expect(api.deleteComics).not.toHaveBeenCalled()
+    })
+
+    it("uses the id prefix when the file name cannot be read", async () => {
+      const api = setup({
+        getMeme: vi.fn().mockRejectedValue(new Error("x")),
+        createComics: vi.fn().mockResolvedValue(detail("n", "x")),
+      })
+      await userEvent.click(await screen.findByRole("button", { name: "Create comics" }))
+      await waitFor(() => expect(api.addComicsPanel).toHaveBeenCalled())
+      expect(api.createComics).toHaveBeenCalledWith("Comics img1")
+    })
+
+    it("retries once with the id appended when the name is taken", async () => {
+      const createComics = vi.fn()
+        .mockRejectedValueOnce(new ComicsRequestError(409, { code: "name_taken" }))
+        .mockResolvedValueOnce(detail("n", "x"))
+      setup({ getMeme: vi.fn().mockResolvedValue(meme), createComics })
+      await userEvent.click(await screen.findByRole("button", { name: "Create comics" }))
+      await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/admin/comics/n"))
+      expect(createComics.mock.calls.map(([name]) => name)).toEqual(["Comics cat", "Comics cat img1"])
+    })
+
+    it("shows a second name conflict in words and does not create a third", async () => {
+      const createComics = vi.fn().mockRejectedValue(new ComicsRequestError(409, { code: "name_taken" }))
+      setup({ getMeme: vi.fn().mockResolvedValue(meme), createComics })
+      await userEvent.click(await screen.findByRole("button", { name: "Create comics" }))
+      expect(await screen.findByRole("alert")).toHaveTextContent("A comics with that name already exists")
+      expect(createComics).toHaveBeenCalledTimes(2)
+    })
+
+    it("deletes the new draft when adding the image fails and keeps the button usable", async () => {
+      const api = setup({
+        getMeme: vi.fn().mockResolvedValue(meme),
+        createComics: vi.fn().mockResolvedValue(detail("n", "x")),
+        addComicsPanel: vi.fn().mockRejectedValue(new ComicsRequestError(422, { code: "image_not_addable", reason: "flagged" })),
+      })
+      await userEvent.click(await screen.findByRole("button", { name: "Create comics" }))
+      expect(await screen.findByRole("alert")).toHaveTextContent("That image is flagged")
+      expect(api.deleteComics).toHaveBeenCalledWith("n")
+      expect(screen.getByTestId("where")).toHaveTextContent("/")
+      expect(screen.getByRole("button", { name: "Create comics" })).toBeEnabled()
+    })
+
+    it("is hidden when the image is in a comics or cannot be added", async () => {
+      setup({ comicsByImage: vi.fn().mockResolvedValue({ comics: { id: "c1", name: "Cats", state: "draft", position: 0 } }) })
+      await screen.findByTestId("comics-membership")
+      expect(screen.queryByRole("button", { name: "Create comics" })).not.toBeInTheDocument()
+    })
   })
 })
