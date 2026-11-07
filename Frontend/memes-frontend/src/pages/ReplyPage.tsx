@@ -118,7 +118,7 @@ export default function ReplyPage({ memesApi }: Props) {
           className={`flex flex-col gap-6 md:flex-row ${busy ? "opacity-60 transition-opacity motion-reduce:transition-none" : ""}`}
           aria-busy={busy}
         >
-          <aside className="md:w-64 md:shrink-0">
+          <aside className="md:w-64 md:shrink-0 md:sticky md:top-20 md:self-start md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
             <button
               type="button"
               aria-expanded={filtersOpen}

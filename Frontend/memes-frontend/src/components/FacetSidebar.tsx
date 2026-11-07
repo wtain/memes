@@ -100,7 +100,7 @@ export default function FacetSidebar({ facets, selected, onFilterChange, onClear
       )}
 
       {/* Desktop sidebar — hidden on mobile */}
-      <aside className="hidden md:block w-64 shrink-0 border-r pr-4">
+      <aside className="hidden md:block w-64 shrink-0 border-r pr-4 sticky top-20 self-start max-h-[calc(100vh-6rem)] overflow-y-auto">
         {sidebarContent}
       </aside>
     </>

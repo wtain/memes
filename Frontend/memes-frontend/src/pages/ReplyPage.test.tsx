@@ -287,6 +287,15 @@ describe("ReplyPage", () => {
       expect(await screen.findByRole("img", { name: "a" })).toBeInTheDocument()
     })
 
+    it("pins the filters column below the header on wide screens only", async () => {
+      const user = userEvent.setup()
+      renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")], facets: facetsJoy })) }))
+      await search(user)
+      const aside = (await screen.findByRole("region", { name: "Filters" })).closest("aside")
+      expect(aside).toHaveClass("md:sticky", "md:top-20", "md:self-start", "md:overflow-y-auto")
+      expect(aside).not.toHaveClass("sticky")
+    })
+
     it("a failed refine from an empty list keeps the facets and the filters", async () => {
       const user = userEvent.setup()
       const search_ = vi.fn()

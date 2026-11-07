@@ -84,4 +84,14 @@ describe('FacetSidebar', () => {
     fireEvent.click(backdrop)
     expect(screen.queryByLabelText('Close filters')).not.toBeInTheDocument()
   })
+
+  it('keeps the desktop sidebar pinned below the sticky header while the page scrolls', () => {
+    const { container } = render(
+      <FacetSidebar facets={facets} selected={{}} onFilterChange={() => {}} onClear={() => {}} />
+    )
+    const aside = container.querySelector('aside.hidden.md\\:block')
+    expect(aside).not.toBeNull()
+    // self-start: as a stretched flex item the aside would be as tall as the results and sticky would do nothing
+    expect(aside).toHaveClass('sticky', 'top-20', 'self-start', 'overflow-y-auto')
+  })
 })
