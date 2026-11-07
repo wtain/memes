@@ -236,6 +236,14 @@ describe("ComicsEditorPage preview", () => {
     }
   })
 
+  it("pins the panels and preview column below the header on wide screens only", async () => {
+    setup()
+    const column = (await screen.findByRole("button", { name: "Build" })).parentElement
+    expect(column).toHaveClass("md:sticky", "md:top-20", "md:self-start", "md:overflow-y-auto")
+    expect(column).not.toHaveClass("sticky")
+    expect(column).toContainElement(await screen.findByAltText("Comics preview"))
+  })
+
   it("an empty draft shows an empty state and requests no preview", async () => {
     const api = setup({ getComics: vi.fn().mockResolvedValue(detail([])) })
     expect(await screen.findByText(/no panels yet/i)).toBeInTheDocument()
