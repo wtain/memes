@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import type { MemesApi } from "../../api/MemesApi"
+import { extractUuid } from "../../comics/comicsNaming"
 import { initialSearchState, searchReducer } from "../../comics/editorReducer"
 import type { AddabilityItem } from "../../comics/editorReducer"
 
@@ -59,10 +60,14 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
   useEffect(() => {
     if (query === "") return
     let cancelled = false
-    memesApi.searchMemes({ query, limit: PAGE_SIZE, record: false }).then(
-      (page) => {
+    // A pasted id (or details URL) also looks that meme up; a failed lookup adds nothing.
+    const uuid = extractUuid(query)
+    const lookup = uuid === null ? Promise.resolve(null) : memesApi.getMeme(uuid).then((meme) => meme, () => null)
+    Promise.all([memesApi.searchMemes({ query, limit: PAGE_SIZE, record: false }), lookup]).then(
+      ([page, byId]) => {
         if (cancelled) return
-        const items = page.items ?? []
+        const found = page.items ?? []
+        const items = byId === null ? found : [byId, ...found.filter((item) => item.id !== byId.id)]
         dispatch({ type: "loaded", key: query, items, nextCursor: page.nextCursor ?? null, hasNext: page.hasNext === true })
         checkAddability(items.map((item) => item.id))
       },
