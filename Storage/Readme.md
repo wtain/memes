@@ -27,13 +27,11 @@ docker volume create --name ocrdbvol --opt type=none --opt device=./data --opt o
 
 Dump
 
-Requires password
+Windows (cmd): dumps all three environments (metal 5432, general 5434, it 5436) to
+`backups/ocrdb-<yyyy-MM-dd>-<env>.dump`. The script sets `PGPASSWORD=ocr` unless it is already set in the session.
 
 ```commandline
-pg_dump -h localhost -p 5432 -U ocr -Fc -f ./backups/ocrdb-2026-09-19-metal.dump ocrdb
-pg_dump -h localhost -p 5434 -U ocr -Fc -f ./backups/ocrdb-2026-09-19-general.dump ocrdb
-pg_dump -h localhost -p 5436 -U ocr -Fc -f ./backups/ocrdb-2026-09-19-it.dump ocrdb
-
+backup.cmd
 ```
 
 Dump schema-only
