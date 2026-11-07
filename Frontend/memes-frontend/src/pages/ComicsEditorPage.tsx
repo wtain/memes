@@ -211,7 +211,7 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
       {header}
       {error !== null && <p role="alert" className="mb-3">{error}</p>}
       <div className="grid gap-6 md:grid-cols-2">
-        <div>
+        <div className="md:sticky md:top-20 md:self-start md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
           <PanelStrip panels={detail.panels} imageUrl={(imageId) => memesApi.getImageUrlById(imageId)} busy={busy}
                       onMove={move} onRemove={remove} />
           <div className="my-4">
