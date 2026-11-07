@@ -37,6 +37,26 @@ def service(mock_repo, mock_decision_repo, mock_ocr_lemmas_repo):
     return ImageService(mock_repo, mock_decision_repo, mock_ocr_lemmas_repo)
 
 
+class TestGetSimilarRecord:
+    @pytest.fixture
+    def wired(self, service, mock_repo, monkeypatch):
+        mock_repo.get_embedding.return_value = [0.1, 0.2, 0.3]
+        mock_repo.get_similar.return_value = [("image-2", 0.05, "second.png", False)]
+        self.impressions = AsyncMock()
+        monkeypatch.setattr("Backend.app.services.image_service.record_impressions", self.impressions)
+        return service
+
+    async def test_record_false_records_no_impressions(self, wired):
+        result = await wired.get_similar("image-1", limit=5, source="image", record=False)
+        self.impressions.assert_not_called()
+        assert [item.id for item in result.items] == ["image-2"]
+
+    async def test_default_still_records_similar_impressions(self, wired):
+        await wired.get_similar("image-1", limit=5, source="image")
+        self.impressions.assert_awaited_once()
+        assert self.impressions.await_args.args[1:] == ("similar", ["image-2"])
+
+
 class TestGetSimilarImageMode:
     async def test_raises_404_when_no_embedding(self, service, mock_repo):
         mock_repo.get_embedding.return_value = None

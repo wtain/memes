@@ -6,11 +6,12 @@ type Props = {
   busy: boolean
   onMove: (index: number, delta: -1 | 1) => void
   onRemove: (panelId: string) => void
+  onNeighbours: (panelId: string, imageId: string) => void
 }
 
 const BUTTON = "min-h-11 min-w-11 rounded border px-2 disabled:opacity-50"
 
-export default function PanelStrip({ panels, imageUrl, busy, onMove, onRemove }: Props) {
+export default function PanelStrip({ panels, imageUrl, busy, onMove, onRemove, onNeighbours }: Props) {
   return (
     <ol aria-label="Panels" className="flex flex-col gap-2">
       {panels.map((panel, index) => {
@@ -28,6 +29,10 @@ export default function PanelStrip({ panels, imageUrl, busy, onMove, onRemove }:
                     onClick={() => onMove(index, -1)} className={BUTTON}>Up</button>
             <button type="button" aria-label={`Move panel ${n} down`} disabled={busy || index === panels.length - 1}
                     onClick={() => onMove(index, 1)} className={BUTTON}>Down</button>
+            {panel.imageId !== null && (
+              <button type="button" aria-label={`Find neighbours of panel ${n}`} disabled={busy}
+                      onClick={() => onNeighbours(panel.id, panel.imageId as string)} className={BUTTON}>Neighbours</button>
+            )}
             <button type="button" aria-label={`Remove panel ${n}`} disabled={busy}
                     onClick={() => onRemove(panel.id)} className={BUTTON}>Remove</button>
           </li>

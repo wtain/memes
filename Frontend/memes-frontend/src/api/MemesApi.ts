@@ -43,7 +43,7 @@ export interface MemesApi {
 
   iterateFlaggedMemes(limit?: number, cursor?: string): Promise<MemeSearchResponse>;
 
-  similarMemes(id: string, source?: "image" | "description"): Promise<MemeSearchResponse>
+  similarMemes(id: string, source?: "image" | "description", options?: { limit?: number; record?: boolean }): Promise<MemeSearchResponse>
 
   getDescriptions(id: string): Promise<ImageDescription[]>
 

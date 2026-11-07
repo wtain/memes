@@ -141,10 +141,11 @@ async def get_similar_images(
     response: Response,
     limit: int = Query(10, ge=1, le=100),
     source: Literal["image", "description", "description_note", "description_all"] = "image",
+    record: bool = True,
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    return await service.get_similar(image_id, limit=limit, source=source)
+    return await service.get_similar(image_id, limit=limit, source=source, record=record)
 
 
 @router.get("/{image_id}/descriptions", response_model=list[ImageDescription])

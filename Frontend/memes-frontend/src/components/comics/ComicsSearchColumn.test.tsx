@@ -19,7 +19,7 @@ describe("ComicsSearchColumn addability chunking", () => {
     const onAdd = vi.fn().mockResolvedValue("conflict")
     const view = render(
       <MemoryRouter>
-        <ComicsSearchColumn memesApi={api} comicsId="c1" panelSignature="a" busy={false} onAdd={onAdd} />
+        <ComicsSearchColumn memesApi={api} comicsId="c1" panelSignature="a" busy={false} onAdd={onAdd} neighbours={null} onLeaveNeighbours={vi.fn()} />
       </MemoryRouter>,
     )
     await userEvent.type(screen.getByLabelText("Search memes"), "cat")
@@ -39,7 +39,7 @@ describe("ComicsSearchColumn addability chunking", () => {
     comicsAddability.mockClear()
     view.rerender(
       <MemoryRouter>
-        <ComicsSearchColumn memesApi={api} comicsId="c1" panelSignature="b" busy={false} onAdd={onAdd} />
+        <ComicsSearchColumn memesApi={api} comicsId="c1" panelSignature="b" busy={false} onAdd={onAdd} neighbours={null} onLeaveNeighbours={vi.fn()} />
       </MemoryRouter>,
     )
     await waitFor(() => expect(comicsAddability.mock.calls.flatMap(([ids]) => ids)).toHaveLength(120))
@@ -54,7 +54,7 @@ describe("ComicsSearchColumn id lookup", () => {
   async function search(api: ReturnType<typeof makeMockApi>, text: string) {
     render(
       <MemoryRouter>
-        <ComicsSearchColumn memesApi={api} comicsId="c1" panelSignature="a" busy={false} onAdd={vi.fn()} />
+        <ComicsSearchColumn memesApi={api} comicsId="c1" panelSignature="a" busy={false} onAdd={vi.fn()} neighbours={null} onLeaveNeighbours={vi.fn()} />
       </MemoryRouter>,
     )
     await userEvent.type(screen.getByLabelText("Search memes"), text)

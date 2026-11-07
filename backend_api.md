@@ -404,8 +404,10 @@ Find images similar to a given image.
   - `limit` (optional): Number of results (1-100, default: 10)
   - `source` (optional): `image` (default) ranks by CLIP visual-embedding similarity; `description` ranks by LLM-description text-embedding similarity (only images sharing at least one prompt's description embedding with the source image are candidates; descriptions the user rejected are ignored on both sides, and the source image 404s if all of its descriptions are rejected); `description_note` ranks by human-written description-note text-embedding similarity; `description_all` ranks by the minimum cosine distance across all of the image's non-rejected Ollama description embeddings and its note embedding, versus every other active image's (no prompt_key restriction; `cosineDistance` is that minimum; 404 when the image has no non-rejected description embedding and no note embedding, so an image whose only descriptions are rejected also 404s). Returns 404 if the source image has no embedding of the requested kind.
 - **Response**: `MemeSearchResponse` — each `Meme` item includes `cosineDistance` (float, lower = more similar; not comparable between `source=image` and `source=description` responses — different embedding spaces)
-- **Impressions**: the returned images (never the source image) are recorded as `similar` impressions, with the same best-effort rule as in Search Images.
+  - `record` (optional, boolean, default `true`): `false` skips recording impressions, same meaning as on `GET /api/images`. The comics editor's "Neighbours" search sends `record=false`.
+- **Impressions**: unless `record=false`, the returned images (never the source image) are recorded as `similar` impressions, with the same best-effort rule as in Search Images.
 - **Example**: `GET /api/images/abc123/similar?limit=10`
+- **Example**: `GET /api/images/abc123/similar?limit=60&record=false`
 - **Example**: `GET /api/images/abc123/similar?source=description&limit=10`
 - **Example**: `GET /api/images/abc123/similar?source=description_note&limit=10`
 - **Example**: `GET /api/images/abc123/similar?source=description_all&limit=10`
