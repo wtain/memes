@@ -415,3 +415,99 @@ describe("ComicsEditorPage fixes", () => {
     expect(api.searchMemes).not.toHaveBeenCalled()
   })
 })
+
+describe("ComicsEditorPage neighbours", () => {
+  const near = (id: string) => ({ id, imageUrl: `/i/${id}`, originalFileName: `${id}.jpg` })
+  const heading = (n: number) => screen.findByRole("heading", { name: `Similar to panel ${n}` })
+  const noHeading = () => expect(screen.queryByRole("heading", { name: /Similar to panel/ })).not.toBeInTheDocument()
+
+  it("lists the neighbours of a panel without recording, with heading, back button and no show more", async () => {
+    const similarMemes = vi.fn().mockResolvedValue({ items: [near("n1"), near("n2")], hasNext: true, nextCursor: "c" })
+    const api = setup({
+      similarMemes,
+      comicsAddability: vi.fn((ids: string[]) => Promise.resolve({ items: ids.map(free) })),
+    })
+    await userEvent.click(await screen.findByLabelText("Find neighbours of panel 2"))
+    expect(await heading(2)).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Add n1.jpg" })).toBeEnabled()
+    expect(api.similarMemes).toHaveBeenCalledWith("img-p2", "image", { limit: 60, record: false })
+    expect(api.comicsAddability).toHaveBeenCalledWith(["n1", "n2"])
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Back to search" })).toBeInTheDocument()
+  })
+
+  it("adds from the neighbours list", async () => {
+    const api = setup({
+      similarMemes: vi.fn().mockResolvedValue({ items: [near("n1")], hasNext: false }),
+      comicsAddability: vi.fn().mockResolvedValue({ items: [free("n1")] }),
+      addComicsPanel: vi.fn().mockResolvedValue(detail(["p1", "p2", "p3"])),
+    })
+    await userEvent.click(await screen.findByLabelText("Find neighbours of panel 1"))
+    await userEvent.click(await screen.findByRole("button", { name: "Add n1.jpg" }))
+    expect(api.addComicsPanel).toHaveBeenCalledWith("c1", "n1")
+  })
+
+  it("Back to search leaves the mode", async () => {
+    setup({ similarMemes: vi.fn().mockResolvedValue({ items: [near("n1")], hasNext: false }) })
+    await userEvent.click(await screen.findByLabelText("Find neighbours of panel 1"))
+    await userEvent.click(await screen.findByRole("button", { name: "Back to search" }))
+    noHeading()
+    expect(screen.getByText("Search for memes to add as panels")).toBeInTheDocument()
+  })
+
+  it("submitting the text search leaves the mode and searches", async () => {
+    const api = setup({ similarMemes: vi.fn().mockResolvedValue({ items: [near("n1")], hasNext: false }) })
+    await userEvent.click(await screen.findByLabelText("Find neighbours of panel 1"))
+    await heading(1)
+    await search("cat")
+    expect(await screen.findByRole("button", { name: "Add m1.jpg" })).toBeInTheDocument()
+    noHeading()
+    expect(api.searchMemes).toHaveBeenCalledWith(expect.objectContaining({ query: "cat" }))
+  })
+
+  it("shows the failure alert when the request fails", async () => {
+    setup({ similarMemes: vi.fn().mockRejectedValue(new Error("404")) })
+    await userEvent.click(await screen.findByLabelText("Find neighbours of panel 1"))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load results")
+  })
+
+  it("ends the mode when its panel is removed", async () => {
+    const getComics = vi.fn().mockResolvedValueOnce(detail(["p1", "p2"])).mockResolvedValue(detail(["p2"]))
+    setup({ getComics, similarMemes: vi.fn().mockResolvedValue({ items: [near("n1")], hasNext: false }) })
+    await userEvent.click(await screen.findByLabelText("Find neighbours of panel 1"))
+    await heading(1)
+    await userEvent.click(screen.getByLabelText("Remove panel 1"))
+    await waitFor(noHeading)
+  })
+
+  it("renumbers the heading when the panel moves", async () => {
+    setup({
+      reorderComicsPanels: vi.fn().mockResolvedValue(detail(["p2", "p1"])),
+      similarMemes: vi.fn().mockResolvedValue({ items: [near("n1")], hasNext: false }),
+    })
+    await userEvent.click(await screen.findByLabelText("Find neighbours of panel 1"))
+    await heading(1)
+    await userEvent.click(screen.getByLabelText("Move panel 1 down"))
+    expect(await heading(2)).toBeInTheDocument()
+  })
+
+  it("ends the mode when the panel's image changes", async () => {
+    const changed = detail(["p1", "p2"])
+    changed.panels[0] = { ...changed.panels[0], imageId: "img-other" }
+    const getComics = vi.fn().mockResolvedValueOnce(detail(["p1", "p2", "p3"])).mockResolvedValue(changed)
+    setup({ getComics, similarMemes: vi.fn().mockResolvedValue({ items: [near("n1")], hasNext: false }) })
+    await userEvent.click(await screen.findByLabelText("Find neighbours of panel 1"))
+    await heading(1)
+    await userEvent.click(screen.getByLabelText("Remove panel 3"))
+    await waitFor(noHeading)
+  })
+
+  it("has no neighbours button for a panel without an image", async () => {
+    const d = detail(["p1", "p2"])
+    d.panels[0] = { ...d.panels[0], imageId: null }
+    setup({ getComics: vi.fn().mockResolvedValue(d) })
+    await screen.findByLabelText("Remove panel 1")
+    expect(screen.queryByLabelText("Find neighbours of panel 1")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Find neighbours of panel 2")).toBeInTheDocument()
+  })
+})

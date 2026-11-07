@@ -329,7 +329,8 @@ class ImageService:
     async def clear_description_note(self, image_id: str) -> None:
         await self.repo.clear_description_note(image_id)
 
-    async def get_similar(self, image_id: str, limit: int = 10, source: str = "image") -> MemeSearchResponse:
+    async def get_similar(self, image_id: str, limit: int = 10, source: str = "image",
+                          record: bool = True) -> MemeSearchResponse:
         if source == "description":
             if not await self.repo.has_description_embedding(image_id):
                 raise HTTPException(status_code=404, detail="No description embedding found for this image")
@@ -361,7 +362,8 @@ class ImageService:
             )
             for iid, dist, fname, flagged in rows
         ]
-        await record_impressions(self.repo.session, "similar", [meme.id for meme in items])
+        if record:
+            await record_impressions(self.repo.session, "similar", [meme.id for meme in items])
         return MemeSearchResponse(items=items)
 
     async def get_untagged(

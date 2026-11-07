@@ -180,8 +180,16 @@ export class HttpMemesApi implements MemesApi {
     return response.json()
   }
 
-  async similarMemes(id: string, source?: "image" | "description"): Promise<MemeSearchResponse> {
-    const params = source ? `?source=${source}` : ""
+  async similarMemes(
+    id: string,
+    source?: "image" | "description",
+    options?: { limit?: number; record?: boolean },
+  ): Promise<MemeSearchResponse> {
+    const query = new URLSearchParams()
+    if (source) query.set("source", source)
+    if (options?.limit !== undefined) query.set("limit", String(options.limit))
+    if (options?.record === false) query.set("record", "false")
+    const params = query.size > 0 ? `?${query.toString()}` : ""
     const response = await fetch(
       `${this.baseUrl}/api/images/${id}/similar${params}`,
       {

@@ -15,9 +15,14 @@ type Props = {
   /** The editor is saving a change; adding waits. */
   busy: boolean
   onAdd: (imageId: string) => Promise<AddOutcome>
+  /** When set, the column lists the images most similar to this panel's image instead of text results. */
+  neighbours: { imageId: string; position: number } | null
+  /** Leaves the neighbours mode (back to the text search). */
+  onLeaveNeighbours: () => void
 }
 
 const PAGE_SIZE = 24
+const NEIGHBOURS_LIMIT = 60
 /** The backend rejects more ids than this in one addability request. */
 const ADDABILITY_CHUNK = 100
 
@@ -29,7 +34,7 @@ const REASON_TEXT: Record<string, string> = {
   not_found: "Not found",
 }
 
-export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature, busy, onAdd }: Props) {
+export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature, busy, onAdd, neighbours, onLeaveNeighbours }: Props) {
   const [state, dispatch] = useReducer(searchReducer, initialSearchState)
   const [input, setInput] = useState("")
   const [query, setQuery] = useState("")
@@ -57,9 +62,25 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
     }
   }, [memesApi])
 
+  const neighbourId = neighbours?.imageId ?? null
+  const activeKey = neighbourId !== null ? `similar:${neighbourId}` : query
+
   useEffect(() => {
-    if (query === "") return
     let cancelled = false
+    if (neighbourId !== null) {
+      const key = `similar:${neighbourId}`
+      memesApi.similarMemes(neighbourId, "image", { limit: NEIGHBOURS_LIMIT, record: false }).then(
+        (page) => {
+          if (cancelled) return
+          const items = page.items ?? []
+          dispatch({ type: "loaded", key, items, nextCursor: null, hasNext: false })
+          checkAddability(items.map((item) => item.id))
+        },
+        () => { if (!cancelled) dispatch({ type: "failed", key }) },
+      )
+      return () => { cancelled = true }
+    }
+    if (query === "") return
     // A pasted id (or details URL) also looks that meme up; a failed lookup adds nothing.
     const uuid = extractUuid(query)
     const lookup = uuid === null ? Promise.resolve(null) : memesApi.getMeme(uuid).then((meme) => meme, () => null)
@@ -74,7 +95,7 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
       () => { if (!cancelled) dispatch({ type: "failed", key: query }) },
     )
     return () => { cancelled = true }
-  }, [memesApi, query, checkAddability])
+  }, [memesApi, query, neighbourId, checkAddability])
 
   const lastSignature = useRef(panelSignature)
   useEffect(() => {
@@ -83,10 +104,11 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
     checkAddability(itemsRef.current.map((item) => item.id))
   }, [panelSignature, checkAddability])
 
-  const current = state.key === query && query !== ""
+  const current = state.key === activeKey && activeKey !== ""
+  const failedNow = state.failed && state.key === activeKey
 
   async function showMore() {
-    if (!current || state.nextCursor === null || loadingMore) return
+    if (neighbourId !== null || !current || state.nextCursor === null || loadingMore) return
     const key = query
     setLoadingMore(true)
     try {
@@ -138,15 +160,21 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
 
   return (
     <section aria-label="Find memes">
-      <form className="mb-3 flex gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(input.trim()) }}>
+      <form className="mb-3 flex gap-2" onSubmit={(event) => { event.preventDefault(); onLeaveNeighbours(); setQuery(input.trim()) }}>
         <input type="search" aria-label="Search memes" value={input} onChange={(event) => setInput(event.target.value)}
                className="min-h-11 min-w-0 flex-1 rounded border px-3" />
         <button type="submit" className="min-h-11 rounded border px-3">Search</button>
       </form>
-      {query === "" && <p>Search for memes to add as panels</p>}
-      {query !== "" && !current && !state.failed && <p role="status">Searching...</p>}
-      {state.failed && <p role="alert">Could not load results</p>}
-      {current && state.items.length === 0 && !state.failed && <p>No memes found</p>}
+      {neighbours !== null && (
+        <div className="mb-3 flex items-center gap-3">
+          <h2 className="font-medium">Similar to panel {neighbours.position}</h2>
+          <button type="button" onClick={onLeaveNeighbours} className="min-h-11 rounded border px-3">Back to search</button>
+        </div>
+      )}
+      {neighbours === null && query === "" && <p>Search for memes to add as panels</p>}
+      {activeKey !== "" && !current && !failedNow && <p role="status">Searching...</p>}
+      {failedNow && <p role="alert">Could not load results</p>}
+      {current && state.items.length === 0 && !failedNow && <p>No memes found</p>}
       {current && state.items.length > 0 && (
         <ul className="grid gap-2">
           {state.items.map((meme) => {
@@ -161,7 +189,7 @@ export default function ComicsSearchColumn({ memesApi, comicsId, panelSignature,
           })}
         </ul>
       )}
-      {current && state.hasNext && (
+      {current && neighbourId === null && state.hasNext && (
         <button type="button" disabled={loadingMore} onClick={() => void showMore()}
                 className="mt-3 min-h-11 rounded border px-3 disabled:opacity-50">Show more</button>
       )}

@@ -43,6 +43,7 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
   const [renaming, setRenaming] = useState(false)
   const [nameInput, setNameInput] = useState("")
   const [building, setBuilding] = useState(false)
+  const [neighboursOf, setNeighboursOf] = useState<{ panelId: string; imageId: string } | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -144,6 +145,12 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
     })
   }
 
+  // The neighbours mode follows its panel: it ends when the panel is removed or its image changes.
+  const neighbourIndex = neighboursOf === null || detail === null ? -1
+    : detail.panels.findIndex((p) => p.id === neighboursOf.panelId && p.imageId === neighboursOf.imageId)
+  const neighbours = neighbourIndex >= 0 && neighboursOf !== null
+    ? { imageId: neighboursOf.imageId, position: neighbourIndex + 1 } : null
+
   if (current === null) return <p role="status">Loading comics...</p>
   if (detail === null) {
     return <p role="alert">Could not load that comics. <Link to="/admin/comics" className="underline">Back to the list</Link></p>
@@ -213,7 +220,8 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
       <div className="grid gap-6 md:grid-cols-2">
         <div className="md:sticky md:top-20 md:self-start md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
           <PanelStrip panels={detail.panels} imageUrl={(imageId) => memesApi.getImageUrlById(imageId)} busy={busy}
-                      onMove={move} onRemove={remove} />
+                      onMove={move} onRemove={remove}
+                      onNeighbours={(panelId, imageId) => setNeighboursOf({ panelId, imageId })} />
           <div className="my-4">
             {detail.panels.length === 0 ? (
               <p>No panels yet, add memes from the search</p>
@@ -228,7 +236,8 @@ function ComicsEditor({ id, memesApi }: Props & { id: string }) {
                          onFailed={refreshIfStale} />
           )}
         </div>
-        <ComicsSearchColumn memesApi={memesApi} comicsId={id} panelSignature={signature} busy={busy} onAdd={addPanel} />
+        <ComicsSearchColumn memesApi={memesApi} comicsId={id} panelSignature={signature} busy={busy} onAdd={addPanel}
+                            neighbours={neighbours} onLeaveNeighbours={() => setNeighboursOf(null)} />
       </div>
     </div>
   )
