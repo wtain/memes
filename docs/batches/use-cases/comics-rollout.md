@@ -1,6 +1,6 @@
 # Runbook: first live rollout of multi-image comics
 
-Status: draft (written 2026-11-06, never run). Design: `docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-06-c5-operations-design.md`.
+Status: migrations applied on all three environments (metal 2026-11-06, general and it 2026-11-07, each after a fresh backup, preflight `READY`, smoke tests passed); the smoke build below has not been run yet. Design: `docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-06-c5-operations-design.md`.
 Use case: `comics-build.md`. Nothing here runs by itself. **Applying a migration to any environment needs the owner's explicit
 go-ahead, one environment at a time**; no agent applies one. Order: **general, then metal, then it**. Stop at the first failing step
 of an environment.
