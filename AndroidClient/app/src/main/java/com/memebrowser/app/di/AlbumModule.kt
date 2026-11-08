@@ -7,10 +7,11 @@ import com.memebrowser.app.data.album.AlbumScanner
 import com.memebrowser.app.data.album.ContentResolverAlbumAccess
 import com.memebrowser.app.data.album.ContentResolverAlbumRowSource
 import com.memebrowser.app.data.album.EnvironmentIdSource
-import com.memebrowser.app.data.album.NoOpSyncGate
 import com.memebrowser.app.data.album.SafAlbumScanner
 import com.memebrowser.app.data.album.SyncGate
 import com.memebrowser.app.data.store.EnvironmentStore
+import com.memebrowser.app.data.sync.EngineSyncGate
+import com.memebrowser.app.data.sync.SyncEngine
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -38,10 +39,10 @@ object AlbumModule {
     fun provideAlbumScanner(source: AlbumRowSource, access: AlbumAccess): AlbumScanner =
         SafAlbumScanner(source, access, Dispatchers.IO)
 
-    /** A3 replaces this binding with the real upload-job gate; until then there is never a sync to stop. */
+    /** The real gate (A3): an album change stops the environment's sync before the wipe. */
     @Provides
     @Singleton
-    fun provideSyncGate(): SyncGate = NoOpSyncGate
+    fun provideSyncGate(engine: SyncEngine): SyncGate = EngineSyncGate(engine)
 
     @Provides
     fun provideEnvironmentIdSource(store: EnvironmentStore): EnvironmentIdSource =

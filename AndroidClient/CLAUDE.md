@@ -125,6 +125,16 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a2-
   another environment uses the same tree, rescan. A3 must bind the real `SyncGate` in `AlbumModule` (today `NoOpSyncGate`).
 - `refreshScan` is conflated per environment (a concurrent call waits for and returns the in-flight result); environments never share locks or state.
 
+### Sync engine (A3)
+Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a3-sync-engine-design.md`. Code in `data/sync/`, upload seam in `data/repository/BatchUploader.kt`, Hilt in `di/SyncModule`. No screens.
+- `SyncEngine` (singleton, per environment id) is what A4 calls: `start(env)` (non-suspending, runs in the engine's own scope, false if already running), `stop(env)`,
+  `cancelAndAwait(env)`, `state(env): StateFlow<SyncState>`, `isRunning(env)`. States: `Idle`, `Running`, `Waiting(RATE_LIMITED)`, `Stopping`, `Finished`, `Stopped`, `Failed(SyncError)`.
+- Loop: `nextPending(batch size read before each batch)` -> one multipart POST per batch -> results matched by the response's per-file `index` -> `markUploaded`
+  (`accepted` and `duplicate`) / `markRejected(reason)`. Never UPLOADED without an explicit entry; unanswered files stay PENDING. No implicit scan (the user refreshes).
+- Errors: network/5xx -> `Failed` and stay pending (no auto retry); 429 -> wait 60 s (Retry-After wins) and retry the same batch, 10 in a row -> `Failed`; 503/507 -> `Failed`
+  with their own `SyncError`; other 4xx -> `Failed(UNEXPECTED)`; unreadable file -> rejected `file_unavailable`.
+- Uploads use their own OkHttp client (long timeouts) and the SYNCED environment's base URL, not the selected one. `EngineSyncGate` is the `SyncGate` bound in `AlbumModule`.
+
 ### Navigation
 All screen-to-screen navigation goes through `NavGraph.kt`. Screens receive
 callbacks (`onBack`, `onNavigateToMeme`, …) and know nothing about
