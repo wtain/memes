@@ -99,6 +99,16 @@ Rendered as a horizontal `LazyRow` of 80 dp thumbnails at the bottom of the
 detail bottom sheet. Tapping a thumbnail pushes a new `detail/{id}` destination
 onto the back stack.
 
+### Album sync tracker (A1)
+Epic: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/`; design in its `2026-11-08-a1-tracker-data-layer-design.md`.
+Code in `data/tracker/` (Room `TrackerDatabase`, schema JSON in `app/schemas/`, Hilt in `di/TrackerModule`), data layer only.
+- One `tracked_files` row per `(environmentId, albumTreeUri, documentId)`; state `PENDING` / `UPLOADED` / `REJECTED` with a reason
+  (`unsupported_type` and `too_large` are set locally by `SupportedImages`, the single place for the MIME set and 20 MB limit).
+- D2: a scan (`TrackerRepository.syncScan`) never changes the state of an existing row, so an edited uploaded file is not re-sent;
+  rows not listed get `presentInAlbum = false` (never deleted), leave Y but an `UPLOADED` one stays in X.
+- Per-environment album and the global batch size (1..50, default 50) live in `TrackerSettingsStore` (DataStore `tracker_settings`).
+- JVM tests use `FakeTrackerDao`; the SQL itself is only exercised by `androidTest/.../TrackerDaoTest` (needs a device).
+
 ### Navigation
 All screen-to-screen navigation goes through `NavGraph.kt`. Screens receive
 callbacks (`onBack`, `onNavigateToMeme`, …) and know nothing about

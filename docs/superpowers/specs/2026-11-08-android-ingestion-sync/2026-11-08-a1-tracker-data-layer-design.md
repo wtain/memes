@@ -1,6 +1,6 @@
 # A1: Android tracker data layer, design
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-11-08-a1-tracker-data-layer.md
 Originates from: docs/superpowers/specs/2026-11-08-android-ingestion-sync/README.md
 
