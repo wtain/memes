@@ -77,6 +77,10 @@ android {
 
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 // concurrent-futures:1.1.0 is pinned strictly by the Compose BOM (2024.10.00);
 // androidx.test.ext:junit 1.3.0+ requires 1.2.0. Force it to unblock test dep upgrades.
 configurations.all {
@@ -109,6 +113,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
