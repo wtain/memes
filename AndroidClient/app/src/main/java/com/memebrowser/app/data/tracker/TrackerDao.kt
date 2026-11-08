@@ -66,6 +66,23 @@ abstract class TrackerDao {
     )
     abstract fun observeRejected(environmentId: String): Flow<List<TrackedFileEntity>>
 
+    /** A4: puts every REJECTED row of the environment with exactly this reason back to PENDING. Returns the row count. */
+    @Query(
+        "UPDATE tracked_files SET state = ${TrackerSql.PENDING}, rejectionReason = NULL, updatedAt = :at " +
+            "WHERE environmentId = :environmentId AND state = ${TrackerSql.REJECTED} AND rejectionReason = :reason"
+    )
+    abstract suspend fun retryRejectedByReason(environmentId: String, reason: String, at: Long): Int
+
+    /** A4: the same for one file. */
+    @Query(
+        "UPDATE tracked_files SET state = ${TrackerSql.PENDING}, rejectionReason = NULL, updatedAt = :at " +
+            "WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri AND documentId = :documentId " +
+            "AND state = ${TrackerSql.REJECTED} AND rejectionReason = :reason"
+    )
+    abstract suspend fun retryRejectedFile(
+        environmentId: String, albumTreeUri: String, documentId: String, reason: String, at: Long,
+    ): Int
+
     /** Highest scan id stamped in the environment, null when it has no rows. */
     @Query("SELECT MAX(lastSeenScan) FROM tracked_files WHERE environmentId = :environmentId")
     abstract suspend fun maxScanId(environmentId: String): Long?

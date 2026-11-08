@@ -79,6 +79,26 @@ class FakeTrackerDao : TrackerDao() {
             .sortedWith(compareByDescending<TrackedFileEntity> { it.lastModified }.thenBy { it.documentId })
     }
 
+    override suspend fun retryRejectedByReason(environmentId: String, reason: String, at: Long): Int {
+        var n = 0
+        rows.value = rows.value.mapValues { (_, v) ->
+            if (v.environmentId == environmentId && v.state == TrackedFileState.REJECTED && v.rejectionReason == reason) {
+                n++
+                v.copy(state = TrackedFileState.PENDING, rejectionReason = null, updatedAt = at)
+            } else v
+        }
+        return n
+    }
+
+    override suspend fun retryRejectedFile(
+        environmentId: String, albumTreeUri: String, documentId: String, reason: String, at: Long,
+    ): Int {
+        val k = Triple(environmentId, albumTreeUri, documentId)
+        val row = rows.value[k]?.takeIf { it.state == TrackedFileState.REJECTED && it.rejectionReason == reason } ?: return 0
+        rows.value = rows.value + (k to row.copy(state = TrackedFileState.PENDING, rejectionReason = null, updatedAt = at))
+        return 1
+    }
+
     override suspend fun maxScanId(environmentId: String): Long? =
         rows.value.values.filter { it.environmentId == environmentId }.maxOfOrNull { it.lastSeenScan }
 

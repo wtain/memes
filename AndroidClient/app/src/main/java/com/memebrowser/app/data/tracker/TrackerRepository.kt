@@ -82,6 +82,23 @@ class TrackerRepository @Inject constructor(
         at: Long = System.currentTimeMillis(),
     ) = dao.markRejected(environmentId, albumTreeUri, documentId, reason, at)
 
+    /**
+     * A4: puts every file rejected with `server_error` back to PENDING (the next run sends it again); returns how many.
+     * Other rejections are permanent and untouched. Under the same mutex as the other writes.
+     */
+    suspend fun retryServerErrors(environmentId: String, at: Long = System.currentTimeMillis()): Int =
+        mutex.withLock { dao.retryRejectedByReason(environmentId, RejectionReasons.SERVER_ERROR, at) }
+
+    /** A4: the same for one file; false when it is not a `server_error` rejection (nothing changed). */
+    suspend fun retryServerError(
+        environmentId: String,
+        albumTreeUri: String,
+        documentId: String,
+        at: Long = System.currentTimeMillis(),
+    ): Boolean = mutex.withLock {
+        dao.retryRejectedFile(environmentId, albumTreeUri, documentId, RejectionReasons.SERVER_ERROR, at) > 0
+    }
+
     /** Deletes only this environment's rows. The album setting is untouched; see [changeAlbum] / [clearAlbum]. */
     suspend fun resetEnvironment(environmentId: String) = mutex.withLock { dao.deleteEnvironment(environmentId) }
 

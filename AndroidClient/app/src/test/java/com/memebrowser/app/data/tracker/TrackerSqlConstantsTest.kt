@@ -17,6 +17,12 @@ class TrackerSqlConstantsTest {
     }
 
     @Test
+    fun `server error reason matches the engine constant and the sql literal`() {
+        assertEquals(TrackerSql.SERVER_ERROR, "'${RejectionReasons.SERVER_ERROR}'")
+        assertEquals(com.memebrowser.app.data.sync.SyncEngine.REASON_SERVER_ERROR, RejectionReasons.SERVER_ERROR)
+    }
+
+    @Test
     fun `sql unsupported type literal matches the reason constant`() {
         assertEquals(TrackerSql.UNSUPPORTED_TYPE, "'${SupportedImages.REASON_UNSUPPORTED_TYPE}'")
         assertEquals("unsupported_type", SupportedImages.REASON_UNSUPPORTED_TYPE)

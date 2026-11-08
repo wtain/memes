@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -235,5 +236,59 @@ class TrackerRepositoryTest {
         assertEquals(50, r.batchSize().first())
         r.setBatchSize(7)
         assertEquals(7, r.batchSize().first())
+    }
+
+    // ---- A4: retry of server errors -------------------------------------------------------------------------
+
+    private suspend fun TrackerRepository.seedRejected() {
+        syncScan(env, album, listOf(file("a"), file("b"), file("c"), file("d"), file("e", mime = "image/heic")), scanId = 1)
+        markRejected(env, album, "a", RejectionReasons.SERVER_ERROR)
+        markRejected(env, album, "b", RejectionReasons.SERVER_ERROR)
+        markRejected(env, album, "c", "File too large: more than 20")
+        markUploaded(env, album, listOf("d"))
+        // "e" is locally rejected as unsupported_type by the scan.
+    }
+
+    @Test
+    fun `retryServerErrors resets only server_error rows to pending`() = runTest {
+        val r = repo()
+        r.seedRejected()
+        assertEquals(2, r.retryServerErrors(env))
+        val rows = dao.all.associateBy { it.documentId }
+        assertEquals(TrackedFileState.PENDING, rows.getValue("a").state)
+        assertEquals(null, rows.getValue("a").rejectionReason)
+        assertEquals(TrackedFileState.PENDING, rows.getValue("b").state)
+        assertEquals(TrackedFileState.REJECTED, rows.getValue("c").state)
+        assertEquals("File too large: more than 20", rows.getValue("c").rejectionReason)
+        assertEquals(TrackedFileState.UPLOADED, rows.getValue("d").state)
+        assertEquals(TrackedFileState.REJECTED, rows.getValue("e").state)
+        assertEquals(SupportedImages.REASON_UNSUPPORTED_TYPE, rows.getValue("e").rejectionReason)
+        assertEquals(TrackerCounts(uploaded = 1, supported = 4, rejected = 2, pending = 2), r.counts())
+        assertEquals(listOf("a", "b"), r.nextPending(env, 50).map { it.documentId }.sorted())
+    }
+
+    @Test
+    fun `retryServerErrors does nothing when there are none and never touches another environment`() = runTest {
+        val r = repo()
+        r.seedRejected()
+        r.syncScan(other, album, listOf(file("a")), scanId = 1)
+        r.markRejected(other, album, "a", RejectionReasons.SERVER_ERROR)
+        assertEquals(2, r.retryServerErrors(env))
+        assertEquals(0, r.retryServerErrors(env))
+        assertEquals(TrackedFileState.REJECTED, dao.all.first { it.environmentId == other }.state)
+    }
+
+    @Test
+    fun `retryServerError resets one file and refuses other reasons`() = runTest {
+        val r = repo()
+        r.seedRejected()
+        assertTrue(r.retryServerError(env, album, "a"))
+        assertFalse(r.retryServerError(env, album, "a")) // no longer rejected
+        assertFalse(r.retryServerError(env, album, "c")) // another reason
+        assertFalse(r.retryServerError(env, album, "d")) // uploaded
+        assertFalse(r.retryServerError(env, "content://other", "b")) // wrong album
+        val rows = dao.all.associateBy { it.documentId }
+        assertEquals(TrackedFileState.PENDING, rows.getValue("a").state)
+        assertEquals(TrackedFileState.REJECTED, rows.getValue("b").state)
     }
 }

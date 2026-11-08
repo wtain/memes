@@ -144,6 +144,17 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a3-
   A backend without per-file `index` -> `Failed(SERVER)` "backend too old". After `stop` a run always ends `Stopped`. Foreground-only: Android may freeze a backgrounded app.
 - Uploads use their own OkHttp client (long timeouts) and the SYNCED environment's base URL, not the selected one. `EngineSyncGate` is the `SyncGate` bound in `AlbumModule`.
 
+### Sync screen (A4)
+Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a4-sync-screen-design.md`. Code in `ui/sync/` (`SyncViewModel`, `SyncScreen`, `SyncMappers`), route `sync`.
+- The drawer entry (now "Album sync") opens it; it links to the unchanged manual `UploadScreen` (route `upload`) with "Upload individual files...".
+- `SyncViewModel` exposes ONE `SyncUiState`; `flatMapLatest` on the selected environment id re-binds album, counts, scan, sync state and rejected list. The change-album plan
+  lives in the ViewModel (the picker's temporary grant is process-bound; never recompute it from the Uri). Texts and button enablement are pure functions in `SyncMappers.kt`.
+- `SyncContent` is stateless (`SyncActions` callbacks); `SyncScreen` owns the `OpenDocumentTree` launcher, the ON_START refresh (throttled 30 s per environment in the ViewModel)
+  and `View.keepScreenOn` while a run is active. Strings are inline English like the rest of the app.
+- Rejected files stay skipped; only `server_error` rows can be retried: `TrackerRepository.retryServerErrors` / `retryServerError` (reset to PENDING, under the tracker Mutex).
+- ViewModel tests mock the final coordinator/engine/tracker with mockk; the retry SQL itself is only checked on a device (`FakeTrackerDao` mirrors it).
+- `androidTest/.../ui/sync/SyncScreenTest` needs a device, and the androidTest source set does not compile until the unrelated `ui/search/SearchScreenTest.kt:54` is fixed.
+
 ### Navigation
 All screen-to-screen navigation goes through `NavGraph.kt`. Screens receive
 callbacks (`onBack`, `onNavigateToMeme`, …) and know nothing about

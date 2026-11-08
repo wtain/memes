@@ -292,7 +292,7 @@ private fun DrawerContent(
 
     NavigationDrawerItem(
         icon = { Icon(Icons.Default.Upload, contentDescription = null) },
-        label = { Text("Upload") },
+        label = { Text("Album sync") },
         selected = false,
         onClick = onUploadClick,
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)

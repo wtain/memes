@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.data.model.UploadResponse
 import com.memebrowser.app.data.repository.MemeRepository
+import com.memebrowser.app.data.tracker.SupportedImages
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,10 +25,6 @@ import javax.inject.Inject
 
 private const val TAG = "UploadViewModel"
 private const val MAX_FILES = 50
-private const val MAX_FILE_SIZE = 20 * 1024 * 1024L
-private val ALLOWED_MIME_TYPES = setOf(
-    "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"
-)
 
 data class UploadItem(
     val uri: Uri,
@@ -35,8 +32,8 @@ data class UploadItem(
     val size: Long,
     val mimeType: String
 ) {
-    val isValidType: Boolean get() = mimeType in ALLOWED_MIME_TYPES
-    val isValidSize: Boolean get() = size <= MAX_FILE_SIZE
+    val isValidType: Boolean get() = mimeType in SupportedImages.ALLOWED_MIME_TYPES
+    val isValidSize: Boolean get() = size <= SupportedImages.MAX_FILE_SIZE_BYTES
     val isValid: Boolean get() = isValidType && isValidSize
 }
 
