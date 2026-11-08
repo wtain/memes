@@ -35,11 +35,12 @@ def _kept(connection):
     return str(column["type"]), column["nullable"], str(column["default"]).lower()
 
 
-def test_kept_migration_is_the_single_head():
+def test_kept_migration_chains_after_the_comics_tables():
     config = Config(str(ROOT / "Storage" / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "Storage" / "alembic"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == [KEPT_REVISION]
+    assert len(script.get_heads()) == 1  # the head itself is asserted by the newest migration's test
+    assert script.get_revision(KEPT_REVISION) is not None
     assert _load().down_revision == "d7a3b9c5e214"
 
 

@@ -9,15 +9,16 @@ The commands are PowerShell from the repo root unless a step says `Storage/`. `$
 
 ## The migrations
 
-Two migrations belong to comics. They are the last two of the chain (head is `f3a8c1d6b952`), after `b4c9e1f7a028` (S6):
+Three migrations belong to comics. They are the last three of the chain (head is `a9d3e6b1c847`), after `b4c9e1f7a028` (S6):
 
 1. `d7a3b9c5e214` C1: `comics` and `comics_panels` (including `source_image_id`, `source_filename`, `source_content_hash`), and the `comics_build` popularity source
 2. `f3a8c1d6b952` C4: `comics_panels.kept`
+3. `a9d3e6b1c847` C9: `comics_candidates` and `comics_candidate_images` (suggested groups)
 
-Both only add tables, columns and constraints and rewrite no existing row. An environment that is behind by more than these two also
+All three only add tables, columns and constraints and rewrite no existing row. An environment that is behind by more than these three also
 receives the recut, popularity, saves and impressions migrations in the same `alembic upgrade head`; the full list, and the
-backup, quiet-writers and restart steps, are in `screenshot-recut-rollout.md` ("The migrations", eleven in all). If an
-environment already ran that rollout up to `b4c9e1f7a028`, only these two are pending. Use that runbook for the shared
+backup, quiet-writers and restart steps, are in `screenshot-recut-rollout.md` ("The migrations", twelve in all). If an
+environment already ran that rollout up to `b4c9e1f7a028`, only these three are pending. Use that runbook for the shared
 steps (read-only URL, backup, upgrade); this one adds what is specific to comics.
 
 ## Per environment (general, then metal, then it)
@@ -27,7 +28,7 @@ steps (read-only URL, backup, upgrade); this one adds what is specific to comics
    Expect `NOT READY` only because of the pending revisions, with `WARN` lines for `comics.*` and `comics_panels.*` columns
    (`schema_matches_models` lists each missing column with the revision that creates it).
 2. **Backup**, **quiet the writers**, **upgrade** (`alembic upgrade head` from `Storage/`): as in the recut runbook.
-3. **Preflight after.** Expect `READY` and `at head f3a8c1d6b952`, and `expected columns present`.
+3. **Preflight after.** Expect `READY` and `at head a9d3e6b1c847`, and `expected columns present`.
 4. **Restart the backend** of that environment on matching code. The backend image needs Pillow and
    `batch/utils/{__init__,recut_cut,file_hash,comics_compose}.py` (the build composes the image in the request and writes into `BASE_PATH`).
    Smoke test: `/api/diagnostics/health`, `/api/images?limit=1`, `GET /api/comics?limit=1`, and the `comics` block of

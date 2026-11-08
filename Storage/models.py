@@ -210,6 +210,55 @@ class ComicsPanel(Base):
     )
 
 
+class CandidateState:
+    """Values of comics_candidates.state (epic multi-image-comics, C9)."""
+    OPEN = "open"
+    ACCEPTED = "accepted"
+    DISMISSED = "dismissed"
+    ALL = (OPEN, ACCEPTED, DISMISSED)
+
+
+class ComicsCandidate(Base):
+    """A suggested group of images that may be one story (C9). key is the md5 of the sorted image ids, so a re-run of the
+    detector never recreates a group. max_gap_seconds and max_distance are the weakest edge signals of the group, kept
+    for later precision analysis. comics_id is SET NULL so the decision record outlives a deleted comics."""
+    __tablename__ = "comics_candidates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key = Column(String, nullable=False)
+    state = Column(String(20), nullable=False, server_default=CandidateState.OPEN)
+    detector_version = Column(String, nullable=False)
+    max_gap_seconds = Column(Float, nullable=False)
+    max_distance = Column(Float, nullable=False)
+    comics_id = Column(UUID(as_uuid=True), ForeignKey("comics.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+
+    images = relationship("ComicsCandidateImage", order_by="ComicsCandidateImage.position",
+                          cascade="all, delete-orphan", passive_deletes=True)
+
+    __table_args__ = (
+        Index("uq_comics_candidates_key", "key", unique=True),
+        Index("ix_comics_candidates_state", "state"),
+        CheckConstraint("state IN ('open', 'accepted', 'dismissed')", name="ck_comics_candidates_state"),
+    )
+
+
+class ComicsCandidateImage(Base):
+    """One image of a candidate group, in story order. Both foreign keys cascade: a deleted image leaves the group
+    (the candidate is then listed only while all its remaining rows are eligible, checked at read time)."""
+    __tablename__ = "comics_candidate_images"
+
+    candidate_id = Column(UUID(as_uuid=True), ForeignKey("comics_candidates.id", ondelete="CASCADE"), primary_key=True)
+    image_id = Column(UUID(as_uuid=True), ForeignKey("images.id", ondelete="CASCADE"), primary_key=True)
+    position = Column(Integer, nullable=False)
+
+    __table_args__ = (
+        Index("ix_comics_candidate_images_image_id", "image_id"),
+        CheckConstraint("position >= 0", name="ck_comics_candidate_images_position"),
+    )
+
+
 class PopularitySource:
     """Values of popularity_absorptions.source (epic meme-popularity)."""
     HASH_IN_BATCH = "hash_in_batch"
