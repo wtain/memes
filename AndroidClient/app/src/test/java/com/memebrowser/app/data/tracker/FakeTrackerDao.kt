@@ -13,6 +13,8 @@ class FakeTrackerDao : TrackerDao() {
     var transactionCount = 0
         private set
 
+    var beforeChunk: (suspend () -> Unit)? = null
+
     val all: List<TrackedFileEntity> get() = rows.value.values.toList()
 
     private fun key(e: TrackedFileEntity) = Triple(e.environmentId, e.albumTreeUri, e.documentId)
@@ -35,8 +37,9 @@ class FakeTrackerDao : TrackerDao() {
         val present = env.filter { it.presentInAlbum }
         TrackerCounts(
             uploaded = env.count { it.state == TrackedFileState.UPLOADED },
+            // Mirrors COALESCE(rejectionReason, '') = 'unsupported_type': a NULL reason stays in Y.
             supported = present.count {
-                !(it.state == TrackedFileState.REJECTED && it.rejectionReason == SupportedImages.REASON_UNSUPPORTED_TYPE)
+                !(it.state == TrackedFileState.REJECTED && (it.rejectionReason ?: "") == SupportedImages.REASON_UNSUPPORTED_TYPE)
             },
             rejected = present.count { it.state == TrackedFileState.REJECTED },
             pending = present.count { it.state == TrackedFileState.PENDING },
@@ -65,7 +68,7 @@ class FakeTrackerDao : TrackerDao() {
         environmentId: String, albumTreeUri: String, documentId: String, reason: String, at: Long,
     ) {
         val k = Triple(environmentId, albumTreeUri, documentId)
-        rows.value[k]?.let {
+        rows.value[k]?.takeIf { it.state != TrackedFileState.UPLOADED }?.let {
             rows.value = rows.value + (k to it.copy(state = TrackedFileState.REJECTED, rejectionReason = reason, updatedAt = at))
         }
     }
@@ -76,6 +79,9 @@ class FakeTrackerDao : TrackerDao() {
             .sortedWith(compareByDescending<TrackedFileEntity> { it.lastModified }.thenBy { it.documentId })
     }
 
+    override suspend fun maxScanId(environmentId: String): Long? =
+        rows.value.values.filter { it.environmentId == environmentId }.maxOfOrNull { it.lastSeenScan }
+
     override suspend fun deleteEnvironment(environmentId: String) {
         rows.value = rows.value.filterValues { it.environmentId != environmentId }
     }
@@ -85,6 +91,8 @@ class FakeTrackerDao : TrackerDao() {
     ) {
         require(files.size <= SCAN_CHUNK_SIZE)
         transactionCount++
+        // Lets a test interleave coroutines at the point where real Room would suspend on its executor.
+        beforeChunk?.invoke()
         super.applyScanChunk(environmentId, albumTreeUri, files, scanId, now)
     }
 }

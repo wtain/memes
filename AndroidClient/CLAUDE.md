@@ -107,6 +107,9 @@ Code in `data/tracker/` (Room `TrackerDatabase`, schema JSON in `app/schemas/`, 
 - D2: a scan (`TrackerRepository.syncScan`) never changes the state of an existing row, so an edited uploaded file is not re-sent;
   rows not listed get `presentInAlbum = false` (never deleted), leave Y but an `UPLOADED` one stays in X.
 - Per-environment album and the global batch size (1..50, default 50) live in `TrackerSettingsStore` (DataStore `tracker_settings`).
+- One Mutex serialises `syncScan`/`resetEnvironment`/`changeAlbum`/`clearAlbum`; A2 must cancel the sync job before an album change
+  and must not call `syncScan` with a failed listing (an empty list needs `allowEmpty = true`). `markRejected` never demotes UPLOADED.
+- The tracker DB and DataStore are excluded from Android backup (`res/xml/data_extraction_rules.xml`, `backup_rules.xml`).
 - JVM tests use `FakeTrackerDao`; the SQL itself is only exercised by `androidTest/.../TrackerDaoTest` (needs a device).
 
 ### Navigation

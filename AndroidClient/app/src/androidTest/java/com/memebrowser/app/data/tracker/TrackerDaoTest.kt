@@ -55,4 +55,28 @@ class TrackerDaoTest {
         dao.deleteEnvironment(env)
         assertEquals(TrackerCounts.EMPTY, dao.observeCounts(env).first())
     }
+
+    /** M1: a REJECTED row with a NULL reason must stay in Y (the SQL uses COALESCE), like FakeTrackerDao. */
+    @Test
+    fun rejectedWithNullReasonCountsInSupported() = runBlocking {
+        dao.applyScanChunk(env, album, listOf(file("a")), scanId = 1, now = 1)
+        dao.upsertAll(dao.findByIds(env, album, listOf("a")).map { it.copy(state = TrackedFileState.REJECTED, rejectionReason = null) })
+        assertEquals(TrackerCounts(0, 1, 1, 0), dao.observeCounts(env).first())
+    }
+
+    /** M3: markRejected never demotes an UPLOADED row. */
+    @Test
+    fun markRejectedDoesNotDemoteUploaded() = runBlocking {
+        dao.applyScanChunk(env, album, listOf(file("a")), scanId = 1, now = 1)
+        dao.markUploadedAll(env, album, listOf("a"), at = 5)
+        dao.markRejected(env, album, "a", "late", at = 9)
+        assertEquals(TrackedFileState.UPLOADED, dao.findByIds(env, album, listOf("a")).single().state)
+    }
+
+    @Test
+    fun maxScanIdIsNullForEmptyEnvironment() = runBlocking {
+        assertEquals(null, dao.maxScanId(env))
+        dao.applyScanChunk(env, album, listOf(file("a")), scanId = 7, now = 1)
+        assertEquals(7L, dao.maxScanId(env))
+    }
 }

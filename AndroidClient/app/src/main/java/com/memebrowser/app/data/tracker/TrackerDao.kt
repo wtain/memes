@@ -28,39 +28,47 @@ abstract class TrackerDao {
 
     @Query(
         "SELECT " +
-            "COALESCE(SUM(CASE WHEN state = 'UPLOADED' THEN 1 ELSE 0 END), 0) AS uploaded, " +
-            "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND NOT (state = 'REJECTED' AND rejectionReason = 'unsupported_type') " +
+            "COALESCE(SUM(CASE WHEN state = ${TrackerSql.UPLOADED} THEN 1 ELSE 0 END), 0) AS uploaded, " +
+            // COALESCE keeps a REJECTED row with a NULL reason in Y (NOT (x AND NULL) would be NULL, i.e. excluded).
+            "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND NOT (state = ${TrackerSql.REJECTED} " +
+            "AND COALESCE(rejectionReason, '') = ${TrackerSql.UNSUPPORTED_TYPE}) " +
             "THEN 1 ELSE 0 END), 0) AS supported, " +
-            "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND state = 'REJECTED' THEN 1 ELSE 0 END), 0) AS rejected, " +
-            "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND state = 'PENDING' THEN 1 ELSE 0 END), 0) AS pending " +
+            "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND state = ${TrackerSql.REJECTED} THEN 1 ELSE 0 END), 0) AS rejected, " +
+            "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND state = ${TrackerSql.PENDING} THEN 1 ELSE 0 END), 0) AS pending " +
             "FROM tracked_files WHERE environmentId = :environmentId"
     )
     abstract fun observeCounts(environmentId: String): Flow<TrackerCounts>
 
     @Query(
-        "SELECT * FROM tracked_files WHERE environmentId = :environmentId AND presentInAlbum = 1 AND state = 'PENDING' " +
+        "SELECT * FROM tracked_files WHERE environmentId = :environmentId AND presentInAlbum = 1 AND state = ${TrackerSql.PENDING} " +
             "ORDER BY lastModified DESC, documentId ASC LIMIT :limit"
     )
     abstract suspend fun nextPending(environmentId: String, limit: Int): List<TrackedFileEntity>
 
     @Query(
-        "UPDATE tracked_files SET state = 'UPLOADED', rejectionReason = NULL, " +
+        "UPDATE tracked_files SET state = ${TrackerSql.UPLOADED}, rejectionReason = NULL, " +
             "uploadedAt = COALESCE(uploadedAt, :at), updatedAt = :at " +
             "WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri AND documentId IN (:documentIds)"
     )
     abstract suspend fun markUploaded(environmentId: String, albumTreeUri: String, documentIds: List<String>, at: Long)
 
+    /** Never demotes an UPLOADED row (a late answer must not decrement X); a no-op for it. */
     @Query(
-        "UPDATE tracked_files SET state = 'REJECTED', rejectionReason = :reason, updatedAt = :at " +
-            "WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri AND documentId = :documentId"
+        "UPDATE tracked_files SET state = ${TrackerSql.REJECTED}, rejectionReason = :reason, updatedAt = :at " +
+            "WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri AND documentId = :documentId " +
+            "AND state != ${TrackerSql.UPLOADED}"
     )
     abstract suspend fun markRejected(environmentId: String, albumTreeUri: String, documentId: String, reason: String, at: Long)
 
     @Query(
-        "SELECT * FROM tracked_files WHERE environmentId = :environmentId AND presentInAlbum = 1 AND state = 'REJECTED' " +
+        "SELECT * FROM tracked_files WHERE environmentId = :environmentId AND presentInAlbum = 1 AND state = ${TrackerSql.REJECTED} " +
             "ORDER BY lastModified DESC, documentId ASC"
     )
     abstract fun observeRejected(environmentId: String): Flow<List<TrackedFileEntity>>
+
+    /** Highest scan id stamped in the environment, null when it has no rows. */
+    @Query("SELECT MAX(lastSeenScan) FROM tracked_files WHERE environmentId = :environmentId")
+    abstract suspend fun maxScanId(environmentId: String): Long?
 
     @Query("DELETE FROM tracked_files WHERE environmentId = :environmentId")
     abstract suspend fun deleteEnvironment(environmentId: String)

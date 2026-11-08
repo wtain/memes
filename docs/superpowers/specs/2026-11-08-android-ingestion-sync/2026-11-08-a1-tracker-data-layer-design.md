@@ -25,8 +25,9 @@ logic (A2, A3, A4). Inputs: spike S2 (key shape) and decision D2 in `tracker.md`
   A new file of an unsupported type is stored `REJECTED` with reason `unsupported_type`; too large with `too_large`; otherwise
   `PENDING`. Backend rejections (A3) use the free-text reason the backend gives.
 - **D2 on scan:** an existing row keeps its `state`, `rejectionReason` and `uploadedAt` untouched, even when size or lastModified
-  changed (an edited file is not re-sent). Its `displayName`, `mimeType`, `sizeBytes`, `lastModified` are refreshed (my call). A
-  renamed file keeps its documentId, so it is the same row.
+  changed (an edited file is not re-sent). Its `displayName`, `mimeType`, `sizeBytes`, `lastModified` are refreshed (my call). SAF
+  document ids are path based (`primary:DCIM/Album/x.jpg`), so a renamed or moved file is a NEW row (PENDING) beside the old
+  row (UPLOADED, absent). It costs one `duplicate` answer from the backend (S2/D2), and X can exceed Y after renames.
 - **Presence:** a scan stamps every file it lists with `presentInAlbum = true` and a scan id. After the last chunk, every row of the
   environment not stamped with that scan id gets `presentInAlbum = false` (scoped to the whole environment, not one album, so a
   stale old album never lingers as present). Rows are never deleted by a scan; a file that reappears is present again with its
@@ -65,6 +66,33 @@ logic (A2, A3, A4). Inputs: spike S2 (key shape) and decision D2 in `tracker.md`
   in-memory fake `TrackerDao` (including a 5,000-file scan).
 - androidTest (cannot run here, no device): `TrackerDaoTest` against an in-memory Room database, which is the only check of the
   SQL (counts, ordering, idempotent markUploaded, markMissing). Robolectric is not in the catalog and is not added.
+
+## Migrations and backup
+
+- Schema version 1 is exported to `AndroidClient/app/schemas/`. Any later schema change needs a version bump, a Room `Migration`
+  and the new exported JSON; there is deliberately no `fallbackToDestructiveMigration`.
+- Backup (M8): `AndroidManifest.xml` references `res/xml/data_extraction_rules.xml` (API 31+, cloud backup and device transfer)
+  and `res/xml/backup_rules.xml` (`fullBackupContent`, API 30 and below). They exclude `tracker.db`, `tracker.db-wal`,
+  `tracker.db-shm`, `tracker.db-journal` (domain `database`) and `datastore/tracker_settings.preferences_pb` (domain `file`), so a
+  restored tracker never points at a SAF grant that no longer exists. The rest of the app keeps `allowBackup="true"`.
+
+## Concurrency contract (for A2/A3)
+
+- One `Mutex` in `TrackerRepository` serialises `syncScan`, `resetEnvironment`, `changeAlbum` and `clearAlbum`. A2 must still cancel
+  the running sync job before an album change (the lock orders calls, it does not stop a waiting scan from running afterwards).
+- `changeAlbum` / `clearAlbum` wipe the environment's rows first, then write the album setting.
+- `syncScan` refuses an empty listing (`IllegalArgumentException`) unless `allowEmpty = true`; never pass a failed listing.
+- Scan ids are `max(now, highest stored id + 1)` read under the lock, so they are strictly increasing.
+- `markRejected` is a no-op for an UPLOADED row.
+
+## Review outcome (2026-11-08, one iteration)
+
+Fixed: I1 (Mutex + interleaving tests), I2 (spec sentence + rename test), M1 (COALESCE in the SQL, Fake mirrors it, androidTest case),
+M2 (SQL uses `TrackerSql` constants; `TrackerSqlConstantsTest` fails on a rename), M3 (SQL guard + Fake + tests), M5 (`changeAlbum`,
+`clearAlbum`), M6 (`ScannedFile`/`TrackerCounts` in `TrackerModels.kt`; the entity stays public because the repository returns it),
+M7 (documented above), M8 (exclusions above), M9 (`allowEmpty`), M10 (monotonic scan id, added `maxScanId`).
+Skipped: M4 (Flow de-duplication; acceptable now, revisit in A4 if the rejected list recomposes too often).
+Still not runnable here: `TrackerDaoTest` (needs a device); it gained three cases for M1, M3 and `maxScanId`.
 
 ## Questions for the owner
 

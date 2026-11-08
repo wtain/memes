@@ -3,15 +3,10 @@ package com.memebrowser.app.data.tracker
 import androidx.room.Entity
 import androidx.room.Index
 
-/** A file as listed by the album scan (the SAF listing that produces it is A2). */
-data class ScannedFile(
-    val documentId: String,
-    val displayName: String,
-    val mimeType: String,
-    val size: Long,
-    val lastModified: Long,
-)
-
+/**
+ * Persisted by name and referenced by name in the SQL of [TrackerDao] (see [TrackerSql]); renaming an entry
+ * needs a Room migration, and TrackerSqlConstantsTest fails if the names and the SQL constants drift apart.
+ */
 enum class TrackedFileState { PENDING, UPLOADED, REJECTED }
 
 @Entity(
@@ -34,15 +29,3 @@ data class TrackedFileEntity(
     val presentInAlbum: Boolean,
     val lastSeenScan: Long,
 )
-
-/** X = uploaded, Y = supported, R = rejected, P = pending. See the A1 design for exact definitions. */
-data class TrackerCounts(
-    val uploaded: Int,
-    val supported: Int,
-    val rejected: Int,
-    val pending: Int,
-) {
-    companion object {
-        val EMPTY = TrackerCounts(0, 0, 0, 0)
-    }
-}

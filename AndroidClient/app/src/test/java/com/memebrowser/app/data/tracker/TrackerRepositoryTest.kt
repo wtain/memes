@@ -2,8 +2,12 @@ package com.memebrowser.app.data.tracker
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -61,7 +65,7 @@ class TrackerRepositoryTest {
     fun `pending file deleted from the album leaves Y and P and comes back when it reappears`() = runTest {
         val r = repo()
         r.syncScan(env, album, listOf(file("a")), scanId = 1)
-        r.syncScan(env, album, emptyList(), scanId = 2)
+        r.syncScan(env, album, emptyList(), allowEmpty = true, scanId = 2)
         assertEquals(TrackerCounts.EMPTY, r.counts())
         r.syncScan(env, album, listOf(file("a")), scanId = 3)
         assertEquals(TrackerCounts(0, 1, 0, 1), r.counts())
@@ -125,6 +129,101 @@ class TrackerRepositoryTest {
         assertEquals(TrackerCounts(0, 4500, 500, 4500), r.counts())
         r.markUploaded(env, album, r.nextPending(env, 50).map { it.documentId }, at = 5)
         assertEquals(TrackerCounts(50, 4500, 500, 4450), r.counts())
+    }
+
+    private fun bigListing() = (0 until 1000).map { file("id%04d".format(it)) }
+
+    @Test
+    fun `overlapping scans do not flag real files absent`() = runTest {
+        val r = repo()
+        dao.beforeChunk = { yield() }
+        val files = bigListing()
+        val a = launch { r.syncScan(env, album, files, scanId = 1) }
+        val b = launch { r.syncScan(env, album, files, scanId = 2) }
+        a.join(); b.join()
+        assertEquals(TrackerCounts(0, 1000, 0, 1000), r.counts())
+    }
+
+    @Test
+    fun `a reset cannot be undone by a scan that is already running`() = runTest {
+        val r = repo()
+        dao.beforeChunk = { yield() }
+        val scan = launch { r.syncScan(env, album, bigListing(), scanId = 1) }
+        val reset = launch { r.resetEnvironment(env) }
+        scan.join(); reset.join()
+        assertEquals(TrackerCounts.EMPTY, r.counts())
+    }
+
+    @Test
+    fun `scan ids increase even when the clock does not`() = runTest {
+        val r = repo()
+        r.syncScan(env, album, listOf(file("a")))
+        r.syncScan(env, album, listOf(file("b")))
+        r.syncScan(env, album, listOf(file("b")))
+        // a was absent from the second scan, whatever the millisecond
+        assertEquals(TrackerCounts(0, 1, 0, 1), r.counts())
+    }
+
+    @Test
+    fun `an empty listing is refused unless the album is explicitly empty`() = runTest {
+        val r = repo()
+        r.syncScan(env, album, listOf(file("a")), scanId = 1)
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { r.syncScan(env, album, emptyList()) } }
+        assertEquals(TrackerCounts(0, 1, 0, 1), r.counts())
+    }
+
+    @Test
+    fun `a renamed file is a new row beside the old one`() = runTest {
+        // SAF document ids are path based, so a rename or move changes the documentId.
+        val r = repo()
+        r.syncScan(env, album, listOf(file("DCIM/old")), scanId = 1)
+        r.markUploaded(env, album, listOf("DCIM/old"), at = 5)
+        r.syncScan(env, album, listOf(file("DCIM/new")), scanId = 2)
+        assertEquals(listOf("DCIM/new"), r.nextPending(env, 10).map { it.documentId })
+        // X (1, old row, absent) is not bounded by Y (1, new row, pending): X can exceed Y after renames.
+        assertEquals(TrackerCounts(uploaded = 1, supported = 1, rejected = 0, pending = 1), r.counts())
+        r.markUploaded(env, album, listOf("DCIM/new"), at = 6)
+        assertEquals(TrackerCounts(uploaded = 2, supported = 1, rejected = 0, pending = 0), r.counts())
+    }
+
+    @Test
+    fun `markRejected cannot demote an uploaded file`() = runTest {
+        val r = repo()
+        r.syncScan(env, album, listOf(file("a")), scanId = 1)
+        r.markUploaded(env, album, listOf("a"), at = 5)
+        r.markRejected(env, album, "a", "late answer", at = 9)
+        assertEquals(TrackerCounts(1, 1, 0, 0), r.counts())
+        assertEquals(TrackedFileState.UPLOADED, dao.all.single().state)
+    }
+
+    @Test
+    fun `a rejected row with no reason still counts in Y`() = runTest {
+        val r = repo()
+        r.syncScan(env, album, listOf(file("a")), scanId = 1)
+        dao.upsertAll(dao.all.map { it.copy(state = TrackedFileState.REJECTED, rejectionReason = null) })
+        assertEquals(TrackerCounts(0, 1, 1, 0), r.counts())
+    }
+
+    @Test
+    fun `changeAlbum wipes the environment then stores the new album`() = runTest {
+        val r = repo()
+        r.setAlbum(env, "content://old", "Old")
+        r.syncScan(env, "content://old", listOf(file("a")), scanId = 1)
+        r.syncScan(other, album, listOf(file("a")), scanId = 1)
+        r.changeAlbum(env, "content://new", "New")
+        assertEquals(TrackerCounts.EMPTY, r.counts(env))
+        assertEquals(1, r.counts(other).pending)
+        assertEquals(AlbumSelection("content://new", "New"), r.album(env).first())
+    }
+
+    @Test
+    fun `clearAlbum wipes the environment and removes the album`() = runTest {
+        val r = repo()
+        r.setAlbum(env, "content://old", "Old")
+        r.syncScan(env, "content://old", listOf(file("a")), scanId = 1)
+        r.clearAlbum(env)
+        assertEquals(TrackerCounts.EMPTY, r.counts(env))
+        assertEquals(null, r.album(env).first())
     }
 
     @Test
