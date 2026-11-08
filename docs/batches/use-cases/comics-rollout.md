@@ -57,6 +57,10 @@ accept to see flagged), then:
 5. Look in `BASE_PATH` for leftover `comics-*` files without an image row and hidden `.comics-build-*` files (the latter are
    skipped by OCR but should not accumulate).
 
+## After the C9 migration (suggestions)
+
+Once an environment is at head `a9d3e6b1c847`, run `detect_comics_candidates` once from `/admin/batches` (or `python -m batch.detect_comics_candidates --env <env>`), then open `/admin/comics/candidates`. The job writes only the candidate tables and is safe to re-run. In `general` expect on the order of a hundred groups; `metal` and `it` have fewer filename timestamps. See `comics-candidates.md`.
+
 ## If something fails
 
 - *Preflight after is not READY, or the upgrade failed:* the upgrade is one transaction, so a failure leaves the starting

@@ -27,3 +27,15 @@ connected components of 2..max_group images  ──►  comics_candidates (open)
   `groups_dropped_oversized`.
 - **Safety.** The job writes only the two candidate tables; it never flags, moves or modifies an image or a comics. Admin-triggerable
   from `/admin/batches`, manual-trigger only, not scheduled; `python -m batch.detect_comics_candidates --env {metal,general,it}`.
+
+## Review and known behaviour
+
+- **Review.** The page `/admin/comics/candidates` ("Suggestions", linked from the comics list) shows each open group as a row of
+  thumbnails. A thumbnail can be switched off before "Make comics" (at least two stay on); "Dismiss" hides the group for good.
+  Accepting creates a draft comics named `Comics <first file name>` in one transaction and opens its editor. Groups with an image that
+  was since flagged, deactivated, deleted or put in a comics are not listed.
+- **Overlapping open groups.** If A-B is open and a later run finds A-B-C, both are listed; accepting one makes the other answer 409
+  (`image_in_comics`). Only decided groups suppress new ones.
+- **Measuring precision.** `comics_candidates.state` counts (accepted against dismissed) and `max_distance` / `max_gap_seconds` of each
+  decided candidate are the data for tuning `gap_seconds`, `min_distance` and `max_distance` later. A read-only query over those two
+  columns is enough.
