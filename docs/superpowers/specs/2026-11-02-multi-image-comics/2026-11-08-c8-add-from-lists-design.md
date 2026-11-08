@@ -1,6 +1,6 @@
 # C8: Add to a comics from result lists
 
-Status: approved
+Status: done
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/tracker.md (spike S3, idea b)
 Follow-ups: none yet
 
