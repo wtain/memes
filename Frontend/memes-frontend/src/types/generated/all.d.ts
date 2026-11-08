@@ -1273,6 +1273,10 @@ export interface UploadedFile {
    * "accepted": written to the ingestion inbox. "duplicate": the same content is already in the library (any status) or the inbox; nothing was written. Both mean the file is done.
    */
   status: string;
+  /**
+   * 0-based position of the file in the request's files parts. Optional for backward compatibility; the server always sets it.
+   */
+  index?: number;
   [k: string]: unknown;
 }
 /**
@@ -1282,6 +1286,10 @@ export interface UploadedFile {
 export interface FailedFile {
   original_filename: string;
   reason: string;
+  /**
+   * 0-based position of the file in the request's files parts. Optional for backward compatibility; the server always sets it.
+   */
+  index?: number;
   [k: string]: unknown;
 }
 /**

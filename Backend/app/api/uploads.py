@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -6,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.image_repository import ImageRepository
 from Backend.app.services.inbox_upload_service import (
-    DuplicateCheckUnavailableError, InboxUnavailableError, InboxUploadService, InboxWriteError, UploadCandidate)
+    DuplicateCheckUnavailableError, InboxOutOfSpaceError, InboxUnavailableError, InboxUploadService, InboxWriteError,
+    UploadCandidate, validate_image_content)
 from Backend.app.services.rate_limit import upload_limiter
 from Storage.db import get_async_db
 
@@ -27,6 +29,7 @@ ALLOWED_EXTENSIONS = {
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 MAX_FILES = 50
+READ_CHUNK_SIZE = 1024 * 1024  # an upload is read in chunks of this size and never past MAX_FILE_SIZE + 1
 
 # (magic_bytes, byte_offset) pairs covering all types in ALLOWED_MIME_TYPES
 _MAGIC_SIGNATURES: list[tuple[bytes, int]] = [
@@ -50,19 +53,32 @@ def _has_valid_image_magic(data: bytes) -> bool:
     return False
 
 
+async def _read_bounded(file: UploadFile, limit: int) -> bytes | None:
+    """The whole upload, or None as soon as it is known to be longer than `limit` (nothing past limit + 1 is read)."""
+    buffer = bytearray()
+    while True:
+        chunk = await file.read(min(READ_CHUNK_SIZE, limit + 1 - len(buffer)))
+        if not chunk:
+            return bytes(buffer)
+        buffer += chunk
+        if len(buffer) > limit:
+            return None
+
+
 class UploadedFile(BaseModel):
+    index: int = Field(description="0-based position of the file in the request's `files` parts.")
     original_filename: str
     saved_as: str
     size_bytes: int
     content_type: str
     status: str = Field(
-        "accepted",
         description='"accepted": written to the ingestion inbox. "duplicate": the same content is already in the '
                     'library (any status) or the inbox, nothing was written.',
     )
 
 
 class FailedFile(BaseModel):
+    index: int = Field(description="0-based position of the file in the request's `files` parts.")
     original_filename: str
     reason: str
 
@@ -99,46 +115,43 @@ async def upload_images(
     candidates: list[UploadCandidate] = []
     content_types: list[str] = []
 
-    for file in files:
+    for index, file in enumerate(files):
         original_filename = file.filename or "unknown"
         content_type = file.content_type or ""
 
+        def reject(reason: str) -> None:
+            failed.append(FailedFile(index=index, original_filename=original_filename, reason=reason))
+
         if content_type not in ALLOWED_MIME_TYPES:
-            failed.append(FailedFile(
-                original_filename=original_filename,
-                reason=f"Unsupported file type: {content_type}",
-            ))
+            reject(f"Unsupported file type: {content_type}")
             continue
 
         ext = Path(original_filename).suffix.lower()
         if ext not in ALLOWED_EXTENSIONS:
-            failed.append(FailedFile(
-                original_filename=original_filename,
-                reason=f"Unsupported file extension: {ext}",
-            ))
+            reject(f"Unsupported file extension: {ext}")
             continue
 
-        data = await file.read()
-
-        if len(data) > MAX_FILE_SIZE:
-            failed.append(FailedFile(
-                original_filename=original_filename,
-                reason=f"File too large: {len(data)} bytes (max {MAX_FILE_SIZE})",
-            ))
+        data = await _read_bounded(file, MAX_FILE_SIZE)
+        if data is None:
+            reject(f"File too large: more than {MAX_FILE_SIZE} bytes (max {MAX_FILE_SIZE})")
             continue
 
         if not _has_valid_image_magic(data):
-            failed.append(FailedFile(
-                original_filename=original_filename,
-                reason="File content does not match a supported image format",
-            ))
+            reject("File content does not match a supported image format")
             continue
 
-        candidates.append(UploadCandidate(original_filename=original_filename, ext=ext, data=data))
+        content_problem = await asyncio.to_thread(validate_image_content, data, ext)
+        if content_problem is not None:
+            reject(content_problem)
+            continue
+
+        candidates.append(UploadCandidate(original_filename=original_filename, ext=ext, data=data, index=index))
         content_types.append(content_type)
 
     try:
         stored = await service.store(candidates)
+    except InboxOutOfSpaceError as error:
+        raise HTTPException(status_code=507, detail=str(error)) from None
     except (InboxUnavailableError, DuplicateCheckUnavailableError) as error:
         raise HTTPException(status_code=503, detail=str(error)) from None
     except InboxWriteError as error:
@@ -146,6 +159,7 @@ async def upload_images(
 
     uploaded = [
         UploadedFile(
+            index=item.candidate.index,
             original_filename=item.candidate.original_filename,
             saved_as=item.saved_as,
             size_bytes=len(item.candidate.data),

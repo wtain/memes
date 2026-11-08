@@ -204,7 +204,8 @@ data class FacetBucket(
 @Serializable
 data class FailedFile(
     @SerialName("original_filename") val original_filename: String,
-    @SerialName("reason") val reason: String
+    @SerialName("reason") val reason: String,
+    @SerialName("index") val index: Int? = null
 )
 
 @Serializable
@@ -531,7 +532,8 @@ data class UploadedFile(
     @SerialName("saved_as") val saved_as: String,
     @SerialName("size_bytes") val size_bytes: Int,
     @SerialName("content_type") val content_type: String,
-    @SerialName("status") val status: String
+    @SerialName("status") val status: String,
+    @SerialName("index") val index: Int? = null
 )
 
 @Serializable
