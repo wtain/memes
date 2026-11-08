@@ -722,6 +722,10 @@ ingest_hash_dedup           → Stage 1: hashes every file in PATH_INGESTION_SOU
                                ingest_find_duplicates.py's probe is an inner join
                                against embeddings, so an image with none is silently excluded from
                                review entirely and can reach ingest_promote unreviewed.
+                               POST /api/uploads (web Upload page, Android sync) feeds this same inbox through a
+                               `.uploading` staging directory (skipped as a directory) and refuses content already in
+                               `images` (any status) or the inbox, so a phone re-sync never adds a file or popularity;
+                               see docs/batches/use-cases/ingestion.md, "Phone and web uploads".
 ingest_validate_formats     → Stage 1.5: renames files whose extension doesn't match their
                                real content, and converts any WebP content to JPEG
                                (original moved to converted_originals/ for audit) --
