@@ -21,6 +21,7 @@ deep dives use `open`, `in progress`, `done` or `dropped`. Work happens in a wor
 | C6 | Discoverability (owner request after rollout, 2026-11-07) | "Create comics" on the image details view (new draft with that image), id lookup in the editor's meme search (union with text results); frontend only | C5 | done (2026-11-07, merged) | `2026-11-07-c6-discoverability-design.md` |
 | C7 | Find neighbours (owner pick from S3a, 2026-11-07) | A "Neighbours" button per draft panel points the editor search at CLIP-similar images; `/similar` gets `record=false` so the editor leaves no impressions | C6 | done (2026-11-07, merged) | `2026-11-07-c7-find-neighbours-design.md` |
 | C8 | Add from result lists (owner pick from S3b, 2026-11-08) | A working comics (remembered in the browser) and a one-click "Add to <name>" on cards in result lists; frontend only | C6 | done (2026-11-08, merged) | `2026-11-08-c8-add-from-lists-design.md` |
+| C9 | Candidate queue (owner pick from S3c, 2026-11-08) | Batch job `detect_comics_candidates` (filename timestamps within seconds + CLIP style window), tables `comics_candidates`/`comics_candidate_images`, `/api/comics/candidates` and a Suggestions page: make a draft from a group or dismiss it for good; one new migration | C8 | planned | `2026-11-08-c9-candidate-queue-design.md`, plan `docs/superpowers/plans/2026-11-08-c9-candidate-queue.md` |
 
 ## Spikes and deep dives
 
