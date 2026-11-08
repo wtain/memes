@@ -88,6 +88,9 @@ recut_pipeline:
 comics_pipeline:
   module: batch.comics_pipeline
   kind: comics_pipeline
+detect_comics_candidates:
+  module: batch.detect_comics_candidates
+  kind: detect_comics_candidates
 build_meme_profiles:
   module: batch.build_meme_profiles
   kind: build_meme_profiles

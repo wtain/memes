@@ -20,6 +20,7 @@ these jobs pre-computed. This folder is the map of those jobs.
 | [use-cases/screenshot-recut.md](use-cases/screenshot-recut.md) | Screenshot recut: detecting badly cropped memes, cutting, review, and removing the sources (`recut_pipeline`) |
 | [use-cases/ratings-and-gold-set.md](use-cases/ratings-and-gold-set.md) | The `/reply` rating widget and query log, the two extra `general` jobs `export_ratings` and `import_judgments`, and how ratings reach the gold set |
 | [use-cases/comics-build.md](use-cases/comics-build.md) | Building a multi-image comics into one meme, the flagged panel sources and the jobs to run after a build |
+| [use-cases/comics-candidates.md](use-cases/comics-candidates.md) | Suggested comics: the `detect_comics_candidates` job and the signals it uses |
 | [diagrams/](diagrams/README.md) | Graphviz execution-order diagrams (ingestion, mark-move cleanup, duplicates, tagging, descriptions, concept discovery, ratings and gold set, start paths) |
 | [gaps-and-findings.md](gaps-and-findings.md) | Things found while writing this: doc drift, undocumented behaviour, risks |
 
