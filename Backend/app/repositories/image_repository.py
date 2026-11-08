@@ -1,6 +1,7 @@
 import logging
 import time
 from collections import defaultdict
+from collections.abc import Collection
 from datetime import datetime
 from typing import NamedTuple, Optional
 import uuid
@@ -192,6 +193,15 @@ class ImageRepository:
                 len(scores), warn_at, query_length, (time.perf_counter() - started) * 1000,
             )
         return rows[: limit + 1]
+
+    async def existing_content_hashes(self, hashes: Collection[str]) -> set[str]:
+        """The subset of `hashes` held by some image of any status (upload duplicate check). NULL never matches."""
+        if not hashes:
+            return set()
+        result = await self.session.execute(
+            select(Image.content_hash).where(Image.content_hash.in_(list(hashes))).distinct()
+        )
+        return {row[0] for row in result.all()}
 
     async def get_filename(self, image_id: str) -> Optional[str]:
         result = await self.session.execute(

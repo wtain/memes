@@ -1,11 +1,14 @@
-import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from Backend.app.services.image_store import save_incoming
+from Backend.app.repositories.image_repository import ImageRepository
+from Backend.app.services.inbox_upload_service import (
+    DuplicateCheckUnavailableError, InboxUnavailableError, InboxUploadService, InboxWriteError, UploadCandidate)
 from Backend.app.services.rate_limit import upload_limiter
+from Storage.db import get_async_db
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
@@ -52,7 +55,11 @@ class UploadedFile(BaseModel):
     saved_as: str
     size_bytes: int
     content_type: str
-    status: str = "ok"
+    status: str = Field(
+        "accepted",
+        description='"accepted": written to the ingestion inbox. "duplicate": the same content is already in the '
+                    'library (any status) or the inbox, nothing was written.',
+    )
 
 
 class FailedFile(BaseModel):
@@ -67,8 +74,20 @@ class UploadResponse(BaseModel):
     total_failed: int
 
 
+async def get_upload_image_repository(db: AsyncSession = Depends(get_async_db)):
+    yield ImageRepository(db)
+
+
+async def get_inbox_upload_service(repo: ImageRepository = Depends(get_upload_image_repository)):
+    return InboxUploadService(repo)
+
+
 @router.post("", response_model=UploadResponse)
-async def upload_images(request: Request, files: list[UploadFile] = File(...)):
+async def upload_images(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    service: InboxUploadService = Depends(get_inbox_upload_service),
+):
     client_ip = request.client.host if request.client else "unknown"
     if not await upload_limiter.is_allowed(client_ip):
         raise HTTPException(status_code=429, detail="Too many upload requests — try again in a minute")
@@ -76,8 +95,9 @@ async def upload_images(request: Request, files: list[UploadFile] = File(...)):
     if len(files) > MAX_FILES:
         raise HTTPException(status_code=422, detail=f"Too many files: max {MAX_FILES} per request")
 
-    uploaded: list[UploadedFile] = []
     failed: list[FailedFile] = []
+    candidates: list[UploadCandidate] = []
+    content_types: list[str] = []
 
     for file in files:
         original_filename = file.filename or "unknown"
@@ -114,15 +134,26 @@ async def upload_images(request: Request, files: list[UploadFile] = File(...)):
             ))
             continue
 
-        saved_as = f"{uuid.uuid4()}{ext}"
-        save_incoming(saved_as, data)
+        candidates.append(UploadCandidate(original_filename=original_filename, ext=ext, data=data))
+        content_types.append(content_type)
 
-        uploaded.append(UploadedFile(
-            original_filename=original_filename,
-            saved_as=saved_as,
-            size_bytes=len(data),
+    try:
+        stored = await service.store(candidates)
+    except (InboxUnavailableError, DuplicateCheckUnavailableError) as error:
+        raise HTTPException(status_code=503, detail=str(error)) from None
+    except InboxWriteError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from None
+
+    uploaded = [
+        UploadedFile(
+            original_filename=item.candidate.original_filename,
+            saved_as=item.saved_as,
+            size_bytes=len(item.candidate.data),
             content_type=content_type,
-        ))
+            status=item.status,
+        )
+        for item, content_type in zip(stored, content_types)
+    ]
 
     return UploadResponse(
         uploaded=uploaded,

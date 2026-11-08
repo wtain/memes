@@ -633,3 +633,34 @@ async def test_set_flagged_false_clears_reason(db_session):
     extras = result.scalar_one()
     assert extras.flagged is False
     assert extras.flagged_reason is None
+
+
+# --------------------------------------------------------------------------
+# existing_content_hashes (upload duplicate check, B1)
+# --------------------------------------------------------------------------
+@pytest.mark.asyncio(loop_scope="session")
+async def test_existing_content_hashes_matches_every_status_and_ignores_null(db_session):
+    tag = uuid.uuid4().hex
+    hashes = {status: f"{tag}-{status}" for status in ("active", "pending", "rejected", "cut_proposed")}
+    for status, content_hash in hashes.items():
+        db_session.add(Image(filename=f"{uuid.uuid4()}.jpg", status=status, content_hash=content_hash))
+    db_session.add(Image(filename=f"{uuid.uuid4()}.jpg", content_hash=None))
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+    asked = set(hashes.values()) | {f"{tag}-unknown"}
+
+    assert await repo.existing_content_hashes(asked) == set(hashes.values())
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_existing_content_hashes_empty_input_and_duplicate_rows(db_session):
+    content_hash = f"{uuid.uuid4().hex}-twice"
+    for _ in range(2):
+        db_session.add(Image(filename=f"{uuid.uuid4()}.jpg", content_hash=content_hash))
+    await db_session.flush()
+
+    repo = ImageRepository(db_session)
+
+    assert await repo.existing_content_hashes([]) == set()
+    assert await repo.existing_content_hashes([content_hash]) == {content_hash}
