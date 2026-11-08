@@ -8,6 +8,12 @@ Execution order (Graphviz): [diagrams/ingestion.svg](../diagrams/ingestion.svg)
 Goal: new files dropped in `<BASE_PATH>\inbox\` (`PATH_INGESTION_SOURCE`) become `active`, searchable images, with
 exact and near duplicates reviewed by a human first. One ingestion run per environment at a time.
 
+Files reach the inbox by hand or through `POST /api/uploads` (web Upload page, Android app): uploads keep their sanitised
+original name, are written complete (staged in `<inbox>\.uploading\`, which `ingest_hash_dedup` skips as a directory, then
+renamed in) and are answered `duplicate` without being written when the content already matches any `images.content_hash` or a
+file in the inbox. See `backend_api.md` (Uploads) and
+`docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-b1-inbox-upload-design.md`.
+
 ## Sequence
 
 ```mermaid

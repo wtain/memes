@@ -287,7 +287,7 @@ Response from `POST /api/bug-reports`.
 
 #### Upload Images
 
-Accept one or more image files and save them to the `incoming/` staging directory for downstream batch processing (OCR, embeddings, tagging, DB insert). Files are saved as `{uuid}.{ext}` to avoid collisions; the original filename is preserved in the response.
+Accept one or more image files and write them into the ingestion inbox (`PATH_INGESTION_SOURCE`), where they follow the normal ingestion flow (`ingest_hash_dedup` and the tiers). The original file name is kept, sanitised: basename only, control characters removed, Windows-forbidden characters (`<>:"/\|?*`) replaced by `_`, reserved device names (`CON`, `NUL`, `COM1`...) prefixed with `_`, leading dots removed, trailing dots and spaces removed, the stem capped at 200 UTF-8 bytes, the extension lowercased; Unicode (for example Cyrillic) is preserved. A name that is empty after that becomes `upload-<8 hex>.<ext>`. If the name is taken in the inbox by different content the file gets a numeric suffix (`name_1.jpg`, `name_2.jpg`, ...).
 
 - **URL**: `POST /api/uploads`
 - **Content-Type**: `multipart/form-data`
@@ -309,10 +309,10 @@ Accept one or more image files and save them to the `incoming/` staging director
   "uploaded": [
     {
       "original_filename": "funny_cat.jpg",
-      "saved_as": "a1b2c3d4-1234-5678-abcd-ef0123456789.jpg",
+      "saved_as": "funny_cat.jpg",
       "size_bytes": 204800,
       "content_type": "image/jpeg",
-      "status": "ok"
+      "status": "accepted"
     }
   ],
   "failed": [
@@ -326,12 +326,24 @@ Accept one or more image files and save them to the `incoming/` staging director
 }
 ```
 
-Per-file type or size errors are reported in `failed[]` — the rest of the batch is still saved and the response is always `200`. If every file fails, `uploaded` is an empty array.
+Per-file type or size errors are reported in `failed[]` — the rest of the batch is still saved and the response is `200`. If every file fails, `uploaded` is an empty array.
+
+**`status` values** of an `uploaded[]` entry (it was always `"ok"` before; do not depend on that value):
+
+| `status` | Meaning | `saved_as` |
+|----------|---------|------------|
+| `accepted` | The file was written to the inbox. | The final name in the inbox (sanitised, possibly with a numeric suffix). |
+| `duplicate` | The SHA-256 of the content equals an image in the library (any status: active, pending, rejected, cut_proposed) or a file already in the inbox. Nothing was written, so popularity is never changed. | The existing inbox file's name if the match is in the inbox; otherwise the sanitised original name (no such file exists in the inbox). |
+
+`total_accepted` is the length of `uploaded` (accepted plus duplicate); `total_failed` is the length of `failed`. Clients treat both statuses as "done" and `failed[]` entries as rejected.
 
 **Error Responses**:
 - `422`: More than 50 files submitted, or malformed multipart body
+- `429`: Per-IP rate limit exceeded
+- `503`: `PATH_INGESTION_SOURCE` is not set, the directory does not exist or is not writable, or the duplicate lookup in the database failed (nothing is written then; retry later). Only requests with at least one valid file need the inbox.
+- `500`: Writing a file into the inbox failed. Files written earlier in the same request stay and come back as `duplicate` on a retry.
 
-**Storage**: `{BASE_PATH}/incoming/` (created automatically on first request). Not served by the API — the batch pipeline picks up files from this directory.
+**Storage**: the ingestion inbox, `PATH_INGESTION_SOURCE` (read at request time; there is no fallback to another directory, and `INCOMING_PATH` / `BASE_PATH/incoming` are no longer used). Each file is first written to `<inbox>/.uploading/<uuid>` and then renamed into the inbox, so `ingest_hash_dedup` (which skips directories) never sees a half-written file. Staging files older than one hour are removed. The inbox must be writable by the backend process. Not served by the API.
 
 ---
 
@@ -339,7 +351,7 @@ Per-file type or size errors are reported in `failed[]` — the rest of the batc
 
 #### Upload Bug Report
 
-Accept a single log file (e.g. from the Android client's "Save logs" flow) and save it to a dedicated `bug_reports/` directory, separate from `incoming/` and the images directory. Files are saved as `{timestamp}_{uuid}.{ext}` to keep them sortable and collision-free; the original filename is preserved in the response.
+Accept a single log file (e.g. from the Android client's "Save logs" flow) and save it to a dedicated `bug_reports/` directory, separate from the ingestion inbox and the images directory. Files are saved as `{timestamp}_{uuid}.{ext}` to keep them sortable and collision-free; the original filename is preserved in the response.
 
 - **URL**: `POST /api/bug-reports`
 - **Content-Type**: `multipart/form-data`

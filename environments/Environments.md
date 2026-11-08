@@ -33,7 +33,9 @@ CONCEPT_IMAGES_DIR=images-[environment-name]
 ```
 
 `PATH_INGESTION_SOURCE` is where new images get dropped for review before entering the
-active library. Convention: `BASE_PATH\inbox` — a subdirectory of `BASE_PATH`, not a
+active library. `POST /api/uploads` (phone and web uploads) writes into it too, so the
+backend process must be able to write there (it creates `.uploading/` inside for staging);
+without it, uploads fail with a 503. `INCOMING_PATH` is retired. Convention: `BASE_PATH\inbox` — a subdirectory of `BASE_PATH`, not a
 sibling. This is safe because every script that scans `BASE_PATH` (`extract_text_from_memes.py`
 and friends) does so non-recursively and already skips subdirectories (same reason
 `excluded/`, and now `rejected/`, don't interfere either) — files inside `inbox/` are

@@ -1,6 +1,6 @@
 # B1: Inbox upload endpoint, design
 
-Status: planned
+Status: done
 Originates from: docs/superpowers/specs/2026-11-08-android-ingestion-sync/README.md
 Plan: docs/superpowers/plans/2026-11-08-b1-inbox-upload.md
 
