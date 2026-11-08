@@ -1,6 +1,6 @@
 # Runbook: first live rollout of multi-image comics
 
-Status: the first two comics migrations (`d7a3b9c5e214`, `f3a8c1d6b952`) are applied on all three environments (metal 2026-11-06, general and it 2026-11-07, each after a fresh backup, preflight `READY`, smoke tests passed); the C9 migration `a9d3e6b1c847` is pending on all three; the smoke build below has not been run yet. Design: `docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-06-c5-operations-design.md`.
+Status: the first two comics migrations (`d7a3b9c5e214`, `f3a8c1d6b952`) are applied on all three environments (metal 2026-11-06, general and it 2026-11-07, each after a fresh backup, preflight `READY`, smoke tests passed); the C9 migration `a9d3e6b1c847` is applied on general (2026-11-08, fresh backup `ocrdb-2026-11-08-general.dump`, preflight `READY`, smoke tests passed) and pending on metal and it; the smoke build below has not been run yet. Design: `docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-06-c5-operations-design.md`.
 Use case: `comics-build.md`. Nothing here runs by itself. **Applying a migration to any environment needs the owner's explicit
 go-ahead, one environment at a time**; no agent applies one. Order: **general, then metal, then it**. Stop at the first failing step
 of an environment.
