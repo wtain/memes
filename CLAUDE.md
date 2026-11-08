@@ -955,7 +955,7 @@ status line:
 - `backend_api.md` must stay in sync with the actual routers.
 - Image `status` values (`active`, `pending`, `rejected`, `cut_proposed`) are defined in one place, `docs/image-status.md`. Add a row there in the same change as any new status; link to it instead of redefining one. What hangs off an image, and how a recut copies it, is `docs/image-derived-data.md` (kept in sync by `tests/docs/`).
 - Windows dev: `WATCHFILES_FORCE_POLLING=1` is required for uvicorn `--reload` to work.
-- AGP 8.5.2 requires Java 11+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
+- AGP 9.4.0 (`AndroidClient/gradle/libs.versions.toml`) requires Java 17+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
 - **Never give a subagent the main `DATABASE_URL`.** If a subagent needs to query a live
   environment's database for any reason (verification, cost estimation, debugging), it gets
   `DATABASE_URL_READONLY` only, explicitly labeled as such in the dispatch prompt — see "Live

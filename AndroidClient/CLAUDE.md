@@ -20,7 +20,7 @@ grep -r "ViewModel(" app/src/test, app/src/androidTest
 
 ## Building locally
 
-The system default Java is JRE 8, but AGP 8.5.2 requires Java 11+.
+The system default Java is JRE 8, but AGP 9.4.0 (see `gradle/libs.versions.toml`) requires Java 17+.
 Set `JAVA_HOME` in your shell before running Gradle — do **not** put it in
 `gradle.properties` (that would leak into CI):
 
