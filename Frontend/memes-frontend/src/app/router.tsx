@@ -26,6 +26,7 @@ import RecutReviewPage from "../pages/RecutReviewPage";
 import DiscoveryPage from "../pages/DiscoveryPage";
 import ComicsListPage from "../pages/ComicsListPage";
 import ComicsEditorPage from "../pages/ComicsEditorPage";
+import ComicsCandidatesPage from "../pages/ComicsCandidatesPage";
 
 
 // const baseUrl = "http://127.0.0.1:8081";
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
       { path: "/admin/recut", element: <RecutReviewPage memesApi={memesApi} /> },
       { path: "/admin/discovery", element: <DiscoveryPage memesApi={memesApi} /> },
       { path: "/admin/comics", element: <ComicsListPage memesApi={memesApi} /> },
+      { path: "/admin/comics/candidates", element: <ComicsCandidatesPage memesApi={memesApi} /> },
       { path: "/admin/comics/:id", element: <ComicsEditorPage memesApi={memesApi} /> },
       {
         path: "/memes/:id",

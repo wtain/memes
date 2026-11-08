@@ -71,6 +71,12 @@ export function describeComicsError(error: unknown): string {
         : "That image is already a panel of another comics"
     case "image_not_addable":
       return NOT_ADDABLE_REASON[String(detail.reason)] ?? "That image can't be added"
+    case "candidate_decided":
+      return "This suggestion was already decided, reload the page"
+    case "subset_invalid":
+      return detail.reason === "too_few_images"
+        ? "Pick at least two images"
+        : "The images changed in the meantime, reload the page"
     case "built":
       return "This comics is built and can't be changed"
     case "not_found":

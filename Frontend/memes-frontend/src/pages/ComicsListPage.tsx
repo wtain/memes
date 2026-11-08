@@ -154,6 +154,7 @@ export default function ComicsListPage({ memesApi }: Props) {
         {!creating && (
           <button type="button" onClick={() => setCreating(true)} className="min-h-11 rounded border px-3">New comics</button>
         )}
+        <Link to="/admin/comics/candidates" className="flex min-h-11 items-center rounded border px-3">Suggestions</Link>
       </div>
       {creating && (
         <form className="mb-4 flex flex-wrap items-end gap-3"

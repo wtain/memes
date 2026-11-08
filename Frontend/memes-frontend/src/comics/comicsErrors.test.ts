@@ -18,6 +18,15 @@ describe("describeComicsError", () => {
     expect(describeComicsError(err(422, { code: "name_invalid", reason: "weird" }))).toBe("That name is not allowed")
   })
 
+  it("explains candidate_decided and subset_invalid", () => {
+    expect(describeComicsError(err(409, { code: "candidate_decided", state: "accepted" })))
+      .toBe("This suggestion was already decided, reload the page")
+    expect(describeComicsError(err(422, { code: "subset_invalid", reason: "too_few_images" })))
+      .toBe("Pick at least two images")
+    expect(describeComicsError(err(422, { code: "subset_invalid", reason: "unknown_image" })))
+      .toBe("The images changed in the meantime, reload the page")
+  })
+
   it("explains name_taken", () => {
     expect(describeComicsError(err(409, { code: "name_taken" }))).toBe("A comics with that name already exists")
   })
