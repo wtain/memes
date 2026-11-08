@@ -3,7 +3,7 @@
 Status: done
 Plan: docs/superpowers/plans/2026-11-08-c9-candidate-queue.md
 Originates from: docs/superpowers/specs/2026-11-02-multi-image-comics/tracker.md (spike S3 idea c, spike S2)
-Follow-ups: none yet
+Follow-ups: tracker F1 (precision from decisions)
 
 ## Intent
 
