@@ -1,0 +1,115 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "cd0067cd5fab9a345cd5892ee8aca7e1",
+    "entities": [
+      {
+        "tableName": "tracked_files",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`environmentId` TEXT NOT NULL, `albumTreeUri` TEXT NOT NULL, `documentId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `lastModified` INTEGER NOT NULL, `state` TEXT NOT NULL, `rejectionReason` TEXT, `uploadedAt` INTEGER, `updatedAt` INTEGER NOT NULL, `presentInAlbum` INTEGER NOT NULL, `lastSeenScan` INTEGER NOT NULL, PRIMARY KEY(`environmentId`, `albumTreeUri`, `documentId`))",
+        "fields": [
+          {
+            "fieldPath": "environmentId",
+            "columnName": "environmentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "albumTreeUri",
+            "columnName": "albumTreeUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "documentId",
+            "columnName": "documentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastModified",
+            "columnName": "lastModified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rejectionReason",
+            "columnName": "rejectionReason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "uploadedAt",
+            "columnName": "uploadedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "presentInAlbum",
+            "columnName": "presentInAlbum",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeenScan",
+            "columnName": "lastSeenScan",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "environmentId",
+            "albumTreeUri",
+            "documentId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_tracked_files_environmentId_state",
+            "unique": false,
+            "columnNames": [
+              "environmentId",
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tracked_files_environmentId_state` ON `${TABLE_NAME}` (`environmentId`, `state`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cd0067cd5fab9a345cd5892ee8aca7e1')"
+    ]
+  }
+}
