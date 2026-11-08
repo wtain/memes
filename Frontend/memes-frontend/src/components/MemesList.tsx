@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Virtuoso } from "react-virtuoso"
 import MemeCard from "./MemeCard"
+import { WorkingComicsBar } from "./comics/WorkingComicsBar"
 import { MemeDetailsModal } from "./MemeDetailsModal"
 import { useWindowedPagination, type FetchPageFn } from "../hooks/useWindowedPagination"
 import type { MemesApi } from "../api/MemesApi"
@@ -106,6 +107,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
 
   return (
     <div>
+      {!listFlagged && <WorkingComicsBar />}
       <Virtuoso
         useWindowScroll
         firstItemIndex={rowFirstItemIndex}
@@ -115,7 +117,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
         itemContent={(_index, row) => (
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             {row.map(meme => (
-              <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} />
+              <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} comicsAction={!listFlagged} />
             ))}
           </div>
         )}
