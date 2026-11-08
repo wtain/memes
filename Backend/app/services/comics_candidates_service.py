@@ -17,7 +17,7 @@ from Storage.models import CandidateState, Image
 
 
 def candidate_http_error(error: CandidateError) -> HTTPException:
-    """not_found 404, candidate_decided 409, subset_invalid 422; detail {"code": ..., **detail}."""
+    """not_found 404, candidate_decided 409, candidate_incomplete 409, subset_invalid 422; detail {"code": ..., **detail}."""
     status = {"not_found": 404, "candidate_decided": 409, "subset_invalid": 422}.get(error.code, 409)
     return HTTPException(status_code=status, detail={"code": error.code, **error.detail})
 
@@ -46,6 +46,8 @@ class ComicsCandidatesService:
     def _chosen(candidate, image_ids: list[uuid.UUID] | None) -> list[uuid.UUID]:
         in_group = [row.image_id for row in sorted(candidate.images, key=lambda r: r.position)]
         if image_ids is None:
+            if len(in_group) != candidate.size or len(in_group) < MIN_GROUP:
+                raise CandidateError("candidate_incomplete", size=candidate.size, remaining=len(in_group))
             return in_group
         if len(set(image_ids)) != len(image_ids):
             raise CandidateError("subset_invalid", reason="duplicate_image")

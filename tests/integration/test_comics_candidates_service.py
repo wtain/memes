@@ -1,7 +1,7 @@
 import uuid
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from Backend.app.services.comics_candidates_service import ComicsCandidatesService, candidate_http_error
 from Backend.app.types.generated.comicscandidatepage import Schema as CandidatePageSchema
@@ -188,3 +188,21 @@ async def test_decided_and_unknown_candidates(db_session):
         with pytest.raises(CandidateError) as caught:
             await call()
         assert candidate_http_error(caught.value).status_code == 404
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_accept_without_body_refuses_an_incomplete_candidate(db_session):
+    service = ComicsCandidatesService(db_session)
+    candidate_id, images = await _candidate(db_session, 3)
+    await db_session.execute(delete(Image).where(Image.id == images[2].id))  # cascades one row away
+    with pytest.raises(CandidateError) as caught:
+        await service.accept(candidate_id, None)
+    assert caught.value.code == "candidate_incomplete"
+    assert candidate_http_error(caught.value).status_code == 409
+    assert await _state(db_session, candidate_id) == CandidateState.OPEN
+
+    two_id, two = await _candidate(db_session, 2)
+    await db_session.execute(delete(Image).where(Image.id.in_([i.id for i in two])))  # no rows left: no IndexError
+    with pytest.raises(CandidateError) as caught:
+        await service.accept(two_id, None)
+    assert caught.value.code == "candidate_incomplete"

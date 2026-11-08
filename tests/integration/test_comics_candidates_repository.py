@@ -6,7 +6,8 @@ from sqlalchemy.exc import IntegrityError
 
 from repository.comics import ComicsRepository
 from repository.comics_candidates import CandidateError, ComicsCandidatesRepository, candidate_key
-from Storage.models import (CandidateState, Comics, ComicsCandidate, ComicsPanel, Image, ImageExtras)
+from Storage.models import (CandidateState, Comics, ComicsCandidate, ComicsPanel, CutState, Image, ImageCut,
+                            ImageExtras)
 
 
 async def _image(s, status="active", name=None):
@@ -231,3 +232,28 @@ async def test_unknown_candidate_raises_not_found(db_session):
         with pytest.raises(CandidateError) as exc:
             await call
         assert exc.value.code == "not_found"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_list_open_hides_groups_with_a_live_recut_cut(db_session):
+    repo = ComicsCandidatesRepository(db_session)
+    live_id, (a, _) = await _group(db_session, repo)
+    rejected_id, (c, _) = await _group(db_session, repo)
+    for image, state in ((a, CutState.PROPOSED), (c, CutState.REJECTED)):
+        db_session.add(ImageCut(source_image_id=image.id, crop_x=0, crop_y=0, crop_w=10, crop_h=10, detector="d",
+                                detector_version="1", state=state))
+    await db_session.flush()
+    listed = await _listed(repo)
+    assert live_id not in listed and rejected_id in listed
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_list_open_hides_a_subset_of_a_decided_candidate(db_session):
+    repo = ComicsCandidatesRepository(db_session)
+    superset_id, (a, b, c) = await _group(db_session, repo, count=3)
+    subset_id = await repo.insert_group([a.id, b.id], 3.0, 0.1, "v1")
+    one_shared_id = await repo.insert_group([c.id, (await _image(db_session)).id], 3.0, 0.1, "v1")
+    assert {subset_id, superset_id, one_shared_id} <= set(await _listed(repo))
+    await repo.decide(superset_id, CandidateState.DISMISSED)
+    listed = await _listed(repo)
+    assert subset_id not in listed and one_shared_id in listed

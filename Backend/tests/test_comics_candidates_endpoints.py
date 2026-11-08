@@ -101,6 +101,8 @@ def test_dismiss_is_204_without_body(client_and_service):
 @pytest.mark.parametrize("error, status, body", [
     (CandidateError("not_found"), 404, {"code": "not_found"}),
     (CandidateError("candidate_decided", state="accepted"), 409, {"code": "candidate_decided", "state": "accepted"}),
+    (CandidateError("candidate_incomplete", size=3, remaining=2), 409,
+     {"code": "candidate_incomplete", "size": 3, "remaining": 2}),
     (CandidateError("subset_invalid", reason="too_few_images"), 422,
      {"code": "subset_invalid", "reason": "too_few_images"}),
 ])

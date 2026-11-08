@@ -11,14 +11,21 @@ import hashlib
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import and_, exists, func, select, update
+from sqlalchemy import and_, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
-from Storage.models import (CandidateState, ComicsCandidate, ComicsCandidateImage, ComicsPanel, Image, ImageExtras,
-                            ImageStatus)
+from Storage.models import (CandidateState, ComicsCandidate, ComicsCandidateImage, ComicsPanel, CutState, Image,
+                            ImageCut, ImageExtras, ImageStatus)
 
 MIN_GROUP = 2
+
+
+def has_live_cut(image_id_column):
+    """SQL: the image is the source or the cut of a live (detected/proposed/approved) recut row; the comics service
+    refuses such an image, so a group containing one must neither be detected nor listed."""
+    return exists().where(ImageCut.state.in_(CutState.LIVE),
+                          or_(ImageCut.source_image_id == image_id_column, ImageCut.cut_image_id == image_id_column))
 
 
 class CandidateError(Exception):
@@ -85,7 +92,8 @@ class ComicsCandidatesRepository:
         return (await self.session.execute(shared)).first() is not None
 
     async def list_open(self, offset: int, limit: int) -> list[CandidateRow]:
-        """Open candidates whose images are all still eligible, strongest first (smallest max_distance, then id)."""
+        """Open candidates whose images are all still eligible (no live recut cut either) and that share fewer than
+        two images with a dismissed or accepted candidate, strongest first (smallest max_distance, then id)."""
         ineligible = (
             select(ComicsCandidateImage.candidate_id)
             .select_from(ComicsCandidateImage)
@@ -94,12 +102,25 @@ class ComicsCandidatesRepository:
             .where(
                 (Image.status != ImageStatus.ACTIVE)
                 | exists().where(and_(ImageExtras.image_id == Image.id, ImageExtras.flagged.is_(True)))
-                | exists().where(ComicsPanel.image_id == Image.id)))
+                | exists().where(ComicsPanel.image_id == Image.id)
+                | has_live_cut(Image.id)))
+        decided_row = aliased(ComicsCandidateImage)
+        own_row = aliased(ComicsCandidateImage)
+        decided = aliased(ComicsCandidate)
+        overlapping = (
+            select(decided_row.candidate_id)
+            .join(decided, decided.id == decided_row.candidate_id)
+            .join(own_row, and_(own_row.image_id == decided_row.image_id, own_row.candidate_id == ComicsCandidate.id))
+            .where(decided.state.in_((CandidateState.DISMISSED, CandidateState.ACCEPTED)))
+            .group_by(decided_row.candidate_id)
+            .having(func.count() >= MIN_GROUP)
+            .correlate(ComicsCandidate))
         remaining = (select(func.count()).select_from(ComicsCandidateImage)
                      .where(ComicsCandidateImage.candidate_id == ComicsCandidate.id).scalar_subquery())
         candidates = (await self.session.execute(
             select(ComicsCandidate)
-            .where(ComicsCandidate.state == CandidateState.OPEN, ~exists(ineligible), remaining == ComicsCandidate.size)
+            .where(ComicsCandidate.state == CandidateState.OPEN, ~exists(ineligible), ~exists(overlapping),
+                   remaining == ComicsCandidate.size)
             .order_by(ComicsCandidate.max_distance, ComicsCandidate.id)
             .offset(offset).limit(limit))).scalars().all()
         if not candidates:

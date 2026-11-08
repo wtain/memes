@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import type { MemesApi } from "../api/MemesApi"
-import { describeComicsError } from "../comics/comicsErrors"
+import { describeCandidateError, isCandidateGone } from "../comics/comicsErrors"
 import type { ComicsCandidate } from "../types/generated/all"
 
 type Props = { memesApi: MemesApi }
@@ -19,6 +19,7 @@ export default function ComicsCandidatesPage({ memesApi }: Props) {
   const [off, setOff] = useState<Record<string, string[]>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -68,14 +69,32 @@ export default function ComicsCandidatesPage({ memesApi }: Props) {
     })
   }
 
+  function removeRow(candidateId: string) {
+    setLoaded((prev) => prev !== null ? { ...prev, items: prev.items.filter((c) => c.id !== candidateId) } : prev)
+  }
+
+  // A failed request. When the server no longer lists the suggestion, drop the row (so "Show more" offsets stay
+  // aligned with the server) and keep the message in the page-level notice; otherwise keep the row with its message.
+  function fail(candidate: ComicsCandidate, error: unknown) {
+    const filenames = Object.fromEntries(candidate.images.map((image) => [image.id, image.filename]))
+    const message = describeCandidateError(error, filenames)
+    if (isCandidateGone(error)) {
+      removeRow(candidate.id)
+      setNotice(`Suggestion removed: ${message}`)
+    } else {
+      setError(candidate.id, message)
+    }
+  }
+
   async function accept(candidate: ComicsCandidate) {
     setBusy(candidate.id)
     setError(candidate.id, null)
+    setNotice(null)
     try {
       const comics = await memesApi.acceptComicsCandidate(candidate.id, enabledIds(candidate))
       navigate(`/admin/comics/${comics.id}`)
     } catch (error) {
-      setError(candidate.id, describeComicsError(error))
+      fail(candidate, error)
     } finally {
       setBusy(null)
     }
@@ -84,11 +103,12 @@ export default function ComicsCandidatesPage({ memesApi }: Props) {
   async function dismiss(candidate: ComicsCandidate) {
     setBusy(candidate.id)
     setError(candidate.id, null)
+    setNotice(null)
     try {
       await memesApi.dismissComicsCandidate(candidate.id)
-      setLoaded((prev) => prev !== null ? { ...prev, items: prev.items.filter((c) => c.id !== candidate.id) } : prev)
+      removeRow(candidate.id)
     } catch (error) {
-      setError(candidate.id, describeComicsError(error))
+      fail(candidate, error)
     } finally {
       setBusy(null)
     }
@@ -159,6 +179,7 @@ export default function ComicsCandidatesPage({ memesApi }: Props) {
     <div>
       <p className="mb-2 text-sm"><Link to="/admin/comics" className="underline">Comics</Link></p>
       <h1 className="mb-4 text-xl font-semibold">Suggestions</h1>
+      {notice !== null && <p role="alert" className="mb-3">{notice}</p>}
       {body}
     </div>
   )

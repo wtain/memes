@@ -33,9 +33,13 @@ connected components of 2..max_group images  ──►  comics_candidates (open)
 - **Review.** The page `/admin/comics/candidates` ("Suggestions", linked from the comics list) shows each open group as a row of
   thumbnails. A thumbnail can be switched off before "Make comics" (at least two stay on); "Dismiss" hides the group for good.
   Accepting creates a draft comics named `Comics <first file name>` in one transaction and opens its editor. Groups with an image that
-  was since flagged, deactivated, deleted or put in a comics are not listed.
+  was since flagged, deactivated, deleted or put in a comics are not listed. Accepting with no image list is refused with 409
+  `candidate_incomplete` when a deleted image left fewer rows than the group was stored with.
+- **Live recut cuts.** An image that is the source or the cut of a live recut row (detected, proposed or approved) is skipped by the
+  detector, and a group containing one is not listed (the comics service would refuse it as "has a recut cut").
 - **Overlapping open groups.** If A-B is open and a later run finds A-B-C, both are listed; accepting one makes the other answer 409
-  (`image_in_comics`). Only decided groups suppress new ones.
+  (`image_in_comics`). Deciding a group hides every open group that shares two or more images with it (so dismissing A-B-C hides A-B,
+  in the list as well as in later runs); only decided groups suppress new ones.
 - **Measuring precision.** `comics_candidates.state` counts (accepted against dismissed) and `max_distance` / `max_gap_seconds` of each
   decided candidate are the data for tuning `gap_seconds`, `min_distance` and `max_distance` later. A read-only query over those two
   columns is enough.

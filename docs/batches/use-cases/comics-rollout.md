@@ -1,6 +1,6 @@
 # Runbook: first live rollout of multi-image comics
 
-Status: migrations applied on all three environments (metal 2026-11-06, general and it 2026-11-07, each after a fresh backup, preflight `READY`, smoke tests passed); the smoke build below has not been run yet. Design: `docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-06-c5-operations-design.md`.
+Status: the first two comics migrations (`d7a3b9c5e214`, `f3a8c1d6b952`) are applied on all three environments (metal 2026-11-06, general and it 2026-11-07, each after a fresh backup, preflight `READY`, smoke tests passed); the C9 migration `a9d3e6b1c847` is pending on all three; the smoke build below has not been run yet. Design: `docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-06-c5-operations-design.md`.
 Use case: `comics-build.md`. Nothing here runs by itself. **Applying a migration to any environment needs the owner's explicit
 go-ahead, one environment at a time**; no agent applies one. Order: **general, then metal, then it**. Stop at the first failing step
 of an environment.
@@ -25,8 +25,9 @@ steps (read-only URL, backup, upgrade); this one adds what is specific to comics
 
 1. **Preflight before.** With `DATABASE_URL_READONLY` set for this environment (see the recut runbook, step 0):
    `& $py -m tools.rollout_preflight --env general --backup-dir Storage\backups`
-   Expect `NOT READY` only because of the pending revisions, with `WARN` lines for `comics.*` and `comics_panels.*` columns
-   (`schema_matches_models` lists each missing column with the revision that creates it).
+   Expect `NOT READY` only because of the pending revisions, with `WARN` lines for `comics_candidates*` (only `a9d3e6b1c847` is pending on an environment that ran the first two comics
+   migrations; one that did not also gets `comics.*` and `comics_panels.*` lines). `schema_matches_models` lists each missing
+   column with the revision that creates it.
 2. **Backup**, **quiet the writers**, **upgrade** (`alembic upgrade head` from `Storage/`): as in the recut runbook.
 3. **Preflight after.** Expect `READY` and `at head a9d3e6b1c847`, and `expected columns present`.
 4. **Restart the backend** of that environment on matching code. The backend image needs Pillow and

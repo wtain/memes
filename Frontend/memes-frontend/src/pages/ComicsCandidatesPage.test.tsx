@@ -78,13 +78,46 @@ describe("ComicsCandidatesPage", () => {
     expect(screen.getByAltText("file-b1.jpg")).toBeInTheDocument()
   })
 
-  it("shows the reason of a 409 and keeps the row", async () => {
+  it("drops the row and keeps the reason in a page notice when the suggestion was already decided", async () => {
     setup({
       acceptComicsCandidate: vi.fn().mockRejectedValue(new ComicsRequestError(409, { code: "candidate_decided", state: "dismissed" })),
     })
     await screen.findByAltText("file-a1.jpg")
     await userEvent.click(within(rowOf("a")).getByRole("button", { name: "Make comics" }))
-    expect(await within(rowOf("a")).findByRole("alert")).toHaveTextContent("This suggestion was already decided")
+    expect(await screen.findByRole("alert")).toHaveTextContent("Suggestion removed: This suggestion was already decided")
+    expect(screen.queryByAltText("file-a1.jpg")).not.toBeInTheDocument()
+    expect(screen.getByAltText("file-b1.jpg")).toBeInTheDocument()
+  })
+
+  it("says the suggestion no longer exists on not_found, and removes the row", async () => {
+    setup({
+      dismissComicsCandidate: vi.fn().mockRejectedValue(new ComicsRequestError(404, { code: "not_found" })),
+    })
+    await screen.findByAltText("file-a1.jpg")
+    await userEvent.click(within(rowOf("a")).getByRole("button", { name: "Dismiss" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Suggestion removed: This suggestion no longer exists")
+    expect(screen.queryByAltText("file-a1.jpg")).not.toBeInTheDocument()
+  })
+
+  it("names the offending image by file name on image_in_comics and removes the row", async () => {
+    setup({
+      acceptComicsCandidate: vi.fn().mockRejectedValue(
+        new ComicsRequestError(409, { code: "image_in_comics", comicsName: "Cats", imageId: "a2" })),
+    })
+    await screen.findByAltText("file-a1.jpg")
+    await userEvent.click(within(rowOf("a")).getByRole("button", { name: "Make comics" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      'Suggestion removed: The image "file-a2.jpg" is already a panel of the comics "Cats"')
+    expect(screen.queryByAltText("file-a1.jpg")).not.toBeInTheDocument()
+  })
+
+  it("keeps the row with its message on a failure that leaves the suggestion listed", async () => {
+    setup({
+      acceptComicsCandidate: vi.fn().mockRejectedValue(new ComicsRequestError(422, { code: "subset_invalid", reason: "unknown_image" })),
+    })
+    await screen.findByAltText("file-a1.jpg")
+    await userEvent.click(within(rowOf("a")).getByRole("button", { name: "Make comics" }))
+    expect(await within(rowOf("a")).findByRole("alert")).toHaveTextContent("The images changed in the meantime")
     expect(screen.getByAltText("file-a1.jpg")).toBeInTheDocument()
   })
 

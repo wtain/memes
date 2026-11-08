@@ -1,4 +1,4 @@
-import { describeComicsError } from "./comicsErrors"
+import { describeCandidateError, describeComicsError, isCandidateGone } from "./comicsErrors"
 import { ComicsRequestError } from "../api/errors"
 
 const err = (status: number, detail: Record<string, unknown> = {}) => new ComicsRequestError(status, detail)
@@ -25,6 +25,22 @@ describe("describeComicsError", () => {
       .toBe("Pick at least two images")
     expect(describeComicsError(err(422, { code: "subset_invalid", reason: "unknown_image" })))
       .toBe("The images changed in the meantime, reload the page")
+  })
+
+  it("explains candidate_incomplete", () => {
+    expect(describeComicsError(err(409, { code: "candidate_incomplete", size: 3, remaining: 2 })))
+      .toBe("Some images of this suggestion no longer exist")
+  })
+
+  it("describeCandidateError scopes not_found to the suggestion and names the image", () => {
+    expect(describeCandidateError(err(404, { code: "not_found" }))).toBe("This suggestion no longer exists")
+    expect(describeComicsError(err(404, { code: "not_found" }))).toBe("That comics no longer exists")
+    expect(describeCandidateError(err(409, { code: "image_not_addable", reason: "flagged", imageId: "i1" }), { i1: "x.jpg" }))
+      .toBe('The image "x.jpg" is flagged')
+    expect(describeCandidateError(err(409, { code: "image_not_addable", reason: "flagged", imageId: "zz" }), { i1: "x.jpg" }))
+      .toBe("That image is flagged")
+    expect(isCandidateGone(err(409, { code: "image_in_comics" }))).toBe(true)
+    expect(isCandidateGone(err(422, { code: "subset_invalid" }))).toBe(false)
   })
 
   it("explains name_taken", () => {

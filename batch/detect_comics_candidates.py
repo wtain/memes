@@ -15,7 +15,7 @@ from batch.utils.comics_candidates import group_candidates, parse_timestamp, win
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from repository.batch_runs import BatchRunRepository
-from repository.comics_candidates import ComicsCandidatesRepository
+from repository.comics_candidates import ComicsCandidatesRepository, has_live_cut
 from Storage.db import AsyncSessionLocal
 from Storage.models import ComicsPanel, Embedding, Image, ImageExtras, ImageStatus
 
@@ -31,13 +31,14 @@ _DISTANCES = text(
 
 
 async def eligible_items(session) -> list[tuple]:
-    """(image_id, filename, shape, ts) of active, unflagged images in no comics that have an embedding and a
-    parsable file name timestamp."""
+    """(image_id, filename, shape, ts) of active, unflagged images in no comics and with no live recut cut that have
+    an embedding and a parsable file name timestamp."""
     rows = await session.execute(
         select(Image.id, Image.filename)
         .where(Image.status == ImageStatus.ACTIVE,
                ~exists().where(and_(ImageExtras.image_id == Image.id, ImageExtras.flagged.is_(True))),
                ~exists().where(ComicsPanel.image_id == Image.id),
+               ~has_live_cut(Image.id),
                exists().where(Embedding.image_id == Image.id)))
     items = []
     for image_id, filename in rows:

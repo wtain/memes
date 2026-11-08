@@ -56,6 +56,35 @@ function describeNotBuildable(detail: Record<string, unknown>): string {
   }
 }
 
+/** Error codes after which a suggestion is gone or ineligible on the server, so the page drops its row. */
+export const CANDIDATE_GONE_CODES = [
+  "candidate_decided", "not_found", "candidate_incomplete", "image_not_addable", "image_in_comics",
+]
+
+/** True when the failed suggestion request means the suggestion is no longer listed by the server. */
+export function isCandidateGone(error: unknown): boolean {
+  return error instanceof ComicsRequestError && error.code !== undefined && CANDIDATE_GONE_CODES.includes(error.code)
+}
+
+/**
+ * The message for a failed request of the suggestions page: like describeComicsError, but a missing
+ * suggestion is not "a comics", and an image refusal names the image by file name when the row has it.
+ * `filenames` maps image id to file name for the row the request was about.
+ */
+export function describeCandidateError(error: unknown, filenames: Record<string, string> = {}): string {
+  if (error instanceof ComicsRequestError) {
+    if (error.code === "not_found") return "This suggestion no longer exists"
+    if (error.code === "image_not_addable" || error.code === "image_in_comics") {
+      const imageId = error.detail.imageId
+      const name = typeof imageId === "string" ? filenames[imageId] : undefined
+      const base = describeComicsError(error)
+      if (name !== undefined) return base.replace(/^That image/, `The image "${name}"`)
+      return base
+    }
+  }
+  return describeComicsError(error)
+}
+
 /** A short plain-English message for a failed comics request. */
 export function describeComicsError(error: unknown): string {
   if (!(error instanceof ComicsRequestError)) return GENERIC
@@ -73,6 +102,8 @@ export function describeComicsError(error: unknown): string {
       return NOT_ADDABLE_REASON[String(detail.reason)] ?? "That image can't be added"
     case "candidate_decided":
       return "This suggestion was already decided, reload the page"
+    case "candidate_incomplete":
+      return "Some images of this suggestion no longer exist"
     case "subset_invalid":
       return detail.reason === "too_few_images"
         ? "Pick at least two images"

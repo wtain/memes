@@ -7,8 +7,8 @@ from sqlalchemy import func, select
 from batch.detect_comics_candidates import DETECTOR_VERSION, run
 from repository.comics import ComicsRepository
 from repository.comics_candidates import ComicsCandidatesRepository
-from Storage.models import (CandidateState, Comics, ComicsCandidate, ComicsCandidateImage, ComicsPanel, Embedding,
-                            Image, ImageExtras)
+from Storage.models import (CandidateState, Comics, ComicsCandidate, ComicsCandidateImage, ComicsPanel, CutState,
+                            Embedding, Image, ImageCut, ImageExtras)
 
 SETTINGS = dict(gap_seconds=5.0, min_distance=0.06, max_distance=0.15, max_group=6, max_candidates=500)
 
@@ -121,6 +121,18 @@ async def test_group_overlapping_a_decided_candidate_is_skipped(db_session):
     assert stats["groups_skipped_decided"] == 1 and stats["groups_inserted"] == 0
     assert len(await _candidates(db_session)) == 1
     assert c.id not in (await db_session.execute(select(ComicsCandidateImage.image_id))).scalars().all()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_images_with_a_live_recut_cut_are_not_considered(db_session):
+    a, _ = await _pair(db_session, "0923", second=2)
+    c, _ = await _pair(db_session, "0924", second=2)
+    for image, state in ((a, CutState.DETECTED), (c, CutState.REJECTED)):
+        db_session.add(ImageCut(source_image_id=image.id, crop_x=0, crop_y=0, crop_w=10, crop_h=10, detector="d",
+                                detector_version="1", state=state))
+    await db_session.flush()
+    stats = await _go(db_session)
+    assert stats["images_considered"] == 3 and stats["groups_inserted"] == 1  # only the rejected-cut pair
 
 
 @pytest.mark.asyncio(loop_scope="session")
