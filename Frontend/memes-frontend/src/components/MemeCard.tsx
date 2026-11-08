@@ -1,5 +1,6 @@
 import { useRef, useState } from "react"
 import { TagList } from "./TagList"
+import { CardComicsAction } from "./comics/CardComicsAction"
 import type { MemesApi } from "../api/MemesApi"
 import type { Meme } from "../types/generated/all"
 
@@ -14,9 +15,11 @@ type Props = {
   isKeeper?: boolean
   onSetKeeper?: () => void
   similarity?: number
+  /** Shows the "Add to comics" button; needs a router (it can link to the editor). */
+  comicsAction?: boolean
 }
 
-export default function MemeCard({ meme, memesApi, onClick, variant = "square", selectable = false, selected = false, onToggleSelect, isKeeper = false, onSetKeeper, similarity }: Props) {
+export default function MemeCard({ meme, memesApi, onClick, variant = "square", selectable = false, selected = false, onToggleSelect, isKeeper = false, onSetKeeper, similarity, comicsAction = false }: Props) {
   const [showText, setShowText] = useState(false)
   const [isFlagged, setIsFlagged] = useState(meme.flagged ?? false)
   const [copied, setCopied] = useState(false)
@@ -123,6 +126,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
         }} />
         Flagged
       </div>
+      {comicsAction && <CardComicsAction memesApi={memesApi} imageId={meme.id} />}
       <TagList tags={meme.tags ?? []} />
     </div>
   )

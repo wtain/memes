@@ -97,6 +97,20 @@ describe('MemesList', () => {
     })
   })
 
+  it('offers Add to comics on search results but not on the flagged list', async () => {
+    const items = { items: [DEFAULT_MOCK_MEME], facets: [], hasNext: false }
+    const api = makeMockApi({
+      searchMemes: vi.fn().mockResolvedValue(items),
+      iterateFlaggedMemes: vi.fn().mockResolvedValue(items),
+    })
+    const { unmount } = render(<MemesList memesApi={api} />)
+    expect(await screen.findByRole('button', { name: 'Add to comics' })).toBeInTheDocument()
+    unmount()
+    render(<MemesList memesApi={api} listFlagged />)
+    await screen.findByRole('img', { name: DEFAULT_MOCK_MEME.id })
+    expect(screen.queryByRole('button', { name: 'Add to comics' })).not.toBeInTheDocument()
+  })
+
   it('invokes onFacetsChanged with facets from the response', async () => {
     const onFacetsChanged = vi.fn()
     const facets = [{ name: 'category', buckets: [{ value: 'cats', count: 5 }] }]
