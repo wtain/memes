@@ -245,19 +245,31 @@ class SyncEngineTest {
     }
 
     @Test
-    fun `without index entries are matched by name in order and unmatched files stay pending`() = runTest {
+    fun `a backend without per-file index fails the run and marks nothing uploaded`() = runTest {
         val h = harness()
         h.seed(env, 3)
         h.uploader.handler = { _, _ ->
             response(
-                uploaded = listOf(accepted(0, "f2.jpg").copy(index = null), accepted(0, "ghost.jpg").copy(index = null)),
-                failed = listOf(FailedFile("f0.jpg", "bad", null)),
+                uploaded = listOf(accepted(0, "f2.jpg", status = "ok").copy(index = null)),
+                failed = emptyList(),
             )
         }
-        h.engine.start(env); runCurrent()
-        assertEquals(UPLOADED, h.row(env, "f2").state)
-        assertEquals(REJECTED, h.row(env, "f0").state)
-        assertEquals(PENDING, h.row(env, "f1").state)
+        h.engine.start(env); advanceUntilIdle()
+        val f = h.stateOf<SyncState.Failed>()
+        assertEquals(SyncError.SERVER, f.error)
+        assertEquals("backend too old: update the backend before syncing", f.message)
+        assertEquals(3, h.count(env, PENDING))
+        assertEquals(1, h.uploader.calls.size)
+    }
+
+    @Test
+    fun `status ok with an index is also an old backend`() = runTest {
+        val h = harness()
+        h.seed(env, 2)
+        h.uploader.handler = { _, _ -> response(listOf(accepted(0, "f0.jpg", status = "ok"))) }
+        h.engine.start(env); advanceUntilIdle()
+        assertEquals(SyncError.SERVER, h.stateOf<SyncState.Failed>().error)
+        assertEquals(0, h.count(env, UPLOADED))
     }
 
     @Test
@@ -341,7 +353,7 @@ class SyncEngineTest {
     @Test
     fun `http status classes map to their errors and never mark anything`() = runTest {
         val cases = listOf(
-            500 to SyncError.SERVER, 502 to SyncError.SERVER, 503 to SyncError.INBOX_FULL_OR_UNWRITABLE,
+            502 to SyncError.SERVER, 503 to SyncError.INBOX_FULL_OR_UNWRITABLE,
             507 to SyncError.DISK_LOW, 422 to SyncError.UNEXPECTED, 400 to SyncError.UNEXPECTED, 413 to SyncError.UNEXPECTED,
         )
         for ((code, error) in cases) {

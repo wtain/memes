@@ -6,13 +6,25 @@ data class SyncSummary(val uploaded: Int = 0, val duplicates: Int = 0, val rejec
     val settled: Int get() = uploaded + duplicates + rejected
 }
 
-enum class WaitReason { RATE_LIMITED }
+enum class WaitReason {
+    /** The server answered HTTP 429; the same batch is retried after the wait. */
+    RATE_LIMITED,
+
+    /**
+     * The app itself waits so it never exceeds the server's upload limit (see [UploadPacer]); nothing went wrong.
+     * [SyncState.Waiting.attempt] is 0 for this reason.
+     */
+    PACING,
+}
 
 enum class SyncError {
     /** No answer from the backend (offline, timeout, connection lost). Files stay pending. */
     NETWORK,
 
-    /** 5xx other than 503/507 (for example 500: writing into the inbox failed). Files stay pending. */
+    /**
+     * 5xx other than 503/507, three files in a row that each failed with 500 when sent alone, or a backend too old to
+     * report the per-file `index` (the message says so). Files that were not themselves rejected stay pending.
+     */
     SERVER,
 
     /** 503: the inbox is full, not writable or the duplicate lookup failed; ingestion must be run or the server fixed. */
@@ -32,6 +44,12 @@ enum class SyncError {
 
     /** The persisted grant for the album is gone: the user must pick the album again. */
     PERMISSION_LOST,
+
+    /**
+     * A file of the album could not be read although it still exists (provider hiccup, cloud-only placeholder, unmounted
+     * volume, denied access with the grant intact). Nothing is rejected; the files stay pending and a later run retries.
+     */
+    FILE_READ_ERROR,
 }
 
 sealed interface SyncState {
@@ -46,7 +64,7 @@ sealed interface SyncState {
         val summary: SyncSummary,
     ) : SyncState
 
-    /** HTTP 429: the same batch is retried at [resumeAt] (epoch ms). [attempt] counts consecutive 429s. */
+    /** Waiting until [resumeAt] (epoch ms), then the run continues. [attempt] counts consecutive 429s (0 for PACING). */
     data class Waiting(
         val reason: WaitReason,
         val resumeAt: Long,

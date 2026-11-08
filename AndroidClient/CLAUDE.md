@@ -134,11 +134,14 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a2-
 ### Sync engine (A3)
 Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a3-sync-engine-design.md`. Code in `data/sync/`, upload seam in `data/repository/BatchUploader.kt`, Hilt in `di/SyncModule`. No screens.
 - `SyncEngine` (singleton, per environment id) is what A4 calls: `start(env)` (non-suspending, runs in the engine's own scope, false if already running), `stop(env)`,
-  `cancelAndAwait(env)`, `state(env): StateFlow<SyncState>`, `isRunning(env)`. States: `Idle`, `Running`, `Waiting(RATE_LIMITED)`, `Stopping`, `Finished`, `Stopped`, `Failed(SyncError)`.
+  `cancelAndAwait(env)`, `state(env): StateFlow<SyncState>`, `isRunning(env)`. States: `Idle`, `Running`, `Waiting(RATE_LIMITED | PACING)`, `Stopping`, `Finished`, `Stopped`, `Failed(SyncError)`.
 - Loop: `nextPending(batch size read before each batch)` -> one multipart POST per batch -> results matched by the response's per-file `index` -> `markUploaded`
   (`accepted` and `duplicate`) / `markRejected(reason)`. Never UPLOADED without an explicit entry; unanswered files stay PENDING. No implicit scan (the user refreshes).
-- Errors: network/5xx -> `Failed` and stay pending (no auto retry); 429 -> wait 60 s (Retry-After wins) and retry the same batch, 10 in a row -> `Failed`; 503/507 -> `Failed`
-  with their own `SyncError`; other 4xx -> `Failed(UNEXPECTED)`; unreadable file -> rejected `file_unavailable`.
+- Errors: network/5xx -> `Failed` and stay pending (no auto retry); the app paces itself to 9 requests per 60 s (`Waiting(PACING)`), a 429 anyway -> wait 60 s (Retry-After
+  seconds or HTTP-date wins, max 300 s) and retry, 10 in a row -> `Failed`; 503/507 -> `Failed` with their own `SyncError`; other 4xx -> `Failed(UNEXPECTED)`.
+  HTTP 500 -> the batch is retried file by file; a file failing alone is rejected `server_error`, 3 in a row -> `Failed(SERVER)`. Only a vanished document
+  (`FileNotFoundException`) is rejected `file_unavailable`; any other read failure -> `Failed(FILE_READ_ERROR)` with files pending (grant gone: `PERMISSION_LOST`).
+  A backend without per-file `index` -> `Failed(SERVER)` "backend too old". After `stop` a run always ends `Stopped`. Foreground-only: Android may freeze a backgrounded app.
 - Uploads use their own OkHttp client (long timeouts) and the SYNCED environment's base URL, not the selected one. `EngineSyncGate` is the `SyncGate` bound in `AlbumModule`.
 
 ### Navigation

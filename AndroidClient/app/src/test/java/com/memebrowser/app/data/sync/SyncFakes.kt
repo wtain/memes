@@ -18,6 +18,8 @@ import com.memebrowser.app.data.tracker.TrackerSettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import java.io.ByteArrayInputStream
@@ -34,8 +36,15 @@ class FakeSyncSettings(var batchSize: Int = 50) : SyncSettingsSource {
 }
 
 class FakeFileSource : AlbumFileSource {
+    /** Documents that are gone (FileNotFoundException). */
     val unavailable = mutableSetOf<String>()
+
+    /** Documents that fail with a non-FileNotFound exception. */
+    val failing = HashMap<String, Exception>()
+    var onOpen: ((String) -> Unit)? = null
     override fun open(treeUri: String, documentId: String): InputStream {
+        onOpen?.invoke(documentId)
+        failing[documentId]?.let { throw it }
         if (documentId in unavailable) throw FileNotFoundException(documentId)
         return ByteArrayInputStream(ByteArray(1))
     }
@@ -64,8 +73,23 @@ class FakeUploader : BatchUploader {
 fun response(uploaded: List<UploadedFile>, failed: List<FailedFile> = emptyList()) =
     UploadAttempt.Response(UploadResponse(uploaded, failed, uploaded.size, failed.size))
 
+/** Tracker writes that suspend (like Room does), with hooks, so cancellation can land inside the engine's apply step. */
+internal class HookedOutcomes(private val inner: OutcomeStore) : OutcomeStore {
+    var onMarkUploaded: (suspend () -> Unit)? = null
+    override suspend fun markUploaded(environmentId: String, treeUri: String, documentIds: List<String>) {
+        yield()
+        onMarkUploaded?.invoke()
+        inner.markUploaded(environmentId, treeUri, documentIds)
+    }
+
+    override suspend fun markRejected(environmentId: String, treeUri: String, documentId: String, reason: String) {
+        yield()
+        inner.markRejected(environmentId, treeUri, documentId, reason)
+    }
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
-class SyncHarness(scheduler: TestCoroutineScheduler, tmp: File, batchSize: Int = 50) {
+internal class SyncHarness(scheduler: TestCoroutineScheduler, tmp: File, batchSize: Int = 50) {
     val dao = FakeTrackerDao()
     val tracker = TrackerRepository(
         dao,
@@ -77,7 +101,15 @@ class SyncHarness(scheduler: TestCoroutineScheduler, tmp: File, batchSize: Int =
     val source = FakeFileSource()
     val dispatcher = StandardTestDispatcher(scheduler)
     val scope = CoroutineScope(dispatcher + SupervisorJob())
-    val engine = SyncEngine(tracker, settings, access, uploader, source, scope, dispatcher) { scheduler.currentTime }
+    val outcomes = HookedOutcomes(TrackerOutcomeStore(tracker))
+    val engine = SyncEngine(tracker, settings, access, uploader, source, scope, dispatcher, { scheduler.currentTime }, outcomes)
+
+    /** Every state the engine published for [env], in order (collected eagerly under the test scheduler). */
+    fun recordStates(env: String, into: kotlinx.coroutines.CoroutineScope, scheduler: TestCoroutineScheduler): MutableList<SyncState> {
+        val seen = mutableListOf<SyncState>()
+        into.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(scheduler)) { engine.state(env).collect { seen += it } }
+        return seen
+    }
 
     /** Adds [count] pending files `f0..` (newest first, so they are sent in this order) to [env], with the album stored. */
     suspend fun seed(env: String, count: Int, prefix: String = "f", from: Int = 0) {
