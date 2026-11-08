@@ -29,10 +29,14 @@ class ContentResolverAlbumAccess(private val resolver: ContentResolver) : AlbumA
     }
 
     override fun isGranted(treeUri: String): Boolean = try {
-        resolver.persistedUriPermissions.any { it.isReadPermission && it.uri.toString() == treeUri }
+        val wanted = Uri.parse(treeUri)
+        resolver.persistedUriPermissions.any { it.isReadPermission && sameTree(it.uri, wanted) }
     } catch (_: RuntimeException) {
         false
     }
+
+    /** Parsed-URI equality, then authority and decoded path, so a different percent-escape spelling still matches. */
+    private fun sameTree(a: Uri, b: Uri) = a == b || (a.authority == b.authority && a.path == b.path)
 
     override fun release(treeUri: String) {
         try {

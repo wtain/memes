@@ -1,6 +1,10 @@
 package com.memebrowser.app.data.album
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -10,8 +14,8 @@ class SafAlbumScannerTest {
     private val tree = "content://x/tree/primary%3ADCIM%2FCamera"
     private val access = FakeAlbumAccess().apply { granted += tree }
 
-    private fun scanner(a: AlbumAccess = access, source: AlbumRowSource) =
-        SafAlbumScanner(source, a, Dispatchers.Unconfined)
+    private fun scanner(a: AlbumAccess = access, source: (String) -> RawListing?) =
+        SafAlbumScanner({ uri, _ -> source(uri) }, a, Dispatchers.Unconfined)
 
     private fun row(id: String?, name: String? = "n", mime: String? = "image/jpeg", size: Long? = 5, mod: Long? = 7) =
         AlbumRow(id, name, mime, size, mod)
@@ -88,5 +92,80 @@ class SafAlbumScannerTest {
         val r = scanner(FakeAlbumAccess()) { queried = true; RawListing(emptyList(), false) }.scan(tree)
         assertEquals(AlbumScanResult.PermissionLost, r)
         assertTrue(!queried)
+    }
+
+    @Test
+    fun `empty listing whose root no longer resolves is incomplete, not an empty album`() = runTest {
+        val r = scanner { RawListing(emptyList(), loading = false, rootResolves = false) }.scan(tree)
+        assertEquals(AlbumScanResult.Incomplete("album unavailable"), r)
+    }
+
+    @Test
+    fun `root flag is ignored when there are rows`() = runTest {
+        val r = scanner { RawListing(listOf(row("a")), loading = false, rootResolves = false) }.scan(tree)
+        assertTrue(r is AlbumScanResult.Complete)
+    }
+
+    @Test
+    fun `cancelling the scan aborts a hung query and returns at once`() = runBlocking {
+        val entered = CountDownLatch(1)
+        val aborted = CountDownLatch(1)
+        val source = AlbumRowSource { _, cancel ->
+            cancel.onCancel { aborted.countDown() }
+            entered.countDown()
+            aborted.await(10, TimeUnit.SECONDS) // a blocking provider call that only the abort ends
+            null
+        }
+        val s = SafAlbumScanner(source, access, Dispatchers.IO)
+        val job = async(Dispatchers.Default) { s.scan(tree) }
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        job.cancel()
+        assertTrue("the source was told to abort", aborted.await(5, TimeUnit.SECONDS))
+        assertTrue(job.isCancelled)
+    }
+
+    @Test
+    fun `a hung query times out as incomplete`() = runBlocking {
+        val release = CountDownLatch(1)
+        val aborted = CountDownLatch(1)
+        val source = AlbumRowSource { _, cancel ->
+            cancel.onCancel { aborted.countDown(); release.countDown() }
+            release.await(10, TimeUnit.SECONDS)
+            null
+        }
+        val r = SafAlbumScanner(source, access, Dispatchers.IO, timeoutMillis = 100).scan(tree)
+        assertEquals(AlbumScanResult.Incomplete("listing timed out"), r)
+        assertTrue(aborted.await(5, TimeUnit.SECONDS))
+    }
+
+    private class FakeReader(
+        private val columns: Map<String, Int>,
+        private val data: List<Map<Int, Any?>>,
+    ) : RowReader {
+        private var pos = -1
+        override fun moveToNext() = ++pos < data.size
+        override fun columnIndex(name: String) = columns[name] ?: -1
+        override fun isNull(column: Int) = data[pos][column] == null
+        override fun getString(column: Int) = data[pos][column] as String?
+        override fun getLong(column: Int) = data[pos][column] as Long
+    }
+
+    @Test
+    fun `cursor reading maps columns and tolerates missing and null columns`() {
+        val cols = mapOf("document_id" to 0, "_display_name" to 1, "mime_type" to 2, "_size" to 3, "last_modified" to 4)
+        val rows = readRows(
+            FakeReader(
+                cols,
+                listOf(
+                    mapOf(0 to "a", 1 to "a.jpg", 2 to "image/jpeg", 3 to 10L, 4 to 20L),
+                    mapOf(0 to "b", 1 to null, 2 to null, 3 to null, 4 to null),
+                ),
+            )
+        )
+        assertEquals(AlbumRow("a", "a.jpg", "image/jpeg", 10L, 20L), rows[0])
+        assertEquals(AlbumRow("b", null, null, null, null), rows[1])
+        val partial = readRows(FakeReader(mapOf("document_id" to 0), listOf(mapOf(0 to "x"))))
+        assertEquals(listOf(AlbumRow("x", null, null, null, null)), partial)
+        assertTrue(readRows(FakeReader(emptyMap(), emptyList())).isEmpty())
     }
 }

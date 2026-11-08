@@ -9,6 +9,13 @@ import java.net.URLDecoder
 object AlbumNames {
     private const val TREE_MARKER = "/tree/"
     private const val DOCUMENT_MARKER = "/document/"
+    private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
+
+    private fun authority(treeUri: String): String? {
+        val start = treeUri.indexOf("://")
+        if (start < 0) return null
+        return treeUri.substring(start + 3).substringBefore('/').takeIf { it.isNotEmpty() }
+    }
 
     /** The decoded tree document id (for example `primary:DCIM/Camera`), or null when [treeUri] has no tree part. */
     fun treeDocumentId(treeUri: String): String? {
@@ -44,9 +51,11 @@ object AlbumNames {
 
     /**
      * True when the folder is one of the app's own gallery folders (`Pictures/MemesBrowser-<collection>`, written by
-     * MediaStoreHelper) or inside one. Syncing it would send the library back to itself, so A4 warns.
+     * MediaStoreHelper) or inside one. Syncing it would send the library back to itself, so A4 warns. Only the
+     * external-storage authority is checked: other providers (Downloads, cloud) never hold these folders. (my call)
      */
     fun looksLikeAppOwnFolder(treeUri: String): Boolean {
+        if (authority(treeUri) != EXTERNAL_STORAGE_AUTHORITY) return false
         val id = treeDocumentId(treeUri) ?: return false
         val path = if (':' in id) id.substringAfter(':') else id
         val segments = path.split('/').filter { it.isNotBlank() }

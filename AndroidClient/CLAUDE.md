@@ -124,6 +124,12 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a2-
 - An album change: take the new grant, `SyncGate.cancelAndAwait(env)`, wipe only that environment and store the new album, release the old grant unless
   another environment uses the same tree, rescan. A3 must bind the real `SyncGate` in `AlbumModule` (today `NoOpSyncGate`).
 - `refreshScan` is conflated per environment (a concurrent call waits for and returns the in-flight result); environments never share locks or state.
+  It never throws (except caller cancellation): `Failed(TRACKER_ERROR)` for settings/database errors; an album change aborts it (`Failed(CANCELLED)` for its waiters).
+- Results A4 must handle: `AlbumChangeResult.Applied` / `Unchanged` / `GrantFailed` (temporary picker grant gone: re-pick) / `RequiresConfirmation` /
+  `PlanStale` (stored album changed since `requestChangeAlbum`: rebuild the plan) / `Failed` (storage error, nothing changed that matters). Keep the confirm dialog in
+  the picker's task. After the gate the commit runs in `NonCancellable`, so leaving the screen cannot leak a grant.
+- The scanner has a 60 s timeout and aborts the provider query on cancellation; an empty listing whose root no longer resolves (ejected card, deleted folder)
+  is `Incomplete("album unavailable")`, never an empty `Complete`. `looksLikeAppOwnFolder` only fires for the `com.android.externalstorage.documents` authority.
 
 ### Sync engine (A3)
 Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a3-sync-engine-design.md`. Code in `data/sync/`, upload seam in `data/repository/BatchUploader.kt`, Hilt in `di/SyncModule`. No screens.

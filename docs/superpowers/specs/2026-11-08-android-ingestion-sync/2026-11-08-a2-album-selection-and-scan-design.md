@@ -44,3 +44,30 @@ access and gate). androidTest `AlbumAccessTest` (needs a device; checks only the
 
 Real SAF behaviour on the Samsung phone (tracker S2 list still applies). A deleted environment keeps its album grant (no cleanup hook; bounded
 by the per-app grant limit, A4 or a later project may release it).
+
+## Review outcome (2026-11-08, one fix iteration)
+
+Owner-level answers (controller's calls): (1) a hung listing must be abortable by "change album" (my call); (2) an empty listing is only accepted
+after the tree root still resolves, otherwise it is `Incomplete("album unavailable")` and Y is not dropped (my call); (3) the new grant is
+persisted at confirm time with the picker's temporary grant; if it is gone, `confirmChangeAlbum` returns `GrantFailed` and changes nothing (my call);
+(4) the own-folder warning applies only to `com.android.externalstorage.documents` (my call).
+
+Fixed:
+- I1 cancellation safety: the grant is given back if the gate step is cancelled or fails; after the gate the commit (re-check, wipe/store, scan state
+  reset, give back the old grant) runs in `NonCancellable`; only the final rescan is cancellable. A throwing `changeAlbum`/`setAlbum` gives the new
+  grant back and returns `AlbumChangeResult.Failed`. Tests: cancel at the gate, right after the grant, after the wipe, first selection, storage failure.
+- I2 hung scan: `refreshScan` runs in a child `Job` registered per environment; a change aborts it and keeps aborting until it owns the lock. The
+  scanner runs the query on a detached task, aborts it through `ListingCancel` (a `CancellationSignal` in the real source) on cancellation and
+  on a 60 s timeout (`Incomplete("listing timed out")`).
+- I3 stale join: the in-flight entry is removed while the scan still holds the lock, and the change removes it when aborting.
+- Minor: scan state reset to `Idle` on a change; `refreshScan` never throws (settings/database failure is `Failed(TRACKER_ERROR)`, a throwing scanner is
+  `LISTING_INCOMPLETE`); the plan is compared with the stored album (`PlanStale`), re-checked under the lock; `releaseIfUnused` keeps the grant when the
+  environment list cannot be read and now also counts the current environment; `DIR_MIME` replaced by `DocumentsContract.Document.MIME_TYPE_DIR`;
+  `isGranted` compares parsed URIs (then authority and decoded path); own-folder check restricted to the external-storage authority; ejected-root guard
+  (finding 5); cursor reading is the pure `readRows` over a `RowReader` and is tested.
+- Finding 8 (process death of the temporary grant): follows from answer (3); A4 should keep the dialog in the picker's task and handle `GrantFailed`
+  by re-picking.
+
+Skipped: finding 12 (state maps grow by environment id; negligible); finding 10 display names for non-externalstorage providers (cosmetic). A fake
+`DocumentsProvider` androidTest for the real cursor mapping and `persistedUriPermissions` comparison was not added (needs a device; the cursor mapping
+itself is covered on the JVM through `RowReader`).

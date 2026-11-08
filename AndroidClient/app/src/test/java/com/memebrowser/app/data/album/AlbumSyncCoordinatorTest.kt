@@ -7,8 +7,15 @@ import com.memebrowser.app.data.tracker.TrackerCounts
 import com.memebrowser.app.data.tracker.TrackerRepository
 import com.memebrowser.app.data.tracker.TrackerSettingsStore
 import kotlinx.coroutines.CompletableDeferred
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.first
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
@@ -35,11 +42,29 @@ class AlbumSyncCoordinatorTest {
     private val albumB = "content://x/tree/primary%3APictures%2FMemes"
 
     private lateinit var tracker: TrackerRepository
+    private lateinit var flaky: FlakyDataStore
 
-    private fun coordinator(): AlbumSyncCoordinator {
-        val store = TrackerSettingsStore(PreferenceDataStoreFactory.create(produceFile = { File(tmp.root, "s.preferences_pb") }))
-        tracker = TrackerRepository(dao, store)
-        return AlbumSyncCoordinator(tracker, scanner, access, gate, { listOf(general, metal) }, clock = { 1234L })
+    /** A DataStore that can be told to fail reads or writes (a full disk, a corrupt file). */
+    private class FlakyDataStore(private val inner: DataStore<Preferences>) : DataStore<Preferences> {
+        @Volatile var failWrites = false
+        @Volatile var failReads = false
+        override val data: Flow<Preferences> = flow {
+            if (failReads) throw IOException("read failed")
+            emitAll(inner.data)
+        }
+        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+            if (failWrites) throw IOException("write failed")
+            return inner.updateData(transform)
+        }
+    }
+
+    private fun coordinator(
+        syncGate: SyncGate = gate,
+        ids: suspend () -> List<String> = { listOf(general, metal) },
+    ): AlbumSyncCoordinator {
+        flaky = FlakyDataStore(PreferenceDataStoreFactory.create(produceFile = { File(tmp.root, "s.preferences_pb") }))
+        tracker = TrackerRepository(dao, TrackerSettingsStore(flaky))
+        return AlbumSyncCoordinator(tracker, scanner, access, syncGate, { ids() }, clock = { 1234L })
     }
 
     private fun file(id: String, mime: String = "image/jpeg") = ScannedFile(id, "$id.jpg", mime, 10, 1)
@@ -110,7 +135,7 @@ class AlbumSyncCoordinatorTest {
     @Test
     fun `plan flags the app's own folder`() = runTest {
         val c = coordinator()
-        val own = "content://x/tree/primary%3APictures%2FMemesBrowser-general"
+        val own = "content://com.android.externalstorage.documents/tree/primary%3APictures%2FMemesBrowser-general"
         assertTrue(c.requestChangeAlbum(general, own).looksLikeAppOwnFolder)
         assertFalse(c.requestChangeAlbum(general, albumA).looksLikeAppOwnFolder)
     }
@@ -321,6 +346,209 @@ class AlbumSyncCoordinatorTest {
         release.complete(Unit)
         slow.await()
         assertEquals(listOf(albumA, albumB), scanner.calls)
+    }
+
+    // ---- review fixes ------------------------------------------------------------------------------------
+
+    @Test
+    fun `change album aborts a hung scan instead of waiting for it`() = runTest {
+        val c = coordinator()
+        scanner.result = { if (it == albumB) listing("z") else listing("a", "b") }
+        c.selectAlbum(general, albumA)
+        scanner.calls.clear()
+        scanner.hold = { if (it == albumA) CompletableDeferred() else null } // the provider never answers
+        val hung = async { c.refreshScan(general) }
+        awaitScannerCalls(1)
+        val waiter = async { c.refreshScan(general) }
+        yield()
+        val plan = c.requestChangeAlbum(general, albumB)
+
+        val r = c.confirmChangeAlbum(plan)
+
+        assertTrue(r is AlbumChangeResult.Applied)
+        assertEquals(ScanState.Failed(ScanFailure.CANCELLED), hung.await())
+        assertEquals(ScanState.Failed(ScanFailure.CANCELLED), waiter.await())
+        assertEquals(albumB, c.album(general).first()?.treeUri)
+        assertEquals("only the new album's rows exist", TrackerCounts(0, 1, 0, 1), counts(general))
+        assertEquals(listOf(albumA, albumB), scanner.calls)
+        assertEquals(ScanState.Done(1234L), c.scanState(general).value)
+    }
+
+    @Test
+    fun `a refresh right after a change scans the new album and never joins the old result`() = runTest {
+        val c = coordinator()
+        scanner.result = { if (it == albumB) listing("z") else listing("a", "b") }
+        c.selectAlbum(general, albumA)
+        c.confirmChangeAlbum(c.requestChangeAlbum(general, albumB))
+        // The change's own rescan has returned; a screen refresh afterwards must hit the scanner again, for B.
+        scanner.calls.clear()
+        c.refreshScan(general)
+        assertEquals(listOf(albumB), scanner.calls)
+        assertEquals(TrackerCounts(0, 1, 0, 1), counts(general))
+    }
+
+    @Test
+    fun `cancelling the confirm at the gate gives the new grant back and changes nothing`() = runTest {
+        val entered = CompletableDeferred<Unit>()
+        val hangingGate = object : SyncGate {
+            override suspend fun cancelAndAwait(environmentId: String) {
+                entered.complete(Unit)
+                CompletableDeferred<Unit>().await()
+            }
+        }
+        val c = coordinator(hangingGate)
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        val plan = c.requestChangeAlbum(general, albumB)
+
+        val job = async { c.confirmChangeAlbum(plan) }
+        entered.await()
+        job.cancel()
+        job.join()
+
+        assertTrue(job.isCancelled)
+        assertFalse(albumB in access.granted)
+        assertTrue(albumA in access.granted)
+        assertEquals(albumA, c.album(general).first()?.treeUri)
+        assertEquals(1, dao.all.size)
+    }
+
+    @Test
+    fun `cancelling right after the grant is taken still completes the change and releases the old grant`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a", "b") }
+        c.selectAlbum(general, albumA)
+        val plan = c.requestChangeAlbum(general, albumB)
+        lateinit var job: Job
+        access.afterPersist = { job.cancel() }
+
+        job = async { c.confirmChangeAlbum(plan) }
+        job.join()
+
+        assertTrue(job.isCancelled)
+        assertEquals(albumB, c.album(general).first()?.treeUri)
+        assertTrue(albumB in access.granted)
+        assertEquals(listOf(albumA), access.released)
+        assertEquals("the wipe happened", 0, dao.all.size)
+        assertEquals(ScanState.Idle, c.scanState(general).value)
+    }
+
+    @Test
+    fun `cancelling after the wipe still releases the old grant`() = runTest {
+        lateinit var job: Job
+        val c = coordinator(ids = { job.cancel(); listOf(general, metal) })
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        val plan = c.requestChangeAlbum(general, albumB)
+
+        job = async { c.confirmChangeAlbum(plan) }
+        job.join()
+
+        assertTrue(job.isCancelled)
+        assertEquals(albumB, c.album(general).first()?.treeUri)
+        assertEquals(listOf(albumA), access.released)
+        assertTrue(albumB in access.granted)
+    }
+
+    @Test
+    fun `cancelling a first selection after the grant leaves the album stored and the grant held`() = runTest {
+        val c = coordinator()
+        lateinit var job: Job
+        access.afterPersist = { job.cancel() }
+        job = async { c.selectAlbum(general, albumA) }
+        job.join()
+        assertTrue(job.isCancelled)
+        assertEquals(albumA, c.album(general).first()?.treeUri)
+        assertTrue(albumA in access.granted)
+    }
+
+    @Test
+    fun `a storage failure during the change gives the new grant back and keeps the old album`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        val plan = c.requestChangeAlbum(general, albumB)
+        flaky.failWrites = true
+
+        assertEquals(AlbumChangeResult.Failed, c.confirmChangeAlbum(plan))
+
+        flaky.failWrites = false
+        assertEquals(albumA, c.album(general).first()?.treeUri)
+        assertFalse(albumB in access.granted)
+        assertTrue(albumA in access.granted)
+        assertEquals(listOf(albumB), access.released)
+    }
+
+    @Test
+    fun `a storage failure on first selection gives the grant back`() = runTest {
+        val c = coordinator()
+        flaky.failWrites = true
+        assertEquals(AlbumChangeResult.Failed, c.selectAlbum(general, albumA))
+        flaky.failWrites = false
+        assertNull(c.album(general).first())
+        assertFalse(albumA in access.granted)
+    }
+
+    @Test
+    fun `a gone temporary grant at confirm is GrantFailed and changes nothing`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        val plan = c.requestChangeAlbum(general, albumB)
+        access.persistFails = true // the picker's temporary grant is gone
+        assertEquals(AlbumChangeResult.GrantFailed, c.confirmChangeAlbum(plan))
+        assertTrue(gate.cancelled.isEmpty())
+        assertEquals(albumA, c.album(general).first()?.treeUri)
+        assertEquals(1, dao.all.size)
+    }
+
+    @Test
+    fun `a plan built before the album changed is stale and changes nothing`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        val plan = c.requestChangeAlbum(general, albumB)
+        val albumC = "content://x/tree/primary%3ADownload"
+        tracker.setAlbum(general, albumC, "Download")
+
+        assertEquals(AlbumChangeResult.PlanStale, c.confirmChangeAlbum(plan))
+
+        assertEquals(albumC, c.album(general).first()?.treeUri)
+        assertFalse(albumB in access.granted)
+        assertTrue(gate.cancelled.isEmpty())
+        assertEquals(1, dao.all.size)
+    }
+
+    @Test
+    fun `refreshScan never throws when the settings store fails`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        flaky.failReads = true
+        assertEquals(ScanState.Failed(ScanFailure.TRACKER_ERROR), c.refreshScan(general))
+        assertEquals(ScanState.Failed(ScanFailure.TRACKER_ERROR), c.scanState(general).value)
+        flaky.failReads = false
+        assertEquals(ScanState.Done(1234L), c.refreshScan(general))
+    }
+
+    @Test
+    fun `a failing tracker write is TRACKER_ERROR`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        dao.beforeChunk = { throw IOException("disk full") }
+        assertEquals(ScanState.Failed(ScanFailure.TRACKER_ERROR), c.refreshScan(general))
+        dao.beforeChunk = null
+        assertEquals(ScanState.Done(1234L), c.refreshScan(general))
+    }
+
+    @Test
+    fun `a scanner that throws is a failed listing, not an exception`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        scanner.result = { throw IllegalStateException("contract violation") }
+        assertEquals(ScanState.Failed(ScanFailure.LISTING_INCOMPLETE), c.refreshScan(general))
     }
 
     @Test

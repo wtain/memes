@@ -68,4 +68,11 @@ class AlbumNamesTest {
         assertFalse(AlbumNames.looksLikeAppOwnFolder(tree("primary%3ADCIM%2FMemesBrowser-general")))
         assertFalse(AlbumNames.looksLikeAppOwnFolder("not a uri"))
     }
+
+    @Test
+    fun `only the external storage authority triggers the own folder warning`() {
+        val id = "primary%3APictures%2FMemesBrowser-general"
+        assertFalse(AlbumNames.looksLikeAppOwnFolder("content://com.android.providers.downloads.documents/tree/$id"))
+        assertFalse(AlbumNames.looksLikeAppOwnFolder("content://x/tree/$id"))
+    }
 }
