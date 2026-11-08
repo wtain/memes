@@ -1269,6 +1269,9 @@ export interface UploadedFile {
   saved_as: string;
   size_bytes: number;
   content_type: string;
+  /**
+   * "accepted": written to the ingestion inbox. "duplicate": the same content is already in the library (any status) or the inbox; nothing was written. Both mean the file is done.
+   */
   status: string;
   [k: string]: unknown;
 }

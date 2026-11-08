@@ -8,7 +8,7 @@
     "saved_as":          { "type": "string" },
     "size_bytes":        { "type": "integer" },
     "content_type":      { "type": "string" },
-    "status":            { "type": "string" }
+    "status":            { "type": "string", "description": "\"accepted\": written to the ingestion inbox. \"duplicate\": the same content is already in the library (any status) or the inbox; nothing was written. Both mean the file is done." }
   },
   "required": ["original_filename", "saved_as", "size_bytes", "content_type", "status"]
 }
