@@ -112,6 +112,19 @@ Code in `data/tracker/` (Room `TrackerDatabase`, schema JSON in `app/schemas/`, 
 - The tracker DB and DataStore are excluded from Android backup (`res/xml/data_extraction_rules.xml`, `backup_rules.xml`).
 - JVM tests use `FakeTrackerDao`; the SQL itself is only exercised by `androidTest/.../TrackerDaoTest` (needs a device).
 
+### Album access and scan (A2)
+Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a2-album-selection-and-scan-design.md`. Code in `data/album/`, Hilt in `di/AlbumModule`. No screens.
+- `AlbumScanner` (`SafAlbumScanner`) lists the IMMEDIATE children of a persisted tree with ONE `ContentResolver.query` on `IO`, never throws, and returns
+  `Complete(files)` / `Incomplete` (EXTRA_LOADING, failed query, null cursor) / `PermissionLost` (SecurityException or grant not in `persistedUriPermissions`).
+- `AlbumAccess` wraps `persist` / `isGranted` / `release` of the persistable READ grant. `AlbumNames.displayName(treeUri)` and `looksLikeAppOwnFolder(treeUri)` are pure.
+- `AlbumSyncCoordinator` (singleton, per environment id) is what A4 calls: `selectAlbum` (first selection), `requestChangeAlbum` -> `ChangeAlbumPlan` (counts to
+  wipe, nothing changed) -> `confirmChangeAlbum(plan)`, `refreshScan` (screen open and the refresh button), flows `scanState` / `counts` / `album` / `rejectedFiles`.
+- Only a `Complete` listing reaches `TrackerRepository.syncScan` (with `allowEmpty = true`); `Incomplete` and `PermissionLost` leave the tracker untouched.
+  `PermissionLost` is a state for A4 to ask for a re-pick (`selectAlbum` with the same tree re-takes the grant, no wipe).
+- An album change: take the new grant, `SyncGate.cancelAndAwait(env)`, wipe only that environment and store the new album, release the old grant unless
+  another environment uses the same tree, rescan. A3 must bind the real `SyncGate` in `AlbumModule` (today `NoOpSyncGate`).
+- `refreshScan` is conflated per environment (a concurrent call waits for and returns the in-flight result); environments never share locks or state.
+
 ### Navigation
 All screen-to-screen navigation goes through `NavGraph.kt`. Screens receive
 callbacks (`onBack`, `onNavigateToMeme`, …) and know nothing about
