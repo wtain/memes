@@ -211,7 +211,8 @@ Response from `POST /api/uploads`.
   "saved_as": "string",
   "size_bytes": "number",
   "content_type": "string",
-  "status": "ok"
+  "status": "accepted | duplicate",
+  "index": "number (0-based position in the request's files parts)"
 }
 ```
 
@@ -220,7 +221,8 @@ Response from `POST /api/uploads`.
 ```json
 {
   "original_filename": "string",
-  "reason": "string"
+  "reason": "string",
+  "index": "number (0-based position in the request's files parts)"
 }
 ```
 
@@ -287,7 +289,7 @@ Response from `POST /api/bug-reports`.
 
 #### Upload Images
 
-Accept one or more image files and write them into the ingestion inbox (`PATH_INGESTION_SOURCE`), where they follow the normal ingestion flow (`ingest_hash_dedup` and the tiers). The original file name is kept, sanitised: basename only, control characters removed, Windows-forbidden characters (`<>:"/\|?*`) replaced by `_`, reserved device names (`CON`, `NUL`, `COM1`...) prefixed with `_`, leading dots removed, trailing dots and spaces removed, the stem capped at 200 UTF-8 bytes, the extension lowercased; Unicode (for example Cyrillic) is preserved. A name that is empty after that becomes `upload-<8 hex>.<ext>`. If the name is taken in the inbox by different content the file gets a numeric suffix (`name_1.jpg`, `name_2.jpg`, ...).
+Accept one or more image files and write them into the ingestion inbox (`PATH_INGESTION_SOURCE`), where they follow the normal ingestion flow (`ingest_hash_dedup` and the tiers). The original file name is kept, sanitised: basename only, control characters removed, Windows-forbidden characters (`<>:"/\|?*`) replaced by `_`, reserved device names (`CON`, `NUL`, `COM1`...) prefixed with `_`, leading dots removed, trailing dots and spaces removed, the stem capped at 200 UTF-8 bytes, the extension lowercased; Unicode (for example Cyrillic) is preserved. Bidirectional and invisible characters (Unicode categories Cf, Zl, Zp, Cs, Co such as the right-to-left override and zero-width characters) are removed too. A name that is empty after that becomes `upload-<8 hex>.<ext>`. If the name is taken in the inbox by different content the file gets a numeric suffix (`name_1.jpg`, `name_2.jpg`, ...); names are compared the way the volume does, so on NTFS `a.JPG` and `A.jpg` collide. An existing inbox file is never overwritten, not even by a file that another process puts there while the upload runs (the file is published with a no-clobber hard link or exclusive create).
 
 - **URL**: `POST /api/uploads`
 - **Content-Type**: `multipart/form-data`
@@ -299,8 +301,10 @@ Accept one or more image files and write them into the ingestion inbox (`PATH_IN
 |------|-------|
 | Accepted MIME types | `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/bmp`, `image/tiff` |
 | Accepted extensions | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.bmp`, `.tif`, `.tiff` |
-| Max file size | 20 MB per file |
+| Max file size | 20 MB per file (read in 1 MiB chunks and stopped at 20 MB + 1 byte) |
 | Max files per request | 50 |
+| Rate limit | 10 requests per minute per client IP (a batch of 1 file therefore means at most 10 files a minute) |
+| Content | The bytes must open as a real image with Pillow, in the family the extension names (JPEG, PNG, GIF, WEBP, BMP, TIFF), with at most 100,000,000 pixels (width x height) |
 
 **Response** `200 OK` — `UploadResponse`:
 
@@ -308,6 +312,7 @@ Accept one or more image files and write them into the ingestion inbox (`PATH_IN
 {
   "uploaded": [
     {
+      "index": 0,
       "original_filename": "funny_cat.jpg",
       "saved_as": "funny_cat.jpg",
       "size_bytes": 204800,
@@ -317,6 +322,7 @@ Accept one or more image files and write them into the ingestion inbox (`PATH_IN
   ],
   "failed": [
     {
+      "index": 1,
       "original_filename": "document.pdf",
       "reason": "Unsupported file type: application/pdf"
     }
@@ -326,24 +332,29 @@ Accept one or more image files and write them into the ingestion inbox (`PATH_IN
 }
 ```
 
-Per-file type or size errors are reported in `failed[]` — the rest of the batch is still saved and the response is `200`. If every file fails, `uploaded` is an empty array.
+Per-file type, size or content errors are reported in `failed[]` — the rest of the batch is still saved and the response is `200`. If every file fails, `uploaded` is an empty array. A content problem is a file that is not a real image, whose format does not match its extension (for example GIF bytes named `.jpg`: rejected, never renamed) or that exceeds the pixel cap.
+
+**`index`** is the 0-based position of the file among the `files` parts of the request, present on every `uploaded[]` and `failed[]` entry. Clients match results to the files they sent by `index`, not by name (two files may share a name, and the two lists are separate). `original_filename` is echoed exactly as the server received it; OkHttp may percent-encode a quote (`%22`) or CR/LF in a multipart file name, so a name containing those can differ from the one the client holds. A client that built the request from a list knows the index of each file, which avoids that.
 
 **`status` values** of an `uploaded[]` entry (it was always `"ok"` before; do not depend on that value):
 
 | `status` | Meaning | `saved_as` |
 |----------|---------|------------|
 | `accepted` | The file was written to the inbox. | The final name in the inbox (sanitised, possibly with a numeric suffix). |
-| `duplicate` | The SHA-256 of the content equals an image in the library (any status: active, pending, rejected, cut_proposed) or a file already in the inbox. Nothing was written, so popularity is never changed. | The existing inbox file's name if the match is in the inbox; otherwise the sanitised original name (no such file exists in the inbox). |
+| `duplicate` | The SHA-256 of the content equals an image in the library (any status: active, pending, rejected, cut_proposed) or a file already in the inbox. Nothing was written, so popularity is never changed. | The sanitised original name, for both kinds of duplicate (never the name of an existing inbox file). |
 
 `total_accepted` is the length of `uploaded` (accepted plus duplicate); `total_failed` is the length of `failed`. Clients treat both statuses as "done" and `failed[]` entries as rejected.
 
+**Known limit of the library duplicate check**: it compares against `images.content_hash`. That hash is rewritten when the format fix converts a file (a WebP becomes a JPEG, the original goes to `converted_originals/`), and older rows can have a NULL hash. A phone WebP whose library copy was converted therefore hashes to the original bytes, matches nothing and comes back `accepted`; it goes through the normal ingestion hash and CLIP duplicate review instead. The check is exact-bytes, so it cannot see such copies.
+
 **Error Responses**:
 - `422`: More than 50 files submitted, or malformed multipart body
-- `429`: Per-IP rate limit exceeded
-- `503`: `PATH_INGESTION_SOURCE` is not set, the directory does not exist or is not writable, or the duplicate lookup in the database failed (nothing is written then; retry later). Only requests with at least one valid file need the inbox.
-- `500`: Writing a file into the inbox failed. Files written earlier in the same request stay and come back as `duplicate` on a retry.
+- `429`: Per-IP rate limit exceeded (10 requests per minute per IP, sliding window). The client should wait for the window to pass (about a minute) and retry the same request; nothing was processed.
+- `503`: `PATH_INGESTION_SOURCE` is not set, is not an absolute path, is the image library directory (`BASE_PATH`) or contains it, does not exist or is not writable (the `.uploading` staging directory must be a plain directory, not a symlink or junction); the inbox holds more than 50,000 entries ("inbox is full, run ingestion": the duplicate scan fails closed instead of skipping the check); or the duplicate lookup in the database failed. Nothing is written then; retry later. Only requests with at least one valid file need the inbox.
+- `507`: The inbox volume would be left with less than 1 GiB free after this request. Nothing is written.
+- `500`: Writing a file into the inbox failed. Files written earlier in the same request stay and come back as `duplicate` on a retry. The server log names the failing (sanitised) file and the error; the response never carries paths. There is no cap on the number of inbox entries other than the 50,000 scan limit above.
 
-**Storage**: the ingestion inbox, `PATH_INGESTION_SOURCE` (read at request time; there is no fallback to another directory, and `INCOMING_PATH` / `BASE_PATH/incoming` are no longer used). Each file is first written to `<inbox>/.uploading/<uuid>` and then renamed into the inbox, so `ingest_hash_dedup` (which skips directories) never sees a half-written file. Staging files older than one hour are removed. The inbox must be writable by the backend process. Not served by the API.
+**Storage**: the ingestion inbox, `PATH_INGESTION_SOURCE` (read at request time; there is no fallback to another directory, and `INCOMING_PATH` / `BASE_PATH/incoming` are no longer used). Each file is first written to `<inbox>/.uploading/<uuid>` and then renamed into the inbox, so `ingest_hash_dedup` (which skips directories) never sees a half-written file. Staging files older than one hour are removed. The inbox must be writable by the backend process. The duplicate check lists the inbox once per request and hashes only files of the same size as an upload (outside any lock). One backend process per inbox is assumed for the in-process ordering of names, but a file is never overwritten whichever process writes. Not served by the API.
 
 ---
 

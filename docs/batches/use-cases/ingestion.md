@@ -10,8 +10,10 @@ exact and near duplicates reviewed by a human first. One ingestion run per envir
 
 Files reach the inbox by hand or through `POST /api/uploads` (web Upload page, Android app): uploads keep their sanitised
 original name, are written complete (staged in `<inbox>\.uploading\`, which `ingest_hash_dedup` skips as a directory, then
-renamed in) and are answered `duplicate` without being written when the content already matches any `images.content_hash` or a
-file in the inbox. See `backend_api.md` (Uploads) and
+published without ever replacing an existing file) and are answered `duplicate` without being written when the content already
+matches any `images.content_hash` or a file in the inbox. Only real images pass (Pillow opens them, format matches the
+extension, at most 100,000,000 pixels). A phone WebP whose library copy was converted to JPEG is not seen as a duplicate here
+(its `content_hash` was rewritten) and goes through the normal hash and CLIP review. See `backend_api.md` (Uploads) and
 `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-b1-inbox-upload-design.md`.
 
 ## Sequence
