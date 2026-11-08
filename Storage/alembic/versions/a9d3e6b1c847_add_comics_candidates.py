@@ -26,6 +26,7 @@ def upgrade() -> None:
         sa.Column('key', sa.String(), nullable=False),
         sa.Column('state', sa.String(length=20), nullable=False, server_default='open'),
         sa.Column('detector_version', sa.String(), nullable=False),
+        sa.Column('size', sa.Integer(), nullable=False),
         sa.Column('max_gap_seconds', sa.Float(), nullable=False),
         sa.Column('max_distance', sa.Float(), nullable=False),
         sa.Column('comics_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('comics.id', ondelete='SET NULL'),
@@ -33,6 +34,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column('decided_at', sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint("state IN ('open', 'accepted', 'dismissed')", name='ck_comics_candidates_state'),
+        sa.CheckConstraint('size >= 2', name='ck_comics_candidates_size'),
     )
     op.create_index('uq_comics_candidates_key', 'comics_candidates', ['key'], unique=True)
     op.create_index('ix_comics_candidates_state', 'comics_candidates', ['state'])

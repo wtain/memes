@@ -228,6 +228,9 @@ class ComicsCandidate(Base):
     key = Column(String, nullable=False)
     state = Column(String(20), nullable=False, server_default=CandidateState.OPEN)
     detector_version = Column(String, nullable=False)
+    # Number of images the group was stored with: a deleted image cascades its row away, so the candidate is listed
+    # only while its surviving rows still equal this.
+    size = Column(Integer, nullable=False)
     max_gap_seconds = Column(Float, nullable=False)
     max_distance = Column(Float, nullable=False)
     comics_id = Column(UUID(as_uuid=True), ForeignKey("comics.id", ondelete="SET NULL"), nullable=True)
@@ -241,6 +244,7 @@ class ComicsCandidate(Base):
         Index("uq_comics_candidates_key", "key", unique=True),
         Index("ix_comics_candidates_state", "state"),
         CheckConstraint("state IN ('open', 'accepted', 'dismissed')", name="ck_comics_candidates_state"),
+        CheckConstraint("size >= 2", name="ck_comics_candidates_size"),
     )
 
 

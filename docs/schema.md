@@ -83,6 +83,7 @@ A suggested group of images that may be one story (epic multi-image-comics, C9).
 | `key` | String NOT NULL | md5 of the sorted image ids; unique index `uq_comics_candidates_key`, so a re-run never recreates a group |
 | `state` | String(20) NOT NULL | `open` \| `accepted` \| `dismissed` (`CandidateState`), CHECK `ck_comics_candidates_state`; server default `open` |
 | `detector_version` | String NOT NULL | |
+| `size` | Integer NOT NULL | Number of images stored with the group, CHECK `size >= 2`; the candidate is listed only while its surviving `comics_candidate_images` rows equal it (a deleted image cascades its row away) |
 | `max_gap_seconds` | Float NOT NULL | Largest filename-timestamp gap among the group's linked edges |
 | `max_distance` | Float NOT NULL | Largest CLIP distance among the linked edges; the list sorts by it ascending |
 | `comics_id` | UUID FK → comics nullable | `ON DELETE SET NULL`; the comics made on accept |

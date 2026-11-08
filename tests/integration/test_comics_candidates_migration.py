@@ -60,7 +60,7 @@ async def test_candidates_migration_shape_and_round_trip(db_engine):
             model_shape = await connection.run_sync(_shape)
             assert model_shape is not None
             candidates, images, indexes, fks, pk = model_shape
-            assert set(candidates) == {"id", "key", "state", "detector_version", "max_gap_seconds", "max_distance",
+            assert set(candidates) == {"id", "key", "state", "detector_version", "size", "max_gap_seconds", "max_distance",
                                        "comics_id", "created_at", "decided_at"}
             assert candidates["comics_id"] is True and candidates["decided_at"] is True
             assert candidates["key"] is False and candidates["state"] is False

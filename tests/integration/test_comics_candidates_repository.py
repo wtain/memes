@@ -1,7 +1,8 @@
 import uuid
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
+from sqlalchemy.exc import IntegrityError
 
 from repository.comics import ComicsRepository
 from repository.comics_candidates import CandidateError, ComicsCandidatesRepository, candidate_key
@@ -143,6 +144,51 @@ async def test_list_open_hides_a_group_with_a_deleted_image(db_session):
     assert candidate_id not in await _listed(repo)
     # the candidate row stays, with its one remaining image
     assert (await db_session.execute(select(ComicsCandidate.id).where(ComicsCandidate.id == candidate_id))).first()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_list_open_hides_a_three_image_group_that_lost_one_image(db_session):
+    repo = ComicsCandidatesRepository(db_session)
+    candidate_id, (a, _, _) = await _group(db_session, repo, count=3)
+    assert candidate_id in await _listed(repo)
+    await db_session.execute(delete(Image).where(Image.id == a.id))
+    await db_session.flush()
+    assert candidate_id not in await _listed(repo)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_insert_group_stores_the_size(db_session):
+    repo = ComicsCandidatesRepository(db_session)
+    candidate_id, _ = await _group(db_session, repo, count=3)
+    assert (await repo.get(candidate_id)).size == 3
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_insert_group_rejects_fewer_than_two_or_duplicate_ids(db_session):
+    repo = ComicsCandidatesRepository(db_session)
+    a = await _image(db_session)
+    for ids in ([], [a.id], [a.id, a.id]):
+        with pytest.raises(ValueError):
+            await repo.insert_group(ids, 1.0, 0.1, "v1")
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_state_check_rejects_a_bad_value(db_session):
+    repo = ComicsCandidatesRepository(db_session)
+    candidate_id, _ = await _group(db_session, repo)
+    with pytest.raises(IntegrityError):
+        async with db_session.begin_nested():
+            await db_session.execute(
+                update(ComicsCandidate).where(ComicsCandidate.id == candidate_id).values(state="bogus"))
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_decide_with_an_invalid_state_raises_value_error(db_session):
+    repo = ComicsCandidatesRepository(db_session)
+    candidate_id, _ = await _group(db_session, repo)
+    for state in (CandidateState.OPEN, "bogus"):
+        with pytest.raises(ValueError):
+            await repo.decide(candidate_id, state)
 
 
 @pytest.mark.asyncio(loop_scope="session")

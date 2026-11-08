@@ -5,7 +5,7 @@ Every refusal is a CandidateError with a stable `code`: not_found, candidate_dec
 
 A candidate is listed only while every image of it is active, not flagged, in no comics panel and still present
 (checked in SQL at read time; the candidate row itself stays). Deleted images drop out of comics_candidate_images by
-cascade, so a group left with fewer than two images is not listed either.
+cascade, so a group is listed only while its surviving rows still equal comics_candidates.size.
 """
 import hashlib
 import uuid
@@ -58,12 +58,14 @@ class ComicsCandidatesRepository:
     async def insert_group(self, image_ids_in_order: list[uuid.UUID], max_gap_seconds: float, max_distance: float,
                            detector_version: str) -> uuid.UUID | None:
         """Stores an open candidate; None when a candidate with the same key exists (any state)."""
+        if len(image_ids_in_order) < MIN_GROUP or len(set(image_ids_in_order)) != len(image_ids_in_order):
+            raise ValueError("a candidate needs at least two distinct images")
         key = candidate_key(image_ids_in_order)
         candidate_id = uuid.uuid4()
         inserted = (await self.session.execute(
             insert(ComicsCandidate).values(
                 id=candidate_id, key=key, state=CandidateState.OPEN, detector_version=detector_version,
-                max_gap_seconds=max_gap_seconds, max_distance=max_distance)
+                size=len(image_ids_in_order), max_gap_seconds=max_gap_seconds, max_distance=max_distance)
             .on_conflict_do_nothing(index_elements=[ComicsCandidate.key]).returning(ComicsCandidate.id))).scalar_one_or_none()
         if inserted is None:
             return None
@@ -97,7 +99,7 @@ class ComicsCandidatesRepository:
                      .where(ComicsCandidateImage.candidate_id == ComicsCandidate.id).scalar_subquery())
         candidates = (await self.session.execute(
             select(ComicsCandidate)
-            .where(ComicsCandidate.state == CandidateState.OPEN, ~exists(ineligible), remaining >= MIN_GROUP)
+            .where(ComicsCandidate.state == CandidateState.OPEN, ~exists(ineligible), remaining == ComicsCandidate.size)
             .order_by(ComicsCandidate.max_distance, ComicsCandidate.id)
             .offset(offset).limit(limit))).scalars().all()
         if not candidates:

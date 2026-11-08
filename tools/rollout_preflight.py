@@ -150,7 +150,7 @@ EXPECTED: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("comics_panels", ("id", "comics_id", "image_id", "position", "source_image_id", "source_filename",
                        "source_content_hash"), "d7a3b9c5e214"),
     ("comics_panels", ("kept",), "f3a8c1d6b952"),
-    ("comics_candidates", ("id", "key", "state", "detector_version", "max_gap_seconds", "max_distance", "comics_id",
+    ("comics_candidates", ("id", "key", "state", "detector_version", "size", "max_gap_seconds", "max_distance", "comics_id",
                            "created_at", "decided_at"), "a9d3e6b1c847"),
     ("comics_candidate_images", ("candidate_id", "image_id", "position"), "a9d3e6b1c847"),
 )
