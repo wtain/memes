@@ -1,12 +1,63 @@
-import { useState } from "react"
-import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom"
+import { useEffect, useRef, useState } from "react"
+import { Outlet, NavLink, matchPath, useLocation, useNavigate } from "react-router-dom"
 
-// handleListNavClick below is wired up on the NavLinks for /explore, /untagged, /duplicates,
-// /no-ocr, /flagged, /search, /recommendations -- the pages backed by MemesList/
-// MemesDuplicatesList's windowed infinite scroll. React Router doesn't navigate (or remount
-// anything) when you click a NavLink to the route you're already on, so without this, scroll
-// position/pagination state on these pages was otherwise unreachable except via a full page
-// refresh.
+// handleListNavClick below is wired up on the NavLinks marked `list` in MENU -- /explore,
+// /untagged, /duplicates, /no-ocr, /flagged, /search, /recommendations -- the pages backed by
+// MemesList/MemesDuplicatesList's windowed infinite scroll. React Router doesn't navigate (or
+// remount anything) when you click a NavLink to the route you're already on, so without this,
+// scroll position/pagination state on these pages was otherwise unreachable except via a full
+// page refresh.
+
+type MenuLink = { to: string; label: string; end?: boolean; list?: boolean }
+type MenuEntry = MenuLink | "separator"
+type MenuGroup = { label: string; entries: MenuEntry[] }
+
+const MENU: MenuGroup[] = [
+  {
+    label: "Find",
+    entries: [
+      { to: "/search", label: "Search", list: true },
+      { to: "/reply", label: "Reply" },
+      { to: "/recommendations", label: "Recommendations", list: true },
+      { to: "/explore", label: "Explore", list: true },
+      "separator",
+      { to: "/trends", label: "Trends" },
+      { to: "/trending-memes", label: "Trending memes" },
+    ],
+  },
+  {
+    label: "Library",
+    entries: [
+      { to: "/upload", label: "Upload" },
+      { to: "/concepts", label: "Concepts" },
+      { to: "/statistics", label: "Statistics" },
+    ],
+  },
+  {
+    label: "Cleanup",
+    entries: [
+      { to: "/untagged", label: "Untagged", list: true },
+      { to: "/no-ocr", label: "No OCR", list: true },
+      { to: "/flagged", label: "Flagged", list: true },
+      { to: "/duplicates", label: "Duplicates", list: true },
+      { to: "/ingestion", label: "Ingestion" },
+    ],
+  },
+  {
+    label: "Admin",
+    entries: [
+      { to: "/admin", label: "Batches", end: true },
+      { to: "/admin/profiles", label: "Profiles" },
+      { to: "/admin/recut", label: "Recut" },
+      { to: "/admin/comics", label: "Comics" },
+      { to: "/admin/discovery", label: "Discovery" },
+    ],
+  },
+]
+
+function isLink(entry: MenuEntry): entry is MenuLink {
+  return entry !== "separator"
+}
 
 export default function AppLayout() {
   const location = useLocation()
@@ -15,9 +66,31 @@ export default function AppLayout() {
   // Outlet's key below to force that one page to remount (never included in the key on its own --
   // see the key expression -- so it can't cause a remount on any other page's normal navigation).
   const [resetNonce, setResetNonce] = useState(0)
+  // The open menu is remembered together with the page it was opened on, so any navigation
+  // (a link, the back button) closes it without an effect.
+  const [opened, setOpened] = useState<{ group: string; path: string } | null>(null)
+  const openGroup = opened !== null && opened.path === location.pathname ? opened.group : null
+  const navRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    if (openGroup === null) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpened(null)
+    }
+    function onMouseDown(e: MouseEvent) {
+      if (navRef.current !== null && !navRef.current.contains(e.target as Node)) setOpened(null)
+    }
+    document.addEventListener("keydown", onKeyDown)
+    document.addEventListener("mousedown", onMouseDown)
+    return () => {
+      document.removeEventListener("keydown", onKeyDown)
+      document.removeEventListener("mousedown", onMouseDown)
+    }
+  }, [openGroup])
 
   function handleListNavClick(path: string) {
     return (e: React.MouseEvent<HTMLAnchorElement>) => {
+      setOpened(null)
       if (location.pathname !== path) return
       e.preventDefault()
       setResetNonce(n => n + 1)
@@ -25,191 +98,61 @@ export default function AppLayout() {
     }
   }
 
+  function isCurrent(link: MenuLink) {
+    return matchPath({ path: link.to, end: link.end ?? false }, location.pathname) !== null
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
       <header className="border-b bg-white sticky top-0 z-50">
-        {/* flex-wrap so the ~13 links drop to a second row on a narrow window instead of
-            overflowing the viewport and forcing a horizontal page scroll. */}
-        <div className="mx-auto max-w-6xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-2">
-          <NavLink
-            to="/explore"
-            onClick={handleListNavClick("/explore")}
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Explore
-          </NavLink>
-
-          <NavLink
-            to="/untagged"
-            onClick={handleListNavClick("/untagged")}
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Untagged
-          </NavLink>
-
-          <NavLink
-            to="/duplicates"
-            onClick={handleListNavClick("/duplicates")}
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Duplicates
-          </NavLink>
-
-          <NavLink
-            to="/no-ocr"
-            onClick={handleListNavClick("/no-ocr")}
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            No OCR
-          </NavLink>
-
-          <NavLink
-            to="/flagged"
-            onClick={handleListNavClick("/flagged")}
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Flagged
-          </NavLink>
-
-          <NavLink
-            to="/reply"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Reply
-          </NavLink>
-
-          <NavLink
-            to="/search"
-            onClick={handleListNavClick("/search")}
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Search
-          </NavLink>
-
-          <NavLink
-            to="/recommendations"
-            onClick={handleListNavClick("/recommendations")}
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Recommendations
-          </NavLink>
-
-          <NavLink
-            to="/trends"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Trends
-          </NavLink>
-
-          <NavLink
-            to="/trending-memes"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Trending memes
-          </NavLink>
-
-          <NavLink
-            to="/concepts"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Concepts
-          </NavLink>
-
-          <NavLink
-            to="/upload"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Upload
-          </NavLink>
-
-          <NavLink
-            to="/statistics"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Statistics
-          </NavLink>
-
-          <NavLink
-            to="/ingestion"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Ingestion
-          </NavLink>
-
-          <NavLink
-            to="/admin"
-            end
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Admin
-          </NavLink>
-
-          <NavLink
-            to="/admin/profiles"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Profiles
-          </NavLink>
-
-          <NavLink
-            to="/admin/recut"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Recut
-          </NavLink>
-
-          <NavLink
-            to="/admin/comics"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Comics
-          </NavLink>
-
-          <NavLink
-            to="/admin/discovery"
-            className={({ isActive }) =>
-              isActive ? "font-semibold text-blue-600" : "text-gray-600"
-            }
-          >
-            Discovery
-          </NavLink>
-        </div>
+        <nav ref={navRef} aria-label="Main" className="mx-auto max-w-6xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-2">
+          {MENU.map((group) => {
+            const open = openGroup === group.label
+            const active = group.entries.some((entry) => isLink(entry) && isCurrent(entry))
+            return (
+              <div key={group.label} className="relative">
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  data-active={active ? "true" : undefined}
+                  onClick={() => setOpened(open ? null : { group: group.label, path: location.pathname })}
+                  className={`flex items-center gap-1 ${active ? "font-semibold text-blue-600" : "text-gray-600"}`}
+                >
+                  {group.label}
+                  <span aria-hidden="true" className="text-xs">▾</span>
+                </button>
+                {open && (
+                  <ul
+                    role="menu"
+                    aria-label={group.label}
+                    className="absolute left-0 top-full mt-2 min-w-44 rounded-md border bg-white py-1 shadow-lg"
+                  >
+                    {group.entries.map((entry, i) =>
+                      isLink(entry) ? (
+                        <li key={entry.to} role="none">
+                          <NavLink
+                            to={entry.to}
+                            end={entry.end}
+                            role="menuitem"
+                            onClick={entry.list ? handleListNavClick(entry.to) : () => setOpened(null)}
+                            className={({ isActive }) =>
+                              `block px-4 py-2 hover:bg-gray-100 ${isActive ? "font-semibold text-blue-600" : "text-gray-700"}`
+                            }
+                          >
+                            {entry.label}
+                          </NavLink>
+                        </li>
+                      ) : (
+                        <li key={`sep-${i}`} role="separator" className="my-1 border-t" />
+                      ),
+                    )}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
+        </nav>
       </header>
 
       {/* The ingestion review page is a side-by-side image comparison tool -- it breaks out of

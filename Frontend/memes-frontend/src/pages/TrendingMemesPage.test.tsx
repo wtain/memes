@@ -243,9 +243,10 @@ describe("TrendingMemesPage window switch", () => {
 })
 
 describe("nav", () => {
-  it("has a Trending memes link distinct from Trends", () => {
+  it("has a Trending memes link distinct from Trends", async () => {
     render(<MemoryRouter><AppLayout /></MemoryRouter>)
-    expect(screen.getByRole("link", { name: "Trending memes" })).toHaveAttribute("href", "/trending-memes")
-    expect(screen.getByRole("link", { name: "Trends" })).toHaveAttribute("href", "/trends")
+    await userEvent.click(screen.getByRole("button", { name: /^Find/ }))
+    expect(screen.getByRole("menuitem", { name: "Trending memes" })).toHaveAttribute("href", "/trending-memes")
+    expect(screen.getByRole("menuitem", { name: "Trends" })).toHaveAttribute("href", "/trends")
   })
 })
