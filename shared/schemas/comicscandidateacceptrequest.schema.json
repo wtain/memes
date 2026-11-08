@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicscandidateacceptrequest.schema.json",
+  "title": "ComicsCandidateAcceptRequest",
+  "description": "Accept a suggested comics, optionally with an ordered subset of its images",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "imageIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

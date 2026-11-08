@@ -1,6 +1,6 @@
 # Runbook: first live rollout of multi-image comics
 
-Status: migrations applied on all three environments (metal 2026-11-06, general and it 2026-11-07, each after a fresh backup, preflight `READY`, smoke tests passed); the smoke build below has not been run yet. Design: `docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-06-c5-operations-design.md`.
+Status: the first two comics migrations (`d7a3b9c5e214`, `f3a8c1d6b952`) are applied on all three environments (metal 2026-11-06, general and it 2026-11-07, each after a fresh backup, preflight `READY`, smoke tests passed); the C9 migration `a9d3e6b1c847` is pending on all three; the smoke build below has not been run yet. Design: `docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-06-c5-operations-design.md`.
 Use case: `comics-build.md`. Nothing here runs by itself. **Applying a migration to any environment needs the owner's explicit
 go-ahead, one environment at a time**; no agent applies one. Order: **general, then metal, then it**. Stop at the first failing step
 of an environment.
@@ -9,25 +9,27 @@ The commands are PowerShell from the repo root unless a step says `Storage/`. `$
 
 ## The migrations
 
-Two migrations belong to comics. They are the last two of the chain (head is `f3a8c1d6b952`), after `b4c9e1f7a028` (S6):
+Three migrations belong to comics. They are the last three of the chain (head is `a9d3e6b1c847`), after `b4c9e1f7a028` (S6):
 
 1. `d7a3b9c5e214` C1: `comics` and `comics_panels` (including `source_image_id`, `source_filename`, `source_content_hash`), and the `comics_build` popularity source
 2. `f3a8c1d6b952` C4: `comics_panels.kept`
+3. `a9d3e6b1c847` C9: `comics_candidates` and `comics_candidate_images` (suggested groups)
 
-Both only add tables, columns and constraints and rewrite no existing row. An environment that is behind by more than these two also
+All three only add tables, columns and constraints and rewrite no existing row. An environment that is behind by more than these three also
 receives the recut, popularity, saves and impressions migrations in the same `alembic upgrade head`; the full list, and the
-backup, quiet-writers and restart steps, are in `screenshot-recut-rollout.md` ("The migrations", eleven in all). If an
-environment already ran that rollout up to `b4c9e1f7a028`, only these two are pending. Use that runbook for the shared
+backup, quiet-writers and restart steps, are in `screenshot-recut-rollout.md` ("The migrations", twelve in all). If an
+environment already ran that rollout up to `b4c9e1f7a028`, only these three are pending. Use that runbook for the shared
 steps (read-only URL, backup, upgrade); this one adds what is specific to comics.
 
 ## Per environment (general, then metal, then it)
 
 1. **Preflight before.** With `DATABASE_URL_READONLY` set for this environment (see the recut runbook, step 0):
    `& $py -m tools.rollout_preflight --env general --backup-dir Storage\backups`
-   Expect `NOT READY` only because of the pending revisions, with `WARN` lines for `comics.*` and `comics_panels.*` columns
-   (`schema_matches_models` lists each missing column with the revision that creates it).
+   Expect `NOT READY` only because of the pending revisions, with `WARN` lines for `comics_candidates*` (only `a9d3e6b1c847` is pending on an environment that ran the first two comics
+   migrations; one that did not also gets `comics.*` and `comics_panels.*` lines). `schema_matches_models` lists each missing
+   column with the revision that creates it.
 2. **Backup**, **quiet the writers**, **upgrade** (`alembic upgrade head` from `Storage/`): as in the recut runbook.
-3. **Preflight after.** Expect `READY` and `at head f3a8c1d6b952`, and `expected columns present`.
+3. **Preflight after.** Expect `READY` and `at head a9d3e6b1c847`, and `expected columns present`.
 4. **Restart the backend** of that environment on matching code. The backend image needs Pillow and
    `batch/utils/{__init__,recut_cut,file_hash,comics_compose}.py` (the build composes the image in the request and writes into `BASE_PATH`).
    Smoke test: `/api/diagnostics/health`, `/api/images?limit=1`, `GET /api/comics?limit=1`, and the `comics` block of
@@ -55,6 +57,10 @@ accept to see flagged), then:
 4. Run `move_flagged`: the sources move to `BASE_PATH/comics-sources/<name>/` (`moved_to_comics_sources`).
 5. Look in `BASE_PATH` for leftover `comics-*` files without an image row and hidden `.comics-build-*` files (the latter are
    skipped by OCR but should not accumulate).
+
+## After the C9 migration (suggestions)
+
+Once an environment is at head `a9d3e6b1c847`, run `detect_comics_candidates` once from `/admin/batches` (or `python -m batch.detect_comics_candidates --env <env>`), then open `/admin/comics/candidates`. The job writes only the candidate tables and is safe to re-run. In `general` expect on the order of a hundred groups; `metal` and `it` have fewer filename timestamps. See `comics-candidates.md`.
 
 ## If something fails
 

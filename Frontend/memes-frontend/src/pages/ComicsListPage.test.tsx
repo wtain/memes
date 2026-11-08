@@ -32,6 +32,11 @@ describe("ComicsListPage", () => {
     expect(screen.getByAltText("Cover of Comics a")).toHaveAttribute("src", "http://example.com/api/images/img-a")
   })
 
+  it("links to the suggestions page", async () => {
+    setup()
+    expect(await screen.findByRole("link", { name: "Suggestions" })).toHaveAttribute("href", "/admin/comics/candidates")
+  })
+
   it("shows an empty state", async () => {
     setup({ listComics: vi.fn().mockResolvedValue({ items: [], hasMore: false }) })
     expect(await screen.findByText("No comics yet")).toBeInTheDocument()

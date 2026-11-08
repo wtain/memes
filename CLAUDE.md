@@ -332,7 +332,16 @@ comics_pipeline            → multi-image comics (C5): the after-build driver. 
                               step skips only its dependents, ocr_tags is skipped_not_configured where there is no tagging
                               vocabulary (`it`). Descriptions and profiles stay in description_pipeline. The comics build
                               serialises byte-identical outputs with an advisory lock on the content hash. See
-                              docs/batches/use-cases/comics-build.md and comics-rollout.md (migrations d7a3b9c5e214, f3a8c1d6b952).
+                              docs/batches/use-cases/comics-build.md and comics-rollout.md (migrations d7a3b9c5e214, f3a8c1d6b952, a9d3e6b1c847).
+detect_comics_candidates   → multi-image comics (C9, migration a9d3e6b1c847): stores open suggested groups in comics_candidates (and
+                              comics_candidate_images): active, unflagged images in no comics and with no live recut cut, with an embedding, whose
+                              file name timestamps (YYYYMMDD_HHMMSS, or 13-digit epoch milliseconds; never compared across
+                              shapes) are at most comics_candidates.gap_seconds apart and whose CLIP distance is within
+                              [min_distance, max_distance]; distances only for pairs inside the time window; connected
+                              components of 2..max_group images (larger ones are batch saves, dropped). A group that exists
+                              or shares two images with a dismissed/accepted candidate is skipped; max_candidates_per_run
+                              keeps the strongest. Run-tracked, admin-triggerable from /admin/batches, manual-trigger only,
+                              not scheduled; changes only the two candidate tables. See docs/batches/use-cases/comics-candidates.md.
 build_concept_embeddings   → concept CLIP embeddings + mappings; also runs tag_images_from_concepts
                               automatically afterward (--no-chain skips this); both are
                               admin-triggerable, manual-trigger only, not scheduled

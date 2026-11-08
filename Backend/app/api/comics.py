@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.services.comics_build_service import ComicsBuildService
+from Backend.app.services.comics_candidates_service import ComicsCandidatesService, candidate_http_error
 from Backend.app.services.comics_pipeline_trigger import start_comics_pipeline
 from Backend.app.services.comics_service import (MAX_ADDABILITY_IDS, ComicsService, detail, compose_http_error,
                                                   http_error)
@@ -14,12 +15,15 @@ from Backend.app.types.generated.comicsbuildresult import Schema as ComicsBuildR
 from Backend.app.types.generated.comicsaddability import Schema as ComicsAddabilitySchema
 from Backend.app.types.generated.comicsaddpanelrequest import Schema as AddPanelRequest
 from Backend.app.types.generated.comicsbyimage import Schema as ComicsByImageSchema
+from Backend.app.types.generated.comicscandidateacceptrequest import Schema as ComicsCandidateAcceptRequest
+from Backend.app.types.generated.comicscandidatepage import Schema as ComicsCandidatePageSchema
 from Backend.app.types.generated.comicscreaterequest import Schema as ComicsCreateRequest
 from Backend.app.types.generated.comicsdetail import Schema as ComicsDetailSchema
 from Backend.app.types.generated.comicspage import Schema as ComicsPageSchema
 from Backend.app.types.generated.comicsreorderrequest import Schema as ReorderRequest
 from batch.utils.comics_compose import ComposeError
 from repository.comics import ComicsError
+from repository.comics_candidates import CandidateError
 from Storage.db import get_async_db
 
 logger = logging.getLogger(__name__)
@@ -34,6 +38,10 @@ async def get_comics_build_service(db: AsyncSession = Depends(get_async_db)) -> 
     yield ComicsBuildService(db)
 
 
+async def get_candidates_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[ComicsCandidatesService, None]:
+    yield ComicsCandidatesService(db)
+
+
 async def _run(call, *args):
     # Raising after the service wrote anything is safe: get_async_db rolls the whole request back.
     try:
@@ -42,6 +50,8 @@ async def _run(call, *args):
         raise http_error(error) from None
     except ComposeError as error:
         raise compose_http_error(error) from None
+    except CandidateError as error:
+        raise candidate_http_error(error) from None
 
 
 def _uuid(value: str) -> uuid.UUID:
@@ -69,6 +79,26 @@ async def get_addability(imageIds: str = Query(...), service: ComicsService = De
     if len(parts) > MAX_ADDABILITY_IDS:
         raise HTTPException(status_code=422, detail=f"imageIds takes 1 to {MAX_ADDABILITY_IDS} ids")
     return await _run(service.addability, [_uuid(p) for p in parts])
+
+
+@router.get("/candidates", response_model=ComicsCandidatePageSchema)
+async def list_candidates(limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0),
+                          service: ComicsCandidatesService = Depends(get_candidates_service)):
+    return await _run(service.list, offset, limit)
+
+
+@router.post("/candidates/{candidate_id}/accept", response_model=ComicsDetailSchema, status_code=201)
+async def accept_candidate(candidate_id: uuid.UUID, body: ComicsCandidateAcceptRequest | None = None,
+                           service: ComicsCandidatesService = Depends(get_candidates_service)):
+    ids = [_uuid(p) for p in body.imageIds] if body is not None and body.imageIds is not None else None
+    return await _run(service.accept, candidate_id, ids)
+
+
+@router.post("/candidates/{candidate_id}/dismiss", status_code=204)
+async def dismiss_candidate(candidate_id: uuid.UUID,
+                            service: ComicsCandidatesService = Depends(get_candidates_service)):
+    await _run(service.dismiss, candidate_id)
+    return Response(status_code=204)
 
 
 @router.get("/by-image/{image_id}", response_model=ComicsByImageSchema)

@@ -73,6 +73,33 @@ One image in a comics. The image row may later go (panels leave the library afte
 | `source_content_hash` | String nullable | Snapshot taken when the image is added |
 | `kept` | Boolean NOT NULL | Server default `false` (migration `f3a8c1d6b952`, C4, chained after `d7a3b9c5e214`). True when the owner chose to keep the panel's image in the library after the build |
 
+### `comics_candidates`
+
+A suggested group of images that may be one story (epic multi-image-comics, C9). Written through `repository/comics_candidates.py`, which never commits.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `key` | String NOT NULL | md5 of the sorted image ids; unique index `uq_comics_candidates_key`, so a re-run never recreates a group |
+| `state` | String(20) NOT NULL | `open` \| `accepted` \| `dismissed` (`CandidateState`), CHECK `ck_comics_candidates_state`; server default `open`; indexed (`ix_comics_candidates_state`) |
+| `detector_version` | String NOT NULL | |
+| `size` | Integer NOT NULL | Number of images stored with the group, CHECK `size >= 2`; the candidate is listed only while its surviving `comics_candidate_images` rows equal it (a deleted image cascades its row away) |
+| `max_gap_seconds` | Float NOT NULL | Largest filename-timestamp gap among the group's linked edges |
+| `max_distance` | Float NOT NULL | Largest CLIP distance among the linked edges; the list sorts by it ascending |
+| `comics_id` | UUID FK → comics nullable | `ON DELETE SET NULL`; the comics made on accept |
+| `created_at` | DateTime(tz) NOT NULL | |
+| `decided_at` | DateTime(tz) nullable | |
+
+### `comics_candidate_images`
+
+The images of a candidate in story order. Primary key (`candidate_id`, `image_id`).
+
+| Column | Type | Notes |
+|---|---|---|
+| `candidate_id` | UUID FK → comics_candidates | `ON DELETE CASCADE` |
+| `image_id` | UUID FK → images | `ON DELETE CASCADE`; indexed (`ix_comics_candidate_images_image_id`) |
+| `position` | Integer NOT NULL | 0-based; CHECK `position >= 0` |
+
 ### `image_extras`
 Optional per-image flags. Separate table so that the `images` row stays small and extras are only joined when needed.
 

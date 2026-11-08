@@ -10,7 +10,7 @@ import type {
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
   RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemePopularityUpdate, MemeSaves, MemeImpressions, TrendingMemesResponse,
-  ComicsPage, ComicsDetail, ComicsAddability, ComicsByImage, ComicsBuildResult,
+  ComicsPage, ComicsDetail, ComicsAddability, ComicsByImage, ComicsBuildResult, ComicsCandidatePage,
 } from "../../types/generated/all"
 import type { Category } from "../../curator/types"
 import {
@@ -855,6 +855,23 @@ export class HttpMemesApi implements MemesApi {
 
   comicsByImage(imageId: string): Promise<ComicsByImage> {
     return this.comicsJson(`/api/comics/by-image/${encodeURIComponent(imageId)}`)
+  }
+
+  listComicsCandidates(offset?: number, limit?: number): Promise<ComicsCandidatePage> {
+    const params = new URLSearchParams()
+    if (offset !== undefined) params.set("offset", String(offset))
+    if (limit !== undefined) params.set("limit", String(limit))
+    const query = params.toString()
+    return this.comicsJson(`/api/comics/candidates${query ? `?${query}` : ""}`)
+  }
+
+  acceptComicsCandidate(id: string, imageIds?: string[]): Promise<ComicsDetail> {
+    const body = imageIds === undefined ? {} : { imageIds }
+    return this.comicsJson(`/api/comics/candidates/${encodeURIComponent(id)}/accept`, "POST", body)
+  }
+
+  async dismissComicsCandidate(id: string): Promise<void> {
+    await this.comicsFetch(`/api/comics/candidates/${encodeURIComponent(id)}/dismiss`, "POST")
   }
 
   comicsPreviewUrl(id: string, maxWidth: number, version: string): string {

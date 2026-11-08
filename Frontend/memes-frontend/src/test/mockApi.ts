@@ -89,6 +89,9 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     buildComics: vi.fn().mockResolvedValue({ comics: { id: '', name: '', state: 'built', builtImageId: 'b', builtAt: null, panels: [] }, builtImageId: 'b' }),
     comicsAddability: vi.fn().mockResolvedValue({ items: [] }),
     comicsByImage: vi.fn().mockResolvedValue({ comics: null }),
+    listComicsCandidates: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
+    acceptComicsCandidate: vi.fn().mockResolvedValue({ id: '', name: '', state: 'draft', builtImageId: null, builtAt: null, panels: [] }),
+    dismissComicsCandidate: vi.fn().mockResolvedValue(undefined),
     comicsPreviewUrl: vi.fn().mockReturnValue('http://example.com/api/comics/c/preview'),
     ...overrides,
   } as MemesApi

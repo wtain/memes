@@ -9,7 +9,7 @@ import type {
   RatingRequest, RatingResponse, RatingsResponse,
   CuratedProfile, CuratedProfileSaveRequest, ProfileCoverage, ProfileCoverageImages,
   RecutAdjustRequest, RecutDecision, RecutProposalDetail, RecutProposalPage, RecutStats, MemePopularity, MemeSaves, MemeImpressions, TrendingMemesResponse,
-  ComicsPage, ComicsDetail, ComicsAddability, ComicsByImage, ComicsBuildResult,
+  ComicsPage, ComicsDetail, ComicsAddability, ComicsByImage, ComicsBuildResult, ComicsCandidatePage,
 } from "../types/generated/all";
 import type { Category } from "../curator/types";
 import type {
@@ -141,5 +141,9 @@ export interface MemesApi {
   buildComics(id: string, keepPanelIds: string[]): Promise<ComicsBuildResult>
   comicsAddability(imageIds: string[]): Promise<ComicsAddability>
   comicsByImage(imageId: string): Promise<ComicsByImage>
+  listComicsCandidates(offset?: number, limit?: number): Promise<ComicsCandidatePage>
+  /** Makes a draft comics from the suggestion (all its images, or the ordered subset `imageIds`). */
+  acceptComicsCandidate(id: string, imageIds?: string[]): Promise<ComicsDetail>
+  dismissComicsCandidate(id: string): Promise<void>
   comicsPreviewUrl(id: string, maxWidth: number, version: string): string
 }

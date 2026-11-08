@@ -14,6 +14,13 @@ recut:                          # screenshot recut, crop detection (docs/superpo
 comics:                        # multi-image comics (docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-03-c2-tiling-composer-design.md)
   jpeg_quality: 95             # quality of the tiled image when every panel is JPEG
 
+comics_candidates:             # suggested comics, detect_comics_candidates (docs/superpowers/specs/2026-11-02-multi-image-comics/2026-11-08-c9-candidate-queue-design.md)
+  gap_seconds: 5               # filename timestamps at most this far apart (same timestamp shape) can link two images
+  min_distance: 0.06           # CLIP cosine distance window; below this two images are duplicates (duplicates flow)
+  max_distance: 0.15           # ... and above this they do not look alike
+  max_group: 6                 # a linked group larger than this is a batch save and is dropped, not truncated
+  max_candidates_per_run: 500  # at most this many new candidates stored per run, strongest (smallest max distance) first
+
 rules:
   lemmatize: false
 
