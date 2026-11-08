@@ -869,6 +869,49 @@ export interface ComicsBuildResult {
   builtImageId: string;
 }
 /**
+ * One image of a suggested comics group
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsCandidateImage".
+ */
+export interface ComicsCandidateImage {
+  id: string;
+  filename: string;
+  width: number | null;
+  height: number | null;
+}
+/**
+ * A suggested comics: images saved seconds apart that look alike
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsCandidate".
+ */
+export interface ComicsCandidate {
+  id: string;
+  maxDistance: number;
+  maxGapSeconds: number;
+  images: ComicsCandidateImage[];
+}
+/**
+ * One page of open suggested comics, strongest first
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsCandidatePage".
+ */
+export interface ComicsCandidatePage {
+  items: ComicsCandidate[];
+  hasMore: boolean;
+}
+/**
+ * Accept a suggested comics, optionally with an ordered subset of its images
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "ComicsCandidateAcceptRequest".
+ */
+export interface ComicsCandidateAcceptRequest {
+  imageIds?: string[];
+}
+/**
  * The corrected box of a recut proposal, in pixels of the source image
  *
  * This interface was referenced by `AllSchema`'s JSON-Schema

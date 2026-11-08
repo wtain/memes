@@ -1666,6 +1666,31 @@ Shapes: `ComicsSummary` `{ id, name, state, panelCount, coverImageId, createdAt,
 - **Response** `200`: `{ comics: { id, name, state, position } | null }`; `null` when the image is no panel of any comics
 - **Error Responses**: `422` for an `imageId` that is not a UUID
 
+**Suggested comics (the candidate queue, C9)**
+
+Groups of images that were saved seconds apart and look alike, found by the `detect_comics_candidates` batch job. These routes are declared before `/api/comics/{id}`.
+
+- **URL**: `/api/comics/candidates?offset=0&limit=20`
+- **Method**: `GET`
+- **Query Parameters**: `offset` (default 0), `limit` (1 to 100, default 20)
+- **Response** `200`: `ComicsCandidatePage` `{ items: [{ id, maxDistance, maxGapSeconds, images: [{ id, filename, width, height }] }], hasMore }`. Only open candidates whose images are all still active, not flagged, in no comics and present are listed, smallest `maxDistance` first (then id); `images` are in the group's order; `width`/`height` may be `null`. No total is returned.
+- **Error Responses**: `422` for a parameter out of range
+
+**Accept a suggestion**
+
+- **URL**: `/api/comics/candidates/{candidateId}/accept`
+- **Method**: `POST`
+- **Body** (optional): `{ imageIds? }`, an ordered subset of the group's images (at least 2, no repeats); default all images in the group's order. Images switched off are not dismissed.
+- **Response** `201`: the `ComicsDetail` of the new draft, named `Comics <first image's file name without extension>` (the same rule as the web app's default name; on a name conflict it is retried once as `... <first 8 characters of the first image id>`). The draft is created, the images added in order and the candidate marked `accepted` in one transaction.
+- **Error Responses**: `404` `not_found`; `409` `candidate_decided` (with `state`), `image_not_addable` (with `reason` `not_active`, `flagged` or `live_cut`, and `imageId`) or `image_in_comics` (with `comicsId`, `comicsName`, `imageId`) for the first image that can no longer be added, `name_taken` (both names taken); `422` `subset_invalid` (`reason`: `too_few_images`, `unknown_image` for an id outside the group, `duplicate_image`) or an id that is not a UUID. On any error nothing is changed.
+
+**Dismiss a suggestion**
+
+- **URL**: `/api/comics/candidates/{candidateId}/dismiss`
+- **Method**: `POST`
+- **Response** `204` (no body); the candidate is `dismissed` for good. Dismissing an already dismissed candidate is a no-op `204`.
+- **Error Responses**: `404` `not_found`; `409` `candidate_decided` (it was accepted); `422` for an id that is not a UUID
+
 ---
 
 ### Admin

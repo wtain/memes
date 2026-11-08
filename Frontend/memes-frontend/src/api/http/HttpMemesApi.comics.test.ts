@@ -131,6 +131,37 @@ describe("comics API", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/comics/addability?imageIds=a%2Cb")
   })
 
+  it("lists comics candidates with offset and limit", async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, body: { items: [], hasMore: false } })
+    await api.listComicsCandidates(4, 2)
+    await api.listComicsCandidates()
+    expect(fetchMock.mock.calls[0][0]).toBe("http://backend/api/comics/candidates?offset=4&limit=2")
+    expect(fetchMock.mock.calls[1][0]).toBe("http://backend/api/comics/candidates")
+  })
+
+  it("accepts a candidate with an empty body or an image subset", async () => {
+    const fetchMock = stubFetch({ ok: true, status: 201, body: detail })
+    expect(await api.acceptComicsCandidate("k1")).toEqual(detail)
+    await api.acceptComicsCandidate("k1", ["b", "a"])
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe("http://backend/api/comics/candidates/k1/accept")
+    expect(init.method).toBe("POST")
+    expect(init.body).toBe("{}")
+    expect(fetchMock.mock.calls[1][1].body).toBe(JSON.stringify({ imageIds: ["b", "a"] }))
+  })
+
+  it("dismisses a candidate and keeps the code of a 409", async () => {
+    const fetchMock = stubFetch({ ok: true, status: 204 })
+    await expect(api.dismissComicsCandidate("k1")).resolves.toBeUndefined()
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe("http://backend/api/comics/candidates/k1/dismiss")
+    expect(init.method).toBe("POST")
+    stubFetch({ ok: false, status: 409, body: { detail: { code: "candidate_decided", state: "accepted" } } })
+    const error = await api.dismissComicsCandidate("k1").catch(e => e)
+    expect(error).toBeInstanceOf(ComicsRequestError)
+    expect(error.code).toBe("candidate_decided")
+  })
+
   it("gets the comics of an image", async () => {
     const fetchMock = stubFetch({ ok: true, status: 200, body: { comics: null } })
     await api.comicsByImage("img")

@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "comicscandidate.schema.json",
+  "title": "ComicsCandidate",
+  "description": "A suggested comics: images saved seconds apart that look alike",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "maxDistance": {
+      "type": "number"
+    },
+    "maxGapSeconds": {
+      "type": "number"
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "$ref": "./comicscandidateimage.schema.json"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "maxDistance",
+    "maxGapSeconds",
+    "images"
+  ]
+}

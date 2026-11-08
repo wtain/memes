@@ -74,6 +74,19 @@ data class ComicsByImageComics(
 )
 
 @Serializable
+data class ComicsCandidateAcceptRequest(
+    @SerialName("imageIds") val imageIds: List<String>? = null
+)
+
+@Serializable
+data class ComicsCandidateImage(
+    @SerialName("id") val id: String,
+    @SerialName("filename") val filename: String,
+    @SerialName("width") val width: Int?,
+    @SerialName("height") val height: Int?
+)
+
+@Serializable
 data class ComicsCreateRequest(
     @SerialName("name") val name: String
 )
@@ -549,6 +562,20 @@ data class ComicsBuildResult(
 @Serializable
 data class ComicsByImage(
     @SerialName("comics") val comics: ComicsByImageComics?
+)
+
+@Serializable
+data class ComicsCandidate(
+    @SerialName("id") val id: String,
+    @SerialName("maxDistance") val maxDistance: Float,
+    @SerialName("maxGapSeconds") val maxGapSeconds: Float,
+    @SerialName("images") val images: List<ComicsCandidateImage>
+)
+
+@Serializable
+data class ComicsCandidatePage(
+    @SerialName("items") val items: List<ComicsCandidate>,
+    @SerialName("hasMore") val hasMore: Boolean
 )
 
 @Serializable

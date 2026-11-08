@@ -4,6 +4,7 @@ A comic's name is also used as a directory name, so the rules must hold after
 normalization.
 """
 
+import re
 import unicodedata
 
 MAX_NAME_LENGTH = 80
@@ -19,6 +20,27 @@ class ComicsNameError(ValueError):
     def __init__(self, reason: str):
         super().__init__(reason)
         self.reason = reason
+
+
+_DEFAULT_PREFIX = "Comics "
+_WHITESPACE = re.compile(r"\s+")
+
+
+def default_comics_name(filename: str | None, image_id, with_id_suffix: bool = False) -> str:
+    """Server-side twin of the frontend's defaultComicsName (src/comics/comicsNaming.ts): `Comics <file name
+    without extension>`, or `Comics <first 8 characters of the id>` when nothing usable is left. with_id_suffix
+    appends the id's first 8 characters (the retry after a name conflict). Never longer than MAX_NAME_LENGTH.
+    Also drops format and separator characters, which normalize_name would reject."""
+    short = str(image_id)[:8]
+    file = filename or ""
+    dot = file.rfind(".")
+    base = file[:dot] if dot > 0 else file
+    stem = "".join(ch for ch in base if ch not in _FORBIDDEN and unicodedata.category(ch) not in _FORBIDDEN_CATEGORIES)
+    stem = _WHITESPACE.sub(" ", stem).strip()
+    suffix = f" {short}" if with_id_suffix else ""
+    room = MAX_NAME_LENGTH - len(_DEFAULT_PREFIX) - len(suffix)
+    body = short if stem == "" else stem[:room].strip().rstrip(". ")
+    return f"{_DEFAULT_PREFIX}{body or short}{suffix}"
 
 
 def name_key_of(text: str) -> str:
