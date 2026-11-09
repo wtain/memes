@@ -10,8 +10,9 @@ deep dives use `open`, `in progress`, `done` or `dropped`.
 
 ## Working rules
 
-- **Worktree:** `.claude/worktrees/android-ingestion-sync-epic`, branch `worktree-android-ingestion-sync-epic`. Another epic may be
-  running in parallel: sync from local `main` before starting a project (`git merge --ff-only main` in the worktree).
+- **Worktree:** was `.claude/worktrees/android-ingestion-sync-epic`, branch `worktree-android-ingestion-sync-epic`; removed after the merge
+  (2026-11-09; an empty, locked `AndroidClient` folder may remain on disk and can be deleted by hand). Another epic may run in parallel:
+  for any follow-up, create a new worktree from local `main`.
 - **Merging to `main` and every database migration need the owner's explicit confirmation**, per project. Nothing is merged or
   migrated otherwise. No migration is expected in this epic.
 - **Ambiguities** are brainstormed with the owner, not guessed.
