@@ -13,6 +13,7 @@ import com.memebrowser.app.ui.flagged.FlaggedScreen
 import com.memebrowser.app.ui.recommendations.RecommendationsScreen
 import com.memebrowser.app.ui.search.SearchScreen
 import com.memebrowser.app.ui.statistics.StatisticsScreen
+import com.memebrowser.app.ui.sync.SyncScreen
 import com.memebrowser.app.ui.trends.TrendsScreen
 import com.memebrowser.app.ui.upload.UploadScreen
 import java.net.URLEncoder
@@ -30,7 +31,7 @@ fun NavGraph() {
                 },
                 onEnvironmentsClick = { navController.navigate("environments") },
                 onFlaggedClick = { navController.navigate("flagged") },
-                onUploadClick = { navController.navigate("upload") },
+                onUploadClick = { navController.navigate("sync") },
                 onAboutClick = { navController.navigate("about") },
                 onTrendsClick = { navController.navigate("trends") },
                 onRecommendationsClick = { navController.navigate("recommendations") },
@@ -70,6 +71,12 @@ fun NavGraph() {
         composable("environments") {
             EnvironmentManagerScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+        composable("sync") {
+            SyncScreen(
+                onBack = { navController.popBackStack() },
+                onUploadFiles = { navController.navigate("upload") }
             )
         }
         composable("upload") {

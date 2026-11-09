@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 30 and below (android:fullBackupContent). Same exclusions as data_extraction_rules.xml. -->
+<full-backup-content>
+    <exclude domain="database" path="tracker.db" />
+    <exclude domain="database" path="tracker.db-wal" />
+    <exclude domain="database" path="tracker.db-shm" />
+    <exclude domain="database" path="tracker.db-journal" />
+    <exclude domain="file" path="datastore/tracker_settings.preferences_pb" />
+</full-backup-content>

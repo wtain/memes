@@ -2,6 +2,11 @@
 
 Status: done
 
+> **Superseded in part (2026-11-08):** uploads now land in the ingestion inbox (`PATH_INGESTION_SOURCE`), keep their sanitised
+> original name, are written atomically and report `accepted` / `duplicate`. `INCOMING_PATH` and `BASE_PATH/incoming` are retired. The
+> Storage, `UploadedFile.status`, Architecture and status-code sections below describe the old behaviour. Current design:
+> `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-b1-inbox-upload-design.md`; contract in `backend_api.md`.
+
 ## Overview
 
 `POST /api/uploads` — accepts one or more image files via multipart upload and saves them to
@@ -44,9 +49,9 @@ Content-Type: multipart/form-data
 
 | Property       | Value                                                                              |
 |----------------|------------------------------------------------------------------------------------|
-| Directory      | `INCOMING_PATH` env var if set; otherwise `BASE_PATH / "incoming"`   |
+| Directory      | ~~`INCOMING_PATH` / `BASE_PATH/incoming`~~ superseded: `PATH_INGESTION_SOURCE` (the ingestion inbox) |
 | Created        | At first request (or server startup) if it doesn't exist — `mkdir(parents=True, exist_ok=True)` |
-| Saved filename | `{uuid4}.{original_extension}` — no collisions; original name preserved in response |
+| Saved filename | ~~`{uuid4}.{ext}`~~ superseded: the sanitised original name, numeric suffix on a collision |
 
 ---
 
@@ -60,7 +65,7 @@ Content-Type: multipart/form-data
   "saved_as": "a1b2c3d4-1234-5678-abcd-ef0123456789.jpg",
   "size_bytes": 204800,
   "content_type": "image/jpeg",
-  "status": "ok"
+  "status": "ok"   // superseded: "accepted" or "duplicate"
 }
 ```
 
@@ -172,5 +177,5 @@ and accepted files are still saved. If every file fails, the response is still `
 - No authentication — consistent with the rest of the API.
 - No rate limiting — consistent with the rest of the API.
 - Content-type is taken from the multipart header, not sniffed from magic bytes (internal tool).
-- The `incoming/` directory is **not** served by the API — only `IMAGES_DIR` is.
-- This endpoint does **not** insert anything into the database.
+- The inbox is **not** served by the API — only `IMAGES_DIR` is.
+- This endpoint does **not** insert anything into the database (it reads `images.content_hash` for the duplicate check).

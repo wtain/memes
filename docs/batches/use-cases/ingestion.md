@@ -8,6 +8,43 @@ Execution order (Graphviz): [diagrams/ingestion.svg](../diagrams/ingestion.svg)
 Goal: new files dropped in `<BASE_PATH>\inbox\` (`PATH_INGESTION_SOURCE`) become `active`, searchable images, with
 exact and near duplicates reviewed by a human first. One ingestion run per environment at a time.
 
+Files reach the inbox by hand or through `POST /api/uploads` (web Upload page, Android app): uploads keep their sanitised
+original name, are written complete (staged in `<inbox>\.uploading\`, which `ingest_hash_dedup` skips as a directory, then
+published without ever replacing an existing file) and are answered `duplicate` without being written when the content already
+matches any `images.content_hash` or a file in the inbox. Only real images pass (Pillow opens them, format matches the
+extension, at most 100,000,000 pixels). A phone WebP whose library copy was converted to JPEG is not seen as a duplicate here
+(its `content_hash` was rewritten) and goes through the normal hash and CLIP review. See `backend_api.md` (Uploads) and
+`docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-b1-inbox-upload-design.md`.
+
+## Phone and web uploads
+
+Verified by `tests/integration/test_upload_to_ingestion.py` (the real upload router and service, then the real Stage 1 and
+Stage 1.5 on the test database). Spec: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-b2-ingestion-pickup-verification-design.md`.
+
+- **Where files land.** `POST /api/uploads` writes into `PATH_INGESTION_SOURCE` (`<BASE_PATH>\inbox\`), the same
+  directory a person drops files into. Stage 1 hashes every non-directory entry there, so an upload needs no other hand-off.
+  Names are the sanitised original (Unicode and spaces kept, never hidden, never a path); a name taken in the inbox gets
+  `_1`, `_2`. If the name is taken in `BASE_PATH` by different content, Stage 1 renames on the move and the `images` row
+  carries the final name.
+- **`.uploading` and `duplicates/`.** Uploads are staged in `<inbox>\.uploading\` and published in one step, so a scan never sees a
+  partial file. Both `.uploading` and `duplicates/` are directories and are skipped by Stage 1 and survive it (a crashed
+  upload's leftover stays there until the next upload removes staged files older than an hour).
+- **What upload checks, what ingestion checks.** Upload: real image (Pillow opens it, format matches the extension, pixel cap),
+  and the content hash is not in `images` (ANY status, including `rejected` and `pending`) and not already in the inbox.
+  Ingestion: in-batch hash duplicates (inbox only), cross-corpus duplicates against `active` images only, then Tier A/B
+  CLIP review. Upload is the stricter exact-hash gate; ingestion still covers files that did not come through upload.
+- **Duplicates and popularity.** A duplicate is answered `duplicate` and never written, so a phone that re-syncs its album
+  adds no file, no `pending` row and no popularity absorption (Stage 1 records absorptions only for copies it sees in the
+  inbox). Two uploads of one content, under one or two names, or concurrent, leave one inbox file. A phone WebP whose library
+  copy was converted to JPEG is not recognised (hash rewritten) and goes through Tier A/B.
+- **Stage 1.5.** Uploaded JPEG/PNG/GIF/BMP/TIFF are `no_op`; a WebP is converted to JPEG there (original in
+  `converted_originals/`), as for any file.
+- **When the inbox is full or the disk is low.** `503` ("inbox is full, run ingestion", more than 50,000 entries) and `507` (less than
+  1 GiB free after the request) both write nothing; clients retry later. The remedy is to run ingestion (`ingest_auto_prep`, then
+  review and `ingest_promote`) so Stage 1 moves the files out of the inbox, or free disk space. `503` also covers an unset or
+  unusable inbox and a failed database lookup.
+- **Not verified here.** A real OneDrive-synced inbox, a live backend and a real phone (epic project E1).
+
 ## Sequence
 
 ```mermaid

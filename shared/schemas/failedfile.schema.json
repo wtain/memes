@@ -5,7 +5,8 @@
   "type": "object",
   "properties": {
     "original_filename": { "type": "string" },
-    "reason":            { "type": "string" }
+    "reason":            { "type": "string" },
+    "index":             { "type": "integer", "description": "0-based position of the file in the request's files parts. Optional for backward compatibility; the server always sets it." }
   },
   "required": ["original_filename", "reason"]
 }
