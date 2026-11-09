@@ -49,11 +49,11 @@ deep dives use `open`, `in progress`, `done` or `dropped`.
 
 - **A3 must handle HTTP 429** (the upload rate limit is 10 requests per minute per IP, no `Retry-After` header): wait out the window, show a "waiting" state, retry; do not mark files failed. At batch size 1 the sync is rate-limited to 10 files a minute. Also handle 503 (inbox full / not writable), 507 (disk low) as stop-with-message, and use the new per-file `index` to match responses to sent files.
 - **A4:** repoint `UploadViewModel` at the shared supported-types/size constants in `data/tracker/SupportedImages`; revisit the de-duplicated rejected-list streams (A1 review M4) if the list recomposes too often.
-- **Pre-existing, not ours:** `androidTest/.../ui/search/SearchScreenTest.kt:54` fails to compile; the worktree has no `local.properties` (set `ANDROID_HOME` in the shell).
+- **Fixed 2026-11-09:** `androidTest/.../ui/search/SearchScreenTest.kt` no longer breaks the instrumented source set (its `onMemeClick` lambda took one argument; the screen passes `(memeId, searchId)`); `compileDebugAndroidTestKotlin` now succeeds, including the never-compiled `SyncScreenTest`, `TrackerDaoTest` and `AlbumAccessTest`. They still have not RUN (no device). The worktree has no `local.properties` (set `ANDROID_HOME` in the shell).
 - **E1 device checklist (collected from reviews):** hand-check list of S2; run `TrackerDaoTest` and `AlbumAccessTest` on a device; upload a Cyrillic-named file and see it in the inbox with the right name; real 50-file chunked upload timing; OneDrive hard-link/rename in the real inbox and backend write rights; a stop mid-upload on a phone.
 - **Accepted risk (A3, M2):** if the server fails every file, three files are rejected for good as `server_error` before the run stops.
 - **A2 coordinator amendment (from A4 review LR-I2):** re-picking the same album while the scan says permission lost re-takes the grant and rescans without a wipe.
-- **Tech debt / follow-ups:** strings are inline English (no resources in the app); `SyncScreen.kt` is large; add the TalkBack slider and 2.0x text layout checks to E1; fix `androidTest/.../ui/search/SearchScreenTest.kt:54` so the instrumented source set compiles.
+- **Tech debt / follow-ups:** strings are inline English (no resources in the app); `SyncScreen.kt` is large; add the TalkBack slider and 2.0x text layout checks to E1.
 - **Open for the owner:** hand-check the S2 list on the Samsung phone before A4 ships; E1 must run a device test of the real Room SQL.
 
 ## Order

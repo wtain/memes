@@ -157,7 +157,7 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a4-
   "Choose album again" is shown once (`lostAccessCardVisible` / `repickInSyncCard`). Retry queries only touch rows still `presentInAlbum`. `SyncPreviews.kt` holds `@Preview`s.
 - Rejected files stay skipped; only `server_error` rows can be retried: `TrackerRepository.retryServerErrors` / `retryServerError` (reset to PENDING, under the tracker Mutex).
 - ViewModel tests mock the final coordinator/engine/tracker with mockk; the retry SQL itself is only checked on a device (`FakeTrackerDao` mirrors it).
-- `androidTest/.../ui/sync/SyncScreenTest` needs a device, and the androidTest source set does not compile until the unrelated `ui/search/SearchScreenTest.kt:54` is fixed.
+- `androidTest/.../ui/sync/SyncScreenTest` needs a device to run (the androidTest source set compiles since `SearchScreenTest` was updated for `onMemeClick(memeId, searchId)`; verified with `compileDebugAndroidTestKotlin`).
 
 ### Navigation
 All screen-to-screen navigation goes through `NavGraph.kt`. Screens receive

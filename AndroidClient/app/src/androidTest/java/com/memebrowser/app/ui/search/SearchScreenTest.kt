@@ -45,7 +45,7 @@ class SearchScreenTest {
     }
 
     private fun setContent(
-        onMemeClick: (String) -> Unit = {},
+        onMemeClick: (memeId: String, searchId: String?) -> Unit = { _, _ -> },
         onEnvironmentsClick: () -> Unit = {}
     ) {
         composeTestRule.setContent {
@@ -106,7 +106,7 @@ class SearchScreenTest {
     @Test
     fun memeCell_click_invokesCallback() {
         var clickedId = ""
-        setContent(onMemeClick = { clickedId = it })
+        setContent(onMemeClick = { memeId, _ -> clickedId = memeId })
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodes(androidx.compose.ui.test.hasTestTag("meme_cell_meme-1"))
                 .fetchSemanticsNodes().isNotEmpty()
