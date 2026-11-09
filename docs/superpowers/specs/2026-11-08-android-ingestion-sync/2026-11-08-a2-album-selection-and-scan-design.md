@@ -71,3 +71,9 @@ Fixed:
 Skipped: finding 12 (state maps grow by environment id; negligible); finding 10 display names for non-externalstorage providers (cosmetic). A fake
 `DocumentsProvider` androidTest for the real cursor mapping and `persistedUriPermissions` comparison was not added (needs a device; the cursor mapping
 itself is covered on the JVM through `RowReader`).
+
+## Amendment (2026-11-09, A4 review fix LR-I2)
+
+Additive change in `AlbumSyncCoordinator`: while the environment's scan state is `PermissionLost`, a pick of the SAME album counts as a lost grant even if the
+persisted grant is still listed (the provider may throw `SecurityException` regardless). `requestChangeAlbum` then sets `needsRegrant`, and `restoreGrantIfLost`
+(behind `confirmChangeAlbum` and `selectAlbum`) re-takes the grant and rescans instead of returning `Unchanged`. No wipe. Existing behaviour is unchanged otherwise.

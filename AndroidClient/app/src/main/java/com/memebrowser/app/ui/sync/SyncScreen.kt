@@ -6,11 +6,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,18 +48,25 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -68,8 +76,10 @@ import com.memebrowser.app.data.album.ScanState
 import com.memebrowser.app.data.sync.SyncState
 import com.memebrowser.app.data.sync.isActive
 import com.memebrowser.app.data.tracker.TrackerSettingsStore
+import kotlin.math.roundToInt
 
 /** The callbacks of the stateless [SyncContent]; the stateful [SyncScreen] wires them to the ViewModel. */
+@Immutable
 class SyncActions(
     val onBack: () -> Unit = {},
     val onChooseAlbum: () -> Unit = {},
@@ -100,8 +110,8 @@ fun SyncScreen(
         if (uri != null) viewModel.onAlbumPicked(uri.toString())
     }
 
-    // Refresh when the screen opens or the app comes back (rotation and double starts are throttled in the ViewModel),
-    // and again when the selected environment changes.
+    // Refresh when the screen opens or the app comes back, and again when the selected environment changes. On the
+    // first open both effects fire; the ViewModel's 30 s throttle per environment absorbs the second call.
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onScreenStarted() }
     LaunchedEffect(state.environment?.id) { if (state.environment != null) viewModel.onScreenStarted() }
 
@@ -113,23 +123,25 @@ fun SyncScreen(
         onDispose { view.keepScreenOn = false }
     }
 
-    val actions = SyncActions(
-        onBack = onBack,
-        onChooseAlbum = { picker.launch(null) },
-        onUploadFiles = onUploadFiles,
-        onRefresh = viewModel::refresh,
-        onSyncNow = viewModel::startSync,
-        onStop = viewModel::stopSync,
-        onDismissResult = viewModel::dismissSyncResult,
-        onBatchSizeChange = viewModel::setBatchSize,
-        onShowRejected = viewModel::showRejected,
-        onHideRejected = viewModel::hideRejected,
-        onRetryAll = viewModel::retryServerErrors,
-        onRetryOne = viewModel::retryServerError,
-        onConfirmChange = viewModel::confirmChangeAlbum,
-        onDismissChange = viewModel::dismissChangeAlbum,
-        onMessageShown = viewModel::dismissMessage,
-    )
+    val actions = remember(viewModel, picker, onBack, onUploadFiles) {
+        SyncActions(
+            onBack = onBack,
+            onChooseAlbum = { picker.launch(null) },
+            onUploadFiles = onUploadFiles,
+            onRefresh = viewModel::refresh,
+            onSyncNow = viewModel::startSync,
+            onStop = viewModel::stopSync,
+            onDismissResult = viewModel::dismissSyncResult,
+            onBatchSizeChange = viewModel::setBatchSize,
+            onShowRejected = viewModel::showRejected,
+            onHideRejected = viewModel::hideRejected,
+            onRetryAll = viewModel::retryServerErrors,
+            onRetryOne = viewModel::retryServerError,
+            onConfirmChange = viewModel::confirmChangeAlbum,
+            onDismissChange = viewModel::dismissChangeAlbum,
+            onMessageShown = viewModel::dismissMessage,
+        )
+    }
     SyncContent(state, actions)
 }
 
@@ -138,10 +150,11 @@ fun SyncScreen(
 @Composable
 fun SyncContent(state: SyncUiState, actions: SyncActions) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val onMessageShown by rememberUpdatedState(actions.onMessageShown)
     LaunchedEffect(state.message) {
         state.message?.let {
             snackbarHostState.showSnackbar(it)
-            actions.onMessageShown()
+            onMessageShown()
         }
     }
     BackHandler(enabled = state.rejectedVisible) { actions.onHideRejected() }
@@ -161,7 +174,17 @@ fun SyncContent(state: SyncUiState, actions: SyncActions) {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                !state.loaded -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                !state.loaded -> Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.size(12.dp))
+                    Text("Loading...", style = MaterialTheme.typography.bodyMedium)
+                }
+                state.environment == null -> Text(
+                    "No server environment is selected. Choose one in the app menu, then open Album sync again.",
+                    Modifier.padding(16.dp).testTag("sync_no_environment"),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
                 state.rejectedVisible -> RejectedList(state, actions)
                 else -> Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -186,6 +209,13 @@ fun SyncContent(state: SyncUiState, actions: SyncActions) {
             onDismiss = actions.onDismissChange,
         )
     }
+}
+
+/** Screen-reader announcement of a changed text. */
+private fun Modifier.announce(mode: Announce): Modifier = when (mode) {
+    Announce.NONE -> this
+    Announce.POLITE -> semantics { liveRegion = LiveRegionMode.Polite }
+    Announce.ASSERTIVE -> semantics { liveRegion = LiveRegionMode.Assertive }
 }
 
 @Composable
@@ -232,11 +262,12 @@ private fun EmptyState(state: SyncUiState, actions: SyncActions) {
 private fun AlbumSections(state: SyncUiState, actions: SyncActions) {
     val controls = state.controls
     StatusCard(state, actions)
-    if (state.scan == ScanState.PermissionLost) {
+    // The one place that reports a lost grant, with the one "Choose album again" (see lostAccessCardVisible).
+    if (lostAccessCardVisible(state.scan)) {
         Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProblemText("Access to the album was lost.")
-                Text("Your upload list is kept. Choose the same folder again to continue.", style = MaterialTheme.typography.bodyMedium)
+            Column(Modifier.padding(16.dp).announce(Announce.POLITE), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProblemText(ACCESS_LOST_TITLE)
+                Text(ACCESS_LOST_HELP, style = MaterialTheme.typography.bodyMedium)
                 Button(onClick = actions.onChooseAlbum, enabled = !state.busy, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Choose album again")
                 }
@@ -256,6 +287,7 @@ private fun AlbumSections(state: SyncUiState, actions: SyncActions) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StatusCard(state: SyncUiState, actions: SyncActions) {
     val counts = state.counts
@@ -266,21 +298,26 @@ private fun StatusCard(state: SyncUiState, actions: SyncActions) {
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.testTag("sync_progress_text"),
             )
+            // The headline above already says it; the bar is decoration for a screen reader (no double announcement).
             LinearProgressIndicator(
                 progress = { progressFraction(counts) },
-                modifier = Modifier.fillMaxWidth().semantics {
-                    contentDescription = "${counts.uploaded} of ${counts.supported} files uploaded"
-                },
+                modifier = Modifier.fillMaxWidth().clearAndSetSemantics { },
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text("${counts.pending} pending", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("sync_pending"))
-                TextButton(onClick = actions.onShowRejected, modifier = Modifier.heightIn(min = 48.dp)) {
+                OutlinedButton(onClick = actions.onShowRejected, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("${counts.rejected} rejected", modifier = Modifier.testTag("sync_rejected"))
                 }
             }
             scanStatusText(state.scan)?.let { text ->
-                if (scanIsProblem(state.scan)) ProblemText(text) else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.announce(Announce.POLITE), verticalAlignment = Alignment.CenterVertically) {
+                    if (scanIsProblem(state.scan)) {
+                        ProblemText(text)
+                    } else {
                         if (state.scan == ScanState.Scanning) {
                             CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.size(8.dp))
@@ -326,24 +363,26 @@ private fun SyncCard(state: SyncUiState, actions: SyncActions) {
                     Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(20.dp))
                     Text("  Sync now")
                 }
-                if (state.counts.pending == 0 && sync == SyncState.Idle) {
-                    Text("Nothing to send.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                nothingToSendText(state.counts, state.scan, sync)?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            syncStatusText(sync)?.let { text ->
-                Row(verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f).testTag("sync_status")) {
-                        if (sync is SyncState.Failed) ProblemText(text)
-                        else Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    }
-                    if (sync.isTerminal()) {
-                        IconButton(onClick = actions.onDismissResult, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "Dismiss message")
+            if (!syncStatusHidden(state.scan, sync)) {
+                syncStatusText(sync)?.let { text ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f).testTag("sync_status").announce(syncAnnouncement(sync))) {
+                            if (sync is SyncState.Failed) ProblemText(text)
+                            else Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        }
+                        if (sync.isTerminal()) {
+                            IconButton(onClick = actions.onDismissResult, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Dismiss message")
+                            }
                         }
                     }
                 }
             }
-            if (sync is SyncState.Failed && syncErrorNeedsRepick(sync.error)) {
+            if (repickInSyncCard(state.scan, sync)) {
                 Button(onClick = actions.onChooseAlbum, modifier = Modifier.heightIn(min = 48.dp)) { Text("Choose album again") }
             }
         }
@@ -353,15 +392,16 @@ private fun SyncCard(state: SyncUiState, actions: SyncActions) {
 @Composable
 private fun BatchSizeRow(state: SyncUiState, actions: SyncActions, controls: SyncControls) {
     var draft by remember(state.batchSize) { mutableFloatStateOf(state.batchSize.toFloat()) }
+    val perRequest = "${fileCount(draft.toInt())} per request"
     Column(Modifier.fillMaxWidth()) {
-        Text("Batch size: ${draft.toInt()} files per request", style = MaterialTheme.typography.bodyMedium)
+        Text("Batch size: $perRequest", style = MaterialTheme.typography.bodyMedium)
+        // No tick marks (49 ticks are noise on a phone): the value snaps to whole files and is saved when the drag ends.
         Slider(
             value = draft,
-            onValueChange = { draft = it },
+            onValueChange = { draft = it.roundToInt().toFloat() },
             onValueChangeFinished = { actions.onBatchSizeChange(draft.toInt()) },
             valueRange = TrackerSettingsStore.MIN_BATCH_SIZE.toFloat()..TrackerSettingsStore.MAX_BATCH_SIZE.toFloat(),
-            steps = TrackerSettingsStore.MAX_BATCH_SIZE - TrackerSettingsStore.MIN_BATCH_SIZE - 1,
-            modifier = Modifier.semantics { contentDescription = "Batch size, ${draft.toInt()} files, from 1 to 50" },
+            modifier = Modifier.semantics { stateDescription = perRequest },
         )
         if (controls.batchSizeAppliesNextBatch) {
             Text(
@@ -375,58 +415,69 @@ private fun BatchSizeRow(state: SyncUiState, actions: SyncActions, controls: Syn
 
 @Composable
 private fun RejectedList(state: SyncUiState, actions: SyncActions) {
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                "Rejected files stay skipped. Only files the server failed on can be retried.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (state.retryableCount > 0) {
-                Button(onClick = actions.onRetryAll, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Text("  Retry all server errors (${state.retryableCount})")
+    // Explanation, "Retry all" and the empty text are list items, so large text or landscape never squeezes the list.
+    LazyColumn(Modifier.fillMaxSize()) {
+        item(key = "header") {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Rejected files stay skipped. Only files the server failed on can be retried.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (state.retryableCount > 0) {
+                    Button(onClick = actions.onRetryAll, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Text("  Retry all server errors (${state.retryableCount})")
+                    }
                 }
             }
         }
-        if (state.rejected.isEmpty()) {
-            Text("No rejected files.", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+        if (state.rejectedLoading) {
+            item(key = "loading") { Text("Loading...", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) }
+        } else if (state.rejected.isEmpty()) {
+            item(key = "empty") { Text("No rejected files.", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) }
         }
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(state.rejected, key = { it.albumTreeUri + "|" + it.documentId }) { item ->
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(item.displayName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                        Text(item.reasonText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    if (item.canRetry) {
-                        TextButton(onClick = { actions.onRetryOne(item) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Retry") }
-                    }
+        items(state.rejected, key = { it.albumTreeUri + "|" + it.documentId }) { item ->
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Name and reason are one focus stop; the ellipsized name stays complete for a screen reader.
+                Column(Modifier.weight(1f).semantics(mergeDescendants = true) { }) {
+                    Text(item.displayName, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(item.reasonText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                HorizontalDivider()
+                if (item.canRetry) {
+                    TextButton(
+                        onClick = { actions.onRetryOne(item) },
+                        modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Retry ${item.displayName}" },
+                    ) { Text("Retry") }
+                }
             }
+            HorizontalDivider()
         }
     }
 }
 
 @Composable
-private fun ChangeAlbumDialog(lines: List<String>, busy: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun ChangeAlbumDialog(lines: List<DialogLine>, busy: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text("Change album?") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 lines.forEach { line ->
-                    if (line.startsWith(WARNING_PREFIX)) ProblemText(line) else Text(line, style = MaterialTheme.typography.bodyMedium)
+                    if (line.isWarning) ProblemText(line.text) else Text(line.text, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text("Change and reset")
-            }
+            // The destructive action is visibly distinct: error colour. Cancel stays a normal text button.
+            TextButton(
+                onClick = onConfirm,
+                enabled = !busy,
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) { Text("Change and reset") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancel") }

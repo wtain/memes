@@ -200,7 +200,9 @@ class AlbumSyncCoordinator(
             rejected = counts.rejected,
             looksLikeAppOwnFolder = AlbumNames.looksLikeAppOwnFolder(newTreeUri),
             isSameAlbum = same,
-            needsRegrant = same && !access.isGranted(newTreeUri),
+            // A scan that reports PermissionLost counts as a lost grant even if the grant is still listed (the provider
+            // may throw SecurityException anyway): re-picking the same folder then re-takes the grant and rescans.
+            needsRegrant = same && (!access.isGranted(newTreeUri) || stateOf(environmentId).value == ScanState.PermissionLost),
         )
     }
 
@@ -282,7 +284,7 @@ class AlbumSyncCoordinator(
     }
 
     private suspend fun restoreGrantIfLost(env: String, treeUri: String): AlbumChangeResult {
-        if (access.isGranted(treeUri)) return AlbumChangeResult.Unchanged
+        if (access.isGranted(treeUri) && stateOf(env).value != ScanState.PermissionLost) return AlbumChangeResult.Unchanged
         if (!access.persist(treeUri)) return AlbumChangeResult.GrantFailed
         return AlbumChangeResult.Applied(refreshScan(env))
     }

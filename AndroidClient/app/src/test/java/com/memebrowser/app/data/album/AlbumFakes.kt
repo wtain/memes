@@ -6,6 +6,7 @@ class FakeAlbumAccess : AlbumAccess {
     val granted = mutableSetOf<String>()
     val released = mutableListOf<String>()
     var persistFails = false
+    val persisted = mutableListOf<String>()
 
     /** Runs right after a successful persist (to cancel the caller at that exact point). */
     var afterPersist: (() -> Unit)? = null
@@ -13,6 +14,7 @@ class FakeAlbumAccess : AlbumAccess {
     override fun persist(treeUri: String): Boolean {
         if (persistFails) return false
         granted += treeUri
+        persisted += treeUri
         afterPersist?.invoke()
         return true
     }

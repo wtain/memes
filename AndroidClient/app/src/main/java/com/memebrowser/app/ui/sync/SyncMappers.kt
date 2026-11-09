@@ -12,7 +12,7 @@ import com.memebrowser.app.data.sync.isActive
 import com.memebrowser.app.data.tracker.RejectionReasons
 import com.memebrowser.app.data.tracker.SupportedImages
 import com.memebrowser.app.data.tracker.TrackerCounts
-import java.text.SimpleDateFormat
+import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 
@@ -21,9 +21,13 @@ import java.util.Locale
 /** Formats an epoch-ms instant as a wall-clock time; injected so tests do not depend on the time zone. */
 typealias TimeFormatter = (Long) -> String
 
+/** Follows the device's locale and 12h/24h convention (java.text only, no Android types). */
 val DefaultTimeFormatter: TimeFormatter = { at ->
-    SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(at))
+    DateFormat.getTimeInstance(DateFormat.MEDIUM, Locale.getDefault()).format(Date(at))
 }
+
+/** "1 file" / "2 files". */
+fun fileCount(n: Int): String = if (n == 1) "1 file" else "$n files"
 
 /** X / Y as a bar fraction in 0..1; Y = 0 gives 0 (never NaN), X above Y (deleted-but-uploaded files) is capped. */
 fun progressFraction(counts: TrackerCounts): Float =
@@ -56,12 +60,15 @@ fun syncControls(hasAlbum: Boolean, counts: TrackerCounts, scan: ScanState, sync
     )
 }
 
-/** One line for the scan, or null when there is nothing to say (idle). */
+/**
+ * One line for the scan, or null when there is nothing to say (idle). A lost grant has its own card (one message, one
+ * "Choose album again"), so it says nothing here.
+ */
 fun scanStatusText(scan: ScanState, format: TimeFormatter = DefaultTimeFormatter): String? = when (scan) {
     ScanState.Idle -> null
     ScanState.Scanning -> "Scanning the album..."
     is ScanState.Done -> "Last refreshed at ${format(scan.at)}"
-    ScanState.PermissionLost -> "Access to the album was lost. Choose the album again to continue."
+    ScanState.PermissionLost -> null
     is ScanState.Failed -> when (scan.reason) {
         ScanFailure.NO_ALBUM -> "No album is selected."
         ScanFailure.LISTING_INCOMPLETE ->
@@ -74,11 +81,15 @@ fun scanStatusText(scan: ScanState, format: TimeFormatter = DefaultTimeFormatter
 /** True when the scan state is a problem the user should see highlighted (the text is still always shown). */
 fun scanIsProblem(scan: ScanState): Boolean = scan is ScanState.Failed || scan == ScanState.PermissionLost
 
-/** Actionable text for every [SyncError]. [engineMessage] is the engine's own detail (used where it adds information). */
+/** Text of the lost-access card (the only place that says it). */
+const val ACCESS_LOST_TITLE = "Access to the album was lost."
+const val ACCESS_LOST_HELP = "Your upload list is kept. Choose the same folder again to continue."
+
+/** Actionable text for every [SyncError]. [engineMessage] is the engine's own text, used only to recognise "backend too old". */
 fun syncErrorMessage(error: SyncError, engineMessage: String = ""): String = when (error) {
     SyncError.NETWORK -> "No answer from the server. Check the connection and the server address, then sync again. Unsent files stay pending."
     SyncError.SERVER ->
-        if (engineMessage.contains("backend too old", ignoreCase = true)) {
+        if (engineMessage == SyncEngine.BACKEND_TOO_OLD_MESSAGE) {
             "The server is too old for album sync. Update the backend, then sync again."
         } else {
             "The server failed while receiving files. Try again later; unsent files stay pending."
@@ -86,17 +97,47 @@ fun syncErrorMessage(error: SyncError, engineMessage: String = ""): String = whe
     SyncError.INBOX_FULL_OR_UNWRITABLE -> "The server inbox is full or not writable - run ingestion or check the server, then sync again."
     SyncError.DISK_LOW -> "The server is almost out of disk space. Free some space on the server, then sync again."
     SyncError.RATE_LIMITED -> "The server keeps asking us to slow down. Wait a few minutes, then sync again."
-    SyncError.UNEXPECTED -> "Something unexpected went wrong" + engineDetail(engineMessage) + ". Unsent files stay pending; try again."
+    // The engine's detail (an exception text or the server's reply) is never shown; see the app log.
+    SyncError.UNEXPECTED -> "Something unexpected went wrong. Unsent files stay pending; try again."
     SyncError.NO_ALBUM -> "No album is selected. Choose an album folder first."
     SyncError.PERMISSION_LOST -> "Access to the album was lost. Choose the album again."
     SyncError.FILE_READ_ERROR ->
         "A file in the album could not be read (it may be on a removed card or not downloaded yet). Nothing was rejected; sync again later."
 }
 
-private fun engineDetail(message: String): String = if (message.isBlank()) "" else " ($message)"
-
 /** Errors where the fix is to pick the album again (shows the same action as the lost-access state). */
 fun syncErrorNeedsRepick(error: SyncError): Boolean = error == SyncError.PERMISSION_LOST || error == SyncError.NO_ALBUM
+
+private fun SyncState.needsRepick(): Boolean = this is SyncState.Failed && syncErrorNeedsRepick(error)
+
+/**
+ * "Choose album again" appears exactly once: in the lost-access card while the scan reports a lost grant, otherwise
+ * in the sync card after a failure that needs it. Both predicates are exclusive by construction.
+ */
+fun lostAccessCardVisible(scan: ScanState): Boolean = scan == ScanState.PermissionLost
+
+fun repickInSyncCard(scan: ScanState, sync: SyncState): Boolean = !lostAccessCardVisible(scan) && sync.needsRepick()
+
+/** While the lost-access card speaks, a sync failure that says the same thing is not repeated. */
+fun syncStatusHidden(scan: ScanState, sync: SyncState): Boolean = lostAccessCardVisible(scan) && sync.needsRepick()
+
+/** How a change of text is announced to a screen reader. */
+enum class Announce { NONE, POLITE, ASSERTIVE }
+
+/** Progress updates every batch are not announced; waiting, stopping and the end of a run are; a failure is assertive. */
+fun syncAnnouncement(sync: SyncState): Announce = when (sync) {
+    SyncState.Idle, is SyncState.Running -> Announce.NONE
+    is SyncState.Waiting, is SyncState.Stopping, is SyncState.Finished, is SyncState.Stopped -> Announce.POLITE
+    is SyncState.Failed -> Announce.ASSERTIVE
+}
+
+/** The line under the Sync button when there is nothing to send, null when the button explains itself. */
+fun nothingToSendText(counts: TrackerCounts, scan: ScanState, sync: SyncState): String? = when {
+    counts.pending > 0 || sync != SyncState.Idle || scan == ScanState.PermissionLost -> null
+    counts.supported == 0 && scan !is ScanState.Done -> "The album has not been scanned yet. Use Refresh."
+    counts.supported == 0 -> "The album has no supported images."
+    else -> "Nothing to send."
+}
 
 fun summaryText(summary: SyncSummary): String {
     val parts = mutableListOf("${summary.uploaded} uploaded")
@@ -109,7 +150,7 @@ fun summaryText(summary: SyncSummary): String {
 fun syncStatusText(sync: SyncState, format: TimeFormatter = DefaultTimeFormatter): String? = when (sync) {
     SyncState.Idle -> null
     is SyncState.Running ->
-        if (sync.batchNumber <= 0) "Starting..." else "Sending batch ${sync.batchNumber} (${sync.currentBatchSize} files)... ${summaryText(sync.summary)} so far"
+        if (sync.batchNumber <= 0) "Starting..." else "Sending batch ${sync.batchNumber} (${fileCount(sync.currentBatchSize)})... ${summaryText(sync.summary)} so far"
     is SyncState.Waiting -> when (sync.reason) {
         WaitReason.RATE_LIMITED -> "Server asked us to wait, resuming at ${format(sync.resumeAt)}"
         WaitReason.PACING -> "Pacing requests to stay under the server limit, resuming at ${format(sync.resumeAt)}"
@@ -120,11 +161,14 @@ fun syncStatusText(sync: SyncState, format: TimeFormatter = DefaultTimeFormatter
     is SyncState.Failed -> syncErrorMessage(sync.error, sync.message)
 }
 
+/** "20 MB", derived from the one place that defines the limit. */
+val MaxFileSizeText: String = "${SupportedImages.MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB"
+
 /** Human text of a rejection reason code (local codes, `server_error`, or the backend's own reason text). */
 fun rejectionReasonText(reason: String?): String = when {
     reason.isNullOrBlank() -> "Rejected"
     reason == SupportedImages.REASON_UNSUPPORTED_TYPE -> "Not a supported image type"
-    reason == SupportedImages.REASON_TOO_LARGE -> "Larger than 20 MB"
+    reason == SupportedImages.REASON_TOO_LARGE -> "Larger than $MaxFileSizeText"
     reason == SyncEngine.REASON_FILE_UNAVAILABLE -> "The file is no longer available on the phone"
     reason == RejectionReasons.SERVER_ERROR -> "The server failed on this file"
     reason.startsWith("Unsupported file type") || reason.startsWith("Unsupported file extension") ->
@@ -134,23 +178,28 @@ fun rejectionReasonText(reason: String?): String = when {
     else -> reason // an unknown backend reason is shown as it came
 }
 
-/** A dialog line starting with this is shown as a problem (error colour plus icon). */
-const val WARNING_PREFIX = "Warning:"
+/** One paragraph of the change-album confirmation; a warning is drawn with the error colour plus an icon. */
+data class DialogLine(val text: String, val isWarning: Boolean = false)
 
 /** The lines of the change-album confirmation. [syncRunning]: a running sync will be stopped by confirming. */
-fun changeAlbumDialogLines(plan: ChangeAlbumPlan, syncRunning: Boolean): List<String> = buildList {
+fun changeAlbumDialogLines(plan: ChangeAlbumPlan, syncRunning: Boolean): List<DialogLine> = buildList {
     val oldName = plan.currentAlbum?.displayName?.ifBlank { null } ?: "the current album"
-    add("Change from \"$oldName\" to \"${plan.newDisplayName}\"?")
+    add(DialogLine("Change from \"$oldName\" to \"${plan.newDisplayName}\"?"))
+    add(DialogLine("This resets the upload list of this environment. These entries are forgotten:"))
+    add(DialogLine("${plan.uploaded} uploaded"))
+    add(DialogLine("${plan.pending} pending"))
+    add(DialogLine("${plan.rejected} rejected"))
     add(
-        "This resets the upload list of this environment: ${plan.uploaded} uploaded, ${plan.pending} pending and " +
-            "${plan.rejected} rejected entries are forgotten. Files already on the server stay there; the new album is scanned from scratch " +
-            "and files that are already on the server are reported as duplicates.",
+        DialogLine(
+            "Files already on the server stay there. The new album is scanned from scratch and files that are already " +
+                "on the server are reported as duplicates.",
+        ),
     )
     if (plan.looksLikeAppOwnFolder) {
-        add("$WARNING_PREFIX this looks like a folder this app saves memes into. Syncing it would send memes back to the server.")
+        add(DialogLine("This looks like a folder this app saves memes into. Syncing it would send memes back to the server.", isWarning = true))
     }
-    if (plan.needsRegrant) add("Access to this folder will be granted again.")
-    if (syncRunning) add("The running sync will be stopped.")
+    if (plan.needsRegrant) add(DialogLine("Access to this folder will be granted again."))
+    if (syncRunning) add(DialogLine("The running sync will be stopped."))
 }
 
 /** Only `server_error` can be retried; every other rejection is permanent. */

@@ -291,4 +291,17 @@ class TrackerRepositoryTest {
         assertEquals(TrackedFileState.PENDING, rows.getValue("a").state)
         assertEquals(TrackedFileState.REJECTED, rows.getValue("b").state)
     }
+
+    @Test
+    fun `retry ignores a server_error row that left the album, so the count equals the list`() = runTest {
+        val r = repo()
+        r.seedRejected()
+        // "b" is deleted from the album: the next scan no longer lists it.
+        r.syncScan(env, album, listOf(file("a"), file("c"), file("d"), file("e", mime = "image/heic")), scanId = 2)
+        assertEquals(1, r.retryServerErrors(env)) // only "a", the one the list shows
+        assertFalse(r.retryServerError(env, album, "b"))
+        val b = dao.all.first { it.documentId == "b" }
+        assertEquals(TrackedFileState.REJECTED, b.state)
+        assertEquals(RejectionReasons.SERVER_ERROR, b.rejectionReason)
+    }
 }

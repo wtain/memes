@@ -5,7 +5,9 @@ import com.memebrowser.app.data.album.AlbumSyncCoordinator
 import com.memebrowser.app.data.album.ChangeAlbumPlan
 import com.memebrowser.app.data.album.ScanFailure
 import com.memebrowser.app.data.album.ScanState
+import com.memebrowser.app.data.model.BackendEnvironment
 import com.memebrowser.app.data.repository.EnvironmentRepository
+import com.memebrowser.app.data.repository.EnvironmentWithSelection
 import com.memebrowser.app.data.sync.SyncEngine
 import com.memebrowser.app.data.sync.SyncState
 import com.memebrowser.app.data.sync.SyncSummary
@@ -23,12 +25,20 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -42,8 +52,16 @@ class SyncViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val envId = MutableStateFlow("env-a")
-    private val envName = MutableStateFlow("General")
+    private val envNames = mapOf("env-a" to "General", "env-b" to "Metal")
+    private fun envList(selected: String) =
+        envNames.map { (id, name) -> EnvironmentWithSelection(BackendEnvironment(id, name, "http://$id"), id == selected) }
+
+    /** ONE emission carries id and name together, like the real repository. */
+    private val envs = MutableStateFlow(envList("env-a"))
+    private fun selectEnv(id: String) {
+        envs.value = envList(id)
+    }
+
     private val batch = MutableStateFlow(50)
     private var now = 1_000_000L
 
@@ -65,14 +83,14 @@ class SyncViewModelTest {
     private val selA = AlbumSelection(treeA, "Camera")
 
     private val environments = mockk<EnvironmentRepository>().also {
-        every { it.selectedEnvironmentId } returns envId
-        every { it.selectedEnvironmentName } returns envName
+        every { it.environmentsWithSelection } returns envs
     }
+    private val rejectedOverride = HashMap<String, Flow<List<TrackedFileEntity>>>()
     private val coordinator = mockk<AlbumSyncCoordinator>().also {
         every { it.album(any()) } answers { album(firstArg()) }
         every { it.counts(any()) } answers { counts(firstArg()) }
         every { it.scanState(any()) } answers { scan(firstArg()) }
-        every { it.rejectedFiles(any()) } answers { rejected(firstArg()) }
+        every { it.rejectedFiles(any()) } answers { rejectedOverride[firstArg()] ?: rejected(firstArg()) }
         coEvery { it.refreshScan(any()) } returns ScanState.Done(1)
     }
     private val engine = mockk<SyncEngine>().also {
@@ -85,7 +103,8 @@ class SyncViewModelTest {
         coEvery { it.setBatchSize(any()) } answers { batch.value = firstArg() }
     }
 
-    private fun vm() = SyncViewModel(environments, coordinator, engine, tracker) { now }
+    private fun vm(mapping: CoroutineDispatcher = mainDispatcherRule.dispatcher) =
+        SyncViewModel(environments, coordinator, engine, tracker, { now }, mapping)
 
     /** Subscribes to the state for the duration of the test. */
     private fun TestScope.started(vm: SyncViewModel): SyncViewModel {
@@ -131,8 +150,7 @@ class SyncViewModelTest {
         val vm = started(vm())
         assertTrue(vm.uiState.value.sync is SyncState.Running)
 
-        envId.value = "env-b"
-        envName.value = "Metal"
+        selectEnv("env-b")
         val s = vm.uiState.value
         assertEquals(EnvironmentInfo("env-b", "Metal"), s.environment)
         assertNull(s.album)
@@ -150,8 +168,81 @@ class SyncViewModelTest {
         val vm = started(vm())
         vm.onAlbumPicked(treeB)
         assertEquals("env-a", vm.uiState.value.changePlan?.environmentId)
-        envId.value = "env-b"
+        selectEnv("env-b")
         assertNull(vm.uiState.value.changePlan)
+    }
+
+    @Test
+    fun `a switch never shows the new id with the old name or the reverse`() = runTest {
+        val seen = mutableListOf<EnvironmentInfo?>()
+        val vm = vm()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect { seen += it.environment } }
+        selectEnv("env-b")
+        selectEnv("env-a")
+        val valid = envNames.map { (id, name) -> EnvironmentInfo(id, name) }.toSet()
+        assertTrue(seen.filterNotNull().isNotEmpty())
+        seen.filterNotNull().forEach { assertTrue("$it", it in valid) }
+    }
+
+    @Test
+    fun `no selected environment gives a loaded state without environment instead of an endless spinner`() = runTest {
+        envs.value = envList("none")
+        val vm = started(vm())
+        assertTrue(vm.uiState.value.loaded)
+        assertNull(vm.uiState.value.environment)
+        vm.startSync() // acts on nothing
+        verify(exactly = 0) { engine.start(any()) }
+    }
+
+    @Test
+    fun `start and stop act on the environment that was switched to, never on the old one`() = runTest {
+        album("env-a").value = selA
+        val vm = started(vm())
+        selectEnv("env-b")
+        vm.startSync()
+        vm.stopSync()
+        verify(exactly = 1) { engine.start("env-b") }
+        verify(exactly = 1) { engine.stop("env-b") }
+        verify(exactly = 0) { engine.start("env-a") }
+        verify(exactly = 0) { engine.stop("env-a") }
+    }
+
+    @Test
+    fun `message, busy, dismissed result and the open rejected list do not leak into another environment`() = runTest {
+        album("env-a").value = selA
+        sync("env-a").value = SyncState.Finished(SyncSummary(uploaded = 1), at = 5)
+        sync("env-b").value = SyncState.Finished(SyncSummary(uploaded = 1), at = 5) // identical to env-a's
+        coEvery { tracker.retryServerErrors("env-a", any()) } returns 0
+        val vm = started(vm())
+        vm.retryServerErrors() // a message in env-a
+        vm.showRejected()
+        vm.dismissSyncResult()
+        assertEquals("No files with server errors", vm.uiState.value.message)
+        assertTrue(vm.uiState.value.rejectedVisible)
+        assertEquals(SyncState.Idle, vm.uiState.value.sync)
+
+        selectEnv("env-b")
+        val b = vm.uiState.value
+        assertNull(b.message)
+        assertFalse(b.rejectedVisible)
+        assertTrue(b.sync is SyncState.Finished) // env-a's dismissal does not hide env-b's banner
+
+        selectEnv("env-a") // back: env-a's own state is still its own
+        assertTrue(vm.uiState.value.rejectedVisible)
+    }
+
+    @Test
+    fun `a busy album pick in one environment does not disable the other`() = runTest {
+        val gate = CompletableDeferred<AlbumChangeResult>()
+        coEvery { coordinator.selectAlbum("env-a", treeA) } coAnswers { gate.await() }
+        val vm = started(vm())
+        vm.onAlbumPicked(treeA)
+        assertTrue(vm.uiState.value.busy)
+        selectEnv("env-b")
+        assertFalse(vm.uiState.value.busy)
+        gate.complete(AlbumChangeResult.Unchanged)
+        selectEnv("env-a")
+        assertFalse(vm.uiState.value.busy)
     }
 
     // ---- refresh ------------------------------------------------------------------------------------------------
@@ -171,27 +262,51 @@ class SyncViewModelTest {
     }
 
     @Test
-    fun `no automatic refresh without an album or during a scan, and each environment refreshes on its own`() = runTest {
+    fun `no automatic refresh without an album, and the skipped call does not use up the slot`() = runTest {
         val vm = started(vm())
         vm.onScreenStarted() // env-a has no album
         coVerify(exactly = 0) { coordinator.refreshScan(any()) }
-
-        album("env-b").value = selA
-        scan("env-b").value = ScanState.Scanning
-        envId.value = "env-b"
-        vm.onScreenStarted()
-        coVerify(exactly = 0) { coordinator.refreshScan(any()) }
-
-        scan("env-b").value = ScanState.Idle
-        now += 1 // still inside the interval for env-b (reserved by the skipped call)
-        vm.onScreenStarted()
-        coVerify(exactly = 0) { coordinator.refreshScan(any()) }
-
         album("env-a").value = selA
-        envId.value = "env-a"
-        now += SyncViewModel.AUTO_REFRESH_MIN_INTERVAL_MS
+        vm.onScreenStarted() // same instant: the earlier skip left the slot free
+        coVerify(exactly = 1) { coordinator.refreshScan("env-a") }
+    }
+
+    @Test
+    fun `no automatic refresh during a scan, and that skip does not use up the slot`() = runTest {
+        album("env-a").value = selA
+        scan("env-a").value = ScanState.Scanning
+        val vm = started(vm())
+        vm.onScreenStarted()
+        coVerify(exactly = 0) { coordinator.refreshScan(any()) }
+        scan("env-a").value = ScanState.Idle
         vm.onScreenStarted()
         coVerify(exactly = 1) { coordinator.refreshScan("env-a") }
+    }
+
+    @Test
+    fun `a failed refresh does not use up the slot but a good one does`() = runTest {
+        album("env-a").value = selA
+        coEvery { coordinator.refreshScan("env-a") } returns ScanState.Failed(ScanFailure.LISTING_INCOMPLETE)
+        val vm = started(vm())
+        vm.onScreenStarted()
+        vm.onScreenStarted() // retried at once: the first one failed
+        coVerify(exactly = 2) { coordinator.refreshScan("env-a") }
+        coEvery { coordinator.refreshScan("env-a") } returns ScanState.Done(1)
+        vm.onScreenStarted()
+        vm.onScreenStarted() // throttled now
+        coVerify(exactly = 3) { coordinator.refreshScan("env-a") }
+    }
+
+    @Test
+    fun `each environment refreshes on its own slot`() = runTest {
+        album("env-a").value = selA
+        album("env-b").value = selA
+        val vm = started(vm())
+        vm.onScreenStarted()
+        selectEnv("env-b")
+        vm.onScreenStarted()
+        coVerify(exactly = 1) { coordinator.refreshScan("env-a") }
+        coVerify(exactly = 1) { coordinator.refreshScan("env-b") }
     }
 
     @Test
@@ -235,7 +350,10 @@ class SyncViewModelTest {
 
     @Test
     fun `selectAlbum answering RequiresConfirmation goes through the change flow`() = runTest {
-        coEvery { coordinator.selectAlbum("env-a", treeB) } returns AlbumChangeResult.RequiresConfirmation
+        coEvery { coordinator.selectAlbum("env-a", treeB) } answers {
+            album("env-a").value = selA // an album appeared meanwhile, which is why confirmation is required
+            AlbumChangeResult.RequiresConfirmation
+        }
         coEvery { coordinator.requestChangeAlbum("env-a", treeB) } returns plan()
         val vm = started(vm())
         vm.onAlbumPicked(treeB) // the ViewModel believes there is no album yet
@@ -293,7 +411,10 @@ class SyncViewModelTest {
         val p1 = plan()
         val p2 = plan(current = AlbumSelection("content://x/tree/other", "Other"))
         coEvery { coordinator.requestChangeAlbum("env-a", treeB) } returnsMany listOf(p1, p2)
-        coEvery { coordinator.confirmChangeAlbum(p1) } returns AlbumChangeResult.PlanStale
+        coEvery { coordinator.confirmChangeAlbum(p1) } answers {
+            album("env-a").value = AlbumSelection("content://x/tree/other", "Other") // the stored album changed meanwhile
+            AlbumChangeResult.PlanStale
+        }
         val vm = started(vm())
         vm.onAlbumPicked(treeB)
         vm.confirmChangeAlbum()
@@ -433,6 +554,153 @@ class SyncViewModelTest {
         val vm = started(vm())
         vm.retryServerErrors()
         assertEquals(SyncViewModel.MSG_UNEXPECTED, vm.uiState.value.message)
+    }
+
+    @Test
+    fun `retry answers for zero rows and for a file that cannot be retried`() = runTest {
+        coEvery { tracker.retryServerErrors("env-a", any()) } returns 0
+        coEvery { tracker.retryServerError("env-a", treeA, "a", any()) } returns false
+        coEvery { tracker.retryServerErrors("env-a", any()) } returnsMany listOf(0, 1)
+        val vm = started(vm())
+        vm.retryServerErrors()
+        assertEquals("No files with server errors", vm.uiState.value.message)
+        vm.retryServerErrors()
+        assertEquals("1 file will be sent again on the next sync", vm.uiState.value.message)
+        vm.retryServerError(RejectedItem(treeA, "a", "a.jpg", "x", true))
+        assertEquals("That file cannot be retried", vm.uiState.value.message)
+    }
+
+    @Test
+    fun `an unexpected exception shows a generic message without the exception text`() = runTest {
+        coEvery { tracker.retryServerErrors(any(), any()) } throws java.io.IOException("secret path /sdcard/x")
+        val vm = started(vm())
+        vm.retryServerErrors()
+        assertEquals(SyncViewModel.MSG_UNEXPECTED, vm.uiState.value.message)
+        assertFalse(vm.uiState.value.message!!.contains("secret"))
+    }
+
+    // ---- change album: dialog lifetime, bounded rebuilds ----------------------------------------------------------
+
+    @Test
+    fun `the dialog closes as soon as the album is committed, while the rescan is still running`() = runTest {
+        album("env-a").value = selA
+        val p = plan()
+        val rescan = CompletableDeferred<AlbumChangeResult>()
+        coEvery { coordinator.requestChangeAlbum("env-a", treeB) } returns p
+        coEvery { coordinator.confirmChangeAlbum(p) } coAnswers { rescan.await() }
+        val vm = started(vm())
+        vm.onAlbumPicked(treeB)
+        assertEquals(p, vm.uiState.value.changePlan)
+        vm.confirmChangeAlbum()
+        assertEquals(p, vm.uiState.value.changePlan) // committed? not yet
+
+        album("env-a").value = AlbumSelection(treeB, "Memes") // wipe + store committed; the coordinator now rescans
+        scan("env-a").value = ScanState.Scanning
+        val s = vm.uiState.value
+        assertNull(s.changePlan) // dialog gone, no hung dialog with dead buttons
+        assertEquals(ScanState.Scanning, s.scan) // progress is the main screen's scan state
+        assertEquals(treeB, s.album?.treeUri)
+
+        rescan.complete(AlbumChangeResult.Applied(ScanState.Done(1)))
+        assertFalse(vm.uiState.value.busy)
+        assertEquals(SyncViewModel.MSG_ALBUM_CHANGED, vm.uiState.value.message)
+    }
+
+    @Test
+    fun `a plan that is stale twice stops with a message instead of looping`() = runTest {
+        album("env-a").value = selA
+        val wiping = plan()
+        val nonWiping = plan(current = selA, tree = treeA, same = true, regrant = true) // rebuilt plan that auto-confirms
+        coEvery { coordinator.requestChangeAlbum("env-a", treeB) } returnsMany listOf(wiping, nonWiping, nonWiping, nonWiping)
+        coEvery { coordinator.confirmChangeAlbum(any()) } returns AlbumChangeResult.PlanStale
+        val vm = started(vm())
+        vm.onAlbumPicked(treeB)
+        vm.confirmChangeAlbum()
+        assertNull(vm.uiState.value.changePlan)
+        assertEquals(SyncViewModel.MSG_PLAN_KEEPS_CHANGING, vm.uiState.value.message)
+        coVerify(exactly = 2) { coordinator.confirmChangeAlbum(any()) } // the user's confirm + one automatic retry
+        coVerify(exactly = 2) { coordinator.requestChangeAlbum(any(), any()) }
+    }
+
+    @Test
+    fun `opening the dialog does not wipe a pending message`() = runTest {
+        album("env-a").value = selA
+        coEvery { coordinator.requestChangeAlbum("env-a", treeB) } returns plan()
+        coEvery { tracker.retryServerErrors("env-a", any()) } returns 0
+        val vm = started(vm())
+        vm.retryServerErrors()
+        vm.onAlbumPicked(treeB)
+        assertEquals("No files with server errors", vm.uiState.value.message)
+        assertEquals(treeB, vm.uiState.value.changePlan?.newTreeUri)
+    }
+
+    @Test
+    fun `re-picking the same folder while access is lost goes to the coordinator and says nothing about it being selected`() = runTest {
+        album("env-a").value = selA
+        scan("env-a").value = ScanState.PermissionLost
+        val p = plan(tree = treeA, same = true, regrant = true)
+        coEvery { coordinator.requestChangeAlbum("env-a", treeA) } returns p
+        coEvery { coordinator.confirmChangeAlbum(p) } answers { scan("env-a").value = ScanState.Done(1); AlbumChangeResult.Applied(ScanState.Done(1)) }
+        val vm = started(vm())
+        vm.onAlbumPicked(treeA)
+        assertNull(vm.uiState.value.message) // not "already selected"
+        assertNull(vm.uiState.value.changePlan)
+        assertTrue(vm.uiState.value.scan is ScanState.Done)
+        coVerify(exactly = 0) { coordinator.selectAlbum(any(), any()) }
+    }
+
+    // ---- busy / double taps (deferred dispatcher) -----------------------------------------------------------------
+
+    @Test
+    fun `with a deferred dispatcher a double confirm calls the coordinator once and cancel is ignored while busy`() = runTest {
+        val std = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(std)
+        album("env-a").value = selA
+        val p = plan()
+        val gate = CompletableDeferred<AlbumChangeResult>()
+        coEvery { coordinator.requestChangeAlbum("env-a", treeB) } returns p
+        coEvery { coordinator.confirmChangeAlbum(p) } coAnswers { gate.await() }
+        val vm = vm(std)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect { } }
+        runCurrent()
+        vm.onAlbumPicked(treeB)
+        vm.onAlbumPicked(treeB) // dropped: busy was set synchronously
+        runCurrent()
+        coVerify(exactly = 1) { coordinator.requestChangeAlbum(any(), any()) }
+        assertFalse(vm.uiState.value.busy)
+
+        vm.confirmChangeAlbum()
+        vm.confirmChangeAlbum() // dropped
+        runCurrent()
+        coVerify(exactly = 1) { coordinator.confirmChangeAlbum(p) }
+        assertTrue(vm.uiState.value.busy)
+        vm.dismissChangeAlbum()
+        runCurrent()
+        assertEquals(p, vm.uiState.value.changePlan)
+
+        gate.complete(AlbumChangeResult.Applied(ScanState.Done(1)))
+        runCurrent()
+        assertFalse(vm.uiState.value.busy)
+        assertNull(vm.uiState.value.changePlan)
+    }
+
+    @Test
+    fun `the rejected list shows loading until the first emission, not an empty list`() = runTest {
+        val std = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(std)
+        val shared = MutableSharedFlow<List<TrackedFileEntity>>()
+        rejectedOverride["env-a"] = shared
+        val vm = vm(std)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect { } }
+        runCurrent()
+        vm.showRejected()
+        runCurrent()
+        assertTrue(vm.uiState.value.rejectedLoading)
+        assertTrue(vm.uiState.value.rejected.isEmpty())
+        shared.emit(listOf(entity("a", RejectionReasons.SERVER_ERROR)))
+        runCurrent()
+        assertFalse(vm.uiState.value.rejectedLoading)
+        assertEquals(1, vm.uiState.value.rejected.size)
     }
 
     @Test

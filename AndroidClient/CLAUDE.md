@@ -120,7 +120,8 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a2-
 - `AlbumSyncCoordinator` (singleton, per environment id) is what A4 calls: `selectAlbum` (first selection), `requestChangeAlbum` -> `ChangeAlbumPlan` (counts to
   wipe, nothing changed) -> `confirmChangeAlbum(plan)`, `refreshScan` (screen open and the refresh button), flows `scanState` / `counts` / `album` / `rejectedFiles`.
 - Only a `Complete` listing reaches `TrackerRepository.syncScan` (with `allowEmpty = true`); `Incomplete` and `PermissionLost` leave the tracker untouched.
-  `PermissionLost` is a state for A4 to ask for a re-pick (`selectAlbum` with the same tree re-takes the grant, no wipe).
+  `PermissionLost` is a state for A4 to ask for a re-pick (`selectAlbum` / `confirmChangeAlbum` with the same tree re-take the grant and rescan, no wipe, even when the
+  grant is still listed: while the scan state is `PermissionLost`, `needsRegrant` is true).
 - An album change: take the new grant, `SyncGate.cancelAndAwait(env)`, wipe only that environment and store the new album, release the old grant unless
   another environment uses the same tree, rescan. A3 must bind the real `SyncGate` in `AlbumModule` (today `NoOpSyncGate`).
 - `refreshScan` is conflated per environment (a concurrent call waits for and returns the in-flight result); environments never share locks or state.
@@ -151,6 +152,9 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a4-
   lives in the ViewModel (the picker's temporary grant is process-bound; never recompute it from the Uri). Texts and button enablement are pure functions in `SyncMappers.kt`.
 - `SyncContent` is stateless (`SyncActions` callbacks); `SyncScreen` owns the `OpenDocumentTree` launcher, the ON_START refresh (throttled 30 s per environment in the ViewModel)
   and `View.keepScreenOn` while a run is active. Strings are inline English like the rest of the app.
+- Screen-local state (message, busy, dismissed result, rejected sub-view, plan) is per environment; actions use the environment id of the state on screen. The change dialog
+  closes when the stored album is no longer the plan's old one (commit), the rescan shows as scan state. Unexpected errors show a generic message and are logged, never shown raw.
+  "Choose album again" is shown once (`lostAccessCardVisible` / `repickInSyncCard`). Retry queries only touch rows still `presentInAlbum`. `SyncPreviews.kt` holds `@Preview`s.
 - Rejected files stay skipped; only `server_error` rows can be retried: `TrackerRepository.retryServerErrors` / `retryServerError` (reset to PENDING, under the tracker Mutex).
 - ViewModel tests mock the final coordinator/engine/tracker with mockk; the retry SQL itself is only checked on a device (`FakeTrackerDao` mirrors it).
 - `androidTest/.../ui/sync/SyncScreenTest` needs a device, and the androidTest source set does not compile until the unrelated `ui/search/SearchScreenTest.kt:54` is fixed.

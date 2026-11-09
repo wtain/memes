@@ -136,3 +136,27 @@ throttled refresh, every `AlbumChangeResult`, plan survival, dismissal, batch cl
 
 Anything visual on a real device, the real folder picker flow and the temporary-grant behaviour, the Samsung hand-check list (E1), the Room SQL of the two
 retry queries (`FakeTrackerDao` mirrors them by hand; `TrackerDaoTest` needs a device).
+
+## Review outcome (2026-11-09, one fix iteration)
+
+Reviews: `docs/superpowers/reviews/2026-11-08-a4-sync-screen-logic-review.md` (LR) and `...-ui-review.md` (UR).
+
+Owner-delegate decisions:
+- (my call) The confirm button of the change-album dialog uses the error colour; Cancel stays a normal text button.
+- (my call) No raw exception or HTTP detail is shown for unexpected errors: a generic actionable message is shown and the detail is logged (`Log.e`, tag `SyncViewModel`; never file contents).
+- (my call) "Choose album again" appears exactly once at a time (`lostAccessCardVisible` / `repickInSyncCard` / `syncStatusHidden`, tested over all scan x sync combinations).
+- (my call) Strings stay inline English. Follow-up: migrate to string resources together with the rest of the app (the mappers return final text, so a UiText indirection is needed first).
+
+Fixed:
+- LR-I1: the dialog is derived from the plan AND the stored album still being the plan's old album, so it closes the moment the album change is committed; the rescan shows as scan state. No coordinator change needed for this.
+- LR-I2: **A2 coordinator change (additive)**: `requestChangeAlbum` sets `needsRegrant` also when the scan state is `PermissionLost` (grant still listed), and `restoreGrantIfLost` (used by `confirmChangeAlbum` and `selectAlbum`) re-takes the grant and rescans in that state instead of returning `Unchanged`. No wipe. A2 tests added.
+- LR-I3: both retry UPDATEs filter `presentInAlbum = 1`; `FakeTrackerDao` mirrors it; test added.
+- LR-M1/M2/M3: the environment comes from one `environmentsWithSelection` emission (or null: a "no environment selected" state instead of a spinner); actions use the id of the state on screen; message, busy, dismissed result, rejected sub-view and plan are kept per environment.
+- LR-M4: the 30 s slot is used only when a refresh ran and did not fail. LR-M5: rows are mapped on an injected dispatcher (Default); `rejectedLoading` avoids the "No rejected files." flash. LR-M7: a plan is rebuilt once, then a message. LR-M8: a pending message survives opening the dialog. LR-M6/UR7: `SyncEngine.BACKEND_TOO_OLD_MESSAGE` is compared exactly.
+- LR test gaps: deferred-dispatcher tests for busy / double confirm / double pick, Stop/Start after a switch, id/name transient, retry false/zero.
+- UR 1-8: merged row semantics with "Retry <name>", ellipsis, header and "Retry all" inside the LazyColumn, live regions (`syncAnnouncement`: none while running, polite, assertive for failures), one lost-access message, error-coloured confirm, exact constant, no raw detail.
+- UR 9-19, 21: `DialogLine` instead of the prefix protocol, size from `SupportedImages`, plurals (`fileCount`), locale time format, silent progress bar, "N rejected" as an outlined button in a `FlowRow`, slider without tick marks and with a state description, "not scanned yet" vs "no supported images", `@Immutable` `SyncActions` remembered, `rememberUpdatedState` for the message callback, spinner label, previews (`ui-tooling-preview` is a dependency; `SyncPreviews.kt`).
+
+Skipped: UR 20 (file split, not needed), UR 22 (strings to resources, decision 4), UR 23 (convention), LR-M9, any A2 change beyond LR-I1/I2.
+
+Device checklist additions (E1): TalkBack increment/decrement on the batch slider actually saves the value; 2.0x font on the main and rejected views; re-pick of the same folder while access is lost, with the grant still listed.

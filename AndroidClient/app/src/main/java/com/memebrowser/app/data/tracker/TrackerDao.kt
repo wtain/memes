@@ -69,7 +69,7 @@ abstract class TrackerDao {
     /** A4: puts every REJECTED row of the environment with exactly this reason back to PENDING. Returns the row count. */
     @Query(
         "UPDATE tracked_files SET state = ${TrackerSql.PENDING}, rejectionReason = NULL, updatedAt = :at " +
-            "WHERE environmentId = :environmentId AND state = ${TrackerSql.REJECTED} AND rejectionReason = :reason"
+            "WHERE environmentId = :environmentId AND presentInAlbum = 1 AND state = ${TrackerSql.REJECTED} AND rejectionReason = :reason"
     )
     abstract suspend fun retryRejectedByReason(environmentId: String, reason: String, at: Long): Int
 
@@ -77,7 +77,7 @@ abstract class TrackerDao {
     @Query(
         "UPDATE tracked_files SET state = ${TrackerSql.PENDING}, rejectionReason = NULL, updatedAt = :at " +
             "WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri AND documentId = :documentId " +
-            "AND state = ${TrackerSql.REJECTED} AND rejectionReason = :reason"
+            "AND presentInAlbum = 1 AND state = ${TrackerSql.REJECTED} AND rejectionReason = :reason"
     )
     abstract suspend fun retryRejectedFile(
         environmentId: String, albumTreeUri: String, documentId: String, reason: String, at: Long,

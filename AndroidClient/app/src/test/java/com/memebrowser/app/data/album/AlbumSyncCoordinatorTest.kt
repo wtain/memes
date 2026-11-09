@@ -234,6 +234,43 @@ class AlbumSyncCoordinatorTest {
     }
 
     @Test
+    fun `same album while the scan reports permission lost is re-granted and rescanned even if the grant is still listed`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        tracker.markUploaded(general, albumA, listOf("a"))
+        scanner.result = { AlbumScanResult.PermissionLost }
+        assertEquals(ScanState.PermissionLost, c.refreshScan(general))
+        assertTrue(albumA in access.granted) // the provider throws although the grant is listed
+        val persistsBefore = access.persisted.size
+        scanner.result = { listing("a") }
+
+        val plan = c.requestChangeAlbum(general, albumA)
+        assertTrue(plan.needsRegrant)
+        assertFalse(plan.isNoOp)
+        assertFalse(plan.wipesData)
+        val r = c.confirmChangeAlbum(plan)
+
+        assertTrue(r is AlbumChangeResult.Applied)
+        assertEquals(persistsBefore + 1, access.persisted.size)
+        assertTrue(c.scanState(general).value is ScanState.Done)
+        assertTrue(gate.cancelled.isEmpty())
+        assertEquals(1, counts(general).uploaded) // no wipe
+    }
+
+    @Test
+    fun `selectAlbum with the same album while permission lost also re-grants and rescans`() = runTest {
+        val c = coordinator()
+        scanner.result = { listing("a") }
+        c.selectAlbum(general, albumA)
+        scanner.result = { AlbumScanResult.PermissionLost }
+        c.refreshScan(general)
+        scanner.result = { listing("a") }
+        assertTrue(c.selectAlbum(general, albumA) is AlbumChangeResult.Applied)
+        assertTrue(c.scanState(general).value is ScanState.Done)
+    }
+
+    @Test
     fun `permission lost surfaces a state and does not touch the tracker`() = runTest {
         val c = coordinator()
         scanner.result = { listing("a", "b") }

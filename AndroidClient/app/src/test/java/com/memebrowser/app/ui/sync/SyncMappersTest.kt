@@ -76,7 +76,7 @@ class SyncMappersTest {
         assertNull(scanStatusText(ScanState.Idle, fmt))
         assertEquals("Scanning the album...", scanStatusText(ScanState.Scanning, fmt))
         assertEquals("Last refreshed at T42", scanStatusText(ScanState.Done(42), fmt))
-        assertTrue(scanStatusText(ScanState.PermissionLost, fmt)!!.startsWith("Access to the album was lost"))
+        assertNull(scanStatusText(ScanState.PermissionLost, fmt)) // the lost-access card owns that message
         ScanFailure.values().forEach { assertNotNull(scanStatusText(ScanState.Failed(it), fmt)) }
         assertTrue(scanStatusText(ScanState.Failed(ScanFailure.LISTING_INCOMPLETE), fmt)!!.contains("unavailable"))
         assertTrue(scanIsProblem(ScanState.Failed(ScanFailure.TRACKER_ERROR)))
@@ -115,7 +115,10 @@ class SyncMappersTest {
         assertTrue(syncErrorMessage(SyncError.INBOX_FULL_OR_UNWRITABLE).contains("run ingestion or check the server"))
         assertTrue(syncErrorMessage(SyncError.SERVER, SyncEngine.BACKEND_TOO_OLD_MESSAGE).contains("too old"))
         assertFalse(syncErrorMessage(SyncError.SERVER, "HTTP 500").contains("too old"))
-        assertTrue(syncErrorMessage(SyncError.UNEXPECTED, "bad body").contains("bad body"))
+        assertFalse(syncErrorMessage(SyncError.UNEXPECTED, "HTTP 400: bad body").contains("bad body")) // no raw detail
+        assertTrue(syncErrorMessage(SyncError.UNEXPECTED, "bad body").contains("try again"))
+        // A reworded engine message must not silently change the text: the exact constant is what counts.
+        assertFalse(syncErrorMessage(SyncError.SERVER, "backend too old").contains("too old"))
         val failed = SyncState.Failed(SyncError.DISK_LOW, "x", SyncSummary(), 1)
         assertEquals(syncErrorMessage(SyncError.DISK_LOW), syncStatusText(failed, fmt))
     }
@@ -169,14 +172,46 @@ class SyncMappersTest {
 
     @Test
     fun `dialog states the counts, both names and the optional notes`() {
-        val plain = changeAlbumDialogLines(plan(), syncRunning = false)
-        assertEquals(2, plain.size)
+        val plain = changeAlbumDialogLines(plan(), syncRunning = false).map { it.text }
         assertTrue(plain[0].contains("Camera") && plain[0].contains("Memes"))
-        assertTrue(plain[1].contains("5 uploaded") && plain[1].contains("3 pending") && plain[1].contains("1 rejected"))
+        assertTrue("5 uploaded" in plain && "3 pending" in plain && "1 rejected" in plain) // one line per count
+        assertFalse(changeAlbumDialogLines(plan(), false).any { it.isWarning })
 
         val all = changeAlbumDialogLines(plan(own = true, regrant = true), syncRunning = true)
-        assertTrue(all.any { it.startsWith(WARNING_PREFIX) })
-        assertTrue(all.any { it.contains("granted again") })
-        assertTrue(all.any { it.contains("running sync will be stopped") })
+        assertTrue(all.any { it.isWarning && it.text.contains("saves memes into") })
+        assertTrue(all.any { it.text.contains("granted again") })
+        assertTrue(all.any { it.text.contains("running sync will be stopped") })
+    }
+
+    @Test
+    fun `choose album again is offered exactly once for every scan and sync combination`() {
+        val scans = listOf(ScanState.Idle, ScanState.Scanning, ScanState.Done(1), ScanState.PermissionLost, ScanState.Failed(ScanFailure.NO_ALBUM))
+        val syncs = listOf(SyncState.Idle, running, SyncState.Finished(SyncSummary(), 1)) +
+            SyncError.values().map { SyncState.Failed(it, "", SyncSummary(), 1) }
+        for (scan in scans) for (sync in syncs) {
+            val needed = scan == ScanState.PermissionLost || (sync is SyncState.Failed && syncErrorNeedsRepick(sync.error))
+            val buttons = (if (lostAccessCardVisible(scan)) 1 else 0) + (if (repickInSyncCard(scan, sync)) 1 else 0)
+            assertEquals("$scan / $sync", if (needed) 1 else 0, buttons)
+        }
+        // With a lost grant the repeated sync failure text is hidden too (one message).
+        assertTrue(syncStatusHidden(ScanState.PermissionLost, SyncState.Failed(SyncError.PERMISSION_LOST, "", SyncSummary(), 1)))
+        assertFalse(syncStatusHidden(ScanState.Idle, SyncState.Failed(SyncError.PERMISSION_LOST, "", SyncSummary(), 1)))
+        assertFalse(syncStatusHidden(ScanState.PermissionLost, SyncState.Failed(SyncError.NETWORK, "", SyncSummary(), 1)))
+    }
+
+    @Test
+    fun `plural counts, announcements and the empty-album note`() {
+        assertEquals("1 file", fileCount(1))
+        assertEquals("2 files", fileCount(2))
+        assertTrue(syncStatusText(SyncState.Running(1, 1, 1, SyncSummary()), fmt)!!.contains("(1 file)"))
+        assertEquals(Announce.NONE, syncAnnouncement(running))
+        assertEquals(Announce.POLITE, syncAnnouncement(SyncState.Finished(SyncSummary(), 1)))
+        assertEquals(Announce.ASSERTIVE, syncAnnouncement(SyncState.Failed(SyncError.NETWORK, "", SyncSummary(), 1)))
+        val empty = TrackerCounts.EMPTY
+        assertTrue(nothingToSendText(empty, ScanState.Idle, SyncState.Idle)!!.contains("not been scanned"))
+        assertEquals("The album has no supported images.", nothingToSendText(empty, ScanState.Done(1), SyncState.Idle))
+        assertEquals("Nothing to send.", nothingToSendText(TrackerCounts(2, 2, 0, 0), ScanState.Done(1), SyncState.Idle))
+        assertNull(nothingToSendText(counts, ScanState.Done(1), SyncState.Idle))
+        assertEquals("20 MB", MaxFileSizeText)
     }
 }
