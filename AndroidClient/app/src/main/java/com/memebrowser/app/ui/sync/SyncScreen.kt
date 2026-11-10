@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -252,7 +253,8 @@ private fun EmptyState(state: SyncUiState, actions: SyncActions) {
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) {
                 Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(20.dp))
-                Text("  Choose album folder")
+                Spacer(Modifier.width(8.dp))
+                Text("Choose album folder")
             }
         }
     }
@@ -283,7 +285,8 @@ private fun AlbumSections(state: SyncUiState, actions: SyncActions) {
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
     ) {
         Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(20.dp))
-        Text("  Change album")
+        Spacer(Modifier.width(8.dp))
+        Text("Change album")
     }
 }
 
@@ -332,7 +335,8 @@ private fun StatusCard(state: SyncUiState, actions: SyncActions) {
                 modifier = Modifier.heightIn(min = 48.dp),
             ) {
                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(20.dp))
-                Text("  Refresh")
+                Spacer(Modifier.width(8.dp))
+                Text("Refresh")
             }
         }
     }
@@ -351,7 +355,8 @@ private fun SyncCard(state: SyncUiState, actions: SyncActions) {
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) {
                     Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Text("  Stop")
+                    Spacer(Modifier.width(8.dp))
+                    Text("Stop")
                 }
                 Text("Keep the app open while syncing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
@@ -361,7 +366,8 @@ private fun SyncCard(state: SyncUiState, actions: SyncActions) {
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) {
                     Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Text("  Sync now")
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sync now")
                 }
                 nothingToSendText(state.counts, state.scan, sync)?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -426,7 +432,8 @@ private fun RejectedList(state: SyncUiState, actions: SyncActions) {
                 if (state.retryableCount > 0) {
                     Button(onClick = actions.onRetryAll, modifier = Modifier.heightIn(min = 48.dp)) {
                         Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Text("  Retry all server errors (${state.retryableCount})")
+                        Spacer(Modifier.width(8.dp))
+                        Text("Retry all server errors (${state.retryableCount})")
                     }
                 }
             }
