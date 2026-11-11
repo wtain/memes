@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.SavedStateHandle
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
+import com.memebrowser.app.data.settings.AppSettingsStore
 import com.memebrowser.app.ui.theme.MemeBrowserTheme
 import com.memebrowser.app.util.androidFakeHealthy
 import com.memebrowser.app.util.androidFakeSearchResponse
@@ -18,6 +19,7 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -32,6 +34,7 @@ class SearchScreenTest {
 
     private lateinit var repo: MemeRepository
     private lateinit var envRepo: EnvironmentRepository
+    private lateinit var settings: AppSettingsStore
     private lateinit var viewModel: SearchViewModel
 
     @Before
@@ -39,9 +42,12 @@ class SearchScreenTest {
         repo = mockk(relaxed = true)
         envRepo = mockk(relaxed = true)
         every { envRepo.selectedEnvironmentId } returns MutableStateFlow("env-1")
+        settings = mockk(relaxed = true)
+        every { settings.resultsPerPage } returns flowOf(20)
+        every { settings.gridMinSizeDp } returns flowOf(160)
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.success(androidFakeSearchResponse)
         coEvery { repo.health() } returns Result.success(androidFakeHealthy)
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
     }
 
     private fun setContent(

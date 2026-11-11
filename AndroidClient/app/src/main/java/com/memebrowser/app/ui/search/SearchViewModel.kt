@@ -7,12 +7,14 @@ import com.memebrowser.app.data.model.Facet
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
+import com.memebrowser.app.data.settings.AppSettingsStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,14 +37,16 @@ data class SearchUiState(
     val hasNext: Boolean = false,
     /** Id of the latest search_history row the server returned for this list; sent with a save (S6). */
     val searchId: String? = null,
-    val healthStatus: HealthStatus = HealthStatus.Unknown
+    val healthStatus: HealthStatus = HealthStatus.Unknown,
+    val gridMinSizeDp: Int = AppSettingsStore.DEFAULT_GRID_MIN_SIZE_DP
 )
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val repo: MemeRepository,
-    private val envRepo: EnvironmentRepository
+    private val envRepo: EnvironmentRepository,
+    private val settings: AppSettingsStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SearchUiState())
@@ -54,6 +58,9 @@ class SearchViewModel @Inject constructor(
 
     init {
         checkHealth()
+        viewModelScope.launch {
+            settings.gridMinSizeDp.collect { dp -> _state.update { it.copy(gridMinSizeDp = dp) } }
+        }
         // Consume a pending tag filter written by the detail screen before navigating back.
         viewModelScope.launch {
             savedStateHandle.getStateFlow<String?>("pending_tag", null).collect { raw ->
@@ -118,7 +125,8 @@ class SearchViewModel @Inject constructor(
             repo.search(
                 query = s.query.takeIf { it.isNotBlank() },
                 facets = s.activeFacets.joinToString(",").takeIf { it.isNotEmpty() },
-                cursor = s.nextCursor
+                cursor = s.nextCursor,
+                limit = settings.resultsPerPage.first()
             ).onSuccess { response ->
                 _state.update { it.copy(
                     items = (it.items + (response.items ?: emptyList())).distinctBy { m -> m.id },
@@ -152,7 +160,8 @@ class SearchViewModel @Inject constructor(
             repo.search(
                 query = s.query.takeIf { it.isNotBlank() },
                 facets = s.activeFacets.joinToString(",").takeIf { it.isNotEmpty() },
-                cursor = null
+                cursor = null,
+                limit = settings.resultsPerPage.first()
             ).onSuccess { response ->
                 _state.update { it.copy(
                     items = response.items ?: emptyList(),

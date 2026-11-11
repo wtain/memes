@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
@@ -98,6 +99,7 @@ fun SearchScreen(
     onEnvironmentsClick: () -> Unit,
     onFlaggedClick: () -> Unit,
     onUploadClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     onAboutClick: () -> Unit = {},
     onTrendsClick: () -> Unit = {},
     onRecommendationsClick: () -> Unit = {},
@@ -139,6 +141,10 @@ fun SearchScreen(
                         scope.launch { drawerState.close() }
                         onEnvironmentsClick()
                         viewModel.checkHealth()
+                    },
+                    onSettingsClick = {
+                        scope.launch { drawerState.close() }
+                        onSettingsClick()
                     },
                     onAboutClick = {
                         scope.launch { drawerState.close() }
@@ -228,6 +234,7 @@ fun SearchScreen(
                         items = state.items,
                         hasNext = state.hasNext,
                         isLoadingMore = state.isLoadingMore,
+                        minCellSizeDp = state.gridMinSizeDp,
                         onMemeClick = { memeId -> onMemeClick(memeId, state.searchId) },
                         onLoadMore = viewModel::loadMore
                     )
@@ -252,6 +259,7 @@ private fun DrawerContent(
     onUploadClick: () -> Unit,
     onFlaggedClick: () -> Unit,
     onEnvironmentsClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onAboutClick: () -> Unit,
     onTrendsClick: () -> Unit,
     onRecommendationsClick: () -> Unit,
@@ -305,10 +313,17 @@ private fun DrawerContent(
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
     )
     NavigationDrawerItem(
-        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+        icon = { Icon(Icons.Default.Dns, contentDescription = null) },
         label = { Text("Environments") },
         selected = false,
         onClick = onEnvironmentsClick,
+        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+    )
+    NavigationDrawerItem(
+        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+        label = { Text("Settings") },
+        selected = false,
+        onClick = onSettingsClick,
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
     )
     NavigationDrawerItem(
@@ -484,6 +499,7 @@ private fun MemeGrid(
     items: List<Meme>,
     hasNext: Boolean,
     isLoadingMore: Boolean,
+    minCellSizeDp: Int,
     onMemeClick: (String) -> Unit,
     onLoadMore: () -> Unit
 ) {
@@ -500,7 +516,7 @@ private fun MemeGrid(
     }
 
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
+        columns = GridCells.Adaptive(minSize = minCellSizeDp.dp),
         state = gridState,
         contentPadding = PaddingValues(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),

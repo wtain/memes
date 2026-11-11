@@ -5,6 +5,7 @@ import app.cash.turbine.test
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
+import com.memebrowser.app.data.settings.AppSettingsStore
 import com.memebrowser.app.util.MainDispatcherRule
 import com.memebrowser.app.util.fakeSearchEmpty
 import com.memebrowser.app.util.fakeSearchPage1
@@ -15,6 +16,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -33,6 +35,7 @@ class SearchViewModelTest {
 
     private lateinit var repo: MemeRepository
     private lateinit var envRepo: EnvironmentRepository
+    private lateinit var settings: AppSettingsStore
     private val selectedEnvId = MutableStateFlow("env-1")
     private lateinit var viewModel: SearchViewModel
 
@@ -41,13 +44,16 @@ class SearchViewModelTest {
         repo = mockk(relaxed = true)
         envRepo = mockk(relaxed = true)
         every { envRepo.selectedEnvironmentId } returns selectedEnvId
+        settings = mockk(relaxed = true)
+        every { settings.resultsPerPage } returns flowOf(20)
+        every { settings.gridMinSizeDp } returns flowOf(160)
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.success(fakeSearchPage1)
         coEvery { repo.health() } returns Result.success(HealthResponse("healthy"))
     }
 
     @Test
     fun `initial load populates items from search`() = runTest {
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.state.test {
             val state = awaitItem()
             assertEquals(2, state.items.size)
@@ -58,7 +64,7 @@ class SearchViewModelTest {
 
     @Test
     fun `health check on init sets Online status`() = runTest {
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.state.test {
             assertEquals(HealthStatus.Online, awaitItem().healthStatus)
         }
@@ -67,7 +73,7 @@ class SearchViewModelTest {
     @Test
     fun `health check failure sets Offline status`() = runTest {
         coEvery { repo.health() } returns Result.failure(Exception("unreachable"))
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.state.test {
             assertEquals(HealthStatus.Offline, awaitItem().healthStatus)
         }
@@ -76,7 +82,7 @@ class SearchViewModelTest {
     @Test
     fun `search error propagates to state`() = runTest {
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.failure(Exception("timeout"))
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.state.test {
             val state = awaitItem()
             assertEquals("timeout", state.error)
@@ -88,7 +94,7 @@ class SearchViewModelTest {
     fun `loadMore appends next page and clears cursor when done`() = runTest {
         coEvery { repo.search(null, null, null, any()) } returns Result.success(fakeSearchPage1)
         coEvery { repo.search(null, null, "cursor-abc", any()) } returns Result.success(fakeSearchPage2)
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
 
         viewModel.loadMore()
 
@@ -103,7 +109,7 @@ class SearchViewModelTest {
     @Test
     fun `loadMore is no-op when hasNext is false`() = runTest {
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.success(fakeSearchEmpty)
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
 
         viewModel.loadMore()
 
@@ -112,7 +118,7 @@ class SearchViewModelTest {
 
     @Test
     fun `facet toggle adds facet and re-searches`() = runTest {
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.onFacetToggle("tag", "dev")
 
         viewModel.state.test {
@@ -126,7 +132,7 @@ class SearchViewModelTest {
 
     @Test
     fun `facet toggle removes already-active facet`() = runTest {
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.onFacetToggle("tag", "dev")
         viewModel.onFacetToggle("tag", "dev")
 
@@ -139,7 +145,7 @@ class SearchViewModelTest {
     fun `query change is debounced — rapid changes trigger only one search`() = runTest(
         mainDispatcherRule.dispatcher
     ) {
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         // Drain the initial search triggered by init
         advanceTimeBy(500)
 
@@ -155,7 +161,7 @@ class SearchViewModelTest {
     @Test
     fun `dismissError clears error field`() = runTest {
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.failure(Exception("err"))
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.dismissError()
 
         viewModel.state.test {
@@ -167,7 +173,7 @@ class SearchViewModelTest {
 
     @Test
     fun `switching environment triggers immediate search`() = runTest {
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         advanceTimeBy(500)
 
         selectedEnvId.value = "env-2"
@@ -178,7 +184,7 @@ class SearchViewModelTest {
 
     @Test
     fun `switching to new environment resets query to empty`() = runTest {
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         advanceTimeBy(500)
 
         viewModel.onQueryChange("cats")
@@ -194,7 +200,7 @@ class SearchViewModelTest {
 
     @Test
     fun `switching back to previous environment restores saved query`() = runTest {
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         advanceTimeBy(500)
 
         // Type "cats" while on env-1
@@ -219,7 +225,7 @@ class SearchViewModelTest {
     @Test
     fun `pending_tag in SavedStateHandle is applied as active facet on init`() = runTest {
         val handle = SavedStateHandle(mapOf("pending_tag" to "emotion:funny"))
-        viewModel = SearchViewModel(handle, repo, envRepo)
+        viewModel = SearchViewModel(handle, repo, envRepo, settings)
 
         viewModel.state.test {
             val state = awaitItem()
@@ -230,7 +236,7 @@ class SearchViewModelTest {
     @Test
     fun `pending_tag is cleared from SavedStateHandle after being applied`() = runTest {
         val handle = SavedStateHandle(mapOf("pending_tag" to "emotion:funny"))
-        viewModel = SearchViewModel(handle, repo, envRepo)
+        viewModel = SearchViewModel(handle, repo, envRepo, settings)
 
         // Wait for init to process
         viewModel.state.test { awaitItem() }
@@ -243,7 +249,7 @@ class SearchViewModelTest {
     @Test
     fun `the search id of the response is kept in the state`() = runTest {
         coEvery { repo.search(any(), any(), any(), any()) } returns Result.success(fakeSearchPage1.copy(searchId = "s1"))
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
 
         viewModel.state.test { assertEquals("s1", awaitItem().searchId) }
     }
@@ -252,12 +258,12 @@ class SearchViewModelTest {
     fun `loadMore replaces the id with the new page's id and keeps it when the page has none`() = runTest {
         coEvery { repo.search(null, null, null, any()) } returns Result.success(fakeSearchPage1.copy(searchId = "s1"))
         coEvery { repo.search(null, null, "cursor-abc", any()) } returns Result.success(fakeSearchPage2.copy(searchId = "s2"))
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.loadMore()
         viewModel.state.test { assertEquals("s2", awaitItem().searchId) }
 
         coEvery { repo.search(null, null, "cursor-abc", any()) } returns Result.success(fakeSearchPage2)
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         viewModel.loadMore()
         viewModel.state.test { assertEquals("s1", awaitItem().searchId) }
     }
@@ -266,7 +272,7 @@ class SearchViewModelTest {
     fun `a new search whose response has no id clears the id`() = runTest(mainDispatcherRule.dispatcher) {
         coEvery { repo.search(null, null, null, any()) } returns Result.success(fakeSearchPage1.copy(searchId = "s1"))
         coEvery { repo.search("cats", null, null, any()) } returns Result.success(fakeSearchPage1)
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         advanceTimeBy(500)
         assertEquals("s1", viewModel.state.value.searchId)
 
@@ -280,7 +286,7 @@ class SearchViewModelTest {
     fun `switching environment drops the id of the previous environment`() = runTest(mainDispatcherRule.dispatcher) {
         coEvery { repo.search(any(), any(), any(), any()) } returnsMany listOf(
             Result.success(fakeSearchPage1.copy(searchId = "s1")), Result.success(fakeSearchPage1))
-        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo)
+        viewModel = SearchViewModel(SavedStateHandle(), repo, envRepo, settings)
         advanceTimeBy(500)
         assertEquals("s1", viewModel.state.value.searchId)
 

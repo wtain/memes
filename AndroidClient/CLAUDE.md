@@ -159,6 +159,14 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a4-
 - ViewModel tests mock the final coordinator/engine/tracker with mockk; the retry SQL itself is only checked on a device (`FakeTrackerDao` mirrors it).
 - `androidTest/.../ui/sync/SyncScreenTest` needs a device to run (the androidTest source set compiles since `SearchScreenTest` was updated for `onMemeClick(memeId, searchId)`; verified with `compileDebugAndroidTestKotlin`).
 
+### Settings and startup update check
+- `AppSettingsStore` (DataStore `app_settings`): `checkUpdatesOnStartup` (default on), `resultsPerPage` (10..100, default 20, read by `SearchViewModel` before each search),
+  `gridMinSizeDp` (100..300, default 160), `skippedUpdateTag`. The album-sync batch size stays in `TrackerSettingsStore` (the engine reads it); the settings screen
+  (route `settings`, drawer entry "Settings") and the sync screen both edit that one value.
+- `UpdateManager` (singleton, `data/update/`) owns the GitHub check, download and install and one `status` flow; `AboutViewModel` and `StartupUpdateViewModel` share it.
+- `StartupUpdateDialogHost` (in `NavGraph`) + the activity-scoped `StartupUpdateViewModel` check once per launch when enabled and offer Yes/No. A silent failed check;
+  "No" stores the tag in `skippedUpdateTag` (not offered again at startup; About still offers it).
+
 ### Navigation
 All screen-to-screen navigation goes through `NavGraph.kt`. Screens receive
 callbacks (`onBack`, `onNavigateToMeme`, …) and know nothing about

@@ -12,6 +12,8 @@ import com.memebrowser.app.ui.environment.EnvironmentManagerScreen
 import com.memebrowser.app.ui.flagged.FlaggedScreen
 import com.memebrowser.app.ui.recommendations.RecommendationsScreen
 import com.memebrowser.app.ui.search.SearchScreen
+import com.memebrowser.app.ui.settings.SettingsScreen
+import com.memebrowser.app.ui.update.StartupUpdateDialogHost
 import com.memebrowser.app.ui.statistics.StatisticsScreen
 import com.memebrowser.app.ui.sync.SyncScreen
 import com.memebrowser.app.ui.trends.TrendsScreen
@@ -21,6 +23,7 @@ import java.net.URLEncoder
 @Composable
 fun NavGraph() {
     val navController = rememberNavController()
+    StartupUpdateDialogHost()
     NavHost(navController = navController, startDestination = "search") {
         composable("search") {
             SearchScreen(
@@ -32,6 +35,7 @@ fun NavGraph() {
                 onEnvironmentsClick = { navController.navigate("environments") },
                 onFlaggedClick = { navController.navigate("flagged") },
                 onUploadClick = { navController.navigate("sync") },
+                onSettingsClick = { navController.navigate("settings") },
                 onAboutClick = { navController.navigate("about") },
                 onTrendsClick = { navController.navigate("trends") },
                 onRecommendationsClick = { navController.navigate("recommendations") },
@@ -81,6 +85,9 @@ fun NavGraph() {
         }
         composable("upload") {
             UploadScreen(onBack = { navController.popBackStack() })
+        }
+        composable("settings") {
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
         composable("about") {
             AboutScreen(onBack = { navController.popBackStack() })
