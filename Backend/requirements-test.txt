@@ -5,3 +5,6 @@ pytest-mock>=3.15.1
 pytest-cov>=7.1.0
 httpx>=0.28.1
 flake8>=7.3.0
+# Backend/tests/test_meme_profile_service.py compares a constant with ai/meme_profile_extractor.py,
+# which imports the ollama HTTP client at module level. Test-only: the backend image has none.
+ollama==0.6.2

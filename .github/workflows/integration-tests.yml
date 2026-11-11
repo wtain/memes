@@ -89,7 +89,11 @@ jobs:
           # tests/integration/test_ingest_validate_formats.py, which also use PIL directly to
           # build test fixture images — not part of the heavy ML stack, safe to install
           # standalone here. Version matches the pin in the root requirements.txt.
-          pip install wordfreq==3.1.1 pymorphy3==2.0.6 pymorphy3-dicts-ru==2.4.417150.4580142 PyYAML==6.0.2 numpy==2.2.6 ollama==0.6.1 requests==2.32.5 cloudscraper==1.2.71 feedparser==6.0.12 beautifulsoup4==4.14.3 bs4==0.0.2 pillow==12.0.0
+          #
+          # alembic is imported by the migration tests (tests/integration/test_*_migration.py,
+          # test_rollout_preflight*.py, test_discovery_report_cli*.py) and by tools/rollout_preflight.
+          # Version matches the pin in the root requirements.txt.
+          pip install wordfreq==3.1.1 pymorphy3==2.0.6 pymorphy3-dicts-ru==2.4.417150.4580142 PyYAML==6.0.2 numpy==2.2.6 ollama==0.6.2 alembic==1.18.4requests==2.32.5 cloudscraper==1.2.71 feedparser==6.0.12 beautifulsoup4==4.14.3 bs4==0.0.2 pillow==12.0.0
 
       - name: Enable pgvector extension
         run: |

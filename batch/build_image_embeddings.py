@@ -12,7 +12,6 @@ import uuid
 from sqlalchemy import delete, select
 from sqlalchemy.sql.functions import count
 
-from ai.clip import ClipModel
 from batch.run_tracking import finish_existing_run, tracked_run
 from batch.utils.progress import ProgressTracker
 from config.settings import load_env, settings
@@ -59,6 +58,10 @@ async def _process(incremental: bool, target_status: str = "active") -> None:
 
         rows = await select_images_to_embed(session, incremental, target_status)
         print(f"Found {len(rows)} image(s) needing embeddings")
+
+        # Imported here, not at module level: ai.clip pulls in torch and open_clip, which the
+        # tests of select_images_to_embed (and the lean CI installs) neither have nor need.
+        from ai.clip import ClipModel
 
         clip_model = ClipModel()
 
