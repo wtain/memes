@@ -1,6 +1,6 @@
 # Dev/prod data sync: project tracker
 
-Status: draft
+Status: draft (reconciled 2026-11-12; interface names in `interfaces.md`)
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/README.md
 
 Created 2026-11-12. Each project has its own design spec (written when the project is picked up, named
@@ -28,66 +28,55 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 | S4 | File transfer | rsync (or equivalent) from Windows over SSH; manifest by `content_hash`; resumability; row/file consistency | done (2026-11-12; ADR status PROPOSED; loopback container, synthetic files, no real network or VPS) | `docs/adr/adr-2026-11-12-dev-prod-file-sync.md` |
 | S5 | Prod topology and roles | Prod DB roles (sync writer, backend, read-only), which backend features are switched off on prod, how prod is configured per env | done (2026-11-12; read-only code analysis, owner questions answered 2026-11-12) | `2026-11-12-s5-prod-topology-and-roles.md` |
 
-## Projects (provisional, refined after S1 to S5)
+## Projects (designs revised after review 2026-11-12; names fixed in `interfaces.md`)
 
 | ID | Project | Delivers | Depends on | Status | Spec / plan |
 |---|---|---|---|---|---|
-| P0 | Epic charter and tracker | This folder | none | draft | `README.md`, `tracker.md` |
-| P1 | Sync registry | The S1 classification as code (origin, ship/skip, dependency order, key, per table) plus a test that fails on an unclassified table | S1 | implementation (2026-11-12; built, reviewed, fixed; not merged, owner confirms the merge). Verified: `pytest tests/sync` 19 passed, `tests/docs` 15 passed, 18 mutations caught. Not verified: CI run | `2026-11-12-p1-sync-registry-design.md`, review `docs/superpowers/reviews/2026-11-12-p1-sync-registry-review.md` |
-| P2 | Promote data dev to prod | Dry-run-first command: dev-origin tables for the active corpus, ids preserved, schema-version gate, row counts verified | P1, S3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p2-promote-data-design.md` |
-| P3 | Promote files dev to prod | Image file sync driven by the promoted rows, with row/file consistency check and removal of retired files | P1, S4 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p3-promote-files-design.md` |
-| P4 | Pull reader activity prod to dev | Pull of saves, impressions, search history, not-found, ratings, uploads and bug reports; idempotent, watermarked | P1, S3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p4-pull-reader-activity-design.md` |
-| P5 | Prod provisioning and hardening | First seed of an empty prod, trimmed schema usage, prod config, admin features off, roles | S2, S5, P2 | draft (2026-11-12, awaiting owner review; sub-deliveries P5a backend stage, P5b web, P5c Android, P5d VPS stack and roles) | `2026-11-12-p5-prod-provisioning-and-hardening-design.md` |
-| P6 | Verification and drift report | Read-only compare of dev-origin data between stages (counts, hashes), report in the style of `tools/discovery_report` | P2, P3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part A) |
-| P7 | Runbooks and docs | Runbook per direction, update `CLAUDE.md`, `docs/data-flow.md`, `docs/image-derived-data.md`, `environments/Environments.md` | all | draft (2026-11-12, awaiting owner review; ends with the acceptance run on a throw-away VPS) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part B) |
+| P0 | Epic charter, tracker and interface contract | This folder | none | draft (reconciled 2026-11-12) | `README.md`, `tracker.md`, `interfaces.md` |
+| P1 | Sync registry | The S1 classification as code (46 tables: 22 D, 6 P, 18 X) plus guard tests | S1 | implementation (built); follow-ups listed in P2 T1 (`digest_exclude`, `image_extras` replace mode, absorptions note). Verified: `pytest tests/sync` 19 passed, `tests/docs` 15 passed, 18 mutations caught. Not verified: CI run | `2026-11-12-p1-sync-registry-design.md`, review `docs/superpowers/reviews/2026-11-12-p1-sync-registry-review.md` |
+| SC | Shared connection modules `sync/config.py`, `sync/tunnel.py`, `sync/connect.py` (+ `sync.doctor`) | Settings and `.env.<env>.sync` loader, tool-owned tunnel, identity handshake H1 to H10, connection factories | P1; P5 values (ports, aliases, roles) for the settings only | draft; **owner P2** (tasks P2-T2 and P2-T3), consumed by P3, P4, P6, P7 | `interfaces.md` c and e |
+| P2 | Promote data dev to prod | Dry-run-first command: dev-origin tables for the active corpus, ids preserved, handshake, digests, guards, `committed.json`, `retired.json` | P1, SC, S3 | draft (revised after review 2026-11-12) | `2026-11-12-p2-promote-data-design.md` |
+| P3 | Promote files dev to prod | Manifest, gate program `deploy/prod/memesync-gate.py`, batched verified upload, retire/restore/purge | P1, SC, S4 | draft (revised after review 2026-11-12) | `2026-11-12-p3-promote-files-design.md` |
+| P4 | Pull reader activity prod to dev | Mirror of the six class P tables, ratings mode and archive, bug-report pull, `pull_state.json` | P1, SC, S3, P3 gate | draft (revised after review 2026-11-12) | `2026-11-12-p4-pull-reader-activity-design.md` |
+| P5 | Prod provisioning and hardening | Per-environment stacks, roles, grants, backend stage mechanism, capabilities, web and Android hiding, backups; sub-deliveries P5a backend stage, P5b web, P5c Android, P5d VPS stacks and roles | S2, S5, P1 | draft (revised after review 2026-11-12) | `2026-11-12-p5-prod-provisioning-and-hardening-design.md` |
+| P6 | Verification and drift report | Read-only compare of dev-origin data between stages, health, grants, growth alarms | P2, P3, P5 | draft (revised after review 2026-11-12) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part A) |
+| P7 | Runbooks, driver `sync.run`, docs, acceptance run | Runbook per direction, CLAUDE.md and docs updates, acceptance run on a throw-away VPS | all | draft (revised after review 2026-11-12) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part B) |
 
-## Backlog / unscheduled
+## Recommended build order
 
-From the P5 to P7 designs:
+1. **T0** (P2): test fixture for two databases or schemas in `ocrdb_test` (also used by P4, P6, P7).
+2. **P2-T1**: registry amendments (`digest_exclude`, `image_extras` replace, absorptions note); finishes P1.
+3. **SC** (P2-T2, P2-T3): `sync/config.py`, `sync/tunnel.py`, `sync/connect.py`, `sync.doctor`, tested with a loopback fake.
+4. **P3-T1 to T4**: manifest and diff, batches, the gate program with the strict extractor, transport (in parallel with P5a).
+5. **P2 (T4 to T11) and P4 (T1 to T7) in parallel**; P4-T6 (bug-report verbs) after the gate exists.
+6. **P5a** (backend stage mechanism, capabilities, containment) alongside steps 4 and 5, then **P5d-T1/T2** (role generator, container verification) before P2's role checks are final; **P5b/P5c** after P5a-T4.
+7. **P5d-T3 to T8** (compose, Postgres, host users and sshd, backups, release job) once the gate and the roles are settled.
+8. **P6** (needs P2 digests, P3 transport, P5 roles) then **P7** (driver, runbooks, docs), then the acceptance run on a throw-away VPS, then the real prod (`it`, `metal`, `general`).
 
-- The P3 gate gains the verb `fetch-backup` (read-only: newest class P dump and its metadata), used by the pull and by P6 check S6; P4 already adds `pull-list`, `pull-tar`, `delete-verified`.
-- P5d-T2: verify on a PostgreSQL 18 container that `MAINTAIN` allows `REINDEX`, that `ON DELETE CASCADE` into `meme_text_ratings` works without a `DELETE` grant for `sync_writer`, and the unprivileged index-rebuild path, before the roles are final.
-- Caddy rate limiting may need a plugin; otherwise rate limits stay in the app and the deploy README says so.
-- Open owner items that block nothing: hostnames and domain, VPS provider and size, whether the web build is served by the same Caddy, whether to rent a throw-away VPS for the acceptance run.
+## Open owner items (deduplicated; each changes what is built or blocks)
 
-From the P3 and P4 designs:
+1. **Ratings:** confirm `sync.pull.ratings_mode: skip` as the default (switch to `mirror` with the ratings routes) and the local archive `ratings_archive.jsonl` for rating text that a pull would delete or overwrite (kept and archived, never restored to prod). Also: keep, restore or drop a kept dev rating when its image returns (P2 review M6).
+2. **Absorptions** carry `loser_filename` and `loser_content_hash` of rejected (non-promotable) losers to a public database: accept (default) or blank those two columns for non-promotable losers (conditional transform in the digest).
+3. **First-seed resume:** confirm that an interrupted first seed is resumed by running the same command (no wipe mode).
+4. **Acceptance environment:** a throw-away VPS, or a local Linux VM first (chroot and sshd behaviour are only fully real on a VPS or a Linux VM).
+5. **Hostnames and domain** (`sync.prod.api_url`, Caddy hosts, CORS origins).
+6. **Abuse layer:** a CDN or WAF, or the Caddy rate-limit plugin, on top of the app-level limits.
+7. **Disk:** XFS project quotas or provider block volumes (otherwise free-space alarms stand in); VPS size (4 GB floor, 8 GB recommended) and provider.
+8. **Off-VPS backup target** beyond the dev pull of the newest class P dump.
+9. **Gate default caps** (200 MB member, 5000 members, 600 MB batch, 10 % free floor, retire `max(100, 5 %)` and replace `max(200, 5 %)` per day): accept, and confirm that a larger run lifts them by editing `/etc/memes/gate.conf` on the VPS, never by a client flag.
+10. **Dev database names** per environment for `sync.dev.database` (only needed to fill the settings).
 
-- P5 grants and provisioning: `sync_reader` also needs `SELECT (id)` on `images` (P4 keeps ratings of images retired on prod); the `memesync` unix user, STAGING
-  and RETIRED on the same filesystem as BASE_PATH, the gate script `deploy/prod/memesync-gate.sh` installed as the forced command; the backend and the gate must agree on file ownership.
-- A driver `python -m sync.run --env X` that runs pull, files promote, data promote, retire (data, then files) in the right order with one confirmation; the order is a contract today,
-  enforced only by the freshness files (`pull_state.json`, `files-promoted.json`). Candidate for P7.
+## Backlog / unscheduled (real items only; resolved ones were removed in the 2026-11-12 reconciliation)
+
+- P5d-T2: verify on a PostgreSQL 18 container that `MAINTAIN` allows `REINDEX`, that `ON DELETE CASCADE` into `meme_text_ratings` works without a `DELETE` grant for `sync_writer`, the unprivileged index-rebuild path, extension creation rights, PG18 data directory layout and `pg_hba` order, before the roles are final.
 - Impression pull by watermark (append-only) with a periodic full mirror, once `meme_impressions` approaches millions of rows (S3 Q7).
-- Interface files shared across P2/P3/P4 live in the state directory `Storage/sync-state/<env>/` (git-ignored): `pull_state.json`, `runs/<runid>/{plan.json,files-promoted.json}`, the file ledger and the bug-report ledger.
-
-From S4 and S5 (details in the ADR and the S5 spec):
-
-- The backend has no authentication; of 90 routes 31 stay on prod and 59 are disabled by a default-deny stage gate
-  (`APP_STAGE=prod`). New work items P5b (frontend) and P5c (Android) for hiding blocked pages.
-- `popularity_absorptions` feeds the reader-facing trending and popularity breakdown routes; decide whether to ship it as D.
-- `GET /api/history` exposes every reader's search text; proxy logs must drop query strings; `statistics` writes on GET (disable on prod).
-- gunicorn `-w 4` with pool 10+20 can reach 120 connections against `max_connections=100`; rate limiters need proxy headers.
-- Windows `ssh.exe` stdin is capped near 12.5 MB/s for pipes; ControlMaster does not work on Windows OpenSSH; `scp`/`sftp` leave
-  truncated files under the final name when killed, so P3 stages to `.part`, renames, verifies, and sweeps staging on start.
-- WSL rsync, a pure-Python SFTP client and real-network bandwidth were not evaluated.
-
-From S3 (details in the ADR):
-
-- Order of a sync run: pull prod's reader data first, then promote. Deleting an image on prod cascades to `meme_text_ratings` (the
-  only reader table with a foreign key to `images`), so the pull must keep ratings of retired images and filter out ratings of
-  images missing on dev (the foreign key would fail the pull).
-- Embedding tables carry no model name or digest (only the meme-profile ones do), so model parity cannot be checked in the
-  database; decide how P2 asserts it (settings comparison or a version stamp).
-- Digest must also cover `image_description_feedback` and the `stale` flag.
-- Prod `maintenance_work_mem` of at least 256 MB to 1 GB for HNSW builds (149 s at the 64 MB default vs 30 s, 43k x 1024d).
-- Plain `REINDEX` of an HNSW index blocks readers; queries without the index are about 11x slower. Rebuild only in a window, or
-  use a concurrent build.
-- Not verified in S3: a real SSH tunnel and Windows OpenSSH behaviour, network latency, realistic lemma text for the GIN cost,
-  comics/concepts/feedback tables, backend latency during a promote. Candidates for the P2 design or a short follow-up spike.
-
-- Deletions and retirements: an image flagged, deleted or cut on dev must disappear from prod (tombstones or a full diff).
-- Ratings keyed by `(query_hash, image_id)` are moved to the cut on a recut approve on dev; a later pull from prod must not
-  resurrect the old pair.
-- Per-env asymmetries: `it` has no tagging vocabulary, profiles or tagging jobs; tagging YAML only for metal and general.
-- Trends (`trend_sources`, `trends_run_results`): where does the batch run, dev or prod?
+- `?v=<content_hash>` cache-busting on image URLs (decision 20).
+- Restoring a rating from `ratings_archive.jsonl` is a manual step (no tool yet).
+- Windows `ssh.exe` stdin is capped near 12.5 MB/s for pipes; ControlMaster does not work on Windows OpenSSH (S4). WSL rsync, a pure-Python SFTP client and real-network bandwidth were not evaluated.
+- Prod `maintenance_work_mem` of 256 MB to 1 GB for HNSW builds (149 s at 64 MB vs 30 s, 43k x 1024d); plain `REINDEX` of an HNSW index blocks readers (rebuild in a window or concurrently).
+- Embedding tables carry no model name or digest (only the meme-profile ones do): CLIP/SBERT parity is asserted by the revision check (`memes.revision`), not by data.
+- Not verified in S3: a real SSH tunnel and Windows OpenSSH behaviour, network latency, realistic lemma text for the GIN cost, backend latency during a promote (covered by the P7 acceptance run).
+- Ratings keyed by `(query_hash, image_id)` move to the cut on a recut approve on dev; a later pull must not resurrect the old pair (P4 ratings rules; revisit when the ratings routes return).
+- Per-environment asymmetries: `it` has no tagging vocabulary, profiles or tagging jobs; tagging YAML only for metal and general.
 - Tracked evaluation data (`evaluation/gold`) is keyed by dev image ids: dev-only, but the pull of ratings feeds it.
-- Backups of prod-origin data on the VPS (the only copy of the readers' activity).
+- Follow-ups named by the P5 review: sanitising `tools/discovery_report` output (P5a-T8) and consumers of pulled text; listed in P7's docs task.

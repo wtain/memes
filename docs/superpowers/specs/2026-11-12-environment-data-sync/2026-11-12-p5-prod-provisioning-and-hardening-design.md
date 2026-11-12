@@ -1,165 +1,273 @@
 # P5: prod provisioning and hardening (design)
 
-Status: draft
+Status: draft (revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12)
+Interfaces: names, ports, roles, grants, accounts, directories, gate verbs and settings are defined in `interfaces.md` (sections b, d, g, h); this document owns how they are provisioned. Where the tables below repeat them, `interfaces.md` wins.
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
-Depends on: S5 (`2026-11-12-s5-prod-topology-and-roles.md`, the analysis this design turns into work), P1 (registry, built), decisions log in `README.md` (15 and 16 below).
-Feeds: P2 and P4 (roles, grants, the gate), P3 (the `memesync` user and directories), P6, P7.
-Splits into: **P5a backend stage mechanism**, **P5b web**, **P5c Android**, **P5d VPS stack and roles**. Each is built and reviewed on its own.
+Review: docs/superpowers/reviews/2026-11-12-p5-prod-provisioning-design-review.md (dispositions below)
+Depends on: S5 (`2026-11-12-s5-prod-topology-and-roles.md`), P1 (registry, built), decisions log in `README.md` (decisions 1 to 25; 17 to 25 override older text, including S5 where they disagree).
+Feeds: P2 and P4 (roles, grants, handshake, capabilities), P3 (host users, directories, ssh keys, the gate's environment argument), P6, P7.
+Splits into: **P5a backend stage mechanism**, **P5b web**, **P5c Android**, **P5d VPS stacks and roles**. Each is built and reviewed on its own.
 
 ## Intent
 
-Turn the dev backend image into a prod that serves readers and nothing else: routes that are not served are not reachable, writes that are not allowed are refused by the database even if
-the route gate fails, and the VPS stack (containers, Postgres, proxy, users, directories, backups) is reproducible from files in the repository. The backend has no login at all (S5 headline 1), and prod is on the public
-internet (decision 6), so defence in depth is the design: gate in the app, grants in Postgres, restrictions in the proxy.
+Turn the dev backend image into a prod that serves readers and nothing else, once per environment: routes that are not served are unreachable, writes that are not allowed are refused by the database even if
+the route gate fails, an environment cannot be mistaken for another, and the VPS stacks are reproducible from files in the repository. The backend has no login (S5 headline 1) and prod is public (decision 6), so the design is defence
+in depth: route tombstones in the app, size/rate caps in app and proxy, grants and `pg_hba` in Postgres, restrictions in sshd and the filesystem.
 
-## New decisions (2026-11-12, owner)
+## Decisions this design relies on
 
-| # | Question | Decision |
+| # | Decision | Effect here |
 |---|---|---|
-| 15 | Runtime on the VPS | **Docker Compose**: one backend container per environment from `Dockerfile.backend`, one Postgres cluster (three databases, decision 7) in a container, a one-shot migration container |
-| 16 | Reverse proxy | **Caddy**: TLS, hostname routing, access logs without query strings, rate limits where Caddy can, basic auth or IP allow-list if wanted later |
+| 3, 9, 10, 12, 13 | meme-from-text off; uploads dev-only; `GET /api/history` dev-only; capabilities endpoint; bug reports kept with limits | unchanged |
+| 17 | one stack per environment | three compose projects `memes-it`, `memes-metal`, `memes-general`, each with Postgres, backend, migrate job; Caddy is the only shared piece |
+| 18 | `.env.<env>.sync`, tool-owned tunnel, identity handshake | P5 provides the marker, the capabilities `environment`, the per-env key and the fixed ports (table below) |
+| 19 | hardened tar transfer | upload-only chrooted account, `BASE_PATH` read-only in the backend, backend refuses paths outside the images directory |
+| 22 | comics not shipped | all comics routes `dev_only`; the meme page must not break when `/api/comics/by-image/*` answers 404 |
+| 23 | abuse limits | rate limits and size caps, caps on `q`/facets, bounded bug-report body, write-amplification limits, growth alarm, no pruning |
+| 24 | ratings routes off on prod | `dev_only`; `meme_text_ratings` stays class P |
+| 25 | statistics dropped | `dev_only`; `statistics_snapshots` is class X; no statistics read-only mode |
 
 ## Goals / non-goals / anti-goals
 
-- Goals: a stage switch that fails safe; a route policy covering every route; read-only statistics; a capabilities endpoint; web and Android that hide what prod does not serve; roles and grants generated from the registry;
-  a compose stack and Caddy config; a migration path with a fixed deploy order; backups of the only copy of reader data; prod settings tracked in git, secrets not.
-- Non-goals: choosing the VPS provider, buying domains, writing the sync tools (P2 to P4), CI/CD to the VPS (manual `docker compose pull && up` is enough in v1), moving dev to containers, authentication for readers (a separate epic if ever wanted).
-- Anti-goals: an admin route reachable on prod by omission; a prod backend role that can write a class D or X table; secrets in the image or the repo; a container that runs pipelines or the scheduler; message text in any log.
+- Goals: a route gate that fails safe and is built on the router itself; a policy covering every route; a capabilities endpoint with an `environment` field; web and Android that hide what prod does not serve; per-environment roles and grants generated from the registry and
+  re-applied at every release; three isolated stacks and an edge proxy; fixed ports/keys/markers per environment; abuse bounds on every public write; backups of the only copy of reader data; prod settings tracked in git, secrets not.
+- Non-goals: choosing the VPS provider or domains, the sync tools themselves (P2 to P4), CI/CD to the VPS (manual load-and-up is enough), authentication for readers, pruning (decision 11).
+- Anti-goals: an admin route reachable on prod by omission; a prod backend role that can write a class D or X table; secrets in the image or repo; a container that runs pipelines or the scheduler; message text in any log; a credential that works against two environments.
+
+## Review disposition
+
+| Finding | Disposition | Where / reason |
+|---|---|---|
+| H1 gate recipe unbuildable on FastAPI 0.141.1 | adopted | P5a-1: `route_class` tombstone, no middleware matcher; guard iterates `router.routes` |
+| H2 wrong-environment mistakes | adopted (decisions 17, 18) | per-env roles/ports/keys, `memes.environment` marker, capabilities `environment`, backend self-check at start |
+| H3 write amplification, shared disk | adopted | P5a-5 (limits, caps, impression cap, browse feed not recorded), per-env volumes and quotas (P5d disk layout), role limits, Docker log rotation, growth alarm (P6 interface) |
+| H4 bug-report body | adopted | P5a-5: pure-ASGI body cap before multipart parsing, directory cap (507), Caddy `request_body` |
+| H5 grants not re-applied after migration | adopted | release runbook step 2b, migrate job applies and verifies grants; no default privileges for the app |
+| H6 Postgres reachability/auth | adopted | host-loopback publish, tracked `pg_hba.conf`, owner via socket only, `REVOKE CONNECT FROM PUBLIC`, PG18 volume path, `shm_size`, bootstrap superuser creates extensions |
+| M1 CORS/OPTIONS vs gate; localhost origins | adopted | tombstones sit behind CORS (no gate middleware); `cors.origins` setting, no localhost, `allow_credentials` false on prod (P5a-3) |
+| M2 pool sizes not settable | adopted | P5a-7 reads `database.pool_size`/`max_overflow`; arithmetic redone per Postgres |
+| M3 logs/leaks | adopted / adapted | log table below; `/health` fixed detail; capabilities carries no SHA (adapted: revision/schema head come from the DB marker `memes.revision` and `alembic_version`, not a public endpoint); statistics dropped (decision 25) |
+| M4 untrusted pulled text | adopted / adapted | public-write section: caps on prod, sanitising on dev (P5a-8), ratings off (decision 24); pull growth tripwire is a P4 interface item |
+| M5 ownership and container hardening | adopted | uid/gid table, `:ro` mounts, `read_only`, `cap_drop`, root-owned `/app`, `127.0.0.1:` ports guard test |
+| M6 gate/keys per environment | adopted | `authorized_keys` per env with `permitopen` and gate argument |
+| M7 reader gaps (Android Trends, `/reply`, comics, capability vs build flag) | adopted | P5b/P5c hide lists; comics is `dev_only` (decision 22); effective visibility = build flag AND capability |
+| M8 overlay cannot remove a key | adopted | `parse.model: ""` plus test; `APP_ENV` mandatory on prod, backend refuses to start without it |
+| M9 forwarded-allow-ips, slashes | adopted | fixed edge subnet CIDR, `X-Forwarded-Proto`, `redirect_slashes=False` on prod |
+| L1 to L7 | deferred or folded | see Deferred |
+| Reconciliation 2026-11-12 | applied | `interfaces.md` adopted: gate is `memesync-gate.py`, `memes.state` marker set by `provision.sh`, no `TEMP` for `<sync_w>`, the ratings column grant stated as the single exception, two keys per `memesync-<env>`, `work`/`retired` directories, `disk`/`containment` verbs fed by a root timer |
+| Review options A/B/C, connection configuration, owner questions | A adopted (decision 17); connection recommendation adopted (decision 18) | owner questions: answered by decisions 17 to 25, residue at the end |
 
 ## P5a: backend stage mechanism
 
-1. **Stage switch (S5 §2.1).** `APP_STAGE` (`dev` default, `prod`) read once in `config/settings.py`; when `prod`, `settings_files` gains `environments/settings.prod.yaml` and, where needed, `environments/settings.<env>.prod.yaml`. A helper
-   `config.stage.is_prod()` is the only reader. `Dockerfile.backend` bakes `ENV APP_STAGE=prod`, so a forgotten variable on the VPS still means prod (the image is only ever used for prod; dev runs uvicorn from the venv).
-   `settings.prod.yaml`: `stage: prod`, `scheduler.enabled: false` (Dynaconf appends lists, so the scheduler is switched off, not edited), nothing else shared. The lifespan also skips the scheduler on `is_prod()` regardless of the overlay.
-2. **Route policy (S5 §2.2).** `Backend/app/stage_policy.py`: `ROUTE_POLICY[(method, path_template)] = "reader" | "dev_only"` for **every** route, and a pure-ASGI `StageGate` middleware registered only on prod that answers **404** (not 403) for
-   anything not `reader`, matching routes the way Starlette does (first full match), so a removed literal route cannot fall through to `/images/{image_id}`. Pure-admin routers (`admin`, `admin_discovery`, `admin_profiles`, `ingestion`, `recut`, `comics`,
-   `meme_profiles`) are also not mounted on prod; `/docs`, `/redoc`, `/openapi.json` are off on prod (they are open today, `main.py:121-125`).
-3. **Verdicts.** The starting point is the S5 §1 inventory (90 routes: 31 reader, 59 dev-only). The owner's decisions change a few of them; T1 recomputes the table and the counts:
+1. **Policy and route class (replaces the StageGate middleware).**
+   - `Backend/app/stage_policy.py`: `ROUTE_POLICY[(method, path)] = "reader" | "dev_only"` where `path` is the full path including `/api` and the router prefix, one entry per method (the policy file is plain Python, one line per route, sorted by file).
+   - `StageRoute(APIRoute)`: `get_route_handler()` returns, when `is_prod()` and the policy for `(method, full path)` is not `reader`, a handler that answers **404 `{"detail":"Not Found"}`** (identical to the router's own 404); a route with no policy entry makes the import raise on prod. Every router is created with `route_class=StageRoute`
+     (a `make_router()` factory; a guard test asserts every router's routes are `StageRoute`). The router itself decides which route matched, so literal-before-parameter ordering (`/images/flagged` vs `/images/{image_id}`) cannot fall through: the tombstone matches first. Verified in the review on 0.141.1 (`%66lagged` included).
+   - Do not walk `app.routes`: on FastAPI 0.141.1 it holds `_IncludedRouter` objects and `matches()` does not return the matched route (review H1).
+   - Behaviour table: `HEAD` is not routed by `APIRoute` (405 today, unchanged, also on `reader` GETs); `OPTIONS` plain is 405, a CORS preflight is answered by `CORSMiddleware` before routing (no policy entry needed); a method not in the table for an existing path is the router's 405 (the `Allow` header lists only methods that exist);
+     trailing slash: `redirect_slashes=False` on prod, so `/api/images/flagged/` is 404 and no 307 downgrade exists; paths are matched decoded and case-sensitive (`//api/...`, `/API/...`, `%2F` all 404 or match the same route the policy names).
+   - **Second layer:** the fully dev-only routers are neither imported nor mounted on prod: `admin`, `admin_discovery`, `admin_profiles`, `ingestion`, `recut`, `comics`, `meme_profiles`, `trends`, `uploads`, `meme_text_ratings` (51 routes). The imports are conditional on `is_prod()` (these modules pull batch code the prod image does not have). Mixed routers (`images`, `history`, `diagnostics`, `meme_from_text`) stay mounted with tombstones. `FastAPI(docs_url=None, redoc_url=None, openapi_url=None)` on prod.
+2. **Stage switch.** `APP_STAGE` (`dev` default, `prod`) read once in `config/settings.py`; `prod` adds `environments/settings.prod.yaml` and `settings.<env>.prod.yaml`; `config.stage.is_prod()` is the only reader. `Dockerfile.backend` bakes `ENV APP_STAGE=prod`. Overlay: `stage: prod`, `scheduler.enabled: false` (lifespan also skips the scheduler on `is_prod()`),
+   `parse.model: ""` for `general` and `metal` (overlays cannot delete a key; a test asserts `get_query_parser()` is `None`), CORS origins, pool sizes. On prod the backend refuses to start unless `APP_ENV` is set explicitly (no default-to-general) and, after connecting, unless `current_setting('memes.environment')` equals `APP_ENV` (a wrong `DATABASE_URL` stops the container).
+3. **Verdicts, final** (recomputed from the review's route walk: 90 routes = 89 under `/api` plus `GET /health`):
 
-   | Route (S5) | S5 proposal | Now | Because |
+   | Group | Routes | reader | dev_only |
    |---|---|---|---|
-   | `GET /api/images/trending?window=30d`, `GET .../popularity` | reader (empty) or hide | **reader** | `popularity_absorptions` is shipped (decision 1) |
-   | `GET /api/diagnostics/statistics` | disable | **reader, read-only** | statistics snapshot is shipped (decision 4); see 4 |
-   | `GET /api/history` | disable | **dev_only** | decision 10 |
-   | `POST /api/uploads` | reader | **dev_only** | decision 9 |
-   | `POST /api/meme-from-text/search` and friends | reader | **reader, answers `available: false`** | decision 3; `parse.model` absent in the prod overlay (the `it` pattern) |
-   | `POST /api/bug-reports` | reader | **reader**, size and rate limited | decision 13 |
-   | trends routes | reader | **dev_only** | decision 5 (trends hidden) |
-   | concepts routes | reader | **reader** | decision 5 (concepts shipped) |
-   | new `GET /api/diagnostics/capabilities` | n/a | **reader** | decision 12 |
-   | ratings/saves/not-found/history-recording writes | reader | **reader** | they are the class P writes |
+   | images | 26 | 10: list, similar, descriptions, `meme/{id}`, popularity GET, saves POST and GET, impressions, trending, `{image_id}` file | 16 |
+   | diagnostics | 2 + new capabilities | 2: health, **capabilities** (new) | 1: **statistics** (decision 25) |
+   | history | 2 | 1: not-found POST | 1: `GET /history` (decision 10) |
+   | meme-from-text (search, taxonomy) | 2 | 2 (answer `available: false`) | 0 |
+   | ratings | 4 | 0 | 4 (decision 24) |
+   | concepts, recommendations, bug-reports, root `/health` | 4 + 1 + 1 + 1 | 7 | 0 |
+   | trends 5, uploads 1 | 6 | 0 | 6 |
+   | admin 5, discovery 3, admin_profiles 2, ingestion 6, recut 6, **comics 15**, meme_profiles 4 | 41 | 0 | 41 |
+   | **Total** | **91 with capabilities** | **22** | **69** |
 
-   The ratings routes are reader routes that need the meme-from-text feature; with it off they are unreachable in practice but remain `reader` so turning the feature on later is a settings change.
-4. **Read-only statistics.** On prod `GET /api/diagnostics/statistics` returns the stored `corpus` snapshot as is: it ignores `live=true` and the 2-hour staleness rule and never writes. The prod role has no write on `statistics_snapshots`, so a code path that
-   tried would fail loudly. Missing row: answer 404 with a fixed detail.
-5. **Capabilities.** `GET /api/diagnostics/capabilities` returns `{stage, revision, schema_head, features: {memeFromText, concepts, comics, trends, statistics, uploads, history, admin}}`. Schema in `shared/schemas/` with TypeScript, Kotlin and
-   Python types regenerated (CLAUDE.md type generation); documented in `backend_api.md`. `revision` is the image's git SHA (a build argument), the value P2 compares (P2 design, preconditions).
-6. **Tests.** (a) Verdict-completeness guard in `tests/docs/` style: every route of the app has a policy entry and every entry names a real route. (b) Gate behaviour (`Backend/tests/`, mocked DB, `APP_STAGE=prod`): every `dev_only` route answers 404 for its method, including
-   the fall-through case; docs and OpenAPI are 404; the scheduler is not started; statistics ignores `live`. (c) The write-set test of S5 §2.5 (below, P5d).
+   Changes against the review's own recount (26 reader / 64 dev_only of 90, before decisions 22/24/25): statistics (-1 reader), ratings (-4 reader) = **21 reader / 69 dev_only of 90, 22 / 69 of 91** with capabilities. Comics were already `dev_only`, so decision 22 changes no count; it changes the frontend (below) and the registry (done). T1 reproduces the table; the guard fails on any other number.
+4. **Capabilities.** `GET /api/diagnostics/capabilities` returns `{stage, environment, features: {memeFromText, concepts, trends, comics, ratings, statistics, uploads, history, admin}}`; `environment` is `APP_ENV`; every flag is derived from settings and the policy (`memeFromText` is true only if a parser is configured; `comics`, `trends`, `ratings`, `statistics`, `uploads`, `history`, `admin` are false on prod).
+   **No git SHA or schema head in the public payload** (M3). The release revision is stored by the release runbook as `ALTER DATABASE ... SET memes.revision = '<sha>'` and read by P2/P6 with `current_setting`; the schema head comes from `alembic_version`. Schema in `shared/schemas/`, TS/Kotlin/Python regenerated, `backend_api.md` updated.
+5. **Abuse bounds (decision 23).** All limits are settings (`abuse.*`), enforced in the app so they do not depend on a Caddy plugin:
+   - a per-client limiter (client from the trusted `X-Forwarded-For`, token buckets, empty buckets evicted, bounded size) on: saves, not-found, history/impression recording, bug reports. Over the limit a **recording is skipped and the response still served** (recording is already best effort); saves, not-found and bug reports answer 429. State: process-local, so the effective limit is workers x configured rate (2 workers).
+   - `GET /api/images`: `q` at most 512 characters, at most 10 facet values of at most 64 characters, else 422; impressions per call capped at 50 rows (setting; was up to 100); on prod the browse feed (no `q`, no facets) writes no `search_history` row (`history.record_browse: false`); one recording budget per client per minute for history plus impression rows together.
+   - bug reports: a pure-ASGI `BodyLimit` middleware for `/api/bug-reports` counts bytes from `receive` and answers 413 at 11 MB **before multipart parsing** (also checks `Content-Length`); the endpoint then reads in chunks; the directory is capped (`bug_reports.max_files`, `max_total_mb`; over the cap answers 507).
+   - DB role limits (P5d), Caddy limits (P5d), Docker log rotation (P5d). The growth alarm lives in the P6 verify report (interface section).
+6. **Image path containment (decision 19).** `get_image_path` in `Backend/app/services/image_store.py` today returns `_IMAGES_DIR / filename` with no check. New behaviour: resolve the candidate (`strict=False`) and require it to be inside the resolved images directory (`relative_to`); reject absolute names, names with a separator, NUL, `..` segments and any symlink whose target leaves the directory; the file route answers 404 for a refusal. Applies to every caller (file route, `image_exists`, the other helpers).
+   Tests: `..`, `%2e%2e`, absolute path, double-encoded separators, NUL, a symlink inside the directory pointing outside, a symlink pointing inside (allowed or refused: **refused**, regular files only), a name that is a directory; the same requests sent through the full app with `APP_STAGE=prod` so the `BodyLimit` middleware, CORS and the tombstone routes are in the chain (none of them rewrites the path).
+7. **Settings hooks.** `Storage/db.py` reads `database.pool_size` and `database.max_overflow` (defaults 10 and 20, dev unchanged). `Dockerfile.backend` CMD keeps four workers for dev images; the compose command overrides to two workers.
+8. **Dev-side hygiene for pulled text.** `tools/discovery_report.py` strips control characters and ANSI/OSC sequences from query text before printing and prefixes cells starting with `=`, `+`, `-`, `@` in CSV output; the history/discovery UIs already escape (no raw HTML sink found in the review).
+9. **Tests.** (a) Completeness guard (`tests/docs/` style): every route of every router (`router.routes`, prefix + `/api`) has a policy entry and every entry a route; counts 22/69. (b) Prod behaviour (`Backend/tests/`, mocked DB, `APP_STAGE=prod`): every `dev_only` (method, path) answers 404 incl. the fall-through cases, docs/openapi 404, no scheduler, unmounted prefixes absent, HEAD/OPTIONS/slash cases, startup refusal without `APP_ENV`. (c) The write-set role test of P5d. (d) Capabilities schema and flags per overlay. (e) Abuse bounds: oversize `q`, facet caps, body 413 before parse, limiter skip-not-fail, impression cap.
 
 ## P5b: web
 
-`VITE_STAGE=prod` at build time (new `.env.<env>.prod` for the prod build, static, no request at load) hides the Cleanup and Admin menu groups, the trends entries (Statistics stays: it is served as the promoted snapshot), the curator controls on `MemePage`
-(`ProfileEditor`, description approve/reject and note editor, flag toggle, popularity set control, comics block), the history screens and the Upload page; their routes redirect to `/explore`. A control that still gets a 404 treats it as "feature off", never an error banner.
-The web build also reads `/api/diagnostics/capabilities` when present, so a prod backend with a feature switched on later shows it without a rebuild (the build flag is the static default). Tests: `vitest` for the menu, router redirects and the hidden controls under `VITE_STAGE=prod`; `tsc -b`, `eslint`, per the repo's pre-commit list.
+`VITE_STAGE=prod` at build time (static default) hides: Cleanup and Admin groups, **Statistics**, Trends, `/reply` and its menu entry, the curator controls on `MemePage` (`ProfileEditor`, description approve/reject, note editor, flag toggle, popularity set control, **`MemeComicsBlock`**), history screens, the Upload page; their routes redirect to `/explore`.
+`MemeComicsBlock` and every `/api/comics/*` call are not rendered or issued on prod, and a 404 from any of them is treated as "feature off", never an error banner or a broken meme page (vitest: meme page renders with comics calls answering 404). The build also reads `/api/diagnostics/capabilities`; **effective visibility = build flag AND capability** (a capability can only
+reduce what the build shows; switching a feature on later needs a rebuild). Tests: `vitest` for menu, redirects, hidden controls and the 404 case; `tsc -b`, `eslint`.
 
 ## P5c: Android
 
-The app reads `capabilities` once per environment (the backends are user-defined at runtime) and hides Flagged, the flag toggle, description approve/reject, History and the album-sync/Upload entry when `stage=prod` and `features.uploads` is false. A prod entry is a user-defined
-environment (a public hostname), not a new hard-coded LAN address. An older app against prod sees 404 on those taps. Unit tests as in the other Android epics; instrumented tests only in CI. **Decision for the phone sync:** with uploads off on prod, the album sync targets the dev backend (home network or VPN) as today.
+Reads `capabilities` once per environment (backends are user-defined at runtime; a prod entry is a public hostname) and hides, when `stage=prod`: Flagged, flag toggle, description approve/reject, History, **Trends**, **Statistics**, any comics entry, and the album-sync/Upload entry (`features.uploads` false; phone sync targets the dev backend as today). An older app sees 404 on those taps. Unit tests; instrumented tests only in CI.
 
-## P5d: VPS stack, roles, config, backups
+## P5d: VPS stacks, roles, config, backups
 
-### Stack (`deploy/prod/`, tracked; secrets are not)
+### Layout (`deploy/prod/`, tracked; secrets are not)
 
 ```
-deploy/prod/compose.yaml            postgres, backend-{general,metal,it}, migrate (profile "ops"), caddy
-deploy/prod/Caddyfile               hostnames and routes, TLS, access log format, rate limits (hostnames are placeholders read from env)
-deploy/prod/memesync-gate.sh        the forced command (P3 delivers it; P5d installs and tests the installation steps)
-deploy/prod/sql/roles.sql           generated: `python -m sync.roles --db NAME` (below)
-deploy/prod/env/*.example           .env.<env>.prod examples with every key and no value
-deploy/prod/backup.sh               nightly P-table dump (below)
-deploy/prod/README.md               stack map, ports, volumes, who owns what
+deploy/prod/compose.yaml          parameterised: services db, backend, migrate (profile "ops"); run as  docker compose -p memes-<env> --env-file <env>.prod.env
+deploy/prod/edge/compose.yaml     project memes-edge: Caddy only
+deploy/prod/edge/Caddyfile        hostnames, routes, TLS, log format, body/header limits, headers
+deploy/prod/postgres/             postgresql.conf overrides, pg_hba.conf (templated per env), provision.sh
+deploy/prod/memesync-gate.py      forced command (P3 delivers; P5d installs it at /opt/memes/ and the key line passes the environment as its argument)
+deploy/prod/sshd/                 sshd_config.d snippet and authorized_keys templates
+deploy/prod/sql/roles.<env>.sql   generated by `python -m sync.roles --env <env>`; never contains a password
+deploy/prod/backup.sh, restore.sh
+deploy/prod/systemd/              timers: backup, `sweep`, and the root-run facts timer that writes /var/lib/memes/<env>/{disk,containment}.json for the gate verbs
+deploy/prod/env/<env>.prod.env.example   every key, no value (named so the repo's `.env.*` ignore rule does not hide them)
+deploy/prod/README.md             stack map, port table, volumes, who owns what, release runbook
 ```
 
-- **Loopback only.** Backends listen on `127.0.0.1:<dev port + 1000>` (8081 to 9081 and so on; recorded in `Environments.md` by P7), Postgres on `127.0.0.1:5432` inside the compose network and **not published**. The sync reaches Postgres through `ssh -L` as the `memesync` user, never through the proxy. Only Caddy publishes 80 and 443.
-- **Database sizing** (S5 headline 6): gunicorn `-w 2` and `pool_size=5, max_overflow=5` per worker for each of the three backends is 60 connections, under the default 100; the values live in the prod overlay and the compose command, and a startup log line prints the computed maximum. PgBouncer is a later option.
-- **Proxy headers.** Uvicorn workers run with `--forwarded-allow-ips` set to the Caddy container so the rate limiters key on the real client address.
-- **Caddy:** TLS automatic; the access log drops the query string for every path (`/api/images?q=` carries search text, S5 §7.2), logs no request bodies; hostname per environment; `/api/uploads` and `/api/admin*` are also refused at the proxy as a second layer; rate limits on the reader write routes
-  (saves, not-found, bug reports, history recording) where the proxy can express them; optional basic auth or IP allow-list stanza commented in place for the day you want it. Decision 6 says public, so none is on by default.
-- **Image:** `Dockerfile.backend` with `APP_STAGE=prod` baked in and the revision build argument; `.dockerignore` already excludes `.env.*`. `Dockerfile.migrate` (or `docker run --entrypoint` of the same image with alembic installed) is the one-shot migration container, run with the owner role. The backend image stays free of alembic.
+### Environment table (fixed; recorded in `Environments.md` by P7)
 
-### Roles and grants generated from the registry
+| Env | Compose project | DB name | Postgres on host loopback | Local tunnel port (dev side) | Backend (edge alias) | Project subnet | sync ssh account / aliases (tunnel, verbs, upload) |
+|---|---|---|---|---|---|---|---|
+| metal | `memes-metal` | `memes_metal` | `127.0.0.1:6432` | 16432 | `api-metal:8000` | `172.31.1.0/24` | `memesync-metal` / `memes-prod-metal`, `-sync`, `-up` |
+| general | `memes-general` | `memes_general` | `127.0.0.1:6434` | 16434 | `api-general:8000` | `172.31.2.0/24` | `memesync-general` / `memes-prod-general`, `-sync`, `-up` |
+| it | `memes-it` | `memes_it` | `127.0.0.1:6436` | 16436 | `api-it:8000` | `172.31.3.0/24` | `memesync-it` / `memes-prod-it`, `-sync`, `-up` |
 
-`python -m sync.roles --db NAME [--password-from-env]` prints idempotent SQL from `sync.registry` (P1 `prod_write_set`, `shipped_tables`, `pulled_tables`) so the registry and the database cannot disagree:
+Remote ports follow dev's cluster ports plus 1000 (5432/5434/5436). The ssh aliases `memes-prod-<env>` (tunnel key), `memes-prod-<env>-sync` (verb key) and `memes-prod-<env>-up` (upload account) live in the workstation's ssh config and are the tracked settings `sync.prod.ssh_alias`, `gate_alias`, `upload_alias`. Roles are named per environment: `memes_<env>_owner`, `_app`, `_sync_w`, `_sync_r`, `_ro`; one password and one ssh key per environment, so a leaked `it` credential is useless against `general`.
 
-| Role | Grants (per database) |
+### Networks and Caddy
+
+- Each project has a private network with the fixed subnet above (Postgres and its backend, migrate job). Postgres is published **on the host loopback only** (`127.0.0.1:<port>:5432`), because sshd runs on the host and `ssh -L` needs a host listener. A guard test over the compose file requires every `ports:` entry other than Caddy's 80 and 443 to start with `127.0.0.1:` (Docker publishes bypass ufw).
+- **Caddy reaches the backends over one shared external network `memes-edge`** (created once: `docker network create --subnet 172.30.0.0/24 memes-edge`); each backend joins it with the alias in the table, Postgres never does, no backend port is published. Chosen over loopback ports because the Caddy container cannot reach the host's 127.0.0.1 without host networking, and a fixed subnet gives the proxy-header CIDR.
+  Uvicorn is started with `--forwarded-allow-ips 172.30.0.0/24`; Caddy sends `X-Forwarded-For` and `X-Forwarded-Proto`. Backends of different environments share this network but hold no credentials for each other's database.
+- Caddy: automatic TLS; hostnames from the environment file (placeholders in the repo); SPA and API of one environment share a host, the SPA is served from `/srv/memes/<env>/web`; `Referrer-Policy: no-referrer`; `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy` on `/api/images/*` file responses; `request_body max_size` 11 MB on `/api/bug-reports` and 64 KB elsewhere; header size limits; `/api/admin*`, `/api/uploads*` and the other unmounted prefixes refused with 404 as a second layer; no basic auth or allow-list by default (stanza commented in place).
+  Rate limiting is enforced in the app (P5a-5); a Caddy rate-limit plugin (custom xcaddy build, pinned) or a CDN is an optional additional layer, not a dependency.
+
+### Postgres per environment
+
+- Image `postgres:18` pinned by digest; volume mounted at `/var/lib/postgresql` (PG18 image layout), `shm_size: 256m`; `mem_limit` and `cpus` per service. Tracked config: `max_connections = 40`, `password_encryption = scram-sha-256`, `log_statement = none`, `log_min_error_statement = panic`, `log_min_duration_statement = -1` (no statement text in logs), `ssl` not needed (loopback and private network).
+- `pg_hba.conf` tracked, scram only, first match wins: `local` lines for `<owner>` (migrations and DDL over the socket; the `migrate` service and `docker exec` share the socket volume) and `<sync_r>` (backup over the socket); `host` lines: `<owner>` and `postgres` **reject**, then one line per role and database for the project subnet (`<app>`, `<sync_w>`, `<sync_r>`, `<ro>`), final `reject`. The image's trust defaults are replaced; the bootstrap superuser `postgres` is used only by `provision.sh` at first start (it creates the database owned by `<owner>`, `CREATE EXTENSION` for those the Alembic chain needs (`vector` and any other; listed by T2 from `Storage/alembic`; `vector` is not trusted, so the owner cannot create it), and sets the markers).
+- **Pools, per Postgres:** backend `-w 2`, `pool_size=5, max_overflow=5` = at most 20 connections; sync tools at most 6 (role `CONNECTION LIMIT`: app 24, sync_w 3, sync_r 3, ro 2, owner 3), superuser reserve 3: `max_connections = 40` leaves headroom; a startup log line prints the computed maximum. The old shared-cluster arithmetic (60 of 100) no longer applies; an environment under attack cannot starve another. Role settings: `<app>`: `statement_timeout = 10s`, `idle_in_transaction_session_timeout = 30s`, `lock_timeout = 3s`.
+- **Markers (database settings, readable by any role):** `ALTER DATABASE memes_<env> SET memes.environment = '<env>'` and `SET memes.state = 'seeding'` (both by `<owner>` in `provision.sh`; the owner flips `memes.state` to `serving` by hand after the first-seed index rebuild, P2 H7), and, at each release, `memes.revision = '<git sha>'`. No other seeding flag exists.
+- RAM (estimates, unmeasured): backends about 0.4 GB each for general and metal, 0.3 GB for it; Postgres shared_buffers 256 MB / 256 MB / 64 MB plus process overhead; OS, dockerd, sshd 0.5 GB: about 3 GB steady. An HNSW rebuild (decision 8, owner step, `maintenance_work_mem` up to 1 GB) is run for one environment at a time while the others stay up. **4 GB is the floor, 8 GB recommended.**
+
+### Roles and grants (generated by `python -m sync.roles --env <env>` from `sync.registry`)
+
+| Role | Grants |
 |---|---|
-| `memes_owner` | owns all objects and extensions; migrations, `CREATE EXTENSION`, index DDL (decision 8). Login only from the VPS itself |
-| `backend_app` | `SELECT` on all class D tables, `SELECT` on `popularity_absorptions`; `INSERT/UPDATE/DELETE` exactly on the six class P tables (`prod_write_set("backend_app")`); `USAGE` on the `meme_impressions` sequence; nothing else |
-| `sync_writer` | `INSERT/UPDATE/DELETE/SELECT` on the class D tables (`prod_write_set("sync_writer")`), `USAGE/UPDATE` on the integer sequences of D tables, `MAINTAIN` for `REINDEX`/`VACUUM` on PostgreSQL 18, `SELECT` on `alembic_version`; **no** privilege on any class P table |
-| `sync_reader` | `SELECT` on the six class P tables, `SELECT` on `alembic_version`, `SELECT (id)` on `images` (P4 rating rule); no write anywhere |
-| `ocr_readonly` (prod variant) | `SELECT` on everything except `search_history`, `search_history_tags`, `meme_text_ratings` (message text); never given to agents |
+| `<owner>` | owns database and objects; migrations and index DDL; connects over the socket only; never used by a service |
+| `<app>` | `USAGE` on schema; `SELECT` on every class D table; `SELECT, INSERT, UPDATE, DELETE` on exactly the six class P tables (`prod_write_set("backend_app")`; `SELECT` is needed for `ON CONFLICT` and `WHERE`); `USAGE, SELECT` on the `meme_impressions` sequence; nothing on class X, `alembic_version` or anything else |
+| `<sync_w>` | `SELECT, INSERT, UPDATE, DELETE` on class D (`prod_write_set("sync_writer")`); `USAGE, SELECT, UPDATE` on sequences of D tables with integer ids; `MAINTAIN` on D tables (`REINDEX`, `VACUUM`; PG17+); `SELECT` on `alembic_version`; **no `TEMP`** (P2 uses `execute_values`, no staging table); column-level `SELECT (image_id, query_hash, updated_at)` on `meme_text_ratings` (the P2 retire check; no message text) **is the single exception to S5's rule that `sync_writer` has no privilege on any class P table**; no write on any class P or X table |
+| `<sync_r>` | `SELECT` on the six class P tables; `SELECT` on `alembic_version`; `SELECT (id)` on `images` (P4 rating rule); no write anywhere, no D table |
+| `<ro>` | `SELECT` on everything except `search_history`, `search_history_tags`, `meme_text_ratings`; never given to agents |
 
-Roles are cluster-wide, so the three databases share role names with per-database grants. A guard test (no database) compares the generated SQL with the registry: every table appears in exactly the grants its class allows, `backend_app` has no write on a D or X table, `sync_reader` none anywhere.
-The integration test of S5 §2.5(3) then proves routes and grants agree: it creates these roles in `ocrdb_test`, drives the reader routes through the app as `backend_app` and expects no `permission denied`, and attempts each dev-only write expecting the database to refuse it.
-To verify on a container before relying on them (S5 uncertainties): `MAINTAIN` with `REINDEX`, the `ON DELETE CASCADE` from `images` into `meme_text_ratings` without a `DELETE` grant for `sync_writer`, and the unprivileged HNSW rebuild path.
+- Database level: `REVOKE ALL ON DATABASE ... FROM PUBLIC` (removes `CONNECT` and `TEMP`), then per-role `CONNECT`; `REVOKE CREATE ON SCHEMA public FROM PUBLIC`.
+- **No default privileges for `<app>` or `<sync_r>`:** a new table gets no access until `sync.roles` runs, which makes a missed grant a loud failure at the release check, not a silent one; the registry test in CI already forces every new table to be classified. (`<sync_w>` gets no default privileges either, for symmetry.)
+- Guard tests (no database): generated SQL equals the registry (each table in exactly the grants its class allows; `<app>` no write on D or X; `<sync_r>` none anywhere; no password in the SQL; **`<sync_w>` has no privilege on any class P table except the column-level `SELECT (image_id, query_hash, updated_at)` on `meme_text_ratings`, asserted exactly, and no `TEMP`**). Integration test in `ocrdb_test` (roles created there): reader routes run as `<app>` without `permission denied`, each dev-only write is refused by the database, the cascade from `images` into `meme_text_ratings` works for `<sync_w>` without a `DELETE` grant there.
+- Container verification (P5d-T2, before the roles are final): `MAINTAIN` with `REINDEX`, the cascade without `DELETE`, the HNSW rebuild path, extension creation rights, PG18 data directory layout, `pg_hba` order.
+
+### Host users, directories, ownership (uid/gid)
+
+| Item | Owner : mode | Backend container | Notes |
+|---|---|---|---|
+| `/srv/memes/<env>/images` (`BASE_PATH`) | `memesync-<env>` : `755`, files `644` (the gate runs with umask 022) | **mounted `:ro`**, user `1000:<gid>` reads as "other" | the backend writes nothing here on prod (uploads, recut, comics are gated) |
+| `/srv/memes/<env>/bug-reports` (`BUG_REPORTS_PATH`, outside `BASE_PATH`) | `1000` (container user) : group `memesync-<env>`, mode `2775` setgid | read-write | an entrypoint wrapper sets `umask 002`, so files are `664` and group-writable; `memesync-<env>` can `delete-verified` (P4) |
+| `/srv/memes/<env>/work`, `/srv/memes/<env>/retired` | `memesync-<env>`, mode 0700, **same filesystem as `images`** (`rename(2)`; the gate `handshake` checks) | not mounted | gate batches, record, counters, flock; quarantine `<date>/` (P3) |
+| `/srv/memes/<env>/staging` | chroot root owned by root; `staging/incoming` owned by `memeup-<env>`, group `memesync-<env>`, mode 2770 | not mounted | separate **upload-only** chrooted account (decision 19); P3 owns the transport and the gate; P5d creates the account and directories |
+| `/srv/memes/<env>/pgdata` | postgres uid | not mounted | separate from the images and everything else |
+| `/srv/memes/<env>/backups`, `/web` | `memesync-<env>` | `/web` read-only in Caddy | |
+
+- Container user `1000:<gid of memesync-<env>>`; `Dockerfile.backend` stops `chown -R appuser /app` (code is root-owned and read-only); compose sets `read_only: true`, `tmpfs: /tmp` (256 MB, the multipart spool), `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, `mem_limit`, `cpus`, `pids_limit`, healthcheck on `/health`.
+- sshd: password authentication off, `AllowUsers` the six accounts plus the admin user; `memesync-<env>` holds two keys (P3 review question 2): the verb key `restrict,command="/usr/bin/python3 /opt/memes/memesync-gate.py <env>"` (no forwarding) and the tunnel key `restrict,port-forwarding,permitopen="127.0.0.1:<pgport>",command="/bin/false"` (`ssh -N -L` therefore reaches only that environment's Postgres, and the gate knows its environment from its key line, not from the client); `memeup-<env>`: chroot, `ForceCommand`/`internal-sftp` as P3 specifies, no forwarding.
+
+### Disk layout and quotas
+
+Each environment has its own directory tree, so one environment cannot fill another's data. Within an environment the Postgres data, images, bug reports and backups are separate filesystems or **XFS project quotas** (or provider block volumes); where the VPS offers neither, free-space alarms stand in. Caps: bug-reports directory by the app (P5a-5), backups by retention, images by the promote plan (P3 handshake). Docker `json-file` logs: `max-size 10m`, `max-file 3` on every service. Free space of **both** the Postgres volume and the files volume is reported by the gate `handshake` (interface change for P3) and, per mount of the environment, by the gate verb `disk` (which prints a file written by a root-run timer: the gate never gets the docker socket); P6 checks it (warn at 20 percent free, error at 10). The verb `containment` works the same way for the backend container's configuration (P6 S8).
+
+### Log suppression per layer
+
+| Layer | Setting |
+|---|---|
+| uvicorn/gunicorn | `--no-access-log`, `--log-level warning`; no request line with a query string is ever printed |
+| Caddy | log filter deletes `request>uri` and all `request>headers` (so `Referer`, `Cookie` and `Authorization` vanish) and appends `{http.request.uri.path}` as `path` via `log_append`; no bodies; to be confirmed on the Caddy version in use |
+| Docker | json-file rotation above |
+| Postgres | statement logging off, `log_min_error_statement = panic` |
+| App | no message text (existing rule); `/health` answers a fixed detail on prod |
 
 ### Configuration
 
-`environments/settings.prod.yaml` (common) and `settings.<env>.prod.yaml` (per environment): `stage`, `scheduler.enabled: false`, CORS origins from the prod hostnames (and `localhost` origins dropped on prod), `parse.model` removed for prod `general` and `metal` (meme-from-text off, decision 3),
-`popularity.impressions.enabled: true`, `popularity.search_outcomes.enabled: true`, `search.meme_from_text.query_log.enabled: true` (owner-confirmed in S5), worker and pool sizes. Secrets only in `.env.<env>.prod` on the VPS (`DATABASE_URL` of `backend_app`, `BASE_PATH`, `BUG_REPORTS_PATH` outside `BASE_PATH`,
-the frontend origins, `APP_ENV`, `APP_STAGE`). The `it` prod overlay is nearly empty (it has no parser already). A startup validation (`validate_*_settings`) must pass; a new test loads each prod overlay and runs the validators.
+`environments/settings.prod.yaml` (common) and `settings.<env>.prod.yaml`: `stage`, scheduler off, `cors.origins` (prod hostnames only, `allow_credentials` false), `parse.model: ""`, `popularity.impressions.enabled: true`, `popularity.search_outcomes.enabled: true`, `search.meme_from_text.query_log.enabled: true`, `abuse.*`, `history.record_browse: false`, `bug_reports.*`, `database.pool_size`/`max_overflow`. Secrets only in the VPS file `<env>.prod.env`
+(`DATABASE_URL` of `<app>`, `BASE_PATH`, `BUG_REPORTS_PATH`, `APP_ENV`, `APP_STAGE`, origins). A test loads each prod overlay and runs the `validate_*_settings` functions; another asserts the tracked env examples hold no values.
 
 ### Backups (the only copy of reader data)
 
-`deploy/prod/backup.sh` (cron or a compose `ofelia`-style job, or a timer): nightly `pg_dump` of the six class P tables per database into a dated, rotated folder (14 days), plus a copy of the bug-reports directory. Dev's pull copies the newest dump over `ssh` during the pull (one more gate verb, `fetch-backup`, read-only) so one copy
-lives off the VPS. Restore is documented in P7 and rehearsed in the acceptance run. Class D is rebuildable from dev by a full promote and needs no backup. The VPS provider's snapshot is a bonus, not the plan.
+`backup.sh <env>` (host timer, per environment): `pg_dump -Fc` of the six class P tables through `docker exec` over the socket as `<sync_r>`, plus a tar of the bug-reports directory, into `/srv/memes/<env>/backups` with 14-day rotation. The dev pull fetches the newest dump (`fetch-backup`, read-only gate verb) so one copy lives off the VPS. Restore order: promote first (the `images` rows the ratings foreign key needs), then restore. Class D is rebuildable by a full promote.
 
-### Deploy order (S5 §5.3, a contract)
+### Release runbook (a contract; P2 refuses unequal heads)
 
-1. Dev: write the migration (additive and backward compatible only between steps 2 and 3), merge, build and tag the image with its revision.
-2. VPS: pull the image, **keep the old backend running**, run the migration container with `memes_owner` per database.
-3. VPS: restart the backend containers on the new image (rolling per environment; the compose healthcheck uses `/health`).
-4. Dev: `sync.run` or the individual steps: pull, files, data. The promote refuses on unequal alembic heads (P2 preconditions), which is what makes steps 1 to 3 a prerequisite and not a convention.
+1. Dev: migration (additive only between steps 2 and 3: new columns nullable or with a server default, indexes `CONCURRENTLY`), merge, build image tagged with the **git SHA** (never `latest`); transfer with `docker save | gzip | ssh admin docker load` (no registry in v1). A non-additive migration needs a maintenance window: stop the backend, migrate, start.
+2. Per environment, in order `it`, `metal`, `general` (canary first): keep the old backend running; run the `migrate` service: `alembic upgrade head` as `<owner>`.
+2b. The same job then applies `roles.<env>.sql` (idempotent) and **verifies the grants** with `has_table_privilege` against the registry (S1 of P6 as a pre-check); a mismatch fails the release before step 3.
+3. Restart the backend on the new tag (`depends_on` healthy); it refuses to start on a marker mismatch. Then `ALTER DATABASE ... SET memes.revision = '<sha>'`; smoke: `/health`, capabilities `environment` equals the environment.
+4. Dev: `sync.run` or the steps (pull, files, data); P2 compares the schema heads and the marker revision.
 A taxonomy or settings change is a code deploy (step 3), not a promote.
+
+## Public writes and untrusted text
+
+Anything a stranger can POST ends in dev's database at the next pull (`search_history`, `search_not_found`, `meme_saves`, `meme_impressions`; ratings are off). Rules: (1) caps on every text field at the route (P5a-5); (2) prod stores text as given and never interprets it; (3) on dev, pulled text is untrusted: tools print and export it sanitised (P5a-8), the web UI escapes, and agents must not treat pulled text as instructions;
+(4) a flood is bounded by the limits above and detected by the growth alarm; the pull's own size ceiling is a P4 interface item; (5) ratings, which could poison the evaluation set, are off (decision 24); when `/reply` returns, pulled ratings stay out of `export_ratings` unless flagged (P4 interface).
+
+## Interfaces the other designs must mirror
+
+- **P2/P4/P6 connections:** roles `memes_<env>_sync_w` / `_sync_r`, database `memes_<env>`, local tunnel and remote ports from the table, three ssh aliases per environment (tracked settings `sync.prod.*`, `interfaces.md` b); `memes.environment`, `memes.state` and `memes.revision` via `current_setting`; capabilities is `{stage, environment, features}` and **no** `revision`/`schema_head` (P2 reads `memes.revision` and `alembic_version`).
+- **P2:** `sync_w` has column-level `SELECT (image_id, query_hash, updated_at)` on `meme_text_ratings` (the one exception) and `MAINTAIN`, no `TEMP`; statistics are neither promoted nor served (class X).
+- **P3:** forced-command argument `<env>` per key line, program `memesync-gate.py`; separate `memeup-<env>` account; `:ro` images mount in the backend; `handshake` also reports free space of the Postgres volume; files created with umask 022; bug-reports directory `2775`, group `memesync-<env>`.
+- **P4:** `sync_r` columns as above; ratings routes off; a growth ceiling per pull (`--allow-growth`); sanitising on dev.
+- **P6:** growth alarm for the reader tables (rows per day against the trailing median, or a flat ceiling), a staleness alarm (no new row for N hours while the site has traffic), free space of both volumes, S1 run before the backend restart.
 
 ## Work breakdown
 
 | Task | Delivers | Depends |
 |---|---|---|
-| P5a-T1 | `stage_policy.py` with all verdicts (recomputed counts), completeness guard | S5 |
-| P5a-T2 | `APP_STAGE` loader, `settings.prod.yaml`, `is_prod()`, Dockerfile env and revision arg | none |
-| P5a-T3 | `StageGate`, conditional routers, docs off, scheduler off; gate tests | T1, T2 |
-| P5a-T4 | Statistics read-only mode and capabilities endpoint; schema + generated types; `backend_api.md` | T2 |
-| P5b-T1 | Web `VITE_STAGE` and capabilities; menu, redirects, hidden controls; vitest | P5a-T4 |
-| P5c-T1 | Android capabilities and hidden entries; unit tests | P5a-T4 |
-| P5d-T1 | `sync.roles` generator, guard test, role integration test in `ocrdb_test` | P1 |
-| P5d-T2 | Container checks of the S5 uncertainties (`MAINTAIN`, cascade without DELETE) | P5d-T1 |
-| P5d-T3 | `deploy/prod/` stack: compose, Caddyfile, env examples, README | P5a |
-| P5d-T4 | Prod overlays and their validator test; gunicorn/pool sizing | P5a-T2 |
-| P5d-T5 | `backup.sh`, the `fetch-backup` gate verb, restore script and test | P3 gate |
-| P5d-T6 | Deploy-order note and migration container (`Dockerfile.migrate`) | T3 |
+| P5a-T1 | `stage_policy.py`, `StageRoute`, `make_router`, all verdicts (22/69 of 91), completeness guard | S5 |
+| P5a-T2 | `APP_STAGE` loader, `settings.prod.yaml`, `is_prod()`, Dockerfile (env, root-owned `/app`, entrypoint umask, no access log) | none |
+| P5a-T3 | conditional imports and mounts, docs off, `redirect_slashes=False`, scheduler off, CORS settings, `/health` fixed detail, startup `APP_ENV` and marker checks; prod behaviour tests | T1, T2 |
+| P5a-T4 | capabilities endpoint with `environment`; schema, generated types, `backend_api.md` | T2 |
+| P5a-T5 | image path containment in `image_store.py` with symlink/`..`/encoding tests through the full app | none |
+| P5a-T6 | abuse bounds: limiter, `q`/facet caps, impression cap, browse feed not recorded, `BodyLimit`, directory cap | T3 |
+| P5a-T7 | pool settings hook in `Storage/db.py` | none |
+| P5a-T8 | `discovery_report` sanitising | none |
+| P5b-T1 | web `VITE_STAGE`, AND with capabilities, hide list incl. statistics/trends/reply/comics, 404 tolerance, vitest | P5a-T4 |
+| P5c-T1 | Android capabilities and hide list incl. Trends/Statistics; unit tests | P5a-T4 |
+| P5d-T1 | `sync.roles --env` generator, guard test, role integration test in `ocrdb_test` | P1 |
+| P5d-T2 | container verification of the uncertainties (`MAINTAIN`, cascade, extensions, PG18 layout, `pg_hba`) | T1 |
+| P5d-T3 | `compose.yaml`, edge project, Caddyfile, env examples, README, ports guard test | P5a |
+| P5d-T4 | Postgres config, `pg_hba`, `provision.sh` (markers, revokes, extensions) | T2 |
+| P5d-T5 | host users, directories (incl. `work`, `retired`), sshd and `authorized_keys` templates (verb key and tunnel key), quotas, installs `memesync-gate.py`, root timer for `disk.json`/`containment.json` and the gate verbs `disk`, `containment` | P3 gate |
+| P5d-T6 | prod overlays and validator test | P5a-T2 |
+| P5d-T7 | `backup.sh`, `restore.sh`, gate verb `fetch-backup`, restore test | P3 gate |
+| P5d-T8 | migrate service, grants re-apply and verify, release runbook | T1, T3 |
 
-Size: large; P5a, P5b, P5c and P5d are four sub-deliveries. Mode: subagent-driven per sub-delivery. Reviews: **P5a security** (can any dev-only route answer on prod; fall-through; log leaks; the statistics write), **P5d security** (grants, ports, Caddy exposure, secrets in the image, the gate), **P5b/P5c** (readability, lifecycle) as in the other epics.
-Live prod: not touched until the P7 acceptance run; compose and Caddy are tested locally (compose up on loopback with a self-signed or `tls internal` Caddy).
+Size: large, four sub-deliveries. Mode: subagent-driven per sub-delivery. Reviews: **P5a security** (can a `dev_only` route answer; path containment; log leaks; body/limit bypass), **P5d security** (grants, `pg_hba`, ports, Caddy exposure, secrets in image, gate and keys, ownership), **P5b/P5c** (lifecycle, readability). Live prod is not touched until the P7 acceptance run; compose and Caddy are tested locally (loopback, `tls internal`).
 
-## Choices made by me (to confirm)
+## Risks
 
-- Loopback port numbering (dev port + 1000), pools of 5+5 with two workers, 14-day backup retention, `Caddy` modules limited to the core (rate limiting may need a plugin; if so, rate limits stay in the app and `deploy/prod/README.md` says so).
-- Postgres runs in a container with a named volume, not on the host (decision 15 read as "Docker Compose for everything"); a host Postgres is a small compose change.
-- The ratings, saves and history-recording routes stay `reader` even while meme-from-text is off.
-- Statistics served as the stored snapshot with a 404 when absent.
-- Capabilities carry `revision` (git SHA) and `schema_head`, so P2 and P6 do not need to read the filesystem of prod.
+- Caddy log filter syntax and request-body limits depend on the Caddy version: verified in P5d-T3 on the pinned image.
+- Process-local limiters multiply by the worker count and do not share state across restarts; the CDN or plugin layer is the real answer to a distributed flood.
+- Quotas need an XFS-capable image or provider volumes; otherwise only alarms protect the disk.
+- The shared `memes-edge` network lets one backend reach another's port; no credentials cross it.
+- Frontend hosting assumed to be Caddy serving the build; elsewhere only the Caddyfile changes.
 
-## Risks and what is not settled
+## Deferred (low findings)
 
-- Caddy plugin availability for rate limiting; the gate's behaviour under the real sshd (`restrict`, `Subsystem`).
-- Whether `MAINTAIN` and a cascade without `DELETE` behave as recalled for PostgreSQL 18: P5d-T2 verifies on a container before the roles are final.
-- Container filesystem ownership between the backend (writes bug reports) and `memesync` (writes `BASE_PATH`); the compose volumes and uids are fixed in T3 and tested.
-- The public exposure means abuse handling (bug report spam, impression noise) is rate limits only; there is no per-user control.
-- Frontend hosting (the static build behind Caddy, or elsewhere) is assumed to be Caddy serving the built files; a different host changes only the Caddyfile.
+- L1 `.gitignore`/`.dockerignore` patterns: env examples are named `<env>.prod.env.example` (done by naming); the `**/.env*` dockerignore tightening is deferred to P5d-T3.
+- L2 `roles.<env>.sql` never holds passwords (psql variables / `\password`): folded into the P5d-T1 guard test.
+- L3 `nosniff` and CSP on file responses: in the Caddy list above, verified in P5d-T3.
+- L4 the statistics edge case is void (route dropped).
+- L5 an unattended off-VPS backup copy (object storage push) beyond the dev pull: deferred; restore-after-promote is in the backup section.
+- L6 image distribution is `docker save | ssh load` tagged by SHA; a registry is deferred; `migrate` is a service of the same image with Alembic added in a second stage (kept out of the backend image).
+- L7 extension creation: decided (bootstrap superuser at provisioning); the list of extensions comes from T2.
 
 ## Open for the owner
 
-Hostnames and the domain; the VPS provider and its size; whether the web build is served by the same Caddy. None blocks the work: placeholders come from the environment.
+Hostnames and domain; whether to add a CDN/WAF or the Caddy rate-limit plugin on top of the app limits; the VPS size (4 GB floor) and whether the provider offers XFS quotas or block volumes; an off-VPS backup target beyond the dev pull; where the sync credentials live on the workstation (decision 21 sets the file and its permissions; an OS credential store is optional).
