@@ -16,7 +16,7 @@ listed under "Open questions", not guessed.
 | **X** | Dev-only pipeline or admin scratch | never synced | no |
 | **R** | Recomputed on the receiving side | none | built locally |
 
-Rule: prod never writes a D or X table; dev never writes a P table (a pull replaces nothing on prod). Promotion is limited to
+Rule: prod never writes a D or X table; a pull never changes prod. Dev's own backend also writes P tables when used (S2 finding 3), so a P row on dev is not necessarily from prod. Promotion is limited to
 images with `status = active` and no `image_extras.flagged`; every D row below is promoted only for those images.
 
 ## Tables
@@ -114,4 +114,7 @@ images with `status = active` and no `image_extras.flagged`; every D row below i
    runtime for search is to be confirmed by S3/S5.
 7. **Trends**: does `trends_batch` run on prod, dev, or both?
 8. **Prod uploads**: delete a file from prod's inbox after dev has pulled it (plan), or keep until ingestion promotes it?
+10. **Dev also writes P tables** (found in S2): the dev instances already hold search history, impressions and ratings from your own
+    use of dev. Plan: pull by natural key (search history UUID, ratings by `(query_hash, image_id)`), and give impressions a
+    stage marker or a natural key, since their bigint ids would collide. Should dev-made activity be pushed to prod too, or stay on dev?
 9. **Pull frequency and prod backups** of the P tables (the only copy of reader data on the VPS).

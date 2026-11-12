@@ -22,8 +22,8 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 
 | ID | Spike | Question answered | Status | Output |
 |---|---|---|---|---|
-| S1 | Data classification | Which table and disk asset has which origin, and is it needed on prod? | in progress (draft written 2026-11-12, awaiting owner review) | `2026-11-12-s1-data-classification.md` |
-| S2 | Size measurement | Row counts and bytes per table, disk of BASE_PATH, so the prod disk can be sized and the trimming gain is known | open | Report from read-only queries run by the controller |
+| S1 | Data classification | Which table and disk asset has which origin, and is it needed on prod? | in progress (draft written 2026-11-12, awaiting owner answers to the open questions; S2 added Open question 10) | `2026-11-12-s1-data-classification.md` |
+| S2 | Size measurement | Row counts and bytes per table, disk of BASE_PATH, so the prod disk can be sized and the trimming gain is known | done (2026-11-12; read-only role, run by the controller) | `2026-11-12-s2-size-measurement.md` |
 | S3 | Sync technique | Per table: `COPY` with upsert over an SSH tunnel vs `pg_dump` subset vs logical replication; how vectors, GIN and HNSW indexes behave; how to carry deletions | open | Decision record in `docs/adr/` |
 | S4 | File transfer | rsync (or equivalent) from Windows over SSH; manifest by `content_hash`; resumability; row/file consistency | open | Decision record |
 | S5 | Prod topology and roles | Prod DB roles (sync writer, backend, read-only), which backend features are switched off on prod, how prod is configured per env | open | Spec input for P5 |
