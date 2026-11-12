@@ -81,7 +81,7 @@ a mismatch is a precondition failure. Until P5 exists the check is a printed war
    `new + changed` above 25 % of a table (advice to use the owner's rebuild path, not a refusal); a dev with no promotable images. Any guard stops the run
    (exit 3) before a single write, except the advisory.
 6. **Report:** counts per table, estimated bytes, batch count, the guard decisions, the list of problems (images whose file is missing on dev, ids of
-   non-promotable images referenced by a shipped row). `--json` writes the plan for P6.
+   non-promotable images referenced by a shipped row). `--json` writes the plan to `<state dir>/runs/<runid>/plan.json` (state dir as in the P3 design: `SYNC_STATE_DIR`, default `Storage/sync-state/<env>/`), which P3's `retire` and P6 read; it carries the retire list (ids and filenames).
 
 ### 2. Apply
 
@@ -89,7 +89,8 @@ a mismatch is a precondition failure. Until P5 exists the check is a printed war
    `lock_timeout`, `statement_timeout` sane defaults), session `synchronous_commit` unchanged.
 2. **Files gate (P3 contract).** For the batch, every image's file must already be on prod with the manifest's size and `content_hash` (P3 copies and verifies
    it first). Prod's files are not visible through Postgres, so the gate is the P3 report file (`files-promoted.json`, per run id) that lists the verified
-   images; an image not in it is skipped and reported, not committed (Q5 of the S3 ADR). Until P3 exists, `--apply` refuses without
+   images (the newest report of the environment, not older than `--max-report-age`, default 24 h; format in the P3 design); an image not in it is skipped and
+   reported, not committed (Q5 of the S3 ADR). Until P3 exists, `--apply` refuses without
    `--skip-files-check`, so a P2-only deployment can only be tried on a database whose files are known to be in place.
 3. **Batches of images** (new and changed, ordered by `created_at, id` for determinism): one prod transaction per batch:
    - `changed`: the image keeps its `images` row; its derived rows are deleted by image in reverse level order (children first) and re-inserted.
@@ -129,8 +130,8 @@ source image is not shipped (the common case, unkept panels are flagged); the sn
 
 Image ids on prod that are not in dev's promotable set (flagged, cut, rejected, deleted on dev).
 
-1. **Precondition:** a P4 pull has completed for this environment within the last N hours (`pull_state` file written by P4 next to the plan outputs;
-   N default 24), because `DELETE FROM images` cascades into `meme_text_ratings` (registry flag `pull_before_promote`). Until P4 exists, `--retire` requires
+1. **Precondition:** a P4 pull has completed for this environment within the last N hours (`pull_state.json` in the state directory, format in the P4 design;
+   N default 24, `--max-pull-age`), because `DELETE FROM images` cascades into `meme_text_ratings` (registry flag `pull_before_promote`). Until P4 exists, `--retire` requires
    `--i-have-pulled`.
 2. Guard (above). Then batches of 500 ids: `DELETE FROM images WHERE id = ANY(%s)` in the batch transaction; the cascade removes every shipped table's rows.
    `comics` whose built image is deleted are deleted explicitly (the foreign key only sets NULL).

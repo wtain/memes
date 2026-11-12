@@ -35,13 +35,22 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 | P0 | Epic charter and tracker | This folder | none | draft | `README.md`, `tracker.md` |
 | P1 | Sync registry | The S1 classification as code (origin, ship/skip, dependency order, key, per table) plus a test that fails on an unclassified table | S1 | implementation (2026-11-12; built, reviewed, fixed; not merged, owner confirms the merge). Verified: `pytest tests/sync` 19 passed, `tests/docs` 15 passed, 18 mutations caught. Not verified: CI run | `2026-11-12-p1-sync-registry-design.md`, review `docs/superpowers/reviews/2026-11-12-p1-sync-registry-review.md` |
 | P2 | Promote data dev to prod | Dry-run-first command: dev-origin tables for the active corpus, ids preserved, schema-version gate, row counts verified | P1, S3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p2-promote-data-design.md` |
-| P3 | Promote files dev to prod | Image file sync driven by the promoted rows, with row/file consistency check and removal of retired files | P1, S4 | not started | |
-| P4 | Pull reader activity prod to dev | Pull of saves, impressions, search history, not-found, ratings, uploads and bug reports; idempotent, watermarked | P1, S3 | not started | |
+| P3 | Promote files dev to prod | Image file sync driven by the promoted rows, with row/file consistency check and removal of retired files | P1, S4 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p3-promote-files-design.md` |
+| P4 | Pull reader activity prod to dev | Pull of saves, impressions, search history, not-found, ratings, uploads and bug reports; idempotent, watermarked | P1, S3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p4-pull-reader-activity-design.md` |
 | P5 | Prod provisioning and hardening | First seed of an empty prod, trimmed schema usage, prod config, admin features off, roles | S2, S5, P2 | not started | |
 | P6 | Verification and drift report | Read-only compare of dev-origin data between stages (counts, hashes), report in the style of `tools/discovery_report` | P2, P3 | not started | |
 | P7 | Runbooks and docs | Runbook per direction, update `CLAUDE.md`, `docs/data-flow.md`, `docs/image-derived-data.md`, `environments/Environments.md` | all | not started | |
 
 ## Backlog / unscheduled
+
+From the P3 and P4 designs:
+
+- P5 grants and provisioning: `sync_reader` also needs `SELECT (id)` on `images` (P4 keeps ratings of images retired on prod); the `memesync` unix user, STAGING
+  and RETIRED on the same filesystem as BASE_PATH, the gate script `deploy/prod/memesync-gate.sh` installed as the forced command; the backend and the gate must agree on file ownership.
+- A driver `python -m sync.run --env X` that runs pull, files promote, data promote, retire (data, then files) in the right order with one confirmation; the order is a contract today,
+  enforced only by the freshness files (`pull_state.json`, `files-promoted.json`). Candidate for P7.
+- Impression pull by watermark (append-only) with a periodic full mirror, once `meme_impressions` approaches millions of rows (S3 Q7).
+- Interface files shared across P2/P3/P4 live in the state directory `Storage/sync-state/<env>/` (git-ignored): `pull_state.json`, `runs/<runid>/{plan.json,files-promoted.json}`, the file ledger and the bug-report ledger.
 
 From S4 and S5 (details in the ADR and the S5 spec):
 
