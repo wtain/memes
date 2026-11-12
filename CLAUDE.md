@@ -61,6 +61,11 @@ pytest batch/tests/
 # Runs in CI after the integration tests.
 pytest tests/docs/
 
+# Dev/prod sync registry guards (no DB): sync/registry.py must classify every table of Storage/models.py
+# (class D/P/X, mode, load order, prod write set) and docs/sync-registry.md must match it. Runs in CI after
+# tests/docs/. Regenerate the page with: python -m sync.render --write
+pytest tests/sync/
+
 # Dockerfile.backend smoke test — builds the image and verifies it actually boots
 # (not just that `docker build` succeeds). Requires a local Docker daemon; skips
 # otherwise. Runs in CI as part of Backend Docker Build.
@@ -958,6 +963,7 @@ status line:
 - The metal/general/IT backend, frontend, and database ports are always occupied by the developer's running environments — never bind to them for testing. See `environments/Environments.md`.
 - `backend_api.md` must stay in sync with the actual routers.
 - Image `status` values (`active`, `pending`, `rejected`, `cut_proposed`) are defined in one place, `docs/image-status.md`. Add a row there in the same change as any new status; link to it instead of redefining one. What hangs off an image, and how a recut copies it, is `docs/image-derived-data.md` (kept in sync by `tests/docs/`).
+- A new table needs an entry in `sync/registry.py` (dev/prod sync class D/P/X, see `docs/sync-registry.md` and the epic `docs/superpowers/specs/2026-11-12-environment-data-sync/`); `tests/sync/` fails until it has one. Run `python -m sync.render --write` afterwards.
 - Windows dev: `WATCHFILES_FORCE_POLLING=1` is required for uvicorn `--reload` to work.
 - AGP 9.4.0 (`AndroidClient/gradle/libs.versions.toml`) requires Java 17+; set `JAVA_HOME` to Android Studio JBR before Gradle commands (do not commit to `gradle.properties`).
 - **Never give a subagent the main `DATABASE_URL`.** If a subagent needs to query a live

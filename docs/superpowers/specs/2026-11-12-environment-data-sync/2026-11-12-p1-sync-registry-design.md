@@ -1,6 +1,7 @@
 # P1: sync registry (design)
 
-Status: draft
+Status: implementation
+Plan: none (small project, built inline; review in docs/superpowers/reviews/2026-11-12-p1-sync-registry-review.md)
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Depends on: S1 (`2026-11-12-s1-data-classification.md`), S3 (`docs/adr/adr-2026-11-12-dev-prod-sync-technique.md`), S5
 (`2026-11-12-s5-prod-topology-and-roles.md`), decisions log in `README.md`.
@@ -79,12 +80,12 @@ Level is the load order (parents first); the delete order is the reverse. Promot
 | `description_notes` | 1 | replace_per_image | image_fk | `note` | |
 | `description_note_lemmas` | 1 | replace_per_image | image_fk | `note` | |
 | `description_note_embeddings` | 2 | replace_per_image | via(description_notes) | `note` | |
-| `comics` | 1 | upsert_by_key | global_set | none | `built_image_id` nullified when the built image is not shipped; key `name_key` |
+| `comics` | 1 | upsert_by_key | global_set | none | `built_image_id` nullified when the built image is not shipped; keyed by the UUID primary key; `prune` |
 | `comics_panels` | 2 | upsert_by_key | via(comics) | none | `image_id` nullified when the panel image is not shipped (unkept panels are flagged `comics_source`); snapshot columns stay |
 | `concepts` | 0 | upsert_by_key | global_set | none | integer ids, replaced as a set (one origin, S1 constraint 6) |
 | `concept_image_sets`, `concept_images` | 1, 2 | upsert_by_key | global_set | none | |
 | `concept_text_sets`, `concept_texts` | 1, 2 | upsert_by_key | global_set | none | empty today; kept for parity |
-| `popularity_absorptions` | 0 | upsert_by_key | global_set | none | decisions log 1; no FK to images; self-FKs `reverses_id`/`reversed_by_id` are loaded in two passes (rows first with the two columns NULL, then updated) |
+| `popularity_absorptions` | 0 | upsert_by_key | global_set | none | decisions log 1; no FK to images; self-FKs: load in `created_at` order (absorb row, its reverse row, then UPDATE the absorb row's `reversed_by_id`); a NULL-first load violates the shape CHECK and the open-loser unique index |
 | `statistics_snapshots` | 0 | upsert_by_key | global_set | none | decisions log 4; the prod route never recomputes |
 
 ### Class P (prod-origin, pulled)
@@ -139,10 +140,16 @@ A new table in a later migration fails test 1 until it is classified, which is t
   dropped from the row.
 - **Ratings:** the only P table with a cascade from `images`; `pull_before_promote` is a registry rule P2 checks (it refuses to retire an image on prod
   unless a pull ran in the same session).
-- **Absorptions:** ids are preserved and the table is append-only, so an upsert by `id` is idempotent; the two-pass load handles the
-  self-FKs.
-- **Integer sequences:** after an upsert of integer-keyed D tables (`concepts*`, `popularity_absorptions`), P2 runs `setval` to
-  `max(id)`; the registry lists which tables need it (`key` of integer type).
+- **Absorptions:** UUID ids are preserved and the table is append-only, so an upsert by `id` is idempotent; the ordered load above
+  handles the self-FKs. No `setval`.
+- **Integer sequences:** after a load of integer-keyed tables (`concepts*`, and `meme_impressions` after a pull), P2/P4 run `setval` to
+  `max(id)`; the registry flags them with `setval` and a test ties the flag to integer primary keys.
+- **Pruning:** upsert never deletes, so global sets that dev can shrink (`concepts*`, `comics`, `comics_panels`) carry `prune`; a
+  test requires image-scoped children to be `replace_per_image` and every global set to say whether it prunes. Comics have unique
+  keys (`name_key`, `built_image_id`, panel image): P2 applies a rename-swap or a moved panel in an order that avoids transient violations.
+- **Promotable predicate:** `PROMOTABLE_IMAGES_SQL` in `sync/model.py`; P2 and P4 use it instead of re-implementing it.
+- **Nullify** is either "always blank" (the target is class X: `ingestion_batch_id`, `batch_run_id`) or "blank when the target is not
+  shipped" (`built_image_id`, panel `image_id`); the target's class tells which.
 - **Per-environment asymmetry:** tables that are legitimately empty on `it` (descriptions, tags, profiles, concepts) are not special-cased; the
   tools treat an empty shipped table as normal.
 
@@ -159,9 +166,17 @@ A new table in a later migration fails test 1 until it is classified, which is t
 Size: small, one day of work. Mode: inline (no subagents needed), then one fresh-subagent review focused on test strength: try to
 make each guard fail by mutating the registry.
 
+## Accepted data exposure (owner call)
+
+By design the following reach prod although they describe non-promotable things: draft comics (the set is global, not scoped to built
+ones), panel snapshot columns (`source_filename`, `source_content_hash`, `source_image_id`) of images that are not shipped,
+`image_extras.flagged_reason` (the flag itself is always false on prod), and loser filenames and hashes inside
+`popularity_absorptions` (decision 1). A `built` comics whose built image is not shipped keeps `state = 'built'` with a blank
+`built_image_id`. Scoping comics to built ones is a one-line change if you prefer it.
+
 ## Verification
 
-`pytest tests/sync/` (no DB) and `pytest tests/docs/`; the registry test run is added to CI next to the docs guards. The full
+`pytest tests/sync/` (19 tests, no DB) and `pytest tests/docs/`; the controller also ran 18 deliberate registry mistakes against the tests and each failed a named test; the registry test run is added to CI next to the docs guards. The full
 `tests/integration/` root is not affected (no shared normalization or matching code is touched).
 
 ## Choices made by me (to confirm)

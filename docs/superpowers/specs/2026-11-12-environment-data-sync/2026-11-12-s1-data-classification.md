@@ -3,6 +3,9 @@
 Status: draft
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/README.md
 
+The classification is now enforced as code: `sync/registry.py`, rendered in `docs/sync-registry.md` (project P1). The tables below
+are the reasoning; the registry is the source of truth.
+
 Source: code reading only (Storage/models.py at alembic head `a9d3e6b1c847`, `docs/image-derived-data.md`, routers and batch
 jobs). No database was queried: row counts and sizes are unknown until spike S2. Where the code does not settle a question it is
 listed under "Open questions", not guessed.

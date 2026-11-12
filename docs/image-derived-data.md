@@ -5,6 +5,8 @@ screenshot-recut, `docs/superpowers/specs/2026-10-17-screenshot-recut/`). Author
 of an image". `tests/docs/test_image_derived_data_inventory.py` fails when a table with a foreign key to `images` (or to one of
 those tables) is missing here. Changing the role of a table also means editing this file.
 
+The dev/prod sync class of every table (promoted to prod, pulled from prod, or never synced) is in `docs/sync-registry.md`.
+
 Groups: **1** copied as is (human-authored or not pixel-dependent). **2** not copied; recomputed by the existing pipeline
 (pixel-dependent). **3** copied, flagged or derived as stale, refreshed later. **relation** is bookkeeping, not derived data.
 **none** is not copied and not recomputed for the cut by this feature.
