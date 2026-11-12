@@ -34,7 +34,7 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 |---|---|---|---|---|---|
 | P0 | Epic charter and tracker | This folder | none | draft | `README.md`, `tracker.md` |
 | P1 | Sync registry | The S1 classification as code (origin, ship/skip, dependency order, key, per table) plus a test that fails on an unclassified table | S1 | implementation (2026-11-12; built, reviewed, fixed; not merged, owner confirms the merge). Verified: `pytest tests/sync` 19 passed, `tests/docs` 15 passed, 18 mutations caught. Not verified: CI run | `2026-11-12-p1-sync-registry-design.md`, review `docs/superpowers/reviews/2026-11-12-p1-sync-registry-review.md` |
-| P2 | Promote data dev to prod | Dry-run-first command: dev-origin tables for the active corpus, ids preserved, schema-version gate, row counts verified | P1, S3 | not started | |
+| P2 | Promote data dev to prod | Dry-run-first command: dev-origin tables for the active corpus, ids preserved, schema-version gate, row counts verified | P1, S3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p2-promote-data-design.md` |
 | P3 | Promote files dev to prod | Image file sync driven by the promoted rows, with row/file consistency check and removal of retired files | P1, S4 | not started | |
 | P4 | Pull reader activity prod to dev | Pull of saves, impressions, search history, not-found, ratings, uploads and bug reports; idempotent, watermarked | P1, S3 | not started | |
 | P5 | Prod provisioning and hardening | First seed of an empty prod, trimmed schema usage, prod config, admin features off, roles | S2, S5, P2 | not started | |

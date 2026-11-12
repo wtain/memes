@@ -66,6 +66,7 @@ either stage overwriting data the other stage owns, and without spending the VPS
 | 11 | Retention on prod | **Keep everything**; prod is the system of record for reader data, no pruning |
 | 12 | Android | **Add `GET /api/diagnostics/capabilities`**; web and Android read it to hide blocked screens (one app release) |
 | 13 | Bug reports | **Kept on prod, size- and rate-limited**; dev pulls the files and prod copies are deleted only after a verified pull |
+| 14 | Comics on prod | **Built only, with a shipped built image** (state `built` and the built image is promotable); drafts stay on dev; panel image links blanked when the source image is not shipped (P2 design) |
 | (earlier) | Admin pages on prod | Off, by the default-deny stage gate of S5 (59 of 90 routes) |
 
 Calls I made without asking (to be confirmed in the project designs): pull and promote are run by hand, pull first; prod backs up
