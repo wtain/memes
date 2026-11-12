@@ -114,7 +114,8 @@ images with `status = active` and no `image_extras.flagged`; every D row below i
    runtime for search is to be confirmed by S3/S5.
 7. **Trends**: does `trends_batch` run on prod, dev, or both?
 8. **Prod uploads**: delete a file from prod's inbox after dev has pulled it (plan), or keep until ingestion promotes it?
-10. **Dev also writes P tables** (found in S2): the dev instances already hold search history, impressions and ratings from your own
+10. **RESOLVED 2026-11-12: dev-made activity is disposable; a pull mirrors prod's P tables onto dev (replace), dev activity is never pushed.**
+    Original question: **Dev also writes P tables** (found in S2): the dev instances already hold search history, impressions and ratings from your own
     use of dev. Plan: pull by natural key (search history UUID, ratings by `(query_hash, image_id)`), and give impressions a
     stage marker or a natural key, since their bigint ids would collide. Should dev-made activity be pushed to prod too, or stay on dev?
 9. **Pull frequency and prod backups** of the P tables (the only copy of reader data on the VPS).

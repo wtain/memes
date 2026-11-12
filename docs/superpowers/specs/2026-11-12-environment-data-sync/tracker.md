@@ -24,7 +24,7 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 |---|---|---|---|---|
 | S1 | Data classification | Which table and disk asset has which origin, and is it needed on prod? | in progress (draft written 2026-11-12, awaiting owner answers to the open questions; S2 added Open question 10) | `2026-11-12-s1-data-classification.md` |
 | S2 | Size measurement | Row counts and bytes per table, disk of BASE_PATH, so the prod disk can be sized and the trimming gain is known | done (2026-11-12; read-only role, run by the controller) | `2026-11-12-s2-size-measurement.md` |
-| S3 | Sync technique | Per table: `COPY` with upsert over an SSH tunnel vs `pg_dump` subset vs logical replication; how vectors, GIN and HNSW indexes behave; how to carry deletions | open | Decision record in `docs/adr/` |
+| S3 | Sync technique | Per table: `COPY` with upsert over an SSH tunnel vs `pg_dump` subset vs logical replication; index drop/rebuild vs keep, measured; incremental change detection; how to carry deletions | done (2026-11-12; ADR status PROPOSED until the owner confirms; throwaway containers, synthetic data, no real SSH or network) | `docs/adr/adr-2026-11-12-dev-prod-sync-technique.md` |
 | S4 | File transfer | rsync (or equivalent) from Windows over SSH; manifest by `content_hash`; resumability; row/file consistency | open | Decision record |
 | S5 | Prod topology and roles | Prod DB roles (sync writer, backend, read-only), which backend features are switched off on prod, how prod is configured per env | open | Spec input for P5 |
 
@@ -42,6 +42,20 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 | P7 | Runbooks and docs | Runbook per direction, update `CLAUDE.md`, `docs/data-flow.md`, `docs/image-derived-data.md`, `environments/Environments.md` | all | not started | |
 
 ## Backlog / unscheduled
+
+From S3 (details in the ADR):
+
+- Order of a sync run: pull prod's reader data first, then promote. Deleting an image on prod cascades to `meme_text_ratings` (the
+  only reader table with a foreign key to `images`), so the pull must keep ratings of retired images and filter out ratings of
+  images missing on dev (the foreign key would fail the pull).
+- Embedding tables carry no model name or digest (only the meme-profile ones do), so model parity cannot be checked in the
+  database; decide how P2 asserts it (settings comparison or a version stamp).
+- Digest must also cover `image_description_feedback` and the `stale` flag.
+- Prod `maintenance_work_mem` of at least 256 MB to 1 GB for HNSW builds (149 s at the 64 MB default vs 30 s, 43k x 1024d).
+- Plain `REINDEX` of an HNSW index blocks readers; queries without the index are about 11x slower. Rebuild only in a window, or
+  use a concurrent build.
+- Not verified in S3: a real SSH tunnel and Windows OpenSSH behaviour, network latency, realistic lemma text for the GIN cost,
+  comics/concepts/feedback tables, backend latency during a promote. Candidates for the P2 design or a short follow-up spike.
 
 - Deletions and retirements: an image flagged, deleted or cut on dev must disappear from prod (tombstones or a full diff).
 - Ratings keyed by `(query_hash, image_id)` are moved to the cut on a recut approve on dev; a later pull from prod must not

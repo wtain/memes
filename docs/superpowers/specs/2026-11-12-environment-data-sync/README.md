@@ -28,6 +28,10 @@ either stage overwriting data the other stage owns, and without spending the VPS
 - **Curation happens on dev only.** Prod only collects reader activity. Hence every table has exactly one origin stage and data flows
   away from its origin only. There is no two-way merge.
 - **`meme_text_ratings` are reader activity**: prod-origin, pulled to dev.
+- **Activity made on dev is disposable** (2026-11-12). Reader-activity tables on dev are a mirror of prod's: a pull may replace
+  them, so no stage marker or id merge is needed. Dev-made activity is never pushed to prod.
+- **Indexes are built on prod**, never shipped (a data copy carries rows only). Whether to drop and rebuild them around a bulk
+  load is decided by measurement in S3.
 - **Prod has fewer admin capabilities** than dev (details in a later project).
 - **Process.** Separate worktree (`env-data-sync`); the owner confirms every merge to `main` and every database migration;
   ambiguities are brainstormed, not guessed; agent-driven workflows for complex tasks.
