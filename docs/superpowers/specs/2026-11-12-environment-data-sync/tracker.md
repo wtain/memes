@@ -22,18 +22,18 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 
 | ID | Spike | Question answered | Status | Output |
 |---|---|---|---|---|
-| S1 | Data classification | Which table and disk asset has which origin, and is it needed on prod? | in progress (draft written 2026-11-12, awaiting owner answers to the open questions; S2 added Open question 10) | `2026-11-12-s1-data-classification.md` |
+| S1 | Data classification | Which table and disk asset has which origin, and is it needed on prod? | done (draft; all open questions answered 2026-11-12, see the decisions log in README.md) | `2026-11-12-s1-data-classification.md` |
 | S2 | Size measurement | Row counts and bytes per table, disk of BASE_PATH, so the prod disk can be sized and the trimming gain is known | done (2026-11-12; read-only role, run by the controller) | `2026-11-12-s2-size-measurement.md` |
 | S3 | Sync technique | Per table: `COPY` with upsert over an SSH tunnel vs `pg_dump` subset vs logical replication; index drop/rebuild vs keep, measured; incremental change detection; how to carry deletions | done (2026-11-12; ADR status PROPOSED until the owner confirms; throwaway containers, synthetic data, no real SSH or network) | `docs/adr/adr-2026-11-12-dev-prod-sync-technique.md` |
 | S4 | File transfer | rsync (or equivalent) from Windows over SSH; manifest by `content_hash`; resumability; row/file consistency | done (2026-11-12; ADR status PROPOSED; loopback container, synthetic files, no real network or VPS) | `docs/adr/adr-2026-11-12-dev-prod-file-sync.md` |
-| S5 | Prod topology and roles | Prod DB roles (sync writer, backend, read-only), which backend features are switched off on prod, how prod is configured per env | done (2026-11-12; read-only code analysis, draft awaiting owner answers) | `2026-11-12-s5-prod-topology-and-roles.md` |
+| S5 | Prod topology and roles | Prod DB roles (sync writer, backend, read-only), which backend features are switched off on prod, how prod is configured per env | done (2026-11-12; read-only code analysis, owner questions answered 2026-11-12) | `2026-11-12-s5-prod-topology-and-roles.md` |
 
 ## Projects (provisional, refined after S1 to S5)
 
 | ID | Project | Delivers | Depends on | Status | Spec / plan |
 |---|---|---|---|---|---|
 | P0 | Epic charter and tracker | This folder | none | draft | `README.md`, `tracker.md` |
-| P1 | Sync registry | The S1 classification as code (origin, ship/skip, dependency order, key, per table) plus a test that fails on an unclassified table | S1 | not started | |
+| P1 | Sync registry | The S1 classification as code (origin, ship/skip, dependency order, key, per table) plus a test that fails on an unclassified table | S1 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p1-sync-registry-design.md` |
 | P2 | Promote data dev to prod | Dry-run-first command: dev-origin tables for the active corpus, ids preserved, schema-version gate, row counts verified | P1, S3 | not started | |
 | P3 | Promote files dev to prod | Image file sync driven by the promoted rows, with row/file consistency check and removal of retired files | P1, S4 | not started | |
 | P4 | Pull reader activity prod to dev | Pull of saves, impressions, search history, not-found, ratings, uploads and bug reports; idempotent, watermarked | P1, S3 | not started | |

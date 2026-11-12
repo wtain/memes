@@ -59,9 +59,9 @@ images with `status = active` and no `image_extras.flagged`; every D row below i
 | `image_cuts` | X | Recut proposals and review state (admin only) |
 | `duplicate_decisions` | X | Durable human data but only consumed by `clusterize`; needs dev backup, not prod space |
 | `tmp_duplicates`, `tmp_clusters` | X | Rebuildable, massive pair table |
-| `popularity_absorptions` | X | Append-only audit of dev decisions; no FK to images |
-| `concepts`, `concept_image_sets`, `concept_images`, `concept_text_sets`, `concept_texts` | D (provisional) | Served through the concept repository; integer ids and `CONCEPT_IMAGES_DIR` files; see Open question 6 |
-| `statistics_snapshots` | R | Recomputed by the backend on prod |
+| `popularity_absorptions` | D | Decided 2026-11-12: shipped (tiny, append-only, written only by dev) so trending `window=30d`, the popularity breakdown and impression folding work on prod. No FK to images, so promote it as a set |
+| `concepts`, `concept_image_sets`, `concept_images`, `concept_text_sets`, `concept_texts` | D | Served through the concept repository; integer ids and `CONCEPT_IMAGES_DIR` files; see Open question 6 |
+| `statistics_snapshots` | D | Decided 2026-11-12: the single dev snapshot row is promoted; the prod route is read-only and never recomputes |
 
 ### Reader activity (prod-origin)
 
@@ -72,7 +72,7 @@ images with `status = active` and no `image_extras.flagged`; every D row below i
 | `search_history`, `search_history_tags` | P | UUID ids, so they merge without collisions. Include meme-from-text message text |
 | `search_not_found` | P | References `search_history_id` without FK |
 | `meme_text_ratings` | P | Owner decision: reader activity. FK to images, unique `(query_hash, image_id)` |
-| `trend_sources`, `trends_run_results` | open | Depends on where `trends_batch` runs (Open question 7) |
+| `trend_sources`, `trends_run_results` | X | Decided 2026-11-12: `trends_batch` stays on dev; the trends pages are hidden on prod |
 
 ## Disk assets
 
@@ -81,7 +81,7 @@ images with `status = active` and no `image_extras.flagged`; every D row below i
 | `BASE_PATH` image files of active, unflagged images | D | Required for serving; the bulk of the prod disk |
 | `BASE_PATH/excluded/`, `rejected/`, `pre-cuts/`, `converted_originals/`, `comics-sources/` | X | Dev audit and recovery copies |
 | `PATH_INGESTION_SOURCE` (dev inbox) | X | |
-| Prod inbox (`POST /api/uploads` on prod) | P | Files pulled to the dev inbox, then deleted from prod once ingestion has them (Open question 8) |
+| Prod inbox | none | Decided 2026-11-12: `POST /api/uploads` is disabled on prod, so there is no prod inbox |
 | `BASE_PATH/bug_reports/` | P | Pulled to dev |
 | Tagging, taxonomy, prompts, settings YAML | git | Deployed with the code, not synced; taxonomy and settings versions must match, see Constraints |
 | `evaluation/gold`, `batch/yolov8n.pt`, concept image sets, model caches | X | Dev tooling; the gold corpus is keyed by dev ids |
@@ -103,6 +103,9 @@ images with `status = active` and no `image_extras.flagged`; every D row below i
 8. **Writes to prod need their own role**, never the backend's, and never recorded in the repo.
 
 ## Open questions (for the owner)
+
+**All answered on 2026-11-12; the answers are in the "Decisions log" of the epic README and applied in the tables above.** The
+original questions are kept below for the record.
 
 1. **Which tables may the prod backend serve at all?** Plan: prod is read-mostly except the P tables, uploads and bug reports.
    Is that right, i.e. do the dedupe, ingestion review, recut and batch admin pages stay off on prod?

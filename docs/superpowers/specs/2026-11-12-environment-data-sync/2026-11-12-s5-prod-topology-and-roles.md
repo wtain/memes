@@ -355,6 +355,8 @@ So: **no backend restart is needed for data-only promotes**; restart (rolling) o
 
 ## Open questions for the owner (only what changes what gets built)
 
+**Answered on 2026-11-12; see the "Decisions log" in the epic README (questions 1 to 9 below map to it).** Kept for the record.
+
 1. **Meme-from-text on prod:** feature off (like `it`), lexical-only by design, Ollama on the VPS, or a third host? Decides the prod overlay, the VPS size and whether a "skip parser" flag is built (4.3).
 2. **Statistics on prod:** drop the page and route (proposal), or serve a promoted dev snapshot? Decides one extra D table or none.
 3. **`popularity_absorptions`:** ship it as class D (append-only, tiny: 1 row on general) so the 30-day trending window, the popularity breakdown and the impression folding work on prod, or leave `window=30d` and the breakdown empty and hide them on prod? This reverses an S1 decision if shipped.
