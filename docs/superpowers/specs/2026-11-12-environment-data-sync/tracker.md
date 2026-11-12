@@ -37,11 +37,18 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 | P2 | Promote data dev to prod | Dry-run-first command: dev-origin tables for the active corpus, ids preserved, schema-version gate, row counts verified | P1, S3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p2-promote-data-design.md` |
 | P3 | Promote files dev to prod | Image file sync driven by the promoted rows, with row/file consistency check and removal of retired files | P1, S4 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p3-promote-files-design.md` |
 | P4 | Pull reader activity prod to dev | Pull of saves, impressions, search history, not-found, ratings, uploads and bug reports; idempotent, watermarked | P1, S3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p4-pull-reader-activity-design.md` |
-| P5 | Prod provisioning and hardening | First seed of an empty prod, trimmed schema usage, prod config, admin features off, roles | S2, S5, P2 | not started | |
-| P6 | Verification and drift report | Read-only compare of dev-origin data between stages (counts, hashes), report in the style of `tools/discovery_report` | P2, P3 | not started | |
-| P7 | Runbooks and docs | Runbook per direction, update `CLAUDE.md`, `docs/data-flow.md`, `docs/image-derived-data.md`, `environments/Environments.md` | all | not started | |
+| P5 | Prod provisioning and hardening | First seed of an empty prod, trimmed schema usage, prod config, admin features off, roles | S2, S5, P2 | draft (2026-11-12, awaiting owner review; sub-deliveries P5a backend stage, P5b web, P5c Android, P5d VPS stack and roles) | `2026-11-12-p5-prod-provisioning-and-hardening-design.md` |
+| P6 | Verification and drift report | Read-only compare of dev-origin data between stages (counts, hashes), report in the style of `tools/discovery_report` | P2, P3 | draft (2026-11-12, awaiting owner review) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part A) |
+| P7 | Runbooks and docs | Runbook per direction, update `CLAUDE.md`, `docs/data-flow.md`, `docs/image-derived-data.md`, `environments/Environments.md` | all | draft (2026-11-12, awaiting owner review; ends with the acceptance run on a throw-away VPS) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part B) |
 
 ## Backlog / unscheduled
+
+From the P5 to P7 designs:
+
+- The P3 gate gains the verb `fetch-backup` (read-only: newest class P dump and its metadata), used by the pull and by P6 check S6; P4 already adds `pull-list`, `pull-tar`, `delete-verified`.
+- P5d-T2: verify on a PostgreSQL 18 container that `MAINTAIN` allows `REINDEX`, that `ON DELETE CASCADE` into `meme_text_ratings` works without a `DELETE` grant for `sync_writer`, and the unprivileged index-rebuild path, before the roles are final.
+- Caddy rate limiting may need a plugin; otherwise rate limits stay in the app and the deploy README says so.
+- Open owner items that block nothing: hostnames and domain, VPS provider and size, whether the web build is served by the same Caddy, whether to rent a throw-away VPS for the acceptance run.
 
 From the P3 and P4 designs:
 
