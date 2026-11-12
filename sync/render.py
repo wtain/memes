@@ -64,6 +64,10 @@ def render() -> str:
     out.append("\n## Digest groups\n")
     for group, tables in registry.digest_groups().items():
         out.append(f"- `{group}`: " + ", ".join(f"`{t}`" for t in tables))
+    out.append("\n## Digest exclusions\n")
+    out.append("Columns left out of the per-image digest (a change of only these is not a change of the image):\n")
+    for entry in sorted(registry.REGISTRY.values(), key=lambda e: e.name):
+        out.extend(f"- `{entry.name}.{column}`: {reason}" for column, reason in entry.digest_exclude)
     out.append("\n## Prod write sets\n")
     for role in ("backend_app", "sync_writer"):
         tables = registry.prod_write_set(role)

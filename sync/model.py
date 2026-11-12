@@ -76,3 +76,6 @@ class TableSync:
     prune: bool = False  # a global set: rows deleted on dev must be deleted on prod too (upsert alone never deletes)
     pull_before_promote: bool = False  # class P with a CASCADE from images: pull before a promote may retire an image
     notes: str = ""
+    # (column, reason) pairs left out of the per-image digest (P2): a change of such a column alone is not a change of the image.
+    # Never a column another table references by foreign key; reasons are mandatory.
+    digest_exclude: tuple[tuple[str, str], ...] = ()

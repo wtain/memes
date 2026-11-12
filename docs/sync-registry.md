@@ -16,14 +16,14 @@ rows reached through a scoped parent; `global_set` no image relation. Level is t
 |---|---|---|---|---|---|---|
 | `concepts` | upsert_by_key | global_set | 0 |  | sync_writer | integer ids: one origin, replaced as a set (prunes rows deleted on dev) |
 | `images` | upsert_by_key | images | 0 | core | sync_writer | active and unflagged only; popularity promoted as a value; ingestion_batch_id blanked (blank on missing target: ingestion_batch_id) |
-| `popularity_absorptions` | upsert_by_key | global_set | 0 |  | sync_writer | append-only, no FK to images; load in created_at order (absorb row, then its reverse row, then UPDATE the absorb row's reversed_by_id): the shape check and the open-loser unique index forbid a NULL-first load (blank on missing target: batch_run_id) |
+| `popularity_absorptions` | upsert_by_key | global_set | 0 |  | sync_writer | insert-or-close, no FK to images (an existing absorb row may later gain reversed_by_id when a reverse row closes it); load in created_at order (absorb row, then its reverse row, then UPDATE the absorb row's reversed_by_id): the shape check and the open-loser unique index forbid a NULL-first load (blank on missing target: batch_run_id) |
 | `concept_image_sets` | upsert_by_key | global_set | 1 |  | sync_writer |  (prunes rows deleted on dev) |
 | `concept_text_sets` | upsert_by_key | global_set | 1 |  | sync_writer | empty today; kept for parity (prunes rows deleted on dev) |
 | `description_note_lemmas` | replace_per_image | image_fk(image_id) | 1 | note | sync_writer |  |
 | `description_notes` | replace_per_image | image_fk(image_id) | 1 | note | sync_writer | owner curation |
 | `embeddings` | replace_per_image | image_fk(image_id) | 1 | clip | sync_writer | CLIP 512-d |
 | `image_descriptions` | replace_per_image | image_fk(image_id) | 1 | desc | sync_writer | parent of the description tables |
-| `image_extras` | upsert_by_key | image_fk(image_id) | 1 | core | sync_writer | remarks only: flagged images are not shipped, so flagged is always false on prod |
+| `image_extras` | replace_per_image | image_fk(image_id) | 1 | core | sync_writer | remarks only, replaced whole with the image's other rows so a removed remark leaves prod; flagged images are not shipped, so flagged is always false on prod |
 | `meme_profiles` | replace_per_image | image_fk(image_id) | 1 | profile | sync_writer | includes human-verified profiles |
 | `ocr_lemmas` | replace_per_image | image_fk(image_id) | 1 | ocr | sync_writer | includes the stale flag |
 | `ocr_texts` | replace_per_image | image_fk(image_id) | 1 | ocr | sync_writer | includes the stale flag |
@@ -80,6 +80,20 @@ rows reached through a scoped parent; `global_set` no image relation. Level is t
 - `ocr`: `ocr_lemmas`, `ocr_texts`
 - `profile`: `meme_profile_situation_embeddings`, `meme_profile_values`, `meme_profiles`
 - `tags`: `tags`
+
+## Digest exclusions
+
+Columns left out of the per-image digest (a change of only these is not a change of the image):
+
+- `description_notes.lemmas_built_at`: pure bookkeeping of the lemma job
+- `description_notes.embedding_built_at`: pure bookkeeping of the embedding job
+- `embeddings.id`: unreferenced surrogate id: a rebuild with the same content is not a change
+- `embeddings.created_at`: rebuild timestamp: a rebuild with the same content is not a change
+- `images.ingestion_batch_id`: blanked on prod, so it never matches dev: run bookkeeping
+- `ocr_texts.id`: unreferenced surrogate id: a rebuild with the same content is not a change
+- `ocr_texts.created_at`: rebuild timestamp: a rebuild with the same content is not a change
+- `tags.id`: unreferenced surrogate id: a rebuild with the same content is not a change
+- `tags.created_at`: rebuild timestamp: a rebuild with the same content is not a change
 
 ## Prod write sets
 

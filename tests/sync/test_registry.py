@@ -23,7 +23,7 @@ EXPECTED_D = set(TABLES) - PULLED - EXPECTED_X
 # D tables outside the image scope that are append-only or a single row: upsert is enough, nothing to prune.
 NO_PRUNE = {"popularity_absorptions"}
 # D tables of an image scope that are not replaced whole per image: the core rows themselves.
-NOT_REPLACED_PER_IMAGE = {"images", "image_extras"}
+NOT_REPLACED_PER_IMAGE = {"images"}
 
 
 def _fks(table_name):
@@ -208,6 +208,85 @@ def test_load_and_delete_order_are_complete_and_mirror_each_other():
         flat = [name for level in load for name in level]
         assert sorted(flat) == registry.names(klass) and len(flat) == len(set(flat))
         assert registry.delete_order(klass) == list(reversed(load))
+
+
+def _excluded():
+    return [(e.name, column, reason) for e in REG.values() for column, reason in e.digest_exclude]
+
+
+def _referenced_columns():
+    """(table, column) pairs that some foreign key in the metadata points at."""
+    return {(fk.column.table.name, fk.column.name) for table in TABLES.values() for fk in table.foreign_keys}
+
+
+def test_the_digest_exclusions_are_the_ones_the_design_states():
+    got = {(t, c) for t, c, _ in _excluded()}
+    assert got == {
+        ("ocr_texts", "id"), ("ocr_texts", "created_at"), ("embeddings", "id"), ("embeddings", "created_at"),
+        ("tags", "id"), ("tags", "created_at"), ("images", "ingestion_batch_id"),
+        ("description_notes", "lemmas_built_at"), ("description_notes", "embedding_built_at"),
+    }
+
+
+def test_every_excluded_column_exists_on_its_table():
+    for table, column, _ in _excluded():
+        assert column in TABLES[table].columns, f"{table}.{column} is excluded from the digest but does not exist"
+
+
+def test_every_digest_exclusion_has_a_reason():
+    for table, column, reason in _excluded():
+        assert isinstance(reason, str) and reason.strip(), f"{table}.{column}: exclusion without a reason"
+
+
+def test_digest_exclude_appears_only_on_tables_with_a_digest_group():
+    for entry in REG.values():
+        if entry.digest_exclude:
+            assert entry.digest_group, f"{entry.name}: digest_exclude on a table that is in no digest group"
+
+
+def test_an_excluded_column_is_never_referenced_by_a_foreign_key():
+    referenced = _referenced_columns()
+    for table, column, _ in _excluded():
+        assert (table, column) not in referenced, f"{table}.{column} is a foreign key target and cannot leave the digest"
+
+
+def test_stale_flags_feedback_approval_and_popularity_stay_in_the_digest():
+    excluded = {(t, c) for t, c, _ in _excluded()}
+    assert not {(t, c) for t, c in excluded if c == "stale"}
+    assert ("image_description_feedback", "approved") not in excluded
+    assert ("images", "popularity") not in excluded
+    assert ("meme_profiles", "updated_at") not in excluded
+    for table, column in (("image_description_feedback", "approved"), ("images", "popularity")):
+        assert column in TABLES[table].columns
+
+
+def test_every_digest_table_keeps_columns_and_the_primary_keys_others_reference():
+    referenced = _referenced_columns()
+    for entry in (e for e in REG.values() if e.digest_group):
+        excluded = {c for c, _ in entry.digest_exclude}
+        kept = set(TABLES[entry.name].columns.keys()) - excluded
+        assert kept, f"{entry.name}: the digest would have no columns"
+        for column in TABLES[entry.name].primary_key.columns:
+            if (entry.name, column.name) in referenced:
+                assert column.name in kept, f"{entry.name}.{column.name} is referenced but left out of the digest"
+
+
+def test_image_extras_is_replaced_per_image_and_images_is_the_only_image_scoped_upsert():
+    extras = registry.get("image_extras")
+    assert extras.mode is Mode.REPLACE_PER_IMAGE and extras.digest_group == "core" and extras.level == 1
+    upserts = {e.name for e in REG.values() if e.klass is Klass.D and _image_bounded(e.name) and e.mode is Mode.UPSERT_BY_KEY}
+    assert upserts == {"images"}
+
+
+def test_the_absorptions_note_says_insert_or_close():
+    note = registry.get("popularity_absorptions").notes
+    assert "insert-or-close" in note and "append-only upsert" not in note
+    assert "absorb row, then its reverse row, then UPDATE" in note
+
+
+def test_the_rendered_page_lists_the_digest_exclusions():
+    page = render()
+    assert "## Digest exclusions" in page and "`images.ingestion_batch_id`" in page
 
 
 def test_the_rendered_page_is_current():

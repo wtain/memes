@@ -26,9 +26,10 @@ D, P, X = Klass.D, Klass.P, Klass.X
 UPSERT, REPLACE, MIRROR, SKIP = Mode.UPSERT_BY_KEY, Mode.REPLACE_PER_IMAGE, Mode.MIRROR_REPLACE, Mode.SKIP
 
 
-def _d(name, mode, scope, key, level, digest=None, nullify=(), setval=False, prune=False, notes=""):
+def _d(name, mode, scope, key, level, digest=None, nullify=(), setval=False, prune=False, notes="", digest_exclude=()):
     return TableSync(
-        name, D, mode, scope, tuple(key), level, digest, "sync_writer", tuple(nullify), setval, prune, False, notes
+        name, D, mode, scope, tuple(key), level, digest, "sync_writer", tuple(nullify), setval, prune, False, notes,
+        tuple(digest_exclude),
     )
 
 
@@ -45,13 +46,18 @@ def _x(name, notes):
 _ENTRIES = (
     # ---- class D: dev-origin, shipped ------------------------------------------------------------------------------
     _d("images", UPSERT, IMAGES, ("id",), 0, "core", nullify=("ingestion_batch_id",),
-       notes="active and unflagged only; popularity promoted as a value; ingestion_batch_id blanked"),
-    _d("image_extras", UPSERT, image_fk(), ("image_id",), 1, "core",
-       notes="remarks only: flagged images are not shipped, so flagged is always false on prod"),
-    _d("ocr_texts", REPLACE, image_fk(), ("id",), 1, "ocr", notes="includes the stale flag"),
+       notes="active and unflagged only; popularity promoted as a value; ingestion_batch_id blanked",
+       digest_exclude=(("ingestion_batch_id", "blanked on prod, so it never matches dev: run bookkeeping"),)),
+    _d("image_extras", REPLACE, image_fk(), ("image_id",), 1, "core",
+       notes="remarks only, replaced whole with the image's other rows so a removed remark leaves prod; flagged images are not "
+             "shipped, so flagged is always false on prod"),
+    _d("ocr_texts", REPLACE, image_fk(), ("id",), 1, "ocr", notes="includes the stale flag",
+       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", "rebuild timestamp: a rebuild with the same content is not a change"))),
     _d("ocr_lemmas", REPLACE, image_fk(), ("image_id", "lemma"), 1, "ocr", notes="includes the stale flag"),
-    _d("embeddings", REPLACE, image_fk(), ("id",), 1, "clip", notes="CLIP 512-d"),
-    _d("tags", REPLACE, image_fk(), ("id",), 1, "tags", notes="all sources; includes the stale flag"),
+    _d("embeddings", REPLACE, image_fk(), ("id",), 1, "clip", notes="CLIP 512-d",
+       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", "rebuild timestamp: a rebuild with the same content is not a change"))),
+    _d("tags", REPLACE, image_fk(), ("id",), 1, "tags", notes="all sources; includes the stale flag",
+       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", "rebuild timestamp: a rebuild with the same content is not a change"))),
     _d("image_descriptions", REPLACE, image_fk(), ("id",), 1, "desc", notes="parent of the description tables"),
     _d("image_description_embeddings", REPLACE, via("image_descriptions", "image_description_id"),
        ("image_description_id",), 2, "desc", notes="1024-d"),
@@ -63,7 +69,9 @@ _ENTRIES = (
     _d("meme_profile_values", REPLACE, via("meme_profiles", "image_id"), ("image_id", "axis", "value_key"), 2, "profile"),
     _d("meme_profile_situation_embeddings", REPLACE, via("meme_profiles", "image_id"), ("image_id",), 2, "profile",
        notes="1024-d, bound to a model name and digest"),
-    _d("description_notes", REPLACE, image_fk(), ("image_id",), 1, "note", notes="owner curation"),
+    _d("description_notes", REPLACE, image_fk(), ("image_id",), 1, "note", notes="owner curation",
+       digest_exclude=(("lemmas_built_at", "pure bookkeeping of the lemma job"),
+                       ("embedding_built_at", "pure bookkeeping of the embedding job"))),
     _d("description_note_lemmas", REPLACE, image_fk(), ("image_id", "lemma"), 1, "note"),
     _d("description_note_embeddings", REPLACE, via("description_notes", "description_note_id"),
        ("description_note_id",), 2, "note", notes="1024-d"),
@@ -73,7 +81,8 @@ _ENTRIES = (
     _d("concept_text_sets", UPSERT, GLOBAL_SET, ("id",), 1, setval=True, prune=True, notes="empty today; kept for parity"),
     _d("concept_texts", UPSERT, GLOBAL_SET, ("id",), 2, setval=True, prune=True, notes="empty today; kept for parity"),
     _d("popularity_absorptions", UPSERT, GLOBAL_SET, ("id",), 0, nullify=("batch_run_id",),
-       notes="append-only, no FK to images; load in created_at order (absorb row, then its reverse row, then UPDATE the absorb "
+       notes="insert-or-close, no FK to images (an existing absorb row may later gain reversed_by_id when a reverse row closes it); "
+             "load in created_at order (absorb row, then its reverse row, then UPDATE the absorb "
              "row's reversed_by_id): the shape check and the open-loser unique index forbid a NULL-first load"),
     # ---- class P: prod-origin reader activity, pulled ---------------------------------------------------------------
     _p("meme_saves", ("id",), 0),
