@@ -1,0 +1,52 @@
+# Dev/prod data sync: project tracker
+
+Status: draft
+Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/README.md
+
+Created 2026-11-12. Each project has its own design spec (written when the project is picked up, named
+`YYYY-MM-DD-<id>-<name>-design.md` and linked below), then an implementation plan, then implementation. Project status uses the spec
+lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), with `not started` before a spec exists. Spikes use
+`open`, `in progress`, `done` or `dropped`.
+
+## Working rules
+
+- **Worktree:** `.claude/worktrees/env-data-sync`, branch `worktree-env-data-sync`, created from local `main` (7da0ff82).
+- **Merging to `main` and every database migration need the owner's explicit confirmation**, per project.
+- **Ambiguities** are brainstormed with the owner, not guessed.
+- **Live databases:** read-only role (`DATABASE_URL_READONLY`) only, run by the controller; never hand a subagent the main
+  `DATABASE_URL`. Prod credentials are never written to the repo.
+- **Ports:** never bind the metal, general or it ports; use a free port and `ocrdb_test` for any test backend.
+- **Review:** one review iteration per project by a fresh subagent, saved to `docs/superpowers/reviews/`.
+
+## Spikes
+
+| ID | Spike | Question answered | Status | Output |
+|---|---|---|---|---|
+| S1 | Data classification | Which table and disk asset has which origin, and is it needed on prod? | in progress (draft written 2026-11-12, awaiting owner review) | `2026-11-12-s1-data-classification.md` |
+| S2 | Size measurement | Row counts and bytes per table, disk of BASE_PATH, so the prod disk can be sized and the trimming gain is known | open | Report from read-only queries run by the controller |
+| S3 | Sync technique | Per table: `COPY` with upsert over an SSH tunnel vs `pg_dump` subset vs logical replication; how vectors, GIN and HNSW indexes behave; how to carry deletions | open | Decision record in `docs/adr/` |
+| S4 | File transfer | rsync (or equivalent) from Windows over SSH; manifest by `content_hash`; resumability; row/file consistency | open | Decision record |
+| S5 | Prod topology and roles | Prod DB roles (sync writer, backend, read-only), which backend features are switched off on prod, how prod is configured per env | open | Spec input for P5 |
+
+## Projects (provisional, refined after S1 to S5)
+
+| ID | Project | Delivers | Depends on | Status | Spec / plan |
+|---|---|---|---|---|---|
+| P0 | Epic charter and tracker | This folder | none | draft | `README.md`, `tracker.md` |
+| P1 | Sync registry | The S1 classification as code (origin, ship/skip, dependency order, key, per table) plus a test that fails on an unclassified table | S1 | not started | |
+| P2 | Promote data dev to prod | Dry-run-first command: dev-origin tables for the active corpus, ids preserved, schema-version gate, row counts verified | P1, S3 | not started | |
+| P3 | Promote files dev to prod | Image file sync driven by the promoted rows, with row/file consistency check and removal of retired files | P1, S4 | not started | |
+| P4 | Pull reader activity prod to dev | Pull of saves, impressions, search history, not-found, ratings, uploads and bug reports; idempotent, watermarked | P1, S3 | not started | |
+| P5 | Prod provisioning and hardening | First seed of an empty prod, trimmed schema usage, prod config, admin features off, roles | S2, S5, P2 | not started | |
+| P6 | Verification and drift report | Read-only compare of dev-origin data between stages (counts, hashes), report in the style of `tools/discovery_report` | P2, P3 | not started | |
+| P7 | Runbooks and docs | Runbook per direction, update `CLAUDE.md`, `docs/data-flow.md`, `docs/image-derived-data.md`, `environments/Environments.md` | all | not started | |
+
+## Backlog / unscheduled
+
+- Deletions and retirements: an image flagged, deleted or cut on dev must disappear from prod (tombstones or a full diff).
+- Ratings keyed by `(query_hash, image_id)` are moved to the cut on a recut approve on dev; a later pull from prod must not
+  resurrect the old pair.
+- Per-env asymmetries: `it` has no tagging vocabulary, profiles or tagging jobs; tagging YAML only for metal and general.
+- Trends (`trend_sources`, `trends_run_results`): where does the batch run, dev or prod?
+- Tracked evaluation data (`evaluation/gold`) is keyed by dev image ids: dev-only, but the pull of ratings feeds it.
+- Backups of prod-origin data on the VPS (the only copy of the readers' activity).
