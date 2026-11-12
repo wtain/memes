@@ -1,22 +1,23 @@
 # P4: pull reader activity, prod to dev (design)
 
-Status: draft (revised 2026-11-12; reconciled with `interfaces.md` 2026-11-12)
+Status: draft (revised 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
 Interfaces: state files, settings (`sync.pull.*`), roles, handshake steps, gate verbs, flags and exit codes are defined in `interfaces.md`; this document owns the pull behaviour.
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Depends on: P1 (registry, built), S3 (`docs/adr/adr-2026-11-12-dev-prod-sync-technique.md`, Q7), S4 (`docs/adr/adr-2026-11-12-dev-prod-file-sync.md`, Q4),
-S5 (roles), P2 (shared modules, work item SC), P3 (gate), P5 (roles, ports), decisions log in `README.md` (decisions 6, 9, 10, 11, 13, 17, 18, 19, 21, 23, 24, 25).
-Pairs with: P2 (reads the pull-state this project writes before it may retire images; pull and promote run in one `sync.run`).
+S5 (roles), P2 (shared modules, work item SC), P3 (gate), P5 (roles, ports), decisions log in `README.md` (decisions 6, 9, 10, 11, 13, 17, 18, 19, 21, 23, 24, 25, 26, 27).
+Pairs with: P2 (no longer reads the pull-state: it only mattered to the retire, which is deferred, decision 27; pull and promote still run in one `sync.run`, pull first).
 
 ## Intent
 
 Bring the readers' activity that accumulates on prod back to the dev database (and bug reports to a dev folder), so that dev sees the real use of the library: searches,
 impressions, saves, not-found reports and, once the ratings routes return, the readers' ratings. Prod stays the system of record; dev holds a mirror that may be replaced at any time, with one
-exception that the first review of this design found: ratings the owner made on dev (see Ratings). The pull runs in the same `sync.run` as the promote, immediately before it, because retiring an image on prod cascades into its ratings.
+exception that the first review of this design found: ratings the owner made on dev (see Ratings). The pull runs in the same `sync.run` as the promote, immediately before it, as step 1. That ordering was chosen because retiring an image on prod cascades into its ratings; with removals deferred (decision 27) it is no longer a precondition of the promote, and the pull-state it writes is read by P6 and P7 (and by the retire when it is built).
+Like every sync operation the pull is a dry run by default and produces a report of the rows that would be added and replaced on dev and the bug reports that would be fetched (decision 26, `interfaces.md` k).
 
 ## Goals / non-goals / anti-goals
 
 - Goals: one consistent snapshot of the six class P tables; a mirror on dev that equals the snapshot for the append-style tables; bug reports pulled and removed on prod only after verification;
-  a pull-state P2 can trust (snapshot time, run id, ratings fingerprint); dry run by default; idempotent; untrusted prod text handled as data only.
+  a pull-state that P6, P7 and a future retire can trust (snapshot time, run id, ratings fingerprint); dry run by default with a report that the apply reproduces; idempotent; untrusted prod text handled as data only.
 - Non-goals: pushing anything to prod, pruning prod (decision 11, with decision 23's alarms instead), merging dev-made activity (disposable, except ratings), uploads (disabled on prod),
   an incremental impression pull in v1 (backlog; a full mirror is under 3 s per 100k rows).
 - Anti-goals: writing prod; losing the only copy of a rating; wiping dev because prod answered empty, was the wrong environment, or has its ratings routes off; logging row content; a pull that half-replaces dev;
@@ -24,9 +25,9 @@ exception that the first review of this design found: ratings the owner made on 
 
 ## Command
 
-`python -m sync.pull --env {metal,general,it} [--apply] [--allow-empty-source] [--allow-shrink TABLE]... [--allow-growth] [--skip-files] [--run-id ID] [--json PATH]`
+`python -m sync.pull --env {metal,general,it} [--apply] [--plan-hash H] [--allow-empty-source] [--allow-shrink TABLE]... [--allow-growth] [--skip-files] [--top N] [--run-id ID] [--json PATH]`
 
-Dry run by default. `--allow-shrink TABLE` names a class P table (repeatable), same shape as in P2. Exit codes as in `interfaces.md`: 0 clean, 2 precondition (including an identity mismatch or a held lock), 3 guard, 1 other. Called alone, or as the first step of `sync.run`, which passes `--run-id`.
+Dry run by default: it reads the prod snapshot and the dev tables, writes the report (next section) and changes nothing; `--apply` re-plans and refuses (exit 3) if `--plan-hash` differs from the dry run's printed hash. `--allow-shrink TABLE` names a class P table (repeatable), same shape as in P2. Exit codes as in `interfaces.md`: 0 clean, 2 precondition (including an identity mismatch or a held lock), 3 guard, 1 other. Called alone, or as the first step of `sync.run`, which passes `--run-id`.
 
 ### Connections (decisions 17, 18, 21)
 
@@ -48,6 +49,22 @@ Dry run by default. `--allow-shrink TABLE` names a class P table (repeatable), s
   alone is a warning, because the driver pulls first and dev is usually one migration ahead of prod during a release (the additive migration goes to prod before the promote).
 - The registry's pulled tables equal the six expected (`sync.registry.pulled_tables()`).
 - Nothing else on dev needs to exist: the P tables hold no vectors.
+
+## Dry-run report (decision 26, `interfaces.md` k)
+
+`report.json` / `report.md` / stdout summary in `runs/<runid>/` (the pull section of a `sync.run` report). The dry run reads, inside the same prod `REPEATABLE READ, READ ONLY` snapshot, the keys and a per-row md5 (explicit column list, text cut by the same cap) of the six tables and compares them with the dev tables; no row text crosses into the report. Per table:
+
+| Category | Content |
+|---|---|
+| `added` | rows that prod has and dev does not (to be inserted on dev): count, bytes, id list |
+| `overwritten` | rows on both sides that differ (replaced on dev) plus, for the mirror's delete-then-copy tables, dev-only rows that the mirror discards (`dev_only_discarded`: dev-made activity is disposable; counted separately); for ratings in `mirror` mode the ledger-guarded partition (inserted, updated, deleted, kept-retired, skipped-unknown, archived) |
+| `unchanged` | equal rows |
+| `skipped_with_reason` | `skipped-unknown` ratings (image absent on dev), tables not touched (`ratings` in `skip` mode: "skipped: prod ratings routes disabled"), bug reports with an anomaly or a name or extension problem |
+| `left_behind` | nothing on dev is left behind by design; rows kept on dev by the ratings rules (kept-retired, dev-made ratings) are listed here, informational |
+
+Bug reports: `added` = files that would be fetched (count, bytes, the file names, which are `<timestamp>_<uuid>.<ext>` and carry no text), `skipped_with_reason` = not settled (younger than 60 s), anomalies, `to_delete_on_prod` = the files that would be deleted on prod after a verified pull (count; decision 13, the only thing the pull ever deletes on prod and only bug-report copies it received).
+Also in the report: the guards (empty source, shrink, growth, row ceiling) with value, limit and tripped or not, the truncated-value count of the text cap, the ratings mode and fingerprint, handshake and precondition results, the estimated duration and bytes on the wire (from the row counts and `COPY` rates), the plan hash and the exact apply command.
+In `report.json` the id lists of the large append-style tables (impressions, history) are complete up to `sync.report.max_ids` (default 100000) per category; above it the list is replaced by `ids_truncated: true` with the count and the id range (a report of millions of ids helps nobody).
 
 ## Mirror semantics per table
 
@@ -82,12 +99,12 @@ owner rates results on dev: a plain mirror would delete every dev rating at each
 
 1. **Mode.** `sync.pull.ratings_mode` (tracked setting): `skip` (default) or `mirror`. In `skip` the dev table is not touched, and the report says "skipped: prod ratings routes disabled" (read from the capabilities
    `features.ratings`, and checked to be consistent with the snapshot: a non-empty prod table with the routes reported off is a warning). The prod snapshot is still **read** for the fingerprint below
-   (count, max `updated_at`, key hash; no text), because P2's retire guard needs it in both modes. The owner sets `mirror` in the same change that switches the ratings routes on for prod.
+   (count, max `updated_at`, key hash; no text), because the retire guard (deferred, decision 27) will need it in both modes and P6 reports it. The owner sets `mirror` in the same change that switches the ratings routes on for prod.
 2. **Mirror, when on.** A local ledger `<state dir>/ratings_ledger.json` holds the hashes of `(query_hash, image_id)` keys that a previous pull received from prod (no text). Rows are:
    inserted when prod has them and dev does not; updated where `grade` or text differ (prod wins, counted); **deleted on dev only if the key is in the ledger and prod no longer has it** ("Forget text" on prod is mirrored);
    dev rows whose key was never received from prod (made on dev by the owner) are never deleted, and are not overwritten except when prod has the same key.
 3. **Skipped:** prod rows whose `image_id` does not exist on dev (dev deleted the image first), counted.
-4. **Kept:** dev rows whose `image_id` is absent from prod's `images` (retired there) are kept. The snapshot reads `select id from images` (the P5 role list gives `sync_reader` `SELECT (id)` on `images`).
+4. **Kept:** dev rows whose `image_id` is absent from prod's `images` (never promoted, or retired there once removals exist) are kept. The snapshot reads `select id from images` (the P5 role list gives `sync_reader` `SELECT (id)` on `images`).
 5. **Never silently dropped:** before a ratings row is deleted or overwritten on dev, it is appended to `<state dir>/ratings_archive.jsonl` (restricted permissions, local, the one file that holds rating text). This also covers the
    returning-image case of P2 review M6: the image comes back, prod has no rating, the next mirror would delete the kept dev row, and the archive retains it. Restoring from the archive is a manual step (backlog).
 6. The report counts: inserted, updated, deleted, kept-retired, skipped-unknown, archived.
@@ -103,7 +120,7 @@ owner rates results on dev: a plain mirror would delete every dev rating at each
 - **Locks:** a pull of an environment is refused if another sync command holds the state-directory `lock` file (`interfaces.md` a; `sync.run` holds it for its whole run and passes it down); and while a dev batch run is active (a `batch_runs` row in the started state) it only warns
   (the pull writes only class P tables, which no batch job writes).
 
-## Pull-state file (consumed by P2)
+## Pull-state file (consumed by P6 and P7; by the retire once it is built)
 
 `<state dir>/pull_state.json`, written atomically **right after the dev transaction commits**, and updated atomically again after the bug-report step (so a bug-report problem does not block a retire):
 
@@ -116,8 +133,9 @@ owner rates results on dev: a plain mirror would delete every dev rating at each
   "bug_reports": {"status": "done|partial|skipped", "pulled": 3, "deleted_on_prod": 3, "failed": 0} }
 ```
 
-P2's retire requires `applied: true`, `env` equal, and either the same `run_id` (the normal case: pull and promote in one `sync.run`) or `finished_at` younger than `--max-pull-age` (default **1 hour**, P2 review H1). The `ratings`
-block (`mode`, `prod_count`, `max_updated_at`, `keys_sha256` = sha256 of the sorted `image_id|query_hash` lines of the snapshot) is what P2's retire guard reads together with `snapshot_at`: in `skip` mode any prod rating on an image about to be deleted blocks that
+**Deferred (decision 27):** P2's retire will require `applied: true`, `env` equal, and either the same `run_id` (the normal case: pull and promote in one `sync.run`) or `finished_at` younger than `--max-pull-age` (default **1 hour**, P2 review H1). Today nothing in P2 reads this file;
+P6 (check P1) and the P7 driver do. The `ratings`
+block (`mode`, `prod_count`, `max_updated_at`, `keys_sha256` = sha256 of the sorted `image_id|query_hash` lines of the snapshot) is what the retire guard will read together with `snapshot_at`: in `skip` mode any prod rating on an image about to be deleted blocks that
 image ("switch to `mirror` and pull"), in `mirror` mode a prod rating newer than `snapshot_at`, or a key set that differs from the dev mirror, blocks it (the pull must run again). A dry-run pull never writes the file. When the ratings routes are off on
 prod and the table is empty (`prod_count` 0), the guard is trivially satisfied.
 
@@ -141,9 +159,10 @@ Gate verbs owned by this design, implemented in P3's `memesync-gate.py` (`interf
 | Tunnel drops during the table copy | the dev transaction rolls back; dev unchanged; re-run |
 | Dev backend writes during the pull | its writes wait on the table lock (up to `lock_timeout`), then land after the commit and are replaced by the next pull; the dev transaction never blocks readers |
 | `sync.run` killed after the pull, before the promote | tables final; pull-state present (`applied: true`); the next `sync.run` pulls again (cheap) and continues |
-| Crash after the dev commit, before the pull-state write | the next pull is a normal full mirror; P2 sees no state and refuses a retire until a pull completes |
+| Crash after the dev commit, before the pull-state write | the next pull is a normal full mirror (the missing state only matters to P6's age line and, later, to the retire) |
+| Dev changes between the dry run and the apply | `--plan-hash` differs: exit 3 before any write; re-read the new report |
 | Hash mismatch or hostile tar member on a bug report | that file is not published and not deleted; the run reports it by name pattern only and continues; exit 1 at the end; the pull-state says `partial` |
-| Ratings fingerprint changes between the snapshot and the retire | P2 stops the retire for the affected ids and asks for a new pull (P2's rule; this document provides the fingerprint) |
+| Ratings fingerprint changes between the snapshot and the retire | Deferred with the retire (decision 27): P2 will stop the retire for the affected ids and ask for a new pull (P2's rule; this document provides the fingerprint) |
 
 ## Privacy
 
@@ -153,7 +172,7 @@ Prod keeps the originals; dev's copy of the append-style tables can be wiped by 
 
 ## Tests
 
-1. **Unit:** table plan, ratings partition (insert/update/delete/kept-retired/skipped-unknown/archived from in-memory fixtures; `skip` vs `mirror` mode), ledger-guarded deletes, guard logic (empty source, shrink, growth, state-file loss),
+1. **Unit:** report completeness and reproducibility (every category per table, guards, estimate, plan hash and apply command present; the same snapshot gives the same hash; a changed prod row between dry run and apply makes `--plan-hash` exit 3; the dry run changes nothing on dev), redaction (a sentinel in a search text, rating text or bug-report body never reaches `report.json`, `report.md` or stdout; ids, counts and report file names only), id-list truncation above `sync.report.max_ids`, table plan, ratings partition (insert/update/delete/kept-retired/skipped-unknown/archived from in-memory fixtures; `skip` vs `mirror` mode), ledger-guarded deletes, guard logic (empty source, shrink, growth, state-file loss),
    pull-state schema and atomic two-stage write, bug-report ledger, name pattern, tar member validation (hostile members: absolute and `..` names, links, devices, oversize, duplicates, name not in the list), text cap.
 2. **Integration** (real Postgres, two databases, the P2 fixture): the Q7 scenarios of the S3 ADR; ratings of an image unknown on dev; of an image retired on prod kept; **dev-made rating survives a pull with an empty prod ratings table**; an archived rating after a prod "Forget";
    FK order; `setval` then a default insert on `meme_impressions` (also empty table); concurrent dev insert during the pull waits and does not collide; handshake mismatch (wrong database, role, marker, environment) exits 2 with no dev change;
@@ -170,7 +189,7 @@ Prod keeps the originals; dev's copy of the append-style tables can be wiped by 
 | T2 | Use of the shared modules: handshake H1 to H6, role check, snapshot reader, dev locks, column compatibility check | P2-T0 fixture, P2-T3 (SC: `sync/connect.py`) |
 | T3 | Mirror apply for the five simple tables, text cap, `setval`, TRUNCATE threshold | T2 |
 | T4 | Ratings modes, ledger, archive, fingerprint | T3 |
-| T5 | Two-stage pull-state file and dry-run report | T3 |
+| T5 | Two-stage pull-state file and the dry-run report (pull section of `sync/report.py`, plan hash, `--plan-hash`) | T3 |
 | T6 | Gate verbs `pull-list`, `pull-tar`, `delete-verified` and the bug-report step (LocalTransport tests) | P3 T3, T4 |
 | T7 | Integration scenarios; Docker ssh test | T3 to T6 |
 | T8 | Docs (`docs/sync/pull.md`: including the "consumers must sanitise" rule), CLAUDE.md pointer, grant list for P5 (`SELECT (id)` on `images` for `sync_reader`) | all |
@@ -195,13 +214,15 @@ Size: medium. Mode: subagent-driven; T1, T6 can start early. One review after T7
 | P5 M4 / decision 23: untrusted text and flood | per-field cap, growth guard `--allow-growth`, consumers-must-sanitise rule, no interpretation |
 | Own finding: bug-report listing can catch a half-written file; bug-report failure blocked the state | 60 s settle rule, rename-after-write assumption; state written in two stages |
 | P2 M5: error text leaks values | class and SQLSTATE only |
+| Decision 26 (2026-11-12) | dry-run report section (added, overwritten, unchanged, skipped, kept; bug reports to fetch and to delete after verification), `--plan-hash`, `--top`, report tests |
+| Decision 27 (2026-11-12) | the pull stays step 1 of `sync.run` but is no longer a precondition of the promote; the pull-state is read by P6/P7 only; the retire-related freshness rule and ratings guard use are deferred |
 | Reconciliation 2026-11-12 | `interfaces.md` adopted: shared modules built by P2 (SC), `--allow-shrink TABLE`, fingerprint also in `skip` mode, `pull_state.json` fields as in `interfaces.md` a, bug-report ledger name, state `lock` file instead of an advisory lock, verbs table shared |
 
 ## Choices made by me (to confirm)
 
 - Full mirror every time in v1; the impressions watermark stays backlog.
 - Ratings default to `skip` with a ledger and an archive; the owner flips `ratings_mode` to `mirror` together with enabling the routes on prod.
-- Pull-state freshness for a retire: same `run_id`, else 1 hour.
+- Pull-state freshness for a retire (deferred): same `run_id`, else 1 hour.
 - Shrink of an append-only table is a refusal; the growth factor 5x and the 200k TRUNCATE threshold are tracked settings.
 - Dev's own activity rows (except ratings) are replaced; the pull needs the `lock_timeout`-bounded table lock, so dev searches may wait a few seconds during a pull.
 - Bug reports are deleted on prod after a verified pull (decision 13 read literally).

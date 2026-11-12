@@ -1,6 +1,6 @@
 # P5: prod provisioning and hardening (design)
 
-Status: draft (revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12)
+Status: draft (revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12; decisions 26 and 27 noted 2026-11-12)
 Interfaces: names, ports, roles, grants, accounts, directories, gate verbs and settings are defined in `interfaces.md` (sections b, d, g, h); this document owns how they are provisioned. Where the tables below repeat them, `interfaces.md` wins.
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Review: docs/superpowers/reviews/2026-11-12-p5-prod-provisioning-design-review.md (dispositions below)
@@ -54,6 +54,7 @@ in depth: route tombstones in the app, size/rate caps in app and proxy, grants a
 | M8 overlay cannot remove a key | adopted | `parse.model: ""` plus test; `APP_ENV` mandatory on prod, backend refuses to start without it |
 | M9 forwarded-allow-ips, slashes | adopted | fixed edge subnet CIDR, `X-Forwarded-Proto`, `redirect_slashes=False` on prod |
 | L1 to L7 | deferred or folded | see Deferred |
+| Decisions 26 and 27 (2026-11-12) | noted | Gate verbs `retire`, `restore`, `purge` and their caps are deferred (`interfaces.md` g): P5d-T5 installs the gate without them; the `retired` directory is still provisioned (unused until removals are built); the ratings column grant for `<sync_w>` stays unchanged; the capabilities and growth work are unaffected; the dry-run report (`interfaces.md` k) needs nothing from P5 |
 | Reconciliation 2026-11-12 | applied | `interfaces.md` adopted: gate is `memesync-gate.py`, `memes.state` marker set by `provision.sh`, no `TEMP` for `<sync_w>`, the ratings column grant stated as the single exception, two keys per `memesync-<env>`, `work`/`retired` directories, `disk`/`containment` verbs fed by a root timer |
 | Review options A/B/C, connection configuration, owner questions | A adopted (decision 17); connection recommendation adopted (decision 18) | owner questions: answered by decisions 17 to 25, residue at the end |
 
@@ -157,7 +158,7 @@ Remote ports follow dev's cluster ports plus 1000 (5432/5434/5436). The ssh alia
 |---|---|
 | `<owner>` | owns database and objects; migrations and index DDL; connects over the socket only; never used by a service |
 | `<app>` | `USAGE` on schema; `SELECT` on every class D table; `SELECT, INSERT, UPDATE, DELETE` on exactly the six class P tables (`prod_write_set("backend_app")`; `SELECT` is needed for `ON CONFLICT` and `WHERE`); `USAGE, SELECT` on the `meme_impressions` sequence; nothing on class X, `alembic_version` or anything else |
-| `<sync_w>` | `SELECT, INSERT, UPDATE, DELETE` on class D (`prod_write_set("sync_writer")`); `USAGE, SELECT, UPDATE` on sequences of D tables with integer ids; `MAINTAIN` on D tables (`REINDEX`, `VACUUM`; PG17+); `SELECT` on `alembic_version`; **no `TEMP`** (P2 uses `execute_values`, no staging table); column-level `SELECT (image_id, query_hash, updated_at)` on `meme_text_ratings` (the P2 retire check; no message text) **is the single exception to S5's rule that `sync_writer` has no privilege on any class P table**; no write on any class P or X table |
+| `<sync_w>` | `SELECT, INSERT, UPDATE, DELETE` on class D (`prod_write_set("sync_writer")`); `USAGE, SELECT, UPDATE` on sequences of D tables with integer ids; `MAINTAIN` on D tables (`REINDEX`, `VACUUM`; PG17+); `SELECT` on `alembic_version`; **no `TEMP`** (P2 uses `execute_values`, no staging table); column-level `SELECT (image_id, query_hash, updated_at)` on `meme_text_ratings` (made for the P2 retire check, which is deferred by decision 27; the grant stays so building removals later needs no grant change; no message text) **is the single exception to S5's rule that `sync_writer` has no privilege on any class P table**; no write on any class P or X table |
 | `<sync_r>` | `SELECT` on the six class P tables; `SELECT` on `alembic_version`; `SELECT (id)` on `images` (P4 rating rule); no write anywhere, no D table |
 | `<ro>` | `SELECT` on everything except `search_history`, `search_history_tags`, `meme_text_ratings`; never given to agents |
 

@@ -1,6 +1,6 @@
 # Epic: data sync between dev and prod stages
 
-Status: draft (reconciled 2026-11-12: names, files, flags and ages are fixed in `interfaces.md`)
+Status: draft (reconciled 2026-11-12: names, files, flags and ages are fixed in `interfaces.md`; decisions 26 and 27 added 2026-11-12)
 Originates from: user request, 2026-11-12 (brainstorming session)
 Follow-ups: project design specs are listed in `tracker.md` and written when each project is picked up.
 
@@ -22,8 +22,9 @@ either stage overwriting data the other stage owns, and without spending the VPS
 
 ```
 Who/when: you, on the dev workstation, by hand. `python -m sync.run --env general --apply` runs:
-pull -> FILES (project P3) -> data (P2) -> retire -> verify. Or P3 alone:
-`python -m sync.files promote --env general --apply`. Dry run is the default.
+handshake -> pull -> FILES (project P3) -> data (P2) -> verify. Or P3 alone:
+`python -m sync.files promote --env general --apply`. Dry run is the default and prints a REPORT of what would be
+added and overwritten on prod (decision 26): you read it, then apply with the printed `--plan-hash`.
 
  dev workstation                      ssh/scp over the internet                      prod VPS (gate)
  1 read active, unflagged rows -> manifest {name, size, sha256}
@@ -36,10 +37,13 @@ pull -> FILES (project P3) -> data (P2) -> retire -> verify. Or P3 alone:
  5 final listing check, write files-promoted.json (the report)
  6 P2 reads the report, then writes the database ROWS (only for verified files)
  7 later P2 deletes rows of retired images and writes retired.json; then `files retire` (reads only retired.json) moves their files to
-   RETIRED/<date>/ (kept 14 days, never rm)
-Rule: file first, row second when adding; row first, file last when removing.
+   RETIRED/<date>/ (kept 14 days, never rm)      <-- DEFERRED (decision 27): step 7 (retire) is not built for now
+Rule: file first, row second when adding; row first, file last when removing (once removals exist).
 A killed run is repaired by running it again. First seed of general: about 11 min at 50 Mbit/s.
 ```
+
+Step 7 (retire) is deferred (decision 27): nothing is removed from prod for now. An image flagged, cut, rejected or deleted on dev after it was promoted stays visible on prod (row and file) until removals are built; the dry-run
+report lists such images and files as "left behind on prod (removals deferred)". See `tracker.md`, "Deferred: removals".
 
 ## Decisions made (by the owner, in brainstorming)
 
@@ -78,7 +82,7 @@ A killed run is repaired by running it again. First seed of general: about 11 mi
 | # | Question | Decision |
 |---|---|---|
 | 1 | `popularity_absorptions` | Dev-origin, **shipped to prod as class D** so trending (30 d) and the popularity breakdown work. (The code shows only dev jobs write it; saves and impressions do not change popularity.) |
-| 2 | Retiring an image on dev | **Removed from prod** on the next promote (row and file), behind a mass-delete guard; reader rows are kept (ratings via a special rule, because they cascade) |
+| 2 | Retiring an image on dev | **Removed from prod** on the next promote (row and file), behind a mass-delete guard; reader rows are kept (ratings via a special rule, because they cascade). **Deferred by decision 27: nothing is removed for now** |
 | 3 | Meme-from-text on prod | **Off for now** (like `it`: `meta.available: false`); no Ollama on the VPS |
 | 4 | Statistics on prod | Serve a promoted snapshot (**reversed by decision 25**: the statistics page is dropped on prod) |
 | 5 | Concepts / trends | **Concepts shipped (class D), trends hidden** (class X, `trends_batch` stays on dev) |
@@ -102,6 +106,8 @@ A killed run is repaired by running it again. First seed of general: about 11 mi
 | 23 | Abuse limits on the public prod | **Rate limits and size caps** (Caddy plugin or app level), caps on `q`/`facets` and on the bug-report body before it is read, and an alarm in the verify report for abnormal growth of the reader tables. No automatic pruning; decision 11 stands |
 | 24 | Ratings routes on prod | **Disabled while /reply is off** (they return with meme-from-text). The ratings table stays class P; the pull setting `sync.pull.ratings_mode` is `skip` by default (the dev table is not touched, rating text that would be deleted or overwritten is archived locally) and becomes `mirror` in the same change that turns the routes on. P2's retire ratings guard follows the mode (`interfaces.md`, resolved call 3) |
 | 25 | Statistics on prod | **Dropped**: route and page hidden, `statistics_snapshots` becomes class X. **Reverses decision 4** |
+| 26 | Dry-run report | **Every sync operation is a dry run by default and produces a report** of what would be added and what would be overwritten (`sync.run`, promote data, promote files, pull, and verify as a report): `runs/<runid>/report.json` (complete) and `report.md` (capped lists, first 50 per category), also printed in summary on stdout; per tool and per table or file set the counts and bytes of added, overwritten (for images the changed digest groups), unchanged and skipped with reason, left behind, guards, handshake and preconditions, estimated duration and bytes, and the exact `--plan-hash` for `--apply`, which recomputes the plan and refuses when the hash differs. `sync.run` gives one combined document with a section per step and a dependency note (later counts depend on earlier steps being applied). Defined once in `interfaces.md` k. The owner reads it before every apply |
+| 27 | No removals for now | **Nothing is removed from prod and no removal is built.** Deferred, with their design text kept: the retire phase (P2: `--retire`, `retired.json`, mass-retire guards, ratings-cascade protections) and P3 (`retire`, `restore`, `purge`, quarantine), prune of global sets (upsert only; the registry's `prune` field stays in code and is ignored). Orphans on prod (files not in the manifest, images flagged, cut, rejected or deleted on dev after promotion) are only reported as left behind, never an error. Replacing the derived rows of a changed image is an overwrite (the image stays) and is in scope. Consequences: removed-on-dev things stay visible on prod until removals are built; pull-before-promote ordering and the ratings-cascade guard only matter once removals exist (the pull stays in `sync.run` but is no longer a precondition of the promote); P6 checks D2/D5/F2 treat left behind as informational; the gate caps for retire/restore wait with the verbs |
 | (earlier) | Admin pages on prod | Off, by the default-deny stage gate of S5 (59 of 90 routes) |
 
 Calls I made without asking (to be confirmed in the project designs): pull and promote are run by hand, pull first; prod backs up
