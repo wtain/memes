@@ -25,8 +25,8 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 | S1 | Data classification | Which table and disk asset has which origin, and is it needed on prod? | in progress (draft written 2026-11-12, awaiting owner answers to the open questions; S2 added Open question 10) | `2026-11-12-s1-data-classification.md` |
 | S2 | Size measurement | Row counts and bytes per table, disk of BASE_PATH, so the prod disk can be sized and the trimming gain is known | done (2026-11-12; read-only role, run by the controller) | `2026-11-12-s2-size-measurement.md` |
 | S3 | Sync technique | Per table: `COPY` with upsert over an SSH tunnel vs `pg_dump` subset vs logical replication; index drop/rebuild vs keep, measured; incremental change detection; how to carry deletions | done (2026-11-12; ADR status PROPOSED until the owner confirms; throwaway containers, synthetic data, no real SSH or network) | `docs/adr/adr-2026-11-12-dev-prod-sync-technique.md` |
-| S4 | File transfer | rsync (or equivalent) from Windows over SSH; manifest by `content_hash`; resumability; row/file consistency | open | Decision record |
-| S5 | Prod topology and roles | Prod DB roles (sync writer, backend, read-only), which backend features are switched off on prod, how prod is configured per env | open | Spec input for P5 |
+| S4 | File transfer | rsync (or equivalent) from Windows over SSH; manifest by `content_hash`; resumability; row/file consistency | done (2026-11-12; ADR status PROPOSED; loopback container, synthetic files, no real network or VPS) | `docs/adr/adr-2026-11-12-dev-prod-file-sync.md` |
+| S5 | Prod topology and roles | Prod DB roles (sync writer, backend, read-only), which backend features are switched off on prod, how prod is configured per env | done (2026-11-12; read-only code analysis, draft awaiting owner answers) | `2026-11-12-s5-prod-topology-and-roles.md` |
 
 ## Projects (provisional, refined after S1 to S5)
 
@@ -42,6 +42,17 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 | P7 | Runbooks and docs | Runbook per direction, update `CLAUDE.md`, `docs/data-flow.md`, `docs/image-derived-data.md`, `environments/Environments.md` | all | not started | |
 
 ## Backlog / unscheduled
+
+From S4 and S5 (details in the ADR and the S5 spec):
+
+- The backend has no authentication; of 90 routes 31 stay on prod and 59 are disabled by a default-deny stage gate
+  (`APP_STAGE=prod`). New work items P5b (frontend) and P5c (Android) for hiding blocked pages.
+- `popularity_absorptions` feeds the reader-facing trending and popularity breakdown routes; decide whether to ship it as D.
+- `GET /api/history` exposes every reader's search text; proxy logs must drop query strings; `statistics` writes on GET (disable on prod).
+- gunicorn `-w 4` with pool 10+20 can reach 120 connections against `max_connections=100`; rate limiters need proxy headers.
+- Windows `ssh.exe` stdin is capped near 12.5 MB/s for pipes; ControlMaster does not work on Windows OpenSSH; `scp`/`sftp` leave
+  truncated files under the final name when killed, so P3 stages to `.part`, renames, verifies, and sweeps staging on start.
+- WSL rsync, a pure-Python SFTP client and real-network bandwidth were not evaluated.
 
 From S3 (details in the ADR):
 
