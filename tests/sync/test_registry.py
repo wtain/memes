@@ -17,10 +17,11 @@ EXPECTED_X = {
     "batch_runs", "process_events", "image_metrics", "image_processing_status", "processing_errors", "ocr_text_embeddings",
     "image_classifications", "tmp_duplicates", "tmp_clusters", "duplicate_decisions", "comics_candidates",
     "comics_candidate_images", "image_cuts", "trend_sources", "trends_run_results",
+    "comics", "comics_panels", "statistics_snapshots",
 }
 EXPECTED_D = set(TABLES) - PULLED - EXPECTED_X
 # D tables outside the image scope that are append-only or a single row: upsert is enough, nothing to prune.
-NO_PRUNE = {"popularity_absorptions", "statistics_snapshots"}
+NO_PRUNE = {"popularity_absorptions"}
 # D tables of an image scope that are not replaced whole per image: the core rows themselves.
 NOT_REPLACED_PER_IMAGE = {"images", "image_extras"}
 

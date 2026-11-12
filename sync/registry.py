@@ -67,10 +67,6 @@ _ENTRIES = (
     _d("description_note_lemmas", REPLACE, image_fk(), ("image_id", "lemma"), 1, "note"),
     _d("description_note_embeddings", REPLACE, via("description_notes", "description_note_id"),
        ("description_note_id",), 2, "note", notes="1024-d"),
-    _d("comics", UPSERT, GLOBAL_SET, ("id",), 1, nullify=("built_image_id",), prune=True,
-       notes="owner curation; built_image_id blanked when the built image is not shipped"),
-    _d("comics_panels", UPSERT, via("comics", "comics_id"), ("id",), 2, nullify=("image_id",), prune=True,
-       notes="image_id blanked for unkept panels (flagged comics_source); source snapshots stay"),
     _d("concepts", UPSERT, GLOBAL_SET, ("id",), 0, setval=True, prune=True, notes="integer ids: one origin, replaced as a set"),
     _d("concept_image_sets", UPSERT, GLOBAL_SET, ("id",), 1, setval=True, prune=True),
     _d("concept_images", UPSERT, GLOBAL_SET, ("id",), 2, setval=True, prune=True),
@@ -79,7 +75,6 @@ _ENTRIES = (
     _d("popularity_absorptions", UPSERT, GLOBAL_SET, ("id",), 0, nullify=("batch_run_id",),
        notes="append-only, no FK to images; load in created_at order (absorb row, then its reverse row, then UPDATE the absorb "
              "row's reversed_by_id): the shape check and the open-loser unique index forbid a NULL-first load"),
-    _d("statistics_snapshots", UPSERT, GLOBAL_SET, ("name",), 0, notes="the prod route is read-only and never recomputes"),
     # ---- class P: prod-origin reader activity, pulled ---------------------------------------------------------------
     _p("meme_saves", ("id",), 0),
     _p("meme_impressions", ("id",), 0, setval=True, notes="bigint id: the dev sequence moves past max(id) after a pull"),
@@ -99,6 +94,9 @@ _ENTRIES = (
     _x("tmp_duplicates", "rebuildable candidate pairs"),
     _x("tmp_clusters", "rebuildable clusters"),
     _x("duplicate_decisions", "consumed by clusterize only; back up on dev"),
+    _x("comics", "not shipped (decision 22): a built comics reaches prod as an ordinary image; comics routes are dev-only"),
+    _x("comics_panels", "not shipped (decision 22)"),
+    _x("statistics_snapshots", "statistics page dropped on prod (decision 25)"),
     _x("comics_candidates", "review suggestions"),
     _x("comics_candidate_images", "review suggestions"),
     _x("image_cuts", "recut proposals, admin only"),
