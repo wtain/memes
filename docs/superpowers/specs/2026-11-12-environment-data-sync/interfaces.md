@@ -209,7 +209,7 @@ Common to every command: `--env {metal,general,it}` (required), dry run by defau
 |---|---|---|
 | `python -m sync.run` (P7) | driver: handshake, pull, files, data, verify (removals deferred, decision 27) | `--apply`, `--yes`, `--first-seed`, `--plan-hash`, `--stop-after STEP`, `--top N`, `--json`, and every lifting flag below, forwarded to the step that owns it |
 | `python -m sync.promote` (P2) | rows to prod (additions and overwrites only) | `--apply`, `--yes`, `--plan-hash`, `--first-seed`, `--verify-only`, `--only TABLE[,..]`, `--limit-images N`, `--batch-size N`, `--max-report-age` (default 2 h), `--top N`, `--run-id`, `--json`, lifting flags: `--allow-mass-change N`, `--allow-shrink TABLE` (class D, repeatable), `--ignore-running-batches` |
-| `python -m sync.files promote` (P3) | files to prod (additions and replacements only; `retire` and `restore` are deferred, decision 27) | `--apply`, `--deep`, `--batch-mb N`, `--plan-hash`, `--top N`, `--run-id`, `--json` |
+| `python -m sync.files promote` (P3) | files to prod (additions and replacements only; `retire` and `restore` are deferred, decision 27) | `--apply`, `--yes`, `--deep`, `--batch-mb N`, `--plan-hash`, `--top N`, `--run-id`, `--json` |
 | `python -m sync.pull` (P4) | reader activity and bug reports to dev | `--apply`, `--skip-files`, `--plan-hash`, `--top N`, `--run-id`, `--json`, lifting flags: `--allow-empty-source`, `--allow-growth`, `--allow-shrink TABLE` (class P, repeatable) |
 | `python -m sync.verify` (P6) | read-only drift and health report | `--json PATH`, `--deep-files`, `--deep-net`, `--skip CHECK,..`, `--fail-on warn`, `--top N`, `--run-id` |
 | `python -m sync.doctor` (P2-T3) | handshake only, writes nothing | `--json` |

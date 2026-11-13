@@ -56,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--apply", action="store_true", help="send the files (otherwise a dry run that writes only the report folder)")
     p.add_argument("--deep", action="store_true", help="re-read every dev file and let the gate re-hash its files before sending")
     p.add_argument("--batch-mb", type=float, default=None, help="tar batch target in MB, 150 to 500 (default sync.files.batch_mb, 300)")
+    p.add_argument("--yes", action="store_true", help="with --apply: skip only the typed confirmation '<env> <prod database>'")
     p.add_argument("--plan-hash", default=None, help="with --apply: refuse (exit 3) if the re-planned hash differs from the dry run's")
     p.add_argument("--top", type=int, default=None, help="ids listed per category in report.md and the summary (default sync.report.top_n)")
     p.add_argument("--run-id", default=None, help="run id (sync.run passes it to its children)")
@@ -347,7 +348,7 @@ def _failed_report(settings, args, run_id, folder, handshake=(), preconditions=(
 
 def run_promote(args: argparse.Namespace, *, settings: SyncSettings | None = None, session_opener: Callable | None = None,
                 transport_factory: Callable[[SyncSettings], Transport] | None = None, base_dir: str | None = None, lock: bool = True,
-                out=None, err=None) -> int:
+                out=None, err=None, ask: Callable[[str], str] | None = None) -> int:
     """The whole command; the keyword arguments are the injection points of the tests, the command line passes none."""
     out, err = out or sys.stdout, err or sys.stderr
     try:
@@ -372,13 +373,13 @@ def run_promote(args: argparse.Namespace, *, settings: SyncSettings | None = Non
                     _failed_report(settings, args, run_id, folder, preconditions=[{"id": "lock", "ok": False, "detail": "held"}], out=out)
                     raise exc
             return _locked(args, settings, run_id, folder, session_opener or connect.open_session,
-                           transport_factory or (lambda s: SshTransport.from_settings(s)), base_dir, out)
+                           transport_factory or (lambda s: SshTransport.from_settings(s)), base_dir, out, ask or input)
     except SyncError as exc:
         print(f"sync: {exc}", file=err)
         return exc.exit_code
 
 
-def _locked(args, settings: SyncSettings, run_id: str, folder: Path, opener, transport_factory, base_dir, out) -> int:
+def _locked(args, settings: SyncSettings, run_id: str, folder: Path, opener, transport_factory, base_dir, out, ask=input) -> int:
     env = settings.env
     with opener(env, "F", settings=settings) as conns:
         dev = conns["dev"]
@@ -414,6 +415,15 @@ def _locked(args, settings: SyncSettings, run_id: str, folder: Path, opener, tra
         if refusal:
             _emit(doc, folder, args, settings, out)
             raise _Refusal(refusal)
+
+        if not args.yes:
+            expected = f"{env} {settings.get('prod.database') or ''}".strip()
+            try:
+                typed = ask(f"Type '{expected}' to send the files to prod: ").strip()
+            except EOFError:
+                typed = ""
+            if typed != expected:
+                raise _Refusal("typed confirmation did not match; nothing was sent")
 
         outcome = apply_plan(settings, args, plan, transport.inner)
         finished = _now()

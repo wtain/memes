@@ -107,13 +107,14 @@ class World:
         self.transports.append(t)
         return t
 
-    def run(self, *argv, run_id=None, base_dir=None):
+    def run(self, *argv, run_id=None, base_dir=None, answer=None):
         self.counter += 1
         run_id = run_id or f"20261113T0000{self.counter:02d}Z-{self.counter:08x}"
         args = promote.build_parser().parse_args(["promote", "--env", "general", *argv, "--run-id", run_id])
         out, err = io.StringIO(), io.StringIO()
         code = promote.run_promote(args, settings=self.settings, session_opener=self.opener, transport_factory=self.factory,
-                                   base_dir=str(base_dir or self.dev), out=out, err=err)
+                                   base_dir=str(base_dir or self.dev), out=out, err=err,
+                                   ask=(lambda prompt: answer) if answer is not None else (lambda prompt: f"general {self.settings.get('prod.database') or ''}"))
         folder = self.state / "runs" / run_id
         return Run(code, out.getvalue(), err.getvalue(), folder, self.transports[-1] if self.transports else None)
 
@@ -511,7 +512,7 @@ def test_cli_flag_rules():
     assert err.value.code == 2
     with pytest.raises(SystemExit):
         parser.parse_args(["retire", "--env", "general"])  # deferred (decision 27)
-    for flag in ("--retire", "--force-orphans", "--allow-mass-retire", "--yes"):
+    for flag in ("--retire", "--force-orphans", "--allow-mass-retire"):
         with pytest.raises(SystemExit):
             parser.parse_args(["promote", "--env", "general", flag])
     ns = parser.parse_args(["promote", "--env", "it", "--apply", "--deep", "--batch-mb", "200", "--top", "5", "--run-id", "x", "--json", "-"])
@@ -521,3 +522,17 @@ def test_cli_flag_rules():
 def test_batch_mb_outside_150_to_500_is_exit_2(world):
     assert world.run("--batch-mb", "10").code == 2
     assert world.run("--batch-mb", "900").code == 2
+
+
+def test_wrong_typed_confirmation_sends_nothing(world):
+    before = world.prod_snapshot()
+    run = world.run("--apply", answer="general wrong_db")
+    assert run.code == 3 and "confirmation" in run.err
+    assert world.prod_snapshot() == before
+
+
+def test_yes_skips_only_the_confirmation(world):
+    def never(prompt):
+        raise AssertionError("must not ask")
+    args = promote.build_parser().parse_args(["promote", "--env", "general", "--apply", "--yes"])
+    assert args.yes is True
