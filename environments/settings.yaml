@@ -248,3 +248,28 @@ parse:
   cache_size: 500
   max_input_chars: 600
   ollama_url: http://127.0.0.1:11434   # OLLAMA_HOST in the environment wins
+
+sync:                           # dev/prod data sync (docs/superpowers/specs/2026-11-12-environment-data-sync/interfaces.md, section b)
+  state_dir: Storage/sync-state/{env}   # {env} is replaced by the active environment; git-ignored
+  ssh_bin: C:\Windows\System32\OpenSSH\ssh.exe
+  sftp_bin: C:\Windows\System32\OpenSSH\sftp.exe
+  dev:
+    database: ""                # expected dev current_database(); EMPTY on purpose until P2-T3 fills it per environment (sync fails loudly while unset)
+  prod:
+    database: ""                # per environment: memes_<env>
+    writer_role: ""
+    reader_role: ""
+    ssh_alias: ""               # tunnel key alias
+    gate_alias: ""              # verb key alias
+    upload_alias: ""            # sftp-only upload alias
+    local_port: 0
+    pg_host: 127.0.0.1
+    pg_port: 0
+    api_url: ""                 # public base URL; owner item, not yet known
+  tunnel:
+    connect_timeout_s: 20       # seconds to wait for the local port to accept connections
+    keepalive_interval_s: 15
+    keepalive_count_max: 3
+  report:
+    max_ids: 100000             # ids per category kept in report.json for large pulled tables
+    top_n: 50                   # ids listed per category in report.md

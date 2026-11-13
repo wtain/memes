@@ -21,3 +21,14 @@ meme_profiles:
 
 parse:
   model: qwen2.5:7b-instruct   # placeholder until the P3 model comparison (docs/superpowers/specs/2026-10-02-meme-from-text/2026-10-05-p3-query-understanding-design.md)
+
+sync:
+  prod:
+    database: memes_metal
+    writer_role: memes_metal_sync_w
+    reader_role: memes_metal_sync_r
+    ssh_alias: memes-prod-metal
+    gate_alias: memes-prod-metal-sync
+    upload_alias: memes-prod-metal-up
+    local_port: 16432
+    pg_port: 6432

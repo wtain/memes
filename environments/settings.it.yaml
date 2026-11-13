@@ -4,3 +4,14 @@ general:
 
 scheduler:
   enabled: true
+
+sync:
+  prod:
+    database: memes_it
+    writer_role: memes_it_sync_w
+    reader_role: memes_it_sync_r
+    ssh_alias: memes-prod-it
+    gate_alias: memes-prod-it-sync
+    upload_alias: memes-prod-it-up
+    local_port: 16436
+    pg_port: 6436

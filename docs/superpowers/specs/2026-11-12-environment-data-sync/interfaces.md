@@ -69,6 +69,7 @@ ssh config (agent), not in this file. Dev database access comes from `environmen
 | `sync.pull.bug_reports.{allowed_extensions, max_file_mb, max_files, max_total_mb}` | bug-report pull caps | `.txt .json .png .jpg .log .zip`, 10, tracked, tracked |
 | `sync.report.max_ids` | ids per category kept in `report.json` for large pulled tables before the list is replaced by a count and range | 100000 |
 | `sync.report.top_n` | ids listed per category in `report.md` (the `--top N` flag overrides) | 50 |
+| `sync.tunnel.connect_timeout_s`, `.keepalive_interval_s`, `.keepalive_count_max` | tunnel wait and keepalives (`{env}` in `state_dir` is the template spelling in the yaml) | 20, 15, 3 |
 | `sync.verify.growth.*`, `sync.verify.disk.{warn_free_pct,error_free_pct}`, `sync.verify.backup_max_age_h`, `sync.verify.pull_stale_days` | P6 thresholds | 5x trailing 7-day median, 20 / 10, 36, 7 |
 
 `sync.dev.*`, `sync.prod.*` exist for all three environments; the built tools read only these keys (no env-var fallback).
