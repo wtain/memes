@@ -1,0 +1,34 @@
+# /etc/memes/gate.conf -- config of memesync-gate.py. Installed by provisioning (P5d-T5), owner root, mode 0644 or
+# 0640 (the gate refuses a file that is group or world writable). One section per environment; the section is chosen
+# by the first argument of the forced command in authorized_keys, never by the client.
+#
+# The caps below are lifted only by editing this file on the VPS (never by a client flag), for the day that needs it.
+# Every key is optional: the value shown is the default (paths default to the layout of interfaces.md section d).
+
+[general]
+base_path       = /srv/memes/general/images            # BASE_PATH, the serving directory (flat)
+work_dir        = /srv/memes/general/work              # batches, record.tsv, counters.json, gate.lock; same filesystem as base_path
+incoming_dir    = /srv/memes/general/staging/incoming  # where the upload account drops <id>.tar
+bug_reports_dir = /srv/memes/general/bug-reports       # BUG_REPORTS_PATH (P4 verbs)
+backups_dir     = /srv/memes/general/backups           # backup.sh output (fetch-backup)
+facts_dir       = /var/lib/memes/general               # disk.json and containment.json written by the root timer
+postgres_path   = /srv/memes/general/pgdata            # optional: reported by handshake as the Postgres volume
+# retired_dir   = /srv/memes/general/retired           # reserved for the deferred retire/restore/purge verbs (decision 27); ignored today
+
+max_member_mb    = 200     # one tar member
+max_members      = 5000    # members per batch
+max_batch_mb     = 600     # sum of members per batch
+free_floor_pct   = 10      # handshake and receive refuse below this much free space on the files volume
+replace_day_min  = 200     # commit: names replaced (existing name, different bytes) per UTC day: max(replace_day_min, ...
+replace_day_pct  = 5       #   ... replace_day_pct percent of the regular files in base_path)
+sweep_age_hours  = 6       # sweep deletes work batches and incoming/* older than this
+lock_timeout_s   = 60      # how long a locked verb waits for work/gate.lock before exit 2
+pull_min_age_s   = 60      # pull-list ignores bug reports modified within this many seconds
+bug_max_file_mb  = 10      # pull-list/pull-tar: one bug report
+bug_max_total_mb = 100     # pull-tar: bytes per call
+probe_require_other_read = true   # handshake exits 3 when the images directory is not readable by "other" (backend uid 1000)
+
+# [metal]
+# ... same keys with /srv/memes/metal/...
+# [it]
+# ... same keys with /srv/memes/it/...

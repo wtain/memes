@@ -2,3 +2,4 @@
 .githooks/*     text eol=lf
 *.sh            text eol=lf
 docs/sync-registry.md text eol=lf
+deploy/prod/** text eol=lf

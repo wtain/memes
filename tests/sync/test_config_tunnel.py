@@ -5,6 +5,7 @@ import multiprocessing
 import os
 import re
 import socket
+import time
 import subprocess
 import sys
 from pathlib import Path
@@ -249,8 +250,14 @@ def test_tunnel_up_and_torn_down():
         proc = t._proc
     assert proc.poll() is not None
     assert t._stderr_path is None
-    with pytest.raises(OSError):
-        socket.create_connection(("127.0.0.1", port), timeout=1)
+    deadline = time.monotonic() + 5  # the OS may need a moment to release the listening socket
+    while True:
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=1).close()
+        except OSError:
+            break
+        assert time.monotonic() < deadline, "tunnel port still accepting after teardown"
+        time.sleep(0.1)
 
 
 def test_torn_down_when_body_raises():
