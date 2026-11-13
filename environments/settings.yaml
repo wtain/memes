@@ -272,6 +272,10 @@ sync:                           # dev/prod data sync (docs/superpowers/specs/202
     keepalive_count_max: 3
   files:
     batch_mb: 300               # tar batch target, 150 to 500
+  promote:
+    required_tables: [embeddings, ocr_texts]   # completeness floor: a new image without a row in each is skipped, not shipped
+    batch_size: 500             # images per prod transaction
+    digest_workers: 2           # parallel digest workers (reserved; the plan reads sequentially today)
   report:
     max_ids: 100000             # ids per category kept in report.json for large pulled tables
     top_n: 50                   # ids listed per category in report.md

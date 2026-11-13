@@ -255,9 +255,13 @@ class Section:
     estimate: dict = field(default_factory=dict)  # {duration_s, wire_bytes}: measurements, not part of the hash
     lists: dict = field(default_factory=dict)  # pull: to_fetch, to_delete_on_prod_after_verified_pull -> ids
     checks: list = field(default_factory=list)  # verify: {id, status, severity, detail}
+    table_rows: dict = field(default_factory=dict)  # data: table -> row and byte counts of the image-scoped tables (measurements, not hashed)
 
     def __post_init__(self):
         check_token(self.name, "section name")
+        self.table_rows = {check_token(t, "table name"): {check_token(k, "table row key"): check_count(v, "table row count")
+                                                          for k, v in sorted(counts.items())}
+                           for t, counts in sorted(self.table_rows.items())}
         check_token(self.tool.replace(" ", "_"), "tool name")
         self.flags = {check_token(k, "flag name"): scrub_scalar(v) for k, v in self.flags.items()}
         if self.manifest_hash is not None and not _HEX.match(self.manifest_hash):
@@ -551,6 +555,8 @@ def section_json(sec: Section, cut_at: int | None = None) -> dict:
         out["lists"] = {k: {"count": len(v), **_ids_json(v, cut_at)} for k, v in sec.lists.items()}
     if sec.checks:
         out["checks"] = list(sec.checks)
+    if sec.table_rows:
+        out["table_rows"] = {t: dict(c) for t, c in sec.table_rows.items()}
     return out
 
 
@@ -654,6 +660,10 @@ def render_markdown(doc: Document, top_n: int = DEFAULT_TOP_N) -> str:
                          + (f" ... ({len(names) - top_n} more in report.json)" if len(names) > top_n else ""))
         for k, v in sec.lists.items():
             L += ["", f"**{k}**: {len(v)}", _capped(v, top_n)]
+        if sec.table_rows:
+            L += ["", "rows per table (rows written to prod; replaced = prod rows deleted first):"]
+            for t, c in sec.table_rows.items():
+                L.append(f"- {t}: " + ", ".join(f"{k} {v}" for k, v in c.items()))
         for c in sec.checks:
             L.append(f"- check {c['id']}: {c['status']} ({c['severity']}) {c['detail']}".rstrip())
         if sec.estimate:
