@@ -25,6 +25,7 @@ GROUPS = ("core", "ocr", "clip", "desc", "tags", "profile", "note")
 REASON_CODES = (
     "missing_file", "name_problem", "hash_mismatch", "missing_required_table", "files_gate_miss",
     "deferred_changed_since_plan", "non_promotable_reference", "waiting_for_files", "capped_by_limit",
+    "over_member_cap",  # P3: a dev file larger than the gate's per-member cap (max_member_mb), left out up front
 )
 ENTRY_KINDS = ("images", "rows", "files", "pulled")
 LEFT_BEHIND_TITLE = "left behind on prod (removals deferred)"

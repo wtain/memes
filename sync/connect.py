@@ -463,7 +463,10 @@ def handshake(env: str, tool: str, mode: str = "normal", *, settings: SyncSettin
             if tool == "D":  # the gate transport is built by P3-T4; the doctor reports the step as skipped
                 return True, "skipped:no_transport"
             return False, "transport_missing"
-        reply = transport.handshake()
+        try:
+            reply = transport.handshake()
+        except PreconditionError as exc:  # sync.files.transport.GateFailure: ssh failed, gate refused (device mismatch, free space...)
+            return False, f"gate:{getattr(exc, 'code', 'failed')}"
         return (True, "ok") if isinstance(reply, dict) and reply.get("environment") == env else (False, "gate_environment_mismatch")
 
     def h7():
@@ -518,7 +521,8 @@ def open_session(env: str, tool: str, mode: str = "normal", *, settings: SyncSet
     from sync.tunnel import open_tunnel
 
     with contextlib.ExitStack() as stack:
-        stack.enter_context((open_tunnel_fn or open_tunnel)(settings))
+        if tool != "F":  # the files tool talks to the gate (ssh verbs and sftp) only, never to Postgres
+            stack.enter_context((open_tunnel_fn or open_tunnel)(settings))
         dev = stack.enter_context(_dev(_DEV_KIND.get(tool, DEV_RO), env, dev_urls, connector))
         prod_kind = _PROD_KIND.get(tool, PROD_WRITER)
         factory = {PROD_WRITER: prod_writer, PROD_READER: prod_reader, PROD_WRITER_RO: prod_writer_readonly}[prod_kind]

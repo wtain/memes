@@ -270,6 +270,8 @@ sync:                           # dev/prod data sync (docs/superpowers/specs/202
     connect_timeout_s: 20       # seconds to wait for the local port to accept connections
     keepalive_interval_s: 15
     keepalive_count_max: 3
+  files:
+    batch_mb: 300               # tar batch target, 150 to 500
   report:
     max_ids: 100000             # ids per category kept in report.json for large pulled tables
     top_n: 50                   # ids listed per category in report.md
