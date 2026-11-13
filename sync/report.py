@@ -26,6 +26,7 @@ REASON_CODES = (
     "missing_file", "name_problem", "hash_mismatch", "missing_required_table", "files_gate_miss",
     "deferred_changed_since_plan", "non_promotable_reference", "waiting_for_files", "capped_by_limit",
     "over_member_cap",  # P3: a dev file larger than the gate's per-member cap (max_member_mb), left out up front
+    "digest_mismatch",  # P2 apply: the rows copied to prod did not hash like dev's snapshot, the batch was rolled back
 )
 ENTRY_KINDS = ("images", "rows", "files", "pulled")
 LEFT_BEHIND_TITLE = "left behind on prod (removals deferred)"
@@ -301,11 +302,16 @@ class ResultEntry:
     added: int = 0
     overwritten: int = 0
     skipped: dict = field(default_factory=dict)  # reason code -> ids
+    failed: list = field(default_factory=list)  # ids of the batch that was rolled back (P2 apply: the run stopped there)
+    failure: str | None = None  # code-like reason of that failure (`db_error:23505`, `interrupted`, ...)
 
     def __post_init__(self):
         check_count(self.added)
         check_count(self.overwritten)
         self.skipped = {check_member(r, REASON_CODES, "reason code"): sorted_ids(v) for r, v in self.skipped.items()}
+        self.failed = sorted_ids(self.failed)
+        if self.failure is not None:
+            self.failure = scrub_detail(self.failure)
 
 
 @dataclass
@@ -560,10 +566,16 @@ def section_json(sec: Section, cut_at: int | None = None) -> dict:
     return out
 
 
+def _result_entry_json(r: ResultEntry) -> dict:
+    out = {"added": r.added, "overwritten": r.overwritten,
+           "skipped_with_reason": {c: {"count": len(v), "ids": v} for c, v in sorted(r.skipped.items())}}
+    if r.failed or r.failure:
+        out["failed"] = {"count": len(r.failed), "ids": list(r.failed), "failure": r.failure}
+    return out
+
+
 def result_json(result: dict) -> dict:
-    return {sec: {name: {"added": r.added, "overwritten": r.overwritten,
-                         "skipped_with_reason": {c: {"count": len(v), "ids": v} for c, v in sorted(r.skipped.items())}}
-                  for name, r in entries.items()} for sec, entries in result.items()}
+    return {sec: {name: _result_entry_json(r) for name, r in entries.items()} for sec, entries in result.items()}
 
 
 def document_json(doc: Document, max_ids: int | None = DEFAULT_MAX_IDS) -> dict:
@@ -674,7 +686,10 @@ def render_markdown(doc: Document, top_n: int = DEFAULT_TOP_N) -> str:
         for sec, entries in doc.result.items():
             for name, r in entries.items():
                 skipped = ", ".join(f"{c} {len(v)}" for c, v in sorted(r.skipped.items()))
-                L.append(f"- {sec}/{name}: added {r.added}, overwritten {r.overwritten}" + (f", skipped: {skipped}" if skipped else ""))
+                L.append(f"- {sec}/{name}: added {r.added}, overwritten {r.overwritten}" + (f", skipped: {skipped}" if skipped else "")
+                         + (f", FAILED batch of {len(r.failed)} images rolled back ({r.failure})" if r.failed or r.failure else ""))
+                if r.failed:
+                    L.append(f"  failed ids: {_capped(r.failed, top_n)}")
     return "\n".join(L) + "\n"
 
 

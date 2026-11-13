@@ -97,6 +97,27 @@ class SyncConnection:
         rows = self.query(sql, args)
         return rows[0][0] if rows else None
 
+    # The three methods below are the only other ways the sync tools write or stream data; every database error is reduced to
+    # SQLSTATE, constraint and table like in `query`, and a test wrapper can record the statements by overriding them.
+    def copy_out(self, sql: str, fileobj: Any) -> int:
+        """`COPY ... TO STDOUT` into a binary file object; returns the row count."""
+        with guard_db(), self.raw.cursor() as cur:
+            cur.copy_expert(sql, fileobj)
+            return max(cur.rowcount, 0)
+
+    def copy_in(self, sql: str, fileobj: Any, size: int = 1 << 20) -> int:
+        """`COPY ... FROM STDIN` from a binary file object (read in chunks of `size`); returns the row count."""
+        with guard_db(), self.raw.cursor() as cur:
+            cur.copy_expert(sql, fileobj, size)
+            return max(cur.rowcount, 0)
+
+    def execute_values(self, sql: str, rows: list, template: str | None = None, page_size: int = 500) -> None:
+        """`psycopg2.extras.execute_values`: `sql` holds one `%s` where the VALUES list goes."""
+        from psycopg2.extras import execute_values
+
+        with guard_db(), self.raw.cursor() as cur:
+            execute_values(cur, sql, rows, template=template, page_size=page_size)
+
     def close(self) -> None:
         with contextlib.suppress(Exception):
             self.raw.close()

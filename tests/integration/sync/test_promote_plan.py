@@ -475,6 +475,7 @@ def command(world, tmp_path, monkeypatch):
 
         def __enter__(self):
             Opener.mode_seen = self.mode
+            world.prod.query("SET default_transaction_read_only = off")  # a dry run of the previous command set it: a real run opens a new session
             return {"dev": world.dev, "prod": world.prod, "prod_reader_conn": None}
 
         def __exit__(self, *exc):
@@ -537,12 +538,14 @@ def test_apply_refusals_happen_before_anything_is_written(world, command, tmp_pa
     code, out, err, _ = command("--apply", "--yes", run_id="20261113T120000Z-00000003")
     assert code == 3 and "mass_change" in err
     # the dry run's hash was made without a files report; with one the skipped sets differ only if images are held back: none here
-    code, out, err, _ = command("--apply", "--yes", "--plan-hash", plan_hash, *lifts, run_id="20261113T120000Z-00000010")
-    assert code == 1 and "not built yet" in err  # past every refusal; T6 does the copy
     # a wrong N lifts nothing
     code, out, err, _ = command("--apply", "--yes", "--allow-mass-change", "11", "--allow-shrink", "tags", run_id="20261113T120000Z-00000011")
     assert code == 3 and "mass_change" in err
     assert world.prod_side.scalar("select count(*) from tags") == 40
+    # past every refusal the apply runs: the 12 images lose their tags on prod too (an overwrite of the derived rows)
+    code, out, err, _ = command("--apply", "--yes", "--plan-hash", plan_hash, *lifts, run_id="20261113T120000Z-00000010")
+    assert code == 0, (out, err)
+    assert world.prod_side.scalar("select count(*) from tags") == 28
 
 
 def test_apply_with_a_valid_files_report_and_matching_hash_stops_at_the_unbuilt_apply(world, command, tmp_path):
@@ -557,14 +560,15 @@ def test_apply_with_a_valid_files_report_and_matching_hash_stops_at_the_unbuilt_
     # wrong hash -> 3 (and nothing else is attempted)
     code, out, err, _ = command("--apply", "--yes", "--plan-hash", "0" * 64, run_id="20261113T120000Z-00000006")
     assert code == 3 and "plan changed" in err
-    # right hash -> the copy is not built (T6): exit 1, prod untouched
+    # a typed confirmation that does not match -> 3 before anything is written
     before = world.prod_side.scalar("select value from tags where image_id = %s", (uid(2),))
-    code, out, err, _ = command("--apply", "--plan-hash", doc["plan_hash"], run_id="20261113T120000Z-00000007")
-    assert code == 1 and "not built yet" in err
-    assert world.prod_side.scalar("select value from tags where image_id = %s", (uid(2),)) == before
-    # a typed confirmation that does not match -> 3 before the stop
     code, out, err, _ = command("--apply", "--plan-hash", doc["plan_hash"], answer="general nope", run_id="20261113T120000Z-00000008")
     assert code == 3 and "typed confirmation" in err
+    assert world.prod_side.scalar("select value from tags where image_id = %s", (uid(2),)) == before
+    # right hash and confirmation -> applied
+    code, out, err, _ = command("--apply", "--plan-hash", doc["plan_hash"], run_id="20261113T120000Z-00000007")
+    assert code == 0, (out, err)
+    assert world.prod_side.scalar("select value from tags where image_id = %s", (uid(2),)) == "dog"
     # the apply report is a real (non-dry) folder with no marker
     assert not (tmp_path / "state" / "runs" / "20261113T120000Z-00000007" / "dry").exists()
 
@@ -594,10 +598,12 @@ def test_same_model_pair_trips_no_guard_and_a_changed_pair_needs_the_flag(world,
 
     code, out, err, _ = command("--apply", "--yes", "--plan-hash", plan_hash, run_id="20261113T120000Z-00000023")
     assert code == 3 and "model_change" in err
-    # the flag is not part of the hash: the same hash passes the guard and stops only at the unbuilt copy
-    code, out, err, _ = command("--apply", "--yes", "--plan-hash", plan_hash, "--allow-model-change", run_id="20261113T120000Z-00000024")
-    assert code == 1 and "not built yet" in err
     assert world.prod_side.scalar("select count(*) from meme_profile_situation_embeddings where model_name = 'm1'") == before
+    # the flag is not part of the hash: the same hash passes the guard and the four profiles are overwritten
+    code, out, err, _ = command("--apply", "--yes", "--plan-hash", plan_hash, "--allow-model-change", run_id="20261113T120000Z-00000024")
+    assert code == 0, (out, err)
+    assert world.prod_side.scalar("select count(*) from meme_profile_situation_embeddings where model_name = 'm1'") == 0
+    assert world.prod_side.scalar("select count(*) from meme_profile_situation_embeddings where model_name = 'm2'") == 4
 
 
 def test_the_apply_command_of_a_dry_run_carries_the_model_lift(world, command):

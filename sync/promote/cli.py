@@ -6,9 +6,10 @@ the exact apply command). A dry run writes nothing to prod or dev and no file an
 would trip.
 
 `--apply` re-plans, then refuses (exit 2: a precondition including the files gate; exit 3: a different plan hash or a tripped guard
-that no lift flag removes) before any write. The copy itself (batches, files gate per image, `committed.json`, global sets, `setval`)
-is task T6 and is not built: after the refusals and the typed confirmation the command stops with exit 1 and writes nothing to prod.
-`--verify-only` (task T8) stops the same way. Every flag of the design is accepted now.
+that no lift flag removes) before any write. After the typed confirmation the image batches are applied (`sync.promote.apply`, task T6:
+one prod transaction per batch, files gate per image, digests re-checked on prod before the commit, `committed.json`, `setval`); the
+report is rewritten with a `result` block, also when a batch failed (exit 1, the committed batches are listed). The global sets (T7) and
+`--verify-only` (T8) are not built: `--verify-only` stops with exit 1 and the global sets are reported as not applied.
 
 Exit codes (interfaces.md i): 0 clean or dry run, 1 other failure, 2 handshake or precondition (including a held lock or a bad flag),
 3 guard before any write, 4 verification differences (T8).
@@ -28,6 +29,7 @@ from sync.config import (ENVIRONMENTS, EXIT_FAILURE, EXIT_GUARD, EXIT_OK, Precon
                          load_settings, mark_dry, new_run_id, run_dir, state_dir)
 from sync.files.manifest import manifest_sha256
 from sync.model import Klass
+from sync.promote import apply as apply_mod
 from sync.promote import digest as dg
 from sync.promote import files_gate, plan as plan_mod, preconditions as pre_mod
 
@@ -35,7 +37,6 @@ TOOL = plan_mod.TOOL
 DEFAULT_MAX_REPORT_AGE = "2h"
 _AGE = re.compile(r"^(\d+(?:\.\d+)?)([smhd]?)$")
 _UNITS = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
-NOT_BUILT_APPLY = "--apply is not built yet (task T6); nothing was written to prod"
 NOT_BUILT_VERIFY = "--verify-only is not built yet (task T8)"
 
 
@@ -50,6 +51,12 @@ class Refusal(SyncError):
 
 
 class NotBuilt(SyncError):
+    exit_code = EXIT_FAILURE
+
+
+class ApplyFailed(SyncError):
+    """A batch failed or the run was interrupted (exit 1); the earlier batches are committed."""
+
     exit_code = EXIT_FAILURE
 
 
@@ -249,11 +256,13 @@ def _now() -> _dt.datetime:
     return _dt.datetime.now(_dt.timezone.utc)
 
 
-def _emit(doc: report.Document, folder: Path, args: argparse.Namespace, settings: SyncSettings, out) -> None:
+def _emit(doc: report.Document, folder: Path, args: argparse.Namespace, settings: SyncSettings, out, echo: bool = True) -> None:
     top = args.top if args.top is not None else int(settings.get("report.top_n", report.DEFAULT_TOP_N))
     max_ids = int(settings.get("report.max_ids", report.DEFAULT_MAX_IDS))
     json_copy = args.json_path if args.json_path not in (None, "-") else None
     written = report.write_report(doc, folder, top_n=top, max_ids=max_ids, json_copy=json_copy)
+    if not echo:
+        return
     if args.json_path == "-":
         out.write(report.render_json(doc, max_ids))
     else:
@@ -318,13 +327,13 @@ def _locked(args, settings: SyncSettings, run_id: str, folder: Path, opener, cap
                 _failed_report(settings, args, run_id, folder, handshake=hs, preconditions=pre, out=out)
                 bad = [p["id"] for p in pre if not p["ok"]]
                 raise PreconditionsFailed("precondition failed: " + ", ".join(bad), pre)
-            return _after_plan(args, settings, run_id, folder, inp, hs, pre, prod, out, ask)
+            return _after_plan(args, settings, run_id, folder, inp, hs, pre, dev, prod, out, ask)
         finally:
             if locked:
                 pre_mod.release_prod_lock(prod)
 
 
-def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre, prod, out, ask) -> int:
+def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre, dev, prod, out, ask) -> int:
     env = settings.env
     p = plan_mod.build_plan(inp)
     if p.advice:
@@ -359,8 +368,37 @@ def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre
             typed = ""
         if typed != expected:
             raise Refusal("typed confirmation did not match; nothing was written")
+    _emit(doc, folder, args, settings, out, echo=False)  # the plan as read, on disk before the first write
+    outcome = apply_mod.run_apply(settings=settings, inp=inp, plan=p, dev=dev, prod=prod, folder=folder, run_id=run_id, out=out)
+    doc = report.Document(env=env, run_id=run_id, tool=TOOL, dry=False, sections=[p.section], handshake=hs, preconditions=pre,
+                          result=result_of(p, outcome))
     _emit(doc, folder, args, settings, out)
-    raise NotBuilt(NOT_BUILT_APPLY)  # T6: the batches, the files gate per image, committed.json, the global sets and setval go here
+    _print_result(p, outcome, out)
+    if not outcome.ok:
+        raise ApplyFailed(f"apply stopped: {outcome.failure}; {outcome.batches} batch(es) committed by this run"
+                          + (f", {len(outcome.failed)} image(s) of the failed batch rolled back" if outcome.failed else "")
+                          + "; see committed.json and report.json, then run the same command again")
+    return EXIT_OK
+
+
+def result_of(p: plan_mod.Plan, outcome: apply_mod.ApplyOutcome) -> dict:
+    """The `result` block of the apply report (interfaces.md k): what was committed, what was skipped at apply time, what failed.
+    Only the image entry; the global sets (T7) add theirs."""
+    if not p.section.entries or p.section.entries[0].name != plan_mod.ENTRY:
+        return {plan_mod.SECTION: {}}
+    entry = report.ResultEntry(added=len(outcome.added), overwritten=len(outcome.overwritten), skipped=dict(outcome.skipped),
+                               failed=outcome.failed, failure=outcome.failure)
+    return {plan_mod.SECTION: {plan_mod.ENTRY: entry}}
+
+
+def _print_result(p: plan_mod.Plan, outcome: apply_mod.ApplyOutcome, out) -> None:
+    skipped = ", ".join(f"{r} {len(v)}" for r, v in sorted(outcome.skipped.items()))
+    out.write(f"applied: {len(outcome.added)} added, {len(outcome.overwritten)} overwritten in {outcome.batches} batch(es)"
+              + (f"; skipped: {skipped}" if skipped else "") + "\n")
+    if outcome.setvals:
+        out.write("sequences moved: " + ", ".join(sorted(outcome.setvals)) + "\n")
+    if "global_sets_not_applied" in outcome.notes:
+        out.write("note: the global sets (concepts, absorptions) have planned changes and are not applied yet (task T7)\n")
 
 
 def _print_notes(p: plan_mod.Plan, args: argparse.Namespace, out) -> None:
