@@ -255,7 +255,7 @@ def test_report_content_completeness_and_redaction(tmp_path):
     assert e["added"]["ids"] == [iid(10)] and len(e["overwritten"]["groups"]) == 3 and e["overwritten"]["group_counts"] == {"tags": 3}
     assert {g["id"] for g in sec["guards"]} >= {"zero_images", "dev_emptied", "mass_change", "row_regression:tags"}
     assert set(sec["table_rows"]) == set(TABLES) and sec["table_rows"]["tags"]["overwritten_rows"] == 6
-    assert all(g["lifted_by"] in (None, "--allow-mass-change", "--allow-shrink") for g in sec["guards"])
+    assert all(g["lifted_by"] in (None, "--allow-mass-change", "--allow-shrink", "--allow-model-change") for g in sec["guards"])
     md = (tmp_path / "report.md").read_text()
     assert "rows per table" in md and "left behind on prod (removals deferred)" in md and "tags 3" in md
     everything = (tmp_path / "report.json").read_text() + md + out["summary"]
@@ -267,3 +267,36 @@ def test_left_behind_is_informational_and_listed_in_full_in_json(tmp_path):
     p = P.build_plan(inp)
     assert not p.tripped and entry(p).left_behind.ids == [iid(11), iid(12)]
     assert p.section.totals()["left_behind"]["count"] == 2
+
+
+# --- model change guard ----------------------------------------------------------------------------------------------------------
+
+def model_inp(changed, tables=None):
+    inp = make(10, model_change=changed)
+    inp.tables = list(tables if tables is not None else TABLES + ["meme_profiles", "meme_profile_situation_embeddings"])
+    return inp
+
+
+def test_model_change_guard_is_tripped_by_a_difference_and_lifted_only_by_its_flag():
+    same = P.build_plan(model_inp(False))
+    g = next(g for g in same.guards if g.id == "model_change")
+    assert not g.tripped and g.lifted_by == "--allow-model-change"
+    assert P.effective_blocking(same) == []
+    changed = P.build_plan(model_inp(True))
+    assert [g.id for g in changed.tripped] == ["model_change"]
+    assert P.effective_blocking(changed) == ["model_change"]
+    assert P.effective_blocking(changed, allow_model_change=True) == []
+    assert P.effective_blocking(changed, allow_mass_change=0, allow_shrink=list(TABLES)) == ["model_change"]  # no other flag lifts it
+    assert P.lift_problems(changed, None, [], True) == []
+    assert P.lift_problems(same, None, [], True) == ["allow_model_change_not_needed"]
+
+
+def test_model_change_guard_does_not_depend_on_its_lift_flag_in_the_plan_hash():
+    h = P.build_plan(model_inp(True)).section.plan_hash()
+    assert h == P.build_plan(model_inp(True)).section.plan_hash()  # lifts are applied by effective_blocking, never planned
+    assert h != P.build_plan(model_inp(False)).section.plan_hash()  # the tripped state itself is plan content
+
+
+def test_model_change_is_not_a_guard_when_no_profile_table_is_compared():
+    p = P.build_plan(model_inp(True, tables=["images", "tags"]))
+    assert not [g for g in p.tripped if g.id == "model_change"]

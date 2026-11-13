@@ -93,6 +93,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="lift the mass-change guard; N must equal the planned changed count exactly")
     p.add_argument("--allow-shrink", action="append", default=[], metavar="TABLE",
                    help="lift the row-count and coverage regression guards of one class D table (repeatable)")
+    p.add_argument("--allow-model-change", action="store_true",
+                   help="lift the model-change guard: the embedding model pair or taxonomy version of dev differs from prod's "
+                        "(the affected rows are overwritten)")
     p.add_argument("--ignore-running-batches", action="store_true", help="lift the dev running-batch precondition")
     return p
 
@@ -158,6 +161,8 @@ def apply_flags(args: argparse.Namespace) -> list:
         flags += ["--allow-mass-change", str(args.allow_mass_change)]
     for t in args.allow_shrink:
         flags += ["--allow-shrink", t]
+    if args.allow_model_change:
+        flags.append("--allow-model-change")
     if args.ignore_running_batches:
         flags.append("--ignore-running-batches")
     return flags
@@ -218,7 +223,7 @@ def gather(settings: SyncSettings, args: argparse.Namespace, dev: Any, prod: Any
         env=settings.env, dev_images=dev_images, prod_ids=prod_ids, dev_digests=dev_digests, prod_digests=prod_digests,
         tables=image_tables, required=required, manifest_hash=manifest_hash, first_seed=args.first_seed, files=files,
         limit_images=args.limit_images, global_tables=global_tables if args.limit_images is None else [], dev_globals=dev_globals,
-        prod_globals=prod_globals, only=only, batch_size=_batch_size(settings, args))
+        prod_globals=prod_globals, only=only, batch_size=_batch_size(settings, args), model_change=pre_mod.model_changed(pre))
 
 
 def run_preconditions(settings: SyncSettings, args: argparse.Namespace, dev: Any, prod: Any) -> list:
@@ -231,6 +236,7 @@ def run_preconditions(settings: SyncSettings, args: argparse.Namespace, dev: Any
     pre.append(pre_mod.schema_parity(dev, prod))
     pre.append(pre_mod.column_parity(dev, prod))
     pre.append(pre_mod.model_parity(dev, prod))
+    pre.append(pre_mod.model_pair_change(dev, prod))
     pre.append(pre_mod.running_batches(dev, args.ignore_running_batches))
     pre.append(pre_mod.try_prod_lock(prod))
     return pre
@@ -337,7 +343,7 @@ def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre
     if args.plan_hash is not None and args.plan_hash.lower() != plan_hash:
         refusal = f"the plan changed since the dry run (planned hash {plan_hash}, expected {args.plan_hash.lower()})"
     else:
-        blocking = plan_mod.effective_blocking(p, args.allow_mass_change, args.allow_shrink)
+        blocking = plan_mod.effective_blocking(p, args.allow_mass_change, args.allow_shrink, args.allow_model_change)
         if blocking:
             refusal = "guard tripped before any write: " + ", ".join(blocking)
     if refusal:
@@ -358,8 +364,8 @@ def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre
 
 
 def _print_notes(p: plan_mod.Plan, args: argparse.Namespace, out) -> None:
-    blocking = plan_mod.effective_blocking(p, args.allow_mass_change, args.allow_shrink)
-    problems = plan_mod.lift_problems(p, args.allow_mass_change, args.allow_shrink)
+    blocking = plan_mod.effective_blocking(p, args.allow_mass_change, args.allow_shrink, args.allow_model_change)
+    problems = plan_mod.lift_problems(p, args.allow_mass_change, args.allow_shrink, args.allow_model_change)
     if blocking:
         out.write("an apply would refuse (exit 3): " + ", ".join(blocking) + "\n")
     if problems:

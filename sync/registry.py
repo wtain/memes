@@ -43,6 +43,8 @@ def _x(name, notes):
     return TableSync(name, X, SKIP, NEVER, (), None, None, "none", (), False, False, False, notes)
 
 
+_REBUILD_TS = "rebuild timestamp: a rebuild with the same content is not a change"
+
 _ENTRIES = (
     # ---- class D: dev-origin, shipped ------------------------------------------------------------------------------
     _d("images", UPSERT, IMAGES, ("id",), 0, "core", nullify=("ingestion_batch_id",),
@@ -52,29 +54,36 @@ _ENTRIES = (
        notes="remarks only, replaced whole with the image's other rows so a removed remark leaves prod; flagged images are not "
              "shipped, so flagged is always false on prod"),
     _d("ocr_texts", REPLACE, image_fk(), ("id",), 1, "ocr", notes="includes the stale flag",
-       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", "rebuild timestamp: a rebuild with the same content is not a change"))),
-    _d("ocr_lemmas", REPLACE, image_fk(), ("image_id", "lemma"), 1, "ocr", notes="includes the stale flag"),
+       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", _REBUILD_TS))),
+    _d("ocr_lemmas", REPLACE, image_fk(), ("image_id", "lemma"), 1, "ocr", notes="includes the stale flag",
+       digest_exclude=(("created_at", _REBUILD_TS),)),
     _d("embeddings", REPLACE, image_fk(), ("id",), 1, "clip", notes="CLIP 512-d",
-       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", "rebuild timestamp: a rebuild with the same content is not a change"))),
+       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", _REBUILD_TS))),
     _d("tags", REPLACE, image_fk(), ("id",), 1, "tags", notes="all sources; includes the stale flag",
-       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", "rebuild timestamp: a rebuild with the same content is not a change"))),
+       digest_exclude=(("id", "unreferenced surrogate id: a rebuild with the same content is not a change"), ("created_at", _REBUILD_TS))),
     _d("image_descriptions", REPLACE, image_fk(), ("id",), 1, "desc", notes="parent of the description tables"),
     _d("image_description_embeddings", REPLACE, via("image_descriptions", "image_description_id"),
-       ("image_description_id",), 2, "desc", notes="1024-d"),
+       ("image_description_id",), 2, "desc", notes="1024-d",
+       digest_exclude=(("created_at", _REBUILD_TS),)),
     _d("description_lemmas", REPLACE, via("image_descriptions", "image_description_id"),
-       ("image_description_id", "lemma"), 2, "desc"),
+       ("image_description_id", "lemma"), 2, "desc", digest_exclude=(("created_at", _REBUILD_TS),)),
     _d("image_description_feedback", REPLACE, via("image_descriptions", "image_description_id"),
        ("image_description_id",), 2, "desc", notes="owner curation; must stay in the digest"),
-    _d("meme_profiles", REPLACE, image_fk(), ("image_id",), 1, "profile", notes="includes human-verified profiles"),
+    _d("meme_profiles", REPLACE, image_fk(), ("image_id",), 1, "profile", notes="includes human-verified profiles",
+       digest_exclude=(("extracted_at", "rebuild timestamp: written with updated_at on every extraction; not read by the retrieval"),
+                       ("updated_at", "set together with extracted_at on every write; a human save or confirm also changes "
+                                      "human_verified, values or taxonomy_version, which stay in the digest"))),
     _d("meme_profile_values", REPLACE, via("meme_profiles", "image_id"), ("image_id", "axis", "value_key"), 2, "profile"),
     _d("meme_profile_situation_embeddings", REPLACE, via("meme_profiles", "image_id"), ("image_id",), 2, "profile",
-       notes="1024-d, bound to a model name and digest"),
+       notes="1024-d, bound to a model name and digest",
+       digest_exclude=(("created_at", _REBUILD_TS),)),
     _d("description_notes", REPLACE, image_fk(), ("image_id",), 1, "note", notes="owner curation",
        digest_exclude=(("lemmas_built_at", "pure bookkeeping of the lemma job"),
                        ("embedding_built_at", "pure bookkeeping of the embedding job"))),
-    _d("description_note_lemmas", REPLACE, image_fk(), ("image_id", "lemma"), 1, "note"),
+    _d("description_note_lemmas", REPLACE, image_fk(), ("image_id", "lemma"), 1, "note",
+       digest_exclude=(("created_at", _REBUILD_TS),)),
     _d("description_note_embeddings", REPLACE, via("description_notes", "description_note_id"),
-       ("description_note_id",), 2, "note", notes="1024-d"),
+       ("description_note_id",), 2, "note", notes="1024-d", digest_exclude=(("created_at", _REBUILD_TS),)),
     _d("concepts", UPSERT, GLOBAL_SET, ("id",), 0, setval=True, prune=True, notes="integer ids: one origin, replaced as a set"),
     _d("concept_image_sets", UPSERT, GLOBAL_SET, ("id",), 1, setval=True, prune=True),
     _d("concept_images", UPSERT, GLOBAL_SET, ("id",), 2, setval=True, prune=True),

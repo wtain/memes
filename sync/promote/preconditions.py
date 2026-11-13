@@ -106,26 +106,48 @@ def _promotable_profile_sql(columns: str) -> str:
             f"join images on images.id = e.image_id where {PROMOTABLE_IMAGES_SQL}")
 
 
-def model_parity(dev: Any, prod: Any) -> dict:
-    """Exactly one `(model_name, model_digest)` among the promotable situation embeddings and, if prod has rows, the same pair;
-    one `taxonomy_version` (and the same on prod)."""
-    problems = []
+def _model_state(dev: Any, prod: Any) -> tuple:
+    """`(dev model pairs, prod model pairs, dev taxonomy versions, prod taxonomy versions)` as sets."""
     dev_pairs = {tuple(r) for r in dev.query(_promotable_profile_sql("e.model_name, e.model_digest"))}
     prod_pairs = {tuple(r) for r in prod.query("select distinct model_name, model_digest from meme_profile_situation_embeddings")}
-    if len(dev_pairs) > 1:
-        problems.append(f"dev_model_pairs={len(dev_pairs)}")
-    if prod_pairs and dev_pairs != prod_pairs:
-        problems.append("embedding_model_differs_from_prod")
     sql_dev = ("select distinct p.taxonomy_version from meme_profiles p join images on images.id = p.image_id "
                f"where {PROMOTABLE_IMAGES_SQL}")
     dev_tax = {r[0] for r in dev.query(sql_dev)}
     prod_tax = {r[0] for r in prod.query("select distinct taxonomy_version from meme_profiles")}
+    return dev_pairs, prod_pairs, dev_tax, prod_tax
+
+
+def model_parity(dev: Any, prod: Any) -> dict:
+    """The promotable rows carry one consistent set: exactly one `(model_name, model_digest)` among the promotable situation
+    embeddings and one `taxonomy_version` (a promote never mixes models). A difference from prod is not checked here: it is
+    `model_pair_change` and the `model_change` guard."""
+    dev_pairs, _, dev_tax, _ = _model_state(dev, prod)
+    problems = []
+    if len(dev_pairs) > 1:
+        problems.append(f"dev_model_pairs={len(dev_pairs)}")
     if len(dev_tax) > 1:
         problems.append(f"dev_taxonomy_versions={len(dev_tax)}")
-    if prod_tax and dev_tax != prod_tax:
-        problems.append("taxonomy_differs_from_prod")
     ok, detail = _codes(problems)
     return result("model_parity", ok, detail)
+
+
+MODEL_CHANGE_ID = "model_pair_change"
+
+
+def model_pair_change(dev: Any, prod: Any) -> dict:
+    """Informational (always ok): does the model pair of the profile embeddings or the taxonomy version on dev differ from prod's?
+    Detail `profile_embedding=changed|same,taxonomy=changed|same`. An empty side has nothing to differ from, so it counts as `same`.
+    CLIP, SBERT and note vectors carry no marker and are not covered (their parity is the revision check). The affected rows are
+    overwrites by digest; the plan's `model_change` guard is what asks for `--allow-model-change`."""
+    dev_pairs, prod_pairs, dev_tax, prod_tax = _model_state(dev, prod)
+    emb = "changed" if dev_pairs and prod_pairs and dev_pairs != prod_pairs else "same"
+    tax = "changed" if dev_tax and prod_tax and dev_tax != prod_tax else "same"
+    return result(MODEL_CHANGE_ID, True, f"profile_embedding={emb},taxonomy={tax}")
+
+
+def model_changed(pre: list) -> bool:
+    """True when the `model_pair_change` precondition of a run reports a difference."""
+    return any(p["id"] == MODEL_CHANGE_ID and "=changed" in p["detail"] for p in pre)
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------

@@ -373,7 +373,7 @@ def test_preconditions_pass_on_two_equal_schemas_and_catch_drift(world, tmp_path
     s = settings_for(tmp_path)
     pre = cli.run_preconditions(s, args_for(), world.dev, world.prod)
     assert [p["id"] for p in pre] == ["required_tables", "session_settings", "schema_parity", "column_parity", "model_parity",
-                                      "running_batches", "prod_lock"]
+                                      "model_pair_change", "running_batches", "prod_lock"]
     assert all(p["ok"] for p in pre), pre
     pre_mod.release_prod_lock(world.prod)
 
@@ -396,20 +396,51 @@ def test_running_batches_block_unless_lifted_and_ingestion_is_exempt(world):
     assert r["ok"] and r["detail"] == "ignored=1"
 
 
-def test_model_parity_needs_one_pair_and_the_prod_pair(world):
-    for n in (1, 2):
+def seed_profiles(world, count=2, dev_model="m1", prod_model="m1", dev_tax=3, prod_tax=3, plain=0):
+    """Images 1..count with a profile and a situation embedding; `plain` more images without any, so a model change stays
+    under the mass-change limit."""
+    for n in range(1, count + plain + 1):
         both(world, n)
-    for side, model in ((world.dev_side, "m1"), (world.prod_side, "m1")):
-        for n in (1, 2):
+    for side, model, tax in ((world.dev_side, dev_model, dev_tax), (world.prod_side, prod_model, prod_tax)):
+        for n in range(1, count + 1):
             side.x("insert into meme_profiles (image_id, taxonomy_version, extractor_model, extractor_prompt_version, inputs_fingerprint) "
-                   "values (%s, 3, 'x', 'v', 'f')", (uid(n),))
+                   "values (%s, %s, 'x', 'v', 'f')", (uid(n), tax))
             side.x("insert into meme_profile_situation_embeddings (image_id, model_name, model_digest) values (%s, %s, 'd')", (uid(n), model))
+
+
+def test_model_parity_needs_one_consistent_dev_set_and_a_difference_from_prod_is_only_reported(world):
+    seed_profiles(world)
     assert pre_mod.model_parity(world.dev, world.prod)["ok"]
+    assert pre_mod.model_pair_change(world.dev, world.prod) == {"id": "model_pair_change", "ok": True,
+                                                                "detail": "profile_embedding=same,taxonomy=same"}
     world.prod_side.x("update meme_profile_situation_embeddings set model_name = 'm0'")
-    assert pre_mod.model_parity(world.dev, world.prod)["detail"] == "embedding_model_differs_from_prod"
+    assert pre_mod.model_parity(world.dev, world.prod)["ok"]  # no longer a precondition failure
+    assert pre_mod.model_pair_change(world.dev, world.prod)["detail"] == "profile_embedding=changed,taxonomy=same"
+    world.prod_side.x("update meme_profiles set taxonomy_version = 2")
+    assert pre_mod.model_pair_change(world.dev, world.prod)["detail"] == "profile_embedding=changed,taxonomy=changed"
     world.prod_side.x("update meme_profile_situation_embeddings set model_name = 'm1'")
     world.dev_side.x("update meme_profile_situation_embeddings set model_name = 'm2' where image_id = %s", (uid(2),))
     assert "dev_model_pairs=2" in pre_mod.model_parity(world.dev, world.prod)["detail"]
+    world.dev_side.x("update meme_profile_situation_embeddings set model_name = 'm1'")
+    world.dev_side.x("update meme_profiles set taxonomy_version = 4 where image_id = %s", (uid(2),))
+    assert "dev_taxonomy_versions=2" in pre_mod.model_parity(world.dev, world.prod)["detail"]
+
+
+def test_a_rebuild_timestamp_of_a_derived_table_is_not_a_change(world, tmp_path):
+    """digest_exclude of the 2026-11-13 audit: created_at of ocr_lemmas and of the embedding tables, extracted_at and updated_at
+    of meme_profiles."""
+    seed_profiles(world, 3)
+    d = world.dev_side
+    d.x("insert into ocr_lemmas (image_id, lemma) values (%s, 'cat')", (uid(1),))
+    world.prod_side.x("insert into ocr_lemmas (image_id, lemma) values (%s, 'cat')", (uid(1),))
+    d.x("update ocr_lemmas set created_at = now() + interval '1 day'")
+    d.x("update meme_profiles set extracted_at = now() + interval '1 day', updated_at = now() + interval '2 day'")
+    d.x("update meme_profile_situation_embeddings set created_at = now() + interval '3 day'")
+    p, _, _ = plan_of(world, tmp_path)
+    assert entry(p).overwritten.n == 0 and entry(p).unchanged.n == 3
+    d.x("update meme_profiles set human_verified = true where image_id = %s", (uid(1),))  # content: still a change
+    p, _, _ = plan_of(world, tmp_path)
+    assert entry(p).overwritten.ids == [uid(1)]
 
 
 def test_prod_lock_is_exclusive(world, sync_pair):
@@ -536,6 +567,57 @@ def test_apply_with_a_valid_files_report_and_matching_hash_stops_at_the_unbuilt_
     assert code == 3 and "typed confirmation" in err
     # the apply report is a real (non-dry) folder with no marker
     assert not (tmp_path / "state" / "runs" / "20261113T120000Z-00000007" / "dry").exists()
+
+
+def test_same_model_pair_trips_no_guard_and_a_changed_pair_needs_the_flag(world, command, tmp_path):
+    seed_profiles(world, 4, plain=16)
+    code, out, err, folder = command(run_id="20261113T120000Z-00000021")
+    doc = json.loads((folder / "report.json").read_text())
+    g = next(g for g in doc["sections"][0]["guards"] if g["id"] == "model_change")
+    assert code == 0 and not g["tripped"]
+    assert next(p for p in doc["preconditions"] if p["id"] == "model_pair_change") == {
+        "id": "model_pair_change", "ok": True, "detail": "profile_embedding=same,taxonomy=same"}
+
+    world.dev_side.x("update meme_profile_situation_embeddings set model_name = 'm2'")  # dev upgraded its model
+    write_files_report(tmp_path, 20)
+    code, out, err, folder = command(run_id="20261113T120000Z-00000022")
+    assert code == 0, (out, err)  # a dry run exits zero and says what an apply would do
+    doc = json.loads((folder / "report.json").read_text())
+    g = next(g for g in doc["sections"][0]["guards"] if g["id"] == "model_change")
+    assert g["tripped"] and g["lifted_by"] == "--allow-model-change"
+    assert next(p for p in doc["preconditions"] if p["id"] == "model_pair_change")["detail"] == "profile_embedding=changed,taxonomy=same"
+    assert all(p["ok"] for p in doc["preconditions"])
+    assert doc["sections"][0]["entries"][0]["overwritten"]["count"] == 4  # the digest, not the guard, marks the rows
+    assert "model_change" in out and "an apply would refuse (exit 3)" in out
+    plan_hash = doc["plan_hash"]
+    before = world.prod_side.scalar("select count(*) from meme_profile_situation_embeddings where model_name = 'm1'")
+
+    code, out, err, _ = command("--apply", "--yes", "--plan-hash", plan_hash, run_id="20261113T120000Z-00000023")
+    assert code == 3 and "model_change" in err
+    # the flag is not part of the hash: the same hash passes the guard and stops only at the unbuilt copy
+    code, out, err, _ = command("--apply", "--yes", "--plan-hash", plan_hash, "--allow-model-change", run_id="20261113T120000Z-00000024")
+    assert code == 1 and "not built yet" in err
+    assert world.prod_side.scalar("select count(*) from meme_profile_situation_embeddings where model_name = 'm1'") == before
+
+
+def test_the_apply_command_of_a_dry_run_carries_the_model_lift(world, command):
+    seed_profiles(world, 2, dev_model="m2", plain=8)
+    code, out, err, folder = command("--allow-model-change", run_id="20261113T120000Z-00000025")
+    assert code == 0, (out, err)
+    assert "--allow-model-change" in json.loads((folder / "report.json").read_text())["apply_command"]
+    assert "an apply would refuse" not in out
+
+
+def test_mixed_models_among_the_promoted_rows_are_a_precondition_failure(world, command):
+    seed_profiles(world, 3)
+    world.dev_side.x("update meme_profile_situation_embeddings set model_name = 'm2' where image_id = %s", (uid(3),))
+    code, out, err, folder = command(run_id="20261113T120000Z-00000026")
+    assert code == 2 and "model_parity" in err
+    doc = json.loads((folder / "report.json").read_text())
+    bad = [p for p in doc["preconditions"] if not p["ok"]]
+    assert [p["id"] for p in bad] == ["model_parity"] and "dev_model_pairs=2" in bad[0]["detail"]
+    code, out, err, _ = command("--allow-model-change", run_id="20261113T120000Z-00000027")
+    assert code == 2  # no flag lifts it
 
 
 def test_the_dry_run_holds_the_prod_lock_and_releases_it(world, command, sync_pair):

@@ -175,3 +175,28 @@ None blocking. The choices above are for review.
 | Counts and classes | updated to the built registry: 46 tables = 22 D / 6 P / 18 X; comics, comics_panels, statistics_snapshots are class X; no comics rules, digest group or `Scope.where`; `prune` only on `concepts*` |
 | Entry shape | text matches `sync/model.py` (enums, `level`, `setval`, `prune`, `pull_before_promote`) |
 | Amendments | `digest_exclude`, `image_extras` replace mode and the absorptions note listed as follow-ups of P2-T1; cross-document names in `interfaces.md` |
+
+## Revision notes (2026-11-13 digest exclusion audit)
+
+Owner decision: a rebuild with identical content must not flip a digest group. Every timestamp column of a class D digest table was audited against `Storage/models.py`. A column is excluded when a rebuild changes it without a content change and nothing on prod reads it as evidence; it is kept when it is content, a curation event, or staleness evidence. Guards in `tests/sync/test_registry.py`: the pinned exclusion set; every timestamp column of a digest table is either excluded or listed in `TIMESTAMP_KEPT` with a reason; an excluded column must be a timestamp or one of four named surrogate or run columns; stale flags, `human_verified`, `approved`, `popularity`, `description_notes.updated_at` and `image_descriptions.created_at` are never excluded. Mutation-tested: removing an exclusion fails the pin and the audit guard, and excluding `popularity` or `human_verified` fails the content guards.
+
+| table.column | Decision | Reason |
+|---|---|---|
+| `ocr_texts.id`, `embeddings.id`, `tags.id` | exclude (existing) | unreferenced surrogate ids |
+| `ocr_texts.created_at`, `embeddings.created_at`, `tags.created_at` | exclude (existing) | rebuild timestamp |
+| `images.ingestion_batch_id` | exclude (existing) | blanked on prod, run bookkeeping |
+| `description_notes.lemmas_built_at`, `.embedding_built_at` | exclude (existing) | bookkeeping of the lemma and embedding jobs |
+| `ocr_lemmas.created_at` | exclude (new) | rebuild timestamp; no staleness logic reads it (`--incremental` tests presence) |
+| `image_description_embeddings.created_at` | exclude (new) | rebuild timestamp of a derived vector, keyed by the description id |
+| `description_lemmas.created_at` | exclude (new) | rebuild timestamp of a derived index |
+| `description_note_embeddings.created_at` | exclude (new) | rebuild timestamp of a derived vector |
+| `description_note_lemmas.created_at` | exclude (new) | rebuild timestamp of a derived index |
+| `meme_profile_situation_embeddings.created_at` | exclude (new) | rebuild timestamp; the model name and digest stay in the digest |
+| `meme_profiles.extracted_at` | exclude (new) | written together with `updated_at` on every extraction; staleness is derived from taxonomy version, prompt version, model and input fingerprint, which stay in the digest |
+| `meme_profiles.updated_at` | exclude (new; the P2 "check before excluding" is done) | `repository/meme_profiles.py` sets it with `extracted_at` on every write, so keeping it would keep every identical rebuild a change; a human save or confirm also changes `human_verified`, values or `taxonomy_version`, which stay in the digest. Cost: prod can show an older "updated" time than dev for a re-confirmed profile |
+| `images.created_at` | keep | registration time, a rebuild never rewrites it |
+| `image_descriptions.created_at` | keep | the table's id is referenced by three child tables and changes on every regeneration, so excluding the timestamp gains nothing; it also orders descriptions (`ORDER BY created_at, id`) and is the evidence of `build_tags_from_descriptions` staleness |
+| `image_description_feedback.created_at` | keep | owner curation event, not a rebuild |
+| `description_notes.updated_at` | keep | owner edit time, staleness evidence of `build_tags_from_notes` |
+| `popularity_absorptions.created_at` | keep (global set, no digest group) | load order and content of the log |
+

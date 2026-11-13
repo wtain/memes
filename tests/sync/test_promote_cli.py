@@ -23,7 +23,8 @@ def parse(*argv):
 def test_every_flag_of_the_interface_is_accepted():
     a = parse("--apply", "--yes", "--plan-hash", "ab" * 32, "--first-seed", "--only", "tags,images", "--only", "embeddings",
               "--limit-images", "5", "--batch-size", "100", "--max-report-age", "90m", "--top", "7", "--run-id", "20261113T120000Z-0000000a",
-              "--json", "-", "--allow-mass-change", "12", "--allow-shrink", "tags", "--allow-shrink", "embeddings", "--ignore-running-batches")
+              "--json", "-", "--allow-mass-change", "12", "--allow-shrink", "tags", "--allow-shrink", "embeddings", "--ignore-running-batches",
+              "--allow-model-change")
     cli.validate_args(a)
     assert cli.only_tables(a) == ["tags", "images", "embeddings"] and a.allow_shrink == ["tags", "embeddings"]
     b = parse("--verify-only")
@@ -64,9 +65,9 @@ def test_parse_age():
 
 def test_apply_command_flags_carry_plan_changing_flags_and_lifts_but_not_secrets_or_output_flags():
     a = parse("--first-seed", "--only", "tags,images", "--limit-images", "5", "--allow-mass-change", "9", "--allow-shrink", "tags",
-              "--ignore-running-batches", "--max-report-age", "90m", "--top", "3", "--json", "-")
+              "--ignore-running-batches", "--max-report-age", "90m", "--top", "3", "--json", "-", "--allow-model-change")
     assert cli.apply_flags(a) == ["--first-seed", "--only", "tags,images", "--limit-images", "5", "--max-report-age", "90m",
-                                  "--allow-mass-change", "9", "--allow-shrink", "tags", "--ignore-running-batches"]
+                                  "--allow-mass-change", "9", "--allow-shrink", "tags", "--allow-model-change", "--ignore-running-batches"]
     assert cli.apply_flags(parse()) == []
 
 
@@ -275,10 +276,31 @@ def test_model_parity_rules():
 
     assert pre.model_parity(conn([("m", "d")], [3]), conn([("m", "d")], [3]))["ok"]
     assert pre.model_parity(conn([("m", "d")], [3]), conn([], []))["ok"]  # an empty prod takes any single pair
-    assert pre.model_parity(conn([], []), conn([("m", "d")], [3]))["detail"] == "embedding_model_differs_from_prod,taxonomy_differs_from_prod"
+    assert pre.model_parity(conn([], []), conn([("m", "d")], [3]))["ok"]  # differences from prod are not a precondition
+    assert pre.model_parity(conn([("m", "d")], [3]), conn([("m", "OTHER")], [4]))["ok"]
     assert pre.model_parity(conn([("m", "d"), ("m2", "d")], [3]), conn([], []))["detail"] == "dev_model_pairs=2"
     assert pre.model_parity(conn([("m", "d")], [3, 4]), conn([], []))["detail"] == "dev_taxonomy_versions=2"
-    assert pre.model_parity(conn([("m", "d")], [3]), conn([("m", "OTHER")], [3]))["detail"] == "embedding_model_differs_from_prod"
+    assert pre.model_parity(conn([("m", "d"), ("m2", "d")], [3, 4]), conn([], []))["detail"] == "dev_model_pairs=2,dev_taxonomy_versions=2"
+
+
+def test_model_pair_change_is_informational_and_names_what_changed():
+    def conn(pairs, taxonomy):
+        return Conn({"model_name": [list(p) for p in pairs], "taxonomy_version": [(t,) for t in taxonomy]})
+
+    def detail(dev, prod):
+        r = pre.model_pair_change(dev, prod)
+        assert r["id"] == "model_pair_change" and r["ok"]
+        return r["detail"]
+
+    assert detail(conn([("m", "d")], [3]), conn([("m", "d")], [3])) == "profile_embedding=same,taxonomy=same"
+    assert detail(conn([("m", "d")], [3]), conn([("m", "OTHER")], [3])) == "profile_embedding=changed,taxonomy=same"
+    assert detail(conn([("m", "d")], [3]), conn([("m", "d")], [4])) == "profile_embedding=same,taxonomy=changed"
+    assert detail(conn([("m", "d")], [3]), conn([("n", "d")], [4])) == "profile_embedding=changed,taxonomy=changed"
+    assert detail(conn([("m", "d")], [3]), conn([], [])) == "profile_embedding=same,taxonomy=same"  # empty prod: nothing to overwrite
+    assert detail(conn([], []), conn([("m", "d")], [3])) == "profile_embedding=same,taxonomy=same"  # empty dev: the coverage guards speak
+    assert pre.model_changed([pre.result("model_pair_change", True, "profile_embedding=changed,taxonomy=same")])
+    assert not pre.model_changed([pre.result("model_pair_change", True, "profile_embedding=same,taxonomy=same")])
+    assert not pre.model_changed([])
 
 
 def test_prod_lock_results():

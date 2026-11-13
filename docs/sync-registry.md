@@ -85,11 +85,19 @@ rows reached through a scoped parent; `global_set` no image relation. Level is t
 
 Columns left out of the per-image digest (a change of only these is not a change of the image):
 
+- `description_lemmas.created_at`: rebuild timestamp: a rebuild with the same content is not a change
+- `description_note_embeddings.created_at`: rebuild timestamp: a rebuild with the same content is not a change
+- `description_note_lemmas.created_at`: rebuild timestamp: a rebuild with the same content is not a change
 - `description_notes.lemmas_built_at`: pure bookkeeping of the lemma job
 - `description_notes.embedding_built_at`: pure bookkeeping of the embedding job
 - `embeddings.id`: unreferenced surrogate id: a rebuild with the same content is not a change
 - `embeddings.created_at`: rebuild timestamp: a rebuild with the same content is not a change
+- `image_description_embeddings.created_at`: rebuild timestamp: a rebuild with the same content is not a change
 - `images.ingestion_batch_id`: blanked on prod, so it never matches dev: run bookkeeping
+- `meme_profile_situation_embeddings.created_at`: rebuild timestamp: a rebuild with the same content is not a change
+- `meme_profiles.extracted_at`: rebuild timestamp: written with updated_at on every extraction; not read by the retrieval
+- `meme_profiles.updated_at`: set together with extracted_at on every write; a human save or confirm also changes human_verified, values or taxonomy_version, which stay in the digest
+- `ocr_lemmas.created_at`: rebuild timestamp: a rebuild with the same content is not a change
 - `ocr_texts.id`: unreferenced surrogate id: a rebuild with the same content is not a change
 - `ocr_texts.created_at`: rebuild timestamp: a rebuild with the same content is not a change
 - `tags.id`: unreferenced surrogate id: a rebuild with the same content is not a change

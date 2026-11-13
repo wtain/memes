@@ -44,6 +44,8 @@ DEFAULT_REQUIRED = ("embeddings", "ocr_texts")
 
 LIFT_MASS = "--allow-mass-change"
 LIFT_SHRINK = "--allow-shrink"
+LIFT_MODEL = "--allow-model-change"
+MODEL_TABLES = ("meme_profiles", "meme_profile_situation_embeddings")
 
 
 class PlanError(ValueError):
@@ -121,6 +123,7 @@ class PlanInput:
     prod_globals: dict = field(default_factory=dict)
     only: list | None = None
     batch_size: int = DEFAULT_BATCH_SIZE
+    model_change: bool = False  # the `model_pair_change` precondition found a different model pair or taxonomy version on dev
 
 
 @dataclass
@@ -235,6 +238,9 @@ def build_plan(inp: PlanInput) -> Plan:
         over_bytes = sum(_bytes(inp.dev_digests.get(i, {}), tables) for i in changed_planned)
 
         guards += _image_guards(inp, tables, existing, dev_ids, prod_ids, len(changed_planned))
+        # only when a profile table is compared: the affected rows are overwrites by digest, the flag is the owner's acknowledgement
+        guards.append(report.Guard("model_change", inp.model_change and any(t in tables for t in MODEL_TABLES), int(inp.model_change), 0,
+                                   LIFT_MODEL))
 
         entries.append(report.Entry(
             name=ENTRY, kind="images",
@@ -315,10 +321,11 @@ def _image_guards(inp: PlanInput, tables: list, existing: list, dev_ids: list, p
 # ---------------------------------------------------------------------------------------------------------------------------------
 # lifts
 
-def effective_blocking(plan: Plan, allow_mass_change: int | None = None, allow_shrink: Iterable[str] = ()) -> list:
+def effective_blocking(plan: Plan, allow_mass_change: int | None = None, allow_shrink: Iterable[str] = (),
+                       allow_model_change: bool = False) -> list:
     """Ids of the tripped guards that no lift flag removes. `--allow-mass-change N` lifts only when N equals the planned changed
     count exactly (a wrong N lifts nothing); `--allow-shrink TABLE` lifts the row and coverage regression guards of that table.
-    The zero-image, dev-emptied and id-overlap guards have no lift."""
+    `--allow-model-change` lifts the model-change guard. The zero-image, dev-emptied and id-overlap guards have no lift."""
     shrink = set(allow_shrink)
     blocking = []
     for g in plan.section.guards:
@@ -327,13 +334,15 @@ def effective_blocking(plan: Plan, allow_mass_change: int | None = None, allow_s
         base, _, table = g.id.partition(":")
         if base == "mass_change" and allow_mass_change is not None and allow_mass_change == g.value:
             continue
+        if base == "model_change" and allow_model_change:
+            continue
         if base in ("row_regression", "coverage_regression") and table in shrink:
             continue
         blocking.append(g.id)
     return blocking
 
 
-def lift_problems(plan: Plan, allow_mass_change: int | None, allow_shrink: Iterable[str]) -> list:
+def lift_problems(plan: Plan, allow_mass_change: int | None, allow_shrink: Iterable[str], allow_model_change: bool = False) -> list:
     """Codes for lift flags that do nothing useful: a wrong N, or a table that has no guard in this plan."""
     problems = []
     by_id = {g.id: g for g in plan.section.guards}
@@ -343,6 +352,10 @@ def lift_problems(plan: Plan, allow_mass_change: int | None, allow_shrink: Itera
             problems.append("allow_mass_change_not_needed")
         elif g.value != allow_mass_change:
             problems.append("allow_mass_change_wrong_n")
+    if allow_model_change:
+        g = by_id.get("model_change")
+        if g is None or not g.tripped:
+            problems.append("allow_model_change_not_needed")
     for t in allow_shrink:
         if f"row_regression:{t}" not in by_id:
             problems.append(f"allow_shrink_unknown_table:{t}")

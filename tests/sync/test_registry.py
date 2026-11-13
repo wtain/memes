@@ -225,7 +225,42 @@ def test_the_digest_exclusions_are_the_ones_the_design_states():
         ("ocr_texts", "id"), ("ocr_texts", "created_at"), ("embeddings", "id"), ("embeddings", "created_at"),
         ("tags", "id"), ("tags", "created_at"), ("images", "ingestion_batch_id"),
         ("description_notes", "lemmas_built_at"), ("description_notes", "embedding_built_at"),
+        ("ocr_lemmas", "created_at"), ("image_description_embeddings", "created_at"), ("description_lemmas", "created_at"),
+        ("meme_profiles", "extracted_at"), ("meme_profiles", "updated_at"),
+        ("meme_profile_situation_embeddings", "created_at"), ("description_note_embeddings", "created_at"),
+        ("description_note_lemmas", "created_at"),
     }
+
+
+# The 2026-11-13 audit: every timestamp column of a digest table is either excluded (rebuild bookkeeping) or kept for the reason here.
+TIMESTAMP_KEPT = {
+    ("images", "created_at"): "registration time, never rewritten by a rebuild",
+    ("image_descriptions", "created_at"): "id is referenced, so a regenerated description changes the digest anyway; orders descriptions",
+    ("image_description_feedback", "created_at"): "owner curation event",
+    ("description_notes", "updated_at"): "owner edit time, staleness evidence of build_tags_from_notes",
+}
+# Non-timestamp columns that may be excluded (surrogate ids, run bookkeeping); anything else excluded must be a timestamp.
+NON_TIMESTAMP_EXCLUDABLE = {("ocr_texts", "id"), ("embeddings", "id"), ("tags", "id"), ("images", "ingestion_batch_id")}
+
+
+def _timestamp_columns():
+    from sqlalchemy import DateTime
+    return {(e.name, c.name) for e in REG.values() if e.digest_group for c in TABLES[e.name].columns if isinstance(c.type, DateTime)}
+
+
+def test_every_timestamp_column_of_a_digest_table_is_audited():
+    excluded = {(t, c) for t, c, _ in _excluded()}
+    unaudited = _timestamp_columns() - excluded - set(TIMESTAMP_KEPT)
+    assert not unaudited, f"timestamp columns neither excluded nor kept with a reason: {sorted(unaudited)}"
+    assert not (excluded & set(TIMESTAMP_KEPT)), "a column is both excluded and listed as kept"
+    assert set(TIMESTAMP_KEPT) <= _timestamp_columns()
+    assert all(reason.strip() for reason in TIMESTAMP_KEPT.values())
+
+
+def test_an_excluded_column_is_bookkeeping_not_content():
+    for table, column, _ in _excluded():
+        is_ts = (table, column) in _timestamp_columns()
+        assert is_ts or (table, column) in NON_TIMESTAMP_EXCLUDABLE, f"{table}.{column} looks like content, not bookkeeping"
 
 
 def test_every_excluded_column_exists_on_its_table():
@@ -255,7 +290,9 @@ def test_stale_flags_feedback_approval_and_popularity_stay_in_the_digest():
     assert not {(t, c) for t, c in excluded if c == "stale"}
     assert ("image_description_feedback", "approved") not in excluded
     assert ("images", "popularity") not in excluded
-    assert ("meme_profiles", "updated_at") not in excluded
+    assert ("meme_profiles", "human_verified") not in excluded
+    assert ("description_notes", "updated_at") not in excluded
+    assert ("image_descriptions", "created_at") not in excluded
     for table, column in (("image_description_feedback", "approved"), ("images", "popularity")):
         assert column in TABLES[table].columns
 
