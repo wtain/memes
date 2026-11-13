@@ -304,10 +304,17 @@ class ResultEntry:
     skipped: dict = field(default_factory=dict)  # reason code -> ids
     failed: list = field(default_factory=list)  # ids of the batch that was rolled back (P2 apply: the run stopped there)
     failure: str | None = None  # code-like reason of that failure (`db_error:23505`, `interrupted`, ...)
+    checked: int | None = None  # verify entries: how many ids or rows were compared with what the apply promised
+    differences: dict = field(default_factory=dict)  # verify entries: difference code -> ids (any entry makes the run exit 4)
+    info: dict = field(default_factory=dict)  # verify entries: informational counts (drift, parity), never a failure
 
     def __post_init__(self):
         check_count(self.added)
         check_count(self.overwritten)
+        if self.checked is not None:
+            check_count(self.checked)
+        self.differences = {check_token(c, "difference code"): sorted_ids(v) for c, v in sorted(self.differences.items()) if v}
+        self.info = {check_token(k, "info key"): check_count(v, "info count") for k, v in sorted(self.info.items())}
         self.skipped = {check_member(r, REASON_CODES, "reason code"): sorted_ids(v) for r, v in self.skipped.items()}
         self.failed = sorted_ids(self.failed)
         if self.failure is not None:
@@ -571,6 +578,9 @@ def _result_entry_json(r: ResultEntry) -> dict:
            "skipped_with_reason": {c: {"count": len(v), "ids": v} for c, v in sorted(r.skipped.items())}}
     if r.failed or r.failure:
         out["failed"] = {"count": len(r.failed), "ids": list(r.failed), "failure": r.failure}
+    if r.checked is not None:
+        out["verify"] = {"checked": r.checked, "differences": {c: {"count": len(v), "ids": list(v)} for c, v in r.differences.items()},
+                         "info": dict(r.info)}
     return out
 
 
@@ -690,6 +700,12 @@ def render_markdown(doc: Document, top_n: int = DEFAULT_TOP_N) -> str:
                          + (f", FAILED batch of {len(r.failed)} images rolled back ({r.failure})" if r.failed or r.failure else ""))
                 if r.failed:
                     L.append(f"  failed ids: {_capped(r.failed, top_n)}")
+                if r.checked is not None:
+                    diffs = ", ".join(f"{c} {len(v)}" for c, v in r.differences.items())
+                    L.append(f"  verified {r.checked}: " + (f"DIFFERENCES: {diffs}" if diffs else "no differences")
+                             + (" (" + ", ".join(f"{k} {v}" for k, v in r.info.items()) + ")" if r.info else ""))
+                    for c, v in r.differences.items():
+                        L.append(f"  {c} ids: {_capped(v, top_n)}")
     return "\n".join(L) + "\n"
 
 

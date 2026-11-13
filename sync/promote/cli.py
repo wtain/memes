@@ -8,8 +8,11 @@ would trip.
 `--apply` re-plans, then refuses (exit 2: a precondition including the files gate; exit 3: a different plan hash or a tripped guard
 that no lift flag removes) before any write. After the typed confirmation the image batches are applied (`sync.promote.apply`, task T6:
 one prod transaction per batch, files gate per image, digests re-checked on prod before the commit, `committed.json`, `setval`); the
-report is rewritten with a `result` block, also when a batch failed (exit 1, the committed batches are listed). The global sets (T7) and
-`--verify-only` (T8) are not built: `--verify-only` stops with exit 1 and the global sets are reported as not applied.
+report is rewritten with a `result` block, also when a batch failed (exit 1, the committed batches are listed). After the image batches the
+global sets are applied (T7: concepts upsert, absorptions insert-or-close) and the apply ends with the verify phase (T8,
+`sync.promote.verify`): prod is re-read read-only and compared with `committed.json`; a difference is exit 4 (what was promoted is not
+rolled back). `--verify-only` runs only that phase against the newest committed.json of the environment: state-directory lock,
+handshake H1 to H4 and H10, a read-only prod session, a report (a `dry` run folder: it is never an input of any tool) and exit 0 or 4.
 
 Exit codes (interfaces.md i): 0 clean or dry run, 1 other failure, 2 handshake or precondition (including a held lock or a bad flag),
 3 guard before any write, 4 verification differences (T8).
@@ -25,19 +28,18 @@ from pathlib import Path
 from typing import Any, Callable
 
 from sync import connect, registry, report
-from sync.config import (ENVIRONMENTS, EXIT_FAILURE, EXIT_GUARD, EXIT_OK, PreconditionError, SyncError, SyncSettings, exclusive_lock,
+from sync.config import (ENVIRONMENTS, EXIT_FAILURE, EXIT_GUARD, EXIT_OK, EXIT_VERIFY, PreconditionError, SyncError, SyncSettings, exclusive_lock,
                          load_settings, mark_dry, new_run_id, run_dir, state_dir)
 from sync.files.manifest import manifest_sha256
 from sync.model import Klass
 from sync.promote import apply as apply_mod
 from sync.promote import digest as dg
-from sync.promote import files_gate, plan as plan_mod, preconditions as pre_mod
+from sync.promote import files_gate, plan as plan_mod, preconditions as pre_mod, verify as verify_mod
 
 TOOL = plan_mod.TOOL
 DEFAULT_MAX_REPORT_AGE = "2h"
 _AGE = re.compile(r"^(\d+(?:\.\d+)?)([smhd]?)$")
 _UNITS = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
-NOT_BUILT_VERIFY = "--verify-only is not built yet (task T8)"
 
 
 class UsageProblem(PreconditionError):
@@ -50,8 +52,10 @@ class Refusal(SyncError):
     exit_code = EXIT_GUARD
 
 
-class NotBuilt(SyncError):
-    exit_code = EXIT_FAILURE
+class VerificationFailed(SyncError):
+    """The verify phase found differences between prod and what the run promised (exit 4)."""
+
+    exit_code = EXIT_VERIFY
 
 
 class ApplyFailed(SyncError):
@@ -85,7 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--yes", action="store_true", help="with --apply: skip only the typed confirmation '<env> <prod database>'")
     p.add_argument("--plan-hash", default=None, help="with --apply: refuse (exit 3) if the re-planned hash differs from the dry run's")
     p.add_argument("--first-seed", action="store_true", help="prod is in state 'seeding' (memes.state); resumable by running again")
-    p.add_argument("--verify-only", action="store_true", help="only the verify phase against the newest committed.json (not built yet)")
+    p.add_argument("--verify-only", action="store_true", help="only the verify phase (read only) against the newest committed.json of the environment")
     p.add_argument("--only", action="append", default=None, metavar="TABLE[,..]",
                    help="restrict to class D tables (parents are added)")
     p.add_argument("--limit-images", type=int, default=None, metavar="N",
@@ -283,8 +287,6 @@ def run_promote(args: argparse.Namespace, *, settings: SyncSettings | None = Non
     try:
         validate_args(args)
         settings = settings or load_settings(args.env)
-        if args.verify_only:
-            raise NotBuilt(NOT_BUILT_VERIFY)
         run_id = args.run_id or new_run_id()
         folder = run_dir(settings, run_id)
         with contextlib.ExitStack() as stack:
@@ -294,11 +296,48 @@ def run_promote(args: argparse.Namespace, *, settings: SyncSettings | None = Non
                 except SyncError as exc:
                     _failed_report(settings, args, run_id, folder, preconditions=[pre_mod.result("lock", False, "held")], out=out)
                     raise exc
+            if args.verify_only:
+                return _verify_only(args, settings, run_id, folder, session_opener or connect.open_session, capabilities, git_sha, out)
             return _locked(args, settings, run_id, folder, session_opener or connect.open_session, capabilities, git_sha,
                            now or _now(), out, ask or input)
     except SyncError as exc:
         print(f"sync: {exc}", file=err)
         return exc.exit_code
+
+
+VERIFY_STEPS = ("H1", "H2", "H3", "H4", "H10")  # --verify-only: identity of both sides and the release; no capabilities call, no state check
+
+
+def _verify_only(args, settings: SyncSettings, run_id: str, folder: Path, opener, capabilities, git_sha, out) -> int:
+    """`--verify-only`: the verify phase alone. Read only on both sides; the report goes into a `dry` run folder."""
+    env = settings.env
+    found = verify_mod.newest_committed(state_dir(settings) / "runs", env, skip=folder)
+    if found is None:
+        raise verify_mod.NothingToVerify("no committed.json of this environment to verify")
+    path, committed = found
+    with opener(env, "V", "normal", settings=settings) as conns:
+        dev, prod = conns["dev"], conns["prod"]
+        out.write(connect.banner(env, settings, str(settings.get("dev.database") or "?")) + "\n")
+        try:
+            prod.query("SET default_transaction_read_only = on")  # also when the opener did not already: a verify cannot write
+            hs = connect.handshake(env, "V", "normal", settings=settings, dev=dev, prod=prod, capabilities=capabilities,
+                                   git_sha=git_sha, fail_fast=True, steps=VERIFY_STEPS)
+        except connect.HandshakeError as exc:
+            _failed_report(settings, args, run_id, folder, handshake=exc.results, out=out)
+            raise
+        res = verify_mod.run_verify(dev, prod, committed)
+    section = verify_mod.parity_section(res)
+    doc = report.Document(env=env, run_id=run_id, tool=TOOL, dry=True, sections=[section] if section else [], handshake=hs,
+                          result={verify_mod.SECTION: verify_mod.result_entries(res)})
+    mark_dry(folder)
+    _emit(doc, folder, args, settings, out)
+    out.write(f"verified against run {committed['run_id']} ({path.parent.name})\n")
+    for line in verify_mod.summary(res):
+        out.write(line + "\n")
+    if not res.ok:
+        raise VerificationFailed(f"verification found {res.difference_count} difference(s) against run {committed['run_id']}; "
+                                 "see report.json")
+    return EXIT_OK
 
 
 def _locked(args, settings: SyncSettings, run_id: str, folder: Path, opener, capabilities, git_sha, now, out, ask) -> int:
@@ -378,27 +417,47 @@ def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre
         raise ApplyFailed(f"apply stopped: {outcome.failure}; {outcome.batches} batch(es) committed by this run"
                           + (f", {len(outcome.failed)} image(s) of the failed batch rolled back" if outcome.failed else "")
                           + "; see committed.json and report.json, then run the same command again")
+    verification = outcome.verify
+    if verification is not None and verification.error:
+        raise ApplyFailed(f"the apply finished but verification could not run: {verification.error}; "
+                          "run the same command with --verify-only")
+    if verification is not None and not verification.ok:
+        raise VerificationFailed(f"verification found {verification.difference_count} difference(s) between prod and what this run "
+                                 "promised (nothing was rolled back); see report.json and run --verify-only after fixing prod")
     return EXIT_OK
 
 
 def result_of(p: plan_mod.Plan, outcome: apply_mod.ApplyOutcome) -> dict:
-    """The `result` block of the apply report (interfaces.md k): what was committed, what was skipped at apply time, what failed.
-    Only the image entry; the global sets (T7) add theirs."""
-    if not p.section.entries or p.section.entries[0].name != plan_mod.ENTRY:
-        return {plan_mod.SECTION: {}}
-    entry = report.ResultEntry(added=len(outcome.added), overwritten=len(outcome.overwritten), skipped=dict(outcome.skipped),
-                               failed=outcome.failed, failure=outcome.failure)
-    return {plan_mod.SECTION: {plan_mod.ENTRY: entry}}
+    """The `result` block of the apply report (interfaces.md k): what was committed, what was skipped at apply time, what failed, per
+    entry of the plan (the images, each global table the apply reached) and, when the run committed something, the `verify` section."""
+    data: dict = {}
+    if p.section.entries and p.section.entries[0].name == plan_mod.ENTRY:
+        data[plan_mod.ENTRY] = report.ResultEntry(added=len(outcome.added), overwritten=len(outcome.overwritten),
+                                                  skipped=dict(outcome.skipped), failed=outcome.failed, failure=outcome.failure)
+    for e in p.section.entries:
+        g = outcome.globals.get(e.name)
+        if g is not None:
+            data[e.name] = report.ResultEntry(added=len(g.added), overwritten=len(g.overwritten), skipped=dict(g.skipped),
+                                              failed=g.failed, failure=g.failure)
+    result = {plan_mod.SECTION: data}
+    if outcome.verify is not None and outcome.verify.error is None:
+        result[verify_mod.SECTION] = verify_mod.result_entries(outcome.verify)
+    return result
 
 
 def _print_result(p: plan_mod.Plan, outcome: apply_mod.ApplyOutcome, out) -> None:
     skipped = ", ".join(f"{r} {len(v)}" for r, v in sorted(outcome.skipped.items()))
     out.write(f"applied: {len(outcome.added)} added, {len(outcome.overwritten)} overwritten in {outcome.batches} batch(es)"
               + (f"; skipped: {skipped}" if skipped else "") + "\n")
+    for table, g in outcome.globals.items():
+        reasons = ", ".join(f"{r} {len(v)}" for r, v in sorted(g.skipped.items()))
+        out.write(f"global {table}: {len(g.added)} added, {len(g.overwritten)} overwritten" + (f"; skipped: {reasons}" if reasons else "")
+                  + (f"; FAILED ({g.failure})" if g.failure else "") + "\n")
     if outcome.setvals:
         out.write("sequences moved: " + ", ".join(sorted(outcome.setvals)) + "\n")
-    if "global_sets_not_applied" in outcome.notes:
-        out.write("note: the global sets (concepts, absorptions) have planned changes and are not applied yet (task T7)\n")
+    if outcome.verify is not None:
+        for line in verify_mod.summary(outcome.verify):
+            out.write(line + "\n")
 
 
 def _print_notes(p: plan_mod.Plan, args: argparse.Namespace, out) -> None:

@@ -71,14 +71,14 @@ def test_apply_command_flags_carry_plan_changing_flags_and_lifts_but_not_secrets
     assert cli.apply_flags(parse()) == []
 
 
-def test_verify_only_is_not_built_and_exits_one_before_any_connection(tmp_path):
+def test_verify_only_without_a_committed_json_is_exit_two_before_any_connection(tmp_path):
     def opener(*a, **k):
         raise AssertionError("must not connect")
 
     out, err = io.StringIO(), io.StringIO()
     code = cli.run_promote(parse("--verify-only"), settings=SyncSettings("general", {"state_dir": str(tmp_path)}, root=tmp_path),
                            session_opener=opener, out=out, err=err)
-    assert code == 1 and "not built yet" in err.getvalue()
+    assert code == 2 and "no committed.json" in err.getvalue()
 
 
 # --- handshake failure, lock, failed preconditions: a report is still written ------------------------------------------------------

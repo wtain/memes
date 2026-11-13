@@ -34,6 +34,7 @@ PINNED_SETTINGS = (
 
 RESTRICTIONS = ("promotable", "all", "ids")
 ABSORPTIONS = "popularity_absorptions"
+KEY_CHUNK = 5000  # primary keys per restricted global-set query
 
 
 class DigestError(ValueError):
@@ -145,16 +146,27 @@ def image_digest_sql(table: str, restrict: str = "promotable", columns: Iterable
     return sql + " GROUP BY 1 ORDER BY 1"
 
 
-def global_digest_sql(table: str, columns: Iterable | None = None) -> str:
-    """Per-row hash of a global set, by primary key. Absorptions also return whether the row is closed (`reversed_by_id` set)."""
+def key_sql_type(table: str) -> str:
+    """The postgres type name of a single-key global set's primary key (`int4` or `uuid`), for `= ANY(%s::<type>[])`."""
+    from Storage.models import Base
+
+    entry = registry.get(table)
+    name = type(Base.metadata.tables[table].columns[entry.key[0]].type).__name__.lower()
+    return "uuid" if name == "uuid" else "int4"
+
+
+def global_digest_sql(table: str, columns: Iterable | None = None, keys: bool = False) -> str:
+    """Per-row hash of a global set, by primary key. Absorptions also return whether the row is closed (`reversed_by_id` set).
+    With `keys` the query takes one `%s` parameter, a list of primary keys, and returns only those rows."""
     entry = registry.get(table)
     if entry.klass is not Klass.D or entry.scope.kind is not ScopeKind.GLOBAL_SET or len(entry.key) != 1:
         raise DigestError(f"{table} is not a single-key global set")
     key = entry.key[0]
     exprs = ", ".join(digest_exprs(table, columns))
     closed = ', (t."reversed_by_id" IS NOT NULL) AS closed' if table == ABSORPTIONS else ""
+    where = f' WHERE t."{key}" = ANY(%s::{key_sql_type(table)}[])' if keys else ""
     return (f'SELECT t."{key}" AS k, md5(r.row_text) AS h{closed} FROM "{table}" AS t '
-            f'CROSS JOIN LATERAL (SELECT ROW({exprs})::text AS row_text) AS r ORDER BY 1')
+            f'CROSS JOIN LATERAL (SELECT ROW({exprs})::text AS row_text) AS r{where} ORDER BY 1')
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------
@@ -207,11 +219,17 @@ def fetch_image_digests(conn: Any, tables: Iterable[str], restrict: str, ids: li
     return out
 
 
-def fetch_global_hashes(conn: Any, table: str) -> dict:
-    """primary key -> (row hash, closed flag or None) of a global set on one side."""
-    out = {}
-    for row in conn.query(global_digest_sql(table)):
-        out[row[0]] = (str(row[1]), bool(row[2]) if len(row) > 2 else None)
+def fetch_global_hashes(conn: Any, table: str, keys: list | None = None) -> dict:
+    """primary key -> (row hash, closed flag or None) of a global set on one side; `keys` restricts it to those primary keys."""
+    out: dict = {}
+    if keys is None:
+        batches = [None]
+    else:
+        batches = [keys[i:i + KEY_CHUNK] for i in range(0, len(keys), KEY_CHUNK)]
+    for chunk in batches:
+        rows = conn.query(global_digest_sql(table), None) if chunk is None else conn.query(global_digest_sql(table, keys=True), (chunk,))
+        for row in rows:
+            out[row[0]] = (str(row[1]), bool(row[2]) if len(row) > 2 else None)
     return out
 
 

@@ -393,12 +393,13 @@ def _setting(conn: SyncConnection, name: str) -> str | None:
 def handshake(env: str, tool: str, mode: str = "normal", *, settings: SyncSettings, dev: SyncConnection,
               prod: SyncConnection | None = None, prod_reader_conn: SyncConnection | None = None,
               capabilities: Callable[[str], dict] | None = None, transport: Transport | None = None,
-              git_sha: str | None = None, fail_fast: bool = True) -> list[dict]:
+              git_sha: str | None = None, fail_fast: bool = True, steps: tuple[str, ...] | None = None) -> list[dict]:
     """Run the steps of interfaces.md e for `tool` (P, F, L, V, R or D). Returns the `{step, ok, detail}` list.
 
     With fail_fast (default) the first failure raises HandshakeError (a PreconditionError, exit 2, one-line reason, `.results`
     holding the steps so far); with fail_fast=False every step runs (doctor). `mode` is `normal` or `first-seed` (H9).
     `capabilities` is a callable api_url -> payload (default fetch_capabilities); `transport` supplies the gate step H6.
+    `steps` restricts the run to those steps (still only the ones `tool` runs): `promote --verify-only` asks for H1 to H4 and H10.
     """
     if tool not in TOOLS:
         raise ValueError(f"unknown tool {tool!r}")
@@ -412,7 +413,7 @@ def handshake(env: str, tool: str, mode: str = "normal", *, settings: SyncSettin
             raise HandshakeError(f"handshake {step} failed: {detail}", list(results))
 
     def run(step: str, fn: Callable[[], tuple[bool, str]]) -> None:
-        if tool not in STEP_TOOLS[step]:
+        if tool not in STEP_TOOLS[step] or (steps is not None and step not in steps):
             return
         try:
             ok, detail = fn()

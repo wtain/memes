@@ -409,6 +409,7 @@ def test_limit_images_and_batch_size(world, command, tmp_path, dev_only):
     code, out, err, folder = command("--apply", "--yes", run_id=rid(16))  # the rest next time
     assert code == 0, (out, err)
     assert world.prod_side.scalar("select count(*) from images") == 5
+    assert world.prod_side.scalar("select count(*) from concepts") == 1  # the uncapped run applies the global sets (T7)
 
 
 def test_only_restricts_the_tables_that_are_written(world, command, tmp_path, dev_only):
