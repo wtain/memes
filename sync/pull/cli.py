@@ -343,7 +343,9 @@ def _locked(args, settings: SyncSettings, mode: str, limits, run_id: str, folder
 
 def _after_plan(args, settings, run_id, folder, inp, p: plan_mod.Plan, hs, pre, dev, prod, directory, facts, transport, now, out, ask) -> int:
     env = settings.env
-    p.section.lists = bugreports.plan_lists(settings, transport)
+    lists, checks = bugreports.plan_report(settings, None if args.skip_files else transport)
+    p.section.lists = lists
+    p.section.checks = list(p.section.checks) + checks
     if not args.apply:
         doc = report.Document(env=env, run_id=run_id, tool=TOOL, dry=True, sections=[p.section], handshake=hs, preconditions=pre)
         doc.apply_command = report.apply_command(TOOL, env, doc.plan_hash, apply_flags(args))
@@ -449,4 +451,15 @@ def _print_notes(p: plan_mod.Plan, args: argparse.Namespace, out) -> None:
 
 def main(argv: list | None = None) -> int:
     args = build_parser().parse_args(argv)
+    transport = None
+    if not args.skip_files:  # the real command: bug reports go through the gate (H6 joins the handshake)
+        try:
+            from sync.files.transport import SshTransport
+
+            settings = load_settings(args.env)
+            transport = SshTransport.from_settings(settings)
+        except SyncError as exc:
+            print(f"sync: {exc}", file=sys.stderr)
+            return exc.exit_code
+        return run_pull(args, settings=settings, transport=transport)
     return run_pull(args)

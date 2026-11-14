@@ -32,7 +32,8 @@ from sync.config import REPO_ROOT, PreconditionError, SyncSettings
 BATCH_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _REASON_RE = re.compile(r"^gate: ([a-z0-9_]+): ?(.*)$")
 GATE_PATH = REPO_ROOT / "deploy" / "prod" / "memesync-gate.py"
-GATE_VERBS = ("handshake", "list", "hash", "receive", "verify", "commit", "sweep")  # what the files tool uses
+GATE_VERBS = ("handshake", "list", "hash", "receive", "verify", "commit", "sweep",  # what the files tool uses
+              "pull-list", "pull-tar", "delete-verified")  # what the pull tool uses (bug reports, P4)
 SSH_ERROR_EXIT = 255
 
 SHORT_TIMEOUT_S = 120.0
@@ -100,6 +101,9 @@ class Transport(Protocol):
     def verify(self, batch_id: str, sums: bytes) -> GateReply: ...
     def commit(self, batch_id: str) -> GateReply: ...
     def sweep(self) -> GateReply: ...
+    def pull_list(self) -> GateReply: ...
+    def pull_tar(self, names: list, dest: str | os.PathLike) -> GateReply: ...
+    def delete_verified(self, pairs: list) -> GateReply: ...
 
 
 def check_batch_id(batch_id: str) -> str:
@@ -114,10 +118,18 @@ def clean_code(text: str, fallback: str = "failed") -> str:
     return out or fallback
 
 
+def _nul_join(items) -> bytes:
+    return b"".join(str(i).encode("utf-8") + b"\x00" for i in items)
+
+
 class _VerbTransport:
     """The verbs, written once on top of `_run(command line, stdin, timeout)` and `upload`."""
 
     def _run(self, line: str, stdin: bytes, timeout: float) -> GateReply:  # pragma: no cover - abstract
+        raise NotImplementedError
+
+    def _run_to_file(self, line: str, stdin: bytes, dest: str | os.PathLike, timeout: float) -> GateReply:  # pragma: no cover - abstract
+        """Like `_run`, but the verb's stdout (binary) is written to the file `dest`; the reply's `out` is empty."""
         raise NotImplementedError
 
     def upload(self, batch_id: str, local_path: str | os.PathLike) -> None:  # pragma: no cover - abstract
@@ -154,11 +166,25 @@ class _VerbTransport:
     def sweep(self) -> GateReply:
         return self._run("sweep", b"", SHORT_TIMEOUT_S)
 
+    # P4 bug-report verbs: names and hashes travel NUL-separated on stdin, as the gate reads them
+
+    def pull_list(self) -> GateReply:
+        return self._run("pull-list", b"", LONG_TIMEOUT_S)
+
+    def pull_tar(self, names: list, dest: str | os.PathLike) -> GateReply:
+        """The named bug reports as a tar written to the file `dest` (the stream is never held in memory)."""
+        return self._run_to_file("pull-tar", _nul_join(names), dest, LONG_TIMEOUT_S)
+
+    def delete_verified(self, pairs: list) -> GateReply:
+        """`pairs` are `(sha256, name)`; the gate deletes a file only when its current hash equals the one sent."""
+        return self._run("delete-verified", _nul_join([x for pair in pairs for x in pair]), LONG_TIMEOUT_S)
+
 
 # ---------------------------------------------------------------------------------------------------------------------------------
 # ssh
 
 Runner = Callable[[list, bytes, float], tuple]  # (command, stdin, timeout) -> (returncode, stdout bytes, stderr bytes)
+FileRunner = Callable[[list, bytes, str, float], tuple]  # (command, stdin, stdout file path, timeout) -> (returncode, stderr bytes)
 
 
 def subprocess_runner(command: list, stdin: bytes, timeout: float) -> tuple:
@@ -170,6 +196,19 @@ def subprocess_runner(command: list, stdin: bytes, timeout: float) -> tuple:
     except OSError as exc:
         raise GateFailure("cannot_start_ssh", f"cannot start {Path(command[0]).name}: {type(exc).__name__}") from None
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def subprocess_file_runner(command: list, stdin: bytes, dest: str, timeout: float) -> tuple:
+    """Like `subprocess_runner`, with stdout going straight into the file `dest` (binary, no text layer, no memory copy)."""
+    extra = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+    try:
+        with open(dest, "wb") as handle:
+            proc = subprocess.run(command, input=stdin or b"", stdout=handle, stderr=subprocess.PIPE, timeout=timeout, **extra)
+    except subprocess.TimeoutExpired:
+        raise GateFailure("timeout", f"timed out after {timeout:g}s") from None
+    except OSError as exc:
+        raise GateFailure("cannot_start_ssh", f"cannot start {Path(command[0]).name}: {type(exc).__name__}") from None
+    return proc.returncode, proc.stderr
 
 
 def _sftp_quote(path: str) -> str:
@@ -189,20 +228,21 @@ def parse_ls_size(output: str, name: str) -> int | None:
 
 class SshTransport(_VerbTransport):
     def __init__(self, ssh_bin: str, sftp_bin: str, gate_alias: str, upload_alias: str, *, runner: Runner = subprocess_runner,
-                 connect_timeout_s: int = 20, keepalive_interval_s: int = 15, keepalive_count_max: int = 3):
+                 file_runner: FileRunner = subprocess_file_runner, connect_timeout_s: int = 20, keepalive_interval_s: int = 15, keepalive_count_max: int = 3):
         if not gate_alias or not upload_alias:
             raise GateFailure("alias_missing", "the gate and upload ssh aliases must be set")
         self.ssh_bin, self.sftp_bin = ssh_bin, sftp_bin
         self.gate_alias, self.upload_alias = gate_alias, upload_alias
-        self.runner = runner
+        self.runner, self.file_runner = runner, file_runner
         self._opts = ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", f"ConnectTimeout={connect_timeout_s}",
                       "-o", f"ServerAliveInterval={keepalive_interval_s}", "-o", f"ServerAliveCountMax={keepalive_count_max}",
                       "-o", "ClearAllForwardings=yes"]
 
     @classmethod
-    def from_settings(cls, settings: SyncSettings, *, runner: Runner = subprocess_runner) -> "SshTransport":
+    def from_settings(cls, settings: SyncSettings, *, runner: Runner = subprocess_runner,
+                      file_runner: FileRunner = subprocess_file_runner) -> "SshTransport":
         return cls(str(settings.require("ssh_bin")), str(settings.require("sftp_bin")), str(settings.require("prod.gate_alias")),
-                   str(settings.require("prod.upload_alias")), runner=runner,
+                   str(settings.require("prod.upload_alias")), runner=runner, file_runner=file_runner,
                    connect_timeout_s=int(settings.get("tunnel.connect_timeout_s", 20)),
                    keepalive_interval_s=int(settings.get("tunnel.keepalive_interval_s", 15)),
                    keepalive_count_max=int(settings.get("tunnel.keepalive_count_max", 3)))
@@ -242,6 +282,14 @@ class SshTransport(_VerbTransport):
             first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
             raise GateFailure("ssh_failed", f"ssh to the gate alias failed: {first[:200]}")
         return GateReply(code, out, text)
+
+    def _run_to_file(self, line: str, stdin: bytes, dest: str | os.PathLike, timeout: float) -> GateReply:
+        code, err = self.file_runner(self.verb_command(line), stdin, str(dest), timeout)
+        text = err.decode("utf-8", "replace")
+        if code == SSH_ERROR_EXIT:
+            first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+            raise GateFailure("ssh_failed", f"ssh to the gate alias failed: {first[:200]}")
+        return GateReply(code, b"", text)
 
     def upload(self, batch_id: str, local_path: str | os.PathLike) -> None:
         size = os.path.getsize(local_path)
@@ -306,6 +354,21 @@ class LocalTransport(_VerbTransport):
         out, err = io.BytesIO(), io.StringIO()
         code = load_gate().main(["memesync-gate.py", self.env], self._environ(line), io.BytesIO(stdin), out, err)
         return GateReply(code, out.getvalue(), err.getvalue())
+
+    def _run_to_file(self, line: str, stdin: bytes, dest: str | os.PathLike, timeout: float) -> GateReply:
+        self.calls.append(line)
+        if self.before_verb is not None:
+            self.before_verb(line)
+        with open(dest, "wb") as handle:
+            if self.subprocess_mode:
+                env = dict(os.environ)
+                env.update(self._environ(line))
+                proc = subprocess.run([sys.executable, str(GATE_PATH), self.env], input=stdin, stdout=handle, stderr=subprocess.PIPE, env=env,
+                                      timeout=timeout)
+                return GateReply(proc.returncode, b"", proc.stderr.decode("utf-8", "replace"))
+            err = io.StringIO()
+            code = load_gate().main(["memesync-gate.py", self.env], self._environ(line), io.BytesIO(stdin), handle, err)
+        return GateReply(code, b"", err.getvalue())
 
     def upload(self, batch_id: str, local_path: str | os.PathLike) -> None:
         self.calls.append(f"upload {batch_id}")
