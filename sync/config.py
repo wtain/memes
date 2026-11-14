@@ -13,6 +13,7 @@ import os
 import secrets
 import subprocess
 import sys
+import time
 import warnings
 from pathlib import Path
 from typing import Any, Iterator, Mapping
@@ -256,7 +257,14 @@ def atomic_write(path: Path, data: bytes | str) -> None:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(tmp, path)
+        for attempt in range(8):  # Windows: a virus scanner or indexer can hold the target for a moment (PermissionError, WinError 32)
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if os.name != "nt" or attempt == 7:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
     finally:
         with contextlib.suppress(OSError):
             os.unlink(tmp)

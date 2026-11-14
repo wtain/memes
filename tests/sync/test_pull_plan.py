@@ -191,7 +191,8 @@ def test_lift_problems_name_useless_flags():
 
 # --- plan hash and report -----------------------------------------------------------------------------------------------------------
 
-def test_plan_hash_is_deterministic_and_changes_with_the_plan_not_with_lifts_or_measurements():
+def test_plan_hash_covers_the_structure_only_not_prod_rows():
+    """Owner decision A: tables in scope, ratings mode, flags and guard states; never prod ids, row digests or counts."""
     def build(h="b2", **kw):
         inp = zero_inp(**kw)
         inp.prod["meme_saves"] = read({U[0]: "a", U[1]: h})
@@ -200,16 +201,46 @@ def test_plan_hash_is_deterministic_and_changes_with_the_plan_not_with_lifts_or_
 
     a, b = build(), build()
     assert a.section.plan_hash() == b.section.plan_hash()
-    assert build(h="b3").section.plan_hash() != a.section.plan_hash()  # a prod row whose content changed is a different plan
-    assert build(skip_files=True).section.plan_hash() != a.section.plan_hash()
-    assert build(mode="mirror").section.plan_hash() != a.section.plan_hash()
+    assert build(h="b3").section.plan_hash() == a.section.plan_hash()  # a prod row whose content changed: same plan
     c = build()
     c.section.estimate = {"duration_s": 99.0, "wire_bytes": 1}
     assert c.section.plan_hash() == a.section.plan_hash()
-    # a different row set is a different plan
+    # prod rows come and go (readers are active every minute): the hash does not move
     inp = zero_inp()
     inp.prod["meme_saves"] = read({U[0]: "a"})
-    assert pl.build_plan(inp).section.plan_hash() != a.section.plan_hash()
+    assert pl.build_plan(inp).section.plan_hash() == a.section.plan_hash()
+    inp = zero_inp()
+    inp.prod["meme_saves"] = read({U[0]: "a", U[1]: "x", "ab12": "y"})
+    inp.prod["meme_impressions"] = read({i: "h" for i in range(1, 20)})
+    assert pl.build_plan(inp).section.plan_hash() == a.section.plan_hash()
+    # the bug-report lists are not hashed either
+    c.section.lists = {"to_fetch": [U[0]]}
+    c.section.checks = [{"id": "bug_reports", "status": "attention", "severity": "info", "detail": "anomalies=1"}]
+    assert c.section.plan_hash() == a.section.plan_hash()
+
+
+def test_plan_hash_changes_with_a_flag_a_mode_or_a_guard_state():
+    def build(**kw):
+        return pl.build_plan(zero_inp(**kw)).section
+
+    base = build().plan_hash()
+    assert build(skip_files=True).plan_hash() != base
+    assert build(mode="mirror").plan_hash() != base
+    flagged = build()
+    flagged.flags["bug_reports"] = "off"  # the cli sets it from the transport and --skip-files
+    assert flagged.plan_hash() != base
+    cut = build()
+    cut.flags["text_cap"] = 7
+    assert cut.plan_hash() != base
+    # a guard that trips (here: the row ceiling) is a different plan; the guard value alone is not
+    tripped = pl.build_plan(inp_with({"meme_saves": 11}, limits=pl.Limits(max_rows_per_pull=10))).section
+    quiet = pl.build_plan(inp_with({"meme_saves": 11}, limits=pl.Limits(max_rows_per_pull=50))).section
+    assert tripped.plan_hash() != quiet.plan_hash()
+    assert pl.build_plan(inp_with({"meme_saves": 11})).section.plan_hash() == pl.build_plan(inp_with({"meme_saves": 12})).section.plan_hash()
+    # a table out of scope is a different plan
+    fewer = build()
+    fewer.entries = fewer.entries[:-1]
+    assert fewer.plan_hash() != base
 
 
 def test_apply_command_carries_the_lifts_and_report_ids_are_cut_above_max_ids():

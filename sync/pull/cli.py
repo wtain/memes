@@ -262,6 +262,9 @@ def _now() -> _dt.datetime:
 
 
 def _emit(doc: report.Document, folder: Path, args: argparse.Namespace, settings: SyncSettings, out, echo: bool = True) -> None:
+    sink = getattr(args, "document_sink", None)  # sync.run collects each child's document for the combined report
+    if sink is not None:
+        sink(doc)
     top = args.top if args.top is not None else int(settings.get("report.top_n", report.DEFAULT_TOP_N))
     max_ids = int(settings.get("report.max_ids", report.DEFAULT_MAX_IDS))
     json_copy = args.json_path if args.json_path not in (None, "-") else None
@@ -346,6 +349,7 @@ def _after_plan(args, settings, run_id, folder, inp, p: plan_mod.Plan, hs, pre, 
     lists, checks = bugreports.plan_report(settings, None if args.skip_files else transport)
     p.section.lists = lists
     p.section.checks = list(p.section.checks) + checks
+    p.section.flags["bug_reports"] = "on" if (transport is not None and not args.skip_files) else "off"  # part of the structural plan hash
     if not args.apply:
         doc = report.Document(env=env, run_id=run_id, tool=TOOL, dry=True, sections=[p.section], handshake=hs, preconditions=pre)
         doc.apply_command = report.apply_command(TOOL, env, doc.plan_hash, apply_flags(args))

@@ -500,18 +500,25 @@ def test_setval_moves_the_dev_sequence_past_the_copied_ids_and_resets_it_for_an_
 
 # --- report, hash, redaction, safety ---------------------------------------------------------------------------------------------
 
-def test_plan_hash_is_deterministic_across_dry_runs_and_refuses_a_changed_world(world, command, tmp_path):
+def test_plan_hash_is_deterministic_survives_prod_activity_and_refuses_a_changed_structure(world, command, tmp_path):
     seed_prod(world)
     h1 = report_of(command(run_id=rid(1))[3])["plan_hash"]
     h2 = report_of(command(run_id=rid(2))[3])["plan_hash"]
     assert h1 == h2 and len(h1) == 64
     before = all_state(world.dev_side)
-    world.prod_side.x("update meme_saves set image_id = %s where id = %s", (uid(2), U(4, 1)))  # prod changed between the dry run and the apply
-    code, out, err, folder = command("--apply", "--yes", "--plan-hash", h1, run_id=rid(3))
+    # a changed flag (here --skip-files) is a different plan: the apply refuses before any write
+    code, out, err, folder = command("--skip-files", "--apply", "--yes", "--plan-hash", h1, run_id=rid(3))
     assert code == 3 and "the plan changed since the dry run" in err and all_state(world.dev_side) == before
     assert not (tmp_path / "state" / state.STATE_FILE).exists()
+    # readers are active on prod between the dry run and the apply: rows change, appear and go; the hash does not move (owner decision A)
+    world.prod_side.x("update meme_saves set image_id = %s where id = %s", (uid(2), U(4, 1)))
+    save(world.prod_side, 9, 1)
+    imp(world.prod_side, 200, 1)
     h3 = report_of(command(run_id=rid(4))[3])["plan_hash"]
-    assert h3 != h1 and command("--apply", "--yes", "--plan-hash", h3, run_id=rid(5))[0] == 0
+    assert h3 == h1
+    code, out, err, _ = command("--apply", "--yes", "--plan-hash", h1, run_id=rid(5))
+    assert code == 0, (out, err)
+    assert all_state(world.dev_side) == all_state(world.prod_side)  # and the apply copied what prod holds NOW
     code, out, err, _ = command("--apply", "--yes", "--plan-hash", "f" * 64, run_id=rid(6))
     assert code == 3
 

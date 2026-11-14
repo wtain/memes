@@ -261,6 +261,9 @@ def _now() -> _dt.datetime:
 
 
 def _emit(doc: report.Document, folder: Path, args: argparse.Namespace, settings: SyncSettings, out, echo: bool = True) -> None:
+    sink = getattr(args, "document_sink", None)  # sync.run collects each child's document for the combined report
+    if sink is not None:
+        sink(doc)
     top = args.top if args.top is not None else int(settings.get("report.top_n", report.DEFAULT_TOP_N))
     max_ids = int(settings.get("report.max_ids", report.DEFAULT_MAX_IDS))
     json_copy = args.json_path if args.json_path not in (None, "-") else None

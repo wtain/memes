@@ -261,6 +261,7 @@ class Section:
     lists: dict = field(default_factory=dict)  # pull: to_fetch, to_delete_on_prod_after_verified_pull -> ids
     checks: list = field(default_factory=list)  # verify: {id, status, severity, detail}
     table_rows: dict = field(default_factory=dict)  # data: table -> row and byte counts of the image-scoped tables (measurements, not hashed)
+    structural: bool = False  # the plan hash covers only the structure (tables in scope, flags, guard states), not ids (sync.pull, owner decision A)
 
     def __post_init__(self):
         check_token(self.name, "section name")
@@ -403,7 +404,19 @@ def _canon_entry(e: Entry) -> dict:
 
 
 def canonical_section(sec: Section) -> dict:
-    """Everything that belongs to the plan; no generated_at, run id, estimate or measured bytes."""
+    """Everything that belongs to the plan; no generated_at, run id, estimate or measured bytes.
+
+    A `structural` section (sync.pull) is hashed by its structure only: the tables in scope, the flags and each guard's id, tripped state and
+    lifting flag. No ids, row digests, lists, counts or guard values: reader activity on prod changes every minute."""
+    if sec.structural:
+        return {
+            "section": sec.name,
+            "tool": sec.tool,
+            "structural": True,
+            "tables": sorted(e.name for e in sec.entries),
+            "guards": [{"id": g.id, "tripped": g.tripped, "lifted_by": g.lifted_by} for g in sorted(sec.guards, key=lambda g: g.id)],
+            "flags": {k: sec.flags[k] for k in sorted(sec.flags)},
+        }
     return {
         "section": sec.name,
         "tool": sec.tool,

@@ -15,6 +15,11 @@ image is absent on dev).
 
 Guards (id, value, limit, lifting flag). `Guard.tripped` is the raw condition and does not depend on a lift flag, and no lift flag is part of
 the plan hash, so a dry run's hash stays valid for an apply that lifts a guard; `effective_blocking` applies the lifts.
+
+Plan hash (owner decision A, 2026-11-14): the section is `structural`, so its hash covers only the tables in scope, the ratings mode, the
+flags (`skip_files`, `bug_reports`, `text_cap`) and each guard's id and tripped state. It does not cover prod row ids, row digests or the
+bug-report lists: readers write to prod every minute, so a content-bound hash could never survive the time between a dry run and its apply.
+The ids and counts stay in `report.json` / `report.md`, which the owner reads.
 """
 from __future__ import annotations
 
@@ -301,22 +306,6 @@ def estimate(entries: list, mode: str) -> dict:
     return {"duration_s": round(rows / ROWS_PER_S + nbytes / BYTES_PER_S, 1), "wire_bytes": nbytes}
 
 
-def content_digest(inp: PlanInput, table: str) -> str:
-    """One token for the content of a prod table as read: part of the plan hash, so a prod row that changed between the dry run and the apply
-    (not only a row that appeared or went) makes `--plan-hash` refuse. A table that was not read (over the ceiling) is its row count; the
-    ratings table in `skip` mode is not part of what the apply writes."""
-    if table == RATINGS:
-        if inp.mode == "skip":
-            return "skipped"
-        lines = [f"{k[0]}|{k[1]}|{v.id}|{v.hash}" for k, v in sorted(inp.prod_ratings.items())]
-    else:
-        prod = inp.prod[table]
-        if not prod.read:
-            return f"count-{prod.count}"
-        lines = [f"{k}:{v[0]}" for k, v in sorted(prod.rows.items(), key=lambda kv: str(kv[0]))]
-    return "md5-" + hashlib.md5("\n".join(lines).encode("utf-8")).hexdigest()
-
-
 def build_plan(inp: PlanInput) -> Plan:
     if inp.mode not in MODES:
         raise ValueError("ratings mode must be skip or mirror")
@@ -325,8 +314,9 @@ def build_plan(inp: PlanInput) -> Plan:
     entries.append(ratings_entry)
     guards = build_guards(inp)
     flags = {"ratings_mode": inp.mode, "skip_files": bool(inp.skip_files), "text_cap": inp.limits.text_cap}
-    flags.update({f"rows_{t}": content_digest(inp, t) for t in sorted(inp.prod)})
-    section = report.Section(SECTION, TOOL, entries=entries, guards=guards, flags=flags, estimate=estimate(entries, inp.mode))
+    flags["bug_reports"] = "off" if inp.skip_files else "on"  # the cli sets "off" too when it has no gate transport
+    section = report.Section(SECTION, TOOL, entries=entries, guards=guards, flags=flags, estimate=estimate(entries, inp.mode),
+                             structural=True)
     return Plan(section, inp.mode, inp.previous is None, part,
                 {t: r.count for t, r in inp.prod.items()}, {t: r.count for t, r in inp.dev.items()},
                 sum(r.truncated for r in inp.prod.values()))
