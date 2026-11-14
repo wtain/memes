@@ -276,6 +276,18 @@ sync:                           # dev/prod data sync (docs/superpowers/specs/202
     required_tables: [embeddings, ocr_texts]   # completeness floor: a new image without a row in each is skipped, not shipped
     batch_size: 500             # images per prod transaction
     digest_workers: 2           # parallel digest workers (reserved; the plan reads sequentially today)
+  pull:                         # P4 (sync.pull): reader activity from prod to dev
+    ratings_mode: skip          # skip (default: prod's ratings routes are off, dev ratings untouched) or mirror (set together with enabling the routes on prod)
+    max_growth_factor: 5        # growth guard: a table more than this many times its previous pull size ...
+    min_growth_rows: 100000     # ... and grown by at least this many rows is refused without --allow-growth
+    max_rows_per_pull: 5000000  # absolute row ceiling per table (refused without --allow-growth)
+    truncate_threshold: 200000  # TRUNCATE instead of DELETE once a dev table passes this many rows (FK-less tables only)
+    text_cap: 2000              # left() cap on free-text columns copied from prod
+    bug_reports:                # bug-report pull caps (T6)
+      allowed_extensions: [.txt, .json, .png, .jpg, .log, .zip]
+      max_file_mb: 10
+      max_files: 200
+      max_total_mb: 200
   report:
     max_ids: 100000             # ids per category kept in report.json for large pulled tables
     top_n: 50                   # ids listed per category in report.md

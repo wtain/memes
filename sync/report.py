@@ -27,6 +27,8 @@ REASON_CODES = (
     "deferred_changed_since_plan", "non_promotable_reference", "waiting_for_files", "capped_by_limit",
     "over_member_cap",  # P3: a dev file larger than the gate's per-member cap (max_member_mb), left out up front
     "digest_mismatch",  # P2 apply: the rows copied to prod did not hash like dev's snapshot, the batch was rolled back
+    "skipped_unknown_image",  # P4: a prod rating whose image is absent on dev (dev deleted it first)
+    "ratings_mode_skip",  # P4: the ratings table is not touched on dev (sync.pull.ratings_mode skip: prod's ratings routes are off)
 )
 ENTRY_KINDS = ("images", "rows", "files", "pulled")
 LEFT_BEHIND_TITLE = "left behind on prod (removals deferred)"
@@ -211,9 +213,11 @@ class Entry:
     left_behind: LeftBehind = field(default_factory=LeftBehind)
     waiting_for_files: dict = field(default_factory=dict)  # "added" / "overwritten" -> IdSet (combined dry run only)
     pulled: bool = False  # large pulled table: report.json cuts its id lists at max_ids
+    counts: dict = field(default_factory=dict)  # P4: named row counts of a pulled table (prod, dev, dev_only_discarded, ...); measurements, not hashed
 
     def __post_init__(self):
         check_token(self.name, "table or file-set name")
+        self.counts = {check_token(k, "count name"): check_count(v, "count") for k, v in sorted(self.counts.items())}
         check_member(self.kind, ENTRY_KINDS, "entry kind")
         self.skipped = {check_member(r, REASON_CODES, "reason code"): s for r, s in self.skipped.items()}
         self.waiting_for_files = {check_member(k, ("added", "overwritten"), "waiting kind"): s
@@ -542,6 +546,8 @@ def entry_json(e: Entry, cut_at: int | None, unchanged_ids: bool) -> dict:
         "skipped_with_reason": {r: {"count": s.n, "ids": list(s.ids)} for r, s in sorted(e.skipped.items())},
         "left_behind": lb,
     }
+    if e.counts:
+        out["counts"] = dict(e.counts)
     if e.waiting_for_files:
         out["waiting_for_files"] = {k: {"count": s.n, "ids": list(s.ids)} for k, s in sorted(e.waiting_for_files.items())}
         out["skipped_with_reason"]["waiting_for_files"] = {
@@ -665,6 +671,8 @@ def render_markdown(doc: Document, top_n: int = DEFAULT_TOP_N) -> str:
             if o.size_changed or o.hash_changed:
                 L.append(f"size_changed {len(o.size_changed)}, hash_changed {len(o.hash_changed)}")
             L.append(f"**unchanged**: {e.unchanged.n}")
+            if e.counts:
+                L.append("counts: " + ", ".join(f"{k} {v}" for k, v in e.counts.items()))
             for r, s in sorted(e.skipped.items()):
                 L.append(f"**skipped ({r})**: {s.n}")
                 if s.ids:
