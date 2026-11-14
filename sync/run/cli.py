@@ -19,8 +19,9 @@ Tunnel: one ssh tunnel for the whole run. The driver opens it once and hands the
 (`connect.open_session(..., open_tunnel_fn=<no-op>)`); the children still open their own database sessions and run their own handshake
 steps (cheap, and each tool's own contract), but not another tunnel (a second `ssh -L` on the same local port would fail).
 
-Verify (P6) is not built: the verify step is a one-function swap point (`verify_step`). While `sync.verify` does not exist it reports
-`skipped_with_reason: not_built` in the plan and, in an apply that ran the data step, accepts the verify phase `sync.promote` runs at its end.
+Verify (P6, `sync.verify`): in the plan it is a fourth runner (`runners["verify"]`, planning part: the handshake for tool V and the drift of
+prod against dev as the `verify` section, no checks, nothing written); in an apply, step 4 runs the whole `sync.verify` (library entry
+`run_verify`, the run's id, `lock=False`) and writes `runs/<runid>/verify.json`. Exit 4 of it (a check with status error) fails the step.
 """
 from __future__ import annotations
 
@@ -46,12 +47,12 @@ from sync.promote import cli as promote_cli
 from sync.promote import plan as promote_plan
 from sync.pull import cli as pull_cli
 from sync.pull import plan as pull_plan
+from sync.verify import cli as verify_cli
 
 TOOL = "sync.run"
 STEPS = ("handshake", "pull", "files", "data", "verify")
 CHILD_STEPS = ("pull", "files", "data")
 RUN_FILE = "run.json"
-NOT_BUILT = "not_built"
 
 
 class UsageProblem(PreconditionError):
@@ -274,28 +275,52 @@ def run_data_step(ctx: Ctx, run_id: str, apply: bool) -> StepResult:
     return StepResult(code, docs[-1] if docs else None)
 
 
-DEFAULT_RUNNERS = {"pull": run_pull_step, "files": run_files_step, "data": run_data_step}
+def run_verify_step(ctx: Ctx, run_id: str, apply: bool) -> StepResult:
+    """P6. Plan (`apply` False): the handshake for tool V and the drift only, handed back as the document of the `verify` section.
+    Apply: the whole `sync.verify` (every check), `verify.json` into this run's folder; stand-alone files (report.json) are not written."""
+    docs: list = []
+    args = verify_cli.build_parser().parse_args(["--env", ctx.env, "--run-id", run_id])
+    args.document_sink = docs.append
+    out = _Prefixed(ctx.out, "[verify] ") if apply else io.StringIO()
+    code = verify_cli.run_verify(args, settings=ctx.settings, session_opener=ctx.opener, capabilities=ctx.capabilities, transport=ctx.transport,
+                                 git_sha=ctx.git_sha, now=ctx.now, base_dir=ctx.base_dir, lock=False, plan_only=not apply, out=out, err=ctx.err)
+    return StepResult(code, docs[-1] if docs else None)
+
+
+DEFAULT_RUNNERS = {"pull": run_pull_step, "files": run_files_step, "data": run_data_step, "verify": run_verify_step}
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------
-# verify (P6 plugs in here)
+# verify (P6)
 
-def verify_section() -> report.Section:
-    """The `verify` section of the combined report. `sync.verify` (P6) is not built: one informational check says so, and it is part of
-    the plan hash (a plan made after P6 lands has a different one). P6 replaces this function with the drift of its own report."""
+UNAVAILABLE = "verify_unavailable"
+
+
+def verify_section(doc: report.Document | None) -> report.Section:
+    """The `verify` section of the combined report: the drift section `sync.verify` planned (what a promote would add or overwrite, what is
+    left behind), part of the plan hash. Without a document (a runner that planned nothing) one informational check says so."""
+    if doc is not None and doc.sections:
+        return doc.sections[0]
     return report.Section("verify", "sync.verify", checks=[{"id": "verify", "status": "skipped_with_reason", "severity": "info",
-                                                              "detail": NOT_BUILT}])
+                                                              "detail": UNAVAILABLE}])
 
 
-def verify_step(data_ran_ok: bool, data_exit: int | None) -> dict:
-    """The apply-time verify step: `{status, exit_code, reason?}` for `run.json`. While P6 is not built, the only verification is the one
-    `sync.promote` runs at the end of its own apply (it is in the data step's result block under `verify`); exit 4 from the data step
-    is a verification failure. P6 replaces this function with a call of `sync.verify` (library entry point, same run id and lock)."""
+def verify_step(ctx: Ctx, run_id: str, runners: dict, data_exit: int | None) -> dict:
+    """The apply-time verify step: `{status, exit_code, reason}` for `run.json`. Runs the whole `sync.verify` through `runners["verify"]`
+    (same run id, `lock=False`, `verify.json` in the run folder). Exit 4 of it, or exit 4 of the data step (promote's own verify phase,
+    which already compared prod with what the run promised), fails the step."""
+    try:
+        result = runners["verify"](ctx, run_id, True)
+    except Exception as exc:  # a bug in the verify: the type only
+        print(f"sync: step verify failed unexpectedly ({type(exc).__name__})", file=ctx.err)
+        return {"status": "failed", "exit_code": EXIT_FAILURE, "reason": "crashed"}
+    if result.code not in (EXIT_OK, EXIT_VERIFY):
+        return {"status": "failed", "exit_code": result.code, "reason": "verify_could_not_run"}
+    if result.code == EXIT_VERIFY:
+        return {"status": "failed", "exit_code": EXIT_VERIFY, "reason": "verify_checks_failed"}
     if data_exit == EXIT_VERIFY:
-        return {"status": "failed", "exit_code": data_exit, "reason": "promote_verify_phase"}
-    if data_ran_ok:
-        return {"status": "ok", "exit_code": EXIT_OK, "reason": "promote_verify_phase"}
-    return {"status": "skipped_with_reason", "exit_code": None, "reason": NOT_BUILT}
+        return {"status": "failed", "exit_code": EXIT_VERIFY, "reason": "promote_verify_phase"}
+    return {"status": "ok", "exit_code": EXIT_OK, "reason": "sync_verify"}
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------
@@ -333,7 +358,15 @@ def plan_steps(ctx: Ctx, steps: list, run_id: str, runners: dict) -> Plan:
         if result.doc is not None:
             plan.sections += result.doc.sections
     if "verify" in steps:
-        plan.sections.append(verify_section())
+        result = runners["verify"](ctx, run_id, False)
+        plan.docs["verify"] = result.doc
+        plan.preconditions += _prefixed_pre("verify", result.doc)
+        if result.code != EXIT_OK:
+            if result.doc is not None:
+                plan.handshake += [{"step": f"verify.{h['step']}", "ok": h["ok"], "detail": h["detail"]} for h in result.doc.handshake if not h["ok"]]
+            plan.failed = ("verify", result.code)
+            return plan
+        plan.sections.append(verify_section(result.doc))
     mark_dependencies(plan.sections)
     return plan
 
@@ -533,7 +566,7 @@ def _plan_or_fail(ctx: Ctx, plan_run_id: str, report_run_id: str, folder: Path, 
     plan = plan_steps(ctx, steps, plan_run_id, runners)
     if plan.failed is not None:
         step, code = plan.failed
-        for s in CHILD_STEPS:
+        for s in (*CHILD_STEPS, "verify"):
             if s in steps:
                 runfile.update(s, status="failed" if s == step else "pending", finished_at=_now_s() if s == step else None,
                                exit_code=code if s == step else None)
@@ -548,9 +581,7 @@ def _dry_run(ctx: Ctx, run_id, folder, runners, steps, handshake, runfile: RunFi
     doc = report.combined_document(ctx.env, run_id, plan.sections, dry=True, handshake=handshake, preconditions=plan.preconditions, flags=flags)
     runfile.doc["plan_hash"] = doc.plan_hash
     for s in steps:
-        if s == "verify":
-            runfile.update(s, status="skipped_with_reason", reason=NOT_BUILT, exit_code=None)
-        elif s != "handshake":
+        if s != "handshake":
             runfile.update(s, status="planned", exit_code=EXIT_OK)
     _emit(doc, folder, ctx.args, ctx.settings, ctx.out)
     blocking = blocking_guards(plan.sections, ctx.args)
@@ -607,8 +638,9 @@ def _run_steps(ctx: Ctx, run_id, folder, runners, steps, handshake, plan: Plan, 
             runfile.update(step, status="not_run")
             continue
         if step == "verify":
-            v = verify_step(data_code == EXIT_OK and "data" in docs, data_code)
-            runfile.update(step, started_at=_now_s(), finished_at=_now_s(), **v)
+            runfile.update(step, status="running", started_at=_now_s())
+            v = verify_step(ctx, run_id, runners, data_code)
+            runfile.update(step, finished_at=_now_s(), **v)
             if v["status"] == "failed" and failure is None:
                 failure = (step, v["exit_code"])
             elif v["status"] == "ok":

@@ -19,6 +19,8 @@ from sync.config import SyncSettings
 from sync.files.transport import LocalTransport
 from sync.promote import apply as promote_apply
 from sync.run import cli
+from sync.verify import cli as verify_cli
+from sync.verify import runtime as verify_rt
 from tests.integration.sync.test_promote_plan import Side, uid
 from tests.integration.sync.test_pull import imp, save, sh
 from tests.sync.gate_helpers import ENV_NAME, Tree
@@ -26,6 +28,7 @@ from tests.sync.gate_helpers import ENV_NAME, Tree
 RUN = "20261113T120000Z-{:08x}"
 ANSWER = "general ocrdb_test"
 SENT = "SENTINEL-RUN-TEXT-61d0e2"
+REVISION = "abc1234def"  # git sha of the dev tree and `memes.revision` of the fixture's prod session (D1 of the verify step)
 
 
 def rid(n: int) -> str:
@@ -48,11 +51,14 @@ class Rig:
         self.settings = SyncSettings("general", {
             "state_dir": str(self.state), "dev": {"database": "ocrdb_test"},
             "prod": {"database": "ocrdb_test", "reader_role": "memes_general_sync_r", "writer_role": "memes_general_sync_w",
-                     "api_url": "https://x.test", "gate_alias": "g", "upload_alias": "u", "ssh_alias": "a"},
-            "pull": {"bug_reports": {"dev_dir": str(tmp_path / "dev-bug")}}, **pull_and_promote}, root=tmp_path)
+                     "api_url": "", "gate_alias": "g", "upload_alias": "u", "ssh_alias": "a"},
+            "pull": {"bug_reports": {"dev_dir": str(tmp_path / "dev-bug")}}, "verify": {"files": {"modes": []}}, **pull_and_promote}, root=tmp_path)
         self.transport = LocalTransport(ENV_NAME, self.tree.conf_path, self.tree.incoming)
         self.opened = []
         monkeypatch.setattr(connect, "handshake", lambda *a, **k: [{"step": "H1", "ok": True, "detail": "ok"}])
+        # P6 verify step: the fixture's role is a superuser and its database keeps the default PUBLIC grants, so S1 and S2 cannot be green here
+        monkeypatch.setattr(verify_cli, "gather_grants", lambda settings, prod, reader: {"writer": [], "reader": [], "app": [], "app_facts": None})
+        monkeypatch.setattr(verify_rt, "gather_s2", lambda conn, app_facts: {"public_connect": False, "trust_network": 0, "app_super": False, "app_create": False})
 
     # --- seeding -----------------------------------------------------------------------------------------------------------------
     def dev_image(self, n, text="hello world", note=None):
@@ -90,7 +96,13 @@ class Rig:
                     dev, prod = mk(pair.dev_conn, connect.DEV_RO, "general"), None
                 else:
                     dev, prod = mk(pair.dev_conn, connect.DEV_RO, "general"), mk(pair.prod_conn, connect.PROD_WRITER)
-                yield {"dev": dev, "prod": prod, "prod_reader_conn": None}
+                reader = None
+                if tool == "V":  # the verify tool also opens the class P reader
+                    reader = mk(pair.prod_conn, connect.PROD_READER)
+                    reader.query("SET default_transaction_read_only = on")
+                if prod is not None:
+                    prod.query(f"SET memes.revision = '{REVISION}'")
+                yield {"dev": dev, "prod": prod, "prod_reader_conn": reader}
             finally:
                 for c in conns:
                     c.close()
@@ -107,7 +119,7 @@ class Rig:
             return answer
 
         code = cli.run_driver(args, settings=self.settings, session_opener=self.opener, capabilities=lambda url: {"stage": "prod", "environment": "general"},
-                              transport=self.transport,
+                              transport=self.transport, git_sha=REVISION,
                               transport_factory=lambda s: LocalTransport(ENV_NAME, self.tree.conf_path, self.tree.incoming),
                               base_dir=str(self.images), runners=runners, out=out, err=err, ask=ask or _ask)
         folder = self.state / "runs" / run_id
@@ -169,6 +181,10 @@ def test_dry_run_on_the_fixture_writes_one_combined_report_and_nothing_else(rig)
     rj = run_json(run.folder)
     assert rj["dry"] is True and [s["name"] for s in rj["steps"]] == ["handshake", "pull", "files", "data", "verify"]
     assert rj["plan_hash"] == doc["plan_hash"]
+    # the verify section is the drift of prod against dev as of before the apply (P6), without any check, and part of the hash
+    ver = images_entry(doc, "verify")
+    assert ver["added"]["count"] == 6 and "checks" not in section(doc, "verify") and not (run.folder / "verify.json").exists()
+    assert [e["name"] for e in section(doc, "verify")["entries"]][-1] == "files"
     # nothing was written on either side, and no file a consumer accepts
     assert rig.prod_count() == 0 and rig.prod_images() == set() and rig.dev_count("meme_saves") == 0
     assert not (rig.state / "pull_state.json").exists() and not list(rig.state.rglob("files-promoted.json"))
@@ -215,7 +231,13 @@ def test_first_run_seeds_everything_and_the_second_run_plans_nothing(rig):
     assert doc["result"]["verify"]["images"]["verify"]["differences"] == {}  # promote's verify phase ran inside the data step
     rj = run_json(run.folder)
     assert [s["status"] for s in rj["steps"]] == ["ok"] * 5 and all(s["exit_code"] == 0 for s in rj["steps"][:4])
-    assert rj["steps"][4]["reason"] == "promote_verify_phase" and rj["flags"]["first_seed"] is True
+    assert rj["steps"][4]["reason"] == "sync_verify" and rj["flags"]["first_seed"] is True
+    # step 4 is the whole sync.verify: verify.json in the run folder, the checks all clear, the drift empty (P6)
+    vj = json.loads((run.folder / "verify.json").read_text())
+    assert vj["run_id"] == rid(2) and vj["summary"]["error"] == 0 and vj["summary"]["exit_code"] == 0
+    assert vj["summary"]["drift"]["images"] == {"added": 0, "overwritten": 0, "unchanged": 6, "left_behind": 0}
+    assert {c["id"]: c["status"] for c in vj["checks"]}["D2"] == "ok" and (rig.state / "runs" / rid(2) / "dry").exists() is False
+    assert [s["name"] for s in doc["sections"]][-1] == "verify" and images_entry(doc, "verify")["added"]["count"] == 6  # the plan: before the apply
     # redaction: the OCR sentinel reached prod and no report, state file or console
     assert rig.prod_side.scalar("select count(*) from ocr_texts where text = %s", (SENT,)) == 1
     for p in list(rig.state.rglob("*.json")) + list(rig.state.rglob("*.md")):
@@ -346,3 +368,19 @@ def test_a_dev_running_batch_stops_the_plan_before_any_step_writes(rig):
     ok = rig.drive("--apply", "--yes", "--ignore-running-batches", run_id=rid(2))  # the lift is forwarded to the step that owns it
     assert ok.code == 0, (ok.out, ok.err)
     assert rig.prod_count() == 3
+
+
+def test_a_failing_check_of_the_verify_step_is_exit_4_after_everything_else_was_applied(rig):
+    rig.dev_images(3)
+    assert rig.drive("--first-seed", "--apply", "--yes", run_id=rid(1)).code == 0
+    rig.prod_side.x("insert into batch_runs (run_id, kind, trigger, status) values (gen_random_uuid(), 'k', 'manual', 'completed')")  # class X on prod
+    rig.prod_side.x("select pg_stat_force_next_flush()")
+    run = rig.drive("--apply", "--yes", run_id=rid(2))
+    assert run.code == 4, (run.out, run.err)
+    rj = run_json(run.folder)
+    verify = {s["name"]: s for s in rj["steps"]}["verify"]
+    assert verify["status"] == "failed" and verify["exit_code"] == 4 and verify["reason"] == "verify_checks_failed"
+    assert {s["status"] for s in rj["steps"][:4]} == {"ok"}
+    vj = json.loads((run.folder / "verify.json").read_text())
+    assert {c["id"]: c["status"] for c in vj["checks"]}["D6"] == "error"
+    assert "stopped at step verify (exit 4)" in run.out

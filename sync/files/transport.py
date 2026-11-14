@@ -33,7 +33,8 @@ BATCH_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _REASON_RE = re.compile(r"^gate: ([a-z0-9_]+): ?(.*)$")
 GATE_PATH = REPO_ROOT / "deploy" / "prod" / "memesync-gate.py"
 GATE_VERBS = ("handshake", "list", "hash", "receive", "verify", "commit", "sweep",  # what the files tool uses
-              "pull-list", "pull-tar", "delete-verified")  # what the pull tool uses (bug reports, P4)
+              "pull-list", "pull-tar", "delete-verified",  # what the pull tool uses (bug reports, P4)
+              "fetch-backup", "disk", "containment")  # what verify uses (P6): only `fetch-backup --meta` is ever sent, never the dump
 SSH_ERROR_EXIT = 255
 
 SHORT_TIMEOUT_S = 120.0
@@ -104,6 +105,9 @@ class Transport(Protocol):
     def pull_list(self) -> GateReply: ...
     def pull_tar(self, names: list, dest: str | os.PathLike) -> GateReply: ...
     def delete_verified(self, pairs: list) -> GateReply: ...
+    def disk(self) -> GateReply: ...
+    def containment(self) -> GateReply: ...
+    def fetch_backup_meta(self) -> GateReply: ...
 
 
 def check_batch_id(batch_id: str) -> str:
@@ -178,6 +182,20 @@ class _VerbTransport:
     def delete_verified(self, pairs: list) -> GateReply:
         """`pairs` are `(sha256, name)`; the gate deletes a file only when its current hash equals the one sent."""
         return self._run("delete-verified", _nul_join([x for pair in pairs for x in pair]), LONG_TIMEOUT_S)
+
+    # P6 (sync.verify) verbs: read-only facts. `fetch_backup_meta` asks for the header only (`--meta`); the dump itself is never fetched here.
+
+    def disk(self) -> GateReply:
+        """The root timer's `disk.json` (free space per mount of this environment); the JSON is in `reply.json()`."""
+        return self._run("disk", b"", SHORT_TIMEOUT_S)
+
+    def containment(self) -> GateReply:
+        """The root timer's `containment.json` (the backend container's configuration)."""
+        return self._run("containment", b"", SHORT_TIMEOUT_S)
+
+    def fetch_backup_meta(self) -> GateReply:
+        """Header line of the newest class P dump (`name`, `size`, `mtime`, `meta`), no dump bytes."""
+        return self._run("fetch-backup --meta", b"", SHORT_TIMEOUT_S)
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------

@@ -379,9 +379,12 @@ def test_ssh_transport_builds_the_three_pull_verbs_and_streams_pull_tar_to_a_fil
 
 def test_ssh_transport_still_refuses_unknown_verbs_and_maps_exit_255(tmp_path):
     t = SshTransport("ssh", "sftp", "gate", "up", runner=lambda *a: (0, b"", b""), file_runner=lambda *a: (255, b"Connection refused\n"))
-    for line in ("fetch-backup", "pull-tar; id", "rm"):
+    for line in ("retire", "restore 2026-11-14", "pull-tar; id", "rm"):  # retire/restore are deferred (decision 27): not on the list
         with pytest.raises(GateFailure):
             t.verb_command(line)
+    # P6 extended the list deliberately by exactly the three read-only verbs of sync.verify; the transport only ever sends `fetch-backup --meta`
+    for line in ("fetch-backup --meta", "disk", "containment"):
+        assert t.verb_command(line)[-2:] == ["gate", line]
     with pytest.raises(GateFailure) as exc:
         t.pull_tar(["a.txt"], tmp_path / "x.tar")
     assert exc.value.code == "ssh_failed"

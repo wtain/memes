@@ -291,3 +291,21 @@ sync:                           # dev/prod data sync (docs/superpowers/specs/202
   report:
     max_ids: 100000             # ids per category kept in report.json for large pulled tables
     top_n: 50                   # ids listed per category in report.md
+  verify:                       # P6 (sync.verify): thresholds of the read-only drift and health report
+    growth:                     # A1/A2: a daily growth above `factor` times the trailing median (and above the floor) warns; above the hard ceiling it is an error
+      factor: 5
+      window_days: 7
+      min_samples: 3            # earlier verify.json files needed before a trend is judged
+      min_daily_rows: 1000
+      min_daily_bytes: 52428800
+      hard_rows: 5000000
+      hard_bytes: 2147483648
+    disk:                       # A3: free space per mount
+      warn_free_pct: 20
+      error_free_pct: 10
+    bug_reports:
+      alarm_pct: 80             # A2: warn at this percent of the bug-report caps (sync.pull.bug_reports.*)
+    files:
+      modes: ["644"]            # F4: accepted octal modes of the regular files in the images directory (empty list: not checked)
+    backup_max_age_h: 36        # S6
+    pull_stale_days: 7          # P1

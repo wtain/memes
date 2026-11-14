@@ -32,7 +32,7 @@ which are for the owner and never an input.
 | `runs/<runid>/committed.json` | P2 `promote`, appended per committed image batch | P2 verify, P2 `--verify-only`, P6 | `run_id`, `env`, `batches[]` `{n, committed_at, ids[], digests {id: {group: hash}} (of the snapshot that was copied), renamed[] {id, old_filename, new_filename}}`, `globals` `{concepts, absorptions: committed bool}` | newest run (no age) |
 | `runs/<runid>/retired.json` | **DEFERRED (decision 27, not built)**: P2 `promote --retire` would append it after each committed retire batch | would be the only input of P3 `files retire`, and P4's tombstone list | `run_id`, `env`, `committed_at`, `retired[]` `{id, filename}`, `superseded[]` `{id, old_filename, new_filename}`, `blocked[]` | 24 hours for a stand-alone `files retire` |
 | `runs/<runid>/retired-files.json` | **DEFERRED (decision 27, not built)**: P3 `retire` would write it | P6 | `run_id`, `env`, `finished_at`, `quarantined[]`, `skipped_still_referenced[]`, `orphans_reported[]`, `gate_date` | none |
-| `runs/<runid>/verify.json` | P6 `sync.verify` | P6 (trend store for A1), owner | `{env, ran_at, run_id, checks[{id,status,severity,detail,fix,skipped_reason}], growth{}, summary}` | previous files are the growth trend (last 30 runs) |
+| `runs/<runid>/verify.json` | P6 `sync.verify`, stand-alone into its own (`dry`) run folder, under `sync.run` into the run's folder at the apply | P6 (trend store for A1), owner | `{schema_version, env, ran_at, run_id, checks[{id,status,severity,detail,fix,skipped_reason}], growth{samples, metrics{name: number}, trend{name: {value, daily, baseline_daily, status}}, facts{}}, summary{ok, warn, error, skipped, exit_code, drift{entry: {added, overwritten, unchanged, left_behind}}}, anomalies[{path, reason}], handshake[]}`; `detail` is at most 80 characters of lower-case code tokens, `status` is `ok`, `warn`, `error` or `skipped` (`skipped_reason` set exactly then) | previous files are the growth trend (last 30 runs) |
 | `sync-ledger` / `retire-result.json` / `data-result.json` / `plan.json` | **do not exist** (earlier drafts; `plan.json` was folded into `report.json` by decision 26) | | | |
 
 Nothing outside this directory is a shared interface file. Credentials never go in it. Logs carry table names, counts and ids only.
@@ -70,7 +70,7 @@ ssh config (agent), not in this file. Dev database access comes from `environmen
 | `sync.report.max_ids` | ids per category kept in `report.json` for large pulled tables before the list is replaced by a count and range | 100000 |
 | `sync.report.top_n` | ids listed per category in `report.md` (the `--top N` flag overrides) | 50 |
 | `sync.tunnel.connect_timeout_s`, `.keepalive_interval_s`, `.keepalive_count_max` | tunnel wait and keepalives (`{env}` in `state_dir` is the template spelling in the yaml) | 20, 15, 3 |
-| `sync.verify.growth.*`, `sync.verify.disk.{warn_free_pct,error_free_pct}`, `sync.verify.backup_max_age_h`, `sync.verify.pull_stale_days` | P6 thresholds | 5x trailing 7-day median, 20 / 10, 36, 7 |
+| `sync.verify.growth.{factor,window_days,min_samples,min_daily_rows,min_daily_bytes,hard_rows,hard_bytes}`, `sync.verify.disk.{warn_free_pct,error_free_pct}`, `sync.verify.bug_reports.alarm_pct`, `sync.verify.files.modes`, `sync.verify.backup_max_age_h`, `sync.verify.pull_stale_days` | P6 thresholds | 5x trailing 7-day median above a floor of 1000 rows / 50 MB a day and below the ceilings 5,000,000 rows / 2 GiB, 3 earlier samples before a trend is judged, 20 / 10 % free, 80 %, `["644"]`, 36 h, 7 days |
 
 `sync.dev.*`, `sync.prod.*` exist for all three environments; the built tools read only these keys (no env-var fallback).
 
@@ -123,7 +123,7 @@ steps is in the last column of the table (P = promote, F = files, L = pull, V = 
 |---|---|---|---|
 | H1 | Dev side: `APP_ENV` equals `--env`; the dev URL kind is right for the tool (read-only URL for P, F, V; write-capable `DATABASE_URL` for L, the read-only URL refused there); dev `current_database()` equals `sync.dev.database`; dev has no `memes.environment` setting | tracked | all |
 | H2 | Tunnel up from `sync.prod.ssh_alias`; prod `current_database()` equals `sync.prod.database` | tracked | all that use the database |
-| H3 | Prod `current_user` equals `sync.prod.writer_role` or `reader_role` as the tool needs; not superuser/owner/backend (`pg_has_role`); no `rolcreaterole`, `createdb`, `replication`, `bypassrls`; `has_table_privilege` INSERT/UPDATE/DELETE/TRUNCATE false on every class P and X table and true on the class D tables it writes (writer only); `has_column_privilege` SELECT only on `meme_text_ratings (image_id, query_hash, updated_at)` for the writer (section h) | registry | P, L, V (F only once the deferred retire row check is built) |
+| H3 | (P6 V: the writer in a read-only session, and the reader when the tool opened one for the class P counts) Prod `current_user` equals `sync.prod.writer_role` or `reader_role` as the tool needs; not superuser/owner/backend (`pg_has_role`); no `rolcreaterole`, `createdb`, `replication`, `bypassrls`; `has_table_privilege` INSERT/UPDATE/DELETE/TRUNCATE false on every class P and X table and true on the class D tables it writes (writer only); `has_column_privilege` SELECT only on `meme_text_ratings (image_id, query_hash, updated_at)` for the writer (section h) | registry | P, L, V (F only once the deferred retire row check is built) |
 | H4 | `current_setting('memes.environment')` equals `--env` | `--env` | all that use the database |
 | H5 | `GET <sync.prod.api_url>/api/diagnostics/capabilities`: `environment` equals `--env`, `stage = prod` (nothing else is compared: section f) | `--env` | P, L, V, R, D |
 | H6 | Gate: `handshake` verb prints `environment` equal to `--env` (fixed by the key), gate version, device ids | `--env` | F, L (bug reports), V (S4), R |
@@ -175,9 +175,9 @@ client flag): `max_member_mb` 200, `max_members` 5000, `max_batch_mb` 600, free-
 | `pull-list` | | P4 | flat regular non-hidden files in `bug-reports` older than 60 s: name, size, sha256; anomalies reported |
 | `pull-tar` | | P4 | the named bug reports as a tar on stdout (names validated against `^[0-9TZ_-]+_[0-9a-f-]{36}\.[a-z0-9]{1,8}$`) |
 | `delete-verified` | L | P4 | deletes the named bug reports after re-checking each sha256 against the one sent |
-| `fetch-backup` | | P5 | read-only: newest class P dump of this environment and its metadata (size, mtime, `pg_restore --list` result recorded by `backup.sh`) |
-| `disk` | | P5 (needed by P6 A3) | prints `/var/lib/memes/<env>/disk.json`: free space per mount of this environment (database volume, images, staging, backups, container logs) |
-| `containment` | | P5 (needed by P6 S8) | prints `/var/lib/memes/<env>/containment.json`: the backend container's mount modes, read-only root, `cap_drop`, `no-new-privileges`, user, published ports |
+| `fetch-backup` | | P5 | read-only: newest class P dump of this environment and its metadata (size, mtime, `pg_restore --list` result recorded by `backup.sh`). P6 sends only `fetch-backup --meta` and reads `meta.pg_restore_list == "ok"` |
+| `disk` | | P5 (needed by P6 A3) | prints `/var/lib/memes/<env>/disk.json`: free space per mount of this environment (database volume, images, staging, backups, container logs). The shape P6 reads: `{"mounts": {"<mount>": {"free_pct": n}}}` (or `free_bytes` and `total_bytes`), also the bare mount map; any other shape makes A3 skipped (`facts_unusable`) |
+| `containment` | | P5 (needed by P6 S8) | prints `/var/lib/memes/<env>/containment.json`: the backend container's mount modes, read-only root, `cap_drop`, `no-new-privileges`, user, published ports. The shape P6 reads: `{read_only_root: bool, cap_drop: [..], no_new_privileges: bool, user: str, base_path_read_only: bool, published_ports: [str]}` |
 
 **Deferred verbs (decision 27, not built, no caps built):** `retire` (L; moves named files to `retired/<date>/`, numeric suffix, never over an entry, drops them from the record, volume caps), `restore <date>` (L; moves named
 files back if the name is absent, never overwrites) and `purge` (L; deletes `retired/<YYYY-MM-DD>/` directories older than 14 days). Their design text is in P3's deferred section; the gate file is built without them and they are added under
@@ -212,7 +212,7 @@ Common to every command: `--env {metal,general,it}` (required), dry run by defau
 | `python -m sync.promote` (P2) | rows to prod (additions and overwrites only) | `--apply`, `--yes`, `--plan-hash`, `--first-seed`, `--verify-only`, `--only TABLE[,..]`, `--limit-images N`, `--batch-size N`, `--max-report-age` (default 2 h), `--top N`, `--run-id`, `--json`, lifting flags: `--allow-mass-change N`, `--allow-shrink TABLE` (class D, repeatable), `--allow-model-change`, `--ignore-running-batches` |
 | `python -m sync.files promote` (P3) | files to prod (additions and replacements only; `retire` and `restore` are deferred, decision 27) | `--apply`, `--yes`, `--deep`, `--batch-mb N`, `--plan-hash`, `--top N`, `--run-id`, `--json` |
 | `python -m sync.pull` (P4) | reader activity and bug reports to dev | `--apply`, `--skip-files`, `--plan-hash`, `--top N`, `--run-id`, `--json`, lifting flags: `--allow-empty-source`, `--allow-growth`, `--allow-shrink TABLE` (class P, repeatable) |
-| `python -m sync.verify` (P6) | read-only drift and health report | `--json PATH`, `--deep-files`, `--deep-net`, `--skip CHECK,..`, `--fail-on warn`, `--top N`, `--run-id` |
+| `python -m sync.verify` (P6) | read-only drift and health report | `--json PATH` (writes the `verify.json` document, `-` for stdout), `--deep-files`, `--deep-net`, `--skip CHECK,..` (ids of the design, repeatable; listed as skipped with reason `skipped_by_flag`), `--fail-on warn`, `--top N`, `--run-id` |
 | `python -m sync.doctor` (P2-T3) | handshake only, writes nothing | `--json` |
 | `python -m sync.roles` (P5d-T1), `python -m sync.render` (P1, built) | generators | `--env` (roles); `--write`/`--check` (render) |
 
@@ -231,7 +231,7 @@ Shared flag definitions (one spelling, one meaning everywhere):
 - Nonexistent for now (removals deferred, decision 27; the design text is kept in P2 and P3 under "Deferred phase: removals"): `--retire`, `--allow-mass-retire`, `--force-orphans`, `--retired`, `--max-retired-age`, `--max-pull-age`, `--date`, `--names-file`, the `retire` and `restore` subcommands of `sync.files`, any `prune` flag.
 
 Exit codes (all tools): 0 clean (or dry run, **also when the report says a guard would trip**: the apply then refuses with 3); 1 other failure (a partly applied run lists what is committed); 2 handshake or precondition failed (including a held lock);
-3 a guard tripped before any write (P6: only warnings with `--fail-on warn`); 4 verification found differences.
+3 a guard tripped before any write (P6: only warnings with `--fail-on warn`); 4 verification found differences (P6: any check with status `error`; a left-behind finding is never one).
 
 ## j. Who runs what when (end-to-end order)
 

@@ -460,7 +460,7 @@ def handshake(env: str, tool: str, mode: str = "normal", *, settings: SyncSettin
         problems = [] if conn.kind in allowed else ["prod_connection_kind_wrong"]
         role_kind = "reader" if conn.kind == PROD_READER else "writer"
         problems += evaluate_role(gather_role_facts(conn, env), role_kind, str(settings.require(f"prod.{role_kind}_role")))
-        if tool in "RD":  # these run the children of both: the reader as well
+        if tool in "RD" or (tool == "V" and prod_reader_conn is not None):  # these run the children of both: the reader as well
             if prod_reader_conn is None:
                 problems.append("reader_connection_missing")
             else:
@@ -549,5 +549,5 @@ def open_session(env: str, tool: str, mode: str = "normal", *, settings: SyncSet
         prod_kind = _PROD_KIND.get(tool, PROD_WRITER)
         factory = {PROD_WRITER: prod_writer, PROD_READER: prod_reader, PROD_WRITER_RO: prod_writer_readonly}[prod_kind]
         prod = stack.enter_context(factory(settings, secrets, connector=connector)) if tool != "F" else None
-        reader = stack.enter_context(prod_reader(settings, secrets, connector=connector)) if tool in "RD" else None
+        reader = stack.enter_context(prod_reader(settings, secrets, connector=connector)) if tool in "RDV" else None  # V: class P counts
         yield {"dev": dev, "prod": prod, "prod_reader_conn": reader}

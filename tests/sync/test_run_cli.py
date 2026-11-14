@@ -25,7 +25,7 @@ def settings_for(tmp_path) -> SyncSettings:
 
 def doc_for(step, *, added=(), over=(), guards=(), detail="ok", result=None, pre_detail=None):
     tool, kind, name = {"pull": ("sync.pull", "pulled", "meme_saves"), "files": ("sync.files promote", "files", "images"),
-                        "data": ("sync.promote", "images", "images")}[step]
+                        "data": ("sync.promote", "images", "images"), "verify": ("sync.verify", "images", "images")}[step]
     entry = report.Entry(name, kind, added=report.IdSet(ids=list(added)), overwritten=report.Overwritten(ids=list(over)))
     section = report.Section(step, tool, entries=[entry], guards=list(guards))
     return report.Document(env="general", run_id="20261113T120000Z-00000001", tool=tool, dry=result is None, sections=[section],
@@ -55,7 +55,7 @@ class Fakes:
 
     @property
     def runners(self):
-        return {s: self.runner(s) for s in cli.CHILD_STEPS}
+        return {s: self.runner(s) for s in (*cli.CHILD_STEPS, "verify")}
 
     def steps(self, apply):
         return [s for s, _, a in self.calls if a is apply]
@@ -91,7 +91,7 @@ def test_dry_run_plans_every_step_in_order_and_writes_one_combined_report(tmp_pa
     f = Fakes(files={"added": [1, 2], "over": [3]}, data={"added": [2, 4], "over": [3, 5]})
     r = drive(tmp_path, fakes=f)
     assert r.code == 0, r.err
-    assert [c[0] for c in f.calls] == ["pull", "files", "data"] and not any(c[2] for c in f.calls)
+    assert [c[0] for c in f.calls] == ["pull", "files", "data", "verify"] and not any(c[2] for c in f.calls)
     assert {c[1] for c in f.calls} == {"20261113T120000Z-0000000a"}  # the children plan under the run's own id
     doc = report_of(r.folder)
     assert doc["tool"] == "sync.run" and doc["dry"] is True and (r.folder / "dry").exists()
@@ -105,15 +105,17 @@ def test_dry_run_plans_every_step_in_order_and_writes_one_combined_report(tmp_pa
     assert (r.folder / "report.md").read_text().count("## Section ") == 4
 
 
-def test_verify_is_recorded_as_not_built_in_the_plan_and_in_run_json(tmp_path):
-    r = drive(tmp_path)
+def test_the_verify_section_is_the_drift_the_verify_runner_planned_and_run_json_plans_it(tmp_path):
+    # P6 is built: the plan's verify section is the document of runners["verify"] (the drift), not an informational placeholder
+    r = drive(tmp_path, fakes=Fakes(verify={"added": [7]}))
     verify = next(s for s in report_of(r.folder)["sections"] if s["name"] == "verify")
-    assert verify["checks"] == [{"id": "verify", "status": "skipped_with_reason", "severity": "info", "detail": "not_built"}]
+    assert verify["entries"][0]["added"]["ids"] == [7] and "checks" not in verify
     rj = run_json(r.folder)
-    v = next(s for s in rj["steps"] if s["name"] == "verify")
-    assert v["status"] == "skipped_with_reason" and v["reason"] == "not_built"
     assert [s["name"] for s in rj["steps"]] == ["handshake", "pull", "files", "data", "verify"]
-    assert [s["status"] for s in rj["steps"][:4]] == ["planned"] * 4
+    assert [s["status"] for s in rj["steps"]] == ["planned"] * 5
+    # a different drift is a different plan hash (the verify section joins the combined hash)
+    other = report_of(drive(tmp_path, fakes=Fakes(verify={"added": [8]}), run_id="20261113T120000Z-0000000f").folder)
+    assert other["plan_hash"] != report_of(r.folder)["plan_hash"]
     assert rj["dry"] is True and rj["run_id"] == "20261113T120000Z-0000000a" and rj["env"] == "general"
     assert rj["plan_hash"] == report_of(r.folder)["plan_hash"] and set(rj["steps"][0]) >= {"name", "status", "started_at", "finished_at", "exit_code"}
 
@@ -189,16 +191,16 @@ def test_apply_replans_then_runs_each_step_once_under_one_run_id(tmp_path):
     r = drive(tmp_path, "--apply", "--plan-hash", h, fakes=f)
     assert r.code == 0, (r.out, r.err)
     replan, applied = [c for c in f.calls if not c[2]], [c for c in f.calls if c[2]]
-    assert [c[0] for c in replan] == ["pull", "files", "data"] and [c[0] for c in applied] == ["pull", "files", "data"]
+    assert [c[0] for c in replan] == ["pull", "files", "data", "verify"] and [c[0] for c in applied] == ["pull", "files", "data", "verify"]
     scratch = {c[1] for c in replan}
     assert len(scratch) == 1 and scratch != {"20261113T120000Z-0000000a"}  # the re-plan runs in its own (removed) dry folder
-    assert {c[1] for c in applied} == {"20261113T120000Z-0000000a"}  # ONE run id for the three applies
+    assert {c[1] for c in applied} == {"20261113T120000Z-0000000a"}  # ONE run id for the four applies
     assert not (tmp_path / "state" / "runs" / scratch.pop()).exists()
     doc = report_of(r.folder)
     assert doc["dry"] is False and not (r.folder / "dry").exists() and doc["result"]["data"]["images"]["added"] == 1 and "verify" in doc["result"]
     rj = run_json(r.folder)
     assert [s["status"] for s in rj["steps"]] == ["ok", "ok", "ok", "ok", "ok"] and rj["plan_hash"] == h and rj["dry"] is False
-    assert rj["steps"][4]["reason"] == "promote_verify_phase" and "complete" in r.out
+    assert rj["steps"][4]["reason"] == "sync_verify" and "complete" in r.out
 
 
 def test_a_plan_that_changed_since_the_dry_run_is_exit_3_before_any_write(tmp_path):
@@ -207,7 +209,7 @@ def test_a_plan_that_changed_since_the_dry_run_is_exit_3_before_any_write(tmp_pa
     r = drive(tmp_path, "--apply", "--plan-hash", h, fakes=f)
     assert r.code == 3 and "the plan changed since the dry run" in r.err
     assert not any(c[2] for c in f.calls) and r.asked == []
-    assert f.steps(False) == ["pull", "files", "data"]
+    assert f.steps(False) == ["pull", "files", "data", "verify"]
     assert drive(tmp_path, "--apply", "--plan-hash", "f" * 64, run_id="20261113T120000Z-0000000c").code == 3
 
 
@@ -233,7 +235,7 @@ def test_a_wrong_confirmation_is_exit_3_and_writes_nothing(tmp_path, answer):
 
 def test_yes_skips_only_the_confirmation(tmp_path):
     r = drive(tmp_path, "--apply", "--yes")
-    assert r.code == 0 and r.asked == [] and r.fakes.steps(True) == ["pull", "files", "data"]
+    assert r.code == 0 and r.asked == [] and r.fakes.steps(True) == ["pull", "files", "data", "verify"]
     bad = drive(tmp_path, "--apply", "--yes", "--plan-hash", "0" * 64, run_id="20261113T120000Z-0000000e")
     assert bad.code == 3 and bad.fakes.steps(True) == []  # --yes does not skip the hash check
 
@@ -256,9 +258,11 @@ def test_the_exit_code_of_the_failing_child_is_the_exit_code_of_the_run(tmp_path
         f = Fakes()
         f.fail[("data", True)] = code
         r = drive(tmp_path, "--apply", "--yes", fakes=f, run_id=f"20261113T12000{code}Z-0000000f")
-        assert r.code == code and f.steps(True) == ["pull", "files", "data"]
+        # exit 4 of the data step (promote's own verify phase) still runs sync.verify, so the owner gets the checks
+        assert r.code == code and f.steps(True) == ["pull", "files", "data"] + (["verify"] if code == 4 else [])
         v = {s["name"]: s for s in run_json(r.folder)["steps"]}["verify"]
         assert v["status"] == ("failed" if code == 4 else "not_run")
+        assert (v.get("reason") == "promote_verify_phase") is (code == 4)
 
 
 def test_resume_runs_the_same_command_again_and_the_earlier_steps_are_idempotent(tmp_path):
@@ -268,7 +272,7 @@ def test_resume_runs_the_same_command_again_and_the_earlier_steps_are_idempotent
     assert first.code == 1
     f.fail.clear()
     second = drive(tmp_path, "--apply", "--yes", fakes=f, run_id="20261113T120000Z-00000011")
-    assert second.code == 0 and f.steps(True) == ["pull", "files", "data", "pull", "files", "data"]
+    assert second.code == 0 and f.steps(True) == ["pull", "files", "data", "pull", "files", "data", "verify"]
     assert {s["status"] for s in run_json(second.folder)["steps"]} == {"ok"}
 
 
@@ -293,12 +297,29 @@ def test_apply_stop_after_runs_only_the_selected_steps(tmp_path):
     assert r.code == 0 and r.fakes.steps(True) == ["pull"] and r.fakes.steps(False) == ["pull"]
 
 
-def test_verify_is_not_built_when_the_data_step_did_not_run(tmp_path):
+def test_verify_is_skipped_when_stop_after_ends_the_run_earlier(tmp_path):
     r = drive(tmp_path, "--apply", "--yes", "--stop-after", "files")
     v = {s["name"]: s for s in run_json(r.folder)["steps"]}["verify"]
-    assert v["status"] == "skipped_with_reason" and v["reason"] == "stop_after"
-    assert cli.verify_step(False, None) == {"status": "skipped_with_reason", "exit_code": None, "reason": "not_built"}
-    assert cli.verify_step(True, 0)["status"] == "ok" and cli.verify_step(False, 4)["status"] == "failed"
+    assert v["status"] == "skipped_with_reason" and v["reason"] == "stop_after" and "verify" not in r.fakes.steps(True)
+
+
+def test_verify_step_maps_the_exit_code_of_sync_verify_to_the_run_json_status(tmp_path):
+    ctx = cli.Ctx(env="general", settings=settings_for(tmp_path), args=None, out=io.StringIO(), err=io.StringIO(), opener=None)
+
+    def runners(code):
+        return {"verify": lambda c, rid, apply: StepResult(code)}
+
+    rid = "20261113T120000Z-00000020"
+    assert cli.verify_step(ctx, rid, runners(0), 0) == {"status": "ok", "exit_code": 0, "reason": "sync_verify"}
+    assert cli.verify_step(ctx, rid, runners(4), 0) == {"status": "failed", "exit_code": 4, "reason": "verify_checks_failed"}
+    assert cli.verify_step(ctx, rid, runners(2), 0) == {"status": "failed", "exit_code": 2, "reason": "verify_could_not_run"}
+    assert cli.verify_step(ctx, rid, runners(0), 4) == {"status": "failed", "exit_code": 4, "reason": "promote_verify_phase"}
+
+    def boom(c, r, apply):
+        raise KeyError(SENT)
+
+    out = cli.verify_step(ctx, rid, {"verify": boom}, 0)
+    assert out == {"status": "failed", "exit_code": 1, "reason": "crashed"} and SENT not in ctx.err.getvalue()
 
 
 # --- guards and lifting flags ------------------------------------------------------------------------------------------------------------
@@ -311,7 +332,7 @@ def test_a_tripped_guard_without_its_lift_is_exit_3_before_any_write_and_the_lif
     r = drive(tmp_path, "--apply", "--yes", "--allow-empty-source", "--allow-mass-change", "29", fakes=f, run_id="20261113T120000Z-00000013")
     assert r.code == 3 and "pull:empty_source" not in r.err and "data:mass_change" in r.err  # a wrong N lifts nothing
     r = drive(tmp_path, "--apply", "--yes", "--allow-empty-source", "--allow-mass-change", "30", fakes=f, run_id="20261113T120000Z-00000014")
-    assert r.code == 0 and f.steps(True) == ["pull", "files", "data"]
+    assert r.code == 0 and f.steps(True) == ["pull", "files", "data", "verify"]
 
 
 def test_a_tripped_files_guard_cannot_be_lifted(tmp_path):
@@ -360,6 +381,7 @@ def test_children_run_under_the_parents_lock_and_get_their_own_flags(tmp_path, m
     monkeypatch.setattr(cli.pull_cli, "run_pull", fake("pull"))
     monkeypatch.setattr(cli.files_cli, "run_promote", fake("files"))
     monkeypatch.setattr(cli.promote_cli, "run_promote", fake("data"))
+    monkeypatch.setattr(cli.verify_cli, "run_verify", fake("verify"))
     out, err = io.StringIO(), io.StringIO()
     argv = ["--env", "general", "--apply", "--yes", "--first-seed", "--allow-mass-change", "30", "--allow-shrink", "images",
             "--allow-shrink", "meme_saves", "--allow-model-change", "--ignore-running-batches", "--allow-empty-source", "--allow-growth",
@@ -369,6 +391,9 @@ def test_children_run_under_the_parents_lock_and_get_their_own_flags(tmp_path, m
                   transport="T", transport_factory="TF", git_sha="abc", base_dir="BASE")
     for step, runner in cli.DEFAULT_RUNNERS.items():
         assert runner(ctx, "20261113T120000Z-00000018", True).code == 0
+    va, vkw = seen["verify"]  # P6: the library entry, the run's id, no lock of its own, the whole report (not the planning part) in an apply
+    assert vkw["lock"] is False and vkw["plan_only"] is False and vkw["session_opener"] == "OPENER" and vkw["transport"] == "T"
+    assert va.run_id == "20261113T120000Z-00000018" and va.env == "general" and callable(va.document_sink)
     for step in ("pull", "files", "data"):
         a, kw = seen[step]
         assert kw["lock"] is False and kw["session_opener"] == "OPENER" and callable(kw["ask"]) and a.run_id == "20261113T120000Z-00000018"
