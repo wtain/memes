@@ -1,5 +1,14 @@
 import { ComicsRequestError } from "../api/errors"
 
+/**
+ * A comics call answered the router's own 404 (no `code` in the body): the backend does not serve
+ * comics at all (a prod stage). The feature is off, which is not an error to show. A 404 with a code
+ * (`not_found`, ...) is a real answer about one comics and is not this.
+ */
+export function isComicsFeatureOff(error: unknown): boolean {
+  return error instanceof ComicsRequestError && error.status === 404 && error.code === undefined
+}
+
 const GENERIC = "Something went wrong, try again"
 
 const NAME_REASON: Record<string, string> = {

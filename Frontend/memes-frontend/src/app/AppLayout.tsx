@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { Outlet, NavLink, matchPath, useLocation, useNavigate } from "react-router-dom"
+import { FeatureRouteGuard } from "../features/FeaturesProvider"
+import { useFeatureCheck } from "../features/useFeature"
+import type { Feature } from "../features/visibility"
 
 // handleListNavClick below is wired up on the NavLinks marked `list` in MENU -- /explore,
 // /untagged, /duplicates, /no-ocr, /flagged, /search, /recommendations -- the pages backed by
@@ -8,33 +11,34 @@ import { Outlet, NavLink, matchPath, useLocation, useNavigate } from "react-rout
 // scroll position/pagination state on these pages was otherwise unreachable except via a full
 // page refresh.
 
-type MenuLink = { to: string; label: string; end?: boolean; list?: boolean }
+type MenuLink = { to: string; label: string; end?: boolean; list?: boolean; feature?: Feature }
 type MenuEntry = MenuLink | "separator"
-type MenuGroup = { label: string; entries: MenuEntry[] }
+type MenuGroup = { label: string; entries: MenuEntry[]; feature?: Feature }
 
 const MENU: MenuGroup[] = [
   {
     label: "Find",
     entries: [
       { to: "/search", label: "Search", list: true },
-      { to: "/reply", label: "Reply" },
+      { to: "/reply", label: "Reply", feature: "reply" },
       { to: "/recommendations", label: "Recommendations", list: true },
       { to: "/explore", label: "Explore", list: true },
       "separator",
-      { to: "/trends", label: "Trends" },
+      { to: "/trends", label: "Trends", feature: "trends" },
       { to: "/trending-memes", label: "Trending memes" },
     ],
   },
   {
     label: "Library",
     entries: [
-      { to: "/upload", label: "Upload" },
-      { to: "/concepts", label: "Concepts" },
-      { to: "/statistics", label: "Statistics" },
+      { to: "/upload", label: "Upload", feature: "upload" },
+      { to: "/concepts", label: "Concepts", feature: "concepts" },
+      { to: "/statistics", label: "Statistics", feature: "statistics" },
     ],
   },
   {
     label: "Cleanup",
+    feature: "cleanup",
     entries: [
       { to: "/untagged", label: "Untagged", list: true },
       { to: "/no-ocr", label: "No OCR", list: true },
@@ -45,6 +49,7 @@ const MENU: MenuGroup[] = [
   },
   {
     label: "Admin",
+    feature: "admin",
     entries: [
       { to: "/admin", label: "Batches", end: true },
       { to: "/admin/profiles", label: "Profiles" },
@@ -59,8 +64,29 @@ function isLink(entry: MenuEntry): entry is MenuLink {
   return entry !== "separator"
 }
 
+/** The menu a stage shows: hidden entries and groups dropped, no leading, trailing or doubled separators. */
+function visibleMenu(isVisible: (feature: Feature) => boolean): MenuGroup[] {
+  const groups: MenuGroup[] = []
+  for (const group of MENU) {
+    if (group.feature !== undefined && !isVisible(group.feature)) continue
+    const entries: MenuEntry[] = []
+    for (const entry of group.entries) {
+      if (isLink(entry)) {
+        if (entry.feature === undefined || isVisible(entry.feature)) entries.push(entry)
+      } else if (entries.length > 0 && entries[entries.length - 1] !== "separator") {
+        entries.push(entry)
+      }
+    }
+    if (entries[entries.length - 1] === "separator") entries.pop()
+    if (entries.length > 0) groups.push({ ...group, entries })
+  }
+  return groups
+}
+
 export default function AppLayout() {
   const location = useLocation()
+  const isVisible = useFeatureCheck()
+  const menu = visibleMenu(isVisible)
   const navigate = useNavigate()
   // Bumped on a re-click of the already-active nav link; combined with pathname into the
   // Outlet's key below to force that one page to remount (never included in the key on its own --
@@ -106,7 +132,7 @@ export default function AppLayout() {
     <div className="min-h-screen bg-gray-100 text-gray-900">
       <header className="border-b bg-white sticky top-0 z-50">
         <nav ref={navRef} aria-label="Main" className="mx-auto max-w-6xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-2">
-          {MENU.map((group) => {
+          {menu.map((group) => {
             const open = openGroup === group.label
             const active = group.entries.some((entry) => isLink(entry) && isCurrent(entry))
             return (
@@ -162,7 +188,9 @@ export default function AppLayout() {
             its ?cursor= URL param on every debounced scroll tick, and including search here would
             remount the page (destroying the very scroll state we're tracking) on every one of
             those ticks instead of only on an explicit re-click. */}
-        <Outlet key={`${location.pathname}:${resetNonce}`} />
+        <FeatureRouteGuard>
+          <Outlet key={`${location.pathname}:${resetNonce}`} />
+        </FeatureRouteGuard>
       </main>
     </div>
   )

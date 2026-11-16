@@ -1,6 +1,7 @@
 import { useRef, useState } from "react"
 import { TagList } from "./TagList"
 import { CardComicsAction } from "./comics/CardComicsAction"
+import { useFeature } from "../features/useFeature"
 import type { MemesApi } from "../api/MemesApi"
 import type { Meme } from "../types/generated/all"
 
@@ -20,6 +21,8 @@ type Props = {
 }
 
 export default function MemeCard({ meme, memesApi, onClick, variant = "square", selectable = false, selected = false, onToggleSelect, isKeeper = false, onSetKeeper, similarity, comicsAction = false }: Props) {
+  const curator = useFeature("curator")
+  const comicsOn = useFeature("comics")
   const [showText, setShowText] = useState(false)
   const [isFlagged, setIsFlagged] = useState(meme.flagged ?? false)
   const [copied, setCopied] = useState(false)
@@ -113,7 +116,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
           Caption match: {Math.round(similarity * 100)}%
         </div>
       )}
-      <div>
+      {curator && <div>
         <input type="checkbox" className="ml-4 mr-2" checked={isFlagged} onChange={(e) => {
           e.preventDefault();
           if (isFlagged) {
@@ -125,8 +128,8 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
           
         }} />
         Flagged
-      </div>
-      {comicsAction && <CardComicsAction memesApi={memesApi} imageId={meme.id} />}
+      </div>}
+      {comicsAction && comicsOn && <CardComicsAction memesApi={memesApi} imageId={meme.id} />}
       <TagList tags={meme.tags ?? []} />
     </div>
   )

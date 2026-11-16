@@ -10,6 +10,7 @@ import type { Concept, ImageDescription, Meme } from "../types/generated/all"
 import { ConceptRow } from "./ConceptRow"
 import { useNavigate } from "react-router-dom"
 import { useFetchById } from "../utils/useFetchById"
+import { useFeature } from "../features/useFeature"
 
 type Props = {
   meme: Meme
@@ -45,6 +46,8 @@ export function MemeDetails({ meme, memesApi }: Props) {
   const scaleRef = useRef(scale)  // kept in sync for use inside native listeners
 
   const navigate = useNavigate()
+  const curator = useFeature("curator")
+  const comicsOn = useFeature("comics")
 
   useFetchById(
     `${meme.id}:${similarSource}`,
@@ -54,8 +57,9 @@ export function MemeDetails({ meme, memesApi }: Props) {
   )
   useFetchById(meme.id, id => memesApi.getTopConceptsForImage(id), resp => setConcepts(resp ?? []))
   useFetchById(meme.id, id => memesApi.getDescriptions(id), setDescriptions)
-  useFetchById(meme.id, id => memesApi.getImageIsFlagged(id), setIsFlagged)
-  useFetchById(meme.id, id => memesApi.getMeme(id), m => setNoteText(m.descriptionNote ?? ""))
+  // The flag state and the note belong to the curator controls; a prod build neither shows nor reads them.
+  useFetchById(curator ? meme.id : undefined, id => memesApi.getImageIsFlagged(id), setIsFlagged)
+  useFetchById(curator ? meme.id : undefined, id => memesApi.getMeme(id), m => setNoteText(m.descriptionNote ?? ""))
 
   function toggleFlagged() {
     const next = !isFlagged
@@ -230,20 +234,20 @@ export function MemeDetails({ meme, memesApi }: Props) {
               {descriptions.map(d => (
                 <li key={d.promptKey}>
                   <span className="font-medium">{humanizePromptKey(d.promptKey)}:</span> {d.text}
-                  <button
+                  {curator && <button
                     onClick={() => setDescriptionFeedback(d.promptKey, "approve")}
                     aria-label={`Approve ${humanizePromptKey(d.promptKey)}`}
                     className={`ml-2 px-1.5 py-0.5 text-xs rounded border ${d.feedback === "approved" ? "bg-green-600 text-white border-green-600" : "border-gray-300 text-gray-500 hover:bg-gray-100"}`}
                   >
                     👍
-                  </button>
-                  <button
+                  </button>}
+                  {curator && <button
                     onClick={() => setDescriptionFeedback(d.promptKey, "reject")}
                     aria-label={`Reject ${humanizePromptKey(d.promptKey)}`}
                     className={`ml-1 px-1.5 py-0.5 text-xs rounded border ${d.feedback === "rejected" ? "bg-red-600 text-white border-red-600" : "border-gray-300 text-gray-500 hover:bg-gray-100"}`}
                   >
                     👎
-                  </button>
+                  </button>}
                 </li>
               ))}
             </ul>
@@ -256,7 +260,7 @@ export function MemeDetails({ meme, memesApi }: Props) {
         </div>
 
         {/* No permission gating yet -- see docs/security/admin-permissions-todo.md */}
-        <div>
+        {curator && <div>
           <label htmlFor="description-note" className="block mb-1">
             <strong>Description note:</strong>
           </label>
@@ -287,9 +291,9 @@ export function MemeDetails({ meme, memesApi }: Props) {
               Clear note
             </button>
           </div>
-        </div>
+        </div>}
 
-        <div className="flex items-center gap-2">
+        {curator && <div className="flex items-center gap-2">
           <input
             id="flagged-toggle"
             type="checkbox"
@@ -301,12 +305,12 @@ export function MemeDetails({ meme, memesApi }: Props) {
           <label htmlFor="flagged-toggle" className="cursor-pointer select-none">
             Flagged
           </label>
-        </div>
+        </div>}
 
         <PopularityBlock key={`${meme.id}:${popularityVersion}`} imageId={meme.id} memesApi={memesApi} />
         <SaveCountBlock key={meme.id} imageId={meme.id} memesApi={memesApi} />
         <ImpressionBlock key={`impressions:${meme.id}`} imageId={meme.id} memesApi={memesApi} />
-        <MemeComicsBlock key={`comics:${meme.id}`} imageId={meme.id} memesApi={memesApi} />
+        {comicsOn && <MemeComicsBlock key={`comics:${meme.id}`} imageId={meme.id} memesApi={memesApi} />}
 
         <div>
           <table className="w-full border">

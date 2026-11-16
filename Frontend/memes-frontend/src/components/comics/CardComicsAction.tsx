@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from "react"
 import { Link } from "react-router-dom"
 import type { MemesApi } from "../../api/MemesApi"
 import { ComicsRequestError } from "../../api/errors"
-import { describeComicsError } from "../../comics/comicsErrors"
+import { describeComicsError, isComicsFeatureOff } from "../../comics/comicsErrors"
 import {
   clearWorkingComics, getWorkingComics, setWorkingComics, subscribeWorkingComics,
 } from "../../comics/workingComics"
@@ -19,6 +19,7 @@ export function CardComicsAction({ memesApi, imageId }: Props) {
   const working = useSyncExternalStore(subscribeWorkingComics, getWorkingComics)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [off, setOff] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [added, setAdded] = useState<{ id: string; name: string } | null>(null)
 
@@ -30,7 +31,9 @@ export function CardComicsAction({ memesApi, imageId }: Props) {
       await memesApi.addComicsPanel(target.id, imageId)
       setAdded(target)
     } catch (e) {
-      if (e instanceof ComicsRequestError && (e.code === "built" || e.code === "not_found")) {
+      if (isComicsFeatureOff(e)) {
+        setOff(true)
+      } else if (e instanceof ComicsRequestError && (e.code === "built" || e.code === "not_found")) {
         clearWorkingComics()
         setError(`${describeComicsError(e)}, pick another comics`)
       } else {
@@ -45,6 +48,8 @@ export function CardComicsAction({ memesApi, imageId }: Props) {
     setWorkingComics({ id: comics.id, name: comics.name })
     setAdded({ id: comics.id, name: comics.name })
   }
+
+  if (off) return null
 
   return (
     <div className="px-4 py-1 text-xs border-t space-y-1">

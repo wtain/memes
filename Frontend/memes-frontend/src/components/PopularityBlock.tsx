@@ -1,6 +1,7 @@
 import { useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import type { MemePopularity } from "../types/generated/all"
+import { useFeature } from "../features/useFeature"
 import { useFetchById } from "../utils/useFetchById"
 import { formatSourceCount, sourceLabel } from "../utils/popularitySources"
 
@@ -18,6 +19,7 @@ const MAX_POPULARITY = 1000000
  * slow or failing read never hides the meme. The parent keys it by image id.
  */
 export function PopularityBlock({ imageId, memesApi }: Props) {
+  const canSet = useFeature("curator")
   const [data, setData] = useState<MemePopularity | null>(null)
   const [draft, setDraft] = useState("")
   const [saving, setSaving] = useState(false)
@@ -69,7 +71,7 @@ export function PopularityBlock({ imageId, memesApi }: Props) {
           ))}
         </ul>
       )}
-      {data.status !== "discarded" && (
+      {canSet && data.status !== "discarded" && (
         <div className="flex items-center gap-2">
           <input
             type="number"

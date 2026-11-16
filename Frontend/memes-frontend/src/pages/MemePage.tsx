@@ -4,6 +4,7 @@ import type { MemesApi } from "../api/MemesApi"
 import { MemeDetails } from "../components/MemeDetails"
 import ProfileEditor from "../components/curator/ProfileEditor"
 import type { Meme } from "../types/generated/all"
+import { useFeature } from "../features/useFeature"
 import { useFetchById } from "../utils/useFetchById"
 
 type Props = {
@@ -13,6 +14,7 @@ type Props = {
 export default function MemePage({ memesApi }: Props) {
   const { id } = useParams<{ id: string }>()
   const [meme, setMeme] = useState<Meme | null>(null)
+  const curator = useFeature("curator")
 
   useFetchById(id, i => memesApi.getMeme(i), setMeme)
 
@@ -28,7 +30,7 @@ export default function MemePage({ memesApi }: Props) {
 
       <MemeDetails meme={meme} memesApi={memesApi} />
 
-      <ProfileEditor key={meme.id} memesApi={memesApi} imageId={meme.id} />
+      {curator && <ProfileEditor key={meme.id} memesApi={memesApi} imageId={meme.id} />}
     </div>
   )
 }

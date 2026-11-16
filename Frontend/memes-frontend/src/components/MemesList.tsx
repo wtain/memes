@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Virtuoso } from "react-virtuoso"
 import MemeCard from "./MemeCard"
+import { useFeature } from "../features/useFeature"
 import { WorkingComicsBar } from "./comics/WorkingComicsBar"
 import { MemeDetailsModal } from "./MemeDetailsModal"
 import { useWindowedPagination, type FetchPageFn } from "../hooks/useWindowedPagination"
@@ -39,6 +40,7 @@ function chunkIntoAlignedRows(items: Meme[], globalStart: number): Meme[][] {
 }
 
 export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFilters, listUntagged, listFlagged, listNoOcr, listRecommendations }: MemesListProps) {
+  const comicsOn = useFeature("comics")
   const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null)
 
   const fetchPage: FetchPageFn = useCallback(async (cursor) => {
@@ -107,7 +109,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
 
   return (
     <div>
-      {!listFlagged && <WorkingComicsBar />}
+      {!listFlagged && comicsOn && <WorkingComicsBar />}
       <Virtuoso
         useWindowScroll
         firstItemIndex={rowFirstItemIndex}

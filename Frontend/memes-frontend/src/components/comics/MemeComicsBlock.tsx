@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import type { MemesApi } from "../../api/MemesApi"
 import { ComicsRequestError } from "../../api/errors"
-import { describeComicsError } from "../../comics/comicsErrors"
+import { describeComicsError, isComicsFeatureOff } from "../../comics/comicsErrors"
 import { defaultComicsName } from "../../comics/comicsNaming"
 import type { ComicsDetail } from "../../types/generated/all"
 import { useFetchById } from "../../utils/useFetchById"
@@ -43,6 +43,7 @@ export function MemeComicsBlock({ memesApi, imageId }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [blocked, setBlocked] = useState<Blocked | null>(null)
   const [creating, setCreating] = useState(false)
+  const [off, setOff] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const navigate = useNavigate()
 
@@ -50,7 +51,7 @@ export function MemeComicsBlock({ memesApi, imageId }: Props) {
     imageId,
     id => memesApi.comicsByImage(id),
     result => setKnown({ imageId, value: fromResult(result) }),
-    () => setKnown(null),
+    e => { setKnown(null); if (isComicsFeatureOff(e)) setOff(true) },
   )
 
   // Only an image in no comics can be offered; ask whether it may be added at all.
@@ -92,13 +93,14 @@ export function MemeComicsBlock({ memesApi, imageId }: Props) {
       }
       navigate(`/admin/comics/${created.id}`)
     } catch (e) {
-      setCreateError(describeComicsError(e))
+      if (isComicsFeatureOff(e)) setOff(true)
+      else setCreateError(describeComicsError(e))
     } finally {
       setCreating(false)
     }
   }
 
-  if (known === null || known.imageId !== imageId) return null
+  if (off || known === null || known.imageId !== imageId) return null
   const membership = known.value
   const answered = blocked !== null && blocked.imageId === imageId
   const blockedText = answered ? blocked.message : null

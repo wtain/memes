@@ -31,6 +31,14 @@ function setup(overrides: Parameters<typeof makeMockApi>[0] = {}) {
 afterEach(() => clearWorkingComics())
 
 describe("CardComicsAction", () => {
+  it("disappears without an error banner when the backend does not serve comics (404)", async () => {
+    setWorkingComics({ id: "a", name: "Comics a" })
+    setup({ addComicsPanel: vi.fn().mockRejectedValue(new ComicsRequestError(404, {})) })
+    await userEvent.click(screen.getByRole("button", { name: "Add to Comics a" }))
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Add to/ })).not.toBeInTheDocument())
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
   it("opens the picker without a working comics and sets it from the result", async () => {
     const api = setup()
     await userEvent.click(screen.getByRole("button", { name: "Add to comics" }))
