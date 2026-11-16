@@ -86,6 +86,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.memebrowser.app.data.capabilities.FeatureVisibility
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.memebrowser.app.data.model.Facet
@@ -104,6 +105,7 @@ fun SearchScreen(
     onTrendsClick: () -> Unit = {},
     onRecommendationsClick: () -> Unit = {},
     onStatisticsClick: () -> Unit = {},
+    visibility: FeatureVisibility = FeatureVisibility.ALL,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -129,6 +131,7 @@ fun SearchScreen(
             ModalDrawerSheet {
                 DrawerContent(
                     healthStatus = state.healthStatus,
+                    visibility = visibility,
                     onUploadClick = {
                         scope.launch { drawerState.close() }
                         onUploadClick()
@@ -256,6 +259,7 @@ fun SearchScreen(
 @Composable
 private fun DrawerContent(
     healthStatus: HealthStatus,
+    visibility: FeatureVisibility,
     onUploadClick: () -> Unit,
     onFlaggedClick: () -> Unit,
     onEnvironmentsClick: () -> Unit,
@@ -298,20 +302,24 @@ private fun DrawerContent(
 
     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-    NavigationDrawerItem(
-        icon = { Icon(Icons.Default.Upload, contentDescription = null) },
-        label = { Text("Album sync") },
-        selected = false,
-        onClick = onUploadClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-    NavigationDrawerItem(
-        icon = { Icon(Icons.Default.Block, contentDescription = null) },
-        label = { Text("Flagged") },
-        selected = false,
-        onClick = onFlaggedClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
+    if (visibility.showAlbumSync) {
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Upload, contentDescription = null) },
+            label = { Text("Album sync") },
+            selected = false,
+            onClick = onUploadClick,
+            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+        )
+    }
+    if (visibility.showFlagged) {
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.Block, contentDescription = null) },
+            label = { Text("Flagged") },
+            selected = false,
+            onClick = onFlaggedClick,
+            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+        )
+    }
     NavigationDrawerItem(
         icon = { Icon(Icons.Default.Dns, contentDescription = null) },
         label = { Text("Environments") },
@@ -336,13 +344,15 @@ private fun DrawerContent(
 
     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-    NavigationDrawerItem(
-        icon = { Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = null) },
-        label = { Text("Trends") },
-        selected = false,
-        onClick = onTrendsClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
+    if (visibility.showTrends) {
+        NavigationDrawerItem(
+            icon = { Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = null) },
+            label = { Text("Trends") },
+            selected = false,
+            onClick = onTrendsClick,
+            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+        )
+    }
     NavigationDrawerItem(
         icon = { Icon(Icons.Default.Recommend, contentDescription = null) },
         label = { Text("Recommendations") },
@@ -350,13 +360,15 @@ private fun DrawerContent(
         onClick = onRecommendationsClick,
         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
     )
-    NavigationDrawerItem(
-        icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
-        label = { Text("Statistics") },
-        selected = false,
-        onClick = onStatisticsClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
+    if (visibility.showStatistics) {
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
+            label = { Text("Statistics") },
+            selected = false,
+            onClick = onStatisticsClick,
+            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

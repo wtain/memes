@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.memebrowser.app.data.capabilities.FeatureVisibility
 import com.memebrowser.app.data.model.Meme
 import com.memebrowser.app.data.model.MemeTag
 import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
@@ -68,6 +69,7 @@ fun MemeDetailScreen(
     onBack: () -> Unit,
     onNavigateToMeme: (id: String, source: String) -> Unit,
     onTagClick: (category: String, value: String) -> Unit = { _, _ -> },
+    visibility: FeatureVisibility = FeatureVisibility.ALL,
     viewModel: MemeDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -133,6 +135,7 @@ fun MemeDetailScreen(
                     isSaving = state.isSaving,
                     onSave = { viewModel.saveToGallery(context) },
                     onShare = { viewModel.share(context) },
+                    showFlagToggle = visibility.showFlagToggle,
                     onToggleFlagged = { viewModel.toggleFlagged() },
                     similarMemes = state.similarMemes,
                     isLoadingSimilar = state.isLoadingSimilar,
@@ -149,7 +152,8 @@ fun MemeDetailScreen(
             DescriptionsBottomSheet(
                 descriptions = state.descriptions,
                 onDismiss = { showDescriptions = false },
-                onFeedback = { promptKey, action -> viewModel.setDescriptionFeedback(promptKey, action) }
+                onFeedback = { promptKey, action -> viewModel.setDescriptionFeedback(promptKey, action) },
+                showFeedback = visibility.showDescriptionFeedback
             )
         }
 
@@ -168,6 +172,7 @@ private fun BottomActionBar(
     isSaving: Boolean,
     onSave: () -> Unit,
     onShare: () -> Unit,
+    showFlagToggle: Boolean,
     onToggleFlagged: () -> Unit,
     similarMemes: List<Meme>,
     isLoadingSimilar: Boolean,
@@ -255,15 +260,17 @@ private fun BottomActionBar(
             IconButton(onClick = onShare) {
                 Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
             }
-            IconButton(onClick = onToggleFlagged) {
-                if (meme.flagged == true) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Unmark flagged",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                } else {
-                    Icon(Icons.Default.Block, contentDescription = "Mark flagged", tint = Color.White)
+            if (showFlagToggle) {
+                IconButton(onClick = onToggleFlagged) {
+                    if (meme.flagged == true) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = "Unmark flagged",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        Icon(Icons.Default.Block, contentDescription = "Mark flagged", tint = Color.White)
+                    }
                 }
             }
             IconButton(onClick = onInfoClick) {

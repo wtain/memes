@@ -1,5 +1,6 @@
 package com.memebrowser.app.data.api
 
+import com.memebrowser.app.data.model.CapabilitiesResponse
 import com.memebrowser.app.data.model.DescriptionFeedbackResponse
 import com.memebrowser.app.data.model.HealthResponse
 import com.memebrowser.app.data.model.ImageDescription
@@ -90,4 +91,7 @@ interface MemeApiService {
 
     @GET("api/diagnostics/statistics")
     suspend fun getStatistics(): StatisticsResponse
+
+    @GET("api/diagnostics/capabilities")
+    suspend fun getCapabilities(): CapabilitiesResponse
 }

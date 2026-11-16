@@ -32,7 +32,8 @@ private fun humanizePromptKey(promptKey: String): String {
 fun DescriptionsBottomSheet(
     descriptions: List<ImageDescription>,
     onDismiss: () -> Unit,
-    onFeedback: (promptKey: String, action: String) -> Unit = { _, _ -> }
+    onFeedback: (promptKey: String, action: String) -> Unit = { _, _ -> },
+    showFeedback: Boolean = true
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -66,19 +67,21 @@ fun DescriptionsBottomSheet(
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(onClick = { onFeedback(description.promptKey, "approve") }) {
-                            Icon(
-                                Icons.Filled.ThumbUp,
-                                contentDescription = "Approve ${humanizePromptKey(description.promptKey)}",
-                                tint = if (description.feedback == "approved") Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(onClick = { onFeedback(description.promptKey, "reject") }) {
-                            Icon(
-                                Icons.Filled.ThumbDown,
-                                contentDescription = "Reject ${humanizePromptKey(description.promptKey)}",
-                                tint = if (description.feedback == "rejected") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        if (showFeedback) {
+                            IconButton(onClick = { onFeedback(description.promptKey, "approve") }) {
+                                Icon(
+                                    Icons.Filled.ThumbUp,
+                                    contentDescription = "Approve ${humanizePromptKey(description.promptKey)}",
+                                    tint = if (description.feedback == "approved") Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = { onFeedback(description.promptKey, "reject") }) {
+                                Icon(
+                                    Icons.Filled.ThumbDown,
+                                    contentDescription = "Reject ${humanizePromptKey(description.promptKey)}",
+                                    tint = if (description.feedback == "rejected") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                     Text(

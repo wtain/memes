@@ -1,12 +1,16 @@
 package com.memebrowser.app.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.memebrowser.app.ui.about.AboutScreen
+import com.memebrowser.app.ui.capabilities.VisibilityViewModel
 import com.memebrowser.app.ui.detail.MemeDetailScreen
 import com.memebrowser.app.ui.environment.EnvironmentManagerScreen
 import com.memebrowser.app.ui.flagged.FlaggedScreen
@@ -23,6 +27,8 @@ import java.net.URLEncoder
 @Composable
 fun NavGraph() {
     val navController = rememberNavController()
+    val visibilityViewModel: VisibilityViewModel = hiltViewModel()
+    val visibility by visibilityViewModel.visibility.collectAsState()
     StartupUpdateDialogHost()
     NavHost(navController = navController, startDestination = "search") {
         composable("search") {
@@ -39,7 +45,8 @@ fun NavGraph() {
                 onAboutClick = { navController.navigate("about") },
                 onTrendsClick = { navController.navigate("trends") },
                 onRecommendationsClick = { navController.navigate("recommendations") },
-                onStatisticsClick = { navController.navigate("statistics") }
+                onStatisticsClick = { navController.navigate("statistics") },
+                visibility = visibility
             )
         }
         composable(
@@ -53,6 +60,7 @@ fun NavGraph() {
             val memeId = backStack.arguments!!.getString("memeId")!!
             MemeDetailScreen(
                 memeId = memeId,
+                visibility = visibility,
                 onBack = { navController.popBackStack() },
                 onNavigateToMeme = { id, source ->
                     navController.navigate("detail/$id?source=$source") {
