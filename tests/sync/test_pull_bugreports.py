@@ -420,7 +420,7 @@ def test_ssh_transport_still_refuses_unknown_verbs_and_maps_exit_255(tmp_path):
     for line in ("retire", "restore 2026-11-14", "pull-tar; id", "rm"):  # retire/restore are deferred (decision 27): not on the list
         with pytest.raises(GateFailure):
             t.verb_command(line)
-    # P6 extended the list deliberately by exactly the three read-only verbs of sync.verify; the transport only ever sends `fetch-backup --meta`
+    # P6 extended the list deliberately by exactly the three read-only verbs of sync.verify; `fetch-backup` (no flag, the dump) is sent only by sync.fetch_backup
     for line in ("fetch-backup --meta", "disk", "containment"):
         assert t.verb_command(line)[-2:] == ["gate", line]
     with pytest.raises(GateFailure) as exc:

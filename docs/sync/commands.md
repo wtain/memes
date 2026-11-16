@@ -135,6 +135,12 @@ run cannot see files not yet on prod and shows those images as `waiting_for_file
 The run folder also holds `run.json` (flags, steps with status and exit code, combined `plan_hash`). `--allow-*` flags do not
 exist for the handshake, the id-overlap check, the zero-image guard or mixed models.
 
+## `python -m sync.fetch_backup --env E [--list] [--force]`
+
+Fetches the newest class P dump from prod (gate verb `fetch-backup`, read-only) into `Storage/sync-state/<env>/backups/` with its manifest, verifies name, size, sha256 and `pg_restore_list: ok`, keeps the newest
+`sync.fetch_backup.keep` (default 7). `--list` prints what dev holds (no connection); `--force` fetches even when the newest dump is already held. Exit 0 fetched or already held, 1 failure, 2 no backup on prod, no gate or lock held,
+4 the file failed verification (it is deleted). Takes the same state lock as the other tools.
+
 ## `python -m sync.verify --env E [options]`
 
 Read-only drift and health report of prod against dev (identity, schema, drift per table, files, grants, growth, freshness, containment).

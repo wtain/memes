@@ -113,7 +113,7 @@ Nothing is removed from prod for now. Deferred exactly as follows; the design te
 11. **Real domain and hostnames** (`sync.prod.api_url`, Caddy hosts, CORS origins; the repo has `<env>.example.invalid` placeholders; same as item 5, now also blocking `sync.doctor` H5).
 12. **`public.alembic_version` in `ocrdb_test`:** the T0 fixture left it at `a9d3e6b1c847`; decide whether to restore `29a039fa4457` (the value before T0). Not touched by the docs worker.
 13. **Dev symlink scan:** the new image path containment (P5a-T5, the backend refuses image paths resolving outside `BASE_PATH`) was not checked against the real dev corpora for symlinks or junctions; run a scan before the backend restarts on this code.
-14. **Off-VPS backup fetch step is missing on the dev side:** the gate verb `fetch-backup` and `backup.sh` exist, `sync.pull` does not yet fetch the newest class P dump to dev. Build it, or accept a manual copy.
+14. **Off-VPS backup fetch step (built, standalone):** `python -m sync.fetch_backup --env <env>` fetches and verifies the newest class P dump into `Storage/sync-state/<env>/backups/`. It is not part of `sync.pull` or `sync.run` (run it after a pull); untested against a real ssh gate.
 15. **`sync.pull.ratings_mode`:** confirm `skip` as the default (item 1) before the first real pull.
 16. **VPS size, provider and quotas, backup target, CDN/WAF:** items 6, 7 and 8 above stay open; the design assumed 4 GB floor, 8 GB recommended.
 17. **Prod numbers of the limiter** (`abuse.*` in `environments/settings.prod.yaml`: saves 30/min, not-found 20/min, bug reports 5/min, recording 1200/min, `q` 512 characters) are the implementer's guesses, not measured; confirm or tune.

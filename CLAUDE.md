@@ -97,7 +97,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 ### Dev/prod data sync (`python -m sync.*`, run on the dev workstation)
 
 Each environment has a dev stage (the workstation) and a prod stage (a VPS stack). `python -m sync.run --env <env>` is the dry run (handshake, pull, files, data, verify, with one report under
-`Storage/sync-state/<env>/runs/<run id>/`); `--apply --plan-hash <hash>` applies what the report showed. The single tools are `sync.doctor`, `sync.promote`, `sync.files promote`, `sync.pull`,
+`Storage/sync-state/<env>/runs/<run id>/`); `--apply --plan-hash <hash>` applies what the report showed. The single tools are `sync.doctor`, `sync.promote`, `sync.files promote`, `sync.pull`, `sync.fetch_backup` (off-VPS copy of the prod backup),
 `sync.verify`; generators `sync.render`, `sync.roles`, `sync.backup`; `sync.release` runs on the VPS. Operator and developer docs: `docs/sync/` (start with `overview.md`, flags in `commands.md`);
 design and decisions: `docs/superpowers/specs/2026-11-12-environment-data-sync/` (`interfaces.md` is the contract, `tracker.md` the status). Prod runbook: `deploy/prod/README.md`.
 

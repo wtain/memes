@@ -34,7 +34,7 @@ _REASON_RE = re.compile(r"^gate: ([a-z0-9_]+): ?(.*)$")
 GATE_PATH = REPO_ROOT / "deploy" / "prod" / "memesync-gate.py"
 GATE_VERBS = ("handshake", "list", "hash", "receive", "verify", "commit", "sweep",  # what the files tool uses
               "pull-list", "pull-tar", "delete-verified",  # what the pull tool uses (bug reports, P4)
-              "fetch-backup", "disk", "containment")  # what verify uses (P6): only `fetch-backup --meta` is ever sent, never the dump
+              "fetch-backup", "disk", "containment")  # what verify (`fetch-backup --meta`) and sync.fetch_backup (the dump) use
 SSH_ERROR_EXIT = 255
 
 SHORT_TIMEOUT_S = 120.0
@@ -108,6 +108,7 @@ class Transport(Protocol):
     def disk(self) -> GateReply: ...
     def containment(self) -> GateReply: ...
     def fetch_backup_meta(self) -> GateReply: ...
+    def fetch_backup(self, dest: str | os.PathLike) -> GateReply: ...
 
 
 def check_batch_id(batch_id: str) -> str:
@@ -183,7 +184,7 @@ class _VerbTransport:
         """`pairs` are `(sha256, name)`; the gate deletes a file only when its current hash equals the one sent."""
         return self._run("delete-verified", _nul_join([x for pair in pairs for x in pair]), LONG_TIMEOUT_S)
 
-    # P6 (sync.verify) verbs: read-only facts. `fetch_backup_meta` asks for the header only (`--meta`); the dump itself is never fetched here.
+    # P6 (sync.verify) verbs: read-only facts. `fetch_backup_meta` asks for the header only (`--meta`); `fetch_backup` (the dump) is used by sync.fetch_backup alone.
 
     def disk(self) -> GateReply:
         """The root timer's `disk.json` (free space per mount of this environment); the JSON is in `reply.json()`."""
@@ -196,6 +197,11 @@ class _VerbTransport:
     def fetch_backup_meta(self) -> GateReply:
         """Header line of the newest class P dump (`name`, `size`, `mtime`, `meta`), no dump bytes."""
         return self._run("fetch-backup --meta", b"", SHORT_TIMEOUT_S)
+
+    def fetch_backup(self, dest: str | os.PathLike) -> GateReply:
+        """The newest class P dump: the verb's raw stdout (one JSON header line, then exactly `size` dump bytes) is written to `dest`.
+        Only `sync.fetch_backup` calls this; it splits and verifies the file."""
+        return self._run_to_file("fetch-backup", b"", dest, LONG_TIMEOUT_S)
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------

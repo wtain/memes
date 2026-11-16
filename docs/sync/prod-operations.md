@@ -63,8 +63,10 @@ For the next releases use the README release runbook; after each release run a d
   (`pg_dump -Fc --data-only` as the `sync_r` role over the container's unix socket), `...-bugreports-<stamp>.tar.gz` and `...-classp-<stamp>.meta.json` (sizes, sha256, rows per
   table, `pg_restore_list: "ok"`), writes via `*.part` and renames, and removes sets older than 14 days. The password is in `/etc/memes/<env>/backup.env` (0600, root), never on a command line.
 - **Off the VPS:** the gate verb `fetch-backup` serves the newest dump and its metadata read-only (`sync.verify` S6 reads only the metadata and warns after 36 hours).
-  The design has the dev pull fetch the newest dump on each `sync.pull`; the dev-side fetch step is **not built** (open item). Until it is, copy the newest dump by hand with the verb key
-  (`ssh memes-prod-<env>-sync fetch-backup`, see the gate) and keep it off the VPS. A copy on the same disk as the data is not a backup.
+  On dev, `python -m sync.fetch_backup --env <env>` fetches the newest dump (a separate command, run it after a pull; `sync.run` does not call it). It keeps the file and its manifest in
+  `Storage/sync-state/<env>/backups/` (newest `sync.fetch_backup.keep`, default 7), and keeps nothing it cannot vouch for: the name must be `memes-<env>-classp-<stamp>.dump`, the size and
+  sha256 must equal the manifest, the manifest must say `pg_restore_list: ok` for this environment (otherwise the file is deleted, exit 4). `--list` shows what dev holds without connecting;
+  `--force` fetches again. It writes nothing to prod. That folder is on the workstation disk, so copy it to a second place if the workstation is the only other copy you trust.
 - **Restore:** `deploy/prod/restore.sh <env> --list`, then `restore.sh <env> <dump> [--truncate] [--with-bug-reports] [--dry-run]`. Order of a disaster recovery: schema exists (migrate), images rows exist
   (promote files and data from dev, because the ratings table has a foreign key to `images`), then restore. It checks the database marker and that the dump belongs to `<env>`, checks the sha256, prints the plan,
   and runs ONE transaction only after you type `restore memes_<env>`: optional truncate, data, sequences past the highest id, row count check against the dump (any difference rolls back everything).
@@ -91,7 +93,7 @@ Everything here is built and covered by tests with fakes, containers or loopback
 - Gate verbs `disk`, `containment`, `fetch-backup` and the checks that read them (S4 account probe, S6, S8, A3), and the HTTP checks S3, S7, A4: mock-only.
 - The numbers of the app-level rate limiter (`abuse.*` in `environments/settings.prod.yaml`) are the implementer's estimates, not measured against real traffic; there is no CDN or WAF in front.
 - The complete first seed and the interrupted-and-resumed seed against a real prod; the HNSW rebuild times on the VPS size actually bought.
-- The backup timer, the restore drill, and the missing off-VPS fetch step on the dev side.
+- The backup timer, the restore drill, and `sync.fetch_backup` against a real gate over ssh (it is tested against the real gate file on a temporary tree).
 - The prod web build and its deployment into `/srv/memes/<env>/web`, and a real Android build pointed at prod.
 - Image-path containment on dev (a dev symlink scan for the new containment rule has not been done).
 - The real hostnames, `sync.prod.api_url`, `sync.dev.database` values: not filled; `sync.doctor` fails on them until they are.
