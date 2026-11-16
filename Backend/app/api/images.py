@@ -6,7 +6,8 @@ from typing import Optional, AsyncGenerator, Literal
 from urllib.parse import quote
 
 import unicodedata
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import Depends, HTTPException, Query, Request, Response
+from Backend.app.stage_policy import make_router
 from pydantic import BaseModel, model_serializer
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ from Backend.app.types.generated.trendingmemesresponse import Schema as Trending
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 from Backend.app.types.generated.descriptionfeedbackresponse import Schema as DescriptionFeedbackResponse
 
-router = APIRouter(prefix="/images", tags=["images"])
+router = make_router(prefix="/images", tags=["images"])
 
 
 # Names without a leading underscore on purpose: they become OpenAPI schema names.

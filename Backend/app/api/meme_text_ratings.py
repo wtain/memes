@@ -1,7 +1,8 @@
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import Depends, HTTPException, Query, Response
+from Backend.app.stage_policy import make_router
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.history_repository import HistoryRepository
@@ -17,7 +18,7 @@ from Storage.db import get_async_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/meme-from-text", tags=["meme-from-text"])
+router = make_router(prefix="/meme-from-text", tags=["meme-from-text"])
 
 
 async def get_rating_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[MemeTextRatingService, None]:

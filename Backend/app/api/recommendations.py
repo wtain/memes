@@ -2,7 +2,8 @@ import logging
 import random
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import Depends, Query, Response
+from Backend.app.stage_policy import make_router
 
 from Storage.db import get_async_db, AsyncSessionLocal
 from Backend.app.repositories.image_repository import ImageRepository
@@ -13,7 +14,7 @@ from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchR
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/recommendations", tags=["recommendations"])
+router = make_router(prefix="/recommendations", tags=["recommendations"])
 
 
 async def get_recommendations_service(

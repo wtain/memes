@@ -2,14 +2,15 @@ from datetime import datetime
 from typing import AsyncGenerator, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import Depends, Query
+from Backend.app.stage_policy import make_router
 from pydantic import BaseModel
 
 from Storage.db import AsyncSessionLocal, get_async_db
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services.ingestion_service import IngestionService
 
-router = APIRouter(prefix="/ingestion", tags=["ingestion"])
+router = make_router(prefix="/ingestion", tags=["ingestion"])
 
 Tier = Literal["tier_a", "tier_b"]
 

@@ -4,9 +4,23 @@ from pathlib import Path
 from dotenv import load_dotenv
 from dynaconf import Dynaconf, Validator
 
+from config.stage import is_prod
 from config.tls import use_system_trust_store
 
 _BASE_SETTINGS_FILE = "environments/settings.yaml"
+
+
+def _settings_files(name: str) -> list[str]:
+    """Tracked YAML layers for environment `name`, lowest priority first.
+
+    With APP_STAGE=prod two more layers go on top (environments/settings.prod.yaml, then
+    environments/settings.<name>.prod.yaml; Dynaconf ignores a file that does not exist). With
+    APP_STAGE unset or dev the list is exactly what it was before the stage mechanism existed.
+    """
+    files = [_BASE_SETTINGS_FILE, f"environments/settings.{name}.yaml"]
+    if is_prod():
+        files += ["environments/settings.prod.yaml", f"environments/settings.{name}.prod.yaml"]
+    return files
 
 
 def _build(name: str) -> Dynaconf:
@@ -32,7 +46,7 @@ def _build(name: str) -> Dynaconf:
     instance = Dynaconf(
         envvar_prefix=False,
         merge_enabled=True,
-        settings_files=[_BASE_SETTINGS_FILE, f"environments/settings.{name}.yaml"],
+        settings_files=_settings_files(name),
     )
     instance.validators.register(Validator("DATABASE_URL", must_exist=True))
     return instance
@@ -59,6 +73,11 @@ class _SettingsProxy:
     def __getitem__(self, key):
         return self._instance[key]
 
+
+if is_prod() and not os.environ.get("APP_ENV"):
+    # Prod never defaults to `general`: a missing APP_ENV would silently serve one environment with
+    # another one's overlay (P5a-2).
+    raise RuntimeError("APP_STAGE=prod requires APP_ENV (metal, general or it) to be set explicitly")
 
 settings = _SettingsProxy(_build(os.environ.get("APP_ENV", "general")))
 

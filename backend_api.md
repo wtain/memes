@@ -25,6 +25,18 @@ The API allows cross-origin requests from:
 
 All HTTP methods and headers are allowed with credentials support enabled.
 
+## Prod stage (`APP_STAGE=prod`)
+
+The production backend is the same code started with `APP_STAGE=prod` (the `Dockerfile.backend` image bakes it in). With `APP_STAGE` unset or `dev` nothing in this document changes. On prod:
+
+- Every route has a verdict in `Backend/app/stage_policy.py` (`ROUTE_POLICY`, one line per method and path). Only `reader` routes (22 of 91) are served; every `dev_only` route answers `404 {"detail": "Not Found"}`, the same as a path that does not exist. The routers `admin`, `admin_discovery`, `admin_profiles`, `ingestion`, `recut`, `comics`, `meme_profiles`, `trends`, `uploads` and `meme_text_ratings` are not even imported. A new route needs a policy line: a guard test fails without one, and on prod the import raises.
+- Served on prod: `GET /api/images`, `/api/images/{id}` (file), `/similar`, `/descriptions`, `/api/images/meme/{id}` (+ `/popularity`, `/saves` GET and POST, `/impressions`), `/api/images/trending`, `/api/concepts*`, `/api/recommendations`, `POST /api/bug-reports`, `POST /api/history/{search_id}/not-found`, `POST /api/meme-from-text/search`, `GET /api/meme-from-text/taxonomy`, `/api/diagnostics/health` and `/capabilities`, and `/health`. Everything else (flags, description feedback, popularity PUT, duplicates, history list, ratings, comics, trends, uploads, statistics, admin) is 404.
+- `/docs`, `/redoc` and `/openapi.json` are off, and a trailing slash is not redirected (`/api/images/trending/` is 404).
+- `GET /health` answers a fixed `{"detail": "Database unavailable"}` (503) on a database failure; on dev it still includes the exception text.
+- CORS allows only `cors.origins` (tracked setting, overridable by the env var `CORS__ORIGINS`), methods `GET` and `POST`, no credentials; localhost is not allowed.
+- No scheduler runs. At startup the backend refuses to start unless `APP_ENV` is set explicitly and the connected database's `current_setting('memes.environment')` equals `APP_ENV`.
+- Image files are served only for names that are plain files directly inside `BASE_PATH` (on every stage): a name with a path separator, NUL, `..`, an absolute path, a symbolic link or a directory is a 404.
+
 ## Data Models
 
 ### Meme
@@ -1291,6 +1303,24 @@ Returns backend liveness and a live database connectivity probe.
 
 ```json
 { "backend": true, "database": true }
+```
+
+#### Capabilities
+
+Tells a client which feature groups this backend serves and which environment and stage it is. Public, no parameters. Web and Android effective visibility is the build flag AND the capability. It deliberately carries **no** git SHA, revision or schema head (the release revision lives in the database marker `memes.revision`, the schema head in `alembic_version`).
+
+- **URL**: `/api/diagnostics/capabilities`
+- **Method**: `GET`
+- **Response**: `CapabilitiesResponse` (`shared/schemas/capabilitiesresponse.schema.json`)
+  - `stage`: `dev` or `prod` (`APP_STAGE`; unset means `dev`)
+  - `environment`: `APP_ENV` of the backend (`metal`, `general` or `it`)
+  - `features`: booleans `memeFromText` (true only when a query parser is configured, `parse.model`), `concepts`, `trends`, `comics`, `ratings`, `statistics`, `uploads`, `history`, `admin`. On `dev` every group that has routes is true; on `prod` only `concepts` can be true (and `memeFromText` where a parser is configured; the prod overlay switches it off)
+- **Example**: `GET /api/diagnostics/capabilities` on a prod backend
+
+```json
+{ "stage": "prod", "environment": "general",
+  "features": { "memeFromText": false, "concepts": true, "trends": false, "comics": false,
+                "ratings": false, "statistics": false, "uploads": false, "history": false, "admin": false } }
 ```
 
 #### Statistics

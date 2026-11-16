@@ -2,7 +2,8 @@ import uuid
 from datetime import date
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import Depends, Response
+from Backend.app.stage_policy import make_router
 
 from Storage.db import AsyncSessionLocal, get_async_db
 from Backend.app.repositories.trends_repository import TrendsRepository
@@ -11,7 +12,7 @@ from Backend.app.types.generated.trendentry import Schema as TrendEntry
 from Backend.app.types.generated.trendhistoryentry import Schema as TrendHistoryEntry
 from Backend.app.types.generated.trendsrun import Schema as TrendsRunDto
 
-router = APIRouter(prefix="/trends", tags=["trends"])
+router = make_router(prefix="/trends", tags=["trends"])
 
 
 async def get_trends_service(

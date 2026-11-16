@@ -1,7 +1,8 @@
 import logging
 from typing import AsyncGenerator, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import Depends, HTTPException, Query, Response
+from Backend.app.stage_policy import make_router
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.services.cache import no_cache_headers
@@ -15,7 +16,7 @@ from Storage.db import get_async_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/admin/discovery", tags=["admin"])
+router = make_router(prefix="/admin/discovery", tags=["admin"])
 
 MemeSort = Literal["per_100", "redrops", "redrops_window", "popularity", "saves", "impressions"]
 QuerySort = Literal["times", "last", "min_results"]

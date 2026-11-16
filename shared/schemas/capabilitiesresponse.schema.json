@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "capabilitiesresponse.schema.json",
+  "title": "CapabilitiesResponse",
+  "type": "object",
+  "description": "GET /api/diagnostics/capabilities. Public. Deliberately carries no revision, schema head or git SHA.",
+  "properties": {
+    "stage": { "type": "string", "enum": ["dev", "prod"] },
+    "environment": { "type": "string", "description": "APP_ENV of the backend: metal, general or it" },
+    "features": { "$ref": "./capabilitiesfeatures.schema.json" }
+  },
+  "required": ["stage", "environment", "features"]
+}

@@ -1,7 +1,8 @@
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query
+from Backend.app.stage_policy import make_router
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.recut_repository import RecutRepository
@@ -15,7 +16,7 @@ from Backend.app.types.generated.recutstats import Schema as RecutStats
 from Backend.app.types.generated.recutproposalpage import Schema as RecutProposalPage
 from Storage.db import get_async_db
 
-router = APIRouter(prefix="/recut", tags=["recut"])
+router = make_router(prefix="/recut", tags=["recut"])
 
 
 async def get_recut_repository(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[RecutRepository, None]:

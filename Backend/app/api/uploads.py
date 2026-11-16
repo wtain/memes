@@ -1,7 +1,8 @@
 import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import Depends, File, HTTPException, Request, UploadFile
+from Backend.app.stage_policy import make_router
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +13,7 @@ from Backend.app.services.inbox_upload_service import (
 from Backend.app.services.rate_limit import upload_limiter
 from Storage.db import get_async_db
 
-router = APIRouter(prefix="/uploads", tags=["uploads"])
+router = make_router(prefix="/uploads", tags=["uploads"])
 
 ALLOWED_MIME_TYPES = {
     "image/jpeg",

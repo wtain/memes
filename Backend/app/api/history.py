@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import Depends, Query, Response
+from Backend.app.stage_policy import make_router
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +14,7 @@ from Backend.app.repositories.history_repository import HistoryRepository
 from Backend.app.services.cache import no_cache_headers
 from Backend.app.services.outcome_recorder import record_not_found
 
-router = APIRouter(prefix="/history", tags=["history"])
+router = make_router(prefix="/history", tags=["history"])
 
 
 class SearchHistoryTagResponse(BaseModel):

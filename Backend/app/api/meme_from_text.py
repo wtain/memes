@@ -2,7 +2,8 @@ import functools
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import Depends, Header, HTTPException, Response
+from Backend.app.stage_policy import make_router
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.image_repository import ImageRepository
@@ -22,7 +23,7 @@ from Storage.db import get_async_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/meme-from-text", tags=["meme-from-text"])
+router = make_router(prefix="/meme-from-text", tags=["meme-from-text"])
 
 
 async def get_meme_from_text_service(

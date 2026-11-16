@@ -1,8 +1,12 @@
+import logging
+import os
 import shutil
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import List
 
 from config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 _images_dir = settings.get('BASE_PATH')
 if not _images_dir:
@@ -18,8 +22,43 @@ _BUG_REPORTS_DIR = Path(_bug_reports_raw) if _bug_reports_raw else _IMAGES_DIR /
 _REJECTED_DIR = _IMAGES_DIR / "rejected"
 
 
+class UnsafeImagePath(ValueError):
+    """A file name that does not name a plain file directly inside the directory it is looked up in."""
+
+
+def _contained(directory: Path, filename: str) -> Path:
+    """`directory / filename`, after proving that it is a direct child of `directory`.
+
+    Containment (P5a-6, decision 19): the file names come from the database, which on prod is filled from dev, and
+    the images directory is filled by file transfer, so neither is trusted. A name is refused when it is empty,
+    holds a NUL or a path separator, is absolute or drive-qualified, is `.` or `..`, resolves (symlinks followed)
+    outside the directory or to anything but a direct child, is itself a symlink (links are refused even when they
+    point inside: regular files only) or is a directory. Raises UnsafeImagePath.
+    """
+    if not isinstance(filename, str) or not filename or filename in (".", ".."):
+        raise UnsafeImagePath("empty or relative-only file name")
+    if "\x00" in filename or "/" in filename or "\\" in filename:
+        raise UnsafeImagePath("file name holds a NUL or a path separator")
+    if os.path.isabs(filename) or (os.name == "nt" and PureWindowsPath(filename).drive):
+        raise UnsafeImagePath("absolute file name")
+    candidate = directory / filename
+    try:
+        if candidate.is_symlink():
+            raise UnsafeImagePath("file name is a symbolic link")
+        resolved = candidate.resolve(strict=False)
+        base = directory.resolve(strict=False)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise UnsafeImagePath("file name cannot be resolved") from error
+    if resolved.parent != base:
+        raise UnsafeImagePath("file name resolves outside its directory")
+    if candidate.is_dir():
+        raise UnsafeImagePath("file name is a directory")
+    return candidate
+
+
 def get_image_path(filename: str) -> Path:
-    return _IMAGES_DIR / filename
+    """Path of an image file; raises UnsafeImagePath for a name that is not a plain file inside the images directory."""
+    return _contained(_IMAGES_DIR, filename)
 
 
 def list_images() -> List[str]:
@@ -29,22 +68,29 @@ def list_images() -> List[str]:
 
 
 def image_exists(filename: str) -> bool:
-    return (_IMAGES_DIR / filename).exists()
+    try:
+        return _contained(_IMAGES_DIR, filename).is_file()
+    except UnsafeImagePath as refusal:
+        logger.warning("image file name refused (%s): %r", refusal, filename)
+        return False
 
 
 def save_bug_report(filename: str, data: bytes) -> None:
+    target = _contained(_BUG_REPORTS_DIR, filename)
     _BUG_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (_BUG_REPORTS_DIR / filename).write_bytes(data)
+    target.write_bytes(data)
 
 
 def move_to_rejected(filename: str) -> None:
+    src = _contained(_IMAGES_DIR, filename)
+    dest = _contained(_REJECTED_DIR, filename)
     _REJECTED_DIR.mkdir(parents=True, exist_ok=True)
-    src = _IMAGES_DIR / filename
     if src.exists():
-        shutil.move(str(src), str(_REJECTED_DIR / filename))
+        shutil.move(str(src), str(dest))
 
 
 def move_from_rejected(filename: str) -> None:
-    src = _REJECTED_DIR / filename
+    src = _contained(_REJECTED_DIR, filename)
+    dest = _contained(_IMAGES_DIR, filename)
     if src.exists():
-        shutil.move(str(src), str(_IMAGES_DIR / filename))
+        shutil.move(str(src), str(dest))

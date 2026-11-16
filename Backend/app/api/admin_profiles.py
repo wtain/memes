@@ -1,7 +1,8 @@
 import logging
 from typing import AsyncGenerator, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query
+from Backend.app.stage_policy import make_router
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.services.meme_profile_service import ProfileValidationError
@@ -16,7 +17,7 @@ from taxonomy import load as load_taxonomy
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/admin/profile-coverage", tags=["admin"])
+router = make_router(prefix="/admin/profile-coverage", tags=["admin"])
 
 Category = Literal["without_profile", "needs_review", "stale_taxonomy", "failed", "human_verified", "pending_vector"]
 

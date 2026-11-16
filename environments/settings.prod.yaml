@@ -1,0 +1,23 @@
+# Tracked settings that apply on top of the common file and the environment's own overlay when the process
+# runs with APP_STAGE=prod (the production backend image bakes it in). No secrets: DATABASE_URL, BASE_PATH,
+# BUG_REPORTS_PATH, APP_ENV, APP_STAGE and the frontend origins come from the VPS env file.
+# A per-environment settings.<env>.prod.yaml may be layered on top of this file (a missing file is ignored).
+# Design: docs/superpowers/specs/2026-11-12-environment-data-sync/2026-11-12-p5-prod-provisioning-and-hardening-design.md (P5a).
+
+stage: prod
+
+# The container runs no pipelines and no scheduler. settings.<env>.yaml sets this true for the developer
+# environments, so it has to be switched off again here.
+scheduler:
+  enabled: false
+
+# An overlay cannot delete a key, so the parser is switched off with an empty model (parse.load_config
+# treats a falsy model as "not configured"; /api/meme-from-text/search then answers `available: false`).
+parse:
+  model: ""
+
+# Browser origins allowed to call the API. Production hostnames only (set in settings.<env>.prod.yaml); the
+# developer origins (localhost) are not allowed on prod. Cookies and credentials are never used.
+cors:
+  origins: []
+  allow_credentials: false

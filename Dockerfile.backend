@@ -81,9 +81,15 @@ COPY batch/utils/file_hash.py ./batch/utils/file_hash.py
 # (batch/utils/comics_compose.py: Pillow and file_hash.py only, both already available here).
 COPY batch/utils/comics_compose.py ./batch/utils/comics_compose.py
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Create non-root user. The code under /app stays root-owned and read-only for appuser (P5a-2): a compromised
+# process cannot rewrite the application. Nothing is written below /app (no .pyc: PYTHONDONTWRITEBYTECODE).
+RUN useradd -m -u 1000 appuser
 USER appuser
+
+# This is the production image: the stage switch selects the prod route policy, settings overlay and startup checks
+# (Backend/app/stage_policy.py, environments/settings.prod.yaml). APP_ENV, DATABASE_URL, BASE_PATH come from the
+# environment file at run time; with APP_STAGE=prod the app refuses to start without APP_ENV.
+ENV APP_STAGE=prod PYTHONDONTWRITEBYTECODE=1
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -93,4 +99,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Run application with gunicorn (production) using uvicorn workers
-CMD ["gunicorn", "Backend.app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+# umask 002 so files the app creates (bug reports) are group-writable for the host account that collects them.
+ENTRYPOINT ["/bin/sh", "-c", "umask 002 && exec \"$@\"", "entrypoint"]
+
+# No access log (gunicorn writes none unless --access-logfile is given, and request lines carry query strings) and
+# warning level. Compose overrides the worker count (two) for the VPS stacks.
+CMD ["gunicorn", "Backend.app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--log-level", "warning"]

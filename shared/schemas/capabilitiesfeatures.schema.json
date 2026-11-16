@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "capabilitiesfeatures.schema.json",
+  "title": "CapabilitiesFeatures",
+  "type": "object",
+  "description": "Which feature groups this backend serves. Derived from the stage (APP_STAGE), the settings and the route policy; on prod every dev-only group is false.",
+  "properties": {
+    "memeFromText": { "type": "boolean" },
+    "concepts": { "type": "boolean" },
+    "trends": { "type": "boolean" },
+    "comics": { "type": "boolean" },
+    "ratings": { "type": "boolean" },
+    "statistics": { "type": "boolean" },
+    "uploads": { "type": "boolean" },
+    "history": { "type": "boolean" },
+    "admin": { "type": "boolean" }
+  },
+  "required": ["memeFromText", "concepts", "trends", "comics", "ratings", "statistics", "uploads", "history", "admin"]
+}

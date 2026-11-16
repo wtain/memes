@@ -2,13 +2,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import File, HTTPException, Request, UploadFile
+from Backend.app.stage_policy import make_router
 from pydantic import BaseModel
 
 from Backend.app.services.image_store import save_bug_report
 from Backend.app.services.rate_limit import bug_report_limiter
 
-router = APIRouter(prefix="/bug-reports", tags=["bug-reports"])
+router = make_router(prefix="/bug-reports", tags=["bug-reports"])
 
 ALLOWED_EXTENSIONS = {".txt", ".log"}
 

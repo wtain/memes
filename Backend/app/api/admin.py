@@ -1,7 +1,8 @@
 from typing import AsyncGenerator
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query
+from Backend.app.stage_policy import make_router
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
@@ -11,7 +12,7 @@ from repository.batch_runs import BatchRunRepository
 from Backend.app.services.admin_batch_service import AdminBatchService
 from Backend.app.services.business_metrics_service import BusinessMetricsService, UnknownProcessError
 
-router = APIRouter(prefix="/admin/batches", tags=["admin"])
+router = make_router(prefix="/admin/batches", tags=["admin"])
 
 
 class RunTriggerResponse(BaseModel):

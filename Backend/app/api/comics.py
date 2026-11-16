@@ -2,7 +2,8 @@ import logging
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import Depends, HTTPException, Query, Response
+from Backend.app.stage_policy import make_router
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.services.comics_build_service import ComicsBuildService
@@ -27,7 +28,7 @@ from repository.comics_candidates import CandidateError
 from Storage.db import get_async_db
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/comics", tags=["comics"])
+router = make_router(prefix="/comics", tags=["comics"])
 
 
 async def get_comics_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[ComicsService, None]:

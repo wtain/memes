@@ -1,8 +1,15 @@
 import logging
+import os
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import Depends, Query
+from Backend.app.stage_policy import READER, make_router, verdict_for
+from Backend.app.types.generated.capabilitiesfeatures import Schema as CapabilitiesFeatures
+from Backend.app.types.generated.capabilitiesresponse import Schema as CapabilitiesResponse
+from config.settings import settings
+from config.stage import is_prod
+from parse.config import load_config
 from pydantic import BaseModel, ValidationError
 
 from Storage.db import AsyncSessionLocal, get_async_db
@@ -16,7 +23,7 @@ from repository.statistics_snapshots import StatisticsSnapshotsRepository
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/diagnostics", tags=["diagnostics"])
+router = make_router(prefix="/diagnostics", tags=["diagnostics"])
 
 
 class HealthResponse(BaseModel):
@@ -94,6 +101,44 @@ async def get_statistics_snapshots_repo(
 async def health(repo: DiagnosticsRepository = Depends(get_diagnostics_repo)):
     db_ok = await repo.check_database()
     return HealthResponse(backend=True, database=db_ok)
+
+
+# Feature flag -> the (method, full path) routes that have to be served for the feature to exist. On dev every route
+# is served; on prod a feature is on only if the policy makes all of its routes readers.
+_FEATURE_ROUTES: dict[str, tuple[tuple[str, str], ...]] = {
+    "concepts": (("GET", "/api/concepts"),),
+    "trends": (("GET", "/api/trends/history"),),
+    "comics": (("GET", "/api/comics"),),
+    "ratings": (("GET", "/api/meme-from-text/ratings"),),
+    "statistics": (("GET", "/api/diagnostics/statistics"),),
+    "uploads": (("POST", "/api/uploads"),),
+    "history": (("GET", "/api/history"),),
+    "admin": (("GET", "/api/admin/batches/runs"),),
+}
+
+
+def _feature_served(routes: tuple[tuple[str, str], ...]) -> bool:
+    return not is_prod() or all(verdict_for(method, path) == READER for method, path in routes)
+
+
+def _meme_from_text_available() -> bool:
+    """True only when a query parser is configured (parse.model); pure, it does not build or register the parser."""
+    try:
+        return load_config(settings.get) is not None and _feature_served((("POST", "/api/meme-from-text/search"),))
+    except Exception:
+        return False
+
+
+@router.get("/capabilities", response_model=CapabilitiesResponse)
+async def capabilities():
+    """What this backend serves. Public; deliberately no revision, schema head or git SHA (see backend_api.md)."""
+    features = {"memeFromText": _meme_from_text_available()}
+    features.update({name: _feature_served(routes) for name, routes in _FEATURE_ROUTES.items()})
+    return CapabilitiesResponse(
+        stage="prod" if is_prod() else "dev",
+        environment=os.environ.get("APP_ENV", "general"),
+        features=CapabilitiesFeatures(**features),
+    )
 
 
 @router.get("/statistics", response_model=StatisticsResponse)

@@ -1,6 +1,7 @@
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import Depends, Response
+from Backend.app.stage_policy import make_router
 
 from Storage.db import AsyncSessionLocal, get_async_db
 from Backend.app.repositories.concept_repository import ConceptRepository
@@ -8,7 +9,7 @@ from Backend.app.services.concept_service import ConceptService
 from Backend.app.types.generated.concept import Schema as ConceptDto
 from Backend.app.types.generated.memesearchresponse import Schema as MemeSearchResponse
 
-router = APIRouter(prefix="/concepts", tags=["concepts"])
+router = make_router(prefix="/concepts", tags=["concepts"])
 
 
 async def get_concept_service(db: AsyncSessionLocal = Depends(get_async_db)) -> AsyncGenerator[ConceptService, None]:

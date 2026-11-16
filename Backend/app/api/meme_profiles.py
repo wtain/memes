@@ -1,7 +1,8 @@
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import Depends, HTTPException, Response
+from Backend.app.stage_policy import make_router
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.services.meme_profile_service import (
@@ -18,7 +19,7 @@ from Storage.models import PROFILE_EMBEDDING_DIM
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/meme-from-text", tags=["meme-from-text"])
+router = make_router(prefix="/meme-from-text", tags=["meme-from-text"])
 
 
 async def get_profile_service(db: AsyncSession = Depends(get_async_db)) -> AsyncGenerator[MemeProfileService, None]:

@@ -110,7 +110,10 @@ def test_image_can_import_the_comics_composer(built_image):
 
 def test_container_boots_and_stays_running(built_image):
     container_name = f"memes-backend-smoketest-{uuid.uuid4().hex[:8]}"
-    run = _run(["docker", "run", "-d", "--name", container_name, *DUMMY_ENV, built_image])
+    # The image bakes APP_STAGE=prod, whose startup checks the database marker and so refuses to start against
+    # the dummy DATABASE_URL (that refusal is the intended prod behaviour, Backend/tests/test_prod_stage.py). This
+    # smoke test only asks whether the app boots and stays up, so it runs the dev stage.
+    run = _run(["docker", "run", "-d", "--name", container_name, *DUMMY_ENV, "-e", "APP_STAGE=dev", built_image])
     assert run.returncode == 0, f"docker run failed:\nstdout:\n{run.stdout}\nstderr:\n{run.stderr}"
 
     try:
