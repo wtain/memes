@@ -10,6 +10,7 @@ rewrites the client from `X-Forwarded-For`; this module never parses the header 
 
 State is process-local: the effective limit is workers x the configured rate.
 """
+import ipaddress
 import threading
 import time
 from collections import OrderedDict
@@ -104,16 +105,45 @@ def reset_limiters() -> None:
         item.clear()
 
 
+def normalize_client(host: str | None) -> str:
+    """Limiter key of a client address: an IPv4-mapped IPv6 address (::ffff:a.b.c.d) is the IPv4 address, any other IPv6 address
+    is its /64 prefix (one subscriber holds the whole /64, so per-address keys would be free to rotate). Anything that is not an
+    IP address (a test client's name, a unix socket) and a missing client are kept as they are."""
+    if not host:
+        return UNKNOWN_CLIENT
+    try:
+        address = ipaddress.ip_address(host.split("%", 1)[0])   # a zone id ("fe80::1%eth0") is not part of the address
+    except ValueError:
+        return host
+    if address.version == 4:
+        return str(address)
+    if address.ipv4_mapped is not None:
+        return str(address.ipv4_mapped)
+    return str(ipaddress.ip_network(f"{address}/64", strict=False))
+
+
 def client_key(request: Request) -> str:
-    return request.client.host if request.client else UNKNOWN_CLIENT
+    return normalize_client(request.client.host if request.client else None)
 
 
 def _allow(name: str, key: str, cost: float = 1.0) -> bool:
     return _LIMITERS[name].allow(key, _number(_SETTING_KEYS[name], 0), cost, _int_setting("abuse.max_clients", 10000))
 
 
+def allow_client(name: str, host: str | None) -> bool:
+    """Spends one token of limiter `name` for the client address `host` (as ASGI `scope["client"][0]`); False when it is empty."""
+    return _allow(name, normalize_client(host))
+
+
+# Set on the ASGI scope by BodyLimitMiddleware once it has charged the bug-report limiter for this request (before reading the body),
+# so the endpoint does not charge a second token.
+BUG_REPORT_CHARGED = "memes.bug_report_rate_charged"
+
+
 def enforce(name: str, request: Request) -> None:
     """Raise 429 when the client's bucket `name` (saves, not_found, bug_reports) is empty; a no-op when its rate is 0 (off)."""
+    if name == "bug_reports" and request.scope.get(BUG_REPORT_CHARGED):
+        return
     if not _allow(name, client_key(request)):
         raise HTTPException(status_code=429, detail="Too many requests, try again in a minute", headers={"Retry-After": "60"})
 

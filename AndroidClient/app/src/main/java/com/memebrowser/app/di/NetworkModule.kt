@@ -24,7 +24,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private val json = Json {
+    internal val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
     }

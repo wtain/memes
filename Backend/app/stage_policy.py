@@ -159,6 +159,11 @@ async def _not_found(_request: Request) -> Response:
     return JSONResponse({"detail": "Not Found"}, status_code=404)
 
 
+# Full paths on which at least one method is served on prod. A wrong method on such a path keeps the router's own answer
+# (405 + Allow); on any other path of ROUTE_POLICY (dev-only everywhere) every method answers like a missing path.
+READER_PATHS = frozenset(path for (_method, path), verdict in ROUTE_POLICY.items() if verdict == READER)
+
+
 class StageRoute(APIRoute):
     """APIRoute that, on prod, answers 404 unless the policy says READER; a route without a verdict is an import error.
 
@@ -167,6 +172,16 @@ class StageRoute(APIRoute):
     """
 
     mount_prefix = API_PREFIX
+
+    async def handle(self, scope, receive, send) -> None:
+        # The router calls handle() of the first route that matches the path but not the method (a "partial" match) and
+        # Route.handle answers 405 + Allow, which would reveal that a dev-only path exists. On prod such a path answers
+        # 404 for every method, exactly like a missing one.
+        if is_prod() and (self.mount_prefix + self.path) not in READER_PATHS                 and scope["method"] not in (self.methods or ()):
+            response = await _not_found(None)
+            await response(scope, receive, send)
+            return
+        await super().handle(scope, receive, send)
 
     def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
         if not is_prod():

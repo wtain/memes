@@ -76,6 +76,8 @@ const ROUTE_FEATURES: ReadonlyArray<readonly [string, Feature]> = [
 
 /** The feature that owns `pathname`, or null for a path that is always available. */
 export function featureForPath(pathname: string): Feature | null {
+  // React Router matches case-insensitively and ignores repeated and trailing slashes, so the guard must too.
+  pathname = pathname.toLowerCase().replace(/\/{2,}/g, "/").replace(/(.)\/+$/, "$1")
   for (const [prefix, feature] of ROUTE_FEATURES) {
     if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return feature
   }

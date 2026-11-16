@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from typing import Optional
 from uuid import UUID
@@ -16,6 +17,8 @@ from config.settings import settings
 from graph.uf import UnionFind
 from repository.popularity import PopularityRepository, guarded
 from Storage.models import PopularityReason, PopularitySource
+
+logger = logging.getLogger(__name__)
 
 _TIER_SOURCE = {"tier_a": PopularitySource.INGEST_TIER_A, "tier_b": PopularitySource.INGEST_TIER_B}
 
@@ -394,5 +397,10 @@ class IngestionService:
                 image_id, PopularityReason.UNDO_REJECT,
                 {PopularitySource.INGEST_TIER_A, PopularitySource.INGEST_TIER_B}))
         await retract_rejection(self.repo.session, image_id)  # the undone decision no longer counts (M2a)
-        image_store.move_from_rejected(filename)
+        try:
+            image_store.move_from_rejected(filename)
+        except image_store.UnsafeImagePath as refusal:
+            # Like reject (move_failed): the database state is the decision and a file name that is not a plain file inside
+            # the image directories cannot have been moved by us; the undo stands instead of a 500 that rolls it back.
+            logger.warning("undo_reject: file name refused (%s) for image %s, file not moved", refusal, image_id)
         return {"image_id": str(image_id), "status": "pending"}

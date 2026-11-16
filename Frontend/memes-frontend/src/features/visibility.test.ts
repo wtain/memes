@@ -66,6 +66,17 @@ describe("featureForPath", () => {
     expect(featureForPath(path)).toBe(feature)
   })
 
+  it.each([
+    ["/Admin", "admin"], ["/STATISTICS", "statistics"], ["/Admin/Comics/X", "admin"], ["/admin/", "admin"],
+    ["/statistics///", "statistics"], ["//admin", "admin"], ["/Trends/Date/1", "trends"], ["/NO-OCR", "cleanup"],
+  ])("%s is matched case-insensitively and ignoring extra slashes (%s)", (path, feature) => {
+    expect(featureForPath(path)).toBe(feature)
+  })
+
+  it.each(["/", "/Administrator", "/ADMINISTRATOR/"])("%s is not mistaken for a hidden prefix", path => {
+    expect(featureForPath(path)).toBeNull()
+  })
+
   it.each(["/", "/explore", "/search", "/recommendations", "/trending-memes", "/memes/abc", "/administrator"])(
     "%s is always available", path => {
       expect(featureForPath(path)).toBeNull()

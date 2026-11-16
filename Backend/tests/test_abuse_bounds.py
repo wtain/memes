@@ -404,3 +404,76 @@ def test_each_client_has_its_own_recording_budget(use_settings):
         assert abuse.recording_allowed(1) is True
     finally:
         abuse.current_client.reset(token)
+
+
+# --- client keys (BM2) ------------------------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("host,key", [
+    ("203.0.113.9", "203.0.113.9"),
+    ("::ffff:203.0.113.9", "203.0.113.9"),
+    ("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64"),
+    ("2001:db8:1:2:1::1", "2001:db8:1:2::/64"),
+    ("2001:db8:1:3::1", "2001:db8:1:3::/64"),
+    ("fe80::1%eth0", "fe80::/64"),
+    ("testclient", "testclient"),
+    (None, "unknown"),
+    ("", "unknown"),
+])
+def test_normalize_client(host, key):
+    assert abuse.normalize_client(host) == key
+
+
+def test_one_slash_64_shares_a_bucket_and_a_mapped_address_shares_the_ipv4_bucket(use_settings):
+    use_settings({"abuse.saves_per_min": 2})
+    assert [abuse.allow_client("saves", f"2001:db8::{i:x}") for i in range(1, 4)] == [True, True, False]
+    assert abuse.allow_client("saves", "2001:db8:0:1::1") is True      # another /64
+    assert abuse.allow_client("saves", "198.51.100.7") is True
+    assert abuse.allow_client("saves", "::ffff:198.51.100.7") is True
+    assert abuse.allow_client("saves", "198.51.100.7") is False
+
+
+async def test_the_context_middleware_stores_the_normalised_client():
+    seen = []
+
+    async def inner(scope, receive, send):
+        seen.append(abuse.current_client.get())
+
+    middleware = ClientContextMiddleware(inner)
+    await middleware({"type": "http", "client": ("2001:db8::1", 1)}, None, None)
+    await middleware({"type": "http", "client": ("::ffff:192.0.2.1", 1)}, None, None)
+    assert seen == ["2001:db8::/64", "192.0.2.1"]
+
+
+# --- bug report rate limit before the body (BM3) --------------------------------------------------------------------------------------
+
+def test_a_limited_client_gets_429_before_the_multipart_parser_runs(use_settings, bug_store, monkeypatch):
+    from starlette.formparsers import MultiPartParser
+    parsed = []
+    original = MultiPartParser.parse
+
+    async def spy(self):
+        parsed.append(True)
+        return await original(self)
+
+    monkeypatch.setattr(MultiPartParser, "parse", spy)
+    use_settings({"abuse.bug_reports_per_min": 2})
+    client = TestClient(bug_app())
+    assert [post_report(client).status_code for _ in range(2)] == [200, 200]
+    assert len(parsed) == 2
+    limited = post_report(client, b"z" * 100000)
+    assert limited.status_code == 429 and limited.headers["retry-after"] == "60"
+    assert len(parsed) == 2                                    # the third body was never parsed
+
+
+def test_a_request_is_charged_one_token_not_two(use_settings, bug_store):
+    use_settings({"abuse.bug_reports_per_min": 3})
+    client = TestClient(bug_app())
+    assert [post_report(client).status_code for _ in range(4)] == [200, 200, 200, 429]
+
+
+def test_the_endpoint_still_limits_when_mounted_without_the_middleware(use_settings, bug_store):
+    use_settings({"abuse.bug_reports_per_min": 1})
+    app = FastAPI()
+    app.include_router(bug_reports_router, prefix="/api")
+    client = TestClient(app)
+    assert [post_report(client).status_code for _ in range(2)] == [200, 429]

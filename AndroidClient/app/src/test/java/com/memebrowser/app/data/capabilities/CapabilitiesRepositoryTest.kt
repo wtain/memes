@@ -11,8 +11,10 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
+import com.memebrowser.app.di.NetworkModule
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import kotlinx.serialization.decodeFromString
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
@@ -91,5 +93,18 @@ class CapabilitiesRepositoryTest {
             cancelAndIgnoreRemainingEvents()
         }
         coVerify(exactly = 2) { api.getCapabilities() }
+    }
+
+    @Test
+    fun `a flag added by a newer backend does not break decoding with the app json config`() {
+        // The converter of the real Retrofit client uses NetworkModule.json (ignoreUnknownKeys), so an additive flag
+        // (or an unknown top-level key) is ignored and the known flags are still honoured.
+        val body = """{"stage":"prod","environment":"general","newTopLevel":1,"features":{
+            "memeFromText":false,"concepts":true,"trends":false,"comics":false,"ratings":false,
+            "statistics":false,"uploads":false,"history":false,"admin":false,"someFutureFlag":true}}"""
+        val decoded = NetworkModule.json.decodeFromString<CapabilitiesResponse>(body)
+        assertTrue(decoded.features.concepts)
+        assertFalse(decoded.features.trends)
+        assertFalse(FeatureVisibility(decoded).showTrends)
     }
 }

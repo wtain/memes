@@ -98,6 +98,17 @@ def test_every_dev_only_route_answers_404_exactly_like_a_missing_path(probe):
         assert result["allow"] is None, key
 
 
+def test_any_method_on_a_dev_only_path_answers_404_without_allow(probe):
+    _, out = probe
+    calls = out["dev_only_any_method_calls"]
+    assert len(calls) > 100
+    # the mixed routers' wrong-method cases that used to leak a 405, e.g. POST /api/history
+    assert "POST /api/history" in calls and "POST /api/diagnostics/statistics" in calls
+    for key, result in calls.items():
+        assert result["status"] == 404 and result["body"] == NOT_FOUND, key
+        assert result["allow"] is None, key
+
+
 def test_fully_dev_only_routers_are_neither_imported_nor_mounted(probe):
     _, out = probe
     assert out["dev_only_modules_imported"] == []

@@ -384,6 +384,16 @@ class TestUndoRejectAfterMoveFailure:
         mock_repo.undo_reject.assert_awaited_once_with(image_id)
 
 
+class TestUndoRejectUnsafePath:
+    async def test_an_unsafe_file_name_does_not_fail_the_undo(self, service, mock_repo):
+        image_id = uuid.uuid4()
+        mock_repo.undo_reject.return_value = "../../etc/passwd"
+
+        result = await service.undo_reject(image_id)
+
+        assert result == {"image_id": str(image_id), "status": "pending"}
+
+
 class TestGetRunStatus:
     async def test_no_tier_stage_returns_none_progress(self, service, mock_repo):
         import uuid

@@ -25,7 +25,9 @@ class BugReportResponse(BaseModel):
 
 @router.post("", response_model=BugReportResponse)
 async def upload_bug_report(request: Request, file: UploadFile = File(...)):
-    enforce("bug_reports", request)   # abuse.bug_reports_per_min: 429 over the limit
+    # abuse.bug_reports_per_min: BodyLimitMiddleware already charged and refused (429) before the body was read; this call only
+    # charges when the endpoint is mounted without that middleware, and never a second token.
+    enforce("bug_reports", request)
     max_files, max_total_bytes = bug_report_dir_caps()
     if not bug_report_dir_has_room(0, max_files, max_total_bytes):
         raise HTTPException(status_code=507, detail="Bug report storage is full")
@@ -49,6 +51,9 @@ async def upload_bug_report(request: Request, file: UploadFile = File(...)):
     if len(data) == 0:
         raise HTTPException(status_code=422, detail="Empty file")
 
+    # No await between this final cap check and the write below, so within one worker's event loop the check and the write cannot
+    # interleave with another request's: the caps do not overshoot per process. Across workers they can by a few files (accepted: the
+    # caps are a disk-fill bound, not a quota; effective limit workers x the configured values, as for the rate limits).
     if not bug_report_dir_has_room(len(data), max_files, max_total_bytes):
         raise HTTPException(status_code=507, detail="Bug report storage is full")
 

@@ -96,6 +96,13 @@ out["dev_only_calls"] = {
     f"{method} {path}": call(method, fill(path))
     for (method, path), verdict in sorted(ROUTE_POLICY.items()) if verdict == DEV_ONLY
 }
+# every method on a path that has only dev_only verdicts answers 404 too, including the methods the path never had (no 405 + Allow)
+_reader_paths = {path for (_m, path), v in ROUTE_POLICY.items() if v == READER}
+_dev_paths = sorted({path for (_m, path), v in ROUTE_POLICY.items() if v == DEV_ONLY and path not in _reader_paths})
+out["dev_only_any_method_calls"] = {
+    f"{method} {path}": call(method, fill(path))
+    for path in _dev_paths for method in ("GET", "POST", "PUT", "PATCH", "DELETE")
+}
 out["reader_keys"] = sorted(f"{m} {p}" for (m, p), v in ROUTE_POLICY.items() if v == READER)
 
 extra = {}
