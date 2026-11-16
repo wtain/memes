@@ -169,8 +169,9 @@ def env(pg, bash):
     with cursor(pg["connect"], DB) as cur:
         cur.execute(SEED)
     base = dict(os.environ, DOCKER=wrapper.as_posix(), DB_CONTAINER=pg["name"], MEMES_ROOT=root.as_posix(), PYTHON=Path(sys.executable).as_posix(),
-                BACKUP_ENV_FILE=(tmp / "backup.env").as_posix(), RESTORE_ENV_FILE=(tmp / "restore.env").as_posix(), MSYS_NO_PATHCONV="1")
-    return {"root": root, "env": base, "log": log, "backups": root / ENV / "backups", "bugs": root / ENV / "bug-reports"}
+                BACKUP_ENV_FILE=(tmp / "backup.env").as_posix(), RESTORE_ENV_FILE=(tmp / "restore.env").as_posix(), MSYS_NO_PATHCONV="1",
+                MEMES_VARLIB=(tmp / "varlib").as_posix())
+    return {"root": root, "varlib": tmp / "varlib" / ENV, "env": base, "log": log, "backups": root / ENV / "backups", "bugs": root / ENV / "bug-reports"}
 
 
 def sh(bash, script, args, env, stdin=""):
@@ -193,6 +194,7 @@ def test_backup_restore_roundtrip(pg, env, bash):
     bug = env["backups"] / meta["bug_reports"]["name"]
     assert hashlib.sha256(bug.read_bytes()).hexdigest() == meta["bug_reports"]["sha256"]
     assert not list(env["backups"].glob("*.part")) and not (env["backups"] / ".backup.lock").exists()
+    assert not list(env["varlib"].glob("backup.*")) and not (env["varlib"] / ".backup.lock").exists(), "work dir or lock left behind"
     argv_log = env["log"].read_text(encoding="utf-8")
     assert argv_log.strip(), "the docker wrapper recorded nothing"
     for secret in (pg["reader_pw"], pg["owner_pw"], pg["admin_pw"]):
@@ -290,3 +292,18 @@ def test_rotation_removes_old_sets_only(pg, env, bash):
     assert r.returncode == 0, r.stdout + r.stderr
     assert not old.exists() and not old_meta.exists() and other.exists()
     assert len(list(env["backups"].glob("memes-it-classp-2*.dump"))) >= 1
+
+
+def test_restore_refuses_a_symlinked_dump_and_leaves_no_work_dir(pg, env, bash):
+    dumps = sorted(env["backups"].glob("memes-it-classp-2*.dump"))
+    link = env["backups"] / "memes-it-classp-20210101T000000Z.dump"
+    try:
+        link.symlink_to(dumps[0])
+    except (OSError, NotImplementedError):
+        pytest.skip("cannot create symlinks here")
+    try:
+        r = sh(bash, "restore.sh", [ENV, link.name, "--dry-run"], env["env"])
+        assert r.returncode != 0 and "symlink" in r.stderr
+        assert not list(env["varlib"].glob("restore.*")), "restore work dir left behind"
+    finally:
+        link.unlink()

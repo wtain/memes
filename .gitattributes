@@ -3,3 +3,6 @@
 *.sh            text eol=lf
 docs/sync-registry.md text eol=lf
 deploy/prod/** text eol=lf
+Dockerfile.migrate text eol=lf
+Dockerfile.migrate.dockerignore text eol=lf
+deploy/** text eol=lf

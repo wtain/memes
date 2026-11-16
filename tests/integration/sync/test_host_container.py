@@ -7,7 +7,7 @@ config, the verb key reaching the real gate (and nothing else), the tunnel key r
 upload account, password login refused, a second run changing nothing, a second environment, the refusal without --admin-user.
 
 What it cannot show: systemd units (no systemd in the container), XFS quotas (needs an XFS mount with prjquota), `docker network create`
-(no docker in the container), the Windows OpenSSH client the owner will use, the uid 1000 backend container reading the images through "other".
+(no docker in the container), the Windows OpenSSH client the owner will use, the uid 10001 backend container reading the images through "other".
 """
 import re
 import secrets
@@ -77,7 +77,8 @@ verb_key_has_no_sftp tunnel_key_reaches_own_postgres tunnel_key_not_other_env_po
 upload_put_and_rename upload_file_owner_group_readable upload_cannot_list_etc upload_cannot_see_images upload_cannot_write_staging_root
 upload_cannot_write_outside upload_no_shell upload_key_not_valid_for_verb_account verb_key_not_valid_for_upload_account
 gate_account_can_delete_upload admin_can_still_log_in password_login_refused setup_host_second_run setup_host_idempotent gate_conf_section_once
-sshd_dropin_unchanged_message setup_host_other_env gate_conf_two_sections gate_conf_general_paths setup_requires_admin_user""".split()
+sshd_dropin_unchanged_message setup_host_other_env gate_conf_two_sections gate_conf_general_paths setup_requires_admin_user
+setup_second_admin_run sshd_allowusers_union sshd_allowusers_stable_on_rerun admin_still_logs_in_after_union admin2_logs_in_after_union admin_logs_in_after_reload""".split()
 
 
 @pytest.mark.parametrize("name", REQUIRED)

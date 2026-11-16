@@ -29,14 +29,14 @@ Only Caddy publishes beyond the loopback (Docker publishes bypass ufw). The back
 | Path (host) | Container | Owner |
 |---|---|---|
 | `/srv/memes/<env>/images` | backend `/data/images`, **read-only** | `memesync-<env>`, 755 (files 644) |
-| `/srv/memes/<env>/bug-reports` | backend `/data/bug-reports`, read-write | uid 1000, group `memesync-<env>`, 2775 |
+| `/srv/memes/<env>/bug-reports` | backend `/data/bug-reports`, read-write | uid 10001 (`SVC_UID`), group `memesync-<env>`, 2775 |
 | `/srv/memes/<env>/pgdata` | db `/var/lib/postgresql` (PG18 layout; `PGDATA` is below it) | postgres uid |
 | rendered Postgres config directory (`PGCONF_DIR`) | db `/etc/memes`, read-only | root |
 | `/srv/memes/<env>/web` | caddy `/srv/memes/<env>/web`, read-only | `memesync-<env>` |
 | named volume `pgsocket` | db and migrate `/var/run/postgresql` (unix socket) | docker |
 | named volumes `caddy_data`, `caddy_config` | caddy `/data`, `/config` (certificates) | docker |
 
-The backend runs as `1000:<gid of memesync-<env>>` (`SVC_GID`), read-only root filesystem, `/tmp` tmpfs 256 MB, all capabilities dropped, `no-new-privileges`, memory/cpu/pids limits, json-file logs rotated at 10 MB x 3, two gunicorn workers, no access log, warning log level, `--forwarded-allow-ips 172.30.0.0/24`.
+The backend runs as `10001:<gid of memesync-<env>>` (`SVC_GID`), read-only root filesystem, `/tmp` tmpfs 256 MB (`noexec,nosuid`), all capabilities dropped, `no-new-privileges`, memory/cpu/pids limits, json-file logs rotated at 10 MB x 3, two gunicorn workers, no access log, warning log level, `--forwarded-allow-ips 172.30.0.0/24`.
 
 ## Placeholder hostnames
 
@@ -140,6 +140,21 @@ Exit 3 prints a table `kind / role / object / privilege`. Read it by kind:
 | `missing role` | one of the five roles does not exist | `provision.sh apply <env>` (superuser) creates them; then `grants` |
 
 If `grants` itself fails with `permission denied for table X`, a table of `public` is not owned by the owner role (created by the superuser or another role): `ALTER TABLE X OWNER TO memes_<env>_owner` as the superuser, then run the step again (seen in the release test: the owner cannot revoke on a table it does not own, and the file rolls back as a whole). A failure of `migrate` normally leaves the database unchanged: `Storage/alembic/env.py` runs the whole upgrade in one transaction (PostgreSQL DDL is transactional), except steps a migration puts in an autocommit block (for example `CREATE INDEX CONCURRENTLY`), which stay committed; read the `alembic_version` it reports at the start of the next run, fix the migration, build a new tag and run the job again.
+
+## Log suppression, backups and host accounts (security review P5d-g)
+
+- Caddy: the global options carry their own `log` with the same filter as the sites, because a failed proxy request (`http.log.error`) goes to the DEFAULT logger and carries `request>uri` (the searched text) and request headers. Verified on the pinned image: before the change a 502 for `/api/images?q=SECRET` put `SECRET` into the container log; after it neither the query, a `Cookie`, `Authorization` nor `Referer` appears (`tests/sync/test_prod_caddy_container.py` repeats this against the real Caddyfile; skipped without docker). The edge also answers 404 to PUT, PATCH and DELETE under `/api/*` (the reader API has none, see `Backend/app/stage_policy.py`) and sends `X-Frame-Options: DENY` plus `frame-ancestors 'none'` on the SPA.
+- `/srv/memes/<env>/backups` is `root:memesync-<env>` 0750: the gate account only reads it (`fetch-backup`). `backup.sh` builds everything in a root-only work directory under `/var/lib/memes/<env>` (and keeps its lock there), then `install`s the files into `backups/` as `root:memesync-<env>` 0640. `restore.sh` copies the dump, manifest and bug-reports archive into a root-only work directory before hashing and reading them, refuses a symlinked dump, and unpacks with `tar --no-same-owner --no-overwrite-dir`.
+- The backend and migrate containers run as uid `10001` (`SVC_UID`, `BACKEND_UID` in `setup-host.sh`), not 1000 (the first human account on most VPSs). The image keeps its own default user; compose overrides it, and a uid without a passwd entry works (verified: import and `gunicorn --check-config` under `--read-only`, `--cap-drop ALL`, tmpfs `/tmp` with `noexec,nosuid`). The `/tmp` tmpfs of backend and migrate is `noexec,nosuid` (only the multipart spool uses it).
+- `setup-host.sh` keeps every admin user already in the sshd drop-in's `AllowUsers` and adds the current `--admin-user` (a second run with another admin no longer locks the first one out). Remove an admin by editing `/etc/ssh/sshd_config.d/00-memes-sync.conf` by hand.
+
+## Known limits / verify on a VPS
+
+- `POSTGRES_PASSWORD` (the bootstrap superuser, first start only) sits in the env file and in the container environment (`docker inspect` shows it to root). Accepted: the file is 0600 and the host is single-owner. The alternative is `POSTGRES_PASSWORD_FILE` with a Docker secret or a 0400 file mounted into the db container; not implemented.
+- `pg_hba.conf` allows the three service roles from the environment's whole `/24` subnet, not only the gateway address; narrowing it to the backend's `/32` needs a real VPS test (fixed addresses in the compose network) and is not done.
+- The `internal` networks are not `internal: true` (the backend needs the edge network for Caddy; the db network could be, but this needs a test of the published loopback Postgres port on a real VPS).
+- `pip install` for the backend and migrate images does not use hash checking (`--require-hashes`); the requirement files pin versions only.
+- The base image `python:3.11-slim` of `Dockerfile.backend` and `Dockerfile.migrate` is pinned by digest (`sha256:07d4824...`, a Debian-based 3.11 slim, 2026-11-16); apt packages inside it are not pinned. Update both together.
 
 ## Files owned elsewhere
 

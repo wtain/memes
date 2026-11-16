@@ -67,7 +67,7 @@ services:
   backend:
     <<: *hardening
     image: memes-backend:${BACKEND_TAG:?set BACKEND_TAG to the git sha of the image}
-    user: "${SVC_UID:-1000}:${SVC_GID:?set SVC_GID to the gid of memesync-<env>}"
+    user: "${SVC_UID:-10001}:${SVC_GID:?set SVC_GID to the gid of memesync-<env>}"
     depends_on:
       db:
         condition: service_healthy
@@ -96,7 +96,7 @@ services:
       - ${IMAGES_DIR:?set IMAGES_DIR}:/data/images:ro
       - ${BUG_REPORTS_DIR:?set BUG_REPORTS_DIR}:/data/bug-reports
     tmpfs:
-      - /tmp:size=256m
+      - /tmp:size=256m,noexec,nosuid
     mem_limit: ${BACKEND_MEM_LIMIT:-768m}
     cpus: ${BACKEND_CPUS:-1.0}
     pids_limit: 200
@@ -120,7 +120,7 @@ services:
     restart: "no"
     profiles: ["ops"]
     image: memes-migrate:${BACKEND_TAG:?set BACKEND_TAG to the git sha of the image}
-    user: "${SVC_UID:-1000}:${SVC_GID:?set SVC_GID}"
+    user: "${SVC_UID:-10001}:${SVC_GID:?set SVC_GID}"
     network_mode: none
     command: ["all"]
     depends_on:
@@ -133,7 +133,7 @@ services:
     volumes:
       - pgsocket:/var/run/postgresql
     tmpfs:
-      - /tmp:size=256m
+      - /tmp:size=256m,noexec,nosuid
     mem_limit: ${MIGRATE_MEM_LIMIT:-512m}
     cpus: ${MIGRATE_CPUS:-1.0}
     pids_limit: 100

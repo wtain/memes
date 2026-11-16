@@ -83,7 +83,10 @@ read_password() {
             exit 1
         fi
     fi
-    if ! printf '%s' "$value" | grep -Eq '^[A-Za-z0-9+/=_.~-]{24,}$'; then
+    # grep matches line by line: a value with an embedded newline would pass a grep check on its first line and then write the rest
+    # into the psql input. Refuse any newline or carriage return first, then match the WHOLE value.
+    case "$value" in *$'\n'*|*$'\r'*) echo "password of $label must not contain a newline" >&2; exit 1 ;; esac
+    if ! [[ "$value" =~ ^[A-Za-z0-9+/=_.~-]{24,}$ ]]; then
         echo "password of $label must match [A-Za-z0-9+/=_.~-]{24,}" >&2
         exit 1
     fi

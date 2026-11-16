@@ -14,7 +14,9 @@
 # sequences set past the highest id, a row count check against the dump (any difference rolls everything back). With --with-bug-reports it
 # then unpacks the matching bug-reports archive (refused when the directory already holds files).
 # The password comes from /etc/memes/<env>/restore.env (PGPASSWORD of memes_<env>_owner, 0600, root) through `docker exec --env-file`,
-# never a command line. Overrides for tests: DOCKER, DB_CONTAINER, MEMES_ROOT, RESTORE_ENV_FILE, BACKUP_TABLES, PYTHON, PG_SOCKET_DIR.
+# never a command line. Overrides for tests: DOCKER, DB_CONTAINER, MEMES_ROOT, RESTORE_ENV_FILE, BACKUP_TABLES, PYTHON, PG_SOCKET_DIR, MEMES_VARLIB.
+# The dump, its manifest and the bug-reports archive are first COPIED into a root-only work directory (mktemp -d under /var/lib/memes/<env>)
+# and hashed, read and unpacked from the copy only: what is checked is what is used, whatever happens to backups/ in between.
 set -euo pipefail
 umask 077
 export MSYS_NO_PATHCONV=1
@@ -35,6 +37,7 @@ ENV_FILE=${RESTORE_ENV_FILE:-/etc/memes/$ENV_NAME/restore.env}
 TABLES_FILE=${BACKUP_TABLES:-$HERE/backup.tables}
 SOCK=${PG_SOCKET_DIR:-/var/run/postgresql}
 BK="$ROOT/$ENV_NAME/backups"
+WORKBASE="${MEMES_VARLIB:-/var/lib/memes}/$ENV_NAME"
 BUGS="$ROOT/$ENV_NAME/bug-reports"
 
 jget() { "$PYTHON" -c 'import json,sys
@@ -69,8 +72,20 @@ case "$DUMP_ARG" in */*) DUMP=$DUMP_ARG ;; *) DUMP="$BK/$DUMP_ARG" ;; esac
 [ -f "$DUMP" ] || die "dump '$DUMP' not found"
 DNAME=$(basename "$DUMP")
 case "$DNAME" in memes-"$ENV_NAME"-classp-*.dump) ;; *) die "'$DNAME' is not a dump of $ENV_NAME (expected memes-$ENV_NAME-classp-*.dump); refusing" ;; esac
-META="$(dirname "$DUMP")/${DNAME%.dump}.meta.json"
-if [ -f "$META" ]; then
+SRCDIR=$(dirname "$DUMP")
+SRCMETA="$SRCDIR/${DNAME%.dump}.meta.json"
+[ ! -L "$DUMP" ] || die "'$DNAME' is a symlink; refusing"
+mkdir -p "$WORKBASE"
+R=$(mktemp -d "$WORKBASE/restore.XXXXXX")   # mode 0700, root only
+trap 'rm -rf "$R"' EXIT
+copy_in() { # source name -> copies a regular, non-symlink file into $R
+  [ -f "$1" ] && [ ! -L "$1" ] || return 1
+  install -m 0600 "$1" "$R/$2"
+}
+copy_in "$DUMP" "$DNAME" || die "cannot copy '$DNAME' (not a regular file?)"
+DUMP="$R/$DNAME"
+META="$R/${DNAME%.dump}.meta.json"
+if copy_in "$SRCMETA" "${DNAME%.dump}.meta.json"; then
   [ "$(jget "$META" environment)" = "$ENV_NAME" ] || die "manifest says environment '$(jget "$META" environment)', not $ENV_NAME; refusing"
   want=$(jget "$META" dump.sha256)
   have=$(sha256sum "$DUMP" | cut -d' ' -f1)
@@ -140,8 +155,9 @@ BUGTAR=""
 if [ "$WITH_BUGS" = 1 ]; then
   [ -f "$META" ] || die "--with-bug-reports needs the manifest"
   bn=$(jget "$META" bug_reports.name); [ -n "$bn" ] || die "this backup has no bug-reports archive"
-  BUGTAR="$(dirname "$DUMP")/$bn"
-  [ -f "$BUGTAR" ] || die "archive $bn not found next to the dump"
+  case "$bn" in */*|.*|'') die "manifest names a bad archive '$bn'" ;; esac
+  copy_in "$SRCDIR/$bn" "$bn" || die "archive $bn not found next to the dump (or not a regular file)"
+  BUGTAR="$R/$bn"
   [ "$(sha256sum "$BUGTAR" | cut -d' ' -f1)" = "$(jget "$META" bug_reports.sha256)" ] || die "sha256 of $bn differs from the manifest"
   [ -d "$BUGS" ] || die "$BUGS does not exist (run host/setup-host.sh $ENV_NAME)"
   [ -z "$(ls -A "$BUGS")" ] || die "$BUGS is not empty; refusing to unpack over it"
@@ -180,7 +196,7 @@ say "restoring (one transaction)"
 say "database restored and checked against the dump"
 
 if [ -n "$BUGTAR" ]; then
-  tar -xzf - -C "$ROOT/$ENV_NAME" < "$BUGTAR"
+  tar --no-same-owner --no-overwrite-dir -xzf - -C "$ROOT/$ENV_NAME" < "$BUGTAR"
   say "bug reports unpacked into $BUGS"
 fi
 say "done"

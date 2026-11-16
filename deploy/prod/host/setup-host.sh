@@ -27,7 +27,7 @@ VARLIB=/var/lib/memes
 KEYS_DIR=/etc/ssh/memes-keys
 SSHD_DROPIN=/etc/ssh/sshd_config.d/00-memes-sync.conf
 PG_UID=${PG_UID:-999}                 # uid of `postgres` in the pgvector/pgvector image (debian based)
-BACKEND_UID=${BACKEND_UID:-1000}      # the backend container user, owner of bug-reports
+BACKEND_UID=${BACKEND_UID:-10001}     # the backend container user (compose SVC_UID), owner of bug-reports; not 1000, that is the first human account
 
 die() { echo "setup-host: $*" >&2; exit 1; }
 say() { echo "setup-host: $*"; }
@@ -117,7 +117,9 @@ mk 0700 "$SYNC_USER" "$GROUP" "$ENV_ROOT/retired"
 mk 0755 root root "$ENV_ROOT/staging"
 mk 2770 "$UP_USER" "$GROUP" "$ENV_ROOT/staging/incoming"
 mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/pgdata"
-mk 0750 "$SYNC_USER" "$GROUP" "$ENV_ROOT/backups"
+# backups/ is root-owned: backup.sh and restore.sh run as root and must not trust anything a less privileged account could plant
+# there (symlinks, swapped files). The gate account only READS it (group r-x, fetch-backup); it cannot create, rename or delete in it.
+mk 0750 root "$GROUP" "$ENV_ROOT/backups"
 mk 0755 "$SYNC_USER" "$GROUP" "$ENV_ROOT/web"
 say "directories under $ENV_ROOT ready"
 
@@ -227,7 +229,18 @@ if [ "$SKIP_SSHD" = 0 ]; then
     say "NOTE no --upload-key: $KEYS_DIR/$UP_USER untouched"
   fi
   install -d -m 0755 /etc/ssh/sshd_config.d
-  new=$(mktemp); sed "s|@ADMIN_USER@|$ADMIN_USER|g" "$DEPLOY/sshd/memes-sync.conf" > "$new"
+  # AllowUsers is the UNION of the admin users already allowed by a previous run (any name that is not one of this stack's own accounts)
+  # and the current --admin-user: running this for the second environment with another --admin-user must not lock the first one out.
+  admins=""
+  if [ -f "$SSHD_DROPIN" ]; then
+    for u in $(sed -n 's/^AllowUsers[[:space:]]\+//p' "$SSHD_DROPIN" | head -1); do
+      case "$u" in memesync-*|memeup-*) continue ;; esac
+      [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || continue
+      case " $admins " in *" $u "*) ;; *) admins="${admins:+$admins }$u" ;; esac
+    done
+  fi
+  case " $admins " in *" $ADMIN_USER "*) ;; *) admins="${admins:+$admins }$ADMIN_USER" ;; esac
+  new=$(mktemp); sed "s|@ADMIN_USER@|$admins|g" "$DEPLOY/sshd/memes-sync.conf" > "$new"
   if ! cmp -s "$new" "$SSHD_DROPIN" 2>/dev/null; then
     [ -f "$SSHD_DROPIN" ] && cp -p "$SSHD_DROPIN" "$SSHD_DROPIN.bak"
     install -m 0644 -o root -g root "$new" "$SSHD_DROPIN"

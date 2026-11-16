@@ -191,7 +191,7 @@ def test_setup_host_sets_the_documented_modes_and_network():
     for expected in ('mk 2755 "$SYNC_USER" "$GROUP" "$ENV_ROOT/images"', 'mk 2775 "$BACKEND_UID" "$GROUP" "$ENV_ROOT/bug-reports"',
                      'mk 0700 "$SYNC_USER" "$GROUP" "$ENV_ROOT/work"', 'mk 0700 "$SYNC_USER" "$GROUP" "$ENV_ROOT/retired"',
                      'mk 0755 root root "$ENV_ROOT/staging"', 'mk 2770 "$UP_USER" "$GROUP" "$ENV_ROOT/staging/incoming"',
-                     'mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/pgdata"', 'mk 0750 "$SYNC_USER" "$GROUP" "$ENV_ROOT/backups"',
+                     'mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/pgdata"', 'mk 0750 root "$GROUP" "$ENV_ROOT/backups"',
                      'mk 0755 "$SYNC_USER" "$GROUP" "$ENV_ROOT/web"',
                      "docker network create --subnet 172.30.0.0/24 memes-edge"):
         assert expected in text, expected
@@ -420,7 +420,18 @@ def test_backup_dump_is_data_only_of_the_listed_tables_and_skips_sequences():
     assert "-t \"public.$t\"" in code
     assert 'BASE="memes-$ENV_NAME-classp-$STAMP"' in code and ".meta.json" in code
     assert '"pg_restore_list": "ok"' in code and "retention" in code.lower()
-    assert 'mv -f "$BK/$DUMP.part" "$BK/$DUMP"' in code and code.index('mv -f "$BK/$META.part"') < code.index('mv -f "$BK/$DUMP.part"')  # dump last
+    # published through a root-only work dir: install into backups/ as *.part, then rename; the dump goes last
+    assert 'W=$(mktemp -d "$WORKBASE/backup.XXXXXX")' in code and 'LOCK="$WORKBASE/.backup.lock"' in code
+    assert 'install -m 0640' in code and 'mv -f "$BK/$1.part" "$BK/$1"' in code
+    assert code.index('publish "$META"') < code.index('publish "$DUMP"') and code.index('publish "$BUG"') < code.index('publish "$META"')
+    assert '$BK/$DUMP.part"' not in code.split("publish()")[0].split("dexec pg_dump")[1], "the dump is not written into backups/ directly"
+
+
+def test_restore_reads_only_from_a_root_only_copy():
+    code = script_text("restore.sh")
+    assert 'R=$(mktemp -d "$WORKBASE/restore.XXXXXX")' in code and "copy_in \"$DUMP\"" in code
+    assert "--no-same-owner --no-overwrite-dir" in code and "is a symlink" in code
+    assert code.index('DUMP="$R/$DNAME"') < code.index("sha256sum \"$DUMP\"")
 
 
 def test_restore_refuses_by_design():

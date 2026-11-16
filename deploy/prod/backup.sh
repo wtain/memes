@@ -7,13 +7,16 @@
 #                                              Unix socket of the database container as the role memes_<env>_sync_r (SELECT only)
 #   memes-<env>-bugreports-<UTC stamp>.tar.gz  the bug-reports directory
 #   memes-<env>-classp-<UTC stamp>.meta.json   the manifest: sizes, sha256, rows per table, `pg_restore_list: "ok"` (what verify S6 reads)
-# Files are written as *.part and renamed (the .dump last, so fetch-backup never sees half a set); sets older than 14 days are removed.
+# Everything is first written into a root-only work directory (mktemp -d under /var/lib/memes/<env>, mode 0700), never into backups/ itself,
+# and then `install`ed into backups/ as root:memesync-<env> 0640 (backups/ is root-owned, 0750: the gate account only reads it; nothing it
+# could plant there is ever followed or trusted by this script). Within backups/ the files appear as *.part and are renamed (the .dump
+# last, so fetch-backup never sees half a set); sets older than 14 days are removed. The lock lives in the work base, outside backups/.
 #
 # The password is NOT on a command line: /etc/memes/<env>/backup.env (0600, root, put there by hand) holds `PGPASSWORD=...` and is handed to
 # `docker exec --env-file`. Run as root (docker); the timer memes-backup@<env> does.
 #
 # Overrides, all for tests or an unusual stack: DOCKER (binary or a wrapper), DB_CONTAINER (default: the compose service `db` of project
-# memes-<env>), MEMES_ROOT (default /srv/memes), BACKUP_ENV_FILE, BACKUP_TABLES, PYTHON (python3), RETENTION_DAYS (14), PG_SOCKET_DIR.
+# memes-<env>), MEMES_ROOT (default /srv/memes), BACKUP_ENV_FILE, BACKUP_TABLES, PYTHON (python3), RETENTION_DAYS (14), PG_SOCKET_DIR, MEMES_VARLIB (default /var/lib/memes).
 set -euo pipefail
 umask 077
 export MSYS_NO_PATHCONV=1   # Git Bash on Windows rewrites /paths in arguments; harmless elsewhere
@@ -35,9 +38,16 @@ TABLES_FILE=${BACKUP_TABLES:-$HERE/backup.tables}
 RETENTION_DAYS=${RETENTION_DAYS:-14}
 SOCK=${PG_SOCKET_DIR:-/var/run/postgresql}
 BK="$ROOT/$ENV_NAME/backups"
+WORKBASE="${MEMES_VARLIB:-/var/lib/memes}/$ENV_NAME"
 BUGS="$ROOT/$ENV_NAME/bug-reports"
 
 [ -d "$BK" ] || die "$BK does not exist (run host/setup-host.sh $ENV_NAME)"
+[ ! -L "$BK" ] || die "$BK is a symlink; refusing"
+mkdir -p "$WORKBASE"
+if [ "$(id -u)" = 0 ]; then
+  # as root, the work base must be root-owned and not writable by anybody else (setup-host.sh makes it so)
+  [ "$(stat -c '%u' "$WORKBASE")" = 0 ] && [ -z "$(find "$WORKBASE" -maxdepth 0 -perm /022)" ] || die "$WORKBASE must be owned by root and not group/world writable"
+fi
 [ -f "$ENV_FILE" ] || die "$ENV_FILE not found (a file with the single line PGPASSWORD=<password of $ROLE>)"
 if [ "$(uname -s)" = Linux ]; then
   mode=$(stat -c %a "$ENV_FILE"); [ "$mode" = 600 ] || [ "$mode" = 400 ] || die "$ENV_FILE must be mode 0600 (is $mode)"
@@ -66,7 +76,7 @@ marker=$(psqlq "select current_database() || ' ' || coalesce(current_setting('me
 [ "$marker" = "$DB $ENV_NAME" ] || die "database marker mismatch: got '$marker', want '$DB $ENV_NAME'; refusing to back up"
 server_version=$(psqlq "show server_version" | tr -d '\r')
 
-LOCK="$BK/.backup.lock"
+LOCK="$WORKBASE/.backup.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
   pid=$(cat "$LOCK/pid" 2>/dev/null || true)
   if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then die "another backup is running (pid $pid)"; fi
@@ -77,7 +87,8 @@ echo $$ > "$LOCK/pid"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BASE="memes-$ENV_NAME-classp-$STAMP"
 DUMP="$BASE.dump"; META="$BASE.meta.json"; BUG="memes-$ENV_NAME-bugreports-$STAMP.tar.gz"
-cleanup() { rm -f "$BK/$DUMP.part" "$BK/$META.part" "$BK/$BUG.part" "$BK/$BASE.rows.tmp"; rm -rf "$LOCK"; }
+W=$(mktemp -d "$WORKBASE/backup.XXXXXX")   # mode 0700, root only
+cleanup() { rm -f "$BK/$DUMP.part" "$BK/$META.part" "$BK/$BUG.part"; rm -rf "$W" "$LOCK"; }
 trap cleanup EXIT
 
 targs=()
@@ -86,11 +97,11 @@ for t in "${TABLES[@]}"; do targs+=(-t "public.$t"); done
 say "dumping ${#TABLES[@]} tables of $DB as $ROLE"
 # --exclude-table-data='public.*_seq': PostgreSQL 18 pulls the owned sequence (meme_impressions_id_seq) in with its table, and the read role has no
 # privilege on sequences (and should not get one). Sequence positions are not needed: restore.sh sets them past the highest restored id.
-dexec pg_dump -w -h "$SOCK" -U "$ROLE" -d "$DB" -Fc -a --lock-wait-timeout=60s "${targs[@]}" --exclude-table-data='public.*_seq' > "$BK/$DUMP.part"
-[ -s "$BK/$DUMP.part" ] || die "empty dump"
+dexec pg_dump -w -h "$SOCK" -U "$ROLE" -d "$DB" -Fc -a --lock-wait-timeout=60s "${targs[@]}" --exclude-table-data='public.*_seq' > "$W/$DUMP"
+[ -s "$W/$DUMP" ] || die "empty dump"
 
 # the dump must be readable and hold exactly the listed tables (this is the `pg_restore --list` result the manifest records)
-listing=$(STDIN="$BK/$DUMP.part" dexec pg_restore --list | tr -d '\r')
+listing=$(STDIN="$W/$DUMP" dexec pg_restore --list | tr -d '\r')
 for t in "${TABLES[@]}"; do
   grep -Eq "TABLE DATA public $t( |$)" <<< "$listing" || die "dump does not hold table data of $t"
 done
@@ -98,15 +109,15 @@ extra=$(echo "$listing" | grep -E "TABLE DATA" | grep -Evc "TABLE DATA public ($
 [ "$extra" = 0 ] || die "dump holds table data of $extra table(s) that are not in $TABLES_FILE"
 
 # exact rows per table, counted from the dump itself (COPY blocks), so a restore can be checked against it
-STDIN="$BK/$DUMP.part" dexec pg_restore -a -f - | tr -d '\r' | awk '
+STDIN="$W/$DUMP" dexec pg_restore -a -f - | tr -d '\r' | awk '
   /^COPY / { split($2, a, "."); cur = a[2]; rows[cur] = 0; next }
   /^\\\.$/ { cur = ""; next }
   cur != "" { rows[cur]++ }
-  END { for (t in rows) print t, rows[t] }' > "$BK/$BASE.rows.tmp"
+  END { for (t in rows) print t, rows[t] }' > "$W/$BASE.rows.tmp"
 
 if [ -d "$BUGS" ]; then
   say "archiving bug reports"
-  rc=0; tar -C "$ROOT/$ENV_NAME" -czf - bug-reports > "$BK/$BUG.part" || rc=$?
+  rc=0; tar -C "$ROOT/$ENV_NAME" -czf - bug-reports > "$W/$BUG" || rc=$?
   [ "$rc" -le 1 ] || die "tar failed with $rc"   # 1 = a file changed while it was read: the archive is still usable
 else
   BUG=""
@@ -114,11 +125,11 @@ fi
 
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 size() { wc -c < "$1" | tr -d ' '; }
-dump_sha=$(sha "$BK/$DUMP.part"); dump_size=$(size "$BK/$DUMP.part")
+dump_sha=$(sha "$W/$DUMP"); dump_size=$(size "$W/$DUMP")
 bug_sha=""; bug_size=0
-if [ -n "$BUG" ]; then bug_sha=$(sha "$BK/$BUG.part"); bug_size=$(size "$BK/$BUG.part"); fi
+if [ -n "$BUG" ]; then bug_sha=$(sha "$W/$BUG"); bug_size=$(size "$W/$BUG"); fi
 
-"$PYTHON" - "$BK/$META.part" "$ENV_NAME" "$DUMP" "$dump_size" "$dump_sha" "$BUG" "$bug_size" "$bug_sha" "$server_version" "$BK/$BASE.rows.tmp" <<'PY'
+"$PYTHON" - "$W/$META" "$ENV_NAME" "$DUMP" "$dump_size" "$dump_sha" "$BUG" "$bug_size" "$bug_sha" "$server_version" "$W/$BASE.rows.tmp" <<'PY'
 import json, sys, datetime
 out, env, dump, dsize, dsha, bug, bsize, bsha, ver, rows_file = sys.argv[1:]
 rows = {}
@@ -138,14 +149,17 @@ with open(out, "w", encoding="utf-8", newline="\n") as fh:
     fh.write("\n")
 PY
 
-# group access for the gate account (fetch-backup); the files stay unreadable to everybody else
-final_perms() {
-  chmod 0640 "$1"
-  if [ "$(id -u)" = 0 ] && id "memesync-$ENV_NAME" >/dev/null 2>&1; then chown "memesync-$ENV_NAME:memesync-$ENV_NAME" "$1"; fi
+# Publish into backups/: `install` creates a NEW file (it unlinks an existing destination, it never writes through a symlink) as
+# root:memesync-<env> 0640, so the gate account can read it (fetch-backup) and nothing else; then the rename. The dump goes last.
+publish() { # name
+  local owner=()
+  if [ "$(id -u)" = 0 ] && getent group "memesync-$ENV_NAME" >/dev/null 2>&1; then owner=(-o root -g "memesync-$ENV_NAME"); fi
+  install -m 0640 ${owner[@]+"${owner[@]}"} "$W/$1" "$BK/$1.part"
+  mv -f "$BK/$1.part" "$BK/$1"
 }
-[ -z "$BUG" ] || { final_perms "$BK/$BUG.part"; mv -f "$BK/$BUG.part" "$BK/$BUG"; }
-final_perms "$BK/$META.part"; mv -f "$BK/$META.part" "$BK/$META"
-final_perms "$BK/$DUMP.part"; mv -f "$BK/$DUMP.part" "$BK/$DUMP"      # last: the dump is what fetch-backup looks for
+[ -z "$BUG" ] || publish "$BUG"
+publish "$META"
+publish "$DUMP"      # last: the dump is what fetch-backup looks for
 say "wrote $DUMP ($dump_size bytes, sha256 ${dump_sha:0:12}...)"
 
 # rotation: sets older than RETENTION_DAYS go, and any .part left by a crash; the set just written is newer than both

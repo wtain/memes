@@ -51,13 +51,13 @@ R=/srv/memes
 check dir_srv mode_is $R root root 755
 check dir_env mode_is $R/it root root 755
 check dir_images mode_is $R/it/images memesync-it memesync-it 2755
-check dir_bug_reports test "$(stat -c "%u %G %a" $R/it/bug-reports)" = "1000 memesync-it 2775"
+check dir_bug_reports test "$(stat -c "%u %G %a" $R/it/bug-reports)" = "10001 memesync-it 2775"
 check dir_work mode_is $R/it/work memesync-it memesync-it 700
 check dir_retired mode_is $R/it/retired memesync-it memesync-it 700
 check dir_staging mode_is $R/it/staging root root 755
 check dir_incoming mode_is $R/it/staging/incoming memeup-it memesync-it 2770
 check dir_pgdata test "$(stat -c "%u %g %a" $R/it/pgdata)" = "999 999 700"
-check dir_backups mode_is $R/it/backups memesync-it memesync-it 750
+check dir_backups mode_is $R/it/backups root memesync-it 750
 check dir_web mode_is $R/it/web memesync-it memesync-it 755
 check dir_facts mode_is /var/lib/memes/it root root 755
 check dir_secrets mode_is /etc/memes/it root root 700
@@ -151,6 +151,23 @@ check gate_conf_two_sections test "$(grep -c '^\[' /etc/memes/gate.conf)" = 2
 check gate_conf_general_paths grep -q '^base_path *= /srv/memes/general/images' /etc/memes/gate.conf
 bash "$DEPLOY/host/setup-host.sh" it --skip-systemd > /tmp/setup4.log 2>&1
 check setup_requires_admin_user test $? -ne 0
+# AllowUsers is the union of the admin users: a second run with ANOTHER admin keeps the first one (and the memes accounts), a third run
+# with the first changes nothing
+useradd -m -u 2001 -s /bin/bash admin2
+mkdir -p /home/admin2/.ssh; cp "$K/admin.pub" /home/admin2/.ssh/authorized_keys; chown -R admin2:admin2 /home/admin2/.ssh; chmod 700 /home/admin2/.ssh; chmod 600 /home/admin2/.ssh/authorized_keys
+bash "$DEPLOY/host/setup-host.sh" it --admin-user admin2 --skip-systemd > /tmp/setup5.log 2>&1
+check setup_second_admin_run test $? -eq 0
+allow() { grep '^AllowUsers' /etc/ssh/sshd_config.d/00-memes-sync.conf; }
+has_all() { local a; a=$(allow); for u in "$@"; do echo "$a" | grep -qw -- "$u" || { echo "missing $u in: $a"; return 1; }; done; }
+check sshd_allowusers_union has_all admin admin2 memesync-it memeup-general
+before=$(allow)
+bash "$DEPLOY/host/setup-host.sh" it --admin-user admin --skip-systemd > /tmp/setup6.log 2>&1
+check sshd_allowusers_stable_on_rerun test "$(allow)" = "$before"
+out=$(S -i "$K/admin" admin@127.0.0.1 true 2>&1); rc=$?
+check admin_still_logs_in_after_union test $rc -eq 0
+kill -HUP "$(cat /run/sshd.pid)"; sleep 1   # no systemd here: the reload the script would do on a real host
+check admin2_logs_in_after_union S -i "$K/admin" admin2@127.0.0.1 true
+check admin_logs_in_after_reload S -i "$K/admin" admin@127.0.0.1 true
 echo "LOG quota/notes:"; grep NOTE /tmp/setup1.log | sed 's/^/LOG /'
 
 kill "$LISTENER" 2>/dev/null

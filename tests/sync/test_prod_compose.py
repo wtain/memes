@@ -5,6 +5,7 @@ edge network, every service carries the hardening keys, the images are pinned (d
 examples hold keys only and cover every variable the compose files read, the Caddyfile keeps its log filter and limits, and pg_hba.conf keeps its
 order (reject before allow, scram only, one project subnet per environment).
 """
+import os
 import re
 import shutil
 import subprocess
@@ -126,12 +127,13 @@ def test_backend_and_db_have_healthchecks(stack):
 
 
 def test_tmp_is_256m_for_the_services_that_spool(stack):
-    for name in ("db", "backend", "migrate"):
-        assert "/tmp:size=256m" in stack["services"][name]["tmpfs"]
+    assert "/tmp:size=256m" in stack["services"]["db"]["tmpfs"]
+    for name in ("backend", "migrate"):  # nothing is executed from /tmp there; the spool is data only
+        assert "/tmp:size=256m,noexec,nosuid" in stack["services"][name]["tmpfs"]
 
 
-def test_backend_runs_as_uid_1000_with_the_environments_gid(stack):
-    assert re.fullmatch(r"\$\{SVC_UID:-1000\}:\$\{SVC_GID:\?[^}]*\}", stack["services"]["backend"]["user"])
+def test_backend_runs_as_a_dedicated_uid_with_the_environments_gid(stack):
+    assert re.fullmatch(r"\$\{SVC_UID:-10001\}:\$\{SVC_GID:\?[^}]*\}", stack["services"]["backend"]["user"])
 
 
 def test_images_are_mounted_read_only_and_bug_reports_read_write(stack):
@@ -252,6 +254,24 @@ def test_caddyfile_keeps_log_filter_headers_limits_and_404s():
         assert f"import memes_site {env} {alias}" in text
 
 
+def test_caddyfile_filters_the_default_logger_too():
+    text = (PROD / "edge" / "Caddyfile").read_text(encoding="utf-8")
+    # the global options block is the first brace block; its own `log` (no name) configures the default logger
+    head = text.split("(quiet_log)", 1)[0]
+    m = re.search(r"^	log \{(.*?)^	\}", head, re.M | re.S)
+    assert m, "global options need a log block for the default logger (http.log.error entries carry the URI and headers)"
+    for field in ("request>uri delete", "request>headers delete", "request>tls delete"):
+        assert field in m.group(1)
+    assert "format filter" in m.group(1)
+
+
+def test_caddyfile_refuses_writes_and_framing():
+    text = (PROD / "edge" / "Caddyfile").read_text(encoding="utf-8")
+    assert re.search(r"@writes \{\s*path /api/\*\s*method PUT PATCH DELETE\s*\}", text)
+    assert "X-Frame-Options DENY" in text and "frame-ancestors 'none'" in text
+    assert "sandbox; default-src 'none'" in text
+
+
 def test_caddyfile_holds_no_literal_hostname_or_secret():
     text = (PROD / "edge" / "Caddyfile").read_text(encoding="utf-8")
     assert "{$METAL_HOST}" in text and "{$GENERAL_HOST}" in text and "{$IT_HOST}" in text
@@ -328,6 +348,23 @@ def test_provision_script_parses_and_renders_like_the_python_template(tmp_path):
     assert done.returncode == 0, done.stderr
     assert (out / "pg_hba.conf").read_text(encoding="utf-8") == render_hba("general")
     assert (out / "postgresql.conf").read_bytes() == (PROD / "postgres" / "postgresql.conf").read_bytes()
+
+
+def _read_password_runner(value):
+    script = (PROD / "postgres" / "provision.sh").read_text(encoding="utf-8")
+    func = script[script.index("read_password() {"):script.index("set_password() {")]
+    env = dict(os.environ, PW=value)
+    return subprocess.run(["bash", "-c", func + "\nread_password PW label < /dev/null"], capture_output=True, text=True, env=env)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None or sys.platform == "win32", reason="needs a POSIX bash (on Windows the bash on PATH may be WSL's)")
+def test_read_password_rejects_values_with_a_newline_or_a_short_or_odd_value():
+    good = "A" * 24 + "b+/=_.~-"
+    ok = _read_password_runner(good)
+    assert ok.returncode == 0 and ok.stdout == good
+    for bad in (good + "\nALTER ROLE postgres PASSWORD 'x';", "\n" + good, good + "\r", "short", good + " x", good + "'"):
+        r = _read_password_runner(bad)
+        assert r.returncode != 0 and r.stdout == "", repr(bad)
 
 
 def test_deploy_files_use_lf_line_endings():

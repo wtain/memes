@@ -26,7 +26,7 @@ lock_timeout_s   = 60      # how long a locked verb waits for work/gate.lock bef
 pull_min_age_s   = 60      # pull-list ignores bug reports modified within this many seconds
 bug_max_file_mb  = 10      # pull-list/pull-tar: one bug report
 bug_max_total_mb = 100     # pull-tar: bytes per call
-probe_require_other_read = true   # handshake exits 3 when the images directory is not readable by "other" (backend uid 1000)
+probe_require_other_read = true   # handshake exits 3 when the images directory is not readable by "other" (any backend uid)
 
 # [metal]
 # ... same keys with /srv/memes/metal/...
