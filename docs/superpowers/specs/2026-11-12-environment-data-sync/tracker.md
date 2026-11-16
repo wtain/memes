@@ -1,6 +1,6 @@
 # Dev/prod data sync: project tracker
 
-Status: draft (reconciled 2026-11-12; interface names in `interfaces.md`; decisions 26 and 27 applied 2026-11-12)
+Status: implementation (built on branch `worktree-env-data-sync`, not merged, never run against a real VPS; reconciled 2026-11-12, status table "Built state" updated 2026-11-16; interface names in `interfaces.md`; decisions 26 to 29 applied)
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/README.md
 
 Created 2026-11-12. Each project has its own design spec (written when the project is picked up, named
@@ -32,15 +32,39 @@ lifecycle values (`draft`, `approved`, `planned`, `implementation`, `done`), wit
 
 | ID | Project | Delivers | Depends on | Status | Spec / plan |
 |---|---|---|---|---|---|
-| P0 | Epic charter, tracker and interface contract | This folder | none | draft (reconciled 2026-11-12) | `README.md`, `tracker.md`, `interfaces.md` |
+| P0 | Epic charter, tracker and interface contract | This folder | none | draft (reconciled 2026-11-12; waits for the owner's approval of README, S1 and the two ADRs) | `README.md`, `tracker.md`, `interfaces.md` |
 | P1 | Sync registry | The S1 classification as code (46 tables: 22 D, 6 P, 18 X) plus guard tests | S1 | implementation (built); follow-ups listed in P2 T1 (`digest_exclude`, `image_extras` replace mode, absorptions note). Verified: `pytest tests/sync` 19 passed, `tests/docs` 15 passed, 18 mutations caught. Not verified: CI run | `2026-11-12-p1-sync-registry-design.md`, review `docs/superpowers/reviews/2026-11-12-p1-sync-registry-review.md` |
-| SC | Shared modules `sync/config.py`, `sync/tunnel.py`, `sync/connect.py` (+ `sync.doctor`), `sync/report.py` | Settings and `.env.<env>.sync` loader, tool-owned tunnel, identity handshake H1 to H10, connection factories, the report model and writers (`interfaces.md` k) | P1; P5 values (ports, aliases, roles) for the settings only | draft; **owner P2** (tasks P2-T2 and P2-T3), consumed by P3, P4, P6, P7 | `interfaces.md` c and e |
-| P2 | Promote data dev to prod | Dry-run-first command with a report (decision 26): dev-origin tables for the active corpus, ids preserved, handshake, digests, guards, `committed.json`; additions and overwrites only (removals deferred, decision 27) | P1, SC, S3 | draft (revised after review 2026-11-12) | `2026-11-12-p2-promote-data-design.md` |
-| P3 | Promote files dev to prod | Manifest, gate program `deploy/prod/memesync-gate.py`, batched verified upload, dry-run report (retire/restore/purge deferred, decision 27) | P1, SC, S4 | draft (revised after review 2026-11-12) | `2026-11-12-p3-promote-files-design.md` |
-| P4 | Pull reader activity prod to dev | Mirror of the six class P tables, ratings mode and archive, bug-report pull, `pull_state.json` | P1, SC, S3, P3 gate | draft (revised after review 2026-11-12) | `2026-11-12-p4-pull-reader-activity-design.md` |
-| P5 | Prod provisioning and hardening | Per-environment stacks, roles, grants, backend stage mechanism, capabilities, web and Android hiding, backups; sub-deliveries P5a backend stage, P5b web, P5c Android, P5d VPS stacks and roles | S2, S5, P1 | draft (revised after review 2026-11-12) | `2026-11-12-p5-prod-provisioning-and-hardening-design.md` |
+| SC | Shared modules `sync/config.py`, `sync/tunnel.py`, `sync/connect.py` (+ `sync.doctor`), `sync/report.py` | Settings and `.env.<env>.sync` loader, tool-owned tunnel, identity handshake H1 to H10, connection factories, the report model and writers (`interfaces.md` k) | P1; P5 values (ports, aliases, roles) for the settings only | implementation (built 2026-11-12 to 11-14 with P2-T2/T3: `sync/config.py`, `sync/tunnel.py`, `sync/connect.py`, `sync/report.py`, `sync.doctor`; tested with fakes and loopback Postgres; no real ssh or VPS); consumed by P3, P4, P6, P7 | `interfaces.md` c and e |
+| P2 | Promote data dev to prod | Dry-run-first command with a report (decision 26): dev-origin tables for the active corpus, ids preserved, handshake, digests, guards, `committed.json`; additions and overwrites only (removals deferred, decision 27) | P1, SC, S3 | implementation (built: T0 fixture, T1, T4 to T8 plan, apply, globals, verify, `--verify-only`; T10 first-seed and T11 integration scenarios and failure injection in progress and uncommitted on 2026-11-16; T9 deferred; T12 docs written 2026-11-16 in `docs/sync/promote.md`; unreviewed by the data-safety and report reviews the design asks for; no real VPS) | `2026-11-12-p2-promote-data-design.md` |
+| P3 | Promote files dev to prod | Manifest, gate program `deploy/prod/memesync-gate.py`, batched verified upload, dry-run report (retire/restore/purge deferred, decision 27) | P1, SC, S4 | implementation (built: T1 to T5 manifest, diff, batches, gate `deploy/prod/memesync-gate.py`, transport, `sync.files promote`, typed confirmation; T6 deferred; T7 two-account ssh/chroot test only against a container (`tests/integration/sync/test_host_container.py`, `ssh_container_checks.sh`), no real sshd or Windows OpenSSH run; T8 docs written 2026-11-16 in `docs/sync/files.md`; no real VPS) | `2026-11-12-p3-promote-files-design.md` |
+| P4 | Pull reader activity prod to dev | Mirror of the six class P tables, ratings mode and archive, bug-report pull, `pull_state.json` | P1, SC, S3, P3 gate | implementation (built: T1 to T6 plan, mirror apply, ratings modes and ledger, two-stage `pull_state.json`, dry-run report, bug-report verbs through the transport; T7 integration in `tests/integration/sync/test_pull.py`; T8 docs written 2026-11-16 in `docs/sync/pull.md`; the dev-side `fetch-backup` of the newest class P dump is NOT built; no real VPS) | `2026-11-12-p4-pull-reader-activity-design.md` |
+| P5 | Prod provisioning and hardening | Per-environment stacks, roles, grants, backend stage mechanism, capabilities, web and Android hiding, backups; sub-deliveries P5a backend stage, P5b web, P5c Android, P5d VPS stacks and roles | S2, S5, P1 | implementation (built, unmerged: P5a-T1 to T8 backend stage mechanism, capabilities, path containment, abuse bounds, pool hook, discovery_report sanitising; P5b web `VITE_STAGE`; P5c Android capabilities; P5d-T1/T2 roles generator and PG18 container checks, T3/T4/T6 compose, edge, Postgres config, provision, prod overlays, T5/T7 host setup, sshd, timers, backup and restore, T8 `sync.release` and `Dockerfile.migrate`; all tested with containers and fakes, nothing run on a real VPS; a prod web build deployment is not scripted) | `2026-11-12-p5-prod-provisioning-and-hardening-design.md` |
 | P6 | Verification and drift report | Read-only compare of dev-origin data between stages, health, grants, growth alarms | P2, P3, P5 | implementation (built 2026-11-14: `sync/verify/`, plugged into `sync.run`; the checks that need a VPS are mock-only, see the design's "P6 built" notes) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part A) |
-| P7 | Runbooks, driver `sync.run`, docs, acceptance run | Runbook per direction, CLAUDE.md and docs updates, acceptance run on a throw-away VPS | all | draft (revised after review 2026-11-12) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part B) |
+| P7 | Runbooks, driver `sync.run`, docs, acceptance run | Runbook per direction, CLAUDE.md and docs updates, acceptance run on a throw-away VPS | all | implementation (P7-T1 driver `sync.run` built 2026-11-14; P7-T5 repository docs: `docs/sync/` (overview, commands, first-seed-and-routine, troubleshooting, security, prod-operations, promote, files, pull), CLAUDE.md and Environments.md written 2026-11-16, `verify.md` and `run.md` are folded into `commands.md`; NOT done: P7-T2 CI driver scenario for first-seed resume (partly covered by `tests/integration/sync/test_run.py`), P7-T3/T4 separate runbooks under `docs/runbooks/` and their guard test, `docs/data-flow.md`, `backend_api.md` 404 matrix check, P7-T6 acceptance run) | `2026-11-12-p6-p7-verification-and-operations-design.md` (Part B) |
+
+## Built state (2026-11-16, from the git log of this branch)
+
+Everything below is committed on `worktree-env-data-sync` (35 commits ahead of `main`), **not merged**, and has only met unit tests, loopback and container tests, never a real VPS.
+
+| Commit | Delivery |
+|---|---|
+| c1c67996 | P1 registry and guard tests |
+| 33ca6685 | P2-T0 two-schema fixture, P2-T1 `digest_exclude` and `image_extras` replace |
+| 024b5102, 35d3d144 | SC: config, tunnel, report; connect (H1 to H10), `sync.doctor` |
+| 23df4d27, 762ef57f, 7a1d6ed8 | P3 T1 to T5: manifest, diff, batches, gate, transport, `sync.files promote`, typed confirmation |
+| e343c150, eddd6919, 3d4b979a, 6892f2ec | P2 T4 to T8: plan, digest exclusion audit, model-change guard, apply, global sets, verify, `--verify-only` |
+| 1bec3d03, b1c3dbd9 | P4 T1 to T6: pull, ratings modes, state, dry-run report, bug-report pull |
+| 0e5c95d0 | P7-T1 `sync.run`, pull plan hash structural (decision 28), typed confirmation rule (decision 29) |
+| da38e8b0 | P6 `sync.verify` wired into `sync.run` (checks needing a VPS are mock-only) |
+| 6d81d2ee | P5d-T1/T2 `sync.roles`, roles SQL per environment, role tests on PG 18 |
+| d9c846d8, 9d8cc817, 7e20e7e5 | P5a-T1 to T8 backend stage mechanism, capabilities (+ generated types), path containment, abuse bounds, pool hook, `discovery_report` sanitising |
+| 91bbadcb, 6467ea5b | P5b web and P5c Android feature visibility |
+| ee0a3141, dd9a048b, 46b24a84 | P5d-T3/T4/T6 compose, Caddy edge, Postgres, provisioning, prod overlays; T5/T7 host setup, sshd, timers, backup and restore; T8 `sync.release`, `Dockerfile.migrate`, release runbook |
+| 2026-11-16 (docs, not yet committed) | `docs/sync/` pages, CLAUDE.md pointers, `environments/Environments.md` prod table, this tracker and spec statuses |
+
+Uncommitted on 2026-11-16 by another worker: P2-T10 first-seed additions (`sync/promote/cli.py`, `preconditions.py`: a `rebuild_indexes` informational precondition and the "owner step" lines) and `tests/integration/sync/test_promote_first_seed.py`; P2-T11 failure-injection tests.
+
+**Unverified (needs a real VPS or a Linux VM):** the real ssh path on Windows OpenSSH (tunnel, host keys, verb and upload accounts, chroot), `setup-host.sh`, sshd drop-in, systemd timers and quotas, the Caddy edge with real certificates, real transfer rates, Postgres 18.7 on prod against 18.3 on dev, gate verbs `disk`, `containment`, `fetch-backup` and the checks that read them (S4 account probe, S6, S8, A3), the HTTP checks (S3, S7, A4), the numbers of the app-level limiter (the implementer's guesses), a full and an interrupted first seed, backup and restore drills, the prod web build deployment. P7-T6 (acceptance run on a throw-away VPS) and the security drills are not done.
 
 ## Recommended build order (additions only; removals later, see "Deferred: removals")
 
@@ -76,7 +100,17 @@ Nothing is removed from prod for now. Deferred exactly as follows; the design te
 7. **Disk:** XFS project quotas or provider block volumes (otherwise free-space alarms stand in); VPS size (4 GB floor, 8 GB recommended) and provider.
 8. **Off-VPS backup target** beyond the dev pull of the newest class P dump.
 9. **Gate default caps** (200 MB member, 5000 members, 600 MB batch, 10 % free floor and replace `max(200, 5 %)` per day; the retire/restore caps wait for the removals): accept, and confirm that a larger run lifts them by editing `/etc/memes/gate.conf` on the VPS, never by a client flag.
-10. **Dev database names** per environment for `sync.dev.database` (only needed to fill the settings).
+10. **Dev database names** per environment for `sync.dev.database` (only needed to fill the settings; empty today, so `sync.doctor` fails H1 until filled).
+11. **Real domain and hostnames** (`sync.prod.api_url`, Caddy hosts, CORS origins; the repo has `<env>.example.invalid` placeholders; same as item 5, now also blocking `sync.doctor` H5).
+12. **`public.alembic_version` in `ocrdb_test`:** the T0 fixture left it at `a9d3e6b1c847`; decide whether to restore `29a039fa4457` (the value before T0). Not touched by the docs worker.
+13. **Dev symlink scan:** the new image path containment (P5a-T5, the backend refuses image paths resolving outside `BASE_PATH`) was not checked against the real dev corpora for symlinks or junctions; run a scan before the backend restarts on this code.
+14. **Off-VPS backup fetch step is missing on the dev side:** the gate verb `fetch-backup` and `backup.sh` exist, `sync.pull` does not yet fetch the newest class P dump to dev. Build it, or accept a manual copy.
+15. **`sync.pull.ratings_mode`:** confirm `skip` as the default (item 1) before the first real pull.
+16. **VPS size, provider and quotas, backup target, CDN/WAF:** items 6, 7 and 8 above stay open; the design assumed 4 GB floor, 8 GB recommended.
+17. **Prod numbers of the limiter** (`abuse.*` in `environments/settings.prod.yaml`: saves 30/min, not-found 20/min, bug reports 5/min, recording 1200/min, `q` 512 characters) are the implementer's guesses, not measured; confirm or tune.
+18. **Postgres versions:** prod image is `pgvector/pgvector:pg18-trixie` at 18.7, dev runs 18.3; accept the minor gap or align dev.
+19. **Approvals:** README (decisions log), S1 classification and the two ADRs (`docs/adr/adr-2026-11-12-dev-prod-sync-technique.md`, `...-file-sync.md`, status PROPOSED) await the owner's approval; the spec status lines stay `draft` until then.
+20. **Merge to `main`** of this branch and every migration on a real database need the owner's explicit confirmation (working rule above); the three always-on backends must be restarted on merged code only after the dev symlink scan (item 13).
 
 ## Backlog / unscheduled (real items only; resolved ones were removed in the 2026-11-12 reconciliation)
 
@@ -91,4 +125,5 @@ Nothing is removed from prod for now. Deferred exactly as follows; the design te
 - Ratings keyed by `(query_hash, image_id)` move to the cut on a recut approve on dev; a later pull must not resurrect the old pair (P4 ratings rules; revisit when the ratings routes return).
 - Per-environment asymmetries: `it` has no tagging vocabulary, profiles or tagging jobs; tagging YAML only for metal and general.
 - Tracked evaluation data (`evaluation/gold`) is keyed by dev image ids: dev-only, but the pull of ratings feeds it.
-- Follow-ups named by the P5 review: sanitising `tools/discovery_report` output (P5a-T8) and consumers of pulled text; listed in P7's docs task.
+- Follow-ups named by the P5 review: sanitising `tools/discovery_report` output (done, P5a-T8, 7e20e7e5) and the other consumers of pulled text (the evaluation ratings export `evaluation/ratings_job.py` is not reviewed against the rule in `docs/sync/pull.md`).
+- Doctor step H6: `sync.doctor` passes no gate transport, so the gate step prints `skipped:no_transport` (the design table lists H6 for the doctor); wire `SshTransport` into the doctor.

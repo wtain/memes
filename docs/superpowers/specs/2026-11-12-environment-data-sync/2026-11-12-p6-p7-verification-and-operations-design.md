@@ -1,6 +1,6 @@
 # P6 and P7: verification, drift report, runbooks and operations (design)
 
-Status: draft (revised 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
+Status: implementation (built on branch worktree-env-data-sync, unmerged, no real VPS, see tracker.md "Built state" 2026-11-16; text of the design: revised 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
 Interfaces: state files (`verify.json`, `run.json`, `committed.json`, `report.json`, ...; the report format is `interfaces.md` k), settings, handshake steps, gate verbs, flags and exit codes are defined in `interfaces.md`; this document owns the checks, the driver behaviour and the runbooks.
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Depends on: P1 (built), P2 (digests, verify phase, `committed.json`, shared modules SC and the report module), P3 (file manifest, gate, report), P4 (pull state), P5 (capabilities, roles, per-environment stacks), decisions log in `README.md` (1 to 27; 17 to 27 override older text).

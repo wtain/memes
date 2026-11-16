@@ -1,6 +1,6 @@
 # P3: promote files, dev to prod (design)
 
-Status: draft (revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
+Status: implementation (built on branch worktree-env-data-sync, unmerged, no real VPS, see tracker.md "Built state" 2026-11-16; text of the design: revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
 Interfaces: state files, settings, accounts, directories, gate verbs, flags and exit codes are defined in `interfaces.md`; this document owns the gate program and the file flows, not the names.
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Depends on: P1 (registry, built), S4 (`docs/adr/adr-2026-11-12-dev-prod-file-sync.md`), decisions log in `README.md` (decisions 17 to 21 shaped the first revision; 26 and 27 the second).

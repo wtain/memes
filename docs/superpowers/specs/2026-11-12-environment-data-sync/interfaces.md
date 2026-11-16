@@ -1,6 +1,6 @@
 # Interfaces: the single contract of the dev/prod sync epic
 
-Status: draft (reconciled 2026-11-12; decisions 26 (dry-run report) and 27 (no removals for now) applied 2026-11-12; the project designs P2 to P7 reference this file instead of redefining these names)
+Status: implementation (the contract the built code follows; unmerged, awaits the owner's approval; reconciled 2026-11-12; decisions 26 (dry-run report) and 27 (no removals for now) applied 2026-11-12; the project designs P2 to P7 reference this file instead of redefining these names)
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 
 This file is authoritative for every name, file, field, age, flag, role, port and gate verb that two or more documents share. The designs

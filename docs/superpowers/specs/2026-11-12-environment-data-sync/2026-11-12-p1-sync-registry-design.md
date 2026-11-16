@@ -1,6 +1,6 @@
 # P1: sync registry (design)
 
-Status: implementation (built; follow-ups listed under P2 T1; text reconciled to the built state 2026-11-12)
+Status: implementation (built, unmerged; follow-ups listed under P2 T1; text reconciled to the built state 2026-11-12)
 Plan: none (small project, built inline; review in docs/superpowers/reviews/2026-11-12-p1-sync-registry-review.md)
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Depends on: S1 (`2026-11-12-s1-data-classification.md`), S3 (`docs/adr/adr-2026-11-12-dev-prod-sync-technique.md`), S5

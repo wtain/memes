@@ -1,6 +1,6 @@
 # Epic: data sync between dev and prod stages
 
-Status: draft (reconciled 2026-11-12: names, files, flags and ages are fixed in `interfaces.md`; decisions 26 and 27 added 2026-11-12)
+Status: draft (not yet approved by the owner; the work it describes is built, see tracker.md; reconciled 2026-11-12: names, files, flags and ages are fixed in `interfaces.md`; decisions 26 and 27 added 2026-11-12)
 Originates from: user request, 2026-11-12 (brainstorming session)
 Follow-ups: project design specs are listed in `tracker.md` and written when each project is picked up.
 

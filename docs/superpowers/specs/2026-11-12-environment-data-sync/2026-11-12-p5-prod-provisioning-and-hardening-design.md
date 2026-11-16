@@ -1,6 +1,6 @@
 # P5: prod provisioning and hardening (design)
 
-Status: draft (revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12; decisions 26 and 27 noted 2026-11-12)
+Status: implementation (built on branch worktree-env-data-sync, unmerged, no real VPS, see tracker.md "Built state" 2026-11-16; text of the design: revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12; decisions 26 and 27 noted 2026-11-12)
 Interfaces: names, ports, roles, grants, accounts, directories, gate verbs and settings are defined in `interfaces.md` (sections b, d, g, h); this document owns how they are provisioned. Where the tables below repeat them, `interfaces.md` wins.
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Review: docs/superpowers/reviews/2026-11-12-p5-prod-provisioning-design-review.md (dispositions below)

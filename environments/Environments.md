@@ -14,6 +14,22 @@ Each database is a separate Postgres instance/port, not just a separate schema â
 
 **For agents:** if you need to spin up a temporary backend, frontend, or database for testing, pick a port outside the table above and verify it's actually free first (e.g. `netstat -ano | findstr :<port>` on Windows) rather than assuming a fixed alternate â€” there's no reserved "testing" port range.
 
+## Prod (the VPS) and the sync tunnel ports
+
+The prod instances run on a VPS, **not on this workstation**, and occupy none of the ports above. The only prod-related ports that are ever bound on the workstation are the three
+local ends of the sync tool's ssh tunnel (16432, 16434, 16436); the tool opens and closes them itself, only while a `sync.*` command runs, and they do not clash with any port in the table above.
+Prod is a separate stack per environment on the VPS (design: `docs/superpowers/specs/2026-11-12-environment-data-sync/2026-11-12-p5-prod-provisioning-and-hardening-design.md`, "Environment table";
+runbook: `deploy/prod/README.md`; operator docs: `docs/sync/`). Nothing below is secret; credentials and real hostnames are never written here.
+
+| Env | Compose project (VPS) | Prod DB name | Postgres on the VPS loopback | Local tunnel port (workstation, only while sync runs) | Backend on the edge network | Project subnet (VPS) | ssh aliases (workstation ssh config: tunnel, verbs, upload) |
+|---|---|---|---|---|---|---|---|
+| metal   | `memes-metal`   | `memes_metal`   | `127.0.0.1:6432` | 16432 | `api-metal:8000`   | `172.31.1.0/24` | `memes-prod-metal`, `memes-prod-metal-sync`, `memes-prod-metal-up` |
+| general | `memes-general` | `memes_general` | `127.0.0.1:6434` | 16434 | `api-general:8000` | `172.31.2.0/24` | `memes-prod-general`, `memes-prod-general-sync`, `memes-prod-general-up` |
+| it      | `memes-it`      | `memes_it`      | `127.0.0.1:6436` | 16436 | `api-it:8000`      | `172.31.3.0/24` | `memes-prod-it`, `memes-prod-it-sync`, `memes-prod-it-up` |
+
+Remote Postgres ports are the dev cluster ports plus 1000 (the workstation's 5432/5434/5436 are dev, see the table at the top). The shared edge project `memes-edge` (Caddy, ports 80 and 443 on the VPS only) fronts all three.
+An agent doing manual testing must not bind 16432, 16434 or 16436 either, and never gets the sync credentials or the `memes-prod-*` ssh aliases (`CLAUDE.md`).
+
 ## Building environment
 
 ### Create .env.[environment-name] and fill:

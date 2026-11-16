@@ -1,6 +1,6 @@
 # P2: promote data, dev to prod (design)
 
-Status: draft (revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
+Status: implementation (built on branch worktree-env-data-sync, unmerged, no real VPS, see tracker.md "Built state" 2026-11-16; text of the design: revised after design review 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
 Interfaces: every shared name (state files, settings, roles, ports, handshake steps H1 to H10, flags, exit codes) is defined in `interfaces.md`; this document does not redefine them.
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Review: docs/superpowers/reviews/2026-11-12-p2-promote-data-design-review.md (disposition at the end of this document)

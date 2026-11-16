@@ -1,6 +1,6 @@
 # P4: pull reader activity, prod to dev (design)
 
-Status: draft (revised 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
+Status: implementation (built on branch worktree-env-data-sync, unmerged, no real VPS, see tracker.md "Built state" 2026-11-16; text of the design: revised 2026-11-12; reconciled with `interfaces.md` 2026-11-12; revised again for decisions 26 (dry-run report) and 27 (no removals for now) on 2026-11-12)
 Interfaces: state files, settings (`sync.pull.*`), roles, handshake steps, gate verbs, flags and exit codes are defined in `interfaces.md`; this document owns the pull behaviour.
 Originates from: docs/superpowers/specs/2026-11-12-environment-data-sync/tracker.md
 Depends on: P1 (registry, built), S3 (`docs/adr/adr-2026-11-12-dev-prod-sync-technique.md`, Q7), S4 (`docs/adr/adr-2026-11-12-dev-prod-file-sync.md`, Q4),
