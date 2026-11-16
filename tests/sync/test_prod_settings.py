@@ -30,7 +30,11 @@ validate_outcome_settings()
 validate_search_settings()
 out = {k: settings.get(k) for k in (
     "stage", "scheduler.enabled", "cors.origins", "cors.allow_credentials", "parse.model",
-    "popularity.impressions.enabled", "popularity.search_outcomes.enabled", "search.meme_from_text.query_log.enabled")}
+    "popularity.impressions.enabled", "popularity.search_outcomes.enabled", "search.meme_from_text.query_log.enabled",
+    "popularity.impressions.max_rows_per_call", "history.record_browse", "database.pool_size", "database.max_overflow",
+    "abuse.max_clients", "abuse.saves_per_min", "abuse.not_found_per_min", "abuse.bug_reports_per_min", "abuse.recording_per_min",
+    "abuse.max_q_chars", "abuse.max_facets", "abuse.max_facet_value_chars",
+    "bug_reports.max_body_mb", "bug_reports.max_files", "bug_reports.max_total_mb")}
 out["cors.origins"] = list(out["cors.origins"] or [])
 print(json.dumps(out))
 """
@@ -78,6 +82,18 @@ def test_overlay_loads_with_prod_stage_and_the_validators_pass(env):
     assert got["search.meme_from_text.query_log.enabled"] is True
 
 
+def test_the_abuse_bounds_hooks_are_set_for_prod_in_every_environment(env):
+    """P5a-T6/T7: the merged prod settings carry real limits (the developer defaults leave them off), and the pool is small."""
+    got = run_probe(env)
+    assert got["abuse.saves_per_min"] > 0 and got["abuse.not_found_per_min"] > 0 and got["abuse.bug_reports_per_min"] > 0
+    assert got["abuse.recording_per_min"] > 0 and got["abuse.max_clients"] > 0
+    assert (got["abuse.max_q_chars"], got["abuse.max_facets"], got["abuse.max_facet_value_chars"]) == (512, 10, 64)
+    assert got["history.record_browse"] is False
+    assert got["popularity.impressions.max_rows_per_call"] == 50
+    assert got["bug_reports.max_body_mb"] == 11 and got["bug_reports.max_files"] > 0 and got["bug_reports.max_total_mb"] > 0
+    assert (got["database.pool_size"], got["database.max_overflow"]) == (5, 5)
+
+
 def test_cors_origins_are_only_this_environments_https_placeholder_host(env):
     got = run_probe(env)
     assert got["cors.origins"] == [f"https://{env}.example.invalid"]
@@ -101,12 +117,15 @@ def test_overlay_holds_no_secret(env):
 
 
 def test_overlay_uses_only_keys_the_code_reads(env):
-    """No invented keys: every dotted path is one of the groups the backend reads (settings.prod.yaml's own, plus the three the overlay
-    re-asserts). Keys of the design that no code reads yet (abuse.*, history.record_browse, bug_reports.*, database.pool_size) are
-    deliberately absent until P5a-T6/T7 add the readers."""
+    """No invented keys: every dotted path is one the backend reads (the ones the overlay re-asserts, and the abuse-bound and pool keys
+    that P5a-T6/T7 read; the shared prod values live in settings.prod.yaml and an environment overlay may override them)."""
     allowed = {
         "cors.origins", "cors.allow_credentials", "popularity.impressions.enabled", "popularity.search_outcomes.enabled",
         "search.meme_from_text.query_log.enabled", "parse.model",
+        "popularity.impressions.max_rows_per_call", "history.record_browse", "database.pool_size", "database.max_overflow",
+        "abuse.max_clients", "abuse.saves_per_min", "abuse.not_found_per_min", "abuse.bug_reports_per_min", "abuse.recording_per_min",
+        "abuse.max_q_chars", "abuse.max_facets", "abuse.max_facet_value_chars",
+        "bug_reports.max_body_mb", "bug_reports.max_files", "bug_reports.max_total_mb",
     }
     paths = {".".join(path[:-1] if path[-1].isdigit() else path) for path, _ in walk(load_yaml(env))}
     assert paths <= allowed, sorted(paths - allowed)

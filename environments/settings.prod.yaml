@@ -21,3 +21,31 @@ parse:
 cors:
   origins: []
   allow_credentials: false
+
+# Abuse bounds (P5a-5). Process-local, so the effective limit is workers x rate (two workers).
+abuse:
+  max_clients: 10000
+  saves_per_min: 30
+  not_found_per_min: 20
+  bug_reports_per_min: 5
+  recording_per_min: 1200       # a search records one history row and up to 50 impression rows
+  max_q_chars: 512
+  max_facets: 10
+  max_facet_value_chars: 64
+
+history:
+  record_browse: false
+
+popularity:
+  impressions:
+    max_rows_per_call: 50
+
+bug_reports:
+  max_body_mb: 11               # a 10 MB file plus the multipart framing
+  max_files: 200
+  max_total_mb: 200
+
+# Two workers x (5 + 5) = 20 connections per environment; the database role limit of P5d is sized from it.
+database:
+  pool_size: 5
+  max_overflow: 5

@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from Backend.app.repositories.duplicate_decisions_repository import DuplicateDecisionsRepository
 from Backend.app.repositories.image_repository import ImageRepository
 from repository.ocr_lemmas import OCRLemmasRepository
+from Backend.app.services.abuse import record_browse_enabled
 from Backend.app.services.history_recorder import record_history
 from Backend.app.services.impression_recorder import record_impressions
 from Backend.app.services.library_metrics import (
@@ -147,8 +148,11 @@ class ImageService:
 
         client = "android" if "okhttp" in user_agent.lower() else "web"
         tag_pairs = [(cat, val) for cat, vals in tags.items() for val in vals]
-        search_history_id = await self._record_history(
-            q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
+        is_search = bool((q or "").strip() or tags)
+        search_history_id = None
+        if is_search or record_browse_enabled():     # history.record_browse: false on prod, the browse feed writes no row
+            search_history_id = await self._record_history(
+                q=q, client=client, result_count=len(result.items or []), tags=tag_pairs)
         # An unfiltered listing (no query, no facets) is the browse feed, not a search: it is not an impression (S1, M2).
         if (q or "").strip() or tags:
             await record_impressions(

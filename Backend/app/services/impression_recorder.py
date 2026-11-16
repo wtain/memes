@@ -5,6 +5,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from Backend.app.services.abuse import impression_rows_cap, recording_allowed
 from repository.meme_impressions import MemeImpressionRepository, impressions_enabled
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,9 @@ async def record_impressions(session: AsyncSession, surface: str, image_ids: lis
                              search_history_id: uuid.UUID | None = None) -> None:
     """Callers pass the ids as they have them (UUIDs or UUID strings); a malformed id is a swallowed failure too."""
     if not image_ids or not impressions_enabled():
+        return
+    image_ids = image_ids[:impression_rows_cap()]          # popularity.impressions.max_rows_per_call
+    if not recording_allowed(len(image_ids)):              # shared with history rows: abuse.recording_per_min
         return
     try:
         ids = [image_id if isinstance(image_id, uuid.UUID) else uuid.UUID(str(image_id)) for image_id in image_ids]

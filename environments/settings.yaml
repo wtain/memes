@@ -104,10 +104,36 @@ search:
 # Search impressions (epic meme-popularity, S1; docs/superpowers/specs/2026-10-26-meme-popularity/2026-11-01-s1-search-impressions-design.md).
 # A missing key is a startup error. enabled false stops recording; window_days is the span of countWindow.
 popularity:
-  impressions: {enabled: true, window_days: 30}
+  impressions: {enabled: true, window_days: 30, max_rows_per_call: 100}
   # S6 (docs/superpowers/specs/2026-10-26-meme-popularity/2026-11-01-s6-failed-search-capture-design.md): saves link to
   # their search and the web "didn't find it" press is stored. enabled false stops both and makes searchId null.
   search_outcomes: {enabled: true}
+
+# Abuse bounds of the public paths (P5a-5; docs/superpowers/specs/2026-11-12-environment-data-sync/2026-11-12-p5-prod-provisioning-and-hardening-design.md).
+# Rates are per client per minute (token bucket, burst = the rate); 0 switches a limit off. These are the DEVELOPER defaults (everything off or
+# unchanged); settings.prod.yaml and settings.<env>.prod.yaml set the production values. State is process-local (limit x workers).
+abuse:
+  max_clients: 10000            # most client buckets held per limiter (the least recently used one is dropped beyond it)
+  saves_per_min: 0              # POST /api/images/meme/{id}/saves; over the limit: 429
+  not_found_per_min: 0          # POST /api/history/{id}/not-found; over the limit: 429
+  bug_reports_per_min: 20       # POST /api/bug-reports; over the limit: 429
+  recording_per_min: 0          # history rows + impression rows together; over the budget the recording is skipped and the response still served
+  max_q_chars: 0                # GET /api/images q longer than this: 422 (0 = no cap)
+  max_facets: 0                 # more facet values than this: 422 (0 = no cap)
+  max_facet_value_chars: 0      # a facet value longer than this: 422 (0 = no cap)
+
+history:
+  record_browse: true           # false: the browse feed (no q, no facets) writes no search_history row
+
+bug_reports:
+  max_body_mb: 0                # request body of POST /api/bug-reports over this many MB: 413 before multipart parsing (0 = no bound)
+  max_files: 0                  # bug-reports directory holds at most this many files; a new report beyond it answers 507 (0 = no cap)
+  max_total_mb: 0               # ... and at most this many MB in total (0 = no cap)
+
+# SQLAlchemy pool of Storage/db.py. Largest number of connections of one process = pool_size + max_overflow.
+database:
+  pool_size: 10
+  max_overflow: 20
 
 duplicates:
   # Candidate cutoff for rebuild_duplicates.py's KNN search -- cheap/loose, decides what's

@@ -56,6 +56,10 @@ Output is always UTF-8, so redirecting it to a file keeps non-Latin queries inta
 The query text is printed to your terminal and nowhere else. A `--csv` file contains it too: keep it out of the
 repository.
 
+Query text comes from the public site and is untrusted. Before printing or writing CSV the tool removes ANSI/OSC/CSI
+escape sequences and every control and bidirectional-control character (a tab or newline becomes a space), and a CSV
+cell that starts with `=`, `+`, `-` or `@` is prefixed with an apostrophe so a spreadsheet does not read it as a formula.
+
 ## Misses view
 
 Search sessions that ended without a save (epic meme-popularity, S6): the direct signal that a meme was hard to find.

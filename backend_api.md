@@ -35,6 +35,7 @@ The production backend is the same code started with `APP_STAGE=prod` (the `Dock
 - `GET /health` answers a fixed `{"detail": "Database unavailable"}` (503) on a database failure; on dev it still includes the exception text.
 - CORS allows only `cors.origins` (tracked setting, overridable by the env var `CORS__ORIGINS`), methods `GET` and `POST`, no credentials; localhost is not allowed.
 - No scheduler runs. At startup the backend refuses to start unless `APP_ENV` is set explicitly and the connected database's `current_setting('memes.environment')` equals `APP_ENV`.
+- Abuse bounds (settings `abuse.*`, `history.record_browse`, `popularity.impressions.max_rows_per_call`, `bug_reports.*`; all off or generous on dev): per-client token buckets (client = the address the server resolves from the trusted `X-Forwarded-For`; process-local, so the limit is multiplied by the worker count) answer `429` with `Retry-After: 60` on saves, not-found and bug reports; history and impression recording over its budget is skipped while the response is still served; `GET /api/images` caps `q` and facets with `422`; `POST /api/bug-reports` answers `413` (body) and `507` (directory full). See the endpoints below.
 - Image files are served only for names that are plain files directly inside `BASE_PATH` (on every stage): a name with a path separator, NUL, `..`, an absolute path, a symbolic link or a directory is a 404.
 
 ## Data Models
@@ -399,7 +400,9 @@ Accept a single log file (e.g. from the Android client's "Save logs" flow) and s
 
 **Error Responses**:
 - `422`: Unsupported file extension, empty file, or file exceeds 10 MB
-- `429`: Too many bug report requests from this client in the last minute
+- `413`: the request body is larger than `bug_reports.max_body_mb` (11 MB on prod; off on dev). Answered by the pure-ASGI `BodyLimitMiddleware` before the multipart parser runs: at once when `Content-Length` already exceeds the limit, otherwise as soon as the bytes received pass it
+- `429`: Too many bug report requests from this client in the last minute (`abuse.bug_reports_per_min`; 20 on dev, 5 on prod; `Retry-After: 60`)
+- `507`: the bug-reports directory is at its cap (`bug_reports.max_files` files or `bug_reports.max_total_mb` MB; no cap on dev, 200 and 200 on prod). The file is read in 64 KiB chunks and refused with `422` as soon as it passes 10 MB
 
 **Storage**: `{BASE_PATH}/bug_reports/` (or `BUG_REPORTS_PATH` override; created automatically on first request). Not served by the API.
 
@@ -424,6 +427,7 @@ Search for memes with optional query, facets, and pagination.
 - **Response**: `MemeSearchResponse`
 - **`searchId`** (optional string): the id of the `search_history` row this search wrote, for the client to pass on with a save (`POST /api/images/meme/{image_id}/saves?searchId=`) or a miss (`POST /api/history/{search_id}/not-found`), epic meme-popularity S6. Absent for the unfiltered browse feed (no `q`, no facets), when the history write failed, and when `popularity.search_outcomes.enabled` is false.
 - **Impressions**: every image in the returned page is recorded as a search impression in `meme_impressions` (epic meme-popularity, S1), "show more" pages included, but only when the request has a non-blank `q` or at least one facet: a listing with neither is the browse feed (Explore, the empty Search page) and is not recorded. Rank is the 1-based position within the page. Best effort: a failed write is logged and never changes the response; `popularity.impressions.enabled: false` switches it off. Needs the S1 migration (`meme_impressions`). Read the counts with `GET /api/images/meme/{image_id}/impressions`.
+- **Abuse bounds** (`abuse.*`, off on dev, set in `settings.prod.yaml`): on prod `q` longer than 512 characters, more than 10 facet values, or a facet value longer than 64 characters answer `422` before anything is queried. On prod the search history row is not written for the browse feed (`history.record_browse: false`), at most 50 impression rows are written per call (`popularity.impressions.max_rows_per_call`, 100 = no cap on dev), and history plus impression rows together draw on one per-client budget of `abuse.recording_per_min` rows a minute; over the budget the recording is skipped and the response is served unchanged (no `searchId` when the history row was skipped).
 - **Cache**: no-cache
 - **Example**: `GET /api/images?q=funny&limit=50`
 
@@ -623,7 +627,7 @@ succeeded. Needs the S2 migration (`meme_saves`).
 - **Response**: `204`, no body
 - **Idempotency**: none. Every call counts, repeat saves of the same meme included, so a client must not retry
   (a retry double counts). Clients treat the report as best effort: any failure is ignored and never fails the save.
-- **Errors**: `404` for an unknown or non-UUID `image_id`; nothing is inserted in that case
+- **Errors**: `404` for an unknown or non-UUID `image_id`; nothing is inserted in that case. `429` (`Retry-After: 60`) when the client exceeded `abuse.saves_per_min` (30 on prod, off on dev); nothing is inserted
 - **Cache**: no-cache
 - **Example**: `POST /api/images/meme/550e8400-e29b-41d4-a716-446655440000/saves`
 
@@ -1244,6 +1248,7 @@ The web's explicit miss for one search (epic meme-popularity, S6). Needs the S6 
   - `search_id`: the `searchId` returned by a search response
 - **Response**: `204`, no body, for any value (an unknown, pruned or malformed id is not an error). Best effort: the press
   is stored once per search (a repeat is a no-op); with `popularity.search_outcomes.enabled: false` nothing is stored
+- **Errors**: `429` (`Retry-After: 60`) when the client exceeded `abuse.not_found_per_min` (20 on prod, off on dev); nothing is stored
 - **Cache**: no-cache
 
 #### Get Search History

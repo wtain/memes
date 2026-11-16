@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
 
-from Storage.db import AsyncSessionLocal, get_async_db
+from Storage.db import AsyncSessionLocal, get_async_db, log_pool_bounds
 
 from Backend.app.error_handlers import validation_error_handler
 from Backend.app.api.diagnostics import router as diagnostics_router
@@ -19,6 +19,7 @@ from Backend.app.api.meme_from_text import router as meme_from_text_router
 from Backend.app.api.concepts import router as concepts_router
 from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.bug_reports import router as bug_reports_router
+from Backend.app.middleware import BodyLimitMiddleware, ClientContextMiddleware
 from Backend.app.prod_startup import verify_environment_marker
 from Backend.app.scheduler import start_scheduler, stop_scheduler
 from Backend.app.services.meme_from_text_pipeline import get_pipeline
@@ -103,6 +104,7 @@ async def lifespan(_app: FastAPI):
     validate_impression_settings()  # likewise for popularity.impressions.*
     validate_outcome_settings()  # and popularity.search_outcomes.*
     if is_prod():
+        log_pool_bounds()   # per process; the container runs several workers, so the database sees workers x this
         # A wrong DATABASE_URL (another environment's database) must stop the container; deliberately uncaught.
         await verify_environment_marker(AsyncSessionLocal)
     try:
@@ -144,6 +146,11 @@ app = FastAPI(
 )
 
 app.add_exception_handler(RequestValidationError, validation_error_handler)
+
+# Pure-ASGI, added before CORS so they sit inside it: the client address for the recording budget (abuse.py) and the body bound of
+# /api/bug-reports (a limit of bug_reports.max_body_mb: 0 switches it off, as on dev).
+app.add_middleware(BodyLimitMiddleware)
+app.add_middleware(ClientContextMiddleware)
 
 if is_prod():
     # Production hostnames only (settings cors.origins, which an env var such as CORS__ORIGINS can also set), no

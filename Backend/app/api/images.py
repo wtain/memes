@@ -18,6 +18,7 @@ from Storage.db import get_async_db, AsyncSessionLocal
 from Backend.app.repositories.duplicate_decisions_repository import DuplicateDecisionsRepository
 from Backend.app.repositories.image_repository import ImageRepository
 from repository.ocr_lemmas import OCRLemmasRepository
+from Backend.app.services.abuse import check_search_inputs, enforce
 from Backend.app.services.cache import image_cache_headers, no_cache_headers
 from Backend.app.services.image_service import ImageService
 from Backend.app.services.image_store import get_image_path, image_exists
@@ -130,6 +131,7 @@ async def get_images(
     record: bool = True,
     service: ImageService = Depends(get_image_service),
 ):
+    check_search_inputs(q, facets)     # abuse.max_q_chars / max_facets / max_facet_value_chars (422), off on dev
     response.headers.update(no_cache_headers())
     ua = request.headers.get("user-agent", "")
     return await service.search(
@@ -237,10 +239,12 @@ async def set_meme_popularity(
 
 @router.post("/meme/{image_id}/saves", status_code=204)
 async def record_meme_save(
+    request: Request,
     image_id: str,
     searchId: Optional[str] = Query(None, max_length=64),
     service: ImageService = Depends(get_image_service),
 ):
+    enforce("saves", request)          # abuse.saves_per_min: 429 over the limit, off on dev
     await service.record_save(image_id, searchId)
     return Response(status_code=204, headers=no_cache_headers())
 

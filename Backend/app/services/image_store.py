@@ -75,6 +75,31 @@ def image_exists(filename: str) -> bool:
         return False
 
 
+def bug_report_usage() -> tuple[int, int]:
+    """(number of regular files, their total size in bytes) in the bug-reports directory; (0, 0) when it does not exist yet."""
+    if not _BUG_REPORTS_DIR.is_dir():
+        return 0, 0
+    count = total = 0
+    with os.scandir(_BUG_REPORTS_DIR) as entries:
+        for entry in entries:
+            if entry.is_file(follow_symlinks=False):
+                count += 1
+                total += entry.stat(follow_symlinks=False).st_size
+    return count, total
+
+
+def bug_report_dir_has_room(incoming_bytes: int, max_files: int, max_total_bytes: int) -> bool:
+    """False when storing one more file of `incoming_bytes` would pass `max_files` or `max_total_bytes` (0 = no cap)."""
+    if not max_files and not max_total_bytes:
+        return True
+    count, total = bug_report_usage()
+    if max_files and count + 1 > max_files:
+        return False
+    if max_total_bytes and total + incoming_bytes > max_total_bytes:
+        return False
+    return True
+
+
 def save_bug_report(filename: str, data: bytes) -> None:
     target = _contained(_BUG_REPORTS_DIR, filename)
     _BUG_REPORTS_DIR.mkdir(parents=True, exist_ok=True)

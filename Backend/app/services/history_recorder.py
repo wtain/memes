@@ -3,13 +3,16 @@ import logging
 import uuid
 
 from Backend.app.repositories.history_repository import HistoryRepository
+from Backend.app.services.abuse import recording_allowed
 from Storage.db import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
 
 async def record_history(**fields) -> uuid.UUID | None:
-    """Returns the id of the stored row, or None when the write failed."""
+    """Returns the id of the stored row, or None when the write failed or the client's recording budget is spent."""
+    if not recording_allowed(1):
+        return None   # over the per-client budget (abuse.recording_per_min): skipped, the request is still served
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():

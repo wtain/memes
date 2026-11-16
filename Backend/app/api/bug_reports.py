@@ -6,14 +6,15 @@ from fastapi import File, HTTPException, Request, UploadFile
 from Backend.app.stage_policy import make_router
 from pydantic import BaseModel
 
-from Backend.app.services.image_store import save_bug_report
-from Backend.app.services.rate_limit import bug_report_limiter
+from Backend.app.services.abuse import bug_report_dir_caps, enforce
+from Backend.app.services.image_store import bug_report_dir_has_room, save_bug_report
 
 router = make_router(prefix="/bug-reports", tags=["bug-reports"])
 
 ALLOWED_EXTENSIONS = {".txt", ".log"}
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+READ_CHUNK = 64 * 1024
 
 
 class BugReportResponse(BaseModel):
@@ -24,9 +25,10 @@ class BugReportResponse(BaseModel):
 
 @router.post("", response_model=BugReportResponse)
 async def upload_bug_report(request: Request, file: UploadFile = File(...)):
-    client_ip = request.client.host if request.client else "unknown"
-    if not await bug_report_limiter.is_allowed(client_ip):
-        raise HTTPException(status_code=429, detail="Too many bug report requests — try again in a minute")
+    enforce("bug_reports", request)   # abuse.bug_reports_per_min: 429 over the limit
+    max_files, max_total_bytes = bug_report_dir_caps()
+    if not bug_report_dir_has_room(0, max_files, max_total_bytes):
+        raise HTTPException(status_code=507, detail="Bug report storage is full")
 
     original_filename = file.filename or "unknown"
 
@@ -34,13 +36,21 @@ async def upload_bug_report(request: Request, file: UploadFile = File(...)):
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=422, detail=f"Unsupported file extension: {ext}")
 
-    data = await file.read()
+    # Read in chunks and stop one byte past the cap: an oversize upload is never held whole in memory.
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await file.read(READ_CHUNK):
+        size += len(chunk)
+        if size > MAX_FILE_SIZE:
+            raise HTTPException(status_code=422, detail=f"File too large (max {MAX_FILE_SIZE} bytes)")
+        chunks.append(chunk)
+    data = b"".join(chunks)
 
     if len(data) == 0:
         raise HTTPException(status_code=422, detail="Empty file")
 
-    if len(data) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=422, detail=f"File too large: {len(data)} bytes (max {MAX_FILE_SIZE})")
+    if not bug_report_dir_has_room(len(data), max_files, max_total_bytes):
+        raise HTTPException(status_code=507, detail="Bug report storage is full")
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     saved_as = f"{timestamp}_{uuid.uuid4()}{ext}"

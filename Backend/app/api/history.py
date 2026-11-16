@@ -4,13 +4,14 @@ import uuid
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import Depends, Query, Response
+from fastapi import Depends, Query, Request, Response
 from Backend.app.stage_policy import make_router
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Storage.db import get_async_db
 from Backend.app.repositories.history_repository import HistoryRepository
+from Backend.app.services.abuse import enforce
 from Backend.app.services.cache import no_cache_headers
 from Backend.app.services.outcome_recorder import record_not_found
 
@@ -106,7 +107,9 @@ async def get_history(
 
 
 @router.post("/{search_id}/not-found", status_code=204)
-async def record_not_found_press(search_id: str, db: AsyncSession = Depends(get_async_db)):
-    """The web's "I didn't find it" press for one search (epic meme-popularity, S6). Best effort, always 204."""
+async def record_not_found_press(request: Request, search_id: str, db: AsyncSession = Depends(get_async_db)):
+    """The web's "I didn't find it" press for one search (epic meme-popularity, S6). Best effort, 204; 429 over
+    abuse.not_found_per_min (off on dev)."""
+    enforce("not_found", request)
     await record_not_found(db, search_id)
     return Response(status_code=204, headers=no_cache_headers())

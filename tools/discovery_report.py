@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import csv
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -100,7 +101,40 @@ def _ratio(value: float | None) -> str:
     return "inf" if value == float("inf") else f"{value:.1f}"
 
 
+# Query text comes from the public site (pulled into dev by the data sync) and is untrusted: a stranger can store terminal escape
+# sequences or spreadsheet formulas in it. It is cleaned before it is printed and before it is written to CSV (P5a-8).
+_ANSI = re.compile(
+    r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?"        # OSC: ESC ] ... BEL or ESC \ (an unterminated one is dropped up to the next ESC/BEL)
+    r"|\x1b[PX^_][^\x1b]*(?:\x1b\\)?"            # DCS, SOS, PM, APC strings
+    r"|\x1b\[[0-?]*[ -/]*[@-~]"                  # CSI ... final byte
+    r"|\x1b[ -/]+[0-~]|\x1b[@-Z\\-_]")           # nF and two-character escapes
+_WHITESPACE_CONTROL = re.compile(r"[\t\r\n]")
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f‎‏  ‪-‮⁦-⁩]")
+_FORMULA_START = ("=", "+", "-", "@")
+
+
+def sanitize_text(value: str) -> str:
+    """Remove ANSI/OSC/CSI escape sequences and every control or bidi-control character; a tab, newline or CR becomes a space."""
+    value = _ANSI.sub("", value)
+    value = _WHITESPACE_CONTROL.sub(" ", value)
+    return _CONTROL.sub("", value)
+
+
+def csv_safe(cell: str) -> str:
+    """A cell that a spreadsheet would read as a formula (starts with = + - @) is prefixed with an apostrophe."""
+    return "'" + cell if cell.startswith(_FORMULA_START) else cell
+
+
+def _clean(table: tuple[list[str], list[list[str]]]) -> tuple[list[str], list[list[str]]]:
+    headers, rows = table
+    return headers, [[sanitize_text(cell) for cell in row] for row in rows]
+
+
 def meme_table(rows: list[MemeRow], available: bool) -> tuple[list[str], list[list[str]]]:
+    return _clean(_meme_table(rows))
+
+
+def _meme_table(rows: list[MemeRow]) -> tuple[list[str], list[list[str]]]:
     def count(value) -> str:
         return "n/a" if value is None else str(value)
 
@@ -112,16 +146,16 @@ def meme_table(rows: list[MemeRow], available: bool) -> tuple[list[str], list[li
 
 
 def query_table(rows: list[QueryRow]) -> tuple[list[str], list[list[str]]]:
-    return QUERY_HEADERS, [[
+    return _clean((QUERY_HEADERS, [[
         row.query or "(no text)", row.tags, row.kind, str(row.times), _stamp(row.first_at), _stamp(row.last_at),
         str(row.min_results), f"{row.avg_results:.1f}", str(row.web), str(row.android), str(row.degraded),
-        row.fallbacks] for row in rows]
+        row.fallbacks] for row in rows]))
 
 
 def miss_table(rows: list[MissRow]) -> tuple[list[str], list[list[str]]]:
-    return MISS_HEADERS, [[
+    return _clean((MISS_HEADERS, [[
         row.query or "(no text)", row.tags, row.kind, str(row.times), str(row.explicit), f"{row.searches:.1f}",
-        _stamp(row.first_at), _stamp(row.last_at), str(row.web), str(row.android)] for row in rows]
+        _stamp(row.first_at), _stamp(row.last_at), str(row.web), str(row.android)] for row in rows]))
 
 
 def format_table(headers: list[str], rows: list[list[str]]) -> str:
@@ -137,7 +171,7 @@ def write_csv(path, headers: list[str], rows: list[list[str]]) -> None:
     with open(path, "w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(headers)
-        writer.writerows(rows)
+        writer.writerows([csv_safe(sanitize_text(cell)) for cell in row] for row in rows)
 
 
 async def _run_session(session, args, url: str | None = None) -> int:

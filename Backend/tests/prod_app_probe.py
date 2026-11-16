@@ -134,6 +134,15 @@ app.dependency_overrides.clear()
 
 out["capabilities"] = call("GET", "/api/diagnostics/capabilities")
 
+# abuse bounds through the full prod app (P5a-T6): the refusals happen before any database access
+out["abuse"] = {
+    "oversize_q": call("GET", "/api/images", params={"q": "a" * 513}),
+    "many_facets": call("GET", "/api/images", params={"facets": ",".join(f"topic:v{i}" for i in range(11))}),
+    "long_facet": call("GET", "/api/images", params={"facets": "topic:" + "x" * 70}),
+    "declared_body": call("POST", "/api/bug-reports", content=b"x" * (11 * 1024 * 1024 + 1),
+                          headers={"Content-Type": "multipart/form-data; boundary=zz"}),
+}
+
 
 # image file containment through the full prod app: PROBE_NAMES maps an image id to the file name the (fake)
 # database returns for it; an id that is not listed is returned as the file name itself (the id comes from the URL)

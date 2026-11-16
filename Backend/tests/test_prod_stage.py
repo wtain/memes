@@ -160,6 +160,13 @@ def test_capabilities_payload_on_prod(probe):
     }
 
 
+def test_abuse_bounds_are_active_in_the_full_prod_app(probe):
+    _, out = probe
+    for name in ("oversize_q", "many_facets", "long_facet"):
+        assert out["abuse"][name]["status"] == 422, name
+    assert out["abuse"]["declared_body"]["status"] == 413
+
+
 def test_overlay_switches_scheduler_and_parser_off(probe):
     _, out = probe
     assert out["settings"]["stage"] == "prod"
