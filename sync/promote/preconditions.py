@@ -187,6 +187,45 @@ def release_prod_lock(prod: Any) -> None:
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------
+# first seed: indexes the owner rebuilds (design "First seed and index state", H7)
+
+REBUILD_ID = "rebuild_indexes"
+_REBUILD_METHODS = ("hnsw", "gin")
+_PROD_INDEXES_SQL = "select indexname from pg_indexes where schemaname = current_schema()"
+
+
+def rebuildable_indexes() -> dict:
+    """`{table: [index names]}` of the HNSW and GIN indexes `Storage.models` declares on class D tables: the indexes a first seed
+    runs without and the owner builds afterwards (the sync role cannot do DDL, decision 8)."""
+    from Storage.models import Base
+
+    out: dict = {}
+    for table in registry.names(Klass.D):
+        names = sorted(ix.name for ix in Base.metadata.tables[table].indexes
+                       if str(ix.dialect_options["postgresql"]["using"] or "").lower() in _REBUILD_METHODS)
+        if names:
+            out[table] = names
+    return out
+
+
+def index_state(prod: Any, expected: dict | None = None) -> list:
+    """Informational (always ok), read from the prod catalog: one `rebuild_indexes:<table>` entry (detail `missing=<n>`) per table
+    that lacks an HNSW or GIN index of the model, or a single `rebuild_indexes` entry (`all_present`). The report of a first seed
+    shows it so the owner knows what to rebuild before setting `memes.state = serving`."""
+    expected = rebuildable_indexes() if expected is None else expected
+    have = {str(r[0]) for r in prod.query(_PROD_INDEXES_SQL)}
+    out = [result(f"{REBUILD_ID}:{t}", True, f"missing={len([n for n in names if n not in have])}")
+           for t, names in sorted(expected.items()) if any(n not in have for n in names)]
+    return out or [result(REBUILD_ID, True, "all_present")]
+
+
+def missing_index_tables(pre: list) -> list:
+    """The tables a run's `rebuild_indexes:<table>` entries name."""
+    prefix = REBUILD_ID + ":"
+    return [p["id"][len(prefix):] for p in pre if p["id"].startswith(prefix)]
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
 # configuration
 
 def required_tables_config(required: list) -> dict:

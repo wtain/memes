@@ -57,6 +57,7 @@ LOCK_TIMEOUT = "30s"
 STATEMENT_TIMEOUT = "30min"
 DEFERRED = "deferred_changed_since_plan"
 MISMATCH = "digest_mismatch"
+RECORD_FAILED = "record_failed_after_commit"  # committed on prod, committed.json could not be written (exit 1)
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _NAME = re.compile(r"^[a-z_][a-z0-9_]*$")
 
@@ -357,11 +358,14 @@ def apply_batch(ctx: Context, n: int, ids: list, outcome: ApplyOutcome) -> list:
             if not committing:
                 _rollback(prod)
             raise
-        outcome.inflight = []
         digests = {i: now[i] for i in live}
         renamed = [{"id": i, "old_filename": old_names[i], "new_filename": rows[i].filename}
                    for i in changed if i in old_names and old_names[i] != rows[i].filename]
-        ctx.log.append(n, live, digests, renamed, ctx.now().strftime("%Y-%m-%dT%H:%M:%SZ"))
+        try:
+            ctx.log.append(n, live, digests, renamed, ctx.now().strftime("%Y-%m-%dT%H:%M:%SZ"))
+        except Exception:  # the batch IS on prod; only its record is missing (the next run sees these images as unchanged)
+            raise ApplyError(RECORD_FAILED) from None
+        outcome.inflight = []
         return live
     finally:
         with contextlib.suppress(Exception):

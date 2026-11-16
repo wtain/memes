@@ -250,6 +250,8 @@ def run_preconditions(settings: SyncSettings, args: argparse.Namespace, dev: Any
     pre.append(pre_mod.model_pair_change(dev, prod))
     pre.append(pre_mod.running_batches(dev, args.ignore_running_batches))
     pre.append(pre_mod.try_prod_lock(prod))
+    if args.first_seed:  # informational: which indexes the owner rebuilds before flipping memes.state to serving
+        pre += pre_mod.index_state(prod)
     return pre
 
 
@@ -386,6 +388,7 @@ def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre
         mark_dry(folder)
         _emit(doc, folder, args, settings, out)
         _print_notes(p, args, out)
+        _print_seed_steps(args, settings, pre, out)
         return EXIT_OK
 
     doc = report.Document(env=env, run_id=run_id, tool=TOOL, dry=False, sections=[p.section], handshake=hs, preconditions=pre)
@@ -416,6 +419,7 @@ def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre
                           result=result_of(p, outcome))
     _emit(doc, folder, args, settings, out)
     _print_result(p, outcome, out)
+    _print_seed_steps(args, settings, pre, out)
     if not outcome.ok:
         raise ApplyFailed(f"apply stopped: {outcome.failure}; {outcome.batches} batch(es) committed by this run"
                           + (f", {len(outcome.failed)} image(s) of the failed batch rolled back" if outcome.failed else "")
@@ -461,6 +465,19 @@ def _print_result(p: plan_mod.Plan, outcome: apply_mod.ApplyOutcome, out) -> Non
     if outcome.verify is not None:
         for line in verify_mod.summary(outcome.verify):
             out.write(line + "\n")
+
+
+def _print_seed_steps(args: argparse.Namespace, settings: SyncSettings, pre: list, out) -> None:
+    """A first seed never flips `memes.state` (the sync role cannot, decision 8): say what the owner does next."""
+    if not args.first_seed:
+        return
+    tables = pre_mod.missing_index_tables(pre)
+    if tables:
+        out.write("owner step: rebuild the HNSW and GIN indexes of " + ", ".join(tables) + "\n")
+    else:
+        out.write("owner step: the HNSW and GIN indexes are all present\n")
+    out.write(f"owner step, last: ALTER DATABASE {settings.get('prod.database')} SET memes.state = 'serving' "
+              "(the promote never changes it; later promotes need serving)\n")
 
 
 def _print_notes(p: plan_mod.Plan, args: argparse.Namespace, out) -> None:
