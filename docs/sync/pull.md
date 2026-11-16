@@ -30,7 +30,10 @@ rating deleted or overwritten on dev is first appended to `ratings_archive.jsonl
 
 `empty_source` (prod has no class P rows but dev does; `--allow-empty-source`), `shrink:<table>` (a count below the previous pull's, or a drop over 50 % in the two tables that can lose rows by
 "forget"; `--allow-shrink TABLE`), `growth:<table>` and `row_ceiling:<table>` (growth beyond `sync.pull.max_growth_factor` and `min_growth_rows`, or over `sync.pull.max_rows_per_pull`; `--allow-growth`).
-A lost `pull_state.json` makes the next pull a first pull.
+`dev_only_discarded:<table>` (the mirror deletes dev-only rows: refused over `sync.pull.max_dev_discard_rows` rows or `sync.pull.max_dev_discard_ratio` of the table's dev rows, and on
+a first pull for any row; `--allow-dev-discard`; the per-table counts are in the report and in the confirmation prompt; the plan hash covers only whether it is tripped, never the count).
+A lost `pull_state.json` makes the next pull a first pull. On resume of the bug-report step a ledger entry no longer authorises a delete on prod by itself: the dev file must still exist with the
+listed sha256, otherwise it is pulled again first.
 
 ## Consumers of pulled text must sanitise (rule)
 

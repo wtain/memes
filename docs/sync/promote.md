@@ -22,16 +22,29 @@ X table, never deletes an image row, and never deletes a global-set member. The 
 6. **Verify phase:** digests of the committed images are recomputed on both sides and compared with what the apply promised (exit 4 on a difference); `left_behind`, images dev changed since, and "prod drift" are informational.
    `--verify-only` re-runs just this phase.
 
+## Prod grants of the writer
+
+The prod writer role holds `SELECT, INSERT, UPDATE` on every class D table and `DELETE` only on the tables this command really deletes from: the derived tables
+of an image that is replaced (registry `TableSync.delete_ok`: class D, mode `replace_per_image`). It has no `DELETE` on `images`, on the upsert tables or on the global sets
+(`concepts*`, `popularity_absorptions`); the grant list in `deploy/prod/sql/roles.<env>.sql`, `sync.release verify-grants` and the role tests all derive from that one rule.
+
 ## Failure and resume
 
 A batch is all-or-nothing. After an interruption run the same command; committed batches stay and the next plan continues from the digests. No prod write happens outside a transaction that
-contains the image's `images` row, except `setval`, `ANALYZE` and the per-loser absorption transactions. Database errors are reduced to SQLSTATE, constraint and table (never row content).
+contains the image's `images` row, except `setval`, `ANALYZE` and the per-loser absorption transactions.
+The one window is between the prod COMMIT and the append to `committed.json`: before the COMMIT the batch's ids and digests are written to `inflight.json`; if the
+process dies or the append fails, the report names those images as `committed_unrecorded` (never as rolled back), and `--verify-only` and the verify phase check them
+([troubleshooting.md](troubleshooting.md)). Database errors are reduced to SQLSTATE, constraint and table (never row content).
 
 ## Things to know
 
 - A **changed** image is overwritten whole: a removed tag, a cleared note or a removed remark leaves prod with it. Popularity, every stale flag and description feedback are part of the digest.
 - An image **flagged, cut, rejected or deleted on dev after promotion stays on prod** (row and file), reported as left behind. A renamed image leaves its old file behind. Removals are deferred (decision 27).
-- `--limit-images N` skips the global sets. `--only TABLE` adds parents.
+- `--limit-images N` skips the global sets. `--only TABLE` adds parents; while new images are planned it must include the required tables, otherwise the guard
+  `only_excludes_required_tables` refuses (exit 3, no lift).
+- `--apply --yes` needs `--plan-hash` (usage error otherwise). `--batch-size` and `--max-report-age` are not part of the plan hash: the apply command printed by the dry run
+  carries them, and changing them before the apply only changes the transaction size and the allowed age of the files report.
 - No flag lifts: zero images, id overlap, any handshake step, mixed embedding models among the promoted rows.
-- The first seed (`--first-seed`) is the same path, requires `memes.state = seeding`, and never flips the state; see [first-seed-and-routine.md](first-seed-and-routine.md). The report of a first seed is meant to
-  name the tables whose HNSW and GIN indexes are missing so the owner knows what to rebuild (this addition was still being finished when this page was written).
+- The first seed (`--first-seed`) is the same path, requires `memes.state = seeding`, and never flips the state; see [first-seed-and-routine.md](first-seed-and-routine.md). The report of a first seed names the tables whose HNSW and GIN
+  indexes are missing as informational preconditions `rebuild_indexes:<table>` (detail `missing=<n>`), or a single `rebuild_indexes` entry `all_present`, and the console prints the owner steps.
+  The promote never changes `memes.state`.

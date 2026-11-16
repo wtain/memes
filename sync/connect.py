@@ -133,7 +133,12 @@ def _libpq(url: str) -> str:
     return re.sub(r"^postgresql\+\w+://", "postgresql://", url)
 
 
+READ_ONLY_OPTIONS = "-c default_transaction_read_only=on"
+
+
 def _open(connector: Callable[..., Any], read_only: bool, *args: Any, **kwargs: Any):
+    if read_only:  # review finding L6: read-only from the first statement of the session (a startup option), not only after a later SET
+        kwargs = {**kwargs, "options": READ_ONLY_OPTIONS}
     with guard_db():
         raw = connector(*args, **kwargs)
         raw.autocommit = True
@@ -320,7 +325,10 @@ def evaluate_role(facts: dict, role: str, expected_user: str) -> list[str]:
             problems.append(f"write_on_class_p_or_x={bad_write}")
         if count(p_tables + x_tables, ("SELECT",), True):
             problems.append(f"select_on_class_p_or_x={count(p_tables + x_tables, ('SELECT',), True)}")
-        lacking = count(d_tables, ("SELECT", "INSERT", "UPDATE", "DELETE"), False)
+        lacking = count(d_tables, ("SELECT", "INSERT", "UPDATE"), False) + count(registry.prod_delete_set("sync_writer"), ("DELETE",), False)
+        extra_delete = count([t for t in d_tables if t not in registry.prod_delete_set("sync_writer")], ("DELETE",), True)
+        if extra_delete:
+            problems.append(f"delete_on_class_d_without_replace={extra_delete}")
         if lacking:
             problems.append(f"missing_write_on_class_d={lacking}")
         ratings = cp.get("meme_text_ratings", {})
@@ -358,7 +366,7 @@ STEP_TOOLS = {  # interfaces.md e, last column; R and D run what their children 
 }
 TOOLS = "PFLVRD"
 _DEV_KIND = {"L": DEV_RW}  # every other tool reads dev through the read-only URL
-_PROD_KIND = {"P": PROD_WRITER, "L": PROD_READER, "V": PROD_WRITER_RO}  # R and D take the writer and a reader
+_PROD_KIND = {"P": PROD_WRITER, "L": PROD_READER, "V": PROD_WRITER_RO, "D": PROD_WRITER_RO}  # R takes the writer and a reader; doctor reads only
 _PROD_KINDS_ALLOWED = {"R": (PROD_WRITER, PROD_WRITER_RO), "D": (PROD_WRITER, PROD_WRITER_RO)}
 _IDENTITY_SQL = ("select inet_server_addr()::text, inet_server_port(), pg_postmaster_start_time()::text, "
                  "(select oid::bigint from pg_database where datname = current_database())")

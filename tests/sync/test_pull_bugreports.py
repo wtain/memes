@@ -247,6 +247,44 @@ def test_crash_between_ledger_and_prod_delete_deletes_without_a_second_download(
     assert world.dev_files() == files and world.prod_names() == []
 
 
+def _killed_before_delete(world, n):
+    files = seed(world, n)
+
+    def kill(line):
+        if line.startswith("delete-verified"):
+            raise Killed()
+
+    world.before_verb = kill
+    with pytest.raises(Killed):
+        world.run()
+    world.before_verb = None
+    assert len(world.ledger()) == n and len(world.prod_names()) == n
+    return files
+
+
+def test_a_ledger_entry_without_its_dev_file_pulls_it_again_before_anything_is_deleted_on_prod(world):
+    """Review finding L4: the ledger says "received" but the dev file was removed before the resume."""
+    files = _killed_before_delete(world, 2)
+    sorted(world.dev.iterdir())[0].unlink()
+    world.transport.calls.clear()
+    assert world.run() == {"status": "done", "pulled": 1, "deleted_on_prod": 2, "failed": 0}
+    verbs = [c.split()[0] for c in world.transport.calls]
+    assert verbs.index("pull-tar") < verbs.index("delete-verified")
+    assert world.dev_files() == files and world.prod_names() == []
+
+
+def test_a_ledger_entry_whose_dev_file_changed_is_verified_again_before_prod_deletes_it(world):
+    files = _killed_before_delete(world, 2)
+    sorted(world.dev.iterdir())[0].write_bytes(b"tampered")
+    world.transport.calls.clear()
+    result = world.run()
+    verbs = [c.split()[0] for c in world.transport.calls]
+    assert "pull-tar" in verbs and verbs.index("pull-tar") < verbs.index("delete-verified")  # the changed file was fetched again first
+    # the verified copy was published next to the tampered file (never clobbering it) before prod deleted its own
+    assert result["status"] == "done" and world.prod_names() == []
+    assert sorted(world.dev_files().values())[-1:] != [] and set(files.values()) <= set(world.dev_files().values())
+
+
 def test_lost_ledger_costs_only_a_redownload(world):
     files = seed(world, 1)
     world.before_verb = lambda line: (_ for _ in ()).throw(Killed()) if line.startswith("delete-verified") else None

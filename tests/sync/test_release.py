@@ -73,6 +73,12 @@ def test_mutation_a_public_style_write_by_the_app_on_a_class_d_table_is_reported
     assert [m.kind for m in found] == ["extra"] and found[0].object == class_d
 
 
+def test_mutation_a_delete_grant_on_images_for_the_writer_is_reported():
+    names = roles.names_for("general")
+    act = replace(actual_for("general"), table=actual_for("general").table | {(names.sync_w, "images", "DELETE")})
+    assert release.diff("general", act) == [release.Mismatch("extra", names.sync_w, "images", "DELETE")]
+
+
 def test_mutation_an_extra_table_is_reported_as_unclassified():
     found = release.diff("it", actual_for("it", extra_tables=("shiny_new_table",)))
     assert found == [release.Mismatch("unclassified table", "-", "shiny_new_table", "-")]

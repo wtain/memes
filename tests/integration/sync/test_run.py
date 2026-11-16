@@ -109,7 +109,15 @@ class Rig:
 
         return cm()
 
-    def drive(self, *argv, run_id, answer=ANSWER, runners=None, ask=None):
+    def drive(self, *argv, run_id, answer=ANSWER, runners=None, ask=None, bind=True):
+        if bind and "--apply" in argv and "--yes" in argv and "--plan-hash" not in argv:
+            # `--apply --yes` needs the dry run's hash (review finding M1): bind it from a dry run of the same command, as a person would
+            import secrets
+
+            dry = self.drive(*[a for a in argv if a not in ("--apply", "--yes")], run_id=f"20261113T110000Z-{secrets.token_hex(4)}",
+                             runners=runners, bind=False)
+            plan_hash = json.loads((dry.folder / "report.json").read_text())["plan_hash"] if dry.code == 0 else "0" * 64
+            argv = (*argv, "--plan-hash", plan_hash)
         out, err = io.StringIO(), io.StringIO()
         args = cli.build_parser().parse_args(["--env", "general", *argv, "--run-id", run_id])
         self.asked = []

@@ -147,7 +147,8 @@ def test_ctrl_c_inside_a_batch_rolls_that_batch_back_and_is_exit_one_with_the_co
 def test_a_crash_between_the_prod_commit_and_committed_json_is_repaired_by_running_again(world, command, tmp_path, dev_only, monkeypatch):
     """The documented window: the batch is committed on prod, the process dies before it is written to committed.json. The run is
     reported failed, the next run sees the images as unchanged (digests equal) and prod equals dev. What stays missing is the record:
-    committed.json of that run never lists those ids (verify-only does not cover them); reported to the owner as a residual window."""
+    committed.json of that run never lists those ids; since M3 they are in `inflight.json` (written before the commit), reported as
+    committed_unrecorded and covered by the verify and by --verify-only."""
     dev_only(7)
     real = apply_mod.CommittedLog.append
 
@@ -159,14 +160,45 @@ def test_a_crash_between_the_prod_commit_and_committed_json_is_repaired_by_runni
     monkeypatch.setattr(apply_mod.CommittedLog, "append", append)
     code, out, err, folder = command("--apply", "--yes", "--batch-size", "3", run_id=rid(5))
     assert code == 1 and "record_failed_after_commit" in err and SENTINEL not in out + err
-    assert report(folder)["result"]["data"]["images"]["failed"]["ids"] == [uid(4), uid(5), uid(6)]  # named, so the owner knows which
+    entry = report(folder)["result"]["data"]["images"]
+    # review finding M3: the batch IS on prod, so it is never "failed / rolled back"; it is named as committed but not recorded
+    assert "ids" not in entry.get("failed", {}) or entry["failed"]["ids"] == []
+    assert entry["committed_unrecorded"]["ids"] == [uid(4), uid(5), uid(6)]
+    assert "COMMITTED BUT NOT RECORDED" in err and "rolled back" not in err
     assert world.prod_side.scalar("select count(*) from images") == 6  # batch 2 IS on prod
-    assert [b["n"] for b in committed(folder)["batches"]] == [1]  # ... but not in the record
+    assert [b["n"] for b in committed(folder)["batches"]] == [1]  # ... but not in committed.json
+    assert json.loads((folder / "inflight.json").read_text())["ids"] == [uid(4), uid(5), uid(6)]  # the pre-commit intent record names them
+    assert "verify" in report(folder)["result"] and report(folder)["result"]["verify"]["images"]["verify"]["checked"] == 6  # and the verify covered them
+    code, out2, err2, _ = command("--verify-only", run_id=rid(9))
+    assert code == 0 and "6 image(s)" in out2, (out2, err2)  # --verify-only includes the unrecorded batch
     monkeypatch.setattr(apply_mod.CommittedLog, "append", real)
     code, out, err, folder = command("--apply", "--yes", "--batch-size", "3", run_id=rid(6))
     assert code == 0, (out, err)
     assert same_as_dev(world)
     assert [i for b in committed(folder)["batches"] for i in b["ids"]] == [uid(7)]  # only the image that was really missing
+
+
+def test_ctrl_c_between_the_prod_commit_and_the_record_is_committed_unrecorded_and_the_same_run_id_adopts_it(world, command, tmp_path,
+                                                                                                              dev_only, monkeypatch):
+    dev_only(7)
+    real = apply_mod.CommittedLog.append
+
+    def append(self, n, ids, digests_, renamed, at):
+        if n == 2:
+            raise KeyboardInterrupt
+        return real(self, n, ids, digests_, renamed, at)
+
+    monkeypatch.setattr(apply_mod.CommittedLog, "append", append)
+    code, out, err, folder = command("--apply", "--yes", "--batch-size", "3", run_id=rid(7))
+    assert code == 1 and "COMMITTED BUT NOT RECORDED" in err
+    entry = report(folder)["result"]["data"]["images"]
+    assert entry["committed_unrecorded"]["ids"] == [uid(4), uid(5), uid(6)] and not entry.get("failed", {}).get("ids")
+    assert world.prod_side.scalar("select count(*) from images") == 6 and (folder / "inflight.json").is_file()
+    monkeypatch.setattr(apply_mod.CommittedLog, "append", real)
+    code, out, err, folder = command("--apply", "--yes", "--batch-size", "3", run_id=rid(7))  # the same run id resumes
+    assert code == 0, (out, err) and same_as_dev(world)
+    assert not (folder / "inflight.json").exists()
+    assert sorted(i for b in committed(folder)["batches"] for i in b["ids"]) == [uid(n) for n in range(1, 8)]
 
 
 def test_a_dropped_connection_mid_batch_rolls_back_on_the_server_and_a_fresh_session_resumes(world, tmp_path, dev_only, monkeypatch):

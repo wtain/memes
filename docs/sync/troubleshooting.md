@@ -56,8 +56,13 @@ The report lists every guard with value, limit, tripped or not, and the lifting 
 | `row_regression:<table>`, `coverage_regression:<table>` | dev has fewer rows or lower coverage than prod for the same images (a half-rebuilt dev) | `--allow-shrink TABLE`, after finding out why |
 | `empty_manifest`, `manifest_below_half_of_prod`, `left_out_tripwire` | files: nothing to send, fewer than half of prod's regular files, or over 0.5 % of promotable images left out for name or file problems | fix dev data; no flag |
 | `gate_replace_cap`, `prod_anomaly_blocking` | files: too many replacements today for the gate's cap; a non-regular entry on prod | edit `/etc/memes/gate.conf` on the VPS for the day; clean the anomaly on the VPS |
+| `only_excludes_required_tables` | promote: `--only` leaves out a `sync.promote.required_tables` table (`embeddings`, `ocr_texts`) while the plan adds new images, so they would reach prod without it | name the required tables in `--only`, or drop `--only`; no lift flag |
+| `dev_only_discarded:<table>` | pull: the mirror would delete dev-only rows of a class P table, more than `sync.pull.max_dev_discard_rows` (1000) or `sync.pull.max_dev_discard_ratio` (0.25) of the table's dev rows, or any on a first pull (no `pull_state.json`) | `--allow-dev-discard`, after reading the counts in the report (they are printed in the confirmation prompt too) |
 | `empty_source` | pull: prod has no class P rows while dev does | `--allow-empty-source` |
 | `shrink:<table>`, `growth:<table>`, `row_ceiling:<table>` | pull: a class P table shrank, grew past the factor, or passed the row ceiling since the last pull | `--allow-shrink TABLE`, `--allow-growth`; growth can be an abuse flood: look at prod first |
+
+Exit 2 (usage): `--apply --yes` without `--plan-hash` on `sync.promote`, `sync.files promote`, `sync.pull` and `sync.run`: `--yes` skips only the typed
+confirmation, so give the hash of the dry run (the printed apply command has it).
 
 Also exit 3: `--plan-hash` differs (the world changed since the dry run), and a wrong typed confirmation.
 
@@ -76,6 +81,14 @@ Run the same command again.
   harmless.
 - **Data:** committed image batches stay (listed in `committed.json` in the run folder); an uncommitted batch was rolled back. A failed
   batch stops the run with exit 1 and a count of committed batches.
+- **Data, `committed_unrecorded`:** exit 1 with "COMMITTED BUT NOT RECORDED" means the batch is on prod, or may be (the process was killed, or
+  `committed.json` could not be written, after or during the prod COMMIT). Those images are listed under `committed_unrecorded` in the report, never under
+  `failed`, and are not rolled back. Before every prod COMMIT the apply writes `inflight.json` (ids and recorded digests of the batch) into the run folder;
+  it is removed once `committed.json` holds the batch. While it exists, `--verify-only` and the verify at the end of a run include that batch, so a
+  difference shows up as exit 4 (an image that never reached prod is `image_missing`). Running the same command with the **same `--run-id`** adopts
+  the batch into `committed.json` after reading prod (digests equal) or drops the record (not committed). A new run id leaves the old record in its own folder;
+  `--verify-only` still finds it (it scans run folders newest first). The plain re-run is safe either way: the next plan sees committed images as unchanged.
+  A resume with different `--only` tables than the first run is refused (`committed_json_tables_differ`).
 - **Pull:** one dev transaction, so a failure leaves dev unchanged; a lock timeout on dev (`lock_timeout` 10 s, a dev writer holds a class P
   table) is exit 1 "retry". `pull_state.json` is written after the commit and again after the bug-report step.
 - **`sync.run`:** stops at the first failing step, prints the completed and not-run steps; run again.

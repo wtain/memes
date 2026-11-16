@@ -246,6 +246,19 @@ def is_dry(folder: Path) -> bool:
     return (Path(folder) / DRY_MARKER).exists()
 
 
+def replace_with_retry(tmp: Path | str, path: Path | str) -> None:
+    """`os.replace` that retries on Windows: a virus scanner or indexer can hold the target for a moment (PermissionError, WinError 32).
+    The one copy of that loop: `atomic_write` and `report.atomic_write_text` both call it."""
+    for attempt in range(8):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if os.name != "nt" or attempt == 7:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
 def atomic_write(path: Path, data: bytes | str) -> None:
     """Write temp file in the same directory, fsync, os.replace."""
     path = Path(path)
@@ -257,14 +270,7 @@ def atomic_write(path: Path, data: bytes | str) -> None:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        for attempt in range(8):  # Windows: a virus scanner or indexer can hold the target for a moment (PermissionError, WinError 32)
-            try:
-                os.replace(tmp, path)
-                break
-            except PermissionError:
-                if os.name != "nt" or attempt == 7:
-                    raise
-                time.sleep(0.05 * (attempt + 1))
+        replace_with_retry(tmp, path)
     finally:
         with contextlib.suppress(OSError):
             os.unlink(tmp)

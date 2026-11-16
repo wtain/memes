@@ -456,7 +456,7 @@ def load_record(work: Dir) -> dict:
     out = {}
     for line in b"".join(chunks).decode("utf-8", "replace").split("\n"):
         f = line.split("\t")
-        if len(f) == 4 and SHA_RE.fullmatch(f[1]) and f[2].isdigit() and f[3].isdigit():
+        if len(f) == 4 and SHA_RE.fullmatch(f[1]) and _ascii_digits(f[2]) and _ascii_digits(f[3]):
             out[f[0]] = (f[1], int(f[2]), int(f[3]))
     return out
 
@@ -556,6 +556,11 @@ def verb_list(ctx: Context, args):
     ctx.stdout.write(bytes(out))
 
 
+def _ascii_digits(text: str) -> bool:
+    """Only 0-9: str.isdigit() accepts characters such as superscript two that int() rejects."""
+    return bool(text) and text.isascii() and text.isdecimal()
+
+
 def verb_hash(ctx: Context, args):
     base, work = ctx.dir("base"), ctx.dir("work")
     named = "--names" in args
@@ -580,7 +585,8 @@ def verb_hash(ctx: Context, args):
             new.pop(name, None)
         out += ("%s\t0\t\t%s" % (status, name)).encode("utf-8") + b"\x00"
     if names is None:  # a full hash drops record entries of files that are gone
-        new = {n: e for n, e in new.items() if n in set(targets)}
+        wanted = set(targets)  # built once
+        new = {n: e for n, e in new.items() if n in wanted}
     rewrite_record(work, new)
     ctx.stdout.write(bytes(out))
 
@@ -792,7 +798,7 @@ def verb_verify(ctx: Context, args):
     listing = load_list(work, bid)
     sums = {}
     for sha, size, name in read_fields(ctx, 3):
-        if name in sums or not SHA_RE.fullmatch(sha) or not size.isdigit() or name_problem(name):
+        if name in sums or not SHA_RE.fullmatch(sha) or not _ascii_digits(size) or name_problem(name):
             raise GateError(EXIT_USAGE, "bad_sums", printable(name))
         sums[name] = (sha, int(size))
     problems = []
@@ -1217,6 +1223,12 @@ def main(argv, environ=None, stdin=None, stdout=None, stderr=None) -> int:
         return EXIT_FAIL
     except OSError as exc:
         stderr.write("gate: os_error: %s\n" % errno.errorcode.get(exc.errno, str(exc.errno)))
+        return EXIT_FAIL
+    except Exception as exc:  # last resort: one line, the exception type only (no traceback, no path, no value)
+        try:
+            stderr.write("gate: internal_error: %s\n" % type(exc).__name__)
+        except Exception:
+            pass
         return EXIT_FAIL
     finally:
         if ctx is not None:

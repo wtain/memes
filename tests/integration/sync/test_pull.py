@@ -273,7 +273,9 @@ def test_dev_made_rows_are_replaced_and_the_report_counts_them_separately(world,
     assert code == 0 and pull_entry(doc, "search_history")["counts"]["dev_only_discarded"] == 1
     assert pull_entry(doc, "meme_saves")["overwritten"]["ids"] == sorted([U(4, 1), U(4, 90)])
     assert pull_entry(doc, "meme_saves")["counts"]["differing"] == 1
-    assert dry_then_apply(command, n=4)[0] == 0
+    code, out, err, _ = command("--apply", "--yes", "--plan-hash", doc["plan_hash"], run_id=rid(4))  # review finding M4: a discard needs its lift
+    assert code == 3 and "dev_only_discarded:search_history" in err
+    assert dry_then_apply(command, "--allow-dev-discard", n=5)[0] == 0
     for t in TABLES[:2] + TABLES[3:]:
         assert table_state(d, t) == table_state(world.prod_side, t), t
     assert d.scalar("select count(*) from search_history where query = 'made on dev'") == 0
@@ -416,7 +418,7 @@ def test_empty_source_guard(world, command, tmp_path):
     for n in (1, 2):
         save(world.dev_side, n, 1)
     sh(world.dev_side, 1)
-    assert_guard_flow(command, world, tmp_path, "empty_source", ["--allow-empty-source"], 1)
+    assert_guard_flow(command, world, tmp_path, "empty_source", ["--allow-empty-source"], 1, "--allow-dev-discard")
     assert world.dev_side.scalar("select count(*) from meme_saves") == 0
 
 
@@ -429,7 +431,7 @@ def test_shrink_guard_for_an_append_only_and_a_lossy_table(world, command, tmp_p
     world.prod_side.x("delete from search_not_found")
     world.prod_side.x("delete from search_history where id <> %s", (U(1, 1),))
     assert_guard_flow(command, world, tmp_path, "shrink:search_history", ["--allow-shrink", "search_history", "--allow-shrink", "search_not_found",
-                                                                       "--allow-shrink", "search_history_tags"], 6)
+                                                                       "--allow-shrink", "search_history_tags"], 6, "--allow-dev-discard")
 
 
 def test_a_lost_state_file_makes_the_next_pull_a_first_pull_with_no_shrink_baseline(world, command, tmp_path):
@@ -439,7 +441,7 @@ def test_a_lost_state_file_makes_the_next_pull_a_first_pull_with_no_shrink_basel
     world.prod_side.x("delete from meme_saves")
     code, out, err, folder = command(run_id=rid(3))
     assert code == 0 and "first pull" in out and "shrink:meme_saves" not in out
-    assert dry_then_apply(command, n=4)[0] == 0 and world.dev_side.scalar("select count(*) from meme_saves") == 0
+    assert dry_then_apply(command, "--allow-dev-discard", n=4)[0] == 0 and world.dev_side.scalar("select count(*) from meme_saves") == 0
 
 
 def test_growth_guard(world, command, tmp_path):
@@ -467,7 +469,7 @@ def test_truncate_is_used_above_the_threshold_for_fk_free_tables_only(world, com
         save(world.dev_side, n)
     for n in range(10, 16):
         sh(world.dev_side, n)
-    code, out, err, folder = dry_then_apply(command, truncate_threshold=3)
+    code, out, err, folder = dry_then_apply(command, "--allow-dev-discard", truncate_threshold=3)
     assert code == 0, (out, err)
     statements = [s for s in command.dev_log if s.startswith("TRUNCATE")]
     assert statements == ['TRUNCATE TABLE "meme_saves"'] and "truncated: meme_saves" in out
@@ -492,7 +494,7 @@ def test_setval_moves_the_dev_sequence_past_the_copied_ids_and_resets_it_for_an_
     world.dev_side.x("insert into meme_impressions (image_id, rank, surface) values (%s, 1, 'search')", (uid(1),))
     assert world.dev_side.scalar("select max(id) from meme_impressions") == 106
     world.prod_side.x("delete from meme_impressions")
-    code, out, err, folder = command("--apply", "--yes", "--allow-shrink", "meme_impressions", run_id=rid(3))
+    code, out, err, folder = command("--apply", "--yes", "--allow-shrink", "meme_impressions", "--allow-dev-discard", run_id=rid(3))
     assert code == 0, (out, err)
     world.dev_side.x("insert into meme_impressions (image_id, rank, surface) values (%s, 1, 'search')", (uid(1),))
     assert world.dev_side.scalar("select min(id) from meme_impressions") == 1
@@ -544,7 +546,7 @@ def test_no_text_reaches_report_summary_logs_or_state_through_any_source(world, 
     rating(d, 2, 1, "qb", text=SENT_DEV + "-rating")
     outputs = []
     for mode in ("skip", "mirror"):
-        for i, argv in enumerate(([], ["--apply", "--yes"]), 1):
+        for i, argv in enumerate(([], ["--apply", "--yes", "--allow-dev-discard"]), 1):
             code, out, err, folder = command(*argv, run_id=rid(10 * (mode == "mirror") + i), ratings_mode=mode, routes=True, text_cap=12)
             assert code == 0, (out, err)
             outputs += [out, err, (folder / "report.json").read_text(), (folder / "report.md").read_text()]
@@ -601,7 +603,7 @@ def test_a_failure_inside_the_dev_transaction_rolls_every_table_back(world, comm
         raise apply_mod.ApplyError("digest_mismatch")
 
     monkeypatch.setattr(apply_mod, "_verify_simple", boom)
-    code, out, err, folder = command("--apply", "--yes", run_id=rid(1))
+    code, out, err, folder = command("--apply", "--yes", "--allow-dev-discard", run_id=rid(1))
     assert code == 1 and "rolled back" in err and "digest_mismatch" in err
     assert all_state(world.dev_side) == before and not (tmp_path / "state" / state.STATE_FILE).exists()
     doc = report_of(folder)

@@ -102,7 +102,7 @@ def test_h1_dev_database_name_memes_environment_and_read_only_session(pair, tmp_
 
 
 def test_dev_ro_session_is_read_only_and_errors_are_redacted(pair):
-    ro = connect.dev_ro(ENV, dev_urls=DevUrls(ENV, "postgresql://x/rw", "postgresql://x/ro"), connector=lambda url: pair.dev_conn())
+    ro = connect.dev_ro(ENV, dev_urls=DevUrls(ENV, "postgresql://x/rw", "postgresql://x/ro"), connector=lambda url, **kw: pair.dev_conn())
     with pytest.raises(connect.DbError) as info:
         ro.query("delete from batch_runs")
     assert info.value.sqlstate == "25006"

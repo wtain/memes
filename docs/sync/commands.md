@@ -34,6 +34,12 @@ overview and concepts are in [overview.md](overview.md).
   (promote reads the name back from the server, files uses `sync.prod.database`); `sync.run --apply` asks once, same text, and passes `--yes`
   to its steps; a stand-alone `sync.pull` asks for `<env> <dev database>` because it overwrites dev's mirror. A wrong answer exits 3 ("typed
   confirmation did not match; nothing was written"). `--yes` skips only this question.
+- **`--apply --yes` needs `--plan-hash`.** `--yes` never replaces the dry-run binding: `sync.promote`, `sync.files promote`, `sync.pull` and `sync.run`
+  refuse `--apply --yes` without `--plan-hash` (usage error, exit 2). `sync.run`'s children are the one exception: they receive `--run-id` and
+  `--yes` from the driver, which already bound the combined hash. Flags that change what an apply does but are not in the plan hash
+  (`--batch-size`, `--max-report-age`, the `--allow-*` lifts) are copied into the printed apply command; use that command as printed. Changing
+  `--max-report-age` or `--batch-size` between the dry run and the apply is allowed (the first only decides how old a files report may be, the second
+  only the transaction size); the plan, the guards and the files report are re-checked by the apply either way.
 - **Lock.** One sync command at a time per environment (`Storage/sync-state/<env>/lock`); a second one exits 2.
 - **Banner**: `dev <env> (<dev db> @ localhost, read-only) -> prod <prod db> as <role> via ssh alias <alias>`.
 
@@ -42,7 +48,7 @@ overview and concepts are in [overview.md](overview.md).
 | Code | Meaning |
 |---|---|
 | 0 | clean; a dry run is 0 **even when the report says a guard would trip** (the apply would then refuse with 3) |
-| 1 | other failure; a partly applied run lists what is committed, re-run the same command to resume |
+| 1 | other failure; a partly applied run lists what is committed, re-run the same command to resume. `sync.promote` may also name `committed_unrecorded` images (on prod, missing from `committed.json`): see [troubleshooting.md](troubleshooting.md) |
 | 2 | handshake or precondition failed, including a held lock, missing settings or secret file, tunnel or connection problems |
 | 3 | a guard tripped before any write, `--plan-hash` differs, or the typed confirmation was wrong. `sync.verify`: only warnings with `--fail-on warn` |
 | 4 | verification found differences (`sync.verify`: any check with status `error`; a left-behind finding is never one; `sync.promote`'s own verify phase) |
@@ -66,7 +72,7 @@ Promotes the class D rows of the promotable images to prod (additions and overwr
 | `--plan-hash H` | with `--apply`: refuse (exit 3) if the re-planned hash differs |
 | `--first-seed` | prod is in state `seeding` (`memes.state`); resumable by running again |
 | `--verify-only` | only the verify phase (read only) against the newest `committed.json` of the environment; not combinable with `--first-seed` |
-| `--only TABLE[,..]` | restrict to class D tables (parents are added) |
+| `--only TABLE[,..]` | restrict to class D tables (parents are added). While the plan adds new images, every `sync.promote.required_tables` table must be among the compared ones, or the guard `only_excludes_required_tables` refuses the apply (exit 3, no lift): a new image must not reach prod without its OCR and embeddings |
 | `--limit-images N` | cap new and changed images per run; the global sets (concepts, absorptions) are then skipped |
 | `--batch-size N` | images per prod transaction (default `sync.promote.batch_size`, 500) |
 | `--max-report-age AGE` | age limit of `files-promoted.json` (`2h`, `90m`, `7200s`, `1d`; default 2h) |
@@ -103,6 +109,7 @@ Pulls the six class P tables (and bug-report files) from prod into dev's mirror.
 | `--allow-empty-source` | lift the guard "prod has no rows in any class P table while dev has some" |
 | `--allow-shrink TABLE` | lift the shrink guard of one class P table (repeatable) |
 | `--allow-growth` | lift the growth and row-ceiling guards |
+| `--allow-dev-discard` | lift the `dev_only_discarded:<table>` guards: the mirror deletes dev-only rows of a class P table; refused above `sync.pull.max_dev_discard_rows` (1000) rows or `sync.pull.max_dev_discard_ratio` (0.25) of the table's dev rows, and on a first pull (no `pull_state.json`) when any would go. The counts are in the report and in the confirmation prompt |
 | `--skip-files` | do not pull bug reports |
 | `--top N`, `--run-id ID`, `--json PATH` | shared flags |
 
@@ -122,7 +129,7 @@ run cannot see files not yet on prod and shows those images as `waiting_for_file
 | `--stop-after STEP` | stop after `handshake`, `pull`, `files`, `data` or `verify` (for rehearsal) |
 | `--run-id ID` | run id (default: a new one) |
 | `--allow-mass-change N`, `--allow-model-change`, `--ignore-running-batches` | forwarded to the data step |
-| `--allow-empty-source`, `--allow-growth`, `--skip-files` | forwarded to the pull (`--skip-files` skips bug reports only; the files step still promotes image files) |
+| `--allow-empty-source`, `--allow-growth`, `--allow-dev-discard`, `--skip-files` | forwarded to the pull (`--skip-files` skips bug reports only; the files step still promotes image files) |
 | `--allow-shrink TABLE` | goes to the data step for a class D table, to the pull for a class P table (repeatable) |
 
 The run folder also holds `run.json` (flags, steps with status and exit code, combined `plan_hash`). `--allow-*` flags do not
@@ -148,7 +155,7 @@ see [prod-operations.md](prod-operations.md).
 
 ## `python -m sync.roles --env E [--check | --stdout]`
 
-Generates `deploy/prod/sql/roles.<env>.sql` (grants of the five prod roles) from the registry. No flag writes the file; `--check` exits 1
+Generates `deploy/prod/sql/roles.<env>.sql` (grants of the five prod roles) from the registry. The sync writer holds `DELETE` only on the tables the promote replaces per image (`TableSync.delete_ok`: class D, mode `replace_per_image`), never on `images`, an upsert table or a global set. No flag writes the file; `--check` exits 1
 when the committed file differs from a regeneration; `--stdout` prints instead of writing. Dev-side, no database needed. A new table or
 a class change requires regenerating and committing this file.
 
@@ -176,7 +183,7 @@ to stdout with no flag. Run `--write` after adding a table or changing a registr
 Tracked, non-secret, under `sync:` in `environments/settings.yaml` and `environments/settings.<env>.yaml` (key table in
 `interfaces.md` section b): `sync.state_dir`, `sync.ssh_bin`, `sync.sftp_bin`, `sync.dev.database`, `sync.prod.{database, writer_role, reader_role,
 ssh_alias, gate_alias, upload_alias, local_port, pg_host, pg_port, api_url}`, `sync.tunnel.*`, `sync.files.batch_mb`,
-`sync.promote.{required_tables, batch_size}`, `sync.pull.*` (including `ratings_mode`), `sync.report.*`, `sync.verify.*`. Two values are not yet
+`sync.promote.{required_tables, batch_size}`, `sync.pull.*` (including `ratings_mode`, `max_dev_discard_rows`, `max_dev_discard_ratio`), `sync.report.*`, `sync.verify.*`. Two values are not yet
 filled: `sync.dev.database` (empty by design until the owner names each dev database) and `sync.prod.api_url`; the tools fail loudly
 while they are unset. The only secrets are `SYNC_WRITER_PASSWORD` and `SYNC_READER_PASSWORD` in the git-ignored
 `environments/.env.<env>.sync`; the loader refuses a git-tracked file and warns when other accounts can read it.

@@ -100,6 +100,27 @@ def test_committed_json_is_written_after_the_first_batch_and_resumed(tmp_path):
     assert not list(tmp_path.glob("*.tmp")) and not list(tmp_path.glob(".*.tmp"))
 
 
+def test_a_resume_with_other_tables_is_refused_review_finding_l5(tmp_path):
+    log = A.CommittedLog(tmp_path, "20261113T120000Z-00000001", "general", ["images", "tags"])
+    log.append(1, [I1], {I1: {"core": "a"}}, [], "2026-11-13T12:00:00Z")
+    with pytest.raises(A.ApplyError, match="committed_json_tables_differ"):
+        A.CommittedLog(tmp_path, "20261113T120000Z-00000001", "general", ["images", "tags", "ocr_texts"])
+
+
+def test_the_intent_record_is_written_before_the_commit_and_removed_by_the_append_review_finding_m3(tmp_path):
+    run = "20261113T120000Z-00000001"
+    log = A.CommittedLog(tmp_path, run, "general", ["images"])
+    log.write_intent(1, [I1], {I1: {"core": "a"}}, [])
+    intent = json.loads((tmp_path / "inflight.json").read_text())
+    assert intent["ids"] == [I1] and intent["run_id"] == run and not (tmp_path / "committed.json").exists()
+    assert A.CommittedLog(tmp_path, run, "general", ["images"]).intent["ids"] == [I1]  # a resume sees it
+    log.append(1, [I1], {I1: {"core": "a"}}, [], "2026-11-13T12:00:00Z")
+    assert not (tmp_path / "inflight.json").exists()
+    (tmp_path / "inflight.json").write_text("{not json")
+    with pytest.raises(A.ApplyError, match="inflight_json_unusable"):
+        A.CommittedLog(tmp_path, run, "general", ["images"])
+
+
 class FakeProd:
     """A prod connection that answers the setval queries and records everything."""
 

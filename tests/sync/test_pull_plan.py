@@ -323,3 +323,45 @@ def test_the_apply_module_never_names_a_prod_write():
     prod_calls = re.findall(r"prod\.(\w+)\(", src)
     assert set(prod_calls) <= {"copy_out"}
     assert not re.search(r"prod\.query\(", src)
+
+
+# --- dev_only_discarded (review finding M4) ---------------------------------------------------------------------------------------
+
+def discard_inp(dev_only: int, shared: int = 0, previous_state=None, **limits) -> pl.PlanInput:
+    prod = {t: pl.TableRead(0) for t in pl.EXPECTED_TABLES}
+    dev = {t: pl.TableRead(0) for t in pl.EXPECTED_TABLES}
+    prod["meme_saves"] = read({U[i]: "h" for i in range(shared)})
+    dev["meme_saves"] = read({**{U[i]: "h" for i in range(shared)}, **{U[30 + i]: "d" for i in range(min(dev_only, 9))}})
+    return pl.PlanInput(env="general", mode="skip", prod=prod, dev=dev, previous=previous_state, limits=pl.Limits(**limits))
+
+
+def dguard(plan, table="meme_saves"):
+    return next(g for g in plan.section.guards if g.id == f"dev_only_discarded:{table}")
+
+
+def test_a_first_pull_that_discards_any_dev_only_row_is_refused_until_lifted():
+    p = pl.build_plan(discard_inp(2, shared=30))
+    g = dguard(p)
+    assert g.tripped and g.value == 2 and g.lifted_by == "--allow-dev-discard"
+    assert pl.effective_blocking(p) == ["dev_only_discarded:meme_saves"]
+    assert pl.effective_blocking(p, allow_dev_discard=True) == []
+    assert pl.lift_problems(p, False, [], False, True) == []
+    # a first pull that discards nothing is quiet
+    assert not dguard(pl.build_plan(discard_inp(0, shared=5))).tripped
+    # the lift is reported as useless when nothing is tripped
+    assert "allow_dev_discard_not_needed" in pl.lift_problems(pl.build_plan(discard_inp(0, shared=5)), False, [], False, True)
+
+
+def test_a_later_pull_trips_only_over_the_absolute_bound_or_the_ratio():
+    prev = previous(meme_saves=30)
+    assert not dguard(pl.build_plan(discard_inp(2, shared=30, previous_state=prev))).tripped  # 2 of 32 dev rows: under both bounds
+    assert dguard(pl.build_plan(discard_inp(2, shared=30, previous_state=prev, max_dev_discard_rows=1))).tripped  # absolute
+    assert dguard(pl.build_plan(discard_inp(9, shared=30, previous_state=prev, max_dev_discard_ratio=0.2))).tripped  # 9 of 39 dev rows: over 20 %
+    assert not dguard(pl.build_plan(discard_inp(9, shared=30, previous_state=prev, max_dev_discard_ratio=0.5))).tripped
+
+
+def test_the_hash_stays_structural_the_count_is_not_hashed_only_the_tripped_state():
+    a = pl.build_plan(discard_inp(2, shared=30)).section.plan_hash()
+    b = pl.build_plan(discard_inp(4, shared=30)).section.plan_hash()
+    assert a == b  # both trip: same structure, different counts
+    assert a != pl.build_plan(discard_inp(0, shared=30)).section.plan_hash()  # the tripped state differs

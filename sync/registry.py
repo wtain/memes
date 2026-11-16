@@ -177,6 +177,11 @@ def prod_write_set(role: str) -> list[str]:
     return sorted(e.name for e in REGISTRY.values() if e.prod_writer == role)
 
 
+def prod_delete_set(role: str) -> list[str]:
+    """The subset of `prod_write_set(role)` the role may also DELETE from: only tables the promote replaces per image."""
+    return sorted(e.name for e in REGISTRY.values() if e.prod_writer == role and e.delete_ok)
+
+
 def nullify_columns(name: str) -> tuple[str, ...]:
     return REGISTRY[name].nullify
 

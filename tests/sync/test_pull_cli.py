@@ -41,6 +41,7 @@ def test_every_flag_of_the_interface_is_accepted_and_apply_flags_echo_the_plan_c
 @pytest.mark.parametrize("argv", [
     ["--plan-hash", "ab" * 32], ["--yes"], ["--apply", "--plan-hash", "nothex"], ["--top", "0"], ["--allow-shrink", "images"],
     ["--allow-shrink", "embeddings"], ["--run-id", "x"],
+    ["--apply", "--yes"],  # review finding M1: --yes never replaces the dry-run binding
 ])
 def test_bad_flags_are_exit_two(argv):
     out, err = io.StringIO(), io.StringIO()

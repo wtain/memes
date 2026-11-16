@@ -415,9 +415,7 @@ def test_limit_images_and_batch_size(world, command, tmp_path, dev_only):
 def test_only_restricts_the_tables_that_are_written(world, command, tmp_path, dev_only):
     for n in range(1, MANY + 1):
         rich_both(world, n)
-    new = MANY + 1
-    rich(world.dev_side, new)  # new on dev: with --only tags only `images` and `tags` are copied
-    write_files_report(tmp_path, new)
+    write_files_report(tmp_path, MANY)
     world.dev_side.x("update tags set value = 'dog' where image_id = %s", (uid(2),))
     world.dev_side.x("update embeddings set embedding = %s::vector where image_id = %s", (VEC2, uid(3)))
     log = record(world.prod)
@@ -426,12 +424,25 @@ def test_only_restricts_the_tables_that_are_written(world, command, tmp_path, de
     p = world.prod_side
     assert p.scalar("select value from tags where image_id = %s", (uid(2),)) == "dog"
     assert p.scalar("select embedding::text from embeddings where image_id = %s", (uid(3),)) == VEC  # out of scope: untouched
-    assert p.scalar("select count(*) from images where id = %s", (uid(new),)) == 1
-    assert p.scalar("select count(*) from tags where image_id = %s", (uid(new),)) == 1
-    assert p.scalar("select count(*) from embeddings where image_id = %s", (uid(new),)) == 0
     touched = {m for sql in log for m in re.findall(r'(?:INTO|FROM|ANALYZE)\s+"?([a-z_]+)"?', sql) if m in registry.REGISTRY}
     assert touched <= {"images", "tags"}, touched
     assert json.loads((folder / "committed.json").read_text())["tables"] == ["images", "tags"]
+
+
+def test_only_without_the_required_tables_refuses_while_a_new_image_is_planned_review_finding_m2(world, command, tmp_path, dev_only):
+    for n in range(1, MANY + 1):
+        rich_both(world, n)
+    new = MANY + 1
+    rich(world.dev_side, new)  # new on dev: --only tags would create its prod image without ocr_texts and embeddings
+    write_files_report(tmp_path, new)
+    before = world.prod_side.scalar("select count(*) from images")
+    code, out, err, folder = command("--apply", "--yes", "--only", "tags", run_id=rid(18))
+    assert code == 3 and "only_excludes_required_tables" in err, (out, err)
+    assert world.prod_side.scalar("select count(*) from images") == before  # nothing was written
+    code, out, err, folder = command("--apply", "--yes", "--only", "tags,embeddings,ocr_texts", run_id=rid(19))
+    assert code == 0, (out, err)
+    assert world.prod_side.scalar("select count(*) from embeddings where image_id = %s", (uid(new),)) == 1
+    assert world.prod_side.scalar("select count(*) from ocr_texts where image_id = %s", (uid(new),)) == 1
 
 
 # --- what the apply may and may not touch -------------------------------------------------------------------------------------------------

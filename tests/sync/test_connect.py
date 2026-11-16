@@ -74,7 +74,7 @@ def good_facts(role):
     tp["alembic_version"]["SELECT"] = True
     if role == "writer":
         for t in d:
-            tp[t].update(SELECT=True, INSERT=True, UPDATE=True, DELETE=True)
+            tp[t].update(SELECT=True, INSERT=True, UPDATE=True, DELETE=registry.get(t).delete_ok)
         cols = {"meme_text_ratings": {"image_id": True, "query_hash": True, "updated_at": True, "query_text": False}, "images": {"id": False}}
     else:
         for t in p:
@@ -145,18 +145,37 @@ def test_dev_ro_refuses_the_write_capable_url_and_sets_read_only():
     calls = []
     raw_conn = FakeRaw()
     ok = connect.dev_ro(ENV, dev_urls=DevUrls(ENV, "postgresql+asyncpg://a/rw", "postgresql://a/ro"),
-                        connector=lambda url: (calls.append(url), raw_conn)[1])
-    assert calls == ["postgresql://a/ro"] and raw_conn.autocommit and "SET default_transaction_read_only = on" in raw_conn.executed
+                        connector=lambda url, **kw: (calls.append((url, kw)), raw_conn)[1])
+    # review finding L6: read-only is a startup option of the session as well as the later SET
+    assert calls == [("postgresql://a/ro", {"options": "-c default_transaction_read_only=on"})]
+    assert raw_conn.autocommit and "SET default_transaction_read_only = on" in raw_conn.executed
     assert ok.kind == DEV_RO and ok.app_env == ENV
     with pytest.raises(PreconditionError, match="dev_url_kind_wrong"):
         connect.dev_ro(ENV, dev_urls=DevUrls(ENV, "postgresql://a/x", "postgresql://a/x"), connector=lambda u: FakeRaw())
 
 
+def test_read_only_prod_kinds_carry_the_startup_option_and_the_read_write_writer_does_not_review_finding_l6():
+    seen = {}
+    secrets = {"SYNC_WRITER_PASSWORD": "w-pass", "SYNC_READER_PASSWORD": "r-pass"}
+
+    def connector(**kw):
+        seen[(kw["user"], kw.get("options"))] = kw
+        return FakeRaw()
+
+    s = make_settings()
+    connect.prod_writer(s, secrets, connector=connector)
+    connect.prod_writer_readonly(s, secrets, connector=connector)
+    connect.prod_reader(s, secrets, connector=connector)
+    ro = "-c default_transaction_read_only=on"
+    assert set(seen) == {(s.get("prod.writer_role"), None), (s.get("prod.writer_role"), ro), (s.get("prod.reader_role"), ro)}
+    assert connect._PROD_KIND["D"] == connect.PROD_WRITER_RO  # the doctor reads only
+
+
 def test_dev_rw_refuses_the_read_only_url_and_never_uses_it():
     seen = []
     conn = connect.dev_rw(ENV, dev_urls=DevUrls(ENV, "postgresql+asyncpg://a/rw", "postgresql://a/ro"),
-                          connector=lambda url: (seen.append(url), FakeRaw())[1])
-    assert seen == ["postgresql://a/rw"] and conn.kind == DEV_RW
+                          connector=lambda url, **kw: (seen.append(url), seen.append(kw), FakeRaw())[2])
+    assert seen == ["postgresql://a/rw", {}] and conn.kind == DEV_RW
     with pytest.raises(PreconditionError, match="dev_url_kind_wrong"):
         connect.dev_rw(ENV, dev_urls=DevUrls(ENV, "postgresql://a/same", "postgresql://a/same"), connector=lambda u: FakeRaw())
     with pytest.raises(PreconditionError, match="dev_rw_url_missing"):
@@ -244,11 +263,12 @@ def test_writer_problems_are_found():
     f["table_priv"]["meme_saves"]["INSERT"] = True
     f["table_priv"]["tmp_clusters"]["DELETE"] = True
     f["table_priv"]["meme_text_ratings"]["SELECT"] = True
-    f["table_priv"]["images"]["DELETE"] = False
+    f["table_priv"]["ocr_texts"]["DELETE"] = False
+    f["table_priv"]["images"]["DELETE"] = True
     f["col_priv"]["meme_text_ratings"]["query_text"] = True
     got = connect.evaluate_role(f, "writer", "memes_general_sync_w")
     assert {"wrong_current_user", "role_attr_super", "role_attr_bypassrls", "member_of_app_role", "member_of_table_owner",
-            "write_on_class_p_or_x=2", "select_on_class_p_or_x=1", "missing_write_on_class_d=1", "ratings_column_select_wrong"} == set(got)
+            "write_on_class_p_or_x=2", "select_on_class_p_or_x=1", "missing_write_on_class_d=1", "delete_on_class_d_without_replace=1", "ratings_column_select_wrong"} == set(got)
 
 
 def test_writer_without_the_ratings_column_grant_fails():

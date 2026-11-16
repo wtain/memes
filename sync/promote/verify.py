@@ -31,6 +31,7 @@ from sync.promote import digest as dg
 from sync.promote import plan as plan_mod
 
 COMMITTED = "committed.json"
+INFLIGHT = "inflight.json"  # intent record of a batch about to be committed on prod (sync.promote.apply)
 SNAPSHOT = "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY"
 ID_CHUNK = 2000
 SECTION = "verify"
@@ -76,6 +77,24 @@ def has_committed(doc: dict) -> bool:
     return bool(any(b.get("ids") for b in doc.get("batches", [])) or doc.get("global_rows"))
 
 
+def with_intent(doc: dict, intent: dict | None) -> dict:
+    """`doc` plus the batch of an `inflight.json` that committed.json does not hold yet (committed on prod, or about to be: the verify
+    compares it like any batch; an image that never reached prod then shows as `image_missing`). A copy; `doc` is not changed."""
+    if not intent or not isinstance(intent.get("ids"), list) or not isinstance(intent.get("digests"), dict):
+        return doc
+    known = {str(i) for b in doc.get("batches", []) for i in b["ids"]}
+    ids = [str(i) for i in intent["ids"] if str(i) not in known]
+    if not ids:
+        return doc
+    merged = dict(doc)
+    merged["batches"] = [*doc.get("batches", []), {"n": intent.get("n", 0), "committed_at": None, "ids": ids,
+                                                   "digests": {i: intent["digests"].get(i, {}) for i in ids}, "renamed": [],
+                                                   "unrecorded": True}]
+    if not merged.get("tables"):
+        merged["tables"] = list(intent.get("tables") or [])
+    return merged
+
+
 def parse_committed(data: Any) -> dict | None:
     """The decoded committed.json when it has the shape this tool writes, else None."""
     try:
@@ -107,14 +126,21 @@ def newest_committed(runs_dir: Path, env: str, skip: Path | None = None) -> tupl
         if (skip is not None and folder.resolve() == Path(skip).resolve()) or is_dry(folder):
             continue
         path = folder / COMMITTED
-        if not path.is_file():
+        intent_path = folder / INFLIGHT
+        if not path.is_file() and not intent_path.is_file():
             continue
         try:
-            doc = parse_committed(json.loads(path.read_text(encoding="utf-8")))
-        except (OSError, ValueError):
+            if path.is_file():
+                doc = parse_committed(json.loads(path.read_text(encoding="utf-8")))
+            else:
+                intent = json.loads(intent_path.read_text(encoding="utf-8"))
+                doc = parse_committed({"run_id": intent["run_id"], "env": intent["env"], "tables": intent.get("tables", []), "batches": []})
+            intent = json.loads(intent_path.read_text(encoding="utf-8")) if intent_path.is_file() else None
+        except (OSError, ValueError, KeyError, TypeError):
             doc = None
         if doc is None:
             raise VerifyError("committed_json_unreadable")
+        doc = with_intent(doc, intent)
         if doc["env"] == env and has_committed(doc):
             return path, doc
     return None

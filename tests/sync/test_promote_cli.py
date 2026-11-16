@@ -37,6 +37,7 @@ def test_every_flag_of_the_interface_is_accepted():
     ["--limit-images", "0"], ["--batch-size", "0"], ["--top", "0"], ["--allow-mass-change", "-1"], ["--allow-shrink", "meme_saves"],
     ["--only", "meme_saves"], ["--only", ","], ["--run-id", "x"], ["--max-report-age", "soon"], ["--max-report-age", "0h"],
     ["--first-seed", "--verify-only"],
+    ["--apply", "--yes"],  # review finding M1: --yes never replaces the dry-run binding
 ])
 def test_bad_flags_are_exit_two(argv):
     out, err = io.StringIO(), io.StringIO()

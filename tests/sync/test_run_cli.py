@@ -63,6 +63,14 @@ class Fakes:
 
 def drive(tmp_path, *argv, fakes=None, answer=None, handshake=None, run_id="20261113T120000Z-0000000a", **kw):
     fakes = fakes or Fakes()
+    if "--apply" in argv and "--yes" in argv and "--plan-hash" not in argv and "--no-bind" not in argv:
+        # --apply --yes needs the dry run's hash (review finding M1): bind it the way a person would, from a dry run of the same fakes
+        import copy
+        import secrets
+        flags = [a for a in argv if a not in ("--apply", "--yes")]
+        dry = drive(tmp_path, *flags, fakes=copy.deepcopy(fakes), handshake=handshake, run_id=f"20261113T110000Z-{secrets.token_hex(4)}", **kw)
+        argv = (*argv, "--plan-hash", report_of(dry.folder)["plan_hash"] if dry.code == 0 else "0" * 64)  # a dry run that fails: nothing to bind
+    argv = tuple(a for a in argv if a != "--no-bind")
     out, err = io.StringIO(), io.StringIO()
     args = cli.build_parser().parse_args(["--env", "general", *argv, "--run-id", run_id])
     asked = []
@@ -233,6 +241,13 @@ def test_a_wrong_confirmation_is_exit_3_and_writes_nothing(tmp_path, answer):
     assert r.code == 3 and "typed confirmation did not match" in r.err and not any(c[2] for c in r.fakes.calls)
 
 
+def test_apply_yes_without_a_plan_hash_is_a_usage_error(tmp_path):
+    with pytest.raises(cli.UsageProblem, match="--plan-hash"):
+        cli.validate_args(cli.build_parser().parse_args(["--env", "general", "--apply", "--yes"]))
+    cli.validate_args(cli.build_parser().parse_args(["--env", "general", "--apply", "--yes", "--plan-hash", "ab" * 32]))
+    cli.validate_args(cli.build_parser().parse_args(["--env", "general", "--apply"]))  # the typed confirmation still binds without --yes
+
+
 def test_yes_skips_only_the_confirmation(tmp_path):
     r = drive(tmp_path, "--apply", "--yes")
     assert r.code == 0 and r.asked == [] and r.fakes.steps(True) == ["pull", "files", "data", "verify"]
@@ -286,7 +301,11 @@ def test_an_unexpected_exception_in_a_step_is_exit_1_without_its_message(tmp_pat
         return runners["data"](ctx, run_id, apply)
 
     out, err = io.StringIO(), io.StringIO()
-    args = cli.build_parser().parse_args(["--env", "general", "--apply", "--yes", "--run-id", "20261113T120000Z-00000012"])
+    dry = cli.build_parser().parse_args(["--env", "general", "--run-id", "20261113T110000Z-00000012"])
+    assert cli.run_driver(dry, settings=settings_for(tmp_path), session_opener=object(), runners={**runners, "files": boom},
+                          handshake_fn=lambda ctx, mode: (list(HS), DB), out=io.StringIO(), err=io.StringIO()) == 0
+    h = report_of(tmp_path / "state" / "runs" / "20261113T110000Z-00000012")["plan_hash"]
+    args = cli.build_parser().parse_args(["--env", "general", "--apply", "--yes", "--plan-hash", h, "--run-id", "20261113T120000Z-00000012"])
     code = cli.run_driver(args, settings=settings_for(tmp_path), session_opener=object(), runners={**runners, "files": boom},
                           handshake_fn=lambda ctx, mode: (list(HS), DB), out=out, err=err)
     assert code == 1 and "KeyError" in err.getvalue() and SENT not in err.getvalue() + out.getvalue()

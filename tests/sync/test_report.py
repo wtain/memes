@@ -381,3 +381,25 @@ def test_input_objects_are_not_mutated_by_rendering():
     R.render_json(d)
     R.render_markdown(d)
     assert d.sections[0].entries[0].__dict__ == before
+
+
+def test_atomic_write_text_retries_a_replace_held_by_a_scanner_review_finding_l11(tmp_path, monkeypatch):
+    import os
+
+    from sync import config
+
+    real, calls = os.replace, []
+
+    def flaky(src, dst):
+        calls.append(1)
+        if len(calls) < 3:
+            raise PermissionError("held")
+        return real(src, dst)
+
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(os, "replace", flaky)
+    monkeypatch.setattr(config.time, "sleep", lambda s: None)
+    target = tmp_path / "report.json"
+    from sync import report as report_mod
+    report_mod.atomic_write_text(target, "hello")
+    assert target.read_text() == "hello" and len(calls) == 3 and not list(tmp_path.glob("*.tmp"))

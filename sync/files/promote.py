@@ -365,6 +365,8 @@ def run_promote(args: argparse.Namespace, *, settings: SyncSettings | None = Non
             raise UsageProblem("--plan-hash needs --apply")
         if args.plan_hash is not None and not report._HEX.match(args.plan_hash):
             raise UsageProblem("--plan-hash must be the hex hash printed by the dry run")
+        if args.apply and args.yes and args.plan_hash is None and args.run_id is None:
+            raise UsageProblem("--apply --yes needs --plan-hash from the dry run (--yes skips only the typed confirmation, never the dry-run binding)")
         if args.top is not None and args.top < 1:
             raise UsageProblem("--top must be at least 1")
         folder = run_dir(settings, run_id)

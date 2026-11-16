@@ -79,3 +79,9 @@ class TableSync:
     # (column, reason) pairs left out of the per-image digest (P2): a change of such a column alone is not a change of the image.
     # Never a column another table references by foreign key; reasons are mandatory.
     digest_exclude: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def delete_ok(self) -> bool:
+        """True only for the tables the promote really deletes from (the derived rows of a changed image, REPLACE_PER_IMAGE). Never
+        `images`, an upsert table or a global set (decision 27: nothing is pruned): the prod writer role holds DELETE on exactly these."""
+        return self.klass is Klass.D and self.mode is Mode.REPLACE_PER_IMAGE

@@ -57,6 +57,8 @@ DEFAULT_GROWTH_FACTOR = 5
 DEFAULT_MIN_GROWTH_ROWS = 100_000
 DEFAULT_MAX_ROWS = 5_000_000
 DEFAULT_TRUNCATE_THRESHOLD = 200_000
+DEFAULT_MAX_DEV_DISCARD_ROWS = 1000  # dev-only rows a pull may discard in one table before --allow-dev-discard is needed
+DEFAULT_MAX_DEV_DISCARD_RATIO = 0.25  # ... or this share of the table's dev rows
 ROWS_PER_S = 33_000  # the design's figure: a full mirror is under 3 s per 100k rows
 BYTES_PER_S = 40_000_000
 UNCHANGED_IDS_LIMIT = report.UNCHANGED_IDS_LIMIT
@@ -64,6 +66,7 @@ UNCHANGED_IDS_LIMIT = report.UNCHANGED_IDS_LIMIT
 LIFT_EMPTY = "--allow-empty-source"
 LIFT_SHRINK = "--allow-shrink"
 LIFT_GROWTH = "--allow-growth"
+LIFT_DEV_DISCARD = "--allow-dev-discard"
 
 
 def mirror_tables() -> list:
@@ -107,6 +110,8 @@ class Limits:
     min_growth_rows: int = DEFAULT_MIN_GROWTH_ROWS
     max_rows_per_pull: int = DEFAULT_MAX_ROWS
     truncate_threshold: int = DEFAULT_TRUNCATE_THRESHOLD
+    max_dev_discard_rows: int = DEFAULT_MAX_DEV_DISCARD_ROWS
+    max_dev_discard_ratio: float = DEFAULT_MAX_DEV_DISCARD_RATIO
     text_cap: int = DEFAULT_TEXT_CAP
 
 
@@ -290,6 +295,15 @@ def build_guards(inp: PlanInput) -> list:
         else:
             limit = int(prev * lim.max_growth_factor)
             guards.append(report.Guard(f"growth:{t}", now > limit and now - prev >= lim.min_growth_rows, now, limit, LIFT_GROWTH))
+    # review finding M4: the mirror deletes dev-only rows; a pull that would discard many of them, or any on a first pull (no
+    # pull_state.json), is refused until the owner lifts it. The value is the discarded row count (a count in the guard, never in the hash:
+    # only the tripped state is hashed).
+    for t in mirror_tables():
+        dev = inp.dev[t]
+        discarded = len(dev.rows.keys() - inp.prod[t].rows.keys()) if (dev.read and inp.prod[t].read) else 0
+        over = discarded > lim.max_dev_discard_rows or (dev.count > 0 and discarded > lim.max_dev_discard_ratio * dev.count)
+        first = inp.previous is None and discarded > 0
+        guards.append(report.Guard(f"dev_only_discarded:{t}", over or first, discarded, lim.max_dev_discard_rows, LIFT_DEV_DISCARD))
     for t in sorted(inp.prod):
         now = inp.prod[t].count
         guards.append(report.Guard(f"row_ceiling:{t}", now > lim.max_rows_per_pull, now, lim.max_rows_per_pull, LIFT_GROWTH))
@@ -325,7 +339,8 @@ def build_plan(inp: PlanInput) -> Plan:
 # ---------------------------------------------------------------------------------------------------------------------------------
 # lifts
 
-def effective_blocking(plan: Plan, allow_empty_source: bool = False, allow_shrink: Iterable[str] = (), allow_growth: bool = False) -> list:
+def effective_blocking(plan: Plan, allow_empty_source: bool = False, allow_shrink: Iterable[str] = (), allow_growth: bool = False,
+                       allow_dev_discard: bool = False) -> list:
     """Ids of the tripped guards that no lift flag removes."""
     shrink = set(allow_shrink)
     blocking = []
@@ -339,11 +354,13 @@ def effective_blocking(plan: Plan, allow_empty_source: bool = False, allow_shrin
             continue
         if base in ("growth", "row_ceiling") and allow_growth:
             continue
+        if base == "dev_only_discarded" and allow_dev_discard:
+            continue
         blocking.append(g.id)
     return blocking
 
 
-def lift_problems(plan: Plan, allow_empty_source: bool, allow_shrink: Iterable[str], allow_growth: bool) -> list:
+def lift_problems(plan: Plan, allow_empty_source: bool, allow_shrink: Iterable[str], allow_growth: bool, allow_dev_discard: bool = False) -> list:
     """Codes for lift flags that do nothing in this plan."""
     by_id = {g.id: g for g in plan.section.guards}
     problems = []
@@ -351,6 +368,8 @@ def lift_problems(plan: Plan, allow_empty_source: bool, allow_shrink: Iterable[s
         problems.append("allow_empty_source_not_needed")
     if allow_growth and not any(g.tripped for g in plan.section.guards if g.id.partition(":")[0] in ("growth", "row_ceiling")):
         problems.append("allow_growth_not_needed")
+    if allow_dev_discard and not any(g.tripped for g in plan.section.guards if g.id.partition(":")[0] == "dev_only_discarded"):
+        problems.append("allow_dev_discard_not_needed")
     for t in allow_shrink:
         g = by_id.get(f"shrink:{t}")
         if g is None or not g.tripped:

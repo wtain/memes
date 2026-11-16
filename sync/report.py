@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from sync.config import replace_with_retry
+
 SCHEMA_VERSION = 1
 
 GROUPS = ("core", "ocr", "clip", "desc", "tags", "profile", "note")
@@ -309,6 +311,7 @@ class ResultEntry:
     skipped: dict = field(default_factory=dict)  # reason code -> ids
     failed: list = field(default_factory=list)  # ids of the batch that was rolled back (P2 apply: the run stopped there)
     failure: str | None = None  # code-like reason of that failure (`db_error:23505`, `interrupted`, ...)
+    committed_unrecorded: list = field(default_factory=list)  # ids of a batch that is (or may be) on prod but missing from committed.json
     checked: int | None = None  # verify entries: how many ids or rows were compared with what the apply promised
     differences: dict = field(default_factory=dict)  # verify entries: difference code -> ids (any entry makes the run exit 4)
     info: dict = field(default_factory=dict)  # verify entries: informational counts (drift, parity), never a failure
@@ -322,6 +325,7 @@ class ResultEntry:
         self.info = {check_token(k, "info key"): check_count(v, "info count") for k, v in sorted(self.info.items())}
         self.skipped = {check_member(r, REASON_CODES, "reason code"): sorted_ids(v) for r, v in self.skipped.items()}
         self.failed = sorted_ids(self.failed)
+        self.committed_unrecorded = sorted_ids(self.committed_unrecorded)
         if self.failure is not None:
             self.failure = scrub_detail(self.failure)
 
@@ -597,6 +601,8 @@ def _result_entry_json(r: ResultEntry) -> dict:
            "skipped_with_reason": {c: {"count": len(v), "ids": v} for c, v in sorted(r.skipped.items())}}
     if r.failed or r.failure:
         out["failed"] = {"count": len(r.failed), "ids": list(r.failed), "failure": r.failure}
+    if r.committed_unrecorded:
+        out["committed_unrecorded"] = {"count": len(r.committed_unrecorded), "ids": list(r.committed_unrecorded)}
     if r.checked is not None:
         out["verify"] = {"checked": r.checked, "differences": {c: {"count": len(v), "ids": list(v)} for c, v in r.differences.items()},
                          "info": dict(r.info)}
@@ -718,9 +724,14 @@ def render_markdown(doc: Document, top_n: int = DEFAULT_TOP_N) -> str:
             for name, r in entries.items():
                 skipped = ", ".join(f"{c} {len(v)}" for c, v in sorted(r.skipped.items()))
                 L.append(f"- {sec}/{name}: added {r.added}, overwritten {r.overwritten}" + (f", skipped: {skipped}" if skipped else "")
-                         + (f", FAILED batch of {len(r.failed)} images rolled back ({r.failure})" if r.failed or r.failure else ""))
+                         + (f", FAILED batch of {len(r.failed)} images rolled back ({r.failure})" if r.failed else "")
+                         + (f", STOPPED ({r.failure})" if r.failure and not r.failed else "")
+                         + (f", COMMITTED BUT NOT RECORDED: {len(r.committed_unrecorded)} images (on prod, missing from committed.json)"
+                            if r.committed_unrecorded else ""))
                 if r.failed:
                     L.append(f"  failed ids: {_capped(r.failed, top_n)}")
+                if r.committed_unrecorded:
+                    L.append(f"  committed_unrecorded ids: {_capped(r.committed_unrecorded, top_n)}")
                 if r.checked is not None:
                     diffs = ", ".join(f"{c} {len(v)}" for c, v in r.differences.items())
                     L.append(f"  verified {r.checked}: " + (f"DIFFERENCES: {diffs}" if diffs else "no differences")
@@ -767,7 +778,7 @@ def atomic_write_text(path: Path | str, text: str) -> None:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        replace_with_retry(tmp, path)
     except BaseException:
         try:
             os.unlink(tmp)

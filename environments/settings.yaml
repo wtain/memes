@@ -307,6 +307,8 @@ sync:                           # dev/prod data sync (docs/superpowers/specs/202
     max_growth_factor: 5        # growth guard: a table more than this many times its previous pull size ...
     min_growth_rows: 100000     # ... and grown by at least this many rows is refused without --allow-growth
     max_rows_per_pull: 5000000  # absolute row ceiling per table (refused without --allow-growth)
+    max_dev_discard_rows: 1000  # dev_only_discarded guard: a table whose pull would delete more dev-only rows than this ...
+    max_dev_discard_ratio: 0.25 # ... or more than this share of its dev rows is refused without --allow-dev-discard (any discard on a first pull too)
     truncate_threshold: 200000  # TRUNCATE instead of DELETE once a dev table passes this many rows (FK-less tables only)
     text_cap: 2000              # left() cap on free-text columns copied from prod
     bug_reports:                # bug-report pull caps (T6)

@@ -114,6 +114,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--allow-model-change", action="store_true", help="data: lift the model-change guard")
     p.add_argument("--allow-empty-source", action="store_true", help="pull: lift the guard 'prod has no rows in any class P table while dev has some'")
     p.add_argument("--allow-growth", action="store_true", help="pull: lift the growth and row-ceiling guards")
+    p.add_argument("--allow-dev-discard", action="store_true", help="pull: lift the dev_only_discarded guards (dev-only rows the mirror would delete)")
     p.add_argument("--ignore-running-batches", action="store_true", help="data: lift the dev running-batch precondition")
     p.add_argument("--skip-files", action="store_true", help="pull: do not pull bug reports (the files step still promotes the image files)")
     return p
@@ -136,6 +137,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise UsageProblem("--plan-hash must be the hex hash printed by the dry run")
     if args.yes and not args.apply:
         raise UsageProblem("--yes needs --apply")
+    if args.apply and args.yes and args.plan_hash is None:
+        raise UsageProblem("--apply --yes needs --plan-hash from the dry run (--yes skips only the typed confirmation, never the dry-run binding)")
     if args.top is not None and args.top < 1:
         raise UsageProblem("--top must be at least 1")
     if args.allow_mass_change is not None and args.allow_mass_change < 0:
@@ -174,6 +177,8 @@ def apply_flags(args: argparse.Namespace) -> list:
         flags.append("--allow-empty-source")
     if args.allow_growth:
         flags.append("--allow-growth")
+    if args.allow_dev_discard:
+        flags.append("--allow-dev-discard")
     if args.ignore_running_batches:
         flags.append("--ignore-running-batches")
     return flags
@@ -194,6 +199,8 @@ def child_argv(step: str, args: argparse.Namespace, run_id: str, apply: bool) ->
             argv += ["--allow-shrink", t]
         if args.allow_growth:
             argv.append("--allow-growth")
+        if args.allow_dev_discard:
+            argv.append("--allow-dev-discard")
         return argv + tail
     if step == "files":
         return ["promote", "--env", args.env] + tail
@@ -390,7 +397,7 @@ def blocking_guards(sections: list, args: argparse.Namespace) -> list:
     for sec in sections:
         holder = SimpleNamespace(section=sec)
         if sec.name == "pull":
-            ids = pull_plan.effective_blocking(holder, args.allow_empty_source, p_shrink, args.allow_growth)
+            ids = pull_plan.effective_blocking(holder, args.allow_empty_source, p_shrink, args.allow_growth, args.allow_dev_discard)
         elif sec.name == "data":
             ids = promote_plan.effective_blocking(holder, args.allow_mass_change, d_shrink, args.allow_model_change)
         else:  # files: every tripped guard stops the apply (the tool has no lift flag)
@@ -422,7 +429,7 @@ class RunFile:
         return {"apply": bool(args.apply), "yes": bool(args.yes), "first_seed": bool(args.first_seed), "stop_after": args.stop_after,
                 "skip_files": bool(args.skip_files), "allow_mass_change": args.allow_mass_change, "allow_shrink": list(args.allow_shrink),
                 "allow_model_change": bool(args.allow_model_change), "allow_empty_source": bool(args.allow_empty_source),
-                "allow_growth": bool(args.allow_growth), "ignore_running_batches": bool(args.ignore_running_batches)}
+                "allow_growth": bool(args.allow_growth), "allow_dev_discard": bool(args.allow_dev_discard), "ignore_running_batches": bool(args.ignore_running_batches)}
 
     def step(self, name: str) -> dict:
         return next(s for s in self.doc["steps"] if s["name"] == name)

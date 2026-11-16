@@ -239,7 +239,7 @@ def test_the_writer_cannot_write_class_p_or_read_rating_text_but_can_read_the_th
         assert _all(w, "select version_num from alembic_version") == [("synctest",)]
 
 
-def test_the_writer_loads_class_d_moves_the_sequences_and_deletes_with_a_cascade_into_class_p_without_a_delete_grant(role_db):
+def test_the_writer_loads_class_d_moves_the_sequences_and_deletes_only_replaced_per_image_tables(role_db):
     image = str(uuid.uuid4())
     with role_db.login(role_db.names.sync_w) as w, role_db.login(role_db.names.app) as app:
         _all(w, "insert into images (id, filename) values (%s, %s)", (image, "a.jpg"))
@@ -248,12 +248,13 @@ def test_the_writer_loads_class_d_moves_the_sequences_and_deletes_with_a_cascade
         assert _one(w, "select setval(pg_get_serial_sequence('concepts', 'id'), 7)") == 7
         _all(app, "insert into meme_text_ratings (id, query_hash, image_id, grade, rank, reading, parser_version, taxonomy_version, language) "
                   "values (%s, %s, %s, 2, 1, 'parsed', 'v', 1, 'en')", (str(uuid.uuid4()), "h" * 64, image))
-        assert _one(app, "select count(*) from meme_text_ratings where image_id = %s", (image,)) == 1
-        _denied(w, "delete from meme_text_ratings")  # the direct delete is refused ...
-        _all(w, "delete from images where id = %s", (image,))  # ... the cascade through the foreign key is not
-        assert _one(app, "select count(*) from meme_text_ratings where image_id = %s", (image,)) == 0
+        _denied(w, "delete from meme_text_ratings")
+        # review finding H1: DELETE only on the tables the promote replaces per image; never images, an upsert table or a global set
+        for table in sorted(set(registry.names(Klass.D)) - set(registry.prod_delete_set("sync_writer"))):
+            _denied(w, f'delete from "{table}"')
+        _all(w, "delete from image_extras where image_id = %s", (image,))
         assert _one(w, "select count(*) from image_extras where image_id = %s", (image,)) == 0
-        _all(w, "delete from concepts")
+        assert _one(app, "select count(*) from meme_text_ratings where image_id = %s", (image,)) == 1  # the image and its ratings stay
 
 
 def test_the_writer_can_reindex_and_vacuum_class_d_tables_with_maintain(role_db):

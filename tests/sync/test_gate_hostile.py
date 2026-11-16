@@ -204,6 +204,30 @@ def test_verify_with_a_missing_extra_or_replaced_file(tree):
     assert r.code == 1 and "directory_content" in r.err
 
 
+def test_a_superscript_digit_in_the_verify_size_is_a_usage_error_not_a_crash(tree):
+    # review finding L3: "²".isdigit() is True but int() raises
+    assert tree.receive("v5", {"a.jpg": b"1"}).code == 0
+    stdin = sha(b"1").encode() + b"\x00" + "²".encode("utf-8") + b"\x00" + b"a.jpg\x00"
+    r = tree.run("verify v5", stdin)
+    assert r.code == 2 and "bad_sums" in r.err and "Traceback" not in r.err
+
+
+def test_an_unexpected_exception_is_one_line_exit_one_without_traceback_or_path(tree, monkeypatch):
+    def boom(ctx, args):
+        raise KeyError("/secret/path/value")
+
+    monkeypatch.setitem(gate.VERBS, "list", (boom, False))
+    r = tree.run("list")
+    assert r.code == 1 and r.err == "gate: internal_error: KeyError\n"
+
+
+def test_a_full_hash_scales_linearly_with_the_target_set(tree):
+    for n in range(300):
+        tree.put(f"f{n:04d}.jpg", b"x")
+    r = tree.run("hash")
+    assert r.code == 0 and len(r.records()) == 300
+
+
 # ------------------------------------------------------------ command and stdin parsing
 
 

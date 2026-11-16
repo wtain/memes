@@ -239,6 +239,10 @@ def build_plan(inp: PlanInput) -> Plan:
 
         guards += _image_guards(inp, tables, existing, dev_ids, prod_ids, len(changed_planned))
         # only when a profile table is compared: the affected rows are overwrites by digest, the flag is the owner's acknowledgement
+        # M2: a new image written without its required derived tables would be served by prod without OCR or an embedding; an `--only`
+        # that leaves a required table out is refused (exit 3, no lift) while the plan adds images. Nothing is written for it.
+        missing_required = [t for t in inp.required if t not in tables]
+        guards.append(report.Guard("only_excludes_required_tables", bool(new_planned and missing_required), len(new_planned), 0))
         guards.append(report.Guard("model_change", inp.model_change and any(t in tables for t in MODEL_TABLES), int(inp.model_change), 0,
                                    LIFT_MODEL))
 

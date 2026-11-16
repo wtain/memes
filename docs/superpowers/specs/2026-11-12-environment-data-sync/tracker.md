@@ -64,6 +64,15 @@ Everything below is committed on `worktree-env-data-sync` (35 commits ahead of `
 
 Uncommitted on 2026-11-16 by another worker: P2-T10 first-seed additions (`sync/promote/cli.py`, `preconditions.py`: a `rebuild_indexes` informational precondition and the "owner step" lines) and `tests/integration/sync/test_promote_first_seed.py`; P2-T11 failure-injection tests.
 
+**Whole-branch review fixes (2026-11-16, uncommitted, built by the fix worker; tested with the container-free suites and `tests/integration/sync` against `ocrdb_test`):**
+H1 the prod writer holds `DELETE` only on `replace_per_image` class D tables (`TableSync.delete_ok`, `registry.prod_delete_set`; roles SQL regenerated, `sync.release` and the doctor/verify role checks follow, mutation test for a `DELETE` on `images`);
+M1 `--apply --yes` needs `--plan-hash` (promote, files, pull, run; `--run-id` from the driver exempts its children; `--batch-size` and `--max-report-age` documented as outside the hash);
+M2 guard `only_excludes_required_tables` (exit 3, no lift) for `--only` without the required tables while new images are planned;
+M3 `inflight.json` intent record before the prod COMMIT, `committed_unrecorded` in the report instead of "failed/rolled back", verify and `--verify-only` include it, same-run-id resume adopts it;
+M4 guard `dev_only_discarded:<table>` with `--allow-dev-discard` and `sync.pull.max_dev_discard_{rows,ratio}`;
+L1 gate `hash` linear; L3 gate catch-all and ASCII digit parsing; L4 bug-report resume re-checks the dev file; L5 resume with other tables refused; L6 read-only startup option and a read-only doctor; L11 shared replace retry.
+Not done: L2 (gate verify against a partially committed batch).
+
 **Unverified (needs a real VPS or a Linux VM):** the real ssh path on Windows OpenSSH (tunnel, host keys, verb and upload accounts, chroot), `setup-host.sh`, sshd drop-in, systemd timers and quotas, the Caddy edge with real certificates, real transfer rates, Postgres 18.7 on prod against 18.3 on dev, gate verbs `disk`, `containment`, `fetch-backup` and the checks that read them (S4 account probe, S6, S8, A3), the HTTP checks (S3, S7, A4), the numbers of the app-level limiter (the implementer's guesses), a full and an interrupted first seed, backup and restore drills, the prod web build deployment. P7-T6 (acceptance run on a throw-away VPS) and the security drills are not done.
 
 ## Recommended build order (additions only; removals later, see "Deferred: removals")

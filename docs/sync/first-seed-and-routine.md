@@ -32,7 +32,7 @@ running the same command again**; there is no wipe mode and none is needed.
      `waiting_for_files` (data that depends on files the same run adds);
    - guards: mass change does not apply to a first seed; zero images and dev-emptied still do;
    - the estimate (about 11 minutes for the whole files part of `general` at 50 Mbit/s, measured on loopback only, so treat it as a lower bound).
-4. **Apply:** `python -m sync.run --env <env> --first-seed --apply --plan-hash <hash>`, then type `<env> <prod database>` when asked.
+4. **Apply:** `python -m sync.run --env <env> --first-seed --apply --plan-hash <hash>` (`--yes` is accepted only together with `--plan-hash`), then type `<env> <prod database>` when asked.
    Order inside the run: handshake, pull (empty prod, so nothing to pull; `sync.pull` has a guard for exactly this, see [pull.md](pull.md)), files,
    data, verify. If it is interrupted (tunnel loss, Ctrl-C, a killed laptop), run the same command again: committed file batches and image
    batches stay, the next plan continues from the digests. A failed batch rolls back and stops the run (exit 1).
@@ -42,9 +42,10 @@ running the same command again**; there is no wipe mode and none is needed.
    seed: the first-seed behaviour of the whole `sync.run` is being covered by tests while this page was written.)
 5. **Owner step on the VPS: rebuild the indexes** (the promote never does DDL): recreate the HNSW and GIN indexes from the saved
    definitions with a raised `maintenance_work_mem` (a 43k x 1024-d HNSW build took 149 s at 64 MB and 30 s at 1 GB), or `REINDEX INDEX CONCURRENTLY`
-   if they were kept. The promote report for a first seed names the tables whose indexes are missing.
+   if they were kept. The promote report for a first seed (`--first-seed`) carries one informational entry `rebuild_indexes:<table>` (detail `missing=<n>`) per table that lacks an HNSW or GIN index of
+   the model, or a single `rebuild_indexes` (`all_present`) when none is missing; the console repeats it as "owner step: rebuild the HNSW and GIN indexes of <tables>".
 6. **Owner step, last:** `ALTER DATABASE memes_<env> SET memes.state = 'serving'` (the exact `exec -u postgres db psql` call is in the release runbook).
-   The sync tools never change this marker.
+   The sync tools never change this marker: the promote prints "owner step, last: ALTER DATABASE ... SET memes.state = 'serving'" after a first seed and does not run it.
 7. **Verify:** `python -m sync.verify --env <env> --deep-files` (exit 0 expected; while seeding, the index check S5 is relaxed, after step 6 it is strict).
 8. Confirm the backup timer has run once the data exists ([prod-operations.md](prod-operations.md)); only class P tables are backed up, class D is rebuilt by a promote.
 

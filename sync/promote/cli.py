@@ -125,6 +125,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise UsageProblem("--plan-hash must be the hex hash printed by the dry run")
     if args.yes and not args.apply:
         raise UsageProblem("--yes needs --apply")
+    if args.apply and args.yes and args.plan_hash is None and args.run_id is None:
+        raise UsageProblem("--apply --yes needs --plan-hash from the dry run (--yes skips only the typed confirmation, never the dry-run binding)")
     if args.verify_only and args.apply:
         raise UsageProblem("--verify-only is read only and cannot be combined with --apply")
     if args.first_seed and args.verify_only:
@@ -423,6 +425,8 @@ def _after_plan(args, settings, run_id, folder, inp: plan_mod.PlanInput, hs, pre
     if not outcome.ok:
         raise ApplyFailed(f"apply stopped: {outcome.failure}; {outcome.batches} batch(es) committed by this run"
                           + (f", {len(outcome.failed)} image(s) of the failed batch rolled back" if outcome.failed else "")
+                          + (f", {len(outcome.committed_unrecorded)} image(s) COMMITTED BUT NOT RECORDED in committed.json (inflight.json lists them; "
+                             "they are on prod or may be: run --verify-only)" if outcome.committed_unrecorded else "")
                           + "; see committed.json and report.json, then run the same command again")
     verification = outcome.verify
     if verification is not None and verification.error:
@@ -440,7 +444,8 @@ def result_of(p: plan_mod.Plan, outcome: apply_mod.ApplyOutcome) -> dict:
     data: dict = {}
     if p.section.entries and p.section.entries[0].name == plan_mod.ENTRY:
         data[plan_mod.ENTRY] = report.ResultEntry(added=len(outcome.added), overwritten=len(outcome.overwritten),
-                                                  skipped=dict(outcome.skipped), failed=outcome.failed, failure=outcome.failure)
+                                                  skipped=dict(outcome.skipped), failed=outcome.failed, failure=outcome.failure,
+                                                  committed_unrecorded=outcome.committed_unrecorded)
     for e in p.section.entries:
         g = outcome.globals.get(e.name)
         if g is not None:

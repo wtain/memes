@@ -28,7 +28,7 @@ def image(n, filename=None, content_hash="h"):
     return dg.DevImage(iid(n), filename or f"f{n}.jpg", f"{content_hash}{n}", f"2026-01-01 00:{n:02d}:00")
 
 
-def make(dev_n, prod_n=None, dev=None, prod=None, **kw):
+def make(dev_n, prod_n=None, dev=None, prod=None, tables=None, **kw):
     """Images 1..dev_n on dev, 1..prod_n on prod (default dev_n), equal digests unless overridden per id."""
     prod_n = dev_n if prod_n is None else prod_n
     dev_d = {iid(n): base_digest() for n in range(1, dev_n + 1)}
@@ -36,7 +36,7 @@ def make(dev_n, prod_n=None, dev=None, prod=None, **kw):
     dev_d.update(dev or {})
     prod_d.update(prod or {})
     return P.PlanInput(env="general", dev_images=[image(n) for n in range(1, dev_n + 1)], prod_ids={iid(n) for n in range(1, prod_n + 1)},
-                       dev_digests=dev_d, prod_digests=prod_d, tables=TABLES, manifest_hash="ab" * 32, **kw)
+                       dev_digests=dev_d, prod_digests=prod_d, tables=tables or TABLES, manifest_hash="ab" * 32, **kw)
 
 
 def entry(p, name="images"):
@@ -300,3 +300,17 @@ def test_model_change_guard_does_not_depend_on_its_lift_flag_in_the_plan_hash():
 def test_model_change_is_not_a_guard_when_no_profile_table_is_compared():
     p = P.build_plan(model_inp(True, tables=["images", "tags"]))
     assert not [g for g in p.tripped if g.id == "model_change"]
+
+
+def test_only_that_excludes_a_required_table_is_refused_while_new_images_are_planned():
+    # review finding M2: --only tags would write new prod images without ocr_texts and embeddings
+    inp = make(10, 8, tables=["images", "tags"])
+    p = P.build_plan(inp)
+    g = next(g for g in p.guards if g.id == "only_excludes_required_tables")
+    assert g.tripped and g.value == 2 and g.lifted_by is None
+    assert P.effective_blocking(p, allow_mass_change=2, allow_shrink=["tags"], allow_model_change=True) == ["only_excludes_required_tables"]
+    # no new image: an overwrite of existing images through --only tags stays allowed
+    p2 = P.build_plan(make(10, tables=["images", "tags"], dev={iid(2): {**base_digest(), "tags": D(2, "z")}}))
+    assert not next(g for g in p2.guards if g.id == "only_excludes_required_tables").tripped
+    # the required tables compared: not tripped
+    assert not next(g for g in P.build_plan(make(10, 8)).guards if g.id == "only_excludes_required_tables").tripped

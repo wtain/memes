@@ -101,7 +101,8 @@ class Plan:
     p_tables: tuple[str, ...]
     x_tables: tuple[str, ...]
     app_write: tuple[str, ...]  # prod_write_set("backend_app")
-    writer_write: tuple[str, ...]  # prod_write_set("sync_writer")
+    writer_write: tuple[str, ...]  # prod_write_set("sync_writer"): SELECT, INSERT, UPDATE
+    writer_delete: tuple[str, ...]  # prod_delete_set("sync_writer"): additionally DELETE (only the per-image replaced tables)
     writer_sequence_tables: tuple[str, ...]  # integer-id D tables (registry setval)
     app_sequence_tables: tuple[str, ...]  # the class P table with a serial id (meme_impressions)
     ro_tables: tuple[str, ...]
@@ -116,6 +117,7 @@ def plan() -> Plan:
         x_tables=x,
         app_write=tuple(registry.prod_write_set("backend_app")),
         writer_write=tuple(registry.prod_write_set("sync_writer")),
+        writer_delete=tuple(registry.prod_delete_set("sync_writer")),
         writer_sequence_tables=tuple(t for t in setval if t in d),
         app_sequence_tables=tuple(t for t in setval if t in p),
         ro_tables=tuple(t for t in sorted(registry.names()) if t not in RO_EXCLUDED),
@@ -125,7 +127,7 @@ def plan() -> Plan:
 def registry_digest() -> str:
     """Short digest of everything in the registry that the grants depend on (a header line; it changes when a class does)."""
     lines = [
-        f"{e.name}|{e.klass.value}|{e.prod_writer}|{int(e.setval)}"
+        f"{e.name}|{e.klass.value}|{e.prod_writer}|{int(e.setval)}|{int(e.delete_ok)}"
         for e in sorted(registry.REGISTRY.values(), key=lambda e: e.name)
     ]
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:16]
@@ -205,7 +207,8 @@ def expected(names: Names) -> Expected:
     table: list[tuple[str, str, str]] = []
     table += _expected_items(n.app, pl.d_tables, ["SELECT"])
     table += _expected_items(n.app, pl.app_write, rw)
-    table += _expected_items(n.sync_w, pl.writer_write, rw)
+    table += _expected_items(n.sync_w, pl.writer_write, ["SELECT", "INSERT", "UPDATE"])
+    table += _expected_items(n.sync_w, pl.writer_delete, ["DELETE"])
     table += _expected_items(n.sync_w, ["alembic_version"], ["SELECT"])
     table += _expected_items(n.sync_r, pl.p_tables, ["SELECT"])
     table += _expected_items(n.sync_r, ["alembic_version"], ["SELECT"])
@@ -330,7 +333,9 @@ def render(names: Names) -> str:
     w("    " + _table_grant("SELECT", pl.d_tables, n.app).replace("\n", "\n    "))
     w("    " + _table_grant(rw, pl.app_write, n.app).replace("\n", "\n    "))
     w(f"    -- {n.sync_w}: writes class D, reads alembic_version, three ratings columns (no text), no TEMP, nothing on class P or X.")
-    w("    " + _table_grant(rw, pl.writer_write, n.sync_w).replace("\n", "\n    "))
+    w("    " + _table_grant("SELECT, INSERT, UPDATE", pl.writer_write, n.sync_w).replace("\n", "\n    "))
+    w("    -- DELETE only where the promote replaces rows per image (never images, an upsert table or a global set).")
+    w("    " + _table_grant("DELETE", pl.writer_delete, n.sync_w).replace("\n", "\n    "))
     w(f"    GRANT SELECT ON TABLE alembic_version TO {_q(n.sync_w)};")
     w(f"    GRANT SELECT ({', '.join(WRITER_RATINGS_COLUMNS)}) ON TABLE meme_text_ratings TO {_q(n.sync_w)};")
     w(f"    IF current_setting('server_version_num')::int >= {MAINTAIN_MIN_VERSION_NUM} THEN")

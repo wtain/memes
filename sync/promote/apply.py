@@ -52,6 +52,7 @@ from sync.promote import files_gate
 from sync.promote import verify as verify_mod
 
 COMMITTED = "committed.json"
+INFLIGHT = "inflight.json"  # the intent record of the batch that is about to be committed on prod (removed once committed.json has it)
 SPOOL_BYTES = 32 * 1024 * 1024  # a per-table, per-batch COPY stream stays in memory up to this size, then spills to a temp file
 LOCK_TIMEOUT = "30s"
 STATEMENT_TIMEOUT = "30min"
@@ -169,6 +170,15 @@ class CommittedLog:
                     "globals": {"concepts": False, "absorptions": False}}
         if global_tables:
             self.doc["global_tables"] = list(global_tables)  # the global sets in scope of the run (verify compares their parity)
+        self.intent_path = Path(folder) / INFLIGHT
+        self.intent: dict | None = None  # a batch an earlier process was about to commit (or committed without recording it)
+        if self.intent_path.is_file():
+            try:
+                self.intent = json.loads(self.intent_path.read_text(encoding="utf-8"))
+                if self.intent.get("run_id") != run_id or self.intent.get("env") != env or not isinstance(self.intent.get("ids"), list):
+                    raise ValueError
+            except (OSError, ValueError):
+                raise ApplyError("inflight_json_unusable") from None
         if self.path.is_file():
             try:
                 old = json.loads(self.path.read_text(encoding="utf-8"))
@@ -176,6 +186,8 @@ class CommittedLog:
                 raise ApplyError("committed_json_unreadable") from None
             if old.get("run_id") != run_id or old.get("env") != env or not isinstance(old.get("batches"), list):
                 raise ApplyError("committed_json_foreign")
+            if list(old.get("tables") or []) != list(tables):  # review finding L5: a resume must compare the same tables as the first run
+                raise ApplyError("committed_json_tables_differ")
             self.doc.update({"batches": old["batches"], "globals": old.get("globals", self.doc["globals"])})
             if old.get("global_rows"):
                 self.doc["global_rows"] = old["global_rows"]
@@ -191,6 +203,19 @@ class CommittedLog:
     def append(self, n: int, ids: list, digests: dict, renamed: list, committed_at: str) -> None:
         self.doc["batches"].append({"n": n, "committed_at": committed_at, "ids": list(ids), "digests": digests, "renamed": renamed})
         self._write()
+        self.clear_intent()
+
+    def write_intent(self, n: int, ids: list, digests: dict, renamed: list) -> None:
+        """Atomic record written BEFORE the prod COMMIT: if the process dies (or committed.json cannot be written) after the commit, these
+        ids are known and `--verify-only` and the next run check them against prod."""
+        self.intent = {"run_id": self.doc["run_id"], "env": self.doc["env"], "tables": self.doc["tables"], "n": n, "ids": list(ids),
+                       "digests": digests, "renamed": renamed}
+        atomic_write(self.intent_path, json.dumps(self.intent, indent=2, ensure_ascii=True) + "\n")
+
+    def clear_intent(self) -> None:
+        self.intent = None
+        with contextlib.suppress(OSError):
+            self.intent_path.unlink()
 
     def record_global(self, table: str, rows: dict) -> None:
         """The rows of a global table this run committed: `{key: row hash of the dev snapshot}` (keys as text), written after the commit.
@@ -215,6 +240,7 @@ class ApplyOutcome:
     overwritten: list = field(default_factory=list)  # image ids committed as replaced
     skipped: dict = field(default_factory=dict)  # reason code -> ids (apply time only: files gate, deferred, digest mismatch)
     failed: list = field(default_factory=list)  # ids of the batch that was rolled back
+    committed_unrecorded: list = field(default_factory=list)  # ids committed (or possibly committed) on prod without a committed.json record
     failure: str | None = None  # code of the failure that stopped the run
     batches: int = 0  # batches committed by this run
     rows: dict = field(default_factory=dict)  # table -> rows copied to prod by this run
@@ -351,20 +377,25 @@ def apply_batch(ctx: Context, n: int, ids: list, outcome: ApplyOutcome) -> list:
             if bad:
                 raise DigestMismatch(bad)
             _before_commit(n, live)
+            digests = {i: now[i] for i in live}
+            renamed = [{"id": i, "old_filename": old_names[i], "new_filename": rows[i].filename}
+                       for i in changed if i in old_names and old_names[i] != rows[i].filename]
+            ctx.log.write_intent(n, live, digests, renamed)
             committing = True
+            outcome.committed_unrecorded = list(live)  # from here on the batch may be on prod: it is never reported as rolled back
             prod.query("COMMIT")
             committing = False
         except BaseException:
             if not committing:
                 _rollback(prod)
+                outcome.committed_unrecorded = []
+                ctx.log.clear_intent()
             raise
-        digests = {i: now[i] for i in live}
-        renamed = [{"id": i, "old_filename": old_names[i], "new_filename": rows[i].filename}
-                   for i in changed if i in old_names and old_names[i] != rows[i].filename]
         try:
             ctx.log.append(n, live, digests, renamed, ctx.now().strftime("%Y-%m-%dT%H:%M:%SZ"))
         except Exception:  # the batch IS on prod; only its record is missing (the next run sees these images as unchanged)
             raise ApplyError(RECORD_FAILED) from None
+        outcome.committed_unrecorded = []
         outcome.inflight = []
         return live
     finally:
@@ -660,6 +691,25 @@ def _say(out: Any, text: str) -> None:
         out.write(text + "\n")
 
 
+def adopt_intent(ctx: Context, outcome: ApplyOutcome) -> None:
+    """A resumed run finds `inflight.json`: the batch an earlier process was about to commit. Prod is asked (read only): the images whose
+    digests equal the recorded ones are recorded in committed.json now (they were committed), the others were not committed and the
+    record is dropped (a re-plan picks them up). Nothing is rewritten on prod."""
+    intent = ctx.log.intent
+    ids = [str(i) for i in intent["ids"]]
+    tables = dg.table_order(intent.get("tables") or ctx.tables)
+    got = dg.fetch_image_digests(ctx.prod, tables, "ids", ids)
+    group_tables = dg.groups_for(tables)
+    on_prod = [i for i in ids if dg.image_group_hashes(got.get(i, {}), group_tables) == intent["digests"].get(i)]
+    if on_prod:
+        ctx.log.append(int(intent.get("n") or ctx.log.next_n), on_prod, {i: intent["digests"][i] for i in on_prod},
+                       [r for r in intent.get("renamed", []) if r.get("id") in set(on_prod)], ctx.now().strftime("%Y-%m-%dT%H:%M:%SZ"))
+    else:
+        ctx.log.clear_intent()
+    outcome.notes.append(f"inflight_adopted:{len(on_prod)}_of_{len(ids)}")
+    _say(ctx.out, f"inflight.json of an earlier process: {len(on_prod)} of {len(ids)} image(s) were on prod and are recorded now")
+
+
 def run_apply(*, settings: Any, inp: Any, plan: Any, dev: Any, prod: Any, folder: Path, run_id: str, out: Any = None,
               now: Callable[[], _dt.datetime] | None = None) -> ApplyOutcome:
     """Apply the image batches of `plan` and the post steps. Never raises for a failed batch: the failure is in the outcome (the caller
@@ -673,7 +723,7 @@ def run_apply(*, settings: Any, inp: Any, plan: Any, dev: Any, prod: Any, folder
     todo = list(plan.write_order)
     image_work = bool(todo and tables)
     global_work = any(v["added"] or v["overwritten"] for v in plan.globals.values())
-    if image_work or global_work:
+    if image_work or global_work or (Path(folder) / INFLIGHT).is_file():
         if image_work and inp.files is None:
             raise ApplyError("files_report_missing")
         for side in (dev, prod):
@@ -682,6 +732,8 @@ def run_apply(*, settings: Any, inp: Any, plan: Any, dev: Any, prod: Any, folder
         prod.query(f"SET lock_timeout = '{LOCK_TIMEOUT}'")
         prod.query(f"SET statement_timeout = '{STATEMENT_TIMEOUT}'")
         ctx.log = CommittedLog(folder, run_id, settings.env, tables, inp.global_tables if not inp.limit_images else [])
+    if ctx.log is not None and ctx.log.intent is not None:
+        adopt_intent(ctx, outcome)
     if image_work:
         already = set(ctx.log.committed_ids)
         todo = [i for i in todo if i not in already]
@@ -711,6 +763,10 @@ def run_apply(*, settings: Any, inp: Any, plan: Any, dev: Any, prod: Any, folder
             outcome.added += [i for i in done if i in new]
             outcome.overwritten += [i for i in done if i not in new]
             _say(out, f"batch {n}: {len(done)} of {len(chunk)} images committed")
+    if outcome.committed_unrecorded:  # on prod (or possibly): never "rolled back", never in `failed`; --verify-only and the verify below check them
+        outcome.failed = []
+        _say(out, f"COMMITTED BUT NOT RECORDED: {len(outcome.committed_unrecorded)} image(s) are on prod (or may be) but missing from "
+                  "committed.json; inflight.json lists them; run the same command again or --verify-only")
     if outcome.ok:
         apply_globals(ctx, outcome)
     if outcome.ok:
@@ -721,6 +777,8 @@ def run_apply(*, settings: Any, inp: Any, plan: Any, dev: Any, prod: Any, folder
                 analyze_tables(prod, touched)
         except connect.DbError as exc:
             outcome.failure = exc.code
-    if ctx.log is not None and outcome.failure != "interrupted" and verify_mod.has_committed(ctx.log.doc):
-        outcome.verify = verify_mod.verify_after_apply(dev, prod, ctx.log.doc)
+    if ctx.log is not None:
+        doc = verify_mod.with_intent(ctx.log.doc, ctx.log.intent)
+        if (outcome.failure != "interrupted" or outcome.committed_unrecorded) and verify_mod.has_committed(doc):
+            outcome.verify = verify_mod.verify_after_apply(dev, prod, doc)
     return outcome

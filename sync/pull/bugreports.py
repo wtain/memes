@@ -390,12 +390,24 @@ def run(settings: Any, transport: Any, state_dir: Any, run_id: str) -> dict:
     directory = Path(state_dir)
     try:
         plan = make_plan(settings, transport, directory)
-        target = dev_dir(settings) if plan.fetch else None
+        target = dev_dir(settings) if (plan.fetch or plan.resume) else None
     except PreconditionError:
         return {"status": "partial", "pulled": 0, "deleted_on_prod": 0, "failed": 1}
     ledger = load_ledger(directory)
     pulled = failed = 0
-    done = list(plan.resume)
+    # review finding L4: a ledger entry alone never authorises a delete on prod; the dev file must still exist with the listed sha
+    done = []
+    for f in plan.resume:
+        if _regular_sha(target / f.name) == f.sha:
+            done.append(f)
+        else:
+            ledger.pop(f.name, None)  # the dev copy is gone or changed: pull it again, delete nothing on prod for it yet
+            plan.fetch.append(f)
+    if len(done) != len(plan.resume):
+        try:
+            write_ledger(directory, ledger)
+        except OSError:
+            return {"status": "partial", "pulled": 0, "deleted_on_prod": 0, "failed": len(plan.fetch)}
     if plan.fetch:
         try:
             target.mkdir(parents=True, exist_ok=True)

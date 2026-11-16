@@ -68,6 +68,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--allow-empty-source", action="store_true", help="lift the guard: prod has no rows in any class P table while dev has some")
     p.add_argument("--allow-shrink", action="append", default=[], metavar="TABLE", help="lift the shrink guard of one class P table (repeatable)")
     p.add_argument("--allow-growth", action="store_true", help="lift the growth and row-ceiling guards")
+    p.add_argument("--allow-dev-discard", action="store_true",
+                   help="lift the dev_only_discarded guards: the mirror may delete dev-only rows beyond the configured bound, or any on a first pull")
     p.add_argument("--skip-files", action="store_true", help="do not pull bug reports")
     p.add_argument("--top", type=int, default=None, help="ids listed per category in report.md and the summary (default sync.report.top_n)")
     p.add_argument("--run-id", default=None, help="run id (sync.run passes it to its children)")
@@ -86,6 +88,8 @@ def validate_args(args: argparse.Namespace) -> None:
             raise UsageProblem("--plan-hash must be the hex hash printed by the dry run")
     if args.yes and not args.apply:
         raise UsageProblem("--yes needs --apply")
+    if args.apply and args.yes and args.plan_hash is None and args.run_id is None:
+        raise UsageProblem("--apply --yes needs --plan-hash from the dry run (--yes skips only the typed confirmation, never the dry-run binding)")
     if args.top is not None and args.top < 1:
         raise UsageProblem("--top must be at least 1")
     for t in args.allow_shrink:
@@ -109,6 +113,8 @@ def apply_flags(args: argparse.Namespace) -> list:
         flags += ["--allow-shrink", t]
     if args.allow_growth:
         flags.append("--allow-growth")
+    if args.allow_dev_discard:
+        flags.append("--allow-dev-discard")
     return flags
 
 
@@ -119,9 +125,13 @@ def limits_from(settings: SyncSettings) -> plan_mod.Limits:
             raise ConfigError(f"tracked setting sync.pull.{key} must be a non-negative number")
         return value
 
-    return plan_mod.Limits(num("max_growth_factor", plan_mod.DEFAULT_GROWTH_FACTOR), int(num("min_growth_rows", plan_mod.DEFAULT_MIN_GROWTH_ROWS)),
-                           int(num("max_rows_per_pull", plan_mod.DEFAULT_MAX_ROWS)),
-                           int(num("truncate_threshold", plan_mod.DEFAULT_TRUNCATE_THRESHOLD)), int(num("text_cap", plan_mod.DEFAULT_TEXT_CAP)))
+    return plan_mod.Limits(
+        max_growth_factor=num("max_growth_factor", plan_mod.DEFAULT_GROWTH_FACTOR), min_growth_rows=int(num("min_growth_rows", plan_mod.DEFAULT_MIN_GROWTH_ROWS)),
+        max_rows_per_pull=int(num("max_rows_per_pull", plan_mod.DEFAULT_MAX_ROWS)),
+        truncate_threshold=int(num("truncate_threshold", plan_mod.DEFAULT_TRUNCATE_THRESHOLD)),
+        max_dev_discard_rows=int(num("max_dev_discard_rows", plan_mod.DEFAULT_MAX_DEV_DISCARD_ROWS)),
+        max_dev_discard_ratio=float(num("max_dev_discard_ratio", plan_mod.DEFAULT_MAX_DEV_DISCARD_RATIO)),
+        text_cap=int(num("text_cap", plan_mod.DEFAULT_TEXT_CAP)))
 
 
 def mode_from(settings: SyncSettings) -> str:
@@ -344,6 +354,14 @@ def _locked(args, settings: SyncSettings, mode: str, limits, run_id: str, folder
             return _after_plan(args, settings, run_id, folder, inp, p, hs, pre, dev, prod, directory, facts, transport, now, out, ask)
 
 
+def discard_note(p: plan_mod.Plan) -> str:
+    """One line for the confirmation prompt: how many dev-only rows the mirror deletes, per table (counts only; empty when none)."""
+    per = {e.name: e.counts.get("dev_only_discarded", 0) for e in p.section.entries if e.counts.get("dev_only_discarded")}
+    if not per:
+        return ""
+    return ("dev-only rows that this pull DELETES from dev: " + ", ".join(f"{t} {n}" for t, n in sorted(per.items())) + "\n")
+
+
 def _after_plan(args, settings, run_id, folder, inp, p: plan_mod.Plan, hs, pre, dev, prod, directory, facts, transport, now, out, ask) -> int:
     env = settings.env
     lists, checks = bugreports.plan_report(settings, None if args.skip_files else transport)
@@ -364,7 +382,7 @@ def _after_plan(args, settings, run_id, folder, inp, p: plan_mod.Plan, hs, pre, 
     if args.plan_hash is not None and args.plan_hash.lower() != plan_hash:
         refusal = f"the plan changed since the dry run (planned hash {plan_hash}, expected {args.plan_hash.lower()})"
     else:
-        blocking = plan_mod.effective_blocking(p, args.allow_empty_source, args.allow_shrink, args.allow_growth)
+        blocking = plan_mod.effective_blocking(p, args.allow_empty_source, args.allow_shrink, args.allow_growth, args.allow_dev_discard)
         if blocking:
             refusal = "guard tripped before any write: " + ", ".join(blocking)
     if refusal:
@@ -374,7 +392,7 @@ def _after_plan(args, settings, run_id, folder, inp, p: plan_mod.Plan, hs, pre, 
     if not args.yes:
         expected = f"{env} {dev.scalar('select current_database()')}"
         try:
-            typed = ask(f"Type '{expected}' to replace the reader-activity tables of the dev database with prod's: ").strip()
+            typed = ask(f"{discard_note(p)}Type '{expected}' to replace the reader-activity tables of the dev database with prod's: ").strip()
         except EOFError:
             typed = ""
         if typed != expected:
@@ -439,8 +457,11 @@ def _print_result(p: plan_mod.Plan, outcome: apply_mod.ApplyOutcome, out) -> Non
 
 
 def _print_notes(p: plan_mod.Plan, args: argparse.Namespace, out) -> None:
-    blocking = plan_mod.effective_blocking(p, args.allow_empty_source, args.allow_shrink, args.allow_growth)
-    problems = plan_mod.lift_problems(p, args.allow_empty_source, args.allow_shrink, args.allow_growth)
+    blocking = plan_mod.effective_blocking(p, args.allow_empty_source, args.allow_shrink, args.allow_growth, args.allow_dev_discard)
+    problems = plan_mod.lift_problems(p, args.allow_empty_source, args.allow_shrink, args.allow_growth, args.allow_dev_discard)
+    note = discard_note(p)
+    if note:
+        out.write(note)
     if blocking:
         out.write("an apply would refuse (exit 3): " + ", ".join(blocking) + "\n")
     if problems:

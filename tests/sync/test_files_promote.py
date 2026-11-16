@@ -536,3 +536,13 @@ def test_yes_skips_only_the_confirmation(world):
         raise AssertionError("must not ask")
     args = promote.build_parser().parse_args(["promote", "--env", "general", "--apply", "--yes"])
     assert args.yes is True
+
+
+def test_apply_yes_without_a_plan_hash_is_a_usage_error_unless_the_driver_passes_its_run_id(world):
+    # review finding M1: --yes skips only the typed confirmation, never the dry-run binding (sync.run children carry --run-id)
+    args = promote.build_parser().parse_args(["promote", "--env", "general", "--apply", "--yes"])
+    out, err = io.StringIO(), io.StringIO()
+    code = promote.run_promote(args, settings=world.settings, session_opener=world.opener, transport_factory=world.factory,
+                               base_dir=str(world.dev), out=out, err=err, ask=lambda prompt: "")
+    assert code == 2 and "--plan-hash" in err.getvalue()
+    assert world.prod_snapshot() == world.prod_snapshot()

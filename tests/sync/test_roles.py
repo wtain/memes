@@ -13,7 +13,7 @@ import pytest
 
 from Storage.models import Base
 from sync import registry, roles
-from sync.model import Klass
+from sync.model import Klass, Mode
 
 ENVS = roles.ENVS
 RW = {"SELECT", "INSERT", "UPDATE", "DELETE"}
@@ -69,7 +69,7 @@ def test_every_table_of_the_models_is_granted_exactly_as_its_class_allows(env):
     for table in sorted(models):
         klass = registry.get(table).klass
         want_app = {Klass.D: {"SELECT"}, Klass.P: RW, Klass.X: set()}[klass]
-        want_w = {Klass.D: RW | {"MAINTAIN"}, Klass.P: set(), Klass.X: set()}[klass]
+        want_w = {Klass.D: (RW if registry.get(table).delete_ok else RW - {"DELETE"}) | {"MAINTAIN"}, Klass.P: set(), Klass.X: set()}[klass]
         want_r = {"SELECT"} if klass is Klass.P else set()
         want_ro = set() if table in RO_EXCLUDED else {"SELECT"}
         assert privs(n.app, table) == want_app, (table, klass, "app")
@@ -94,6 +94,12 @@ def test_the_app_write_set_is_exactly_the_six_class_p_tables_and_the_writer_writ
     w_rw = {t for t, p in table_privs[n.sync_w].items() if p & {"INSERT", "UPDATE", "DELETE"}}
     assert app_rw == set(registry.prod_write_set("backend_app")) == set(registry.names(Klass.P)) and len(app_rw) == 6
     assert w_rw == set(registry.prod_write_set("sync_writer")) == set(registry.names(Klass.D)) and len(w_rw) == 22
+    # DELETE only where the promote replaces rows per image: never images, an upsert table or a global set (review finding H1)
+    w_del = {t for t, p in table_privs[n.sync_w].items() if "DELETE" in p}
+    assert w_del == set(registry.prod_delete_set("sync_writer"))
+    assert w_del == {e.name for e in registry.REGISTRY.values() if e.klass is Klass.D and e.mode is Mode.REPLACE_PER_IMAGE}
+    assert not w_del & {"images", "concepts", "concept_images", "concept_image_sets", "concept_texts", "concept_text_sets",
+                        "popularity_absorptions"}
     # nobody gets TRUNCATE, REFERENCES, TRIGGER, ALL, CREATE, TEMP, a grant option or a PUBLIC grant
     sql = roles.render(n)
     for needle in ("TRUNCATE", "REFERENCES", "TRIGGER", "GRANT ALL", "TEMPORARY", "TEMP ", "WITH GRANT OPTION", "TO PUBLIC"):
