@@ -199,7 +199,7 @@ file under the same rules (flock, name validation, no shell).
 Database level: `REVOKE ALL ON DATABASE ... FROM PUBLIC` (removes `CONNECT` and `TEMP`), per-role `CONNECT`; `REVOKE CREATE ON SCHEMA public FROM PUBLIC`; no default privileges for any
 role except the owner's own. Connection limits: app 24, sync_w 3, sync_r 3, ro 2, owner 3. Verify (P6) opens the class D digests through `sync_writer` with
 `default_transaction_read_only`. The deferred `files retire` row check would also use `sync_writer` (read-only session): `sync_reader` has no `SELECT` on `images.filename`.
-The P5 role test asserts exactly: the writer's privilege on `meme_text_ratings` is column `SELECT` on those three columns and nothing else, and `ON DELETE CASCADE`
+The database markers (`memes.environment`, `memes.state`, `memes.revision`) are set by the owner role: since PostgreSQL 15 that needs `SET` on those parameters, which `roles.<env>.sql` grants to the owner (and to no other role; P5d-T2, verified on PG18). The image is `pgvector/pgvector:pg18-trixie`, not `postgres:18` (no pgvector there). The P5 role test asserts exactly: the writer's privilege on `meme_text_ratings` is column `SELECT` on those three columns and nothing else, and `ON DELETE CASCADE`
 from `images` into `meme_text_ratings` works without a `DELETE` grant (P5d-T2 verifies on PG18).
 
 ## i. Commands, flags, exit codes
