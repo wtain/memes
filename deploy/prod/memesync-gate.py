@@ -53,7 +53,9 @@ def _dirfd_supported() -> bool:
     return bool(
         _NOFOLLOW and _O_DIR
         and os.open in os.supports_dir_fd and os.stat in os.supports_dir_fd and os.unlink in os.supports_dir_fd
-        and os.replace in os.supports_dir_fd and os.mkdir in os.supports_dir_fd and os.rmdir in os.supports_dir_fd
+        # os.replace takes src_dir_fd/dst_dir_fd wherever os.rename does (both are renameat) but CPython lists only os.rename in
+        # supports_dir_fd; testing os.replace made the gate refuse every verb on Linux ("unsafe_platform") -- found in the P5d-T5 sshd test.
+        and os.rename in os.supports_dir_fd and os.mkdir in os.supports_dir_fd and os.rmdir in os.supports_dir_fd
         and os.listdir in os.supports_fd
     )
 

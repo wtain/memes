@@ -1,0 +1,14 @@
+[Unit]
+Description=memes %i: write disk.json and containment.json for the gate verbs
+Documentation=file:///opt/memes/memes-facts.py
+After=docker.service
+
+[Service]
+Type=oneshot
+# root on purpose: only root (docker group is root-equivalent) may inspect the backend container; the gate user just prints the files.
+ExecStart=/usr/bin/python3 /opt/memes/memes-facts.py %i
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+Nice=10
+TimeoutStartSec=60

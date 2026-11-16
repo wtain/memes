@@ -1,0 +1,4 @@
+# /etc/ssh/memes-keys/memesync-@ENV@ (verb key line). host/setup-host.sh renders @ENV@, @KEY_TYPE@ and @KEY_DATA@; nothing else is ever substituted.
+# The key fixes the environment and the program; the client chooses only the verb (SSH_ORIGINAL_COMMAND). `restrict` switches off pty, agent,
+# X11, forwarding and ~/.ssh/rc; no option re-enables any of them.
+restrict,command="/usr/bin/python3 /opt/memes/memesync-gate.py @ENV@" @KEY_TYPE@ @KEY_DATA@ memesync-@ENV@-verb

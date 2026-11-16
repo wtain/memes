@@ -1,0 +1,2 @@
+# /etc/ssh/memes-keys/memeup-@ENV@ (upload key). The sshd Match block chroots the account and forces internal-sftp; `restrict` closes the rest.
+restrict @KEY_TYPE@ @KEY_DATA@ memeup-@ENV@-upload

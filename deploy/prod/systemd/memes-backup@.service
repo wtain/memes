@@ -1,0 +1,16 @@
+[Unit]
+Description=memes %i: backup of the class P tables and the bug reports
+Documentation=file:///opt/memes/backup.sh
+After=docker.service
+
+[Service]
+Type=oneshot
+# root: it uses `docker exec` (the gate account never gets the docker socket). The database password is read from
+# /etc/memes/%i/backup.env (0600, root), never from the command line.
+ExecStart=/opt/memes/backup.sh %i
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=1h

@@ -1,0 +1,3 @@
+# /etc/ssh/memes-keys/memesync-@ENV@ (tunnel key line, same file as the verb key). `ssh -N -L <port>:127.0.0.1:@PGPORT@` reaches only that
+# environment's Postgres; a session on this key runs /bin/false.
+restrict,port-forwarding,permitopen="127.0.0.1:@PGPORT@",command="/bin/false" @KEY_TYPE@ @KEY_DATA@ memesync-@ENV@-tunnel

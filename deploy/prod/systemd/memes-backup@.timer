@@ -1,0 +1,11 @@
+[Unit]
+Description=memes %i: nightly backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# the three environments do not start together
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

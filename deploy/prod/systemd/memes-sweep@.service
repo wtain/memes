@@ -1,0 +1,17 @@
+[Unit]
+Description=memes %i: gate sweep (stale work batches and uploads)
+Documentation=file:///opt/memes/memesync-gate.py
+
+[Service]
+Type=oneshot
+# The gate's own verb, run locally as the verb account (exactly what the ssh forced command would run). It takes the work lock, deletes
+# batch debris in work/ and tars in staging/incoming older than sweep_age_hours of /etc/memes/gate.conf, and touches nothing else.
+User=memesync-%i
+Group=memesync-%i
+Environment=SSH_ORIGINAL_COMMAND=sweep
+ExecStart=/usr/bin/python3 /opt/memes/memesync-gate.py %i
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+Nice=10
+TimeoutStartSec=5min
