@@ -1695,3 +1695,36 @@ export interface ClusterSimilarityResponse {
   capped: boolean;
   [k: string]: unknown;
 }
+/**
+ * Which feature groups this backend serves. Derived from the stage (APP_STAGE), the settings and the route policy; on prod every dev-only group is false.
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "CapabilitiesFeatures".
+ */
+export interface CapabilitiesFeatures {
+  memeFromText: boolean;
+  concepts: boolean;
+  trends: boolean;
+  comics: boolean;
+  ratings: boolean;
+  statistics: boolean;
+  uploads: boolean;
+  history: boolean;
+  admin: boolean;
+  [k: string]: unknown;
+}
+/**
+ * GET /api/diagnostics/capabilities. Public. Deliberately carries no revision, schema head or git SHA.
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "CapabilitiesResponse".
+ */
+export interface CapabilitiesResponse {
+  stage: "dev" | "prod";
+  /**
+   * APP_ENV of the backend: metal, general or it
+   */
+  environment: string;
+  features: CapabilitiesFeatures;
+  [k: string]: unknown;
+}

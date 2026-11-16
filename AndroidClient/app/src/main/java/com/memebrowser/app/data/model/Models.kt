@@ -40,6 +40,19 @@ data class BatchNamesResponse(
 )
 
 @Serializable
+data class CapabilitiesFeatures(
+    @SerialName("memeFromText") val memeFromText: Boolean,
+    @SerialName("concepts") val concepts: Boolean,
+    @SerialName("trends") val trends: Boolean,
+    @SerialName("comics") val comics: Boolean,
+    @SerialName("ratings") val ratings: Boolean,
+    @SerialName("statistics") val statistics: Boolean,
+    @SerialName("uploads") val uploads: Boolean,
+    @SerialName("history") val history: Boolean,
+    @SerialName("admin") val admin: Boolean
+)
+
+@Serializable
 data class ClusterSimilarityCandidate(
     @SerialName("distance") val distance: Float,
     @SerialName("source") val source: String
@@ -534,6 +547,13 @@ data class UploadedFile(
     @SerialName("content_type") val content_type: String,
     @SerialName("status") val status: String,
     @SerialName("index") val index: Int? = null
+)
+
+@Serializable
+data class CapabilitiesResponse(
+    @SerialName("stage") val stage: String,
+    @SerialName("environment") val environment: String,
+    @SerialName("features") val features: CapabilitiesFeatures
 )
 
 @Serializable
