@@ -1,0 +1,149 @@
+# One production stack per environment (design: docs/superpowers/specs/2026-11-12-environment-data-sync/
+# 2026-11-12-p5-prod-provisioning-and-hardening-design.md, section P5d). Run from this directory as
+#
+#   docker compose -p memes-<env> --env-file env/<env>.prod.env up -d db backend
+#   docker compose -p memes-<env> --env-file env/<env>.prod.env --profile ops run --rm migrate
+#
+# The env file holds the per-environment values (README.md lists every key); a required key that is empty stops compose
+# with a message. Nothing secret is in this file.
+#
+# Postgres image: pgvector/pgvector:pg18-trixie (the dev image family; plain postgres:18 has no pgvector, verified in
+# P5d-T2) pinned by digest below. To move to a newer build: docker pull the tag, read the digest with
+#   docker inspect --format '{{index .RepoDigests 0}}' pgvector/pgvector:pg18-trixie
+# and replace the digest here, in the same change as a note in README.md. (The pin is in this file, not in an env variable,
+# so that the guard test tests/sync/test_prod_compose.py can see it.)
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+services:
+  db:
+    <<: *hardening
+    image: pgvector/pgvector:pg18-trixie@sha256:ab49524d18df7200b74ac9a475e1db6297fc1eb57da4c214c63d10ecc4b754fa
+    # The entrypoint starts as root, fixes ownership of the volume and drops to postgres, so only these capabilities stay.
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    # Tracked config only: postgresql.conf (its hba_file points at the rendered pg_hba.conf, see postgres/provision.sh render);
+    # per-environment memory comes from the env file.
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/memes/postgresql.conf
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-256MB}
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-40}
+    environment:
+      # Only used by the image entrypoint at the first start (initdb); pg_hba.conf rejects the superuser over TCP.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
+    ports:
+      # Host loopback only: sshd on the host forwards the sync tunnel to it (ssh -L). Docker publishes bypass ufw.
+      - "127.0.0.1:${PG_PORT:?set PG_PORT}:5432"
+    volumes:
+      # PG18 layout: the volume mounts at /var/lib/postgresql (PGDATA is below it); the pre-18 path is refused by the image.
+      - ${PGDATA_DIR:?set PGDATA_DIR}:/var/lib/postgresql
+      - ${PGCONF_DIR:?set PGCONF_DIR}:/etc/memes:ro
+      - pgsocket:/var/run/postgresql
+    tmpfs:
+      - /tmp:size=256m
+    shm_size: 256m
+    mem_limit: ${DB_MEM_LIMIT:-1g}
+    cpus: ${DB_CPUS:-1.0}
+    pids_limit: 200
+    healthcheck:
+      # as the postgres OS user, so the probe matches the peer line of pg_hba.conf and leaves no failed-login noise in the log
+      test: ["CMD-SHELL", "gosu postgres pg_isready -q -h /var/run/postgresql"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    networks: [internal]
+
+  backend:
+    <<: *hardening
+    image: memes-backend:${BACKEND_TAG:?set BACKEND_TAG to the git sha of the image}
+    user: "${SVC_UID:-1000}:${SVC_GID:?set SVC_GID to the gid of memesync-<env>}"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Two workers (the Dockerfile default is four), no access log (gunicorn writes none without --access-logfile),
+    # warning level, proxy headers trusted from the shared edge network only.
+    command:
+      - gunicorn
+      - Backend.app.main:app
+      - -w
+      - "2"
+      - -k
+      - uvicorn.workers.UvicornWorker
+      - --bind
+      - 0.0.0.0:8000
+      - --log-level
+      - warning
+      - --forwarded-allow-ips
+      - 172.30.0.0/24
+    environment:
+      APP_ENV: ${MEMES_ENV:?set MEMES_ENV}
+      APP_STAGE: prod
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL (role memes_<env>_app, host db)}
+      BASE_PATH: /data/images
+      BUG_REPORTS_PATH: /data/bug-reports
+    volumes:
+      - ${IMAGES_DIR:?set IMAGES_DIR}:/data/images:ro
+      - ${BUG_REPORTS_DIR:?set BUG_REPORTS_DIR}:/data/bug-reports
+    tmpfs:
+      - /tmp:size=256m
+    mem_limit: ${BACKEND_MEM_LIMIT:-768m}
+    cpus: ${BACKEND_CPUS:-1.0}
+    pids_limit: 200
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      internal: {}
+      edge:
+        aliases: ["${EDGE_ALIAS:?set EDGE_ALIAS (api-<env>)}"]
+
+  # Release steps 2 and 2b (filled in by P5d-T8): alembic upgrade head as the owner role over the unix socket, then
+  # roles.<env>.sql again. No network at all: the owner never connects over TCP (pg_hba rejects it).
+  migrate:
+    <<: *hardening
+    restart: "no"
+    profiles: ["ops"]
+    image: memes-migrate:${BACKEND_TAG:?set BACKEND_TAG to the git sha of the image}
+    user: "${SVC_UID:-1000}:${SVC_GID:?set SVC_GID}"
+    network_mode: none
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${MEMES_ENV:?set MEMES_ENV}
+      APP_STAGE: prod
+      DATABASE_URL: ${DATABASE_URL_OWNER:?set DATABASE_URL_OWNER to the memes_<env>_owner url over the unix socket}
+    volumes:
+      - pgsocket:/var/run/postgresql
+    tmpfs:
+      - /tmp:size=256m
+    mem_limit: ${MIGRATE_MEM_LIMIT:-512m}
+    cpus: ${MIGRATE_CPUS:-1.0}
+    pids_limit: 100
+
+volumes:
+  pgsocket: {}
+
+networks:
+  internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${PROJECT_SUBNET:?set PROJECT_SUBNET (172.31.<n>.0/24)}
+  edge:
+    name: memes-edge
+    external: true

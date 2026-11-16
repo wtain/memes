@@ -1,0 +1,29 @@
+# Tracked prod settings of environment "metal", layered on top of settings.yaml, settings.metal.yaml and settings.prod.yaml when the
+# process runs with APP_STAGE=prod (config/settings.py). No secrets: DATABASE_URL, BASE_PATH, BUG_REPORTS_PATH, APP_ENV and
+# APP_STAGE come from the VPS env file.
+#
+# HOSTNAME: metal.example.invalid is a placeholder in the reserved, never-resolvable `.invalid` TLD (RFC 2606). Replace it with
+# the real public hostname of this environment in the same change that sets the hostname in the edge env file (deploy/prod/README.md).
+# Until then every browser origin is refused by CORS, which is the safe default.
+# Design: docs/superpowers/specs/2026-11-12-environment-data-sync/2026-11-12-p5-prod-provisioning-and-hardening-design.md (P5d, "Configuration").
+
+cors:
+  origins:
+    - https://metal.example.invalid
+  allow_credentials: false
+
+# Reader behaviour that has to stay on in production (the developer overlays may differ).
+popularity:
+  impressions:
+    enabled: true
+  search_outcomes:
+    enabled: true
+
+search:
+  meme_from_text:
+    query_log:
+      enabled: true
+
+# The query parser model is not available in the container: the page answers `available: false`.
+parse:
+  model: ""

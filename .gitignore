@@ -109,3 +109,6 @@ logs/
 # Local evaluation work files (pools, judging sheets, thumbnails): contain library file names
 evaluation/work/
 Storage/sync-state/
+
+# Tracked env-file examples of the prod stacks (the env/ rule above would hide the directory; the examples hold no values).
+!deploy/prod/env/

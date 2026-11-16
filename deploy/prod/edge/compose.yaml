@@ -1,0 +1,56 @@
+# The shared edge: Caddy only (project memes-edge). Run from this directory as
+#
+#   docker network create --subnet 172.30.0.0/24 memes-edge          # once
+#   docker compose -p memes-edge --env-file ../env/edge.prod.env up -d
+#
+# The only published ports of the host besides the loopback Postgres tunnels (compose.yaml one level up).
+# Caddy image pinned by digest (caddy:2.10-alpine, Caddy v2.10.2 when pinned; update like the Postgres image, see README.md).
+
+services:
+  caddy:
+    image: caddy:2.10-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    # Binding 80 and 443 as the image's root user needs this one capability once all others are dropped.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+      METAL_HOST: ${METAL_HOST:?set METAL_HOST}
+      GENERAL_HOST: ${GENERAL_HOST:?set GENERAL_HOST}
+      IT_HOST: ${IT_HOST:?set IT_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - ${WEB_ROOT_METAL:?set WEB_ROOT_METAL}:/srv/memes/metal/web:ro
+      - ${WEB_ROOT_GENERAL:?set WEB_ROOT_GENERAL}:/srv/memes/general/web:ro
+      - ${WEB_ROOT_IT:?set WEB_ROOT_IT}:/srv/memes/it/web:ro
+    tmpfs:
+      - /tmp:size=64m
+    mem_limit: ${CADDY_MEM_LIMIT:-256m}
+    cpus: ${CADDY_CPUS:-0.5}
+    pids_limit: 200
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    networks: [edge]
+
+volumes:
+  caddy_data: {}
+  caddy_config: {}
+
+networks:
+  edge:
+    name: memes-edge
+    external: true

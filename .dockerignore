@@ -5,6 +5,8 @@
 .env.*
 environments/.env
 environments/.env.*
+**/.env
+**/.env.*
 
 .git
 .venv
@@ -27,6 +29,8 @@ logs
 scripts
 tools
 tests
+# deploy/prod holds the compose, Caddy and Postgres files of the VPS: never part of an image.
+deploy
 batch/*
 !batch/__init__.py
 !batch/clusterize.py

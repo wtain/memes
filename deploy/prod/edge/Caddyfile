@@ -1,0 +1,105 @@
+# Edge proxy of the production VPS (design: P5d, "Networks and Caddy" and "Log suppression per layer").
+# One Caddy for the three environments. Hostnames come from the environment of the edge project (env/edge.prod.env).
+# Verified with `caddy validate` on the pinned image (see README.md).
+{
+	email {$ACME_EMAIL}
+
+	servers {
+		# Header size limits (the request line counts as a header): a flood of oversized headers is refused early.
+		max_header_size 16KB
+		timeouts {
+			read_header 10s
+			read_body 30s
+			write 60s
+			idle 2m
+		}
+	}
+}
+
+# Log format shared by every site: the full URI (it carries query strings: searched text) and every request header
+# (Referer, Cookie, Authorization) are deleted; only the path is kept, as `path`. No request bodies are ever logged.
+(quiet_log) {
+	log {
+		output stderr
+		format filter {
+			wrap json
+			fields {
+				request>uri delete
+				request>headers delete
+				request>tls delete
+			}
+		}
+	}
+	log_append path {http.request.uri.path}
+}
+
+# Arguments: 1 = environment name (the SPA is /srv/memes/<env>/web), 2 = the backend's alias on memes-edge.
+(memes_site) {
+	import quiet_log
+
+	encode zstd gzip
+
+	header {
+		Referrer-Policy no-referrer
+		X-Content-Type-Options nosniff
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# Second layer behind the backend's own stage policy: prefixes that are not mounted on prod are refused here too.
+	# (handle blocks run in the order written and the first match wins, so these come before the proxy handles.)
+	@unmounted path /api/admin* /api/uploads* /api/comics* /api/ingestion* /api/recut* /api/trends* /api/meme-from-text/ratings* /api/meme-from-text/profiles* /docs* /redoc* /openapi.json
+	handle @unmounted {
+		respond 404
+	}
+	# GET /api/history (the search log) is dev only; POST /api/history/<id>/not-found stays.
+	@history path_regexp ^/api/history/?$
+	handle @history {
+		respond 404
+	}
+
+	# File responses: sandbox the document, never sniff.
+	@files path /api/images/*
+	header @files Content-Security-Policy "sandbox; default-src 'none'"
+
+	# Bug reports carry a screenshot: the one route with a larger body (11 MB).
+	handle /api/bug-reports* {
+		request_body {
+			max_size 11MB
+		}
+		reverse_proxy {args[1]}:8000
+	}
+
+	handle /api/* {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy {args[1]}:8000
+	}
+
+	# Everything else is the SPA build, read-only from the host.
+	handle {
+		root * /srv/memes/{args[0]}/web
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Optional second gate in front of the whole site (off by default): uncomment, generate the hash with
+	# `caddy hash-password`, keep it in the host's env file, never in this repository.
+	# basic_auth {
+	#	{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	# }
+	# An allow-list works the same way: @denied not remote_ip <cidr> ... / respond @denied 403
+}
+
+{$METAL_HOST} {
+	import memes_site metal api-metal
+}
+
+{$GENERAL_HOST} {
+	import memes_site general api-general
+}
+
+{$IT_HOST} {
+	import memes_site it api-it
+}

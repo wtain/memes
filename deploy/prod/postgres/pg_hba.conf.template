@@ -1,0 +1,26 @@
+# pg_hba.conf of the production database of one environment. TEMPLATE: provision.sh render replaces @ENV@ (metal, general, it) and
+# @SUBNET@ (the project subnet of the environment table, e.g. 172.31.1.0/24). First match wins; scram only; the image's
+# trust defaults do not apply (compose points hba_file here).
+#
+# TYPE   DATABASE      USER                                           ADDRESS    METHOD
+
+# The image entrypoint initialises the cluster over the socket as the OS user postgres, and provision.sh uses
+# `docker exec -u postgres`: peer is needed for exactly that, and only on the socket.
+local    all           postgres                                                  peer
+
+# Owner (migrations, DDL) and sync_r (backup) over the socket, with a password. The migrate service and docker exec share the socket.
+local    memes_@ENV@   memes_@ENV@_owner                                         scram-sha-256
+local    memes_@ENV@   memes_@ENV@_sync_r                                        scram-sha-256
+
+# The owner and the bootstrap superuser never connect over TCP, whatever the address.
+host     all           postgres,memes_@ENV@_owner                     all        reject
+
+# One line per service role and database, project subnet only (the published loopback port reaches the server as the
+# bridge gateway of this subnet, so the ssh tunnel is admitted by the same lines).
+host     memes_@ENV@   memes_@ENV@_app                                @SUBNET@   scram-sha-256
+host     memes_@ENV@   memes_@ENV@_sync_w                             @SUBNET@   scram-sha-256
+host     memes_@ENV@   memes_@ENV@_sync_r                             @SUBNET@   scram-sha-256
+host     memes_@ENV@   memes_@ENV@_ro                                 @SUBNET@   scram-sha-256
+
+# Everything else is refused.
+host     all           all                                            all        reject
