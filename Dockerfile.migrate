@@ -1,0 +1,59 @@
+# The migrate job image of the production stacks (P5d-T8): `python -m sync.release all` as the owner role over the unix socket
+# (deploy/prod/compose.yaml, service `migrate`; release runbook in deploy/prod/README.md).
+#
+#   docker build -f Dockerfile.migrate -t memes-migrate:<full sha of HEAD> .
+#
+# Only what the job needs: alembic with Storage/alembic and the models, the tracked settings (Storage/config.py loads them through
+# config.settings), the release tool with the registry and role generator it reads, and deploy/prod/sql/roles.*.sql. The build context
+# is cut down by Dockerfile.migrate.dockerignore (an allow-list); the backend image's .dockerignore still excludes `deploy`.
+# No password, no URL and no secret file is in the image: DATABASE_URL comes from the environment at run time.
+#
+# Base image pinned by digest (python:3.11-slim, resolved with `docker pull python:3.11-slim` and
+# `docker inspect --format '{{index .RepoDigests 0}}' python:3.11-slim`); to move it, replace the digest here in a reviewed change.
+FROM python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535
+
+WORKDIR /app
+
+# Pins. MIGRATE_FROM_BACKEND names packages whose pins are taken from Backend/requirements-backend.txt (the full closure, one source of
+# truth for versions); alembic and its two small dependencies are not in the backend image, so MIGRATE_FROM_ROOT copies their pins from
+# the root requirements.txt. tests/sync/test_release.py fails when a name or version here drifts from those files. The packages are
+# installed with --no-deps (exactly these pins, nothing resolved on the side) and `pip check` prints what is missing from the closure.
+COPY Backend/requirements-backend.txt /tmp/requirements-backend.txt
+RUN set -eu; \
+    MIGRATE_FROM_BACKEND="SQLAlchemy greenlet psycopg2-binary pgvector typing_extensions dynaconf python-dotenv PyYAML"; \
+    MIGRATE_FROM_ROOT="alembic==1.18.4 Mako==1.3.10 MarkupSafe==2.1.5"; \
+    : > /tmp/requirements-migrate.txt; \
+    for name in $MIGRATE_FROM_BACKEND; do \
+        line="$(grep -i -E "^${name}==" /tmp/requirements-backend.txt | head -n 1)"; \
+        [ -n "$line" ] || { echo "no pin for $name in Backend/requirements-backend.txt" >&2; exit 1; }; \
+        echo "$line" >> /tmp/requirements-migrate.txt; \
+    done; \
+    for pin in $MIGRATE_FROM_ROOT; do echo "$pin" >> /tmp/requirements-migrate.txt; done; \
+    pip install --no-cache-dir --no-deps -r /tmp/requirements-migrate.txt; \
+    pip check; \
+    rm -f /tmp/requirements-backend.txt /tmp/requirements-migrate.txt
+
+# The migration chain and the models (Storage/alembic/env.py imports Storage.config and `models`).
+COPY Storage/__init__.py ./Storage/__init__.py
+COPY Storage/alembic.ini ./Storage/alembic.ini
+COPY Storage/alembic ./Storage/alembic
+COPY Storage/models.py ./Storage/models.py
+COPY Storage/config.py ./Storage/config.py
+# Tracked settings (Dynaconf). The dockerignore admits environments/settings*.yaml only; the .env files never enter the build context.
+COPY config ./config
+COPY environments ./environments
+# One migration (44203e5c987f) backfills phonetic codes with rules.phonetic (no other import).
+COPY rules/__init__.py ./rules/__init__.py
+COPY rules/phonetic.py ./rules/phonetic.py
+# The release tool and what it imports (standard library only).
+COPY sync/__init__.py sync/model.py sync/registry.py sync/roles.py sync/release.py ./sync/
+# Read-only copies of the committed role grants; the tool refuses a file that differs from what sync.roles generates.
+COPY deploy/prod/sql ./deploy/prod/sql
+
+# Non-root; the code under /app stays root-owned and read-only for the job, nothing is written below it.
+RUN useradd -m -u 1000 migrate
+USER 1000
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 APP_STAGE=prod
+
+ENTRYPOINT ["python", "-m", "sync.release"]
+CMD ["all"]

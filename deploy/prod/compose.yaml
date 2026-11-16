@@ -111,8 +111,10 @@ services:
       edge:
         aliases: ["${EDGE_ALIAS:?set EDGE_ALIAS (api-<env>)}"]
 
-  # Release steps 2 and 2b (filled in by P5d-T8): alembic upgrade head as the owner role over the unix socket, then
-  # roles.<env>.sql again. No network at all: the owner never connects over TCP (pg_hba rejects it).
+  # Release steps 2 and 2b: `python -m sync.release all` (Dockerfile.migrate): alembic upgrade head as the owner role over the unix
+  # socket, then roles.<env>.sql again, then a check of every grant against the registry (exit 3 on a mismatch). No network at all: the
+  # owner never connects over TCP (pg_hba rejects it). The image's entrypoint is the release tool; `command` names the subcommand.
+  # The socket directory is the only mount; the owner url (DATABASE_URL_OWNER, host=/var/run/postgresql) is the only secret.
   migrate:
     <<: *hardening
     restart: "no"
@@ -120,6 +122,7 @@ services:
     image: memes-migrate:${BACKEND_TAG:?set BACKEND_TAG to the git sha of the image}
     user: "${SVC_UID:-1000}:${SVC_GID:?set SVC_GID}"
     network_mode: none
+    command: ["all"]
     depends_on:
       db:
         condition: service_healthy

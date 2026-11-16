@@ -1,0 +1,29 @@
+# Build context of Dockerfile.migrate (BuildKit reads <Dockerfile>.dockerignore instead of .dockerignore for that build).
+# An allow-list: everything is excluded, then exactly what the migrate image copies is admitted. The backend image's .dockerignore
+# is untouched and still excludes `deploy`, `tests` and the rest.
+**
+!Backend/requirements-backend.txt
+!Storage/__init__.py
+!Storage/alembic.ini
+!Storage/alembic
+!Storage/models.py
+!Storage/config.py
+!config
+!environments
+!rules/__init__.py
+!rules/phonetic.py
+!sync/__init__.py
+!sync/model.py
+!sync/registry.py
+!sync/roles.py
+!sync/release.py
+!deploy/prod/sql/roles.*.sql
+# Whatever the patterns above admit: only the tracked settings of environments/ stay; secrets and caches never.
+environments/.env
+environments/.env.*
+environments/*.md
+environments/batch_registry*.yaml
+**/.env
+**/.env.*
+**/__pycache__
+**/*.pyc

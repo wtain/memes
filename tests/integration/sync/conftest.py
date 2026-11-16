@@ -14,11 +14,10 @@ Why not the alternatives:
 
 Schema source: `Base.metadata.create_all` (the ORM models, incl. HNSW/GIN/partial indexes and check constraints)
 followed by an alembic STAMP to the real head, so `alembic_version` holds the true head revision in each schema.
-Why not `alembic upgrade head`: the migration chain is not runnable from an empty database. It was tried: the
-baseline revision creates only the first six tables and later revisions (e.g. description_lemmas) reference
-tables such as image_descriptions that no revision creates (they came from create_all in the history of the
-real databases). In addition `baseline.sql` hardcodes `public.` in 24 places, so it would write into the shared
-`public` schema. Limit: the schema is the models' view of head, not the result of replaying the migrations;
+Why not `alembic upgrade head` here: `baseline.sql` hardcodes `public.` in 24 places, so replaying the chain would
+write into the shared `public` schema of `ocrdb_test`. (Correction, P5d-T8: the chain itself DOES run from an empty
+database on PG 18 and matches create_all in tables and columns, see tests/integration/sync/test_release_db.py, which
+runs it in a throwaway container; an earlier note here said it was not runnable.) Limit: the schema is the models' view of head, not the result of replaying the migrations;
 migration-vs-model drift is covered by the existing *_migration.py tests, not here.
 
 Run time: printed by the fixture (use `pytest -s`); see the hand-off for the measured figure. Per-test cost

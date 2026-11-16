@@ -71,7 +71,75 @@ Passwords match `[A-Za-z0-9+/=_.~-]{24,}` (for example `openssl rand -base64 33`
 
 ## Release runbook
 
-Placeholder: filled by P5d-T8 (migrate service content, grants re-apply and verification, canary order `it`, `metal`, `general`; the contract is in the design, "Release runbook").
+The contract is the design's "Release runbook" (P5d); `sync.promote` refuses a prod whose `alembic_version` differs from dev's or whose `memes.revision` marker is not the dev working tree's commit (handshake H10). Tool: `python -m sync.release` (`sync/release.py`), run in the `memes-migrate` image by the `migrate` service. Exit codes: 0 ok, 1 a step failed, 2 refused (APP_ENV differs from the database marker `memes.environment`, not connected as the owner role, a roles file that differs from what `sync.roles` generates from the registry of the image, no `DATABASE_URL`), 3 a grant differs from the registry.
+
+Below, `<env>` is `it`, `metal` or `general`, `SHA` is the **full** 40 character commit (the marker compare in H10 is against `git rev-parse HEAD`), and compose commands run on the VPS from `deploy/prod`.
+
+**0. Dev, before anything leaves the workstation.** The migration is additive between steps 2 and 3 (new columns nullable or with a server default, indexes `CONCURRENTLY`), so the old backend keeps working on the new schema. A migration that is not additive (drops or renames a column or table, adds a NOT NULL column without a default, rewrites a table under a lock) needs a maintenance window: stop the backend, run step 2, start the new one. The tool does not analyse migrations; the author decides. `python -m sync.roles --env <env> --check` and `pytest tests/sync/` must pass: a new table needs its registry entry and a regenerated `deploy/prod/sql/roles.<env>.sql` in the same commit, or step 2b stops the release.
+
+**1. Build and transfer (dev).** Tag with the commit, never `latest`:
+
+```
+SHA=$(git rev-parse HEAD)
+docker build -f Dockerfile.backend -t memes-backend:$SHA .
+docker build -f Dockerfile.migrate -t memes-migrate:$SHA .
+docker save memes-backend:$SHA memes-migrate:$SHA | gzip | ssh <admin> 'gunzip | docker load'
+```
+
+Set `BACKEND_TAG=<SHA>` in `env/<env>.prod.env` on the VPS (the `migrate` service uses the same tag as the backend). The migrate image holds no secret: the owner url comes from `DATABASE_URL_OWNER` in the env file.
+
+**2 and 2b. Migrate, re-apply grants, verify (per environment, canary order `it`, then `metal`, then `general`).** Keep the old backend running and run the job:
+
+```
+docker compose -p memes-<env> --env-file env/<env>.prod.env --profile ops run --rm migrate
+```
+
+`all` runs three steps and stops at the first failure: `migrate` (`alembic upgrade head` as the owner; refuses unless `APP_ENV` equals `memes.environment` and the connection is the owner role of `memes_<env>`), `grants` (applies `roles.<env>.sql` as the owner: it revokes what the four service roles hold in schema `public`, grants exactly the registry's list and checks itself; one transaction, so a failure leaves the grants as they were), `verify-grants` (compares `has_table_privilege`, column and sequence privileges of all four roles with the registry, and reports an unclassified or missing table). Single steps: `... run --rm migrate migrate|grants|verify-grants`. The job has no network (`network_mode: none`), the socket volume is its only mount, and it never prints the url. A green run ends with `release: migrate, grants and verify-grants are done`. Do not go on to step 3 for this environment on any other result.
+
+**3. Restart the backend on the new tag, then set the marker, then smoke.**
+
+```
+docker compose -p memes-<env> --env-file env/<env>.prod.env up -d backend
+docker compose -p memes-<env> --env-file env/<env>.prod.env exec -u postgres db \
+    psql -X -d memes_<env> -c "ALTER DATABASE memes_<env> SET memes.revision = '<SHA>'"
+curl -fsS https://<host>/health
+curl -fsS https://<host>/api/diagnostics/capabilities     # "environment" must equal <env>
+```
+
+`depends_on` waits for a healthy db; the backend refuses to start on a marker mismatch (`memes.environment`). The marker is set as the bootstrap superuser over the socket (peer authentication of the OS user `postgres`); the owner role may do it too (`roles.<env>.sql` grants it `SET` on the three markers). Do the next environment only after this one is healthy.
+
+**4. Dev: sync.** `python -m sync.run --env <env>` (dry run), then with `--apply --plan-hash <hash>`, from a working tree at the released commit (H10 compares `memes.revision` with `git rev-parse HEAD` and the two `alembic_version` values). A taxonomy or settings change is a code deploy (steps 1 to 3), not a promote.
+
+### First seed of an empty environment
+
+State after provisioning is `memes.state = 'seeding'` (set by `provision.sh`; the only seeding marker). Order:
+
+1. Steps 1 to 3 above on the empty database (the migration chain creates the schema and, being empty, all indexes cheaply). The `grants` step is the same as `provision.sh grants <env>`.
+2. Optional, to make the bulk load faster: as the owner, drop the HNSW and GIN trigram indexes first, keeping their definitions: `select indexname, indexdef from pg_indexes where schemaname = 'public' and indexdef ~* 'using (hnsw|gin)'` (save the output), then `DROP INDEX` each. `sync_w` cannot do DDL, so this is an owner step.
+3. Dev: `python -m sync.run --env <env> --first-seed` (dry run, then `--apply --plan-hash`). It is resumable: after an interruption run the same command again. The normal mode refuses `seeding`; `--first-seed` refuses `serving`. The report names the tables whose indexes the owner must rebuild.
+4. Owner, one environment at a time (the others stay up): rebuild the indexes with a raised `maintenance_work_mem` (a 43k x 1024-dimensional HNSW build took 149 s at 64 MB and 30 s at 1 GB), either recreating them from the saved definitions (`SET maintenance_work_mem = '1GB'; CREATE INDEX ...`) or, if they were kept, `REINDEX INDEX CONCURRENTLY <name>`. `psql` over the socket as the OS user `postgres` is enough.
+5. Last: `ALTER DATABASE memes_<env> SET memes.state = 'serving'` (same `exec -u postgres db psql` as in step 3). From then on `sync.run` works without `--first-seed`; verify with the `verify` step of `sync.run` (or `python -m sync.verify`).
+
+### Rollback
+
+- The image is reversible: set `BACKEND_TAG` back to the previous sha, `up -d backend`, and set `memes.revision` back to that sha. The previous image works on the new schema only because the migration was additive (that is the whole reason for the rule).
+- The schema is not reversed. Do not run `alembic downgrade` on prod: a downgrade can drop columns that hold data, and many migrations of this chain have no safe downgrade. A bad migration is fixed forward with a new additive migration and a new release. A non-additive migration has no rollback except the backup (`backup.sh`, class P tables only; class D is rebuilt by a full promote).
+- Grants are always reversible by running `grants` again (the file is the single description of them). A failed `grants` step rolls back by itself (one transaction).
+- Not reversible: data the backend wrote into a class P column that a discarded schema change removed; restore from the newest backup (promote first, then restore, as `restore.sh` documents).
+
+### When verify-grants fails
+
+Exit 3 prints a table `kind / role / object / privilege`. Read it by kind:
+
+| kind | meaning | what to do |
+|---|---|---|
+| `missing` | a role lacks a grant the registry gives it (a new table nobody granted, or a manual `REVOKE`) | run the `grants` step; if it persists the generated file is stale: run `python -m sync.roles --env <env>` on dev, commit, rebuild the image |
+| `extra` | a role holds a privilege the registry does not give it (a manual `GRANT`, a default privilege, a privilege through PUBLIC) | run the `grants` step (it revokes first); then find out who granted it, because the registry is the only source |
+| `unclassified table` | a table exists in `public` that `sync/registry.py` does not know | classify it in the registry (class D/P/X), run `python -m sync.render --write` and `python -m sync.roles --env <env>`, release again. Never grant by hand |
+| `missing table` | a registry table is not in the database | the migration did not create it (or it was renamed): fix the migration, release again |
+| `missing role` | one of the five roles does not exist | `provision.sh apply <env>` (superuser) creates them; then `grants` |
+
+If `grants` itself fails with `permission denied for table X`, a table of `public` is not owned by the owner role (created by the superuser or another role): `ALTER TABLE X OWNER TO memes_<env>_owner` as the superuser, then run the step again (seen in the release test: the owner cannot revoke on a table it does not own, and the file rolls back as a whole). A failure of `migrate` normally leaves the database unchanged: `Storage/alembic/env.py` runs the whole upgrade in one transaction (PostgreSQL DDL is transactional), except steps a migration puts in an autocommit block (for example `CREATE INDEX CONCURRENTLY`), which stay committed; read the `alembic_version` it reports at the start of the next run, fix the migration, build a new tag and run the job again.
 
 ## Files owned elsewhere
 

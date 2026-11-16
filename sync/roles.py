@@ -182,8 +182,40 @@ def _table_grant(privs: str, tables, role: str) -> str:
     return f"GRANT {privs} ON TABLE\n        {_wrapped(tables, '        ')}\n        TO {_q(role)};"
 
 
-def _expected_items(role: str, tables, privs) -> list[str]:
-    return [f"{role}|{t}|{p}" for t in tables for p in privs]
+def _expected_items(role: str, tables, privs) -> list[tuple[str, str, str]]:
+    return [(role, t, p) for t in tables for p in privs]
+
+
+@dataclass(frozen=True)
+class Expected:
+    """The privileges the registry says each role holds in schema public (the one derivation: the SQL verification block in
+    `render` and `sync.release verify-grants` both read it). Tuples are (role, table, privilege) and, for columns,
+    (role, table, column, privilege); sequence items are named by their owning table (the serial `id` sequence)."""
+
+    table: tuple[tuple[str, str, str], ...]
+    maintain: tuple[tuple[str, str, str], ...]  # PostgreSQL 17+ only
+    column: tuple[tuple[str, str, str, str], ...]
+    sequence: tuple[tuple[str, str, str], ...]
+
+
+def expected(names: Names) -> Expected:
+    pl = plan()
+    n = names
+    rw = ["SELECT", "INSERT", "UPDATE", "DELETE"]
+    table: list[tuple[str, str, str]] = []
+    table += _expected_items(n.app, pl.d_tables, ["SELECT"])
+    table += _expected_items(n.app, pl.app_write, rw)
+    table += _expected_items(n.sync_w, pl.writer_write, rw)
+    table += _expected_items(n.sync_w, ["alembic_version"], ["SELECT"])
+    table += _expected_items(n.sync_r, pl.p_tables, ["SELECT"])
+    table += _expected_items(n.sync_r, ["alembic_version"], ["SELECT"])
+    table += _expected_items(n.ro, [*pl.ro_tables, "alembic_version"], ["SELECT"])
+    maintain = _expected_items(n.sync_w, pl.writer_write, ["MAINTAIN"])
+    column = [(n.sync_w, "meme_text_ratings", c, "SELECT") for c in WRITER_RATINGS_COLUMNS]
+    column += [(n.sync_r, "images", c, "SELECT") for c in READER_IMAGES_COLUMNS]
+    sequence = _expected_items(n.sync_w, pl.writer_sequence_tables, ["USAGE", "SELECT", "UPDATE"])
+    sequence += _expected_items(n.app, pl.app_sequence_tables, ["USAGE", "SELECT"])
+    return Expected(tuple(table), tuple(maintain), tuple(column), tuple(sequence))
 
 
 def render(names: Names) -> str:
@@ -194,17 +226,10 @@ def render(names: Names) -> str:
     all5 = _qs(n.roles)
     rw = "SELECT, INSERT, UPDATE, DELETE"
 
-    expected_table: list[str] = []
-    expected_table += _expected_items(n.app, pl.d_tables, ["SELECT"])
-    expected_table += _expected_items(n.app, pl.app_write, rw.split(", "))
-    expected_table += _expected_items(n.sync_w, pl.writer_write, rw.split(", "))
-    expected_table += _expected_items(n.sync_w, ["alembic_version"], ["SELECT"])
-    expected_table += _expected_items(n.sync_r, pl.p_tables, ["SELECT"])
-    expected_table += _expected_items(n.sync_r, ["alembic_version"], ["SELECT"])
-    expected_table += _expected_items(n.ro, [*pl.ro_tables, "alembic_version"], ["SELECT"])
-    expected_maintain = _expected_items(n.sync_w, pl.writer_write, ["MAINTAIN"])
-    expected_column = [f"{n.sync_w}|meme_text_ratings|{c}|SELECT" for c in WRITER_RATINGS_COLUMNS]
-    expected_column += [f"{n.sync_r}|images|{c}|SELECT" for c in READER_IMAGES_COLUMNS]
+    exp = expected(n)
+    expected_table = ["|".join(i) for i in exp.table]
+    expected_maintain = ["|".join(i) for i in exp.maintain]
+    expected_column = ["|".join(i) for i in exp.column]
 
     limit_case = "\n".join(
         f"                WHEN {_lit(role)} THEN {n.limit(role)}" for role in n.roles
