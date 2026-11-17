@@ -139,7 +139,7 @@ exist for the handshake, the id-overlap check, the zero-image guard or mixed mod
 
 Fetches the newest class P dump from prod (gate verb `fetch-backup`, read-only) into `Storage/sync-state/<env>/backups/` with its manifest, verifies name, size, sha256 and `pg_restore_list: ok`, keeps the newest
 `sync.fetch_backup.keep` (default 7). `--list` prints what dev holds (no connection); `--force` fetches even when the newest dump is already held. Exit 0 fetched or already held, 1 failure, 2 no backup on prod, no gate or lock held,
-4 the file failed verification (it is deleted). Takes the same state lock as the other tools.
+4 the file failed verification (it is deleted). Takes the same state lock as the other tools. `sync.run --apply` calls it after a complete run; a failure there is a warning only (`run.json` key `backup`).
 
 ## `python -m sync.verify --env E [options]`
 

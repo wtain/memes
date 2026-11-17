@@ -145,3 +145,16 @@ def test_main_list_and_fetch_exit_codes(tree, settings, capsys):
     assert base in capsys.readouterr().out
     put_backup(tree, 6, manifest=False)
     assert fb.main(["--env", ENV_NAME], settings=settings, transport_factory=lambda s: transport(tree)) == 4
+
+
+# ------------------------------------------------------------ chained into sync.run --apply
+
+def test_run_backup_step_records_fetched_then_current_and_failure_is_not_fatal(tree, settings):
+    from types import SimpleNamespace
+    from sync.run import cli as run_cli
+    ctx = SimpleNamespace(settings=settings, transport=transport(tree), out=io.StringIO(), err=io.StringIO())
+    failed = run_cli.backup_step(ctx, "r1")  # nothing on prod yet
+    assert failed["status"] == "failed" and "no backup" in failed["reason"] and "off-VPS backup fetch failed" in ctx.err.getvalue()
+    put_backup(tree, 5)
+    assert run_cli.backup_step(ctx, "r1")["status"] == "fetched"
+    assert run_cli.backup_step(ctx, "r1")["status"] == "current"

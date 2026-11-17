@@ -45,6 +45,7 @@ from sync.files import promote as files_cli
 from sync.model import Klass
 from sync.promote import cli as promote_cli
 from sync.promote import plan as promote_plan
+from sync import fetch_backup as fetch_backup_mod
 from sync.pull import cli as pull_cli
 from sync.pull import plan as pull_plan
 from sync.verify import cli as verify_cli
@@ -280,6 +281,18 @@ def run_data_step(ctx: Ctx, run_id: str, apply: bool) -> StepResult:
     code = promote_cli.run_promote(args, settings=ctx.settings, session_opener=ctx.opener, capabilities=ctx.capabilities,
                                    git_sha=ctx.git_sha, now=ctx.now, lock=False, out=out, err=err, ask=_refuse_prompt)
     return StepResult(code, docs[-1] if docs else None)
+
+
+def backup_step(ctx: Ctx, run_id: str) -> dict:
+    """After a complete apply: the off-VPS copy of the newest class P dump (`sync.fetch_backup`). A failure is reported and recorded in
+    run.json under `backup`, but never changes the run's exit code: the data is already committed and the steps are not resumable for it."""
+    try:
+        res = fetch_backup_mod.fetch(ctx.settings, ctx.transport, out=_Prefixed(ctx.out, "[backup] "))
+    except Exception as exc:  # exit-code classes of sync errors keep their message (no row content); anything else: the type only
+        text = str(exc) if isinstance(exc, SyncError) else type(exc).__name__
+        print(f"sync: off-VPS backup fetch failed: {text}", file=ctx.err)
+        return {"status": "failed", "reason": text[:200]}
+    return {"status": res["status"], "name": res["name"]}
 
 
 def run_verify_step(ctx: Ctx, run_id: str, apply: bool) -> StepResult:
@@ -671,6 +684,9 @@ def _run_steps(ctx: Ctx, run_id, folder, runners, steps, handshake, plan: Plan, 
         else:
             failure = (step, result.code)
 
+    if failure is None and args.stop_after is None and ctx.transport is not None:
+        runfile.doc["backup"] = backup_step(ctx, run_id)
+        runfile.write()
     final = report.combined_document(env, run_id, plan.sections, dry=False, handshake=handshake, preconditions=plan.preconditions,
                                      result=_merge_results(docs) or None)
     _emit(final, folder, args, settings, out)
