@@ -1,4 +1,5 @@
-export { Button, ButtonLink, buttonClasses } from "./Button"
+export { Button, ButtonLink } from "./Button"
+export { buttonClasses } from "./buttonStyles"
 export { Badge } from "./Badge"
 export { Card } from "./Card"
 export { Skeleton, MemeCardSkeleton } from "./Skeleton"

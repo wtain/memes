@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { Button, ButtonLink, buttonClasses } from "./Button"
+import { Button, ButtonLink } from "./Button"
+import { buttonClasses } from "./buttonStyles"
 import { CheckIcon, ComicsIcon, FlagIcon, TextIcon } from "./icons"
 
 describe("Button", () => {
