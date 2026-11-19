@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import MemeCard from './MemeCard'
 import { FeaturesContext } from '../features/useFeature'
@@ -168,8 +168,13 @@ describe('MemeCard link', () => {
 })
 
 describe('MemeCard curator gating and layout', () => {
-  it('prod: no curator controls, no badge, no ring, no empty action bar', () => {
+  it('prod: no curator controls, no badge, no ring, only the share actions in the bar', () => {
     render(prod(<MemeCard meme={{ ...mockMeme, flagged: true }} memesApi={cardApi()} comicsAction />))
+    const share = screen.getByRole('group', { name: 'Share actions' })
+    for (const name of ['Copy image', 'Download', 'Copy link']) {
+      expect(within(share).getByRole('button', { name })).toBeInTheDocument()
+    }
+    expect(screen.getByTestId('card-root').querySelector('[data-bar-divider]')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Flag' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Add to comics/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Curator actions' })).not.toBeInTheDocument()
@@ -200,6 +205,22 @@ describe('MemeCard curator gating and layout', () => {
     const bar = screen.getByRole('group', { name: 'Curator actions' }).parentElement!
     expect(bar).toHaveClass('opacity-0', 'group-hover:opacity-100', 'group-focus-within:opacity-100', 'pointer-coarse:opacity-100')
     expect(screen.getByRole('button', { name: 'Flag' })).not.toHaveAttribute('tabindex', '-1')
+  })
+
+  it('reveals the share actions bar the same way and keeps it in one bar with the curator group', () => {
+    render(dev(<MemeCard meme={mockMeme} memesApi={cardApi()} />))
+    const share = screen.getByRole('group', { name: 'Share actions' })
+    const bar = share.parentElement!
+    expect(bar).toHaveClass('opacity-0', 'group-hover:opacity-100', 'group-focus-within:opacity-100', 'pointer-coarse:opacity-100')
+    expect(screen.getByRole('group', { name: 'Curator actions' }).parentElement).toBe(bar)
+    expect(share.compareDocumentPosition(screen.getByRole('group', { name: 'Curator actions' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('does not trigger the card onClick when Copy image is clicked', () => {
+    const onClick = vi.fn()
+    render(dev(<MemeCard meme={mockMeme} memesApi={cardApi()} onClick={onClick} />))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+    expect(onClick).not.toHaveBeenCalled()
   })
 
   it('keeps the action bar visible while a comics status or error is shown', async () => {
@@ -234,9 +255,9 @@ describe('MemeCard curator gating and layout', () => {
     expect(screen.getByTestId('card-footer')).toBeInTheDocument()
   })
 
-  it('renders no share action group yet', () => {
+  it('renders the share action group', () => {
     render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
-    expect(screen.queryByRole('group', { name: 'Share actions' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Share actions' })).toBeInTheDocument()
   })
 })
 

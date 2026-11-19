@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from "react"
 import { TagList } from "./TagList"
 import { CardComicsAction } from "./comics/CardComicsAction"
+import { MemeActions } from "./MemeActions"
 import { useFeature } from "../features/useFeature"
 import { Badge, Button, Card, FlagIcon } from "../ui"
 import type { MemesApi } from "../api/MemesApi"
@@ -86,10 +87,10 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
           <Badge tone="danger" className="absolute left-2 top-2">Flagged</Badge>
         )}
 
-        {showBar && (
-          <div className={`absolute right-2 top-2 flex items-center gap-1 rounded-md bg-scrim has-[[data-keep-visible]]:opacity-100 ${REVEAL}`}>
-            {/* SLOT item 3: copy / download / open-link actions go here, before the curator group */}
-            <div role="group" aria-label="Curator actions" className="flex items-center gap-1">
+        <div className={`absolute right-2 top-2 flex items-center gap-1 rounded-md bg-scrim has-[[data-keep-visible]]:opacity-100 ${REVEAL}`}>
+          <MemeActions meme={meme} memesApi={memesApi} layout="bar" />
+          {showBar && (
+            <div role="group" aria-label="Curator actions" data-bar-divider className="flex items-center gap-1 border-l border-white/30 pl-1">
               {showFlag && (
                 <Button
                   iconOnly
@@ -105,8 +106,8 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
               )}
               {showComics && <CardComicsAction memesApi={memesApi} imageId={meme.id} compact />}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {textLines.length > 0 && (
           <Button
