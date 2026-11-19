@@ -109,12 +109,20 @@ describe("readCachedExamples", () => {
     ["missing", null],
     ["corrupt json", "nope"],
     ["wrong shape", '{"a":1}'],
+    ["one item", JSON.stringify(["solo"])],
+    ["empty array", "[]"],
+    ["marker with another value", '{"verified":true}'],
     ["too many", JSON.stringify(["a", "b", "c", "d"])],
     ["too long", JSON.stringify(["x".repeat(25), "ok"])],
     ["non-string", JSON.stringify(["ok", 5])],
   ])("returns null for %s", (_label, raw) => {
     if (raw !== null) sessionStorage.setItem(EXAMPLES_KEY, raw)
     expect(readCachedExamples()).toBeNull()
+  })
+
+  it("returns [] for the explicit negative marker only", () => {
+    sessionStorage.setItem(EXAMPLES_KEY, '{"verified":false}')
+    expect(readCachedExamples()).toEqual([])
   })
 
   it("returns null when storage throws", () => {

@@ -40,7 +40,8 @@ export function readCachedExamples(): string[] | null {
     ) {
       return []
     }
-    if (!Array.isArray(parsed) || parsed.length > MAX_EXAMPLES) return null
+    // A cached list is only trusted with the two to three examples a verification would have kept.
+    if (!Array.isArray(parsed) || parsed.length < MIN_EXAMPLES || parsed.length > MAX_EXAMPLES) return null
     if (!parsed.every(v => typeof v === "string" && v.length > 0 && v.length <= MAX_EXAMPLE_CHARS)) return null
     return parsed as string[]
   } catch {
