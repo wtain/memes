@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { MemeDetails } from './MemeDetails'
 import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
+import { getCardImg, queryCardImg } from '../test/cardQueries'
 
 function renderMemeDetails(meme = DEFAULT_MOCK_MEME, overrides: Parameters<typeof makeMockApi>[0] = {}) {
   const api = makeMockApi(overrides)
@@ -436,12 +437,12 @@ describe('MemeDetails', () => {
         <MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>
       )
       await act(async () => {})
-      expect(screen.getByAltText(/vis-1/)).toBeInTheDocument()
+      expect(getCardImg('vis-1')).toBeInTheDocument()
 
       screen.getByRole('button', { name: 'Semantic' }).click()
       await act(async () => {})
 
-      expect(screen.queryByAltText(/vis-1/)).not.toBeInTheDocument()
+      expect(queryCardImg('vis-1')).not.toBeInTheDocument()
       expect(screen.getByText('No semantic similarity available for this image yet')).toBeInTheDocument()
     })
 

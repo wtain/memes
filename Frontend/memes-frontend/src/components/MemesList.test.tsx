@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { MemesList } from './MemesList'
 import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
+import { getCardImg, findCardImg } from '../test/cardQueries'
 
 // Captures the callback props Virtuoso is given so tests can invoke them directly (the mock
 // below never calls them itself -- it only renders `data`/`itemContent`), same pattern used in
@@ -66,7 +67,7 @@ describe('MemesList', () => {
     })
     render(<MemesList memesApi={api} />)
     await waitFor(() => {
-      expect(screen.getByRole('img', { name: DEFAULT_MOCK_MEME.id })).toBeInTheDocument()
+      expect(getCardImg(DEFAULT_MOCK_MEME.id)).toBeInTheDocument()
     })
   })
 
@@ -107,7 +108,7 @@ describe('MemesList', () => {
     expect(await screen.findByRole('button', { name: 'Add to comics' })).toBeInTheDocument()
     unmount()
     render(<MemesList memesApi={api} listFlagged />)
-    await screen.findByRole('img', { name: DEFAULT_MOCK_MEME.id })
+    await findCardImg(DEFAULT_MOCK_MEME.id)
     expect(screen.queryByRole('button', { name: 'Add to comics' })).not.toBeInTheDocument()
   })
 
@@ -185,14 +186,14 @@ describe('MemesList', () => {
     const api = makeMockApi({ iterateUntaggedMemes })
 
     render(<MemesList memesApi={api} listUntagged />)
-    await waitFor(() => expect(screen.getByRole('img', { name: 'c1' })).toBeInTheDocument()) // mount
+    await waitFor(() => expect(getCardImg('c1')).toBeInTheDocument()) // mount
 
     // Wait for each page's own item to actually render before triggering the next endReached --
     // confirms the previous loadForward's state update (and loadingRef reset) has fully landed,
     // not just that the mock function was called.
     for (const id of ['c2', 'c3', 'c4', 'c5', 'c6']) {
       await act(async () => { capturedProps.endReached?.() })
-      await waitFor(() => expect(screen.getByRole('img', { name: id })).toBeInTheDocument())
+      await waitFor(() => expect(getCardImg(id)).toBeInTheDocument())
     }
     expect(iterateUntaggedMemes).toHaveBeenCalledTimes(6)
 

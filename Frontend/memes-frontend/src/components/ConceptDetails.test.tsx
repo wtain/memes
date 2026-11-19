@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { ConceptDetails } from './ConceptDetails'
 import { makeMockApi } from '../test/mockApi'
 import type { Concept } from '../types/generated/all'
+import { getCardImg } from '../test/cardQueries'
 
 const mockConcept: Concept = { id: 1, name: 'test-concept' }
 
@@ -43,7 +44,7 @@ describe('ConceptDetails', () => {
         <ConceptDetails concept={mockConcept} memesApi={api} />
       </MemoryRouter>
     )
-    await waitFor(() => expect(screen.getByRole('img', { name: 'meme-1' })).toBeInTheDocument())
+    await waitFor(() => expect(getCardImg('meme-1')).toBeInTheDocument())
   })
 
   it('shows "Nothing to show" when the API returns no memes', async () => {

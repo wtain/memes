@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import ResultCard from "./ResultCard"
 import { makeMockApi } from "../../test/mockApi"
 import { makeResult } from "../../reply/fixtures"
+import { getCardImg } from '../../test/cardQueries'
 
 const labelOf = (_axis: string, key: string) => key
 
@@ -43,7 +44,7 @@ describe("ResultCard", () => {
   it("opens the details when the image is clicked", async () => {
     const user = userEvent.setup()
     const { onOpen } = setup()
-    await user.click(screen.getByRole("img", { name: "a" }))
+    await user.click(getCardImg("a"))
     expect(onOpen).toHaveBeenCalled()
   })
 

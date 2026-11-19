@@ -6,6 +6,7 @@ import ReplyPage from "./ReplyPage"
 import { makeMockApi } from "../test/mockApi"
 import { TEST_TAXONOMY, makeProfile, makeResponse, makeResult } from "../reply/fixtures"
 import { MessageSearchFailedError } from "../api/errors"
+import { getCardImg, findCardImg, getAllCardImgs, findAllCardImgs } from '../test/cardQueries'
 
 beforeEach(() => window.sessionStorage.clear())
 
@@ -43,7 +44,7 @@ describe("ReplyPage", () => {
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "How I read your message" })).toBeInTheDocument())
     expect(calls(api)[0][0]).toEqual({ text: "my manager moved the meeting", limit: 20 })
-    expect(screen.getAllByRole("img", { name: /^[ab]$/ })).toHaveLength(2)
+    expect(getAllCardImgs()).toHaveLength(2)
     expect(screen.getByText("2 memes found")).toBeInTheDocument()
     expect(screen.getByRole("group", { name: "Emotion" })).toBeInTheDocument()
   })
@@ -68,7 +69,7 @@ describe("ReplyPage", () => {
     await user.click(await screen.findByLabelText("Joy (1)"))
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/something went wrong/i)
-    expect(screen.getByRole("img", { name: "a" })).toBeInTheDocument()
+    expect(getCardImg("a")).toBeInTheDocument()
     expect(screen.getByLabelText("Joy (1)")).toBeChecked()
     expect(screen.getByRole("button", { name: "Remove filter emotion: Joy" })).toBeInTheDocument()
 
@@ -89,7 +90,7 @@ describe("ReplyPage", () => {
     await user.click(await screen.findByRole("button", { name: "Show more" }))
 
     expect(await screen.findByRole("alert")).toBeInTheDocument()
-    expect(screen.getByRole("img", { name: "a" })).toBeInTheDocument()
+    expect(getCardImg("a")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
 
     await user.click(within(screen.getByRole("alert")).getByRole("button"))
@@ -187,7 +188,7 @@ describe("ReplyPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Show more" }))
 
-    await waitFor(() => expect(screen.getAllByRole("img", { name: /^[ab]$/ })).toHaveLength(2))
+    await waitFor(() => expect(getAllCardImgs()).toHaveLength(2))
     expect(calls(api)[1][0]).toEqual({ text: "my manager moved the meeting", limit: 20, cursor: "c1" })
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
   })
@@ -196,7 +197,7 @@ describe("ReplyPage", () => {
     const user = userEvent.setup()
     renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a")] })) }))
     await search(user)
-    await user.click(await screen.findByRole("img", { name: "a" }))
+    await user.click(await findCardImg("a"))
     expect(await screen.findByText("Meme Details")).toBeInTheDocument()
   })
 
@@ -222,7 +223,7 @@ describe("ReplyPage", () => {
     })
     render(<StrictMode><MemoryRouter><ReplyPage memesApi={api} /></MemoryRouter></StrictMode>)
     await search(user)
-    expect(await screen.findByRole("img", { name: "a" })).toBeInTheDocument()
+    expect(await findCardImg("a")).toBeInTheDocument()
     expect(await screen.findByText("Annoyance")).toBeInTheDocument()
   })
 
@@ -248,7 +249,7 @@ describe("ReplyPage", () => {
 
       await act(async () => { resolveMore(makeResponse({ items: [makeResult("c"), makeResult("d")] })) })
 
-      const newCard = screen.getByRole("img", { name: "c" }).closest("div.flex.flex-col") as HTMLElement
+      const newCard = getCardImg("c").closest("div.flex.flex-col") as HTMLElement
       expect(newCard).not.toBeNull()
       expect(newCard).toContainElement(document.activeElement as HTMLElement)
       expect(document.activeElement).not.toBe(document.body)
@@ -284,7 +285,7 @@ describe("ReplyPage", () => {
       expect(screen.getByRole("region", { name: "Filters" })).toBeInTheDocument()
       expect(document.activeElement).not.toBe(document.body)
       await act(async () => { resolveRefine(makeResponse({ items: [makeResult("a")], facets: facetsJoy })) })
-      expect(await screen.findByRole("img", { name: "a" })).toBeInTheDocument()
+      expect(await findCardImg("a")).toBeInTheDocument()
     })
 
     it("pins the filters column below the header on wide screens only", async () => {
@@ -401,10 +402,10 @@ describe("ReplyPage", () => {
       await user.click(more)
       expect(calls(api)).toHaveLength(1)
 
-      await waitFor(() => expect(screen.getAllByRole("img", { name: /^[ab]$/ })).toHaveLength(2), { timeout: 2000 })
+      await waitFor(() => expect(getAllCardImgs()).toHaveLength(2), { timeout: 2000 })
 
       expect(calls(api)).toHaveLength(2)
-      for (const img of screen.getAllByRole("img", { name: /^[ab]$/ })) {
+      for (const img of getAllCardImgs()) {
         expect(img.closest("div.flex.flex-col")).not.toContainElement(document.activeElement as HTMLElement)
       }
     })
@@ -565,7 +566,7 @@ describe("ReplyPage ratings", () => {
     delete (response.meta as { queryHash?: string }).queryHash
     renderPage(makeMockApi({ searchMemeFromText: vi.fn().mockResolvedValue(response) }))
     await search(user)
-    await screen.findAllByRole("img", { name: /^[ab]$/ })
+    await findAllCardImgs()
     expect(screen.queryByRole("group", { name: "Rate this result" })).not.toBeInTheDocument()
   })
 })

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemesDuplicatesList } from './MemesDuplicatesList'
 import { makeMockApi } from '../test/mockApi'
 import type { Meme } from '../types/generated/all'
+import { getCardImg } from '../test/cardQueries'
 
 const CURSOR_DEBOUNCE_MS = 300
 
@@ -99,9 +100,9 @@ describe('MemesDuplicatesList', () => {
     })
     render(<MemesDuplicatesList memesApi={api} />)
     await waitFor(() => {
-      expect(screen.getByRole('img', { name: 'a' })).toBeInTheDocument()
-      expect(screen.getByRole('img', { name: 'b' })).toBeInTheDocument()
-      expect(screen.getByRole('img', { name: 'c' })).toBeInTheDocument()
+      expect(getCardImg('a')).toBeInTheDocument()
+      expect(getCardImg('b')).toBeInTheDocument()
+      expect(getCardImg('c')).toBeInTheDocument()
     })
   })
 
@@ -127,11 +128,11 @@ describe('MemesDuplicatesList', () => {
     const api = makeMockApi({ iterateDuplicates })
 
     render(<MemesDuplicatesList memesApi={api} />)
-    await waitFor(() => expect(screen.getByRole('img', { name: 'b' })).toBeInTheDocument()) // mount
+    await waitFor(() => expect(getCardImg('b')).toBeInTheDocument()) // mount
 
     for (const id of ['d', 'f', 'h', 'j']) {
       await act(async () => { capturedProps.endReached?.() })
-      await waitFor(() => expect(screen.getByRole('img', { name: id })).toBeInTheDocument())
+      await waitFor(() => expect(getCardImg(id)).toBeInTheDocument())
     }
     expect(iterateDuplicates).toHaveBeenCalledTimes(5)
 
@@ -149,10 +150,10 @@ describe('MemesDuplicatesList', () => {
     const api = makeMockApi({ iterateDuplicates })
 
     render(<MemesDuplicatesList memesApi={api} initialCursor="mid" />)
-    await waitFor(() => expect(screen.getByRole('img', { name: 'd' })).toBeInTheDocument()) // mount
+    await waitFor(() => expect(getCardImg('d')).toBeInTheDocument()) // mount
 
     await act(async () => { capturedProps.startReached?.() })
-    await waitFor(() => expect(screen.getByRole('img', { name: 'x' })).toBeInTheDocument())
+    await waitFor(() => expect(getCardImg('x')).toBeInTheDocument())
     expect(iterateDuplicates).toHaveBeenCalledTimes(2)
 
     expect(capturedProps.firstItemIndex).toBe(9_999)
@@ -332,6 +333,9 @@ describe('MemesDuplicatesList dismiss/undo', () => {
   })
 })
 
+// The card also exposes its OCR excerpt as a visually hidden image description; the Details panel is the other copy.
+const detailsText = () => screen.queryAllByText('alpha words (0.9)').filter(el => !el.classList.contains('sr-only'))
+
 describe('MemesDuplicatesList details panel', () => {
   async function renderCluster(overrides = {}) {
     const members = [
@@ -349,7 +353,7 @@ describe('MemesDuplicatesList details panel', () => {
 
   it('is collapsed by default and fetches nothing until opened', async () => {
     const api = await renderCluster()
-    expect(screen.queryByText('alpha words (0.9)')).not.toBeInTheDocument()
+    expect(detailsText()).toHaveLength(0)
     expect(api.getClusterSimilarity).not.toHaveBeenCalled()
   })
 
@@ -358,7 +362,7 @@ describe('MemesDuplicatesList details panel', () => {
     const toggle = screen.getByRole('button', { name: 'Details' })
     expect(toggle.className).toContain('min-h-11')
     fireEvent.click(toggle)
-    expect(await screen.findByText('alpha words (0.9)')).toBeInTheDocument()
+    await waitFor(() => expect(detailsText()).toHaveLength(1))
     await waitFor(() => expect(api.getClusterSimilarity).toHaveBeenCalledTimes(1))
     expect(api.getClusterSimilarity).toHaveBeenCalledWith(1)
   })
@@ -366,7 +370,7 @@ describe('MemesDuplicatesList details panel', () => {
   it('closing and reopening does not fetch again', async () => {
     const api = await renderCluster()
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
-    await screen.findByText('alpha words (0.9)')
+    await waitFor(() => expect(detailsText()).toHaveLength(1))
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
     await waitFor(() => expect(api.getClusterSimilarity).toHaveBeenCalledTimes(1))
@@ -375,7 +379,7 @@ describe('MemesDuplicatesList details panel', () => {
   it('selecting two members after opening Details still makes one request', async () => {
     const api = await renderCluster()
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
-    await screen.findByText('alpha words (0.9)')
+    await waitFor(() => expect(detailsText()).toHaveLength(1))
     fireEvent.click(screen.getByLabelText('Select all'))
     await waitFor(() => expect(api.getClusterSimilarity).toHaveBeenCalledTimes(1))
   })
@@ -445,7 +449,7 @@ describe('MemesDuplicatesList partial selection', () => {
     })
     // c was never selected -- the row is NOT fully collapsed, c's card is still rendered
     expect(screen.queryByText('Marked as not duplicates')).not.toBeInTheDocument()
-    expect(screen.getByAltText('c')).toBeInTheDocument()
+    expect(getCardImg('c')).toBeInTheDocument()
   })
 
   it('requires exactly one keeper before enabling "Duplicates — keep best"', async () => {
