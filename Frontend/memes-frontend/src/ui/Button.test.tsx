@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { Button, ButtonLink } from "./Button"
+import { Button, ButtonLink, buttonClasses } from "./Button"
 import { CheckIcon, ComicsIcon, FlagIcon, TextIcon } from "./icons"
 
 describe("Button", () => {
@@ -59,6 +59,20 @@ describe("ButtonLink", () => {
   it("renders an anchor", () => {
     render(<ButtonLink href="/x">Open</ButtonLink>)
     expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/x")
+  })
+})
+
+describe("buttonClasses", () => {
+  it("builds the class string from variant, size and className", () => {
+    const cls = buttonClasses({ variant: "primary", size: "lg", className: "x" })
+    expect(cls).toContain("bg-brand")
+    expect(cls).toContain("min-h-11")
+    expect(cls).toContain("x")
+  })
+
+  it("defaults to the same classes as a default ButtonLink", () => {
+    render(<ButtonLink href="/x">Open</ButtonLink>)
+    expect(buttonClasses()).toBe(screen.getByRole("link").className)
   })
 })
 

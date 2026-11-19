@@ -50,6 +50,15 @@ export function Button(props: TextButtonProps | IconButtonProps) {
   )
 }
 
+/** The class string of a text button, for elements that are not a <button> (router links). */
+export function buttonClasses({
+  variant = "secondary",
+  size = "md",
+  className,
+}: { variant?: Variant; size?: Size; className?: string } = {}): string {
+  return [BASE, VARIANTS[variant], SIZES[size], className].filter(Boolean).join(" ")
+}
+
 export function ButtonLink({
   variant = "secondary",
   size = "md",
@@ -57,7 +66,7 @@ export function ButtonLink({
   children,
   ...rest
 }: React.ComponentProps<"a"> & { href: string } & Pick<BaseProps, "variant" | "size">) {
-  const classes = [BASE, VARIANTS[variant], SIZES[size], className].filter(Boolean).join(" ")
+  const classes = buttonClasses({ variant, size, className })
   return (
     <a {...rest} className={classes}>
       {children}
