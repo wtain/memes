@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import { useMemeActions, type ActionKind } from "../memeActions/useMemeActions"
 import type { Meme } from "../types/generated/all"
@@ -21,9 +22,34 @@ function isCoarsePointer(): boolean {
   return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
 }
 
+const WARM_DWELL_MS = 200
+
+function isSaveData(): boolean {
+  return (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
+}
+
 export function MemeActions({ meme, memesApi, layout }: Props) {
   const { run, busy, done, warm, canShare } = useMemeActions(meme, memesApi)
   const bar = layout === "bar"
+  const warmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function cancelWarm() {
+    if (warmTimer.current !== null) {
+      clearTimeout(warmTimer.current)
+      warmTimer.current = null
+    }
+  }
+
+  // Warm only on dwell (hover/focus intent), so scrolling past cards downloads nothing.
+  function startWarm() {
+    if (warmTimer.current !== null || isSaveData()) return
+    warmTimer.current = setTimeout(() => {
+      warmTimer.current = null
+      warm()
+    }, WARM_DWELL_MS)
+  }
+
+  useEffect(() => cancelWarm, [])
 
   const showShare = canShare && (!bar || isCoarsePointer())
   const kinds: ActionKind[] = bar
@@ -67,9 +93,10 @@ export function MemeActions({ meme, memesApi, layout }: Props) {
       role="group"
       aria-label="Share actions"
       className={bar ? "flex items-center gap-1" : "flex flex-wrap gap-2"}
-      onPointerEnter={warm}
-      onFocus={warm}
-      onTouchStart={warm}
+      onPointerEnter={startWarm}
+      onPointerLeave={cancelWarm}
+      onFocus={startWarm}
+      onBlur={cancelWarm}
     >
       {kinds.map(renderButton)}
       {!bar && (

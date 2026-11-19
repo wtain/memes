@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { MemesApi } from "../api/MemesApi"
 import type { Meme } from "../types/generated/all"
@@ -119,13 +119,68 @@ describe("Copy image click", () => {
 })
 
 describe("warming", () => {
-  it("prefetches on pointer enter", () => {
+  function stubFetch() {
     const fetchMock = vi
       .fn()
       .mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(["p"], { type: "image/png" })) })
     vi.stubGlobal("fetch", fetchMock)
+    return fetchMock
+  }
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    setNav({ connection: undefined })
+  })
+
+  it("does not prefetch on a quick pass-over", () => {
+    const fetchMock = stubFetch()
+    render(<MemeActions meme={meme} memesApi={api} layout="bar" />)
+    const group = screen.getByRole("group", { name: "Share actions" })
+    fireEvent.pointerEnter(group)
+    act(() => void vi.advanceTimersByTime(100))
+    fireEvent.pointerLeave(group)
+    act(() => void vi.advanceTimersByTime(1000))
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it("prefetches once after the pointer dwells", () => {
+    const fetchMock = stubFetch()
     render(<MemeActions meme={meme} memesApi={api} layout="bar" />)
     fireEvent.pointerEnter(screen.getByRole("group", { name: "Share actions" }))
+    act(() => void vi.advanceTimersByTime(250))
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it("prefetches after focus dwell and cancels on blur", () => {
+    const fetchMock = stubFetch()
+    render(<MemeActions meme={meme} memesApi={api} layout="bar" />)
+    const button = screen.getByRole("button", { name: "Download" })
+    fireEvent.focus(button)
+    fireEvent.blur(button)
+    act(() => void vi.advanceTimersByTime(500))
+    expect(fetchMock).not.toHaveBeenCalled()
+    fireEvent.focus(button)
+    act(() => void vi.advanceTimersByTime(250))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it("does not prefetch on touchstart", () => {
+    const fetchMock = stubFetch()
+    render(<MemeActions meme={meme} memesApi={api} layout="bar" />)
+    fireEvent.touchStart(screen.getByRole("group", { name: "Share actions" }))
+    act(() => void vi.advanceTimersByTime(1000))
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it("does not prefetch when saveData is on", () => {
+    setNav({ connection: { saveData: true } })
+    const fetchMock = stubFetch()
+    render(<MemeActions meme={meme} memesApi={api} layout="bar" />)
+    fireEvent.pointerEnter(screen.getByRole("group", { name: "Share actions" }))
+    act(() => void vi.advanceTimersByTime(1000))
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it("leaves no timer after unmount", () => {
+    stubFetch()
+    const { unmount } = render(<MemeActions meme={meme} memesApi={api} layout="bar" />)
+    fireEvent.pointerEnter(screen.getByRole("group", { name: "Share actions" }))
+    unmount()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
