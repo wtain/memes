@@ -24,9 +24,9 @@ describe("pickExampleCandidates", () => {
     expect(pickExampleCandidates(memes, 2)).toEqual(["work", "zebra"])
   })
 
-  it("defaults to six candidates and tolerates memes without tags", () => {
+  it("defaults to four candidates and tolerates memes without tags", () => {
     const names = ["aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg", "hhh"]
-    expect(pickExampleCandidates([memeWithTags("1", ...names), { id: "2", imageUrl: "/i/2" }])).toHaveLength(6)
+    expect(pickExampleCandidates([memeWithTags("1", ...names), { id: "2", imageUrl: "/i/2" }])).toHaveLength(4)
   })
 
   it("accepts non-latin letters", () => {
@@ -43,7 +43,7 @@ describe("verifyExamples", () => {
       query === "bad" ? { items: [], hasNext: false } : threeItems,
     )
     const api = makeMockApi({ searchMemes })
-    const out = await verifyExamples(api, ["one", "bad", "two", "three", "four"])
+    const out = await verifyExamples(api, ["one", "bad", "two", "three"])
     expect(out).toEqual(["one", "two", "three"])
     expect(searchMemes).toHaveBeenCalledWith({ query: "one", limit: 3, record: false })
     expect(searchMemes).toHaveBeenCalledWith({ query: "bad", limit: 3, record: false })
@@ -65,13 +65,19 @@ describe("verifyExamples", () => {
     expect(sessionStorage.getItem(EXAMPLES_KEY)).toBeNull()
   })
 
-  it("returns [] and caches nothing when fewer than two verify", async () => {
+  it("returns [] and caches an explicit negative marker when fewer than two verify", async () => {
     const api = makeMockApi({
       searchMemes: vi.fn().mockImplementation(async ({ query }: { query: string }) =>
         query === "one" ? threeItems : { items: [], hasNext: false },
       ),
     })
     expect(await verifyExamples(api, ["one", "two", "three"])).toEqual([])
+    expect(JSON.parse(sessionStorage.getItem(EXAMPLES_KEY) ?? "null")).toEqual({ verified: false })
+  })
+
+  it("caches no negative marker when a probe failed (the outage may pass)", async () => {
+    const api = makeMockApi({ searchMemes: vi.fn().mockRejectedValue(new Error("down")) })
+    expect(await verifyExamples(api, ["one", "two"])).toEqual([])
     expect(sessionStorage.getItem(EXAMPLES_KEY)).toBeNull()
   })
 

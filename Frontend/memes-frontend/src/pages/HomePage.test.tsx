@@ -115,6 +115,29 @@ describe("HomePage", () => {
     expect(api.getTrendingMemes).toHaveBeenCalledTimes(1)
   })
 
+  it("retrying a rail does not probe the examples again", async () => {
+    const tagged = (id: string) => meme(id, { tags: [{ name: "cats" }, { name: "monday" }] })
+    const searchMemes = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("down"))
+      .mockImplementation(async (request: { query?: string }) =>
+        request.query === undefined ? recentFeed([tagged("r1"), tagged("r2")]) : recentFeed(memes(3, "p")),
+      )
+    const api = makeMockApi({
+      searchMemes,
+      getTrendingMemes: vi.fn().mockResolvedValue(trending([tagged("t1"), tagged("t2"), tagged("t3")])),
+    })
+    renderHome(api)
+    await screen.findByText("Could not load recent memes.")
+    await screen.findByRole("link", { name: "cats" })
+    const probes = () => searchMemes.mock.calls.filter(([r]) => r.query !== undefined).length
+    const before = probes()
+    expect(before).toBe(2)
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }))
+    await waitFor(() => expect(screen.getAllByTestId("card-root").length).toBeGreaterThan(0))
+    expect(probes()).toBe(before)
+  })
+
   it("shows two independent errors when the backend is down and the search still navigates", async () => {
     const api = makeMockApi({
       searchMemes: vi.fn().mockRejectedValue(new Error("down")),

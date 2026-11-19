@@ -29,14 +29,15 @@ export function SearchHero({ memesApi, candidatesSource }: Props) {
   const candidateKey = candidatesSource === null ? null : pickExampleCandidates(candidatesSource).join(" ")
 
   useEffect(() => {
-    if (cached !== null || candidateKey === null) return
+    // Examples are not shown beside the last searches, and a finished verification (cached or not) is final.
+    if (recent.length > 0 || cached !== null || verified !== null || candidateKey === null) return
     const controller = new AbortController()
     const candidates = candidateKey === "" ? [] : candidateKey.split(" ")
     verifyExamples(memesApi, candidates, controller.signal).then(found => {
       if (!controller.signal.aborted) setVerified(found)
     })
     return () => controller.abort()
-  }, [memesApi, cached, candidateKey])
+  }, [memesApi, cached, candidateKey, recent.length, verified])
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return

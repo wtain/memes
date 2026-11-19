@@ -150,6 +150,58 @@ describe("SearchHero", () => {
     expect(memesApi).toBeDefined()
   })
 
+  it("makes no example probes while the last searches are shown", async () => {
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(["pizza"]))
+    const { memesApi } = setup({ candidatesSource: SOURCE })
+    await act(async () => {})
+    expect(memesApi.searchMemes).not.toHaveBeenCalled()
+  })
+
+  it("remembers a negative verification for the tab and probes nothing on the next visit", async () => {
+    const searchMemes = vi.fn().mockResolvedValue({ items: [], hasNext: false })
+    const first = render(
+      <MemoryRouter>
+        <SearchHero memesApi={makeMockApi({ searchMemes })} candidatesSource={SOURCE} />
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.queryByTestId("chips-skeleton")).not.toBeInTheDocument())
+    const probes = searchMemes.mock.calls.length
+    expect(probes).toBe(4)
+    first.unmount()
+    render(
+      <MemoryRouter>
+        <SearchHero memesApi={makeMockApi({ searchMemes })} candidatesSource={SOURCE} />
+      </MemoryRouter>,
+    )
+    await act(async () => {})
+    expect(searchMemes).toHaveBeenCalledTimes(probes)
+    expect(screen.queryByTestId("chips-skeleton")).not.toBeInTheDocument()
+  })
+
+  it("does not probe again when the candidates go away and come back", async () => {
+    const searchMemes = vi.fn().mockResolvedValue(threeItems)
+    const memesApi = makeMockApi({ searchMemes })
+    const view = render(
+      <MemoryRouter>
+        <SearchHero memesApi={memesApi} candidatesSource={SOURCE} />
+      </MemoryRouter>,
+    )
+    await screen.findByRole("link", { name: "cats" })
+    const probes = searchMemes.mock.calls.length
+    view.rerender(
+      <MemoryRouter>
+        <SearchHero memesApi={memesApi} candidatesSource={null} />
+      </MemoryRouter>,
+    )
+    view.rerender(
+      <MemoryRouter>
+        <SearchHero memesApi={memesApi} candidatesSource={[...SOURCE]} />
+      </MemoryRouter>,
+    )
+    await act(async () => {})
+    expect(searchMemes).toHaveBeenCalledTimes(probes)
+  })
+
   it("renders without the row when localStorage throws", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("blocked")
