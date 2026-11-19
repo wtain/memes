@@ -1,5 +1,5 @@
 import { StrictMode } from "react"
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -110,6 +110,7 @@ describe("SearchHero", () => {
     expect(chip).toHaveAttribute("href", "/search?q=cats")
     expect(screen.getByText("Try:")).toBeInTheDocument()
     expect(screen.getAllByRole("link")).toHaveLength(3)
+    expect(within(screen.getByRole("group", { name: "Example searches" })).getAllByRole("link")).toHaveLength(3)
     expect(memesApi.searchMemes).toHaveBeenCalledWith({ query: "cats", limit: 3, record: false })
   })
 
@@ -141,10 +142,12 @@ describe("SearchHero", () => {
     localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(["pizza", "tacos"]))
     const { memesApi } = setup({ candidatesSource: SOURCE })
     expect(screen.getByText("Your last searches")).toBeInTheDocument()
+    const group = screen.getByRole("group", { name: "Your last searches" })
+    expect(within(group).getAllByRole("link")).toHaveLength(2)
     expect(screen.getByRole("link", { name: "pizza" })).toHaveAttribute("href", "/search?q=pizza")
     expect(screen.queryByText("Try:")).not.toBeInTheDocument()
     await act(async () => {})
-    await userEvent.click(screen.getByRole("button", { name: "Clear" }))
+    await userEvent.click(screen.getByRole("button", { name: "Clear last searches" }))
     expect(screen.queryByText("Your last searches")).not.toBeInTheDocument()
     expect(readRecentSearches()).toEqual([])
     expect(memesApi).toBeDefined()

@@ -65,7 +65,7 @@ export function SearchHero({ memesApi, candidatesSource }: Props) {
   let chips: React.ReactNode = null
   if (recent.length > 0) {
     chips = (
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="Your last searches" className="mt-3 flex flex-wrap items-center gap-2">
         <span className="text-sm text-fg-muted">Your last searches</span>
         {recent.map(query => (
           <Link
@@ -78,7 +78,7 @@ export function SearchHero({ memesApi, candidatesSource }: Props) {
             {shortenForChip(query)}
           </Link>
         ))}
-        <Button variant="ghost" size="lg" onClick={onClear}>
+        <Button variant="ghost" size="lg" aria-label="Clear last searches" onClick={onClear}>
           Clear
         </Button>
       </div>
@@ -93,7 +93,7 @@ export function SearchHero({ memesApi, candidatesSource }: Props) {
     )
   } else if (examples.length > 0) {
     chips = (
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="Example searches" className="mt-3 flex flex-wrap items-center gap-2">
         <span className="text-sm text-fg-muted">Try:</span>
         {examples.map(word => (
           <Link key={word} to={searchPath(word)} className={buttonClasses({ size: "lg", className: CHIP })}>
