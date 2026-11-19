@@ -1,4 +1,4 @@
-import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, act, waitFor, fireEvent, within } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { MemeDetails } from './MemeDetails'
@@ -489,5 +489,40 @@ describe('MemeDetails', () => {
 
       expect(api.similarMemes).toHaveBeenCalledWith('meme-B', "description")
     })
+  })
+})
+
+describe('MemeDetails share actions row', () => {
+  function row() {
+    return screen.getByRole('link', { name: 'Open image' }).parentElement!
+  }
+
+  it('shows the labelled row with Open image', async () => {
+    renderMemeDetails()
+    await act(async () => {})
+    const group = row()
+    expect(group).toHaveAttribute('aria-label', 'Share actions')
+    for (const name of ['Copy image', 'Download', 'Copy link']) {
+      expect(within(group).getByRole('button', { name })).toBeInTheDocument()
+    }
+    expect(screen.getByRole('link', { name: 'Open image' })).toHaveAttribute('target', '_blank')
+  })
+
+  it('sits after the zoomable image and before the tags block', async () => {
+    renderMemeDetails()
+    await act(async () => {})
+    const group = row()
+    const zoomIn = screen.getByRole('button', { name: '+' })
+    const tags = screen.getByText('Tags:')
+    expect(zoomIn.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(group.compareDocumentPosition(tags) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('has dropped the legacy cross-origin download anchor', async () => {
+    renderMemeDetails()
+    await act(async () => {})
+    expect(screen.queryByText(/⬇/)).not.toBeInTheDocument()
+    expect(document.querySelector('a[download]')).toBeNull()
+    expect(within(row()).getAllByRole('button', { name: /download/i })).toHaveLength(1)
   })
 })

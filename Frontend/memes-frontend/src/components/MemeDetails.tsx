@@ -6,6 +6,7 @@ import { ImpressionBlock } from "./ImpressionBlock"
 import { MemeComicsBlock } from "./comics/MemeComicsBlock"
 import type { MemesApi } from "../api/MemesApi"
 import MemeCard from "./MemeCard"
+import { MemeActions } from "./MemeActions"
 import type { Concept, ImageDescription, Meme } from "../types/generated/all"
 import { ConceptRow } from "./ConceptRow"
 import { useNavigate } from "react-router-dom"
@@ -189,6 +190,10 @@ export function MemeDetails({ meme, memesApi }: Props) {
         </div>
       </div>
 
+      <div className="mb-4">
+        <MemeActions meme={meme} memesApi={memesApi} layout="row" />
+      </div>
+
       {/* Metadata */}
       <div className="space-y-4 text-sm">
         <div>
@@ -209,13 +214,6 @@ export function MemeDetails({ meme, memesApi }: Props) {
           >
             <strong>File name: </strong>{meme.originalFileName} <br />
           </div>
-          <a
-            href={memesApi.getImageUrl(meme)}
-            download={meme.originalFileName ?? meme.id}
-            className="inline-block mt-2 px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 transition"
-          >
-            ⬇ Download
-          </a>
         </div>
 
         <div>
