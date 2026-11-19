@@ -25,6 +25,7 @@ function renderApp(path: string, stage: Stage, load?: () => Promise<Capabilities
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route element={<AppLayout />}>
+              <Route path="/" element={<div>home-content</div>} />
               <Route path="/explore" element={<div>explore-content</div>} />
               <Route path="/concepts" element={<div>concepts-content</div>} />
               <Route path="/search" element={<div>search-content</div>} />
@@ -99,9 +100,9 @@ describe("menu on a dev build", () => {
 })
 
 describe("route redirects", () => {
-  it.each(PATHS)("%s redirects to /explore on a prod build", path => {
+  it.each(PATHS)("%s redirects to / on a prod build", path => {
     renderApp(path, "prod", () => Promise.resolve(ALL_ON))
-    expect(screen.getByText("explore-content")).toBeInTheDocument()
+    expect(screen.getByText("home-content")).toBeInTheDocument()
     expect(screen.queryByText(`page-${path}`)).not.toBeInTheDocument()
   })
 
@@ -112,7 +113,7 @@ describe("route redirects", () => {
 
   it("redirects /concepts once a capability turns it off", async () => {
     renderApp("/concepts", "prod", () => Promise.resolve({ ...ALL_ON, concepts: false }))
-    await waitFor(() => expect(screen.getByText("explore-content")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("home-content")).toBeInTheDocument())
   })
 })
 

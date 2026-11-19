@@ -1,5 +1,5 @@
 import type { CapabilitiesFeatures } from "../types/generated/all"
-import { ALL_FEATURES, buildStage, featureForPath, isFeatureVisible } from "./visibility"
+import { ALL_FEATURES, buildStage, DEFAULT_ROUTE, featureForPath, isFeatureVisible } from "./visibility"
 
 const ALL_ON: CapabilitiesFeatures = {
   memeFromText: true, concepts: true, trends: true, comics: true, ratings: true,
@@ -75,6 +75,11 @@ describe("featureForPath", () => {
 
   it.each(["/", "/Administrator", "/ADMINISTRATOR/"])("%s is not mistaken for a hidden prefix", path => {
     expect(featureForPath(path)).toBeNull()
+  })
+
+  it("sends hidden routes to Home, which is itself always available (no redirect loop)", () => {
+    expect(DEFAULT_ROUTE).toBe("/")
+    expect(featureForPath(DEFAULT_ROUTE)).toBeNull()
   })
 
   it.each(["/", "/explore", "/search", "/recommendations", "/trending-memes", "/memes/abc", "/administrator"])(

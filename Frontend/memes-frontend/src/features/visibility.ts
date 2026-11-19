@@ -84,5 +84,5 @@ export function featureForPath(pathname: string): Feature | null {
   return null
 }
 
-/** Where a hidden route goes. */
-export const DEFAULT_ROUTE = "/explore"
+/** Where a hidden route goes: the Home page, which is served on both stages. */
+export const DEFAULT_ROUTE = "/"

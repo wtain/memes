@@ -1,5 +1,6 @@
-import { createBrowserRouter, Navigate } from "react-router-dom"
+import { createBrowserRouter } from "react-router-dom"
 import AppLayout from "./AppLayout"
+import HomePage from "../pages/HomePage"
 import ExplorePage from "../pages/ExplorePage"
 import SearchPage from "../pages/SearchPage"
 import ReplyPage from "../pages/ReplyPage"
@@ -38,7 +39,7 @@ export const router = createBrowserRouter([
   {
     element: <AppLayout />,
     children: [
-      { path: "/", element: <Navigate to="/explore" replace /> },
+      { path: "/", element: <HomePage memesApi={memesApi} /> },
       { path: "/explore", element: <ExplorePage memesApi={memesApi} /> },
       { path: "/untagged", element: <ExploreUntaggedPage memesApi={memesApi} /> },
       { path: "/duplicates", element: <ExploreDuplicatesPage memesApi={memesApi} /> },

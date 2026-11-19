@@ -16,6 +16,7 @@ function renderApp(initialPath: string) {
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route element={<AppLayout />}>
+          <Route path="/" element={<div>home-content</div>} />
           <Route path="/explore" element={<DummyExplore />} />
           <Route path="/untagged" element={<DummyUntagged />} />
           <Route path="/admin" element={<div>admin-content</div>} />
@@ -44,12 +45,31 @@ describe('AppLayout menu', () => {
     exploreMountCount = 0
   })
 
-  it('shows four category buttons and no page links while all menus are closed', () => {
+  it('shows four category buttons and no page links but Home while all menus are closed', () => {
     renderApp('/explore')
     for (const group of Object.keys(GROUPS)) {
       expect(screen.getByRole('button', { name: new RegExp(`^${group}`) })).toHaveAttribute('aria-expanded', 'false')
     }
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link').map(a => a.textContent)).toEqual(['Home'])
+  })
+
+  it('has a Home link before the group buttons that is current only on /', () => {
+    const { unmount } = renderApp('/')
+    const home = screen.getByRole('link', { name: 'Home' })
+    expect(home).toHaveAttribute('href', '/')
+    expect(home).toHaveAttribute('aria-current', 'page')
+    const nav = screen.getByRole('navigation', { name: 'Main' })
+    expect(nav.firstElementChild).toBe(home)
+    unmount()
+    renderApp('/explore')
+    expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('clicking Home from another page shows the / route', () => {
+    renderApp('/explore')
+    expect(screen.getByText('explore-content')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }))
+    expect(screen.getByText('home-content')).toBeInTheDocument()
   })
 
   it.each(Object.entries(GROUPS))('the %s menu lists its links in order', (group, labels) => {

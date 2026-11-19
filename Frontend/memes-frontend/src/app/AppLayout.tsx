@@ -132,6 +132,14 @@ export default function AppLayout() {
     <div className="min-h-screen bg-gray-100 text-gray-900">
       <header className="border-b bg-white sticky top-0 z-50">
         <nav ref={navRef} aria-label="Main" className="mx-auto max-w-6xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-2">
+          <NavLink
+            to="/"
+            end
+            onClick={() => setOpened(null)}
+            className={({ isActive }) => (isActive ? "font-semibold text-blue-600" : "text-gray-600")}
+          >
+            Home
+          </NavLink>
           {menu.map((group) => {
             const open = openGroup === group.label
             const active = group.entries.some((entry) => isLink(entry) && isCurrent(entry))
