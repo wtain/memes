@@ -1,6 +1,6 @@
 # Design system (tokens + shared components) and meme card redesign
 
-Status: planned
+Status: done
 Plan: docs/superpowers/plans/2026-11-19-design-system-and-card-redesign.md
 Originates from: docs/superpowers/specs/2026-11-18-ui-ux-audit.md
 

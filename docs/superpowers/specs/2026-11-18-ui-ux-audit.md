@@ -1,6 +1,6 @@
 # UI/UX audit and idea backlog
 
-Status: draft
+Status: implementation
 Originates from: user request 2026-11-18 (design/UI/UX audit epic; branch `worktree-ux-design-audit`)
 
 Audience today: the owner and their partner. Planned: a public read-only prod stage (`VITE_STAGE=prod`) used by a few friends.
@@ -94,3 +94,17 @@ I18 mobile pass (move earlier if friends will use phones), I17 accessibility, I2
 - Any route/menu change needs a `ROUTE_POLICY` line (stage policy) and `visibility.ts` entry; Android has a parallel `FeatureVisibility.kt`.
 - Card and modal changes touch many tests (MemeCard, MemesList, MemeDetails).
 - `multi-image-stories-epic` worktree also edits comics UI (Add to comics on cards); coordinate to avoid conflicts on MemeCard.
+
+## Progress (2026-11-19)
+
+Done on branch `worktree-ux-design-audit` (reviewed by a separate agent, findings fixed, visually checked on a throwaway server):
+- Ranking items 1-2: design tokens and shared components (`src/ui/`), card redesign with curator controls in a hover/focus action bar. Spec: `2026-11-18-design-system-and-card-redesign.md`.
+- Ranking item 6: Home page at `/`. Spec: `2026-11-19-home-page-design.md`.
+
+Follow-ups (owner-approved direction, not started):
+- F-a Backend: exclude flagged images from the unfiltered `GET /api/images` feed (today only trending excludes them; Home filters them client-side on its Recently added rail). Changes Explore too; needs `backend_api.md` and tests. Separate small change.
+- F-b Card edge: white-background memes lose their card edge without a border (hairline or grey card background).
+- F-c Home rail shows a native horizontal scrollbar and a clipped last card; consider hiding the bar and adding arrow buttons.
+- F-d Not yet seen in a browser: prod build (`VITE_STAGE=prod`) hiding curator controls, 390px phone layout, the comics status keeping the action bar visible. Unit tests cover the first and third.
+- F-e A page froze the tab when its API fetch failed (observed once, cause not investigated); check error handling of the list fetch before a public launch.
+- Remaining ranking: items 3-5 (copy/download, empty states beyond cards, shareable meme page), 7-10 (detail view, header search and nav, full-width grid, back-to-results).
