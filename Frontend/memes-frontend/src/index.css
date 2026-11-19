@@ -1,1 +1,113 @@
 @import "tailwindcss";
+
+/*
+ * Design tokens. Components use semantic utilities (bg-surface, text-fg-muted),
+ * never raw palette colours. Contrast ratios (computed with WCAG 2.x relative
+ * luminance):
+ *   light: fg on surface 17.74, fg-muted 7.56, fg-subtle >= 5.25 (on the gray page, higher on white),
+ *          brand on white 5.17, on-brand on brand 5.17, danger on white 4.83,
+ *          line-strong on white 4.83, success 6.49, warning 6.37, danger-tone 6.80
+ *   dark:  fg on surface 16.12, fg-muted 12.04, fg-subtle 6.99, brand on surface 6.98,
+ *          on-brand on brand 7.41, danger on surface 6.41, success 7.52, warning 7.28,
+ *          danger-tone 6.93
+ * The dark block is inert until something sets data-theme="dark".
+ */
+
+/* 1. Raw semantic values, light by default */
+:root {
+  --c-page: #f3f4f6;
+  --c-surface: #ffffff;
+  --c-surface-sunken: #f9fafb;
+  --c-line: #e5e7eb;
+  --c-line-strong: #6b7280;
+  --c-fg: #111827;
+  --c-fg-muted: #4b5563;
+  --c-fg-subtle: #5f6673;
+  --c-brand: #2563eb;
+  --c-brand-hover: #1d4ed8;
+  --c-on-brand: #ffffff;
+  --c-danger: #dc2626;
+  --c-danger-hover: #b91c1c;
+  --c-on-danger: #ffffff;
+  --c-success-bg: #dcfce7;
+  --c-success-fg: #166534;
+  --c-warning-bg: #fef3c7;
+  --c-warning-fg: #92400e;
+  --c-danger-bg: #fee2e2;
+  --c-danger-fg: #991b1b;
+  --c-scrim: rgb(0 0 0 / 0.6);
+  --c-focus: #2563eb;
+}
+
+/* 2. Dark values: defined now, not switched on anywhere yet */
+:root[data-theme="dark"] {
+  --c-page: #0b1120;
+  --c-surface: #111827;
+  --c-surface-sunken: #0f172a;
+  --c-line: #1f2937;
+  --c-line-strong: #9ca3af;
+  --c-fg: #f3f4f6;
+  --c-fg-muted: #d1d5db;
+  --c-fg-subtle: #9ca3af;
+  --c-brand: #60a5fa;
+  --c-brand-hover: #93c5fd;
+  --c-on-brand: #0b1120;
+  --c-danger: #f87171;
+  --c-danger-hover: #fca5a5;
+  --c-on-danger: #0b1120;
+  --c-success-bg: #14532d;
+  --c-success-fg: #bbf7d0;
+  --c-warning-bg: #78350f;
+  --c-warning-fg: #fde68a;
+  --c-danger-bg: #7f1d1d;
+  --c-danger-fg: #fecaca;
+  --c-focus: #93c5fd;
+}
+
+/* 3. Expose to Tailwind utilities */
+@theme inline {
+  --color-page: var(--c-page);
+  --color-surface: var(--c-surface);
+  --color-surface-sunken: var(--c-surface-sunken);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-fg: var(--c-fg);
+  --color-fg-muted: var(--c-fg-muted);
+  --color-fg-subtle: var(--c-fg-subtle);
+  --color-brand: var(--c-brand);
+  --color-brand-hover: var(--c-brand-hover);
+  --color-on-brand: var(--c-on-brand);
+  --color-danger: var(--c-danger);
+  --color-danger-hover: var(--c-danger-hover);
+  --color-on-danger: var(--c-on-danger);
+  --color-success-bg: var(--c-success-bg);
+  --color-success-fg: var(--c-success-fg);
+  --color-warning-bg: var(--c-warning-bg);
+  --color-warning-fg: var(--c-warning-fg);
+  --color-danger-bg: var(--c-danger-bg);
+  --color-danger-fg: var(--c-danger-fg);
+  --color-scrim: var(--c-scrim);
+  --color-focus: var(--c-focus);
+}
+
+/* 4. Non-colour tokens */
+@theme {
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.1);
+  --shadow-card-hover: 0 4px 12px rgb(0 0 0 / 0.12);
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1rem;
+}
+
+/* 5. Focus ring: one rule for every interactive element */
+:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
+body {
+  background: var(--c-page);
+  color: var(--c-fg);
+}
