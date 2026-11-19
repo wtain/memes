@@ -7,7 +7,7 @@ export function Skeleton({ className, ...rest }: React.ComponentProps<"div">) {
 
 export function MemeCardSkeleton() {
   return (
-    <Card aria-hidden="true" className="flex h-full flex-col">
+    <Card aria-hidden="true" data-testid="meme-card-skeleton" className="flex h-full flex-col">
       <Skeleton className="aspect-square w-full rounded-none" />
       <div className="flex h-10 items-center gap-2 px-2">
         <Skeleton className="h-4 w-16" />

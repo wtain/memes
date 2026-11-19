@@ -4,6 +4,7 @@ import MemeCard from "./MemeCard"
 import { useFeature } from "../features/useFeature"
 import { WorkingComicsBar } from "./comics/WorkingComicsBar"
 import { MemeDetailsModal } from "./MemeDetailsModal"
+import { EmptyState, MemeCardSkeleton } from "../ui"
 import { useWindowedPagination, type FetchPageFn } from "../hooks/useWindowedPagination"
 import type { MemesApi } from "../api/MemesApi"
 import type { Facet, Meme } from "../types/generated/all"
@@ -22,6 +23,7 @@ type MemesListProps = {
 }
 
 const COLUMNS = 6
+const GRID_CLASSES = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4"
 
 // Chunks `items` into rows of up to COLUMNS, aligning the first row to the item's absolute
 // position in the true (unbounded) sequence -- so row boundaries stay stable and page-boundary-
@@ -108,8 +110,16 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
   const rowFirstItemIndex = Math.floor((firstItemIndex - baselineFirstItemIndex) / COLUMNS)
 
   return (
-    <div>
+    <div aria-busy={loading && items.length === 0 ? true : undefined}>
       {!listFlagged && comicsOn && <WorkingComicsBar />}
+      {loading && items.length === 0 && (
+        <>
+          <span role="status" className="sr-only">Loading...</span>
+          <div className={GRID_CLASSES}>
+            {Array.from({ length: COLUMNS }, (_, i) => <MemeCardSkeleton key={i} />)}
+          </div>
+        </>
+      )}
       <Virtuoso
         useWindowScroll
         firstItemIndex={rowFirstItemIndex}
@@ -117,7 +127,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
         startReached={() => { if (hasMoreBackward) loadBackward() }}
         endReached={() => { if (hasMoreForward) loadForward() }}
         itemContent={(_index, row) => (
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          <div className={GRID_CLASSES}>
             {row.map(meme => (
               <MemeCard key={meme.id} meme={meme} memesApi={memesApi} onClick={() => setSelectedMeme(meme)} comicsAction={!listFlagged} />
             ))}
@@ -133,11 +143,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
         <div className="h-10 flex items-center justify-center"><span>Loading...</span></div>
       )}
 
-      {items.length === 0 && !loading && (
-        <div className="h-10 flex items-center justify-center">
-          <span>Nothing to show</span>
-        </div>
-      )}
+      {items.length === 0 && !loading && <EmptyState title="Nothing to show" />}
     </div>
   )
 }

@@ -57,6 +57,42 @@ describe('MemesList', () => {
     })
   })
 
+  it('shows six skeleton cards and one Loading status until the first page arrives', async () => {
+    let resolve!: (v: unknown) => void
+    const api = makeMockApi({
+      searchMemes: vi.fn().mockReturnValue(new Promise(r => { resolve = r })),
+    })
+    const { container } = render(<MemesList memesApi={api} />)
+    await waitFor(() => expect(screen.getAllByTestId('meme-card-skeleton')).toHaveLength(6))
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...')
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(screen.queryByText('Nothing to show')).not.toBeInTheDocument()
+    await act(async () => { resolve({ items: [DEFAULT_MOCK_MEME], facets: [], hasNext: false }) })
+    await waitFor(() => expect(screen.queryAllByTestId('meme-card-skeleton')).toHaveLength(0))
+  })
+
+  it('renders the empty result through EmptyState', async () => {
+    render(<MemesList memesApi={makeMockApi()} />)
+    expect(await screen.findByText('Nothing to show')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+
+  it('exposes each card as a link to its meme page', async () => {
+    const api = makeMockApi({
+      searchMemes: vi.fn().mockResolvedValue({ items: [DEFAULT_MOCK_MEME], facets: [], hasNext: false }),
+    })
+    const { container } = render(<MemesList memesApi={api} />)
+    await waitFor(() => expect(container.querySelector('a[href^="/memes/"]')).not.toBeNull())
+  })
+
+  it('uses a two-column grid on phones', async () => {
+    const api = makeMockApi({
+      searchMemes: vi.fn().mockResolvedValue({ items: [DEFAULT_MOCK_MEME], facets: [], hasNext: false }),
+    })
+    const { container } = render(<MemesList memesApi={api} />)
+    await waitFor(() => expect(container.querySelector('.grid-cols-2.sm\\:grid-cols-3.md\\:grid-cols-6')).not.toBeNull())
+  })
+
   it('renders a card for each returned meme', async () => {
     const api = makeMockApi({
       searchMemes: vi.fn().mockResolvedValue({
@@ -158,7 +194,7 @@ describe('MemesList', () => {
       expect(screen.getAllByRole('img')).toHaveLength(8)
     })
     // 8 items at 6 columns -> one full row of 6, one partial row of 2.
-    const rowWrappers = container.querySelectorAll('.grid.grid-cols-1.md\\:grid-cols-6')
+    const rowWrappers = container.querySelectorAll('.grid.grid-cols-2.sm\\:grid-cols-3.md\\:grid-cols-6')
     expect(rowWrappers).toHaveLength(2)
     expect(within(rowWrappers[0] as HTMLElement).getAllByRole('img')).toHaveLength(6)
     expect(within(rowWrappers[1] as HTMLElement).getAllByRole('img')).toHaveLength(2)
