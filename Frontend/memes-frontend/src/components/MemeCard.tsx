@@ -87,10 +87,10 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
           <Badge tone="danger" className="absolute left-2 top-2">Flagged</Badge>
         )}
 
-        <div className={`absolute right-2 top-2 flex items-center gap-1 rounded-md bg-scrim has-[[data-keep-visible]]:opacity-100 ${REVEAL}`}>
+        <div className={`absolute right-2 top-2 flex max-w-[calc(100%-1rem)] flex-col items-end gap-1 rounded-md bg-scrim has-[[data-keep-visible]]:opacity-100 ${REVEAL}`}>
           <MemeActions meme={meme} memesApi={memesApi} layout="bar" />
           {showBar && (
-            <div role="group" aria-label="Curator actions" data-bar-divider className="flex items-center gap-1 border-l border-white/30 pl-1">
+            <div role="group" aria-label="Curator actions" className="flex flex-wrap items-center justify-end gap-1">
               {showFlag && (
                 <Button
                   iconOnly

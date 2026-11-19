@@ -92,7 +92,7 @@ export function MemeActions({ meme, memesApi, layout }: Props) {
     <div
       role="group"
       aria-label="Share actions"
-      className={bar ? "flex items-center gap-1" : "flex flex-wrap gap-2"}
+      className={bar ? "flex flex-wrap items-center justify-end gap-1" : "flex flex-wrap gap-2"}
       onPointerEnter={startWarm}
       onPointerLeave={cancelWarm}
       onFocus={startWarm}

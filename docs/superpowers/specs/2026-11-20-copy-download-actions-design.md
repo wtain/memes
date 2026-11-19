@@ -131,8 +131,8 @@ Card, bar top-right, revealed on hover / focus-within, always on touch, `bg-scri
 
 ```
 +---------------------------------------------+
-| [Flagged]  [copy][dl][link] | [flag][comics] |   share group, then curator group (dev only)
-|                                             |
+| [Flagged]            [copy][dl][link]       |   share row
+|                         [flag][comics]      |   curator row (dev only), right-aligned
 |                  IMAGE                      |
 |                                      [OCR]  |
 +---------------------------------------------+
@@ -141,7 +141,7 @@ Card, bar top-right, revealed on hover / focus-within, always on touch, `bg-scri
             ( Image copied )                      toast, bottom-centre of the viewport
 ```
 
-On prod the bar holds only the share group (3 icons, plus Share on a phone). Widths: 3 x 32 px about 108 px on the narrowest desktop cell (about 190 px); with curator controls on dev 5 x 32 about 170 px, still inside the image; on touch 4 x 44 = 176 px in a one-column phone grid. A thin divider (`border-l border-white/30 pl-1`) only when both groups render.
+On prod the bar holds only the share group (3 icons, plus Share on a phone). The bar is a column (`flex flex-col items-end gap-1`, `max-w-[calc(100%-1rem)]`) with the share row first and the curator row below it (dev only); each row is `flex-wrap justify-end`, so a card as narrow as about 115 px (6 desktop columns) never clips the bar, and on touch (44 px targets, 3 x 44 = 132 px plus gaps) a narrow card wraps instead of overflowing. There is no divider: the rows separate the groups. A first single-row version overflowed the card's left edge (found in a browser, not catchable in jsdom).
 
 Details (`MemeDetails`, shared by `MemeDetailsModal` and `MemePage`): a labelled row **directly under the zoomable image, above the tags block**, so it is on the first screen (F6), outside the pan/zoom container:
 
@@ -217,6 +217,7 @@ Manual (implementer, on a free port per `environments/Environments.md`, never th
 9. 390 px touch: bar always visible, targets at least 44 px, Share present on a phone.
 10. `VITE_STAGE=prod` build: only the share group in the bar; dev shows both groups.
 11. Details modal and page show the labelled row on the first screen.
+12. The bar never exceeds the card width (verified in a browser at 115 px).
 12. Network tab: at most one image request per action (the rest from cache); no call to a `/saves` or metrics endpoint.
 
 ## 11. Files to touch (keep the MemeCard diff small; another worktree edits comics UI near MemeCard)

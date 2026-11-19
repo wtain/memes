@@ -174,7 +174,6 @@ describe('MemeCard curator gating and layout', () => {
     for (const name of ['Copy image', 'Download', 'Copy link']) {
       expect(within(share).getByRole('button', { name })).toBeInTheDocument()
     }
-    expect(screen.getByTestId('card-root').querySelector('[data-bar-divider]')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Flag' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Add to comics/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Curator actions' })).not.toBeInTheDocument()
@@ -214,6 +213,21 @@ describe('MemeCard curator gating and layout', () => {
     expect(bar).toHaveClass('opacity-0', 'group-hover:opacity-100', 'group-focus-within:opacity-100', 'pointer-coarse:opacity-100')
     expect(screen.getByRole('group', { name: 'Curator actions' }).parentElement).toBe(bar)
     expect(share.compareDocumentPosition(screen.getByRole('group', { name: 'Curator actions' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('stacks the bar groups and lets them wrap so the bar never exceeds a narrow card', () => {
+    render(dev(<MemeCard meme={mockMeme} memesApi={cardApi()} />))
+    const share = screen.getByRole('group', { name: 'Share actions' })
+    const curator = screen.getByRole('group', { name: 'Curator actions' })
+    const bar = share.parentElement!
+    expect(bar).toHaveClass('flex', 'flex-col', 'items-end', 'max-w-[calc(100%-1rem)]')
+    for (const el of [bar, share, curator]) {
+      expect(el.className).not.toMatch(/w-max|whitespace-nowrap|flex-nowrap|min-w-/)
+    }
+    expect(share).toHaveClass('flex-wrap', 'justify-end')
+    expect(curator).toHaveClass('flex-wrap', 'justify-end')
+    expect(bar.querySelector('[data-bar-divider]')).toBeNull()
+    expect(curator.className).not.toMatch(/border-l/)
   })
 
   it('does not trigger the card onClick when Copy image is clicked', () => {
