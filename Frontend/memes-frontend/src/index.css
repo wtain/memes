@@ -102,9 +102,11 @@
 }
 
 /* 5. Focus ring: one rule for every interactive element */
-:focus-visible {
-  outline: 2px solid var(--c-focus);
-  outline-offset: 2px;
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
+  }
 }
 
 body {

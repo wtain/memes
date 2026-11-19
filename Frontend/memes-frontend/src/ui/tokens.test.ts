@@ -40,4 +40,8 @@ describe("design tokens", () => {
     expect(css).toContain(":focus-visible")
     expect(css).toContain("var(--c-focus)")
   })
+
+  it("keeps the focus ring in @layer base so utilities like focus:outline-none win", () => {
+    expect(css).toMatch(/@layer base\s*\{\s*:focus-visible\s*\{/)
+  })
 })
