@@ -72,7 +72,7 @@ describe("copyImage", () => {
   it("copies, reports success, and clears done after 1.5 s", async () => {
     const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyImage")
-    expect(result.current.message).toBe("Image copied")
+    expect(toastText()).toBe("Image copied")
     expect(result.current.done).toBe("copyImage")
     expect(result.current.busy).toBeNull()
     expect(statusText()).toBe("Image copied")
@@ -84,7 +84,7 @@ describe("copyImage", () => {
     let release!: (b: Blob) => void
     mWarm.mockReturnValue(new Promise<Blob>((r) => (release = r)))
     mWrite.mockImplementation(() => new Promise(() => {}))
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     act(() => result.current.run("copyImage"))
     expect(mWrite).toHaveBeenCalledTimes(1)
     expect(mWrite.mock.calls[0][0]).toBeInstanceOf(Promise)
@@ -92,18 +92,18 @@ describe("copyImage", () => {
   })
 
   it("passes a promise that resolves to the png blob", async () => {
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyImage")
     await expect(mWrite.mock.calls[0][0]).resolves.toBe(png)
   })
 
   it("copies the page link when image copy is unsupported", async () => {
     mCan.mockReturnValue(false)
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyImage")
     expect(mWrite).not.toHaveBeenCalled()
     expect(mCopyText).toHaveBeenCalledWith(new URL("/memes/abcdef123456", window.location.origin).href)
-    expect(result.current.message).toContain("Link copied instead")
+    expect(toastText()).toContain("Link copied instead")
   })
 
   it("copies the direct image url for an animated gif", async () => {
@@ -114,10 +114,10 @@ describe("copyImage", () => {
       await p
       return { kind: "copied" }
     })
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyImage")
     expect(mCopyText).toHaveBeenCalledWith("http://api/img/abcdef123456")
-    expect(result.current.message).toMatch(/^Animated GIF cannot be copied as an image/)
+    expect(toastText()).toMatch(/^Animated GIF cannot be copied as an image/)
   })
 
   it("says so explicitly when the animated gif link copy also fails", async () => {
@@ -130,7 +130,7 @@ describe("copyImage", () => {
     mCopyText.mockResolvedValue({ kind: "error", reason: "blocked" })
     const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyImage")
-    expect(result.current.message).toBe("Animated GIFs cannot be copied as an image. Use Download or Copy link.")
+    expect(toastText()).toBe("Animated GIFs cannot be copied as an image. Use Download or Copy link.")
     expect(screen.getByRole("alert").textContent).toContain("Animated GIFs cannot be copied")
   })
 
@@ -138,7 +138,7 @@ describe("copyImage", () => {
     mWrite.mockResolvedValue({ kind: "error", reason: "blocked" })
     const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyImage")
-    expect(result.current.message).toBe("Copy was blocked by the browser. Try again or use Download.")
+    expect(toastText()).toBe("Copy was blocked by the browser. Try again or use Download.")
     expect(result.current.done).toBeNull()
     expect(screen.getByRole("alert").textContent).toContain("blocked by the browser")
   })
@@ -151,13 +151,13 @@ describe("copyImage", () => {
     mWarm.mockRejectedValue(new ImageActionError("network"))
     const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyImage")
-    expect(result.current.message).toBe("Could not load the image to copy.")
+    expect(toastText()).toBe("Could not load the image to copy.")
     expect(screen.getByRole("alert").textContent).toContain("Could not load")
   })
 
   it("ignores a second run while busy", async () => {
     mWrite.mockImplementation(() => new Promise(() => {}))
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     act(() => {
       result.current.run("copyImage")
       result.current.run("copyImage")
@@ -169,10 +169,10 @@ describe("copyImage", () => {
 
 describe("copyLink", () => {
   it("copies the page url", async () => {
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyLink")
     expect(mCopyText).toHaveBeenCalledWith(new URL("/memes/abcdef123456", window.location.origin).href)
-    expect(result.current.message).toBe("Link copied")
+    expect(toastText()).toBe("Link copied")
     expect(result.current.done).toBe("copyLink")
   })
 })
@@ -181,51 +181,51 @@ describe("download", () => {
   it("downloads with the built filename", async () => {
     const blob = new Blob(["p"], { type: "image/png" })
     mWarm.mockResolvedValue(blob)
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "download")
     expect(mDownload).toHaveBeenCalledWith(blob, "cat.png")
     expect(result.current.done).toBe("download")
   })
   it("opens a new tab when the fetch fails", async () => {
     mWarm.mockRejectedValue(new ImageActionError("network"))
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "download")
     expect(mOpen).toHaveBeenCalledWith("http://api/img/abcdef123456")
-    expect(result.current.message).toBe("Could not download directly; the image opened in a new tab.")
+    expect(toastText()).toBe("Could not download directly; opening the image in a new tab. If nothing opens, allow pop-ups.")
   })
 })
 
 describe("share", () => {
   it("reports canShare from the util", () => {
     mCanShare.mockReturnValue(false)
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     expect(result.current.canShare).toBe(false)
   })
   it("shares the file", async () => {
     mShare.mockResolvedValue({ kind: "shared" })
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "share")
     expect(mShare).toHaveBeenCalledWith(expect.any(Blob), "cat.png")
   })
   it("is silent on cancel", async () => {
     mShare.mockResolvedValue({ kind: "cancelled" })
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "share")
-    expect(result.current.message).toBe("")
+    expect(toastText()).toBe("")
     expect(result.current.done).toBeNull()
   })
   it("reports an error", async () => {
     mShare.mockResolvedValue({ kind: "error" })
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "share")
-    expect(result.current.message).toBe("Could not share.")
+    expect(toastText()).toBe("Could not share.")
   })
 })
 
 describe("lifecycle", () => {
   it("warm() prefetches and swallows rejections", async () => {
     mWarm.mockRejectedValue(new ImageActionError("network"))
-    const { result } = renderHook(() => useMemeActions(meme, api))
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await act(async () => result.current.warm())
     expect(mWarm).toHaveBeenCalledWith("abcdef123456", "http://api/img/abcdef123456")
   })
@@ -235,7 +235,7 @@ describe("lifecycle", () => {
     expect(mWrite).not.toHaveBeenCalled()
   })
   it("leaves no timers after unmount", async () => {
-    const { result, unmount } = renderHook(() => useMemeActions(meme, api))
+    const { result, unmount } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyLink")
     expect(result.current.done).toBe("copyLink")
     unmount()
@@ -245,4 +245,10 @@ describe("lifecycle", () => {
 
 function statusText(): string {
   return screen.getByRole("status").textContent ?? ""
+}
+
+function toastText(): string {
+  return Array.from(document.querySelectorAll("[data-toast] span"))
+    .map((el) => el.textContent)
+    .join(" | ")
 }

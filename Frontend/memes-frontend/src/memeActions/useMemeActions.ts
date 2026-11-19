@@ -26,7 +26,7 @@ const TEXT = {
   tooLarge: "Too large to copy. Use Download.",
   unsupported: "Could not copy. Use Download, or copy the link from the address bar.",
   downloadStarted: "Download started",
-  downloadFallback: "Could not download directly; the image opened in a new tab.",
+  downloadFallback: "Could not download directly; opening the image in a new tab. If nothing opens, allow pop-ups.",
   shareFailed: "Could not share.",
 } as const
 
@@ -36,7 +36,6 @@ export function useMemeActions(meme: Meme, memesApi: MemesApi) {
   const toast = useToast()
   const [busy, setBusy] = useState<ActionKind | null>(null)
   const [done, setDone] = useState<ActionKind | null>(null)
-  const [message, setMessage] = useState("")
   const inFlight = useRef(false)
 
   useEffect(() => {
@@ -46,7 +45,6 @@ export function useMemeActions(meme: Meme, memesApi: MemesApi) {
   }, [done])
 
   function report(text: string, tone: ToastTone) {
-    setMessage(text)
     toast.show(text, tone)
   }
 
@@ -147,5 +145,5 @@ export function useMemeActions(meme: Meme, memesApi: MemesApi) {
     warmImageBlob(meme.id, memesApi.getImageUrl(meme)).catch(() => {})
   }
 
-  return { run, busy, done, message, warm, canShare: canShareFiles() }
+  return { run, busy, done, warm, canShare: canShareFiles() }
 }
