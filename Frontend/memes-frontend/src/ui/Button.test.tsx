@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
 import { Button, ButtonLink } from "./Button"
 import { buttonClasses } from "./buttonStyles"
 import { CheckIcon, ComicsIcon, FlagIcon, TextIcon } from "./icons"
@@ -31,11 +31,41 @@ describe("Button", () => {
     expect(screen.getByRole("button")).not.toHaveAttribute("aria-pressed")
   })
 
-  it("loading disables and sets aria-busy", () => {
-    render(<Button loading>X</Button>)
+  it("loading sets aria-disabled and aria-busy but keeps focus and ignores clicks", () => {
+    const onClick = vi.fn()
+    render(
+      <Button loading onClick={onClick}>
+        X
+      </Button>,
+    )
     const b = screen.getByRole("button")
-    expect(b).toBeDisabled()
+    expect(b).not.toBeDisabled()
+    expect(b).toHaveAttribute("aria-disabled", "true")
     expect(b).toHaveAttribute("aria-busy", "true")
+    b.focus()
+    expect(b).toHaveFocus()
+    fireEvent.click(b)
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it("keeps the focus when it turns loading", () => {
+    const { rerender } = render(<Button>X</Button>)
+    screen.getByRole("button").focus()
+    rerender(<Button loading>X</Button>)
+    expect(screen.getByRole("button")).toHaveFocus()
+  })
+
+  it("passes clicks through when not loading and still honours disabled", () => {
+    const onClick = vi.fn()
+    const { rerender } = render(<Button onClick={onClick}>X</Button>)
+    fireEvent.click(screen.getByRole("button"))
+    expect(onClick).toHaveBeenCalledTimes(1)
+    rerender(
+      <Button disabled onClick={onClick}>
+        X
+      </Button>,
+    )
+    expect(screen.getByRole("button")).toBeDisabled()
   })
 
   it("appends className last", () => {

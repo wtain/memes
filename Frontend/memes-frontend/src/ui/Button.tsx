@@ -10,7 +10,7 @@ type TextButtonProps = React.ComponentProps<"button"> & BaseProps & { iconOnly?:
 type IconButtonProps = React.ComponentProps<"button"> & BaseProps & { iconOnly: true; "aria-label": string }
 
 export function Button(props: TextButtonProps | IconButtonProps) {
-  const { variant = "secondary", size = "md", pressed, loading, iconOnly, className, type, disabled, children, ...rest } = props
+  const { variant = "secondary", size = "md", pressed, loading, iconOnly, className, type, disabled, onClick, children, ...rest } = props
   const sizeClass = iconOnly ? ICON_SIZES[size] : SIZES[size]
   const classes = [BASE, VARIANTS[variant], sizeClass, className].filter(Boolean).join(" ")
   return (
@@ -18,7 +18,9 @@ export function Button(props: TextButtonProps | IconButtonProps) {
       {...rest}
       type={type ?? "button"}
       className={classes}
-      disabled={disabled || loading}
+      disabled={disabled}
+      aria-disabled={loading ? true : undefined}
+      onClick={loading ? undefined : onClick}
       aria-pressed={pressed}
       aria-busy={loading ? true : undefined}
     >

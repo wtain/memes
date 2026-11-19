@@ -21,7 +21,7 @@ export const ICON_SIZES: Record<Size, string> = {
 }
 
 export const BASE =
-  "inline-flex items-center justify-center gap-2 rounded-md font-medium cursor-pointer motion-safe:transition-colors disabled:opacity-50 disabled:pointer-events-none"
+  "inline-flex items-center justify-center gap-2 rounded-md font-medium cursor-pointer motion-safe:transition-colors disabled:opacity-50 disabled:pointer-events-none aria-disabled:opacity-50 aria-disabled:pointer-events-none"
 
 /** The class string of a text button, for elements that are not a <button> (router links). */
 export function buttonClasses({
