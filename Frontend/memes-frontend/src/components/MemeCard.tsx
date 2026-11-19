@@ -71,7 +71,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
       className={`group relative flex h-full flex-col ${curator && isFlagged ? "ring-2! ring-danger!" : ""}`}
     >
       <div className="relative">
-        <a href={href ?? `/memes/${meme.id}`} onClick={onImageClick} className="block">
+        <a href={href ?? `/memes/${meme.id}`} onClick={onImageClick} className="block focus-visible:outline-offset-[-2px]">
           <img
             src={memesApi.getImageUrl(meme)}
             alt="Meme"

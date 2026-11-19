@@ -220,6 +220,11 @@ describe('MemeCard curator gating and layout', () => {
     expect(screen.getByRole('link', { name: 'Open editor' })).toBeInTheDocument()
   })
 
+  it('insets the image link focus ring so the card does not clip it', () => {
+    render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
+    expect(screen.getByRole('link')).toHaveClass('focus-visible:outline-offset-[-2px]')
+  })
+
   it('always renders the tag footer, with and without tags', () => {
     const { rerender } = render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
     expect(screen.getByTestId('card-footer')).toBeInTheDocument()
