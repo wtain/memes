@@ -92,28 +92,28 @@ describe('MemeCard', () => {
 
   it('flag toggle is not pressed when meme is not flagged', () => {
     render(<MemeCard meme={{ ...mockMeme, flagged: false }} memesApi={cardApi()} />)
-    expect(screen.getByRole('button', { name: 'Flagged' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Flag' })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('flag toggle is pressed when meme is already flagged', () => {
     render(<MemeCard meme={{ ...mockMeme, flagged: true }} memesApi={cardApi()} />)
-    expect(screen.getByRole('button', { name: 'Flagged' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Flag' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('calls markImageIsFlagged when the unpressed toggle is clicked', async () => {
     const api = cardApi()
     render(<MemeCard meme={{ ...mockMeme, flagged: false }} memesApi={api} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Flagged' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Flag' }))
     await waitFor(() => {
       expect(api.markImageIsFlagged).toHaveBeenCalledWith('meme-1')
     })
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Flagged' })).toHaveAttribute('aria-pressed', 'true'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Flag' })).toHaveAttribute('aria-pressed', 'true'))
   })
 
   it('calls unmarkImageIsFlagged when the pressed toggle is clicked', async () => {
     const api = cardApi()
     render(<MemeCard meme={{ ...mockMeme, flagged: true }} memesApi={api} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Flagged' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Flag' }))
     await waitFor(() => {
       expect(api.unmarkImageIsFlagged).toHaveBeenCalledWith('meme-1')
     })
@@ -163,14 +163,14 @@ describe('MemeCard link', () => {
   it('keeps the controls outside the link', () => {
     render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
     expect(link()).not.toContainElement(screen.getByRole('button', { name: 'OCR' }))
-    expect(link()).not.toContainElement(screen.getByRole('button', { name: 'Flagged' }))
+    expect(link()).not.toContainElement(screen.getByRole('button', { name: 'Flag' }))
   })
 })
 
 describe('MemeCard curator gating and layout', () => {
   it('prod: no curator controls, no badge, no ring, no empty action bar', () => {
     render(prod(<MemeCard meme={{ ...mockMeme, flagged: true }} memesApi={cardApi()} comicsAction />))
-    expect(screen.queryByRole('button', { name: 'Flagged' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Flag' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Add to comics/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Curator actions' })).not.toBeInTheDocument()
     expect(screen.queryByText('Flagged')).not.toBeInTheDocument()
@@ -199,7 +199,7 @@ describe('MemeCard curator gating and layout', () => {
     render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
     const bar = screen.getByRole('group', { name: 'Curator actions' }).parentElement!
     expect(bar).toHaveClass('opacity-0', 'group-hover:opacity-100', 'group-focus-within:opacity-100', 'pointer-coarse:opacity-100')
-    expect(screen.getByRole('button', { name: 'Flagged' })).not.toHaveAttribute('tabindex', '-1')
+    expect(screen.getByRole('button', { name: 'Flag' })).not.toHaveAttribute('tabindex', '-1')
   })
 
   it('keeps the action bar visible while a comics status or error is shown', async () => {

@@ -96,7 +96,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
                   size="sm"
                   variant="ghost"
                   pressed={isFlagged}
-                  aria-label="Flagged"
+                  aria-label="Flag"
                   className={isFlagged ? "text-on-danger! bg-danger!" : "text-white! hover:bg-white/20"}
                   onClick={toggleFlag}
                 >
