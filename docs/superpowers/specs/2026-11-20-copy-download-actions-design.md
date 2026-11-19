@@ -1,6 +1,7 @@
 # Copy / Download / Copy-link actions for memes (design)
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-11-20-copy-download-actions.md
 Originates from: docs/superpowers/specs/2026-11-18-ui-ux-audit.md
 
 Scope: UI/UX audit ranking item 3 (idea I8, fixes F5), the "ITEM-3 SLOT" reserved in the card action bar by `2026-11-18-design-system-and-card-redesign.md` (section 4.6). Frontend only. The owner said "go with your recommendations": every open choice is decided in section 12; section 13 lists what truly needs the owner (nothing blocking).
@@ -246,6 +247,10 @@ Not touched: `backend_api.md`, `Backend/**`, `shared/schemas`, `visibility.ts`, 
 - D12 No analytics and no call to `/saves`. Counting a web copy/download as a save (with `searchId`) is a separate explicit follow-up because it feeds popularity.
 - D13 No separate "open in new tab" icon on cards (the image is already an `<a>`); "Open image" only in the details row.
 - D14 Toast lives in `src/ui` (design system), action logic in `src/memeActions/`, so the lightbox (item 7) and the reply page can reuse it.
+
+## Decisions (owner-approved 2026-11-20)
+
+The owner approved this spec with every recommended default (D1 to D14) and no open questions. The optional "count a web copy or download as a popularity save" is decided: no (D12 stands; any such change is a separate explicit follow-up).
 
 ## 13. Owner questions
 
