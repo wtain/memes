@@ -13,14 +13,14 @@ afterEach(() => {
 
 describe("downloadBlob", () => {
   it("clicks one anchor with download and blob href, then removes it", () => {
-    let seen: HTMLAnchorElement | undefined
+    const seen: { download?: string | null; href?: string | null; attached?: boolean } = {}
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-      seen = this
-      expect(document.body.contains(this)).toBe(true)
+      seen.download = this.getAttribute("download")
+      seen.href = this.getAttribute("href")
+      seen.attached = document.body.contains(this)
     })
     downloadBlob(new Blob(["x"]), "cat.png")
-    expect(seen?.getAttribute("download")).toBe("cat.png")
-    expect(seen?.getAttribute("href")).toBe("blob:mock")
+    expect(seen).toEqual({ download: "cat.png", href: "blob:mock", attached: true })
     expect(document.querySelector("a[download]")).toBeNull()
   })
   it("revokes the blob url only after 30 seconds", () => {
