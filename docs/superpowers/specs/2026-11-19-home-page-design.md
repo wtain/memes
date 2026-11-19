@@ -1,11 +1,27 @@
 # Home page at `/`
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-11-19-home-page.md
 Originates from: docs/superpowers/specs/2026-11-18-ui-ux-audit.md
 
 Scope: audit ranking item 6 (I1 + I20), fixes F2 and F8 (partly F9). Frontend only (`Frontend/memes-frontend/`). No backend, no `shared/schemas`, no `backend_api.md` change.
 Assumes the components of `docs/superpowers/specs/2026-11-18-design-system-and-card-redesign.md` exist in `src/ui/`: `Button`, `ButtonLink`, `Badge`, `Card`, `Skeleton`, `EmptyState`, plus the redesigned `MemeCard` and the semantic tokens.
 Out of scope: header search and the nav rework (item 8; this spec only adds one "Home" entry), the Reply page's own empty state (F8's page-internal part), the Explore page, dark mode, Android.
+
+## Decisions (owner-approved 2026-11-19)
+
+The owner approved the spec with every recommended default of section 11:
+
+1. Rail order: Recently added first, Trending second.
+2. Home on both stages; the owner's `/` on dev is Home too (Explore stays one click away).
+3. The newest-12 rail stays "newest", not a random "Discover" rail; revisit after seeing real data.
+4. `DEFAULT_ROUTE` for hidden routes becomes `/`.
+5. Neutral public wording of the description line (the owner may edit it).
+6. "Your last searches" lives in per-browser `localStorage`, clearable, never sent to a server.
+7. No "N memes" count, therefore no new endpoint.
+8. Reply shortcut unchanged on prod: it follows `visibility.ts` (hidden today).
+
+Addendum (plan-time code reading, 2026-11-19, no database): `GET /api/images` without `q` (`ImageRepository.search`, `_build_filtered_ids_query`) filters `status == "active"` and orders by `created_at desc, id desc`, but does NOT exclude flagged images (`image_extras.flagged` is only outer-joined and returned as `Meme.flagged`). Trending does exclude them. So flagged memes can appear in Recently added. The plan filters `meme.flagged` out of that rail on the client; whether to also change the backend (a `record`-like param or a default filter) is an owner decision, not part of this spec.
 
 ## 1. Problem and facts verified in the code
 
