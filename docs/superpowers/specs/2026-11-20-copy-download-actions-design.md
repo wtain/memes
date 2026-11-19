@@ -1,6 +1,6 @@
 # Copy / Download / Copy-link actions for memes (design)
 
-Status: planned
+Status: implementation (code complete on branch worktree-card-copy-download; set to done when merged and the manual acceptance list in section 10 has been run)
 Plan: docs/superpowers/plans/2026-11-20-copy-download-actions.md
 Originates from: docs/superpowers/specs/2026-11-18-ui-ux-audit.md
 

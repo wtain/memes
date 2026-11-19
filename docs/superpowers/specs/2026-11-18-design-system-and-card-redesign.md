@@ -302,6 +302,7 @@ Gating (unchanged semantics, now explicit and tested):
 
 Bar contents, in order (a flex row, `gap-1`, top-right, `rounded-md bg-scrim` backing so icons keep 3:1 contrast over any image; this is also why the overlay is dark in both themes):
 1. `<!-- ITEM-3 SLOT -->` a clearly marked empty fragment: `{/* SLOT item 3: copy / download / open-link actions go here, before the curator group */}` rendered inside `<div role="group" aria-label="Share actions">` only when it has children. Item 3 adds its buttons here without touching anything else.
+   Note (2026-11-20): the slot is filled by `MemeActions` (`2026-11-20-copy-download-actions-design.md`); the bar now always renders and the curator group, when shown, is separated by a divider.
 2. Curator group (`role="group" aria-label="Curator actions"`):
    - Flag toggle: `Button iconOnly variant="ghost" pressed={isFlagged} aria-label="Flagged"` (the label is the state noun so `aria-pressed` reads "Flagged, toggle button, pressed"). Behaviour identical to today: `markImageIsFlagged` / `unmarkImageIsFlagged`, local `isFlagged` state flips after the promise resolves. The `e.preventDefault()` from the checkbox is dropped (not needed on a button). Errors are still not surfaced (unchanged; out of scope).
    - Comics: `CardComicsAction` in a new `compact` mode.

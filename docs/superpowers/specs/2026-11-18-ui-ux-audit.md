@@ -107,4 +107,5 @@ Follow-ups (owner-approved direction, not started):
 - F-c Home rail shows a native horizontal scrollbar and a clipped last card; consider hiding the bar and adding arrow buttons.
 - F-d Not yet seen in a browser: prod build (`VITE_STAGE=prod`) hiding curator controls, 390px phone layout, the comics status keeping the action bar visible. Unit tests cover the first and third.
 - F-e A page froze the tab when its API fetch failed (observed once, cause not investigated); check error handling of the list fetch before a public launch.
-- Remaining ranking: items 3-5 (copy/download, empty states beyond cards, shareable meme page), 7-10 (detail view, header search and nav, full-width grid, back-to-results).
+- Ranking item 3 done (2026-11-20, branch `worktree-card-copy-download`): copy image, download, copy link and share on cards and in the details row. Spec: `2026-11-20-copy-download-actions-design.md`. Not yet checked in a real browser (clipboard, Safari, LAN-IP fallback): see that spec's manual acceptance list.
+- Remaining ranking: items 4-5 (empty states beyond cards, shareable meme page), 7-10 (detail view, header search and nav, full-width grid, back-to-results).
