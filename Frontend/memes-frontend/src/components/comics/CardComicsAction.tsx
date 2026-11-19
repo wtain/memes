@@ -7,15 +7,16 @@ import {
   clearWorkingComics, getWorkingComics, setWorkingComics, subscribeWorkingComics,
 } from "../../comics/workingComics"
 import type { ComicsDetail } from "../../types/generated/all"
+import { Button, CheckIcon, ComicsIcon } from "../../ui"
 import { ComicsPickerModal } from "./ComicsPickerModal"
 
-type Props = { memesApi: MemesApi; imageId: string }
+type Props = { memesApi: MemesApi; imageId: string; compact?: boolean }
 
 /**
  * The "Add to comics" button under a result card. Without a working comics it opens the picker
  * and remembers the comics the image ends in; with one it adds straight to it.
  */
-export function CardComicsAction({ memesApi, imageId }: Props) {
+export function CardComicsAction({ memesApi, imageId, compact = false }: Props) {
   const working = useSyncExternalStore(subscribeWorkingComics, getWorkingComics)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -50,6 +51,32 @@ export function CardComicsAction({ memesApi, imageId }: Props) {
   }
 
   if (off) return null
+
+  if (compact) {
+    const label = working !== null ? `Add to ${working.name}` : "Add to comics"
+    return (
+      <div className="relative">
+        <Button iconOnly size="sm" variant="ghost" aria-label={label} disabled={busy}
+          className="text-white! hover:bg-white/20"
+          onClick={() => (working !== null ? void addDirect(working) : setPickerOpen(true))}>
+          {added !== null ? <CheckIcon /> : <ComicsIcon />}
+        </Button>
+        {added !== null && (
+          <p role="status" className="absolute right-0 top-full z-10 mt-1 w-max max-w-56 rounded-md bg-scrim px-2 py-1 text-xs text-white">
+            Added to {added.name}{" "}
+            <Link to={`/admin/comics/${added.id}`} className="underline">Open editor</Link>
+          </p>
+        )}
+        {error !== null && (
+          <p role="alert" className="absolute right-0 top-full z-10 mt-1 w-max max-w-56 rounded-md bg-danger px-2 py-1 text-xs text-on-danger">{error}</p>
+        )}
+        {pickerOpen && (
+          <ComicsPickerModal memesApi={memesApi} imageId={imageId}
+            onClose={() => setPickerOpen(false)} onAdded={onPickerAdded} />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="px-4 py-1 text-xs border-t space-y-1">

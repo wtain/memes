@@ -78,6 +78,44 @@ describe("CardComicsAction", () => {
   })
 })
 
+describe("CardComicsAction compact", () => {
+  function setupCompact(overrides: Parameters<typeof makeMockApi>[0] = {}) {
+    const api = makeMockApi({
+      listComics: vi.fn().mockResolvedValue({ items: [row("a")], hasMore: false }),
+      addComicsPanel: vi.fn().mockImplementation((id: string, imageId: string) => Promise.resolve(detail(id, imageId))),
+      ...overrides,
+    })
+    render(<MemoryRouter><CardComicsAction memesApi={api} imageId="img1" compact /></MemoryRouter>)
+    return api
+  }
+
+  it("is an icon-only button named Add to comics", () => {
+    setupCompact()
+    const button = screen.getByRole("button", { name: "Add to comics" })
+    expect(button).toHaveTextContent("")
+    expect(button.querySelector("svg")).not.toBeNull()
+  })
+
+  it("uses the working comics name and the same add flow", async () => {
+    setWorkingComics({ id: "w", name: "Work" })
+    const api = setupCompact()
+    await userEvent.click(screen.getByRole("button", { name: "Add to Work" }))
+    expect(api.addComicsPanel).toHaveBeenCalledWith("w", "img1")
+    const status = await screen.findByRole("status")
+    expect(status).toHaveTextContent("Added to Work")
+    expect(status).toHaveClass("absolute")
+  })
+
+  it("reports errors in an absolutely positioned alert", async () => {
+    setWorkingComics({ id: "w", name: "Work" })
+    setupCompact({ addComicsPanel: vi.fn().mockRejectedValue(new ComicsRequestError(409, { code: "image_in_comics", comicsName: "Cats" })) })
+    await userEvent.click(screen.getByRole("button", { name: "Add to Work" }))
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent('already a panel of the comics "Cats"')
+    expect(alert).toHaveClass("absolute")
+  })
+})
+
 describe("WorkingComicsBar", () => {
   it("shows nothing without a working comics", () => {
     render(<MemoryRouter><WorkingComicsBar /></MemoryRouter>)
