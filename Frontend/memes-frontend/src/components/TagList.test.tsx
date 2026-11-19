@@ -88,6 +88,43 @@ describe('TagList', () => {
     expect(screen.getByText('#five (ai)')).toBeInTheDocument()
   })
 
+  describe('compact variant', () => {
+    const many: MemeTag[] = [
+      { name: 'one', source: 'ai', score: 0.8 },
+      { name: 'two', source: 'clip', score: 0.7 },
+      { name: 'three', source: 'ai', score: 0.6 },
+      { name: 'four', source: 'ai', score: 0.5 },
+      { name: 'low', source: 'ai', score: 0.1 },
+    ]
+
+    it('shows at most 2 tags, never a button, and a +N badge listing the hidden names', () => {
+      render(<TagList tags={many} variant="compact" />)
+      expect(screen.getByText('#one')).toBeInTheDocument()
+      expect(screen.getByText('#two')).toBeInTheDocument()
+      expect(screen.queryByText(/#three/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+      const more = screen.getByText('+2')
+      expect(more).toHaveAttribute('title', expect.stringContaining('three'))
+      expect(more).toHaveAttribute('title', expect.stringContaining('four'))
+    })
+
+    it('drops the source from the label but keeps it in the chip title', () => {
+      render(<TagList tags={many} variant="compact" />)
+      expect(screen.queryByText('#two (clip)')).not.toBeInTheDocument()
+      expect(screen.getByText('#two')).toHaveAttribute('title', 'two (clip)')
+    })
+
+    it('does not wrap', () => {
+      const { container } = render(<TagList tags={many} variant="compact" />)
+      expect(container.firstChild).toHaveClass('flex-nowrap')
+    })
+
+    it('renders an empty container when nothing qualifies', () => {
+      const { container } = render(<TagList tags={[{ name: 'x', source: 'ai', score: 0.1 }]} variant="compact" />)
+      expect(container.firstChild).toBeEmptyDOMElement()
+    })
+  })
+
   it('collapses back to 3 tags when the toggle is clicked again', async () => {
     const user = userEvent.setup()
     const tags: MemeTag[] = [

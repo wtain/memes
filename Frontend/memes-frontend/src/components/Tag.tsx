@@ -1,11 +1,15 @@
+import { Badge } from "../ui"
+
 type Props = {
   label: string
+  title?: string
+  className?: string
 }
 
-export function Tag({ label }: Props) {
+export function Tag({ label, title, className }: Props) {
   return (
-    <span className="text-xs px-2 py-1 bg-gray-200 rounded-full">
+    <Badge title={title} className={className}>
       #{label}
-    </span>
+    </Badge>
   )
 }

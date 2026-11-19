@@ -46,6 +46,13 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('uses the scrim token for the backdrop', () => {
+    render(<Modal onClose={() => {}}><span /></Modal>)
+    const backdrop = document.querySelector('.fixed.inset-0')!
+    expect(backdrop).toHaveClass('bg-scrim')
+    expect(backdrop.className).not.toContain('bg-opacity-60')
+  })
+
   it('locks body scroll when open', () => {
     render(<Modal onClose={() => {}}><span /></Modal>)
     expect(document.body.style.overflow).toBe('hidden')
