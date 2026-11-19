@@ -71,7 +71,7 @@ await navigator.clipboard.write([item])
 `downloadBlob(blob, filename)`: `fetchImageBlob(url)` (same cache), `URL.createObjectURL(blob)`, an `<a href=blobUrl download=filename>` appended, `click()`, removed, `setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)` (revoking at once breaks the download in some browsers). The file is the original bytes. If `fetch` fails, last resort `window.open(url, "_blank", "noopener")` plus toast "Could not download directly; the image opened in a new tab."
 
 `buildFileName(meme, blobType)`:
-1. `originalFileName` if present: last path segment only, `\ / : * ? " < > |` and control characters replaced by `_`, trimmed, capped at 120 characters; if it has no extension, append one from the blob type.
+1. `originalFileName` if present: last path segment only, `\ / : * ? " < > |` and control characters replaced by `_`, bidi override and directional marks (U+200E, U+200F, U+202A-202E, U+2066-2069) removed, trimmed, trailing dots and spaces removed, a reserved Windows device name (`con`, `prn`, `aux`, `nul`, `com1`-`com9`, `lpt1`-`lpt9`, with or without extension) prefixed with `_`, capped at 120 characters; if it has no extension, append one from the blob type.
 2. Else `meme-{first 8 chars of id}.{ext}`.
 3. `ext` from the type: `image/jpeg` -> `jpg`, png, gif, webp; unknown -> `jpg`.
 

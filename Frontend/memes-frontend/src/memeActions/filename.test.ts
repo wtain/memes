@@ -37,4 +37,20 @@ describe("buildFileName", () => {
       expect(buildFileName({ id, originalFileName }, "image/jpeg")).toBe("meme-abcdef12.jpg")
     }
   })
+  it("strips bidi override and directional marks", () => {
+    const name = buildFileName({ id, originalFileName: "cat‮gpj.exe‏⁦x⁩.png" }, "image/png")
+    expect(name).toBe("catgpj.exex.png")
+    expect(name).not.toMatch(/[‎‏‪-‮⁦-⁩]/)
+  })
+  it("neutralises reserved Windows device names", () => {
+    expect(buildFileName({ id, originalFileName: "con.png" }, "image/png")).toBe("_con.png")
+    expect(buildFileName({ id, originalFileName: "NUL" }, "image/png")).toBe("_NUL.png")
+    expect(buildFileName({ id, originalFileName: "com1.txt.png" }, "image/png")).toBe("_com1.txt.png")
+    expect(buildFileName({ id, originalFileName: "lpt9.jpg" }, "image/jpeg")).toBe("_lpt9.jpg")
+    expect(buildFileName({ id, originalFileName: "console.png" }, "image/png")).toBe("console.png")
+  })
+  it("strips trailing dots and spaces", () => {
+    expect(buildFileName({ id, originalFileName: "cat.png. . " }, "image/png")).toBe("cat.png")
+    expect(buildFileName({ id, originalFileName: "cat. " }, "image/gif")).toBe("cat.gif")
+  })
 })
