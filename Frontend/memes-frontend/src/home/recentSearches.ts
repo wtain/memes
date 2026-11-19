@@ -1,6 +1,13 @@
 export const RECENT_SEARCHES_KEY = "home.recentSearches.v1"
 export const MAX_RECENT = 5
-export const MAX_QUERY_CHARS = 64
+export const MAX_QUERY_CHARS = 200
+/** Chips show at most this many characters; the stored text and the link keep the whole query. */
+export const DISPLAY_QUERY_CHARS = 32
+
+export function shortenForChip(query: string): string {
+  const chars = [...query]
+  return chars.length <= DISPLAY_QUERY_CHARS ? query : `${chars.slice(0, DISPLAY_QUERY_CHARS - 1).join("").trimEnd()}…`
+}
 
 function clean(value: unknown): string | null {
   if (typeof value !== "string") return null

@@ -40,8 +40,15 @@ describe("recentSearches", () => {
     rememberSearch("   ")
     rememberSearch("")
     expect(readRecentSearches()).toEqual(["pizza"])
-    rememberSearch("x".repeat(100))
+    rememberSearch("x".repeat(MAX_QUERY_CHARS + 50))
     expect(readRecentSearches()[0]).toBe("x".repeat(MAX_QUERY_CHARS))
+  })
+
+  it("keeps a long but ordinary query whole so the chip reruns the same search", () => {
+    const long = "word ".repeat(30).trim()
+    expect(long.length).toBeGreaterThan(100)
+    rememberSearch(long)
+    expect(readRecentSearches()).toEqual([long])
   })
 
   it("clears everything", () => {

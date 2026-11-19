@@ -202,6 +202,17 @@ describe("SearchHero", () => {
     expect(searchMemes).toHaveBeenCalledTimes(probes)
   })
 
+  it("shortens only the display text of a long last search; the link keeps the full query", () => {
+    const long = "word ".repeat(30).trim()
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify([long]))
+    setup()
+    const chip = screen.getByRole("link", { name: long })
+    expect(chip).toHaveAttribute("href", `/search?q=${encodeURIComponent(long)}`)
+    expect(chip).toHaveAttribute("title", long)
+    expect(chip.textContent?.endsWith("…")).toBe(true)
+    expect(chip.textContent?.length).toBeLessThan(long.length)
+  })
+
   it("renders without the row when localStorage throws", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("blocked")

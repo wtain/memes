@@ -4,7 +4,7 @@ import type { MemesApi } from "../api/MemesApi"
 import type { Meme } from "../types/generated/all"
 import { Button, Skeleton, buttonClasses } from "../ui"
 import { pickExampleCandidates, readCachedExamples, verifyExamples } from "./examples"
-import { clearRecentSearches, readRecentSearches, rememberSearch } from "./recentSearches"
+import { clearRecentSearches, readRecentSearches, rememberSearch, shortenForChip } from "./recentSearches"
 
 type Props = {
   memesApi: MemesApi
@@ -68,8 +68,14 @@ export function SearchHero({ memesApi, candidatesSource }: Props) {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="text-sm text-fg-muted">Your last searches</span>
         {recent.map(query => (
-          <Link key={query} to={searchPath(query)} className={buttonClasses({ size: "lg", className: CHIP })}>
-            {query}
+          <Link
+            key={query}
+            to={searchPath(query)}
+            title={query}
+            aria-label={query}
+            className={buttonClasses({ size: "lg", className: CHIP })}
+          >
+            {shortenForChip(query)}
           </Link>
         ))}
         <Button variant="ghost" size="lg" onClick={onClear}>
