@@ -87,7 +87,7 @@ export default function MemeCard({ meme, memesApi, onClick, variant = "square", 
         )}
 
         {showBar && (
-          <div className={`absolute right-2 top-2 flex items-center gap-1 rounded-md bg-scrim ${REVEAL}`}>
+          <div className={`absolute right-2 top-2 flex items-center gap-1 rounded-md bg-scrim has-[[data-keep-visible]]:opacity-100 ${REVEAL}`}>
             {/* SLOT item 3: copy / download / open-link actions go here, before the curator group */}
             <div role="group" aria-label="Curator actions" className="flex items-center gap-1">
               {showFlag && (

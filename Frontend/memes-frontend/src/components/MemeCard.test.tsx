@@ -202,6 +202,24 @@ describe('MemeCard curator gating and layout', () => {
     expect(screen.getByRole('button', { name: 'Flagged' })).not.toHaveAttribute('tabindex', '-1')
   })
 
+  it('keeps the action bar visible while a comics status or error is shown', async () => {
+    const { setWorkingComics } = await import('../comics/workingComics')
+    setWorkingComics({ id: 'w', name: 'Work' })
+    const api = makeMockApi({
+      getImageUrl: vi.fn().mockReturnValue('x'),
+      addComicsPanel: vi.fn().mockResolvedValue({}),
+    })
+    render(<FeaturesContext.Provider value={{ stage: 'dev', capabilities: null }}><MemoryRouter><MemeCard meme={mockMeme} memesApi={api} comicsAction /></MemoryRouter></FeaturesContext.Provider>)
+    const bar = screen.getByRole('group', { name: 'Curator actions' }).parentElement!
+    expect(bar).toHaveClass('has-[[data-keep-visible]]:opacity-100')
+    expect(bar.querySelector('[data-keep-visible]')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Work' }))
+    const status = await screen.findByRole('status')
+    expect(bar).toContainElement(status)
+    expect(status).toHaveAttribute('data-keep-visible')
+    expect(screen.getByRole('link', { name: 'Open editor' })).toBeInTheDocument()
+  })
+
   it('always renders the tag footer, with and without tags', () => {
     const { rerender } = render(<MemeCard meme={mockMeme} memesApi={cardApi()} />)
     expect(screen.getByTestId('card-footer')).toBeInTheDocument()

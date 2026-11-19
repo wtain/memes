@@ -62,13 +62,13 @@ export function CardComicsAction({ memesApi, imageId, compact = false }: Props) 
           {added !== null ? <CheckIcon /> : <ComicsIcon />}
         </Button>
         {added !== null && (
-          <p role="status" className="absolute right-0 top-full z-10 mt-1 w-max max-w-56 rounded-md bg-scrim px-2 py-1 text-xs text-white">
+          <p role="status" data-keep-visible className="absolute right-0 top-full z-10 mt-1 w-max max-w-56 rounded-md bg-scrim px-2 py-1 text-xs text-white">
             Added to {added.name}{" "}
             <Link to={`/admin/comics/${added.id}`} className="underline">Open editor</Link>
           </p>
         )}
         {error !== null && (
-          <p role="alert" className="absolute right-0 top-full z-10 mt-1 w-max max-w-56 rounded-md bg-danger px-2 py-1 text-xs text-on-danger">{error}</p>
+          <p role="alert" data-keep-visible className="absolute right-0 top-full z-10 mt-1 w-max max-w-56 rounded-md bg-danger px-2 py-1 text-xs text-on-danger">{error}</p>
         )}
         {pickerOpen && (
           <ComicsPickerModal memesApi={memesApi} imageId={imageId}
