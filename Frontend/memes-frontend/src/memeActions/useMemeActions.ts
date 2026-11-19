@@ -19,6 +19,7 @@ const TEXT = {
   noImageCopy: "Image copy needs HTTPS or a newer browser. Link copied instead.",
   animatedGif:
     "Animated GIF cannot be copied as an image. Image link copied; use Download or Share to keep the animation.",
+  animatedGifFailed: "Animated GIFs cannot be copied as an image. Use Download or Copy link.",
   blocked: "Copy was blocked by the browser. Try again or use Download.",
   network: "Could not load the image to copy.",
   convert: "Could not convert the image. Use Download.",
@@ -74,7 +75,15 @@ export function useMemeActions(meme: Meme, memesApi: MemesApi) {
       reportCopy("copyImage", await writeImageToClipboard(pngPromise), TEXT.imageCopied, "success")
     } catch (e) {
       if (e instanceof AnimatedGifSignal) {
-        reportCopy("copyImage", await copyText(memesApi.getImageUrl(meme)), TEXT.animatedGif, "info")
+        // This copy runs after awaited fetch work, so the click's user activation may have
+        // lapsed; never report a generic failure or a success it cannot back up.
+        const linkResult = await copyText(memesApi.getImageUrl(meme))
+        if (linkResult.kind === "copied") {
+          report(TEXT.animatedGif, "info")
+          setDone("copyImage")
+        } else {
+          report(TEXT.animatedGifFailed, "error")
+        }
       } else if (e instanceof ImageActionError) {
         report(e.reason === "network" ? TEXT.network : e.reason === "too_large" ? TEXT.tooLarge : TEXT.convert, "error")
       } else {

@@ -120,6 +120,20 @@ describe("copyImage", () => {
     expect(result.current.message).toMatch(/^Animated GIF cannot be copied as an image/)
   })
 
+  it("says so explicitly when the animated gif link copy also fails", async () => {
+    mWarm.mockResolvedValue(new Blob(["g"], { type: "image/gif" }))
+    mGif.mockReturnValue(true)
+    mWrite.mockImplementation(async (p) => {
+      await p
+      return { kind: "copied" }
+    })
+    mCopyText.mockResolvedValue({ kind: "error", reason: "blocked" })
+    const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
+    await runAndSettle(result, "copyImage")
+    expect(result.current.message).toBe("Animated GIFs cannot be copied as an image. Use Download or Copy link.")
+    expect(screen.getByRole("alert").textContent).toContain("Animated GIFs cannot be copied")
+  })
+
   it("shows the blocked text as an alert", async () => {
     mWrite.mockResolvedValue({ kind: "error", reason: "blocked" })
     const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
