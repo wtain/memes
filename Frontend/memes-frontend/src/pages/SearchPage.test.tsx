@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import SearchPage from './SearchPage'
 import { makeMockApi } from '../test/mockApi'
 import type { MemesApi } from '../api/MemesApi'
+import { readRecentSearches } from '../home/recentSearches'
 
 function renderPage(api: MemesApi, search = '') {
   return render(
@@ -50,6 +51,24 @@ describe('SearchPage', () => {
         expect.objectContaining({ query: 'cats' })
       )
     })
+  })
+
+  it('remembers a search only when it is committed with Enter', async () => {
+    localStorage.clear()
+    renderPage(makeMockApi())
+    const input = screen.getByPlaceholderText('Search memes...')
+    fireEvent.change(input, { target: { value: 'pizza' } })
+    await waitFor(() => expect(input).toHaveValue('pizza'))
+    expect(readRecentSearches()).toEqual([])
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(readRecentSearches()).toEqual(['pizza'])
+  })
+
+  it('does not remember an Enter on a blank box', () => {
+    localStorage.clear()
+    renderPage(makeMockApi())
+    fireEvent.keyDown(screen.getByPlaceholderText('Search memes...'), { key: 'Enter' })
+    expect(readRecentSearches()).toEqual([])
   })
 
   it('renders the facet sidebar', () => {

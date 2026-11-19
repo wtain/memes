@@ -8,6 +8,7 @@ import type { MemesApi } from "../api/MemesApi"
 import { MemesList } from "../components/MemesList"
 import NotFoundButton from "../components/NotFoundButton"
 import { useDebounce } from "../utils/useDebounce"
+import { rememberSearch } from "../home/recentSearches"
 
 type SearchPageProps = {
   memesApi: MemesApi
@@ -59,6 +60,7 @@ export default function SearchPage({ memesApi }: SearchPageProps) {
             onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   setDebouncedQuery(query);
+                  rememberSearch(query);
                 }
             }}
             placeholder="Search memes..."
