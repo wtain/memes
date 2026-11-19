@@ -60,7 +60,7 @@ async def _insert_description(session, image, prompt_key: str, text: str = "a de
 # --------------------------------------------------------------------------
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_search_no_filters_returns_all_with_flagged_status(db_session):
+async def test_search_no_filters_hides_flagged(db_session):
     kept = Image(filename=f"{uuid.uuid4()}.jpg")
     flagged = Image(filename=f"{uuid.uuid4()}.jpg")
     db_session.add_all([kept, flagged])
@@ -74,8 +74,7 @@ async def test_search_no_filters_returns_all_with_flagged_status(db_session):
     by_id = {r.id: r for r in rows}
     assert kept.id in by_id
     assert by_id[kept.id].flagged is None
-    assert flagged.id in by_id
-    assert by_id[flagged.id].flagged is True
+    assert flagged.id not in by_id
 
 
 @pytest.mark.asyncio(loop_scope="session")

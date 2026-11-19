@@ -17,6 +17,7 @@ import uuid
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import update
 
 from Backend.app.repositories.diagnostics_repository import DiagnosticsRepository
 from Backend.app.repositories.image_repository import ImageRepository
@@ -125,12 +126,42 @@ async def test_get_all_images_with_hash_excludes_pending_by_default(db_session, 
 async def test_search_excludes_pending(db_session, seeded_images):
     active, pending = seeded_images
     repo = ImageRepository(db_session)
+    # The fixture flags the active image, and the plain browse feed hides flagged images; unflag it here.
+    await db_session.execute(
+        update(ImageExtras).where(ImageExtras.image_id == active.id).values(flagged=False))
 
     rows, _facets = await repo.search(q=None, tags={}, cursor_created_at=None, cursor_id=None, limit=50)
     ids = {r.id for r in rows}
 
     assert active.id in ids
     assert pending.id not in ids
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_browse_feed_hides_flagged_but_keeps_unflagged_and_no_extras(db_session):
+    """Unfiltered browse (no q, no facets) skips flagged images; an image with no extras row stays."""
+    flagged = Image(filename=f"{uuid.uuid4()}.jpg", content_hash="hash-flagged")
+    unflagged = Image(filename=f"{uuid.uuid4()}.jpg", content_hash="hash-unflagged")
+    no_extras = Image(filename=f"{uuid.uuid4()}.jpg", content_hash="hash-no-extras")
+    db_session.add_all([flagged, unflagged, no_extras])
+    await db_session.flush()
+    db_session.add_all([
+        ImageExtras(image_id=flagged.id, flagged=True),
+        ImageExtras(image_id=unflagged.id, flagged=False),
+        ImageTag(image_id=flagged.id, key="t", value="v"),
+    ])
+    await db_session.flush()
+    repo = ImageRepository(db_session)
+
+    rows, facets = await repo.search(q=None, tags={}, cursor_created_at=None, cursor_id=None, limit=100)
+    ids = {r.id for r in rows}
+    assert flagged.id not in ids
+    assert unflagged.id in ids and no_extras.id in ids
+    assert "t" not in facets                      # facet counts follow the same set
+
+    # a facet filter is a search, not browse: the flagged image is still findable
+    rows, _ = await repo.search(q=None, tags={"t": {"v"}}, cursor_created_at=None, cursor_id=None, limit=100)
+    assert flagged.id in {r.id for r in rows}
 
 
 @pytest.mark.asyncio(loop_scope="session")

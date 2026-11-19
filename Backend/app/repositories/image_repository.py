@@ -75,12 +75,19 @@ class ImageRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def _build_filtered_ids_query(self, matching_ids: Optional[set], tags: dict[str, set]):
-        """Returns a scalar-subquery of image IDs matching the text-match set and tags, unpaginated."""
+    async def _build_filtered_ids_query(
+        self, matching_ids: Optional[set], tags: dict[str, set], exclude_flagged: bool = False,
+    ):
+        """Returns a scalar-subquery of image IDs matching the text-match set and tags, unpaginated.
+        `exclude_flagged` drops flagged images (an image with no image_extras row counts as unflagged)."""
         img = aliased(Image)
         image_tag = aliased(ImageTag)
 
         query = select(img.id).where(img.status == "active")
+
+        if exclude_flagged:
+            flagged_ids = select(ImageExtras.image_id).where(ImageExtras.flagged.is_(True))
+            query = query.where(img.id.not_in(flagged_ids))
 
         if matching_ids is not None:
             query = query.where(img.id.in_(matching_ids))
@@ -111,7 +118,11 @@ class ImageRepository:
 
         started = time.perf_counter()   # covers the per-token matching queries, not just the final sort
         scores = await scored_image_matches(self.session, q)
-        filtered_ids = await self._build_filtered_ids_query(None if scores is None else set(scores), tags)
+        # The plain browse feed (no query, no facets) hides flagged images, as trending does; a search or a
+        # facet filter still finds them, and /images/flagged lists them.
+        is_browse = scores is None and not tags
+        filtered_ids = await self._build_filtered_ids_query(
+            None if scores is None else set(scores), tags, exclude_flagged=is_browse)
         filtered_ids_subquery = filtered_ids.subquery()
 
         # Facet counts over the full filtered set — no pagination applied here

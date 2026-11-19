@@ -416,6 +416,7 @@ Search for memes with optional query, facets, and pagination.
 
 - **URL**: `/api/images`
 - **Method**: `GET`
+- **Browse feed hides flagged images**: with no `q` and no `facets`, flagged images are left out (an image with no extras row counts as unflagged), and facet counts follow the same set. A search with `q` or a facet filter still returns flagged images, with `flagged: true`; `GET /api/images/flagged` lists them.
 - **Query Parameters**:
   - `q` (optional): Search query string — same tokenize/lemmatize/AND matching as `/api/recommendations`'s `q` (see below); both endpoints share one matching implementation.
   - `limit` (optional): Number of results (1-100, default: 20)
