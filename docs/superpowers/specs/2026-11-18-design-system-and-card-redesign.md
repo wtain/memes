@@ -1,7 +1,17 @@
 # Design system (tokens + shared components) and meme card redesign
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-11-19-design-system-and-card-redesign.md
 Originates from: docs/superpowers/specs/2026-11-18-ui-ux-audit.md
+
+## Decisions (owner-approved 2026-11-19)
+
+These answer section 9 and override any earlier text in this spec that disagrees.
+
+1. The Flagged ring and the "Flagged" badge always show for curators on dev (state, not clutter). Prod behaviour is unchanged (hidden).
+2. Two columns on phones is fine. A broader mobile pass is deferred to a later wave.
+3. Image `alt` is the generic "Meme" (not the OCR text). The OCR text is offered as a description: the image gets `aria-describedby` pointing at a visually hidden element holding the first OCR lines (cut to 120 characters), rendered only when OCR text exists. This replaces the alt rule in 4.2 and the `/Hello World/` query in section 6 (tests query by name "Meme" and check the description).
+4. The dark-mode toggle ships later as a follow-up. Tokens only now (section 3.6 stands).
 
 Scope: audit ranking items 1 (I19+I9, fixes F13, F14, part of F1) and 2 (I6+I21, fixes F4). Frontend only (`Frontend/memes-frontend/`).
 Out of scope: item 3 (copy / download / open-link actions; a slot is reserved, see 4.6), skeletons and empty states on other pages (item 4), the dark-mode toggle, the responsive column rework (item 9), the detail page (items 5/7), Android, backend, `shared/schemas`.
