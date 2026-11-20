@@ -62,3 +62,54 @@ async def test_a_flagged_cut_whose_file_is_still_there_is_kept(db_session, tmp_p
     await UnregisterNonExisting(db_session, str(tmp_path)).run()
 
     assert await _exists(db_session, cut.id)
+
+
+# SYN-1: guards against mass deletion when BASE_PATH is unmounted/empty or most files look missing.
+async def _active(session, tmp_path, n, *, with_file):
+    out = []
+    for _ in range(n):
+        img = Image(filename=f"{uuid.uuid4()}.jpg", status=ImageStatus.ACTIVE)
+        session.add(img)
+        await session.flush()
+        if with_file:
+            (tmp_path / img.filename).write_bytes(b"x")
+        out.append(img)
+    return out
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_missing_base_path_aborts_without_deleting(db_session, tmp_path):
+    imgs = await _active(db_session, tmp_path, 3, with_file=False)
+    with pytest.raises(RuntimeError, match="BASE_PATH"):
+        await UnregisterNonExisting(db_session, str(tmp_path / "not-mounted")).run()
+    assert await _exists(db_session, imgs[0].id)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_empty_base_path_aborts_without_deleting(db_session, tmp_path):
+    imgs = await _active(db_session, tmp_path, 3, with_file=False)
+    with pytest.raises(RuntimeError, match="empty"):
+        await UnregisterNonExisting(db_session, str(tmp_path)).run()
+    assert await _exists(db_session, imgs[0].id)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_mass_deletion_over_threshold_aborts_unless_overridden(db_session, tmp_path):
+    kept = await _active(db_session, tmp_path, 2, with_file=True)
+    gone = await _active(db_session, tmp_path, 30, with_file=False)
+    with pytest.raises(RuntimeError, match="allow-mass-delete"):
+        await UnregisterNonExisting(db_session, str(tmp_path), min_guarded_count=10, max_delete_fraction=0.5).run()
+    assert await _exists(db_session, gone[0].id)
+
+    await UnregisterNonExisting(db_session, str(tmp_path), allow_mass_delete=True,
+                                min_guarded_count=10, max_delete_fraction=0.5).run()
+    assert not await _exists(db_session, gone[0].id)
+    assert await _exists(db_session, kept[0].id)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_small_deletion_below_threshold_proceeds(db_session, tmp_path):
+    await _active(db_session, tmp_path, 40, with_file=True)
+    gone = await _active(db_session, tmp_path, 2, with_file=False)
+    await UnregisterNonExisting(db_session, str(tmp_path), min_guarded_count=1, max_delete_fraction=0.2).run()
+    assert not await _exists(db_session, gone[0].id)

@@ -15,22 +15,23 @@ from Storage.db import AsyncSessionLocal
 from batch.tasks.SourceTasks import UnregisterNonExisting
 
 
-async def run(session, base_path):
-    task = UnregisterNonExisting(session, base_path)
+async def run(session, base_path, allow_mass_delete=False):
+    task = UnregisterNonExisting(session, base_path, allow_mass_delete=allow_mass_delete)
     await task.run()
 
 
-async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, chain: bool = True) -> None:
+async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, chain: bool = True,
+               allow_mass_delete: bool = False) -> None:
     if run_id is not None:
         async with finish_existing_run(run_id):
             async with AsyncSessionLocal() as session:
                 base_path = os.path.abspath(os.getenv('BASE_PATH'))
-                await run(session, base_path)
+                await run(session, base_path, allow_mass_delete)
     else:
         async with tracked_run(kind="unregister_deleted_images", trigger=trigger):
             async with AsyncSessionLocal() as session:
                 base_path = os.path.abspath(os.getenv('BASE_PATH'))
-                await run(session, base_path)
+                await run(session, base_path, allow_mass_delete)
 
     if chain:
         async with AsyncSessionLocal() as session:
@@ -45,6 +46,10 @@ if __name__ == "__main__":
                         help="Environment to load config/secrets for (falls back to APP_ENV)")
     parser.add_argument("--no-chain", action="store_true",
                         help="Skip the automatic remove_singletons cleanup after unregistering deleted images.")
+    parser.add_argument("--allow-mass-delete", action="store_true",
+                        help="Bypass the mass-deletion guard (default: abort when over "
+                             "general.unregister_max_delete_fraction of the images would be deleted). "
+                             "A missing or empty BASE_PATH always aborts.")
     args = parser.parse_args()
     load_env(args.env)
-    asyncio.run(main(chain=not args.no_chain))
+    asyncio.run(main(chain=not args.no_chain, allow_mass_delete=args.allow_mass_delete))

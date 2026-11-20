@@ -61,6 +61,10 @@ general:
   progress_every: 10
   profile: general
   frontend_origin: http://localhost:5173
+  # unregister_deleted_images aborts, deleting nothing, when at least min_guarded_count rows AND more than
+  # max_delete_fraction of the checked rows would go (unmounted BASE_PATH guard); --allow-mass-delete bypasses it.
+  unregister_max_delete_fraction: 0.2
+  unregister_min_guarded_count: 50
 
 search:
   fuzzy_min_lemma_length: 5
