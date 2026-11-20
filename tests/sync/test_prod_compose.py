@@ -148,6 +148,7 @@ def test_images_are_mounted_read_only_and_bug_reports_read_write(stack):
 def test_backend_command_flags(stack):
     cmd = [str(c) for c in stack["services"]["backend"]["command"]]
     assert cmd[0] == "gunicorn"
+    assert cmd[cmd.index("-c") + 1] == "/app/gunicorn.conf.py"
     assert cmd[cmd.index("-w") + 1] == "2"
     assert cmd[cmd.index("--log-level") + 1] == "warning"
     assert cmd[cmd.index("--forwarded-allow-ips") + 1] == "172.30.0.0/24"
