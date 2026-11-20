@@ -389,6 +389,16 @@ def test_a3_logs_do_not_hide_a_low_disk_and_bad_log_facts_are_not_green():
     assert runtime.check_a3({"mounts": {"images": {"free_pct": 80}}, "logs": [1]}).status == "skipped"
 
 
+def test_a3_low_disk_error_wins_over_malformed_log_facts():
+    low = {"mounts": {"images": {"free_pct": 5}}, "logs": [1]}
+    assert runtime.check_a3(low).status == "error"  # not skipped
+    assert runtime.check_a3({"mounts": {"images": {"free_pct": 5}}, "logs": {"backend_bytes": "x"}}).status == "error"
+    assert runtime.check_a3({"mounts": {"images": {"free_pct": 80}}, "logs": [1]}).status == "skipped"  # good mounts: still unusable
+    over = _disk_with_logs(postgres_bytes=runtime.POSTGRES_LOG_BOUND_BYTES)
+    over["mounts"]["images"]["free_pct"] = 5
+    assert runtime.check_a3(over).status == "error"  # well-formed logs over 80%: error still wins
+
+
 def test_unreadable_mount_is_marked_and_makes_a3_skip_instead_of_going_green():
     def boom(path):
         raise FileNotFoundError(path)

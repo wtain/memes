@@ -142,9 +142,7 @@ def _log_over(facts: Any) -> list | None:
 
 def check_a3(facts: Any, warn_pct: float = 20, error_pct: float = 10) -> Check:
     """Free space per mount (warn / error) and, as a warning, any log directory above 80% of its bound (`logs` of disk.json)."""
-    log_over = _log_over(facts)
-    if log_over is None:
-        return skipped("A3", "error", "facts_unusable")
+    log_over = _log_over(facts)  # None = malformed `logs`; judged only after the mounts, so it cannot hide a low disk
     mounts = facts.get("mounts") if isinstance(facts, dict) and isinstance(facts.get("mounts"), dict) else facts
     if not isinstance(mounts, dict) or not mounts:
         return skipped("A3", "error", "facts_unusable")
@@ -153,6 +151,9 @@ def check_a3(facts: Any, warn_pct: float = 20, error_pct: float = 10) -> Check:
         return skipped("A3", "error", "facts_unusable")
     low_err = sorted(n for n, v in pct.items() if v < error_pct)
     low_warn = sorted(n for n, v in pct.items() if error_pct <= v < warn_pct)
+    if log_over is None and not low_err:
+        return skipped("A3", "error", "facts_unusable")
+    log_over = log_over or []
     detail = f"mounts={len(pct)},min_free_pct={min(pct.values()):.1f}"
     if log_over:
         detail += ",logs_over_80pct=" + ".".join(log_over)
