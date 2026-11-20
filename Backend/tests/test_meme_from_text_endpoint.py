@@ -174,3 +174,72 @@ def test_the_user_agent_header_reaches_the_service(client_and_service):
     client.post("/api/meme-from-text/search", json={"text": "hello"}, headers={"User-Agent": "okhttp/4.12"})
     service.search.assert_awaited_once()
     assert service.search.await_args.kwargs["user_agent"] == "okhttp/4.12"
+
+
+# --- SEC-2: per-client rate limit (abuse.meme_search_per_min) -------------------------------------------------------------------------
+
+from Backend.app.services import abuse  # noqa: E402
+
+
+class _Settings:
+    def __init__(self, values):
+        self.values = values
+
+    def get(self, key, default=None):
+        return self.values.get(key, default)
+
+
+@pytest.fixture
+def limited(monkeypatch, client_and_service):
+    _client, service = client_and_service
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    app.dependency_overrides[get_meme_from_text_service] = lambda: service
+    monkeypatch.setattr(abuse, "settings", _Settings({"abuse.meme_search_per_min": 3}))
+    abuse.reset_limiters()
+    yield app, service
+    abuse.reset_limiters()
+
+
+def _post(client):
+    return client.post("/api/meme-from-text/search", json={"text": "hello"})
+
+
+def test_requests_under_the_limit_are_served(limited):
+    app, service = limited
+    client = TestClient(app)
+    assert [_post(client).status_code for _ in range(3)] == [200, 200, 200]
+    assert service.search.await_count == 3
+
+
+def test_a_client_over_the_limit_gets_429_and_the_model_is_not_called(limited):
+    app, service = limited
+    client = TestClient(app)
+    for _ in range(3):
+        _post(client)
+    response = _post(client)
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "60"
+    assert service.search.await_count == 3
+
+
+def test_clients_have_separate_budgets(limited):
+    app, _service = limited
+    first = TestClient(app, client=("203.0.113.1", 5000))
+    second = TestClient(app, client=("203.0.113.2", 5000))
+    for _ in range(3):
+        _post(first)
+    assert _post(first).status_code == 429
+    assert _post(second).status_code == 200
+
+
+def test_the_limit_is_off_when_the_rate_is_zero(monkeypatch, client_and_service):
+    client, _service = client_and_service
+    monkeypatch.setattr(abuse, "settings", _Settings({"abuse.meme_search_per_min": 0}))
+    abuse.reset_limiters()
+    assert all(_post(client).status_code == 200 for _ in range(10))
+
+
+def test_meme_search_is_a_bounded_metric_scope():
+    from Backend.app.observability import metrics
+    assert "meme_search" in metrics.RATE_LIMITED_SCOPES

@@ -18,7 +18,7 @@ _NAMES = ("HTTP_REQUESTS", "HTTP_DURATION", "HTTP_IN_FLIGHT", "BUILD_INFO", "IMA
 SEARCH_KINDS = frozenset({"smart", "clip", "meme_from_text"})
 SEARCH_STAGES = frozenset({"total", "parse", "embed", "retrieve"})
 DEGRADED_REASONS = frozenset({"unavailable", "timeout", "invalid_output", "breaker_open", "embed_unavailable", "empty_input"})
-RATE_LIMITED_SCOPES = frozenset({"saves", "not_found", "bug_reports", "recording", "telemetry", "body_limit"})
+RATE_LIMITED_SCOPES = frozenset({"saves", "not_found", "bug_reports", "recording", "telemetry", "meme_search", "body_limit"})
 PAGEVIEW_CLIENTS = frozenset({"web", "android"})
 # Web route templates of Frontend/memes-frontend/src/app/router.tsx (every non-admin one) and the Android destination names of
 # AndroidClient/.../ui/NavGraph.kt (route without its arguments). Anything else is counted as "other".

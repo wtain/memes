@@ -2,11 +2,12 @@ import functools
 import logging
 from typing import AsyncGenerator
 
-from fastapi import Depends, Header, HTTPException, Response
+from fastapi import Depends, Header, HTTPException, Request, Response
 from Backend.app.stage_policy import make_router
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.repositories.image_repository import ImageRepository
+from Backend.app.services.abuse import enforce
 from Backend.app.services.cache import no_cache_headers
 from Backend.app.services.history_recorder import record_history
 from Backend.app.services.impression_recorder import record_impressions
@@ -38,10 +39,12 @@ async def get_meme_from_text_service(
 @router.post("/search", response_model=MemeFromTextResponse, response_model_exclude_none=True)
 async def search_memes_from_text(
     request: MemeFromTextRequest,
+    http_request: Request,
     response: Response,
     user_agent: str = Header(default=""),
     service: MemeFromTextService = Depends(get_meme_from_text_service),
 ):
+    enforce("meme_search", http_request)   # abuse.meme_search_per_min: 429 before any Ollama parse/embed call, off on dev
     response.headers.update(no_cache_headers())
     try:
         return await service.search(request, user_agent=user_agent)
