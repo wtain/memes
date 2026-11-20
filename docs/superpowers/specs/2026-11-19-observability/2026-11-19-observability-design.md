@@ -1,6 +1,8 @@
 # Observability: metrics and logs for the production rollout
 
-Status: draft
+Status: planned
+
+Plan: `docs/superpowers/plans/2026-11-19-observability.md`
 
 Tracker: `tracker.md` (same folder). Builds on `docs/superpowers/specs/2026-11-12-environment-data-sync/` (the prod stack in `deploy/prod/`, the stage policy, the ssh tunnel).
 
