@@ -1,6 +1,8 @@
 # Observability epic: tracker
 
-Status: draft (brainstorming, nothing built)
+Status: implementation
+
+Plan: `docs/superpowers/plans/2026-11-19-observability.md`. Design: `2026-11-19-observability-design.md` (same folder). Operator docs: `docs/observability.md`.
 
 Worktree `observability`, branch `worktree-observability`. Working rules: agent-driven for complex tasks, ask before merging to main, ask rather than guess.
 

@@ -7,7 +7,8 @@ Design: `docs/superpowers/specs/2026-11-12-environment-data-sync/2026-11-12-p5-p
 | Project | Files | Services |
 |---|---|---|
 | `memes-edge` | `edge/compose.yaml`, `edge/Caddyfile`, `env/edge.prod.env` | `caddy` (the only public ports, 80 and 443) |
-| `memes-metal`, `memes-general`, `memes-it` | `compose.yaml`, `env/<env>.prod.env` | `db` (pgvector Postgres 18), `backend`, `migrate` (profile `ops`, a job) |
+| `memes-metal`, `memes-general`, `memes-it` | `compose.yaml`, `env/<env>.prod.env` | `db` (pgvector Postgres 18), `backend`, `metrics` (sidecar, port 9102, alias `metrics-<env>` on `memes-edge`), `migrate` (profile `ops`, a job) |
+| `memes-obs` | `obs/compose.yaml`, `obs/prometheus.yml` | `prometheus` (published on the host loopback `127.0.0.1:9090` only), `node-exporter`, `postgres-exporter-metal`, `postgres-exporter-general`, `postgres-exporter-it` |
 
 ```
 internet -> caddy (memes-edge network 172.30.0.0/24) -> backend alias api-<env>:8000 -> db (project network 172.31.<n>.0/24)
@@ -35,14 +36,14 @@ Only Caddy publishes beyond the loopback (Docker publishes bypass ufw). The back
 | `/srv/memes/<env>/web` | caddy `/srv/memes/<env>/web`, read-only | `memesync-<env>` |
 | `/srv/memes/<env>/logs/backend` (`LOGS_DIR`/backend) | backend `/var/log/memes`, read-write (log files, `observability.log_file.dir`) | root, group `memesync-<env>`, 2770 (setup-host.sh) |
 | `/srv/memes/<env>/logs/postgres`, `/srv/memes/edge/logs/caddy` | db `/var/log/postgresql`; caddy file log | postgres uid, 0700 (`PG_UID`); root, 0755. `memes-prune-logs@<env>.timer` (hourly) runs `prune_logs.py` on the Postgres one. `memes-facts` reports `logs.{backend,postgres,caddy}_bytes` in `disk.json`; `sync.verify` A3 warns above 80% of 115 MiB / 200 MiB / 60 MiB |
-| Grafana tunnel account `memesync-obs` | `setup-host.sh <env> --obs-key FILE`; key line `permitopen="127.0.0.1:9090",command="/bin/false"` | root-owned key file `/etc/ssh/memes-keys/memesync-obs` |
+| Grafana tunnel account `memesync-obs` | `setup-host.sh <env> --obs-key FILE`; key line `restrict,port-forwarding,permitopen="127.0.0.1:9090",command="/bin/false"` | root-owned key file `/etc/ssh/memes-keys/memesync-obs` |
 | named volume `metrics_mp` | backend `/metrics-mp` (prometheus multiprocess files, emptied by the gunicorn master at start), metrics `/metrics-mp` read-only | docker (mode 1777 from the image) |
 | named volume `pgsocket` | db and migrate `/var/run/postgresql` (unix socket) | docker |
 | named volumes `caddy_data`, `caddy_config` | caddy `/data`, `/config` (certificates) | docker |
 
 The backend runs as `10001:<gid of memesync-<env>>` (`SVC_GID`), read-only root filesystem, `/tmp` tmpfs 256 MB (`noexec,nosuid`), all capabilities dropped, `no-new-privileges`, memory/cpu/pids limits, json-file logs rotated at 10 MB x 3, two gunicorn workers (config `/app/gunicorn.conf.py` from `deploy/prod/gunicorn.conf.py`: per-worker log slots, prometheus multiprocess hooks), no access log, warning log level, `--forwarded-allow-ips 172.30.0.0/24`.
 
-The `metrics` service (same image, `python -m Backend.app.observability.exporter`, 64 MB, read-only volume `metrics_mp`) serves `/metrics` on port 9102 as alias `metrics-<env>` on the shared `memes-edge` network only (not on the project network, so it cannot reach Postgres), where the Prometheus of the `memes-obs` project scrapes it. It publishes no port and has no Caddy route;
+The `metrics` service (same image, `python -m Backend.app.observability.exporter`, 64 MB, read-only volume `metrics_mp`) serves `/metrics` on port 9102 as alias `metrics-<env>` on the shared `memes-edge` network only (not on the project network, so it cannot reach Postgres), where the Prometheus of the `memes-obs` project scrapes it. It publishes no port and has no Caddy route.
 
 ## Placeholder hostnames
 
@@ -164,6 +165,15 @@ If `grants` itself fails with `permission denied for table X`, a table of `publi
 - The `internal` networks are not `internal: true` (the backend needs the edge network for Caddy; the db network could be, but this needs a test of the published loopback Postgres port on a real VPS).
 - `pip install` for the backend and migrate images does not use hash checking (`--require-hashes`); the requirement files pin versions only.
 - The base image `python:3.11-slim` of `Dockerfile.backend` and `Dockerfile.migrate` is pinned by digest (`sha256:07d4824...`, a Debian-based 3.11 slim, 2026-11-16); apt packages inside it are not pinned. Update both together.
+
+## Observability additions
+
+Operator guide (metrics, dashboards, log bounds, privacy rules, verify list): `docs/observability.md`.
+
+- **Services:** the `metrics` sidecar per environment (above); the `memes-obs` project: Prometheus (200 MB limit, retention 30 d / 2 GB, scrape 15 s), node-exporter (48 MB), one postgres-exporter per environment (48 MB each, over the read-only `memes-<env>_pgsocket` volume as the role `memes_<env>_mon`); Caddy's internal `:9180` metrics site (edge network only, never published). None of them has a public route.
+- **Log volumes:** `/srv/memes/<env>/logs/backend` (115 MiB), `/srv/memes/<env>/logs/postgres` (200 MB, pruned hourly by `memes-prune-logs@<env>.timer`), `/srv/memes/edge/logs/caddy` (60 MiB); see the volume table. The Docker `json-file` logs stay.
+- **Memory budget:** about 400 MB resident for the whole addition (Prometheus about 150, node-exporter and the three postgres-exporters about 80, three sidecars up to 64 MB each); the compose limits sit above that. Measure with `docker stats` on the real VPS.
+- **First-start order:** (1) `docker network create --subnet 172.30.0.0/24 memes-edge`; (2) the `memes-<env>` stacks (they create the `pgsocket` volumes; run `postgres/provision.sh grants <env>` first on a database provisioned before the monitoring role existed); (3) the `memes-obs` project (`docker compose -p memes-obs up -d`, run from `obs/`); (4) the host script `host/setup-host.sh <env> --obs-key FILE`.
 
 ## Files owned elsewhere
 

@@ -371,7 +371,7 @@ Per-file type, size or content errors are reported in `failed[]` — the rest of
 
 ---
 
-### Bug Reports
+### Telemetry
 
 #### Page-visit beacon
 
@@ -390,6 +390,8 @@ Counts one page visit for the usage metrics (`pageviews_total{client,page}`). Fi
 - `429`: too many beacons from this client in the last minute (`abuse.telemetry_per_min`; 0 = off on dev, 120 on prod; `Retry-After: 60`; counted as `rate_limited_total{scope="telemetry"}`)
 
 ---
+
+### Bug Reports
 
 #### Upload Bug Report
 

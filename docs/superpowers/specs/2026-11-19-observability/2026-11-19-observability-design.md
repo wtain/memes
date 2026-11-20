@@ -1,6 +1,6 @@
 # Observability: metrics and logs for the production rollout
 
-Status: planned
+Status: implementation
 
 Plan: `docs/superpowers/plans/2026-11-19-observability.md`
 
@@ -89,10 +89,10 @@ A small package, all of it behind the setting `observability.metrics.enabled` (t
 ### 5.4 Prometheus on the VPS
 - A new compose project `memes-obs` (`deploy/prod/obs/compose.yaml`), joined to `memes-edge`, hardened, 200 MB limit.
 - `prometheus.yml` with scrape interval 15 s, targets by alias, `retention.time: 30d` and `retention.size: 2GB`, `--web.listen-address=127.0.0.1:9090` published on the **host loopback only**.
-- Reached from the workstation by the existing ssh pattern: a new local tunnel port **19090** forwarding to the VPS loopback 9090, using the tunnel key (`permitopen` gains the new target). The sync tool does not manage it; a small script (`python -m sync.obs_tunnel` or a documented `ssh -L`) opens it while Grafana is used. The builder picks the form and records the port in `environments/Environments.md`.
+- Reached from the workstation by the existing ssh pattern: a new local tunnel port **19090** forwarding to the VPS loopback 9090, using the dedicated key and account `memesync-obs` of section 9a, point 1 (not the sync tunnel key; its `permitopen` is only `127.0.0.1:9090`). The sync tool does not manage it; a small script (`python -m sync.obs_tunnel` or a documented `ssh -L`) opens it while Grafana is used. The builder picks the form and records the port in `environments/Environments.md`.
 
 ### 5.5 Grafana on the workstation
-- `deploy/observability/` (dev side): a compose file for Grafana only (pinned image, a port outside `Environments.md`), provisioned datasource (`http://host.docker.internal:19090`) and three dashboards committed as JSON: **Performance** (latency percentiles per route, search stages, image serving, pool wait), **Usage** (calls per route, images served, page visits by client and page), **Health** (host disk and memory, Postgres connections and database size, Caddy errors, rate-limit rejections, log-volume use). Each has an `env` selector (the three environments).
+- `deploy/observability/` (dev side): a compose file for Grafana only (pinned image, a port outside `Environments.md`), provisioned datasource (`http://host.docker.internal:19090`) and three dashboards committed as JSON: **Performance** (latency percentiles per route, search stages, image serving, pool wait), **Usage** (calls per route, images served, page visits by client and page), **Health** (host disk and memory, Postgres connections and database size, Caddy errors, rate-limit rejections; the log-volume signal is the `sync.verify` A3 warning, see the amendments). Each has an `env` selector (the three environments).
 - No Grafana credentials in the repo: the admin password comes from an untracked env file.
 
 ### 5.6 The beacon
@@ -117,7 +117,7 @@ A subagent audits, read-only, every backend module and the sync tools against a 
 - **Caddy:** a second log output `file` with `roll_size 10MiB`, `roll_keep 5`, the **same filter** as the existing log (no `uri`, `headers`, `tls`), plus the request id.
 - **Postgres:** `logging_collector = on`, `log_directory`, `log_rotation_size = 20MB`, `log_truncate_on_rotation`, a bounded file count; log `checkpoints`, `lock_waits`, `temp_files`, `autovacuum` durations. **Never** `log_min_duration_statement`, `log_statement`, `log_connections` with parameters, and set `log_min_error_statement = panic` and `log_error_verbosity = terse`: the default would write the failing statement **and its bind parameters** (the searched text) to the log. A container test proves it (a failing parameterised query leaves its parameter out of the log).
 - The existing Docker `json-file` options stay.
-- `memes-facts.py` adds the log directories' sizes to `disk.json`; `sync.verify` check S4/S8 (the builder finds the right one) warns when a log directory exceeds 80% of its bound.
+- `memes-facts.py` adds the log directories' sizes to `disk.json`; `sync.verify` check A3 (disk) warns when a log directory exceeds 80% of its bound.
 
 ## 7. Tests and verification
 - Unit: route-template labelling (including `unmatched`, a dev-only route on prod, a 404 scan with random paths producing one series), the page allow-list (`other`), the label sets never contain an id or a query, the request-id generator ignores a client header.
@@ -152,3 +152,11 @@ Exact bucket boundaries, the stage names inside the search pipeline, the rotatin
 - Business metrics (deferred).
 - Real hostnames and VPS size (the 4 GB floor assumption is carried from the sync epic).
 - Whether Prometheus retention of 30 days and 2 GB is enough.
+
+## 11. Amendments made at the end of the build
+
+1. **Log volume is not a Grafana panel.** Log directory sizes are doctor facts (`memes-facts` writes them into `disk.json`, `sync.verify` check A3 warns at 80% of each bound), not Prometheus metrics; a textfile collector would be scope growth. The Health dashboard has a host-disk panel instead. Sections 5.5 and 8 are read accordingly.
+2. **Metric names carry no `memes_` prefix.** The built names are `http_requests_total`, `http_request_duration_seconds`, `http_requests_in_flight`, `build_info`, `image_served_total`, `image_served_bytes_total`, `image_read_seconds`, `search_seconds`, `search_degraded_total`, `db_pool_checked_out`, `db_pool_overflow`, `db_pool_wait_seconds`, `rate_limited_total` and `pageviews_total`. In particular the rate-limit counter is `rate_limited_total` (scopes `saves`, `not_found`, `bug_reports`, `recording`, `telemetry`, `body_limit`) and the page counter is `pageviews_total`. `docs/observability.md` is the reference.
+3. **The tunnel** uses the dedicated key of section 9a point 1 (`python -m sync.obs_tunnel --env <env>`, flag `--env`, local port 19090); section 5.4's wording about the tunnel key is superseded.
+4. **The 80% log warning** is built as written, and rotated logs sit at 80 to 100% of their bound in steady state, so it will be persistent. This is an open owner decision (`docs/observability.md`, "Logs").
+5. **Caddy** drops the client address (`remote_ip`, `remote_port`, `client_ip`) from every log filter; section 6.3's "same filter" is read with that addition. The request `path` stays logged (image ids in `/api/images/<id>` and `/memes/<id>`): accepted, owner-visible.
