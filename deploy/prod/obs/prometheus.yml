@@ -20,8 +20,8 @@ scrape_configs:
     static_configs:
       - targets: ["caddy:9180"]
 
-  # postgres_exporter, one per environment (services postgres-exporter-<env>, added by O6c, alias form postgres-exporter-<env>:9187
-  # on the project network `obs`).
+  # postgres_exporter, one per environment (services postgres-exporter-<env> of compose.yaml in this directory, reached as
+  # postgres-exporter-<env>:9187 on the project network `obs`).
   - job_name: postgres
     static_configs:
       - targets: ["postgres-exporter-metal:9187"]

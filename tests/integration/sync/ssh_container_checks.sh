@@ -67,7 +67,7 @@ check keys_file_verb_tunnel test "$(grep -c . /etc/ssh/memes-keys/memesync-it)" 
 check keys_file_upload test "$(grep -c . /etc/ssh/memes-keys/memeup-it)" = 1
 check keys_file_root_owned mode_is /etc/ssh/memes-keys/memesync-it root root 644
 check dir_logs mode_is $R/it/logs root root 755
-check dir_logs_backend mode_is $R/it/logs/backend root memesync-it 2770
+check dir_logs_backend test "$(stat -c "%u %G %a" $R/it/logs/backend)" = "10001 memesync-it 2750"
 check dir_logs_postgres test "$(stat -c "%u %g %a" $R/it/logs/postgres)" = "999 999 700"
 check dir_logs_caddy mode_is $R/edge/logs/caddy root root 755
 check dir_edge mode_is $R/edge root root 755

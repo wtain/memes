@@ -215,7 +215,7 @@ def test_setup_host_sets_the_documented_modes_and_network():
 
 def test_setup_host_creates_the_log_directories_and_the_obs_account():
     text = (DEPLOY / "host" / "setup-host.sh").read_text(encoding="utf-8")
-    for expected in ('mk 0755 root root "$ENV_ROOT/logs"', 'mk 2770 root "$GROUP" "$ENV_ROOT/logs/backend"',
+    for expected in ('mk 0755 root root "$ENV_ROOT/logs"', 'mk 2750 "$BACKEND_UID" "$GROUP" "$ENV_ROOT/logs/backend"',
                      'mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/logs/postgres"', 'mk 0755 root root "$SRV/edge/logs/caddy"',
                      'ensure_user "$OBS_USER" "$OBS_USER" /nonexistent /usr/sbin/nologin', "--obs-key)",
                      "authorized_keys.obs.template"):

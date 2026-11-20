@@ -1,4 +1,5 @@
-"""gunicorn configuration of the prod backend (copied to /app/gunicorn.conf.py in the image, used with `gunicorn -c /app/gunicorn.conf.py`).
+"""gunicorn configuration of the prod backend (copied to /app/gunicorn.conf.py in the image; gunicorn loads
+./gunicorn.conf.py from its working directory /app by default, so the command passes no -c).
 
 Logging (observability design section 6): each worker writes `backend-<slot>.log` (slot w0 / w1, a worker keeps the lowest free slot
 across restarts, so the files stay bounded at two) through Backend/app/observability/logfiles.py, which main.py installs in the worker

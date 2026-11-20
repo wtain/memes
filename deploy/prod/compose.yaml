@@ -74,11 +74,11 @@ services:
       db:
         condition: service_healthy
     # Two workers (the Dockerfile default is four), no access log (gunicorn writes none without --access-logfile),
-    # warning level, proxy headers trusted from the shared edge network only.
+    # warning level, proxy headers trusted from the shared edge network only. No -c: gunicorn loads ./gunicorn.conf.py from the
+    # WORKDIR /app on its own (log slots, metrics hooks), and an image from before observability, which has no such file, still starts
+    # with this command (rollback, README "Rollback").
     command:
       - gunicorn
-      - -c
-      - /app/gunicorn.conf.py
       - Backend.app.main:app
       - -w
       - "2"

@@ -127,10 +127,11 @@ mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/pgdata"
 mk 0750 root "$GROUP" "$ENV_ROOT/backups"
 mk 0755 "$SYNC_USER" "$GROUP" "$ENV_ROOT/web"
 # Log directories (observability spec 6 and 9a-7). The parents are root-owned and not writable; each service writes only its own
-# subdirectory and none of them holds a symlink. backend: the backend container (uid BACKEND_UID, gid $GROUP) writes its own files;
-# postgres: the postgres uid of the image, like pgdata; caddy: Caddy runs as root.
+# subdirectory and none of them holds a symlink. backend: owned by the backend container's uid (BACKEND_UID, compose SVC_UID), which
+# writes its own files as owner; the group $GROUP only reads (2750: with the container's umask 002 a group-writable directory would let
+# the gate account alter or delete the files); postgres: the postgres uid of the image, like pgdata; caddy: Caddy runs as root.
 mk 0755 root root "$ENV_ROOT/logs"
-mk 2770 root "$GROUP" "$ENV_ROOT/logs/backend"
+mk 2750 "$BACKEND_UID" "$GROUP" "$ENV_ROOT/logs/backend"
 mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/logs/postgres"
 mk 0755 root root "$SRV/edge"
 mk 0755 root root "$SRV/edge/logs"

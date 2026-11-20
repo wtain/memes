@@ -6,7 +6,8 @@
 
 	# The DEFAULT logger (everything that is not an access log: http.log.error entries of failed proxy requests, which carry
 	# request>uri and request>headers) gets the same filter as the sites' access logs. Without it a 502 writes the searched text into the
-	# container log (verified on the pinned image, see README "Log suppression").
+	# container log (verified on the pinned image, see README "Log suppression"). `resp_headers` goes too: GET /api/images/<id> answers
+	# with a Content-Disposition carrying the library file name, which can be a client-chosen upload name.
 	log {
 		output stderr
 		format filter {
@@ -18,13 +19,15 @@
 				request>remote_ip delete
 				request>remote_port delete
 				request>client_ip delete
+				resp_headers delete
 			}
 		}
 	}
 
+	# Request metrics of every server, served by the internal :9180 site below (edge network only, never published).
+	metrics
+
 	servers {
-		# Per-server request metrics, served by the internal :9180 site below (edge network only, never published).
-		metrics
 		# Header size limits (the request line counts as a header): a flood of oversized headers is refused early.
 		max_header_size 16KB
 		timeouts {
@@ -37,7 +40,8 @@
 }
 
 # Log format shared by every site: the full URI (it carries query strings: searched text) and every request header
-# (Referer, Cookie, Authorization) and the client address (remote_ip, remote_port, client_ip) are deleted; only the path is kept, as `path`.
+# (Referer, Cookie, Authorization), the client address (remote_ip, remote_port, client_ip) and every response header (resp_headers: the
+# Content-Disposition of an image carries its file name) are deleted; only the path is kept, as `path`.
 # `path` is the one request field logged and may contain an image id (accepted: it is not a search text). No request bodies are ever logged.
 (quiet_log) {
 	log {
@@ -51,11 +55,12 @@
 				request>remote_ip delete
 				request>remote_port delete
 				request>client_ip delete
+				resp_headers delete
 			}
 		}
 	}
 	# Second output: a size-bounded file (10 MiB x 5 kept, about 60 MB) with the SAME filter, so it cannot hold a query string, a header,
-	# a cookie or a client address (remote_ip, remote_port and client_ip are deleted too). `access_file` is one logger shared by the three sites (their hosts merge into its include list).
+	# a cookie, a client address or a response header (remote_ip, remote_port, client_ip and resp_headers are deleted too). `access_file` is one logger shared by the three sites (their hosts merge into its include list).
 	log access_file {
 		output file /var/log/caddy/access.log {
 			roll_size 10MiB
@@ -70,6 +75,7 @@
 				request>remote_ip delete
 				request>remote_port delete
 				request>client_ip delete
+				resp_headers delete
 			}
 		}
 	}

@@ -148,7 +148,14 @@ def test_images_are_mounted_read_only_and_bug_reports_read_write(stack):
 def test_backend_command_flags(stack):
     cmd = [str(c) for c in stack["services"]["backend"]["command"]]
     assert cmd[0] == "gunicorn"
-    assert cmd[cmd.index("-c") + 1] == "/app/gunicorn.conf.py"
+    # No -c (ruling I2): gunicorn loads ./gunicorn.conf.py of the WORKDIR /app by default, and an older image without the file still
+    # starts with this command. tests/docker proves the default load in the built image.
+    assert "-c" not in cmd and "--config" not in cmd and not any(c.startswith("--config=") for c in cmd)
+    dockerfile = (ROOT / "Dockerfile.backend").read_text(encoding="utf-8")
+    copy = dockerfile.index("COPY deploy/prod/gunicorn.conf.py ./gunicorn.conf.py")
+    workdirs = re.findall(r"^WORKDIR (\S+)", dockerfile[:copy], re.M)
+    assert workdirs and workdirs[-1] == "/app"  # so the COPY lands at /app/gunicorn.conf.py
+    assert re.findall(r"^WORKDIR (\S+)", dockerfile, re.M)[-1] == "/app"  # and gunicorn runs from /app
     assert cmd[cmd.index("-w") + 1] == "2"
     assert cmd[cmd.index("--log-level") + 1] == "warning"
     assert cmd[cmd.index("--forwarded-allow-ips") + 1] == "172.30.0.0/24"
