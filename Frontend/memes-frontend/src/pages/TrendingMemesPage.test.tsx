@@ -44,9 +44,35 @@ describe("TrendingMemesPage", () => {
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument()
   })
 
-  it("shows an empty state for an empty first page", async () => {
+  it("shows card skeletons while the first page loads", () => {
+    setup({ getTrendingMemes: vi.fn().mockReturnValue(new Promise(() => {})) })
+    expect(screen.getAllByTestId("meme-card-skeleton")).toHaveLength(6)
+    expect(screen.getByRole("status")).toHaveTextContent("Loading...")
+  })
+
+  it("empty all-time list explains trending and links to Explore", async () => {
     setup({ getTrendingMemes: vi.fn().mockResolvedValue(page([])) })
-    expect(await screen.findByText("No trending memes yet.")).toBeInTheDocument()
+    expect(await screen.findByText("Nothing trending yet")).toBeInTheDocument()
+    expect(screen.getByText(/the more copies of a meme show up/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Browse memes" })).toHaveAttribute("href", "/explore")
+  })
+
+  it("empty 30-day list has its own title", async () => {
+    const getTrendingMemes = vi.fn().mockResolvedValue(page([]))
+    render(<MemoryRouter initialEntries={["/trending-memes?window=30d"]}>
+      <TrendingMemesPage memesApi={makeMockApi({ getTrendingMemes })} /></MemoryRouter>)
+    expect(await screen.findByText("Nothing trending in the last 30 days")).toBeInTheDocument()
+  })
+
+  it("error shows a Retry button that reloads", async () => {
+    const user = userEvent.setup()
+    const getTrendingMemes = vi.fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce(page([item("a", 4)]))
+    setup({ getTrendingMemes })
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load trending memes.")
+    await user.click(screen.getByRole("button", { name: "Retry" }))
+    expect(await findCardImg("a")).toBeInTheDocument()
   })
 
   it("shows an error and no cards when the first request fails", async () => {
@@ -219,8 +245,8 @@ describe("TrendingMemesPage window switch", () => {
 
   it("shows the month empty state", async () => {
     setupAt("/trending-memes?window=30d", { getTrendingMemes: vi.fn().mockResolvedValue(page([])) })
-    expect(await screen.findByText("No memes picked up duplicates in the last 30 days.")).toBeInTheDocument()
-    expect(screen.queryByText("No trending memes yet.")).not.toBeInTheDocument()
+    expect(await screen.findByText("Nothing trending in the last 30 days")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing trending yet")).not.toBeInTheDocument()
   })
 
   it.each(["/trending-memes", "/trending-memes?window=30d"])(
