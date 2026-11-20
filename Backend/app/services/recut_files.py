@@ -19,8 +19,8 @@ def remove_quietly(path: str) -> None:
         os.remove(path)
     except FileNotFoundError:
         pass
-    except OSError:
-        logger.exception("recut: could not remove %s", path)
+    except OSError as exc:
+        logger.error("recut: could not remove %s (%s)", path, type(exc).__name__)
 
 
 def copy_to_pre_cuts(base_path: str, filename: str) -> None:
@@ -32,8 +32,8 @@ def copy_to_pre_cuts(base_path: str, filename: str) -> None:
             return
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copy2(source, target)
-    except OSError:
-        logger.exception("recut: could not copy %s to pre-cuts", source)
+    except OSError as exc:
+        logger.error("recut: could not copy %s to pre-cuts (%s)", source, type(exc).__name__)
 
 
 def file_effects(session: AsyncSession, on_commit: Callable[[], None] | None = None,
@@ -53,8 +53,8 @@ def file_effects(session: AsyncSession, on_commit: Callable[[], None] | None = N
             return
         try:
             action()
-        except Exception:
-            logger.exception("recut: a file action after the transaction failed")
+        except Exception as exc:
+            logger.error("recut: a file action after the transaction failed (%s)", type(exc).__name__)
 
     def committed(committing) -> None:
         # During the dispatch the committing transaction is still the session's current one.

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from Backend.app.observability.logfiles import safe_text
 from batch.utils.file_hash import sha256_file
 from config.settings import settings
 
@@ -185,15 +186,15 @@ def prepare_inbox(total_bytes: int = 0) -> tuple[Path, Path]:
     try:
         staging.mkdir(exist_ok=True)
     except OSError as exc:
-        logger.exception("Could not create the inbox staging directory %s", staging)
+        logger.error("Could not create the inbox staging directory %s (%s)", staging, type(exc).__name__)
         raise InboxUnavailableError("The ingestion inbox is not writable") from exc
     if not os.access(staging, os.W_OK):
         logger.error("The inbox staging directory is not writable: %s", staging)
         raise InboxUnavailableError("The ingestion inbox is not writable")
     try:
         free = shutil.disk_usage(inbox).free
-    except OSError:
-        logger.warning("Could not read the free space of the inbox volume", exc_info=True)
+    except OSError as exc:
+        logger.warning("Could not read the free space of the inbox volume (%s)", type(exc).__name__)
         free = None
     if free is not None and free - total_bytes < MIN_FREE_BYTES:
         logger.error("The inbox volume has too little free space: %d bytes free, %d requested", free, total_bytes)
@@ -211,8 +212,8 @@ def _remove_stale_staging(staging: Path) -> None:
                     os.unlink(entry.path)
             except OSError:
                 continue
-    except OSError:
-        logger.warning("Could not clean the inbox staging directory", exc_info=True)
+    except OSError as exc:
+        logger.warning("Could not clean the inbox staging directory (%s)", type(exc).__name__)
 
 
 class _InboxIndex:
@@ -273,8 +274,8 @@ def _publish_once(staged: Path, final: Path) -> None:
         os.link(staged, final)
     except FileExistsError:
         raise
-    except OSError:
-        logger.warning("Hard links are not supported here, falling back", exc_info=True)
+    except OSError as exc:
+        logger.warning("Hard links are not supported here, falling back (%s)", type(exc).__name__)
         if os.name == "nt":
             os.rename(staged, final)  # atomic; unlike POSIX, fails when the target exists
         else:
@@ -339,7 +340,7 @@ def _write_one(inbox: Path, staging: Path, candidate: UploadCandidate, digest: s
         return final
     except OSError as exc:
         staged.unlink(missing_ok=True)
-        logger.exception("Could not write the upload %r into the ingestion inbox", name)
+        logger.error("Could not write the upload %s into the ingestion inbox (%s)", safe_text(name, 80), type(exc).__name__)
         raise InboxWriteError("Could not write the file into the ingestion inbox") from exc
 
 
@@ -382,10 +383,10 @@ class InboxUploadService:
         try:
             library_hashes = await self._repo.existing_content_hashes(set(digests))
         except Exception as exc:
-            logger.exception("Upload duplicate lookup failed")
+            logger.error("Upload duplicate lookup failed (%s)", type(exc).__name__)
             raise DuplicateCheckUnavailableError("Duplicate check is unavailable") from exc
         try:
             return await asyncio.to_thread(_write_all, inbox, staging, candidates, digests, library_hashes)
         except OSError as exc:  # the inbox listing itself failed
-            logger.exception("Could not list the ingestion inbox")
+            logger.error("Could not list the ingestion inbox (%s)", type(exc).__name__)
             raise InboxWriteError("Could not read the ingestion inbox") from exc

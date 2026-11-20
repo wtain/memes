@@ -11,6 +11,7 @@ rewrites the client from `X-Forwarded-For`; this module never parses the header 
 State is process-local: the effective limit is workers x the configured rate.
 """
 import ipaddress
+import logging
 import threading
 import time
 from collections import OrderedDict
@@ -18,6 +19,7 @@ from contextvars import ContextVar
 
 from fastapi import HTTPException, Request
 
+from Backend.app.observability.logfiles import log_sampled
 from config.settings import settings
 
 UNKNOWN_CLIENT = "unknown"
@@ -135,7 +137,9 @@ def _allow(name: str, key: str, cost: float = 1.0) -> bool:
 
 def count_refusal(scope: str) -> None:
     """Counts a refusal by an abuse limit for metrics (scope: saves, not_found, bug_reports, recording, telemetry, body_limit).
-    A no-op when metrics are off; never raises, never changes the response."""
+    A no-op when metrics are off; never raises, never changes the response. Also writes one sampled log line (scope only, never the
+    client), whether or not metrics are on."""
+    log_sampled(logging.getLogger(__name__), "refused:" + str(scope), "request refused by limit scope=%s", str(scope)[:24])
     try:
         from Backend.app.observability import enabled
         if enabled():

@@ -342,3 +342,8 @@ sync:                           # dev/prod data sync (docs/superpowers/specs/202
 # Observability (docs/superpowers/specs/2026-11-19-observability/). metrics.enabled false: no metrics middleware, no prometheus_client import.
 observability:
   metrics: {enabled: false}
+  slow_request_ms: 0            # 0 = no slow-request line (dev); prod sets 2000
+  log_file:                     # size-bounded files next to stdout; no dir = stdout only (dev). Prod: backend-w0/w1.log and backend-master.log
+    dir: null
+    max_bytes: 10485760         # 10 MB per worker slot file, 4 backups (the gunicorn master file: 5 MB x 2, see deploy/prod/gunicorn.conf.py)
+    backup_count: 4

@@ -721,7 +721,8 @@ class TestFailuresAreLogged:
             response = client.post("/api/uploads", files=files)
 
         assert response.status_code == 500
-        assert "second.png" in caplog.text and "No space left" in caplog.text
+        assert "second.png" in caplog.text and "(OSError)" in caplog.text  # the class only: O5 type-only rule, never the message
+        assert "No space left" not in caplog.text
         assert str(inbox) not in response.text
         assert _listing(inbox) == ["first.png"]
         assert list((inbox / ".uploading").iterdir()) == []

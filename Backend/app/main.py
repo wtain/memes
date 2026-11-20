@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -21,6 +22,8 @@ from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.bug_reports import router as bug_reports_router
 from Backend.app.api.telemetry import router as telemetry_router
 from Backend.app.observability import enabled as metrics_enabled
+from Backend.app.observability import logfiles
+from Backend.app.observability.middleware import RequestIdMiddleware, SlowRequestMiddleware
 from Backend.app.middleware import (BodyLimitMiddleware, ClientContextMiddleware, TELEMETRY_BODY_LIMIT_BYTES,
                                     TELEMETRY_PATH)
 from Backend.app.prod_startup import verify_environment_marker
@@ -49,7 +52,7 @@ if not is_prod():
     from Backend.app.api.recut import router as recut_router
     from Backend.app.api.comics import router as comics_router
 
-_LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] %(name)s: %(message)s"
+_LOG_FORMAT = "%(asctime)s %(levelname)-8s [pid:%(process)d] [%(request_id)s] %(name)s: %(message)s"
 _LOG_DATEFMT = "%Y-%m-%dT%H:%M:%S"
 
 # uvicorn.error is uvicorn's general-purpose logger (historical name — it predates
@@ -61,6 +64,8 @@ class _Formatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         record = logging.makeLogRecord(record.__dict__)
         record.name = _LOGGER_NAME_ALIASES.get(record.name, record.name)
+        if not hasattr(record, "request_id"):
+            record.request_id = logfiles.NO_REQUEST
         return super().format(record)
 
 
@@ -85,7 +90,36 @@ def _configure_logging() -> None:
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
         root.addHandler(handler)
+    # Every record carries the request id of the request being served (a dash outside one).
+    for lgr in all_loggers:
+        for handler in lgr.handlers:
+            handler.addFilter(logfiles.REQUEST_ID_FILTER)
+    _install_log_files(root, all_loggers, formatter)
+    # Deliberately INFO for the application's own loggers although prod gunicorn runs --log-level warning: that flag only sets
+    # gunicorn's own loggers (gunicorn.error), and the one-per-search INFO lines of retrieval/parse are numbers and enums, bounded by
+    # the file rotation. Gunicorn's loggers keep their own level.
     root.setLevel(logging.INFO)
+
+
+def _install_log_files(root: logging.Logger, all_loggers: list, formatter: logging.Formatter) -> None:
+    """Size-bounded files next to stdout (settings observability.log_file.*; no `dir` = stdout only). Never raises."""
+    try:
+        logfiles.remove_installed(all_loggers)  # a second lifespan in one process must not stack handlers
+        directory = settings.get("observability.log_file.dir")
+        if not directory:
+            return
+        slot = os.environ.get("MEMES_LOG_SLOT") or "w0"
+        handlers = logfiles.install(directory, slot, int(settings.get("observability.log_file.max_bytes", 10 * 1024 * 1024)),
+                                    int(settings.get("observability.log_file.backup_count", 4)))
+        for handler in handlers:
+            handler.setFormatter(formatter)
+            root.addHandler(handler)
+            # uvicorn's own loggers do not propagate to the root; give them the file too (a handler is only added once per logger).
+            for lgr in all_loggers:
+                if lgr is not root and not lgr.propagate and lgr.handlers:
+                    lgr.addHandler(handler)
+    except Exception as error:
+        logging.getLogger(__name__).warning("log files not installed: %s", type(error).__name__)
 
 
 async def _warm_models(pipeline, parser, interval_minutes: float) -> None:
@@ -103,6 +137,10 @@ async def _warm_models(pipeline, parser, interval_minutes: float) -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _configure_logging()
+    logging.getLogger(__name__).info(
+        "backend starting stage=%s pid=%d slot=%s metrics=%s slow_request_ms=%s log_files=%s", "prod" if is_prod() else "dev",
+        os.getpid(), os.environ.get("MEMES_LOG_SLOT", "-"), metrics_enabled(), settings.get("observability.slow_request_ms", 0),
+        bool(settings.get("observability.log_file.dir")))
     validate_search_settings()  # deliberately uncaught: a bad ranking setting must stop the app from starting
     validate_impression_settings()  # likewise for popularity.impressions.*
     validate_outcome_settings()  # and popularity.search_outcomes.*
@@ -128,6 +166,7 @@ async def lifespan(_app: FastAPI):
     if warm_task is not None:
         warm_task.cancel()
     await stop_scheduler(scheduler_tasks)
+    logging.getLogger(__name__).info("backend stopping pid=%d", os.getpid())
 
 
 _extra_origins = [
@@ -186,6 +225,11 @@ else:
         allow_headers=["*"]
     )
 
+# The last add_middleware calls make these the outermost layers, so every request (a body-limit or CORS answer too) gets an id.
+# The slow-request line sits inside the request id (it prints it); both are independent of observability.metrics.enabled.
+app.add_middleware(SlowRequestMiddleware)
+app.add_middleware(RequestIdMiddleware)
+
 # set WATCHFILES_FORCE_POLLING=1
 # uvicorn app.main:app --reload --env-file app/.env --port 8081
 """
@@ -224,6 +268,7 @@ async def health_check(db: AsyncSession = Depends(get_async_db)):
     try:
         await db.execute(text("SELECT 1"))
     except Exception as exc:
+        logging.getLogger(__name__).warning("health check: database unavailable type=%s", type(exc).__name__)
         # On prod the detail is fixed: the exception text can carry the DSN host or driver internals.
         detail = "Database unavailable" if is_prod() else f"Database unavailable: {exc}"
         raise HTTPException(status_code=503, detail=detail)

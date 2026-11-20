@@ -29,8 +29,8 @@ async def start_comics_pipeline() -> str | None:
         if isinstance(error.__cause__, BatchAlreadyRunningError):
             logger.info("comics: %s is already running; the built image waits for the next run", BATCH_NAME)
             return None
-        logger.warning("comics: could not start %s: %s", BATCH_NAME, error.detail)
+        logger.warning("comics: could not start %s (HTTP %s)", BATCH_NAME, error.status_code)
         return None
-    except Exception:
-        logger.warning("comics: could not start %s", BATCH_NAME, exc_info=True)
+    except Exception as exc:
+        logger.warning("comics: could not start %s (%s)", BATCH_NAME, type(exc).__name__)
         return None

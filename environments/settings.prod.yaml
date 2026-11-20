@@ -54,3 +54,5 @@ database:
 # Request metrics on (served by the sidecar, see the observability spec).
 observability:
   metrics: {enabled: true}
+  slow_request_ms: 2000
+  log_file: {dir: /var/log/memes, max_bytes: 10485760, backup_count: 4}   # /srv/memes/<env>/logs/backend on the host

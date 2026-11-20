@@ -25,7 +25,7 @@ async def _swallowed(session: AsyncSession, label: str, call: Callable[[], Await
         async with session.begin_nested():
             return await call()
     except Exception as exc:
-        logger.warning("library metrics failed (%s): %r", label, exc)
+        logger.warning("library metrics failed (%s): %s", label, type(exc).__name__)
         return None
 
 
