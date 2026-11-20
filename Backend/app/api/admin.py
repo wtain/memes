@@ -3,56 +3,18 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, Query
 from Backend.app.stage_policy import make_router
-from pydantic import BaseModel
-from datetime import datetime
-from typing import Optional
 
+from Backend.app.types.generated.batchmetricsresponse import Schema as BatchMetricsResponse
+from Backend.app.types.generated.batchnamesresponse import Schema as BatchNamesResponse
+from Backend.app.types.generated.runlistresponse import Schema as RunListResponse
+from Backend.app.types.generated.runstatusresponse import Schema as RunStatusResponse
+from Backend.app.types.generated.runtriggerresponse import Schema as RunTriggerResponse
 from Storage.db import get_async_db
 from repository.batch_runs import BatchRunRepository
 from Backend.app.services.admin_batch_service import AdminBatchService
 from Backend.app.services.business_metrics_service import BusinessMetricsService, UnknownProcessError
 
 router = make_router(prefix="/admin/batches", tags=["admin"])
-
-
-class RunTriggerResponse(BaseModel):
-    run_id: str
-    status: str
-
-
-class RunStatusResponse(BaseModel):
-    run_id: str
-    batch_name: str
-    trigger: str
-    status: str
-    created_at: datetime
-    completed_at: Optional[datetime]
-    error: Optional[str]
-
-
-class RunListResponse(BaseModel):
-    items: list[RunStatusResponse]
-    total: int
-
-
-class BatchNamesResponse(BaseModel):
-    names: list[str]
-
-
-class BatchMetricsBucket(BaseModel):
-    counts: dict[str, int]
-    metrics: dict[str, Optional[float]]
-
-
-class BatchMetricsItem(BatchMetricsBucket):
-    run_id: str
-    run_created_at: datetime
-
-
-class BatchMetricsResponse(BaseModel):
-    process: str
-    items: list[BatchMetricsItem]
-    unattributed: BatchMetricsBucket
 
 
 async def get_admin_batch_service(
