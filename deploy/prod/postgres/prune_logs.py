@@ -16,7 +16,7 @@ import re
 import sys
 
 MAX_FILES = 10
-MAX_BYTES = 200 * 1024 * 1024  # 200 MB per environment
+MAX_BYTES = 200 * 1024 * 1024  # 200 MiB per environment
 NAME = re.compile(r"postgresql-\d{8}-\d{6}\.log")
 
 

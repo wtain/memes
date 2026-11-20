@@ -14,4 +14,9 @@ The datasource (`uid memes-prometheus`) and the three dashboards (Performance, U
 `Environment` selector (metal, general, it). Host disk/memory and Caddy panels are host-wide and ignore it. There is no log-volume panel: the log directory sizes are
 doctor facts, not Prometheus metrics.
 
+The datasource URL is `http://host.docker.internal:19090`. On Docker Desktop (the Windows workstation) that name reaches the tunnel even though
+`sync.obs_tunnel` binds it to `127.0.0.1` only. On a Linux Docker engine it does not: `host-gateway` resolves to the bridge address, and a
+loopback-bound port is not listening there. This setup is only made for Docker Desktop; a Linux workstation needs its own change (for example
+host networking for Grafana with the datasource on `http://127.0.0.1:19090`), never a tunnel bound to `0.0.0.0`.
+
 Ports are listed in `environments/Environments.md`. Dashboards show technical metrics only, never search text or ids.
