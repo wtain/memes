@@ -337,3 +337,7 @@ sync:                           # dev/prod data sync (docs/superpowers/specs/202
       modes: ["644"]            # F4: accepted octal modes of the regular files in the images directory (empty list: not checked)
     backup_max_age_h: 36        # S6
     pull_stale_days: 7          # P1
+
+# Observability (docs/superpowers/specs/2026-11-19-observability/). metrics.enabled false: no metrics middleware, no prometheus_client import.
+observability:
+  metrics: {enabled: false}

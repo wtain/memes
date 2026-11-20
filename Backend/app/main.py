@@ -19,6 +19,7 @@ from Backend.app.api.meme_from_text import router as meme_from_text_router
 from Backend.app.api.concepts import router as concepts_router
 from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.bug_reports import router as bug_reports_router
+from Backend.app.observability import enabled as metrics_enabled
 from Backend.app.middleware import BodyLimitMiddleware, ClientContextMiddleware
 from Backend.app.prod_startup import verify_environment_marker
 from Backend.app.scheduler import start_scheduler, stop_scheduler
@@ -151,6 +152,11 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)
 # /api/bug-reports (a limit of bug_reports.max_body_mb: 0 switches it off, as on dev).
 app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(ClientContextMiddleware)
+if metrics_enabled():
+    # Added after the two above, so it sits outside them: a request the body limit rejects is still counted.
+    from Backend.app.observability.middleware import MetricsMiddleware
+
+    app.add_middleware(MetricsMiddleware)
 
 if is_prod():
     # Production hostnames only (settings cors.origins, which an env var such as CORS__ORIGINS can also set), no

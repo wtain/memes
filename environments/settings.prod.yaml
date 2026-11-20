@@ -49,3 +49,7 @@ bug_reports:
 database:
   pool_size: 5
   max_overflow: 5
+
+# Request metrics on (served by the sidecar, see the observability spec).
+observability:
+  metrics: {enabled: true}
