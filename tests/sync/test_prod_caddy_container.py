@@ -90,8 +90,11 @@ def test_file_log_carries_the_same_filter_as_the_stdout_log_and_is_bounded():
     assert "output file /var/log/caddy/access.log" in file_part
     assert "roll_size 10MiB" in file_part and "roll_keep 5" in file_part
     assert _filter_block(file_part) == stdout_filter
-    for deleted in ("request>uri delete", "request>headers delete", "request>tls delete"):
+    for deleted in ("request>uri delete", "request>headers delete", "request>tls delete",
+                    "request>remote_ip delete", "request>remote_port delete", "request>client_ip delete"):
         assert deleted in stdout_filter
+    # the default (error) logger of the global block and the stdout log of the snippet carry the same filter
+    assert text.count("request>client_ip delete") == 3
     # the id is read from the RESPONSE (server generated), never from the request
     assert "log_append request_id {http.response.header.X-Request-ID}" in snippet
     assert "http.request.header" not in snippet
@@ -152,7 +155,11 @@ def test_metrics_internal_only_and_file_log_holds_no_query_cookie_or_authorizati
         time.sleep(1)
         log = subprocess.run(["docker", "exec", name, "cat", "/var/log/caddy/access.log"], capture_output=True, text=True).stdout
         assert '"path":"/api/images"' in log and '"path":"/metrics"' in log, "the file log must hold the requests (else the test proves nothing)"
-        for secret in ("SEARCHSECRET", "COOKIESECRET", "AUTHSECRET", "REFSECRET", "CLIENTIDSECRET", "Cookie", "Authorization"):
-            assert secret not in log
+        container_log = subprocess.run(["docker", "logs", name], capture_output=True, text=True)
+        for text in (log, container_log.stdout + container_log.stderr):
+            for secret in ("SEARCHSECRET", "COOKIESECRET", "AUTHSECRET", "REFSECRET", "CLIENTIDSECRET", "Cookie", "Authorization"):
+                assert secret not in text
+            for field in ("remote_ip", "remote_port", "client_ip"):
+                assert field not in text
     finally:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)

@@ -15,6 +15,9 @@
 				request>uri delete
 				request>headers delete
 				request>tls delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
 			}
 		}
 	}
@@ -34,7 +37,8 @@
 }
 
 # Log format shared by every site: the full URI (it carries query strings: searched text) and every request header
-# (Referer, Cookie, Authorization) are deleted; only the path is kept, as `path`. No request bodies are ever logged.
+# (Referer, Cookie, Authorization) and the client address (remote_ip, remote_port, client_ip) are deleted; only the path is kept, as `path`.
+# `path` is the one request field logged and may contain an image id (accepted: it is not a search text). No request bodies are ever logged.
 (quiet_log) {
 	log {
 		output stderr
@@ -44,11 +48,14 @@
 				request>uri delete
 				request>headers delete
 				request>tls delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
 			}
 		}
 	}
 	# Second output: a size-bounded file (10 MiB x 5 kept, about 60 MB) with the SAME filter, so it cannot hold a query string, a header,
-	# a cookie or a client address. `access_file` is one logger shared by the three sites (their hosts merge into its include list).
+	# a cookie or a client address (remote_ip, remote_port and client_ip are deleted too). `access_file` is one logger shared by the three sites (their hosts merge into its include list).
 	log access_file {
 		output file /var/log/caddy/access.log {
 			roll_size 10MiB
@@ -60,6 +67,9 @@
 				request>uri delete
 				request>headers delete
 				request>tls delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
 			}
 		}
 	}
