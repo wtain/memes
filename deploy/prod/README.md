@@ -40,7 +40,7 @@ Only Caddy publishes beyond the loopback (Docker publishes bypass ufw). The back
 
 The backend runs as `10001:<gid of memesync-<env>>` (`SVC_GID`), read-only root filesystem, `/tmp` tmpfs 256 MB (`noexec,nosuid`), all capabilities dropped, `no-new-privileges`, memory/cpu/pids limits, json-file logs rotated at 10 MB x 3, two gunicorn workers (config `/app/gunicorn.conf.py` from `deploy/prod/gunicorn.conf.py`: per-worker log slots, prometheus multiprocess hooks), no access log, warning log level, `--forwarded-allow-ips 172.30.0.0/24`.
 
-The `metrics` service (same image, `python -m Backend.app.observability.exporter`, 64 MB, read-only volume `metrics_mp`) serves `/metrics` on port 9102 as alias `metrics-<env>` on the project network. It publishes no port and has no Caddy route; Prometheus on the host reaches it over the docker network only.
+The `metrics` service (same image, `python -m Backend.app.observability.exporter`, 64 MB, read-only volume `metrics_mp`) serves `/metrics` on port 9102 as alias `metrics-<env>` on the shared `memes-edge` network only (not on the project network, so it cannot reach Postgres), where the Prometheus of the `memes-obs` project scrapes it. It publishes no port and has no Caddy route;
 
 ## Placeholder hostnames
 
@@ -103,7 +103,7 @@ docker compose -p memes-<env> --env-file env/<env>.prod.env --profile ops run --
 **3. Restart the backend on the new tag, then set the marker, then smoke.**
 
 ```
-docker compose -p memes-<env> --env-file env/<env>.prod.env up -d backend
+docker compose -p memes-<env> --env-file env/<env>.prod.env up -d backend metrics
 docker compose -p memes-<env> --env-file env/<env>.prod.env exec -u postgres db \
     psql -X -d memes_<env> -c "ALTER DATABASE memes_<env> SET memes.revision = '<SHA>'"
 curl -fsS https://<host>/health
@@ -126,7 +126,7 @@ State after provisioning is `memes.state = 'seeding'` (set by `provision.sh`; th
 
 ### Rollback
 
-- The image is reversible: set `BACKEND_TAG` back to the previous sha, `up -d backend`, and set `memes.revision` back to that sha. The previous image works on the new schema only because the migration was additive (that is the whole reason for the rule).
+- The image is reversible: set `BACKEND_TAG` back to the previous sha, `up -d backend metrics`, and set `memes.revision` back to that sha. The previous image works on the new schema only because the migration was additive (that is the whole reason for the rule).
 - The schema is not reversed. Do not run `alembic downgrade` on prod: a downgrade can drop columns that hold data, and many migrations of this chain have no safe downgrade. A bad migration is fixed forward with a new additive migration and a new release. A non-additive migration has no rollback except the backup (`backup.sh`, class P tables only; class D is rebuilt by a full promote).
 - Grants are always reversible by running `grants` again (the file is the single description of them). A failed `grants` step rolls back by itself (one transaction).
 - Not reversible: data the backend wrote into a class P column that a discarded schema change removed; restore from the newest backup (promote first, then restore, as `restore.sh` documents).

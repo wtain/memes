@@ -1,7 +1,7 @@
 # One production stack per environment (design: docs/superpowers/specs/2026-11-12-environment-data-sync/
 # 2026-11-12-p5-prod-provisioning-and-hardening-design.md, section P5d). Run from this directory as
 #
-#   docker compose -p memes-<env> --env-file env/<env>.prod.env up -d db backend
+#   docker compose -p memes-<env> --env-file env/<env>.prod.env up -d db backend metrics
 #   docker compose -p memes-<env> --env-file env/<env>.prod.env --profile ops run --rm migrate
 #
 # The env file holds the per-environment values (README.md lists every key); a required key that is empty stops compose
@@ -118,7 +118,8 @@ services:
         aliases: ["${EDGE_ALIAS:?set EDGE_ALIAS (api-<env>)}"]
 
   # Metrics sidecar: same image, aggregates the multiprocess files of the backend workers and serves /metrics on 9102 over the
-  # project network only. Never published (no ports), no Caddy route; Prometheus on the host scrapes it over the docker network.
+  # shared edge network only (alias metrics-<env>, scraped by the Prometheus of the memes-obs project). Never published (no
+  # ports), no Caddy route; no internal network, so it cannot reach Postgres.
   metrics:
     <<: *hardening
     image: memes-backend:${BACKEND_TAG:?set BACKEND_TAG to the git sha of the image}
@@ -141,8 +142,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    depends_on:
+      backend:
+        condition: service_started
     networks:
-      internal:
+      edge:
         aliases: ["metrics-${MEMES_ENV:?set MEMES_ENV}"]
 
   # Release steps 2 and 2b: `python -m sync.release all` (Dockerfile.migrate): alembic upgrade head as the owner role over the unix

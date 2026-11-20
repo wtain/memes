@@ -197,8 +197,9 @@ def test_metrics_sidecar_is_unpublished_hardened_and_small(stack):
     assert re.fullmatch(r"memes-backend:\$\{BACKEND_TAG:\?[^}]*\}", svc["image"])
     assert svc["volumes"] == ["metrics_mp:/metrics-mp:ro"]
     assert svc["environment"]["PROMETHEUS_MULTIPROC_DIR"] == "/metrics-mp"
-    assert "metrics-${MEMES_ENV" in svc["networks"]["internal"]["aliases"][0]
-    assert "edge" not in svc["networks"]
+    assert set(svc["networks"]) == {"edge"}
+    assert svc["networks"]["edge"]["aliases"] == ["metrics-${MEMES_ENV:?set MEMES_ENV}"]
+    assert "internal" not in svc["networks"]
     assert "metrics_mp" in stack["volumes"]
 
 
