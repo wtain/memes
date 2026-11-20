@@ -1,5 +1,6 @@
 package com.memebrowser.app.ui.sync
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -108,7 +109,12 @@ fun SyncScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) viewModel.onAlbumPicked(uri.toString())
+        if (uri != null) {
+            Log.i("SyncScreen", "Folder picker returned a tree: $uri")
+            viewModel.onAlbumPicked(uri.toString())
+        } else {
+            Log.w("SyncScreen", "Folder picker returned no result (cancelled, or the system refused the folder)")
+        }
     }
 
     // Refresh when the screen opens or the app comes back, and again when the selected environment changes. On the

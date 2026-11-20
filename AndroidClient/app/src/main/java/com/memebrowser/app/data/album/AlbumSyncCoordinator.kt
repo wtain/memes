@@ -4,6 +4,7 @@ import com.memebrowser.app.data.tracker.AlbumSelection
 import com.memebrowser.app.data.tracker.TrackedFileEntity
 import com.memebrowser.app.data.tracker.TrackerCounts
 import com.memebrowser.app.data.tracker.TrackerRepository
+import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -23,6 +24,8 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
+
+private const val TAG = "AlbumSync"
 
 /** Why a scan produced no new data. The tracker was left exactly as it was. */
 enum class ScanFailure {
@@ -238,7 +241,10 @@ class AlbumSyncCoordinator(
     }
 
     private suspend fun applyFirstSelection(env: String, treeUri: String, stale: AlbumChangeResult): AlbumChangeResult {
-        if (!access.persist(treeUri)) return AlbumChangeResult.GrantFailed
+        if (!access.persist(treeUri)) {
+            Log.w(TAG, "First selection: persistable grant refused (env=$env)")
+            return AlbumChangeResult.GrantFailed
+        }
         return finish(env, commit(env, expectedOld = null, newTree = treeUri), stale)
     }
 
@@ -270,7 +276,8 @@ class AlbumSyncCoordinator(
                 stateOf(env).value = ScanState.Idle
                 outcome = Commit.APPLIED
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Storing the album failed", e)
             outcome = Commit.FAILED
         } finally {
             lock.unlock()
@@ -307,7 +314,8 @@ class AlbumSyncCoordinator(
         block()
     } catch (e: CancellationException) {
         throw e
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.e(TAG, "Album change failed with an exception", e)
         AlbumChangeResult.Failed
     }
 

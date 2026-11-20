@@ -3,6 +3,9 @@ package com.memebrowser.app.data.album
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
+
+private const val TAG = "AlbumAccess"
 
 /**
  * Persisted read grants for album trees. Bounded-grants policy: the coordinator releases an album's grant when the
@@ -24,7 +27,8 @@ class ContentResolverAlbumAccess(private val resolver: ContentResolver) : AlbumA
     override fun persist(treeUri: String): Boolean = try {
         resolver.takePersistableUriPermission(Uri.parse(treeUri), Intent.FLAG_GRANT_READ_URI_PERMISSION)
         true
-    } catch (_: RuntimeException) {
+    } catch (e: RuntimeException) {
+        Log.w(TAG, "takePersistableUriPermission refused for $treeUri", e)
         false
     }
 

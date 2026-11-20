@@ -228,8 +228,16 @@ class SyncViewModel internal constructor(
      * tree: a confirmation first).
      */
     fun onAlbumPicked(treeUri: String) {
-        val env = shownEnvironment() ?: return
-        if (localOf(env).busy) return
+        val env = shownEnvironment()
+        if (env == null) {
+            Log.w(TAG, "Album picked but no environment is selected; ignoring $treeUri")
+            return
+        }
+        if (localOf(env).busy) {
+            Log.w(TAG, "Album picked while another album action is busy; ignoring (env=$env)")
+            return
+        }
+        Log.i(TAG, "Album picked: env=$env tree=$treeUri")
         updateLocal(env) { it.copy(busy = true) } // before launching: a second tap is dropped even if the launch is deferred
         viewModelScope.launch {
             try {
@@ -268,6 +276,7 @@ class SyncViewModel internal constructor(
 
     private suspend fun requestChange(env: String, treeUri: String, note: String? = null, depth: Int) {
         val plan = coordinator.requestChangeAlbum(env, treeUri)
+        Log.i(TAG, "Change plan: env=$env isNoOp=${plan.isNoOp} wipesData=${plan.wipesData} sameAlbum=${plan.isSameAlbum} needsRegrant=${plan.needsRegrant}")
         when {
             plan.isNoOp -> updateLocal(env) { it.copy(plan = null, message = MSG_SAME_ALBUM) }
             // First selection, or the same album with a lost grant: nothing is wiped, so no confirmation.
@@ -278,6 +287,7 @@ class SyncViewModel internal constructor(
 
     /** [depth]: how many times the plan was rebuilt automatically; the second stale answer ends in a message, not a loop. */
     private suspend fun handle(result: AlbumChangeResult, env: String, treeUri: String, applied: String?, depth: Int) {
+        Log.i(TAG, "Album change result: env=$env result=$result depth=$depth")
         when (result) {
             is AlbumChangeResult.Applied -> updateLocal(env) { it.copy(plan = null, message = applied) }
             AlbumChangeResult.Unchanged -> updateLocal(env) { it.copy(plan = null, message = MSG_SAME_ALBUM) }
