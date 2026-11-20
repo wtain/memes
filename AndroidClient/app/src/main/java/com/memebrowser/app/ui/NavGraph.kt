@@ -1,9 +1,11 @@
 package com.memebrowser.app.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,6 +31,15 @@ fun NavGraph() {
     val navController = rememberNavController()
     val visibilityViewModel: VisibilityViewModel = hiltViewModel()
     val visibility by visibilityViewModel.visibility.collectAsState()
+    val pageviews: PageviewViewModel = hiltViewModel()
+    // Page-visit beacon: best effort, reports the destination route with its arguments stripped.
+    DisposableEffect(navController) {
+        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+            destination.route?.let { pageviews.reporter.report(it) }
+        }
+        navController.addOnDestinationChangedListener(listener)
+        onDispose { navController.removeOnDestinationChangedListener(listener) }
+    }
     StartupUpdateDialogHost()
     NavHost(navController = navController, startDestination = "search") {
         composable("search") {
