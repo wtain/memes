@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import AsyncGenerator, Literal, Optional
 from uuid import UUID
 
@@ -6,6 +5,18 @@ from fastapi import Depends, Query
 from Backend.app.stage_policy import make_router
 from pydantic import BaseModel
 
+from Backend.app.types.generated import (
+    ingestioncluster,
+    ingestionclusterpage,
+    ingestionclustermember,
+    ingestiontierbcandidate,
+    ingestiontierbreviewitem,
+    ingestiontierbreviewpage,
+)
+from Backend.app.types.generated.ingestionpendingimage import Schema as PendingImage
+from Backend.app.types.generated.ingestionresolveresponse import Schema as ResolveResponse
+from Backend.app.types.generated.ingestionrunstatus import Schema as RunStatusResponse
+from Backend.app.types.generated.ingestionundorejectresponse import Schema as UndoRejectResponse
 from Storage.db import AsyncSessionLocal, get_async_db
 from Backend.app.repositories.ingestion_repository import IngestionRepository
 from Backend.app.services.ingestion_service import IngestionService
@@ -15,68 +26,33 @@ router = make_router(prefix="/ingestion", tags=["ingestion"])
 Tier = Literal["tier_a", "tier_b"]
 
 
-class RunStatusResponse(BaseModel):
-    run_id: str
-    status: str
-    stage: Optional[str]
-    stats: Optional[dict]
-    tier_remaining: Optional[int]
-    blocked_total: Optional[int]
-    created_at: datetime
-    completed_at: Optional[datetime]
-
-
-class PendingImage(BaseModel):
-    image_id: str
-    filename: str
-    created_at: datetime
-
-
-class ClusterMember(BaseModel):
-    image_id: str
-    filename: str
-    status: str
-    ocr_text: Optional[str]
+# The generated member declares `text_heavy: bool | None = None`, but the wire contract is "false for both a
+# not_text_heavy result and an unclassified image" (a boolean, never absent/null). These thin subclasses pin that
+# default and re-nest the page models; every other field is inherited, so a schema field added to a generated
+# class reaches the response automatically (see tests/test_response_wire_contract.py).
+class ClusterMember(ingestionclustermember.Schema):
     text_heavy: bool = False
 
 
-class ClusterEdge(BaseModel):
-    image_id1: str
-    image_id2: str
-    distance: float
-    match_source: Optional[str]
-    distance_source: Optional[str]
-
-
-class Cluster(BaseModel):
+class Cluster(ingestioncluster.Schema):
     members: list[ClusterMember]
-    edges: list[ClusterEdge]
-    total_members: int
 
 
-class ClusterPage(BaseModel):
+class ClusterPage(ingestionclusterpage.Schema):
     items: list[Cluster]
-    next_cursor: Optional[str]
-    has_next: bool
 
 
-class TierBCandidate(BaseModel):
+class TierBCandidate(ingestiontierbcandidate.Schema):
     member: ClusterMember
-    distance: float
-    match_source: Optional[str]
-    distance_source: Optional[str]
 
 
-class TierBReviewItem(BaseModel):
+class TierBReviewItem(ingestiontierbreviewitem.Schema):
     image: ClusterMember
     candidates: list[TierBCandidate]
-    total_candidates: int
 
 
-class TierBReviewPage(BaseModel):
+class TierBReviewPage(ingestiontierbreviewpage.Schema):
     items: list[TierBReviewItem]
-    next_cursor: Optional[str]
-    has_next: bool
 
 
 class Decision(BaseModel):
@@ -86,29 +62,6 @@ class Decision(BaseModel):
 
 class ResolveRequest(BaseModel):
     decisions: list[Decision]
-
-
-class FailedDecision(BaseModel):
-    image_id: str
-    decision: str
-    error: str
-
-
-class MoveFailure(BaseModel):
-    image_id: str
-    error: str
-
-
-class ResolveResponse(BaseModel):
-    rejected: list[str]
-    kept: list[str]
-    failed: list[FailedDecision]
-    move_failed: list[MoveFailure]
-
-
-class UndoRejectResponse(BaseModel):
-    image_id: str
-    status: str
 
 
 async def get_ingestion_service(
