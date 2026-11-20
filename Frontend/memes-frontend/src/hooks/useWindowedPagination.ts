@@ -80,12 +80,14 @@ export function useWindowedPagination({
   const coldBackwardExhaustedRef = useRef(false)
   const initialCursorRef = useRef(initialCursor)
   const errorRef = useRef(false)
+  const generationRef = useRef(0)
   const failedDirectionRef = useRef<FetchDirection | null>(null)
 
   const loadForward = useCallback(async () => {
     if (loadingRef.current || errorRef.current || !hasMoreForwardRef.current) return
     loadingRef.current = true
     setLoading(true)
+    const generation = generationRef.current
     try {
       const cursor = nextForwardCursorRef.current
       const result = await fetchPageRef.current(cursor, "forward")
@@ -109,12 +111,17 @@ export function useWindowedPagination({
       pagesRef.current = nextPages
       setPages(nextPages)
     } catch {
-      errorRef.current = true
-      failedDirectionRef.current = "forward"
-      setError(true)
+      // A rejection from before a resetKey change must not poison the new key.
+      if (generation === generationRef.current) {
+        errorRef.current = true
+        failedDirectionRef.current = "forward"
+        setError(true)
+      }
     } finally {
-      loadingRef.current = false
-      setLoading(false)
+      if (generation === generationRef.current) {
+        loadingRef.current = false
+        setLoading(false)
+      }
     }
   }, [maxPages])
 
@@ -126,6 +133,7 @@ export function useWindowedPagination({
 
     loadingRef.current = true
     setLoading(true)
+    const generation = generationRef.current
     try {
       let cursor: string | undefined
       let items: Meme[]
@@ -184,12 +192,17 @@ export function useWindowedPagination({
       setPages(nextPages)
       setHasMoreBackward(windowStartRef.current > 0 || (supportsColdBackward && !coldBackwardExhaustedRef.current))
     } catch {
-      errorRef.current = true
-      failedDirectionRef.current = "backward"
-      setError(true)
+      // A rejection from before a resetKey change must not poison the new key.
+      if (generation === generationRef.current) {
+        errorRef.current = true
+        failedDirectionRef.current = "backward"
+        setError(true)
+      }
     } finally {
-      loadingRef.current = false
-      setLoading(false)
+      if (generation === generationRef.current) {
+        loadingRef.current = false
+        setLoading(false)
+      }
     }
   }, [maxPages, supportsColdBackward])
 
@@ -200,6 +213,7 @@ export function useWindowedPagination({
   useEffect(() => { loadBackwardRef.current = loadBackward })
 
   const retry = useCallback(() => {
+    if (!errorRef.current) return
     const direction = failedDirectionRef.current
     errorRef.current = false
     failedDirectionRef.current = null
@@ -210,6 +224,7 @@ export function useWindowedPagination({
 
   useEffect(() => {
     // Reset all bookkeeping and re-fetch from scratch.
+    generationRef.current += 1
     pagesRef.current = []
     loadingRef.current = false
     hasMoreForwardRef.current = true

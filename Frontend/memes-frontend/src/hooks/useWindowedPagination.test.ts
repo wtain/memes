@@ -252,6 +252,37 @@ describe('useWindowedPagination error and retry', () => {
     expect(result.current.error).toBe(false)
   })
 
+  it('ignores a stale rejection that settles after a resetKey change', async () => {
+    let rejectA!: (e: Error) => void
+    const fetchPage = vi.fn<FetchPageFn>()
+      .mockImplementationOnce(() => new Promise((_, reject) => { rejectA = reject }))
+      .mockResolvedValueOnce({ items: makeMemes('b', 2), nextCursor: 'cb', hasNext: true })
+      .mockResolvedValueOnce({ items: makeMemes('b2', 1), hasNext: false })
+    const { result, rerender } = renderHook(
+      ({ key }) => useWindowedPagination({ fetchPage, resetKey: key }),
+      { initialProps: { key: 'A' } }
+    )
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(1))
+
+    rerender({ key: 'B' })
+    await waitFor(() => expect(result.current.items).toHaveLength(2))
+    await act(async () => { rejectA(new Error('stale')) })
+
+    expect(result.current.error).toBe(false)
+    await act(async () => { await result.current.loadForward() })
+    expect(fetchPage).toHaveBeenCalledTimes(3)
+    expect(fetchPage).toHaveBeenLastCalledWith('cb', 'forward')
+    expect(result.current.items).toHaveLength(3)
+  })
+
+  it('retry is a no-op when there is no error', async () => {
+    const fetchPage = vi.fn<FetchPageFn>().mockResolvedValue({ items: makeMemes('p0', 1), hasNext: true, nextCursor: 'c' })
+    const { result } = renderHook(() => useWindowedPagination({ fetchPage, resetKey: 'k' }))
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    await act(async () => { result.current.retry() })
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+  })
+
   it('a failed backward fetch sets error and retry replays backward', async () => {
     const fetchPage = vi.fn<FetchPageFn>()
       .mockResolvedValueOnce({ items: [], hasNext: false }) // auto forward load
