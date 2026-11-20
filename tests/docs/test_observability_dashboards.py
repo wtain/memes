@@ -14,22 +14,57 @@ OBS = ROOT / "deploy" / "observability"
 DASHBOARDS = sorted((OBS / "dashboards").glob("*.json"))
 ENVIRONMENTS_MD = ROOT / "environments" / "Environments.md"
 GRAFANA_PORT, TUNNEL_PORT = 3300, 19090
-EXPORTER_PREFIXES = ("node_", "pg_", "caddy_")
+# The exact exporter metrics the dashboards use, with the labels the panels may select or group by. A typo fails.
+EXPORTER_METRICS = {
+    "caddy_http_request_duration_seconds_count": {"code"},
+    "pg_stat_database_numbackends": set(),
+    "pg_database_size_bytes": {"datname"},
+    "node_filesystem_avail_bytes": {"fstype", "mountpoint"},
+    "node_filesystem_size_bytes": {"fstype", "mountpoint"},
+    "node_memory_MemAvailable_bytes": set(),
+    "node_memory_MemTotal_bytes": set(),
+    "up": set(),
+}
+SCRAPE_LABELS = {"env", "job", "instance", "le"}
 KNOWN_FUNCTIONS = {"sum", "rate", "increase", "histogram_quantile", "by", "le", "without", "avg", "max", "min", "irate", "on", "and", "or"}
 
 
-def metrics_py_names() -> set[str]:
-    """The metric names of Backend/app/observability/metrics.py after prometheus_client suffixing."""
+def app_metric_labels() -> dict[str, set[str]]:
+    """name after prometheus_client suffixing -> label names defined in Backend/app/observability/metrics.py."""
     text = (ROOT / "Backend" / "app" / "observability" / "metrics.py").read_text(encoding="utf-8")
-    names = set()
-    for kind, name in re.findall(r'(Counter|Gauge|Histogram)\(\s*"([a-z_]+)"', text):
+    out = {}
+    for kind, name, labels in re.findall(r'(Counter|Gauge|Histogram)\(\s*"([a-z_]+)",\s*"[^"]*"(?:,\s*\[([^\]]*)\])?', text):
+        defined = set(re.findall(r'"(\w+)"', labels))
         if kind == "Counter":
-            names.add(name if name.endswith("_total") else name + "_total")
+            out[name if name.endswith("_total") else name + "_total"] = defined
         elif kind == "Histogram":
-            names.update(name + s for s in ("_bucket", "_sum", "_count"))
+            out.update({name + "_bucket": defined | {"le"}, name + "_sum": defined, name + "_count": defined})
         else:
-            names.add(name)
-    return names
+            out[name] = defined
+    return out
+
+
+def metrics_py_names() -> set[str]:
+    return set(app_metric_labels())
+
+
+def label_problems(expr: str, app: dict[str, set[str]]) -> list[str]:
+    """Labels used in selectors and by/without clauses that no metric of the expression defines."""
+    problems = []
+    allowed_by_metric = {**app, **EXPORTER_METRICS}
+    union = set(SCRAPE_LABELS)
+    for name in metric_names_in(expr):
+        union |= allowed_by_metric.get(name, set())
+    for name, body in re.findall(r"([a-zA-Z_:][a-zA-Z0-9_:]*)\s*\{([^}]*)\}", expr):
+        allowed = allowed_by_metric.get(name, set()) | SCRAPE_LABELS
+        for label in re.findall(r'([a-zA-Z_]\w*)\s*(?:=~|!~|!=|=)', body):
+            if label not in allowed:
+                problems.append(f"{name}{{{label}}}")
+    for body in re.findall(r"\b(?:by|without)\s*\(([^)]*)\)", expr):
+        for label in re.findall(r"[a-zA-Z_]\w*", body):
+            if label not in union:
+                problems.append(f"by({label})")
+    return problems
 
 
 def metric_names_in(expr: str) -> set[str]:
@@ -78,7 +113,23 @@ def test_every_expression_references_a_known_metric(path):
         names = metric_names_in(expr)
         assert names, (title, expr)
         for name in names:
-            assert name in known or name.startswith(EXPORTER_PREFIXES), (title, name)
+            assert name in known or name in EXPORTER_METRICS, (title, name)
+
+
+@pytest.mark.parametrize("path", DASHBOARDS, ids=lambda p: p.stem)
+def test_every_label_matches_the_metric_definitions(path):
+    app = app_metric_labels()
+    for title, expr in exprs(json.loads(path.read_text(encoding="utf-8"))):
+        assert label_problems(expr, app) == [], (title, expr)
+
+
+def test_a_typo_in_a_metric_or_label_name_is_rejected():
+    app = app_metric_labels()
+    assert "pg_database_sizes_bytes" not in EXPORTER_METRICS and "pg_database_sizes_bytes" not in app
+    assert label_problems('sum by (rout) (rate(http_requests_total{env="$env"}[5m]))', app) == ["by(rout)"]
+    assert label_problems('http_requests_total{status="5xx"}', app) == ["http_requests_total{status}"]
+    assert label_problems('sum by (le, route) (rate(http_request_duration_seconds_bucket{env="$env"}[5m]))', app) == []
+    assert label_problems('pg_database_size_bytes{datname="x", scope="y"}', app) == ["pg_database_size_bytes{scope}"]
 
 
 @pytest.mark.parametrize("path", DASHBOARDS, ids=lambda p: p.stem)
