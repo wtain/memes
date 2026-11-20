@@ -40,6 +40,7 @@ describe("sendPageview", () => {
     expect(sendBeacon).toHaveBeenCalledTimes(1)
     const calls = sendBeacon.mock.calls as unknown as [string, Blob][]
     expect(calls[0][0]).toBe("http://x/api/telemetry/pageview")
+    expect(calls[0][1].type.toLowerCase()).toBe("text/plain;charset=utf-8")
     return calls[0][1].text().then((t) => {
       expect(JSON.parse(t)).toEqual({ client: "web", page: "/memes/:id" })
       expect(t).not.toContain("abc-123")
@@ -65,6 +66,7 @@ describe("sendPageview", () => {
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe("http://x/api/telemetry/pageview")
     expect(init.keepalive).toBe(true)
+    expect(init.headers).toEqual({ "Content-Type": "text/plain;charset=UTF-8" })
     expect(init.method).toBe("POST")
     expect(JSON.parse(init.body as string)).toEqual({ client: "web", page: "/search" })
   })

@@ -67,12 +67,13 @@ export function sendPageview(pathOrTemplate: string, deps: PageviewDeps = defaul
   const url = `${deps.baseUrl ?? ""}/api/telemetry/pageview`
   const json = JSON.stringify(body)
   try {
+    // text/plain keeps both paths CORS-simple (no preflight) when the API is on another origin.
     if (deps.sendBeacon) {
-      if (deps.sendBeacon(url, new Blob([json], { type: "application/json" }))) return
+      if (deps.sendBeacon(url, new Blob([json], { type: "text/plain;charset=UTF-8" }))) return
     }
     if (deps.fetch) {
       deps
-        .fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: json, keepalive: true })
+        .fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: json, keepalive: true })
         ?.catch?.(() => undefined)
     }
   } catch {
