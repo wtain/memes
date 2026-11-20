@@ -299,7 +299,7 @@ def test_recording_refusal_and_body_limit_count(on, monkeypatch):
 
 
 def test_scope_set_matches_the_contract():
-    assert metrics.RATE_LIMITED_SCOPES == {"saves", "not_found", "bug_reports", "recording", "telemetry", "body_limit"}
+    assert metrics.RATE_LIMITED_SCOPES == {"saves", "not_found", "bug_reports", "recording", "telemetry", "meme_search", "body_limit"}
 
 
 def test_failed_creation_is_remembered(monkeypatch):

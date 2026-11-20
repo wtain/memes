@@ -39,7 +39,7 @@ Names are the ones Prometheus sees after `prometheus_client` suffixing (counters
 | `db_pool_checked_out` | gauge (livesum) | none | Database connections checked out of the pool | Performance: DB pool checked out and overflow |
 | `db_pool_overflow` | gauge (livesum) | none | Connections beyond `pool_size` | Performance: DB pool checked out and overflow |
 | `db_pool_wait_seconds` | histogram | none | Time to get a connection from the pool (includes creating one when needed) | Performance: DB pool wait (p50 / p95) |
-| `rate_limited_total` | counter | `scope` (`saves`, `not_found`, `bug_reports`, `recording`, `telemetry`, `body_limit`) | Requests refused by an abuse limit | Health: Rate-limited requests by scope |
+| `rate_limited_total` | counter | `scope` (`saves`, `not_found`, `bug_reports`, `recording`, `telemetry`, `meme_search`, `body_limit`) | Requests refused by an abuse limit | Health: Rate-limited requests by scope |
 | `pageviews_total` | counter | `client` (`web`, `android`, `other`), `page` (allowlist template or `other`) | Page visits reported by the clients | Usage: Page visits by client, by page, by client and page |
 
 Metrics of the other targets used by the Health dashboard: `caddy_http_request_duration_seconds_count{code}` (Caddy 5xx rate, host-wide), `node_filesystem_avail_bytes` and `node_filesystem_size_bytes` (Host disk used), `node_memory_MemAvailable_bytes` and `node_memory_MemTotal_bytes` (Host memory available), `pg_stat_database_numbackends` (Postgres connections), `pg_database_size_bytes` (Postgres database size), and `up` (Scrape targets up).

@@ -118,6 +118,7 @@ abuse:
   not_found_per_min: 0          # POST /api/history/{id}/not-found; over the limit: 429
   bug_reports_per_min: 20       # POST /api/bug-reports; over the limit: 429
   telemetry_per_min: 0          # POST /api/telemetry/pageview; over the limit: 429 (0 = off)
+  meme_search_per_min: 0        # POST /api/meme-from-text/search (Ollama parse + embed per call); over the limit: 429 (0 = off)
   recording_per_min: 0          # history rows + impression rows together; over the budget the recording is skipped and the response still served
   max_q_chars: 0                # GET /api/images q longer than this: 422 (0 = no cap)
   max_facets: 0                 # more facet values than this: 422 (0 = no cap)
