@@ -373,6 +373,24 @@ Per-file type, size or content errors are reported in `failed[]` — the rest of
 
 ### Bug Reports
 
+#### Page-visit beacon
+
+Counts one page visit for the usage metrics (`pageviews_total{client,page}`). Fire-and-forget: the clients send it when a page is shown and ignore the answer.
+
+- **URL**: `POST /api/telemetry/pageview`
+- **Content-Type**: `application/json`
+- **Body** (`PageViewBeacon`): `{"client": "web" | "android", "page": "<route template>"}`; web pages are the router templates (`/`, `/explore`, `/search`, `/reply`, `/memes/:id`, `/concepts/:id`, ...), Android pages the destination names (`search`, `detail`, `settings`, ...). The fixed list is `PAGE_ALLOWLIST` in `Backend/app/observability/metrics.py`. Any other page, and any other client, is counted as `other`; nothing from the body is logged, stored or used as a label.
+- **Served on prod**: yes (it is the only new route reachable from the internet).
+
+**Response** `204 No Content`, with no body, also when metrics are off.
+
+**Error Responses**:
+- `413`: the body is larger than 1 KB (`BodyLimitMiddleware`; always on)
+- `422`: the body is not a JSON object with string `client` and `page` (the error does not echo the input)
+- `429`: too many beacons from this client in the last minute (`abuse.telemetry_per_min`; 0 = off on dev, 120 on prod; `Retry-After: 60`; counted as `rate_limited_total{scope="telemetry"}`)
+
+---
+
 #### Upload Bug Report
 
 Accept a single log file (e.g. from the Android client's "Save logs" flow) and save it to a dedicated `bug_reports/` directory, separate from the ingestion inbox and the images directory. Files are saved as `{timestamp}_{uuid}.{ext}` to keep them sortable and collision-free; the original filename is preserved in the response.

@@ -327,6 +327,12 @@ data class MemeTag(
 )
 
 @Serializable
+data class PageViewBeacon(
+    @SerialName("client") val client: String,
+    @SerialName("page") val page: String
+)
+
+@Serializable
 data class PopularityBreakdownRow(
     @SerialName("source") val source: String,
     @SerialName("count") val count: Int

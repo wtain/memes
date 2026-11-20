@@ -10,6 +10,8 @@ from Backend.app.services.abuse import (count_refusal, BUG_REPORT_CHARGED, UNKNO
                                         current_client, normalize_client)
 
 BUG_REPORT_PATH = "/api/bug-reports"
+TELEMETRY_PATH = "/api/telemetry/pageview"
+TELEMETRY_BODY_LIMIT_BYTES = 1024
 
 
 class ClientContextMiddleware:
@@ -34,19 +36,24 @@ class BodyLimitMiddleware:
     already says so, otherwise as soon as the bytes counted from `receive` pass the limit. The application, and so the multipart
     parser, never sees more than the limit. A limit of 0 switches the middleware off (the developer default)."""
 
-    def __init__(self, app, path: str = BUG_REPORT_PATH):
+    def __init__(self, app, path: str = BUG_REPORT_PATH, limit_bytes: int | None = None, charge: bool = True):
+        """`limit_bytes` None = the bug-report limit from settings and the per-client bug-report charge (`charge`); a fixed
+        `limit_bytes` (the telemetry beacon, 1 KB) is always on and `charge=False` leaves the rate limit to the endpoint."""
         self.app = app
         self.path = path
+        self.limit_bytes = limit_bytes
+        self.charge = charge
 
     async def __call__(self, scope, receive, send):
         limit = 0
         if scope["type"] == "http" and scope["path"] == self.path and scope["method"] == "POST":
-            client = scope.get("client")
-            if not allow_client("bug_reports", client[0] if client else None):
-                await _respond_429(send)
-                return
-            scope[BUG_REPORT_CHARGED] = True
-            limit = bug_report_body_limit_bytes()
+            if self.charge:
+                client = scope.get("client")
+                if not allow_client("bug_reports", client[0] if client else None):
+                    await _respond_429(send)
+                    return
+                scope[BUG_REPORT_CHARGED] = True
+            limit = self.limit_bytes if self.limit_bytes is not None else bug_report_body_limit_bytes()
         if not limit:
             await self.app(scope, receive, send)
             return

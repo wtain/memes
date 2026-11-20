@@ -1728,3 +1728,19 @@ export interface CapabilitiesResponse {
   features: CapabilitiesFeatures;
   [k: string]: unknown;
 }
+/**
+ * Body of POST /api/telemetry/pageview: one page visit. A page outside the server's allowlist, or an unknown client, is counted as other
+ *
+ * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "PageViewBeacon".
+ */
+export interface PageViewBeacon {
+  /**
+   * web or android
+   */
+  client: string;
+  /**
+   * Route template (web, e.g. /memes/:id) or destination name (Android, e.g. search); never a concrete path, id or query
+   */
+  page: string;
+}

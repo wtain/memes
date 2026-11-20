@@ -43,6 +43,8 @@ ROUTE_POLICY: dict[tuple[str, str], str] = {
     # admin_profiles.py
     ("GET", "/api/admin/profile-coverage"): DEV_ONLY,
     ("GET", "/api/admin/profile-coverage/images"): DEV_ONLY,
+    # telemetry.py
+    ("POST", "/api/telemetry/pageview"): READER,
     # bug_reports.py
     ("POST", "/api/bug-reports"): READER,
     # comics.py (decision 22: comics are not shipped)

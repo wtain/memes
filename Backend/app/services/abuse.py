@@ -80,9 +80,9 @@ class TokenBucketLimiter:
             self._buckets.clear()
 
 
-_LIMITERS = {name: TokenBucketLimiter() for name in ("saves", "not_found", "bug_reports", "recording")}
+_LIMITERS = {name: TokenBucketLimiter() for name in ("saves", "not_found", "bug_reports", "recording", "telemetry")}
 _SETTING_KEYS = {"saves": "abuse.saves_per_min", "not_found": "abuse.not_found_per_min",
-                 "bug_reports": "abuse.bug_reports_per_min", "recording": "abuse.recording_per_min"}
+                 "bug_reports": "abuse.bug_reports_per_min", "recording": "abuse.recording_per_min", "telemetry": "abuse.telemetry_per_min"}
 
 
 def _number(key: str, default: float) -> float:

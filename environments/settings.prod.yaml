@@ -28,6 +28,7 @@ abuse:
   saves_per_min: 30
   not_found_per_min: 20
   bug_reports_per_min: 5
+  telemetry_per_min: 120
   recording_per_min: 1200       # a search records one history row and up to 50 impression rows
   max_q_chars: 512
   max_facets: 10

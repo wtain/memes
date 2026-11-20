@@ -19,8 +19,10 @@ from Backend.app.api.meme_from_text import router as meme_from_text_router
 from Backend.app.api.concepts import router as concepts_router
 from Backend.app.api.recommendations import router as recommendations_router
 from Backend.app.api.bug_reports import router as bug_reports_router
+from Backend.app.api.telemetry import router as telemetry_router
 from Backend.app.observability import enabled as metrics_enabled
-from Backend.app.middleware import BodyLimitMiddleware, ClientContextMiddleware
+from Backend.app.middleware import (BodyLimitMiddleware, ClientContextMiddleware, TELEMETRY_BODY_LIMIT_BYTES,
+                                    TELEMETRY_PATH)
 from Backend.app.prod_startup import verify_environment_marker
 from Backend.app.scheduler import start_scheduler, stop_scheduler
 from Backend.app.services.meme_from_text_pipeline import get_pipeline
@@ -150,6 +152,8 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 # Pure-ASGI, added before CORS so they sit inside it: the client address for the recording budget (abuse.py) and the body bound of
 # /api/bug-reports (a limit of bug_reports.max_body_mb: 0 switches it off, as on dev).
+# POST /api/telemetry/pageview: 1 KB body cap, no bug-report charge (the endpoint charges abuse.telemetry_per_min itself).
+app.add_middleware(BodyLimitMiddleware, path=TELEMETRY_PATH, limit_bytes=TELEMETRY_BODY_LIMIT_BYTES, charge=False)
 app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(ClientContextMiddleware)
 if metrics_enabled():
@@ -203,6 +207,7 @@ if not is_prod():
     app.include_router(trends_router, prefix="/api")
     app.include_router(uploads_router, prefix="/api")
 app.include_router(bug_reports_router, prefix="/api")
+app.include_router(telemetry_router, prefix="/api")
 if not is_prod():
     app.include_router(ingestion_router, prefix="/api")
     app.include_router(admin_router, prefix="/api")

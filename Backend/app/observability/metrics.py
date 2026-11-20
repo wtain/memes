@@ -14,11 +14,20 @@ KNOWN_METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPT
 UNMATCHED = "unmatched"
 DURATION_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10)
 _NAMES = ("HTTP_REQUESTS", "HTTP_DURATION", "HTTP_IN_FLIGHT", "BUILD_INFO", "IMAGE_SERVED", "IMAGE_BYTES", "IMAGE_READ_SECONDS",
-          "SEARCH_SECONDS", "SEARCH_DEGRADED", "POOL_CHECKED_OUT", "POOL_OVERFLOW", "POOL_WAIT_SECONDS", "RATE_LIMITED")
+          "SEARCH_SECONDS", "SEARCH_DEGRADED", "POOL_CHECKED_OUT", "POOL_OVERFLOW", "POOL_WAIT_SECONDS", "RATE_LIMITED", "PAGEVIEWS")
 SEARCH_KINDS = frozenset({"smart", "clip", "meme_from_text"})
 SEARCH_STAGES = frozenset({"total", "parse", "embed", "retrieve"})
 DEGRADED_REASONS = frozenset({"unavailable", "timeout", "invalid_output", "breaker_open", "embed_unavailable", "empty_input"})
 RATE_LIMITED_SCOPES = frozenset({"saves", "not_found", "bug_reports", "recording", "telemetry", "body_limit"})
+PAGEVIEW_CLIENTS = frozenset({"web", "android"})
+# Web route templates of Frontend/memes-frontend/src/app/router.tsx (every non-admin one) and the Android destination names of
+# AndroidClient/.../ui/NavGraph.kt (route without its arguments). Anything else is counted as "other".
+PAGE_ALLOWLIST = frozenset({
+    "/", "/explore", "/untagged", "/duplicates", "/no-ocr", "/flagged", "/trending-memes", "/trends", "/trends/date/:date",
+    "/trends/history/:label/:name", "/reply", "/search", "/recommendations", "/concepts", "/upload", "/statistics", "/ingestion",
+    "/memes/:id", "/concepts/:id",
+    "search", "detail", "flagged", "environments", "sync", "upload", "settings", "about", "trends", "statistics", "recommendations",
+})
 SEARCH_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30)
 IMAGE_BUCKETS = (0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5)
 POOL_BUCKETS = (0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 30)
@@ -89,6 +98,8 @@ def _create_all() -> None:
     g["POOL_OVERFLOW"] = Gauge("db_pool_overflow", "Database pool connections beyond pool_size", multiprocess_mode="livesum")
     g["POOL_WAIT_SECONDS"] = Histogram("db_pool_wait_seconds", "Time to get a connection from the pool", buckets=POOL_BUCKETS)
     g["RATE_LIMITED"] = Counter("rate_limited_total", "Requests refused by an abuse limit, by scope", ["scope"])
+    g["PAGEVIEWS"] = Counter("pageviews_total", "Page visits reported by the clients, by client and page template",
+                             ["client", "page"])
     globals().update(g)   # all or nothing: a half-built set is never visible
 
 
@@ -133,6 +144,18 @@ def record_rate_limited(scope: str) -> None:
     try:
         if scope in RATE_LIMITED_SCOPES and _on():
             RATE_LIMITED.labels(scope).inc()
+    except Exception:
+        pass
+
+
+def record_pageview(client, page) -> None:
+    """Counts one page visit. `client` and `page` come from a request body: anything outside the fixed sets is "other"."""
+    try:
+        if not _on():
+            return
+        c = client if isinstance(client, str) and client in PAGEVIEW_CLIENTS else "other"
+        p = page if isinstance(page, str) and page in PAGE_ALLOWLIST else "other"
+        PAGEVIEWS.labels(c, p).inc()
     except Exception:
         pass
 
