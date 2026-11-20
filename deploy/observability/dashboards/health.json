@@ -1,0 +1,400 @@
+{
+  "uid": "memes-health",
+  "title": "Memes - Health",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "1m",
+  "tags": [
+    "memes",
+    "observability"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "Environment",
+        "type": "custom",
+        "query": "metal,general,it",
+        "current": {
+          "selected": true,
+          "text": "metal",
+          "value": "metal"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "metal",
+            "value": "metal"
+          },
+          {
+            "selected": false,
+            "text": "general",
+            "value": "general"
+          },
+          {
+            "selected": false,
+            "text": "it",
+            "value": "it"
+          }
+        ],
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Host disk used (percent)",
+      "description": "Host-wide (not per environment). Log directories live on these volumes; the per-directory log sizes are doctor facts, not Prometheus metrics, so there is no log-volume panel.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "100 * (1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"})",
+          "legendFormat": "{{mountpoint}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Host memory available (percent)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "100 * node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
+          "legendFormat": "available"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Postgres connections",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum(pg_stat_database_numbackends{env=\"$env\"})",
+          "legendFormat": "backends"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Postgres database size",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (datname) (pg_database_size_bytes{env=\"$env\"})",
+          "legendFormat": "{{datname}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Caddy 5xx rate",
+      "description": "Caddy fronts all environments, so this panel is not split by environment.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum(rate(caddy_http_request_duration_seconds_count{code=~\"5..\"}[5m]))",
+          "legendFormat": "5xx/s"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Backend 5xx rate",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum(rate(http_requests_total{env=\"$env\",status_class=\"5xx\"}[5m]))",
+          "legendFormat": "5xx/s"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Rate-limited requests by scope",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (scope) (rate(rate_limited_total{env=\"$env\"}[5m]))",
+          "legendFormat": "{{scope}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Scrape targets up",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "up{env=\"$env\"}",
+          "legendFormat": "{{job}} {{instance}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "up{job=~\"caddy|node\"}",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    }
+  ]
+}

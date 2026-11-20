@@ -1,0 +1,13 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: memes-prometheus
+    type: prometheus
+    access: proxy
+    # The prod Prometheus through the ssh tunnel of `python -m sync.obs_tunnel` (workstation port 19090).
+    url: http://host.docker.internal:19090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST

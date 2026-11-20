@@ -112,3 +112,7 @@ Storage/sync-state/
 
 # Tracked env-file examples of the prod stacks (the env/ rule above would hide the directory; the examples hold no values).
 !deploy/prod/env/
+
+# Grafana on the workstation: the admin password file is untracked, its example is tracked.
+deploy/observability/.env
+!deploy/observability/.env.example

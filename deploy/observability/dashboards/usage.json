@@ -1,0 +1,349 @@
+{
+  "uid": "memes-usage",
+  "title": "Memes - Usage",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "1m",
+  "tags": [
+    "memes",
+    "observability"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "Environment",
+        "type": "custom",
+        "query": "metal,general,it",
+        "current": {
+          "selected": true,
+          "text": "metal",
+          "value": "metal"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "metal",
+            "value": "metal"
+          },
+          {
+            "selected": false,
+            "text": "general",
+            "value": "general"
+          },
+          {
+            "selected": false,
+            "text": "it",
+            "value": "it"
+          }
+        ],
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Calls per route",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (route) (rate(http_requests_total{env=\"$env\"}[5m]))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Calls by status class",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (status_class) (rate(http_requests_total{env=\"$env\"}[5m]))",
+          "legendFormat": "{{status_class}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Images served",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (status_class) (rate(image_served_total{env=\"$env\"}[5m]))",
+          "legendFormat": "{{status_class}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Image bytes served",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum(rate(image_served_bytes_total{env=\"$env\"}[5m]))",
+          "legendFormat": "bytes/s"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Page visits by client",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (client) (increase(pageviews_total{env=\"$env\"}[1h]))",
+          "legendFormat": "{{client}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Page visits by page",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (page) (increase(pageviews_total{env=\"$env\"}[1h]))",
+          "legendFormat": "{{page}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Page visits by client and page",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (client, page) (increase(pageviews_total{env=\"$env\"}[1h]))",
+          "legendFormat": "{{client}} {{page}}"
+        }
+      ]
+    }
+  ]
+}

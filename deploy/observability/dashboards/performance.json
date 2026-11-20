@@ -1,0 +1,460 @@
+{
+  "uid": "memes-performance",
+  "title": "Memes - Performance",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "1m",
+  "tags": [
+    "memes",
+    "observability"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "Environment",
+        "type": "custom",
+        "query": "metal,general,it",
+        "current": {
+          "selected": true,
+          "text": "metal",
+          "value": "metal"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "metal",
+            "value": "metal"
+          },
+          {
+            "selected": false,
+            "text": "general",
+            "value": "general"
+          },
+          {
+            "selected": false,
+            "text": "it",
+            "value": "it"
+          }
+        ],
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "p50 latency per route",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, route) (rate(http_request_duration_seconds_bucket{env=\"$env\"}[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "p95 latency per route",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{env=\"$env\"}[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "p99 latency per route",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket{env=\"$env\"}[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Search p95 per kind and stage",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, kind, stage) (rate(search_seconds_bucket{env=\"$env\"}[5m])))",
+          "legendFormat": "{{kind}} {{stage}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Search degraded answers by reason",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum by (reason) (rate(search_degraded_total{env=\"$env\"}[5m]))",
+          "legendFormat": "{{reason}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Image read seconds (p50 / p95)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(image_read_seconds_bucket{env=\"$env\"}[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(image_read_seconds_bucket{env=\"$env\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "DB pool wait (p50 / p95)",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(db_pool_wait_seconds_bucket{env=\"$env\"}[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(db_pool_wait_seconds_bucket{env=\"$env\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "DB pool checked out and overflow",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum(db_pool_checked_out{env=\"$env\"})",
+          "legendFormat": "checked out"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum(db_pool_overflow{env=\"$env\"})",
+          "legendFormat": "overflow"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Requests in flight",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "memes-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "memes-prometheus"
+          },
+          "expr": "sum(http_requests_in_flight{env=\"$env\"})",
+          "legendFormat": "in flight"
+        }
+      ]
+    }
+  ]
+}

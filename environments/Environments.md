@@ -30,6 +30,15 @@ runbook: `deploy/prod/README.md`; operator docs: `docs/sync/`). Nothing below is
 Remote Postgres ports are the dev cluster ports plus 1000 (the workstation's 5432/5434/5436 are dev, see the table at the top). The shared edge project `memes-edge` (Caddy, ports 80 and 443 on the VPS only) fronts all three.
 An agent doing manual testing must not bind 16432, 16434 or 16436 either, and never gets the sync credentials or the `memes-prod-*` ssh aliases (`CLAUDE.md`).
 
+## Observability ports (workstation)
+
+Grafana for the prod metrics runs on this workstation (`deploy/observability/`), reaching the VPS Prometheus (published on the VPS loopback `127.0.0.1:9090` only) through an ssh tunnel opened by `python -m sync.obs_tunnel`. Both ports are on the loopback and clash with nothing above. An agent doing manual testing must not bind them either.
+
+| What | Port (workstation, 127.0.0.1) | Notes |
+|---|---|---|
+| Prometheus tunnel (local end, ssh alias `memes-prod-obs`) | 19090 | only while `python -m sync.obs_tunnel` runs; stop with `--stop` |
+| Grafana (`deploy/observability/compose.yaml`) | 3300 | datasource `http://host.docker.internal:19090`; admin password from the untracked `deploy/observability/.env` |
+
 ## Building environment
 
 ### Create .env.[environment-name] and fill:
