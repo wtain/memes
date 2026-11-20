@@ -168,3 +168,56 @@ class TestListBatchNames:
         result = await service.list_batch_names()
 
         assert result == {"names": ["trends_batch", "build_bow"]}
+
+
+class TestFailRunIfStillStarted:
+    """SYN-3: the callback spawn_and_track runs on abnormal exit fails the run row, but only
+    from `started`, so a run the child already finished is never overwritten."""
+
+    async def _run(self, monkeypatch, status):
+        from contextlib import asynccontextmanager
+        import Backend.app.services.admin_batch_service as mod
+
+        repo = AsyncMock()
+        repo.get_run.return_value = _fake_run(run_id=uuid.uuid4(), kind="trends", status=status)
+        session = AsyncMock()
+
+        class _Ctx:
+            async def __aenter__(self_inner):
+                return session
+            async def __aexit__(self_inner, *a):
+                return False
+
+        monkeypatch.setattr(mod, "AsyncSessionLocal", lambda: _Ctx())
+        monkeypatch.setattr(mod, "BatchRunRepository", lambda s: repo)
+        run_id = uuid.uuid4()
+        await mod.fail_run_if_still_started(run_id, "exited with code 1")
+        return repo, session, run_id
+
+    async def test_fails_started_run(self, monkeypatch):
+        repo, session, run_id = await self._run(monkeypatch, "started")
+        repo.fail.assert_awaited_once()
+        assert "exited with code 1" in repo.fail.await_args.kwargs["error"]
+        session.commit.assert_awaited_once()
+
+    async def test_leaves_finished_run_alone(self, monkeypatch):
+        for status in ("completed", "failed", "aborted"):
+            repo, session, _ = await self._run(monkeypatch, status)
+            repo.fail.assert_not_awaited()
+
+    async def test_trigger_passes_callback_to_spawn(self, service, mock_repo, monkeypatch):
+        mock_repo.create_run.return_value = uuid.uuid4()
+        captured = {}
+
+        def fake_spawn(args, log_path, label, on_abnormal_exit=None):
+            captured["cb"] = on_abnormal_exit
+            async def _noop():
+                return 0
+            return _noop()
+
+        monkeypatch.setattr("Backend.app.services.admin_batch_service.spawn_and_track", fake_spawn)
+        monkeypatch.setattr("Backend.app.services.admin_batch_service.fire_and_forget", AsyncMock())
+
+        await service.trigger_run("trends_batch")
+
+        assert callable(captured["cb"])

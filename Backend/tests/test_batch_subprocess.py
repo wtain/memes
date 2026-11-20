@@ -11,6 +11,8 @@ import os
 import subprocess
 import sys
 import threading
+
+import pytest
 import time
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -325,3 +327,43 @@ def test_real_subprocess_survives_asyncio_runner_close(tmp_path):
             break
         time.sleep(0.1)
     assert done_marker.exists(), "child was killed by asyncio.Runner.close()'s task cancellation"
+
+
+class TestAbnormalExitCallback:
+    """SYN-3: a child that never reaches finish_existing_run (spawn failure, early crash,
+    hard kill) must be reported to the caller so it can fail the still-started run row."""
+
+    async def test_nonzero_exit_invokes_callback_with_reason(self, monkeypatch, tmp_path):
+        fake_proc = MagicMock()
+        fake_proc.wait = MagicMock(return_value=3)
+        monkeypatch.setattr(subprocess, "Popen", MagicMock(return_value=fake_proc))
+        reasons = []
+
+        async def on_abnormal(reason):
+            reasons.append(reason)
+
+        await spawn_and_track(["x"], tmp_path / "l.log", label="x", on_abnormal_exit=on_abnormal)
+
+        assert len(reasons) == 1 and "3" in reasons[0]
+
+    async def test_zero_exit_does_not_invoke_callback(self, monkeypatch, tmp_path):
+        fake_proc = MagicMock()
+        fake_proc.wait = MagicMock(return_value=0)
+        monkeypatch.setattr(subprocess, "Popen", MagicMock(return_value=fake_proc))
+        on_abnormal = MagicMock()
+
+        await spawn_and_track(["x"], tmp_path / "l.log", label="x", on_abnormal_exit=on_abnormal)
+
+        on_abnormal.assert_not_called()
+
+    async def test_popen_failure_invokes_callback_and_reraises(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(subprocess, "Popen", MagicMock(side_effect=OSError("no exe")))
+        reasons = []
+
+        async def on_abnormal(reason):
+            reasons.append(reason)
+
+        with pytest.raises(OSError):
+            await spawn_and_track(["x"], tmp_path / "l.log", label="x", on_abnormal_exit=on_abnormal)
+
+        assert len(reasons) == 1 and "no exe" in reasons[0]

@@ -10,6 +10,7 @@ import logging
 import os
 import subprocess
 import threading
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -81,7 +82,8 @@ async def _wait_for_process(proc: subprocess.Popen) -> int:
     return await future
 
 
-async def spawn_and_track(args: list[str], log_path: Path, label: str) -> int:
+async def spawn_and_track(args: list[str], log_path: Path, label: str,
+                          on_abnormal_exit: Callable[[str], Awaitable[None]] | None = None) -> int:
     """Spawn args via subprocess.Popen, redirect stdout/stderr to log_path, await
     completion via _wait_for_process's daemon thread (survives cancellation and
     doesn't block shutdown), log the exit code (tagged with label, since args[0] is
@@ -123,15 +125,30 @@ async def spawn_and_track(args: list[str], log_path: Path, label: str) -> int:
     # scrapes from Russian-language sources) and crashes the child with
     # UnicodeEncodeError.
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-    with open(log_path, "ab") as log_file:
-        proc = subprocess.Popen(args, stdout=log_file, stderr=log_file, env=env)
-        returncode = await _wait_for_process(proc)
+    try:
+        with open(log_path, "ab") as log_file:
+            proc = subprocess.Popen(args, stdout=log_file, stderr=log_file, env=env)
+            returncode = await _wait_for_process(proc)
+    except Exception as exc:
+        await _report_abnormal(on_abnormal_exit, label, f"spawn failed: {exc!r}")
+        raise
 
     if returncode == 0:
         logger.info("batch_subprocess: %s exited with code %s", label, returncode)
     else:
         logger.warning("batch_subprocess: %s exited with code %s", label, returncode)
+        await _report_abnormal(on_abnormal_exit, label, f"process exited with code {returncode}")
     return returncode
+
+
+async def _report_abnormal(callback, label: str, reason: str) -> None:
+    """Best effort: lets the caller mark its run row failed (SYN-3). Never raises."""
+    if callback is None:
+        return
+    try:
+        await callback(reason)
+    except Exception:
+        logger.warning("batch_subprocess: abnormal-exit handler for %s failed", label, exc_info=True)
 
 
 def _on_fire_and_forget_done(task: asyncio.Task) -> None:
