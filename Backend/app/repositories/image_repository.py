@@ -7,8 +7,8 @@ from typing import NamedTuple, Optional
 import uuid
 
 import sqlalchemy
-from sqlalchemy import select, tuple_, distinct, and_, union_all, func, delete, text
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select, tuple_, distinct, and_, union_all, func, delete, text, any_, bindparam
+from sqlalchemy.dialects.postgresql import insert, ARRAY, UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -62,6 +62,12 @@ _TRENDING_WINDOW_SQL = text(f"""
 """)
 
 
+def _id_in_array(column, ids: Collection[uuid.UUID]):
+    """`column = ANY(:ids)` with one array parameter: an expanded IN list binds one parameter per id and asyncpg
+    refuses more than 32,767 (a broad text match can exceed that)."""
+    return column == any_(bindparam("ids", list(ids), type_=ARRAY(PG_UUID(as_uuid=True)), unique=True))
+
+
 class RankedRow(NamedTuple):
     """One page row of a relevance-ranked search: the usual image columns plus the relevance score."""
     id: uuid.UUID
@@ -90,7 +96,7 @@ class ImageRepository:
             query = query.where(img.id.not_in(flagged_ids))
 
         if matching_ids is not None:
-            query = query.where(img.id.in_(matching_ids))
+            query = query.where(_id_in_array(img.id, matching_ids))
 
         if tags:
             tag_queries = [
@@ -100,7 +106,7 @@ class ImageRepository:
                 for key, values in tags.items()
             ]
             tags_result = await self.session.execute(union_all(*tag_queries))
-            query = query.where(img.id.in_([id for (id,) in tags_result.all()]))
+            query = query.where(_id_in_array(img.id, [id for (id,) in tags_result.all()]))
 
         return query
 

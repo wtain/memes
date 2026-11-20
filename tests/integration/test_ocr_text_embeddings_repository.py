@@ -125,3 +125,22 @@ async def test_save_upserts_on_second_call(db_session):
     assert len(rows) == 1
     assert rows[0].embedding[0] == pytest.approx(0.2)
     assert rows[0].computed_at is not None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_handles_more_than_32767_text_heavy_images(db_session):
+    """ALG-15: the candidate set must not be sent back as one bind parameter per id (asyncpg caps at 32,767)."""
+    ids = [uuid.uuid4() for _ in range(33_000)]
+    await db_session.execute(Image.__table__.insert(), [
+        {"id": i, "filename": f"{i}.jpg", "status": "active"} for i in ids])
+    await db_session.execute(ImageClassification.__table__.insert(), [
+        {"image_id": i, "classifier": CLASSIFIER_NAME, "result": TEXT_HEAVY, "details": {}} for i in ids])
+    await db_session.execute(OCRText.__table__.insert(), [
+        {"image_id": ids[0], "text": "hello world", "confidence": 0.9, "lang_score": 0.9}])
+    await db_session.flush()
+
+    repo = OCRTextEmbeddingsRepository(db_session)
+    out = await repo.get_text_heavy_images_needing_embedding(
+        CLASSIFIER_NAME, CONFIDENCE_MIN, LANG_SCORE_MIN)
+
+    assert out == {ids[0]: "hello world"}
