@@ -1,6 +1,6 @@
 # Loading, empty and error states (UI/UX audit ranking item 4)
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-11-20-loading-empty-error-states.md`
 Originates from: `docs/superpowers/specs/2026-11-18-ui-ux-audit.md` (ranking item 4, findings F9 and F12, follow-up F-e)
 
