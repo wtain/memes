@@ -402,5 +402,5 @@ class IngestionService:
         except image_store.UnsafeImagePath as refusal:
             # Like reject (move_failed): the database state is the decision and a file name that is not a plain file inside
             # the image directories cannot have been moved by us; the undo stands instead of a 500 that rolls it back.
-            logger.warning("undo_reject: file name refused (%s) for image %s, file not moved", refusal, image_id)
+            logger.warning("undo_reject: file name refused (%s), file not moved", type(refusal).__name__)
         return {"image_id": str(image_id), "status": "pending"}

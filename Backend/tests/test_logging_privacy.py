@@ -214,18 +214,19 @@ def test_gap_images_get_image_404_bounds_and_escapes_the_client_id(caplog, monke
     app.dependency_overrides[get_async_db] = lambda: MagicMock()
     response = TestClient(app).get("/api/images/" + ("x%0Ay" * 200))
     assert response.status_code == 404
-    line = [r.getMessage() for r in caplog.records if r.getMessage().startswith("get_image 404")][0]
-    assert "\n" not in line and len(line) < 150
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("get_image 404")]
+    assert lines == ["get_image 404: image not in DB"]  # the id is client path text: never logged
     # a file that is missing on disk: the database filename is not logged at all
     repo.get_filename = AsyncMock(return_value=f"{SECRET}.jpg")
-    TestClient(app).get("/api/images/abc")
-    assert SECRET not in caplog.text
+    TestClient(app).get("/api/images/abc-id-needle")
+    assert "get_image 404: image file not on disk" in caplog.text
+    assert SECRET not in caplog.text and "abc-id-needle" not in caplog.text
 
 
 def test_gap_image_store_refused_name_is_bounded_and_typed(caplog):
     assert image_store.image_exists("../" + "y" * 500 + "\nforged line " + SECRET) is False
-    line = [r.getMessage() for r in caplog.records if r.getMessage().startswith("image file name refused")][0]
-    assert "\n" not in line and len(line) < 200
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("image file name refused")]
+    assert len(lines) == 1 and "forged" not in caplog.text and SECRET not in caplog.text
 
 
 def test_gap_inbox_upload_service_write_error_logs_type_not_name_or_traceback(caplog, tmp_path):

@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 import unicodedata
 from fastapi import Depends, HTTPException, Query, Request, Response
-from Backend.app.observability.logfiles import safe_text
+from Backend.app.observability.logfiles import log_sampled
 from Backend.app.stage_policy import make_router
 from pydantic import BaseModel, model_serializer
 
@@ -485,12 +485,12 @@ async def get_image(image_id: str, response: Response, db: AsyncSession = Depend
     filename = await repo.get_filename(image_id)
 
     if not filename:
-        logger.warning("get_image 404: id=%s not in DB", safe_text(image_id))
+        log_sampled(logger, "get_image_404:not_in_db", "get_image 404: image not in DB")
         _record_image_miss()
         raise HTTPException(status_code=404, detail="Image not found")
 
     if not image_exists(filename):
-        logger.warning("get_image 404: id=%s file not on disk", safe_text(image_id))
+        log_sampled(logger, "get_image_404:file_missing", "get_image 404: image file not on disk")
         _record_image_miss()
         raise HTTPException(status_code=404, detail="Image file missing")
 

@@ -115,7 +115,7 @@ class MemeProfileService:
             vectors = await asyncio.to_thread(self.embedder.embed, self.model, [text], deadline - time.monotonic())
             return _Vector(list(vectors[0]), digest)
         except Exception as error:   # any failure degrades to "pending"; never log the text
-            logger.warning("profile vector not refreshed for %s: %s", image, type(error).__name__)
+            logger.warning("profile vector not refreshed: %s", type(error).__name__)
             return None
 
     async def _response(self, image: uuid.UUID, view) -> dict:

@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path, PureWindowsPath
 from typing import List
 
-from Backend.app.observability.logfiles import safe_text
+from Backend.app.observability.logfiles import log_sampled
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ def image_exists(filename: str) -> bool:
     try:
         return _contained(_IMAGES_DIR, filename).is_file()
     except UnsafeImagePath as refusal:
-        logger.warning("image file name refused (%s): %s", type(refusal).__name__, safe_text(filename, 80))
+        log_sampled(logger, "image_name_refused", "image file name refused (%s)", type(refusal).__name__)
         return False
 
 
