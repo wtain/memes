@@ -1,0 +1,6 @@
+# pg_ident.conf of the production database of one environment. TEMPLATE: provision.sh render replaces @ENV@. Used only by the
+# `peer map=exporter` line of pg_hba.conf: the OS user nobody (the metrics exporter container, uid 65534) may act as the stats-only
+# role memes_@ENV@_mon and as nobody else.
+#
+# MAPNAME   SYSTEM-USERNAME   DATABASE-USERNAME
+exporter    nobody            memes_@ENV@_mon

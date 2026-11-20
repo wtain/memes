@@ -84,3 +84,22 @@ def test_promtool_accepts_the_config_on_the_pinned_image(stack):
     run = subprocess.run(["docker", "run", "--rm", "--entrypoint", "promtool", "-v", f"{OBS / 'prometheus.yml'}:/p.yml:ro",
                           image, "check", "config", "/p.yml"], capture_output=True, text=True, env={"MSYS_NO_PATHCONV": "1", **__import__("os").environ})
     assert run.returncode == 0, run.stdout + run.stderr
+
+
+@pytest.mark.parametrize("env", ("metal", "general", "it"))
+def test_postgres_exporter_is_unpublished_socket_only_and_passwordless(stack, env):
+    svc = stack["services"][f"postgres-exporter-{env}"]
+    assert "ports" not in svc and "expose" not in svc
+    assert svc["networks"] == {"obs": {"aliases": [f"postgres-exporter-{env}"]}}
+    assert svc["user"] == "65534:65534"  # nobody: the OS user the pg_ident map admits
+    assert svc["volumes"] == [f"pgsocket_{env}:/var/run/postgresql:ro"]
+    assert stack["volumes"][f"pgsocket_{env}"] == {"name": f"memes-{env}_pgsocket", "external": True}
+    dsn = svc["environment"]["DATA_SOURCE_NAME"]
+    assert dsn == f"postgresql://memes_{env}_mon@/memes_{env}?host=/var/run/postgresql&sslmode=disable"
+    assert ":" not in dsn.split("://", 1)[1].split("@", 1)[0], "no password in the connection string"
+    assert not any("PASSWORD" in k.upper() or "PASS_FILE" in k.upper() for k in svc["environment"])
+    assert "--no-collector.stat_user_tables" in svc["command"] and "--no-collector.statio_user_tables" in svc["command"]
+    assert "--web.listen-address=0.0.0.0:9187" in svc["command"]
+    assert svc["image"].startswith("quay.io/prometheuscommunity/postgres-exporter:v")
+    assert not any("--collector.stat_statements" in c or "queries" in c for c in svc["command"]), "no custom queries"
+    assert svc["mem_limit"] and svc["pids_limit"]

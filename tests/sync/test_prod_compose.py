@@ -352,26 +352,51 @@ def test_pg_hba_order_and_methods(env):
     assert rs[0] == ["local", "all", "postgres", "peer"]
     assert rs[1] == ["local", db, owner, "scram-sha-256"]
     assert rs[2] == ["local", db, sync_r, "scram-sha-256"]
-    assert rs[3] == ["host", "all", f"postgres,{owner}", "all", "reject"]
-    service = rs[4:-1]
+    assert rs[3] == ["local", db, f"memes_{env}_mon", "peer", "map=exporter"]
+    assert rs[4] == ["host", "all", f"postgres,{owner}", "all", "reject"]
+    service = rs[5:-1]
     assert [r[2] for r in service] == [f"memes_{env}_{k}" for k in ("app", "sync_w", "sync_r", "ro")]
     for r in service:
         assert r[:2] == ["host", db] and r[3] == TABLE[env][1] and r[4] == "scram-sha-256"
     assert rs[-1] == ["host", "all", "all", "all", "reject"]
     assert not any(r[-1] in ("trust", "password", "md5", "ident") for r in rs)
+    assert [r for r in rs if r[3:4] == ["peer"] or r[-2:-1] == ["peer"]] == [rs[0], rs[3]], "peer only for the bootstrap user and the exporter role"
     assert [r for r in rs if r[0] == "local" and r[2] == f"memes_{env}_app"] == [], "the app role has no socket line"
 
 
-def test_postgres_conf_pins_the_logging_and_auth_settings():
+def _conf_settings():
     text = (PROD / "postgres" / "postgresql.conf").read_text(encoding="utf-8")
-    settings = dict(re.findall(r"^([a-z_]+)\s*=\s*(.+?)\s*(?:#.*)?$", text, re.M))
-    assert settings["log_statement"] == "none"
-    assert settings["log_min_error_statement"] == "panic"
-    assert settings["log_min_duration_statement"] == "-1"
+    return dict(re.findall(r"^([a-z_]+)\s*=\s*(.+?)\s*(?:#.*)?$", text, re.M))
+
+
+def test_postgres_conf_pins_the_logging_and_auth_settings():
+    settings = _conf_settings()
     assert settings["password_encryption"] == "scram-sha-256"
     assert settings["max_connections"] == "40"
     assert settings["hba_file"] == "'/etc/memes/pg_hba.conf'"
+    assert settings["ident_file"] == "'/etc/memes/pg_ident.conf'"
     assert settings["ssl"] == "off"
+
+
+def test_postgres_conf_logs_to_bounded_files_without_statement_text():
+    settings = _conf_settings()
+    for key in ("log_statement", "log_min_duration_statement", "log_connections", "log_duration", "log_parameter_max_length",
+                "log_min_duration_sample", "log_statement_sample_rate", "log_transaction_sample_rate", "auto_explain.log_min_duration"):
+        assert key not in settings, f"{key} may put statement text or per-connection lines in the log"
+    expected = {
+        "logging_collector": "on", "log_directory": "'/var/log/postgresql'", "log_filename": "'postgresql-%a.log'",
+        "log_rotation_size": "20MB", "log_rotation_age": "1d", "log_truncate_on_rotation": "on",
+        "log_min_error_statement": "panic", "log_error_verbosity": "terse", "log_checkpoints": "on", "log_lock_waits": "on",
+        "log_temp_files": "10MB", "log_autovacuum_min_duration": "5min", "log_min_messages": "warning",
+    }
+    for key, value in expected.items():
+        assert settings.get(key) == value, key
+    assert settings["log_directory"].strip("'") == "/var/log/postgresql"
+
+
+def test_db_log_directory_is_a_required_host_mount_matching_the_setting(stack):
+    logs = [v for v in stack["services"]["db"]["volumes"] if v.endswith(":/var/log/postgresql")]
+    assert len(logs) == 1 and logs[0].startswith("${LOGS_DIR:?") and logs[0].split("}", 1)[1].startswith("/postgres:")
 
 
 def test_provision_script_matches_the_environment_table_and_never_puts_a_password_in_argv():
@@ -397,6 +422,8 @@ def test_provision_script_parses_and_renders_like_the_python_template(tmp_path):
     done = subprocess.run(["bash", str(script), "render", "general", str(out)], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
     assert (out / "pg_hba.conf").read_text(encoding="utf-8") == render_hba("general")
+    ident = [line.split() for line in (out / "pg_ident.conf").read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+    assert ident == [["exporter", "nobody", "memes_general_mon"]]
     assert (out / "postgresql.conf").read_bytes() == (PROD / "postgres" / "postgresql.conf").read_bytes()
 
 

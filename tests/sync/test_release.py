@@ -46,6 +46,36 @@ def test_the_expected_grants_are_not_empty_and_cover_every_role():
     assert exp.maintain and exp.column and exp.sequence
 
 
+def test_the_monitor_role_is_named_after_the_database_and_is_not_in_the_registry_roles():
+    for env in ENVS:
+        assert release.mon_role(env) == f"memes_{env}_mon"
+        assert release.mon_role(env) not in roles.names_for(env).roles
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_a_correct_monitor_role_is_clean_and_an_unlooked_at_one_is_ignored(env):
+    act = replace(actual_for(env), mon_present=True)
+    assert release.diff(env, act) == []
+    assert release.diff(env, actual_for(env)) == []  # mon_present None: not fetched, nothing reported
+
+
+def test_mutation_a_missing_monitor_role_or_membership_is_reported():
+    mon = release.mon_role("it")
+    found = release.diff("it", replace(actual_for("it"), mon_present=False))
+    assert found == [release.Mismatch("missing role", mon, "-", "-")]
+    found = release.diff("it", replace(actual_for("it"), mon_present=True, mon_missing=frozenset({"pg_monitor", "CONNECT"})))
+    assert found == [release.Mismatch("missing", mon, "-", "CONNECT"), release.Mismatch("missing", mon, "-", "pg_monitor")]
+
+
+def test_mutation_any_other_privilege_of_the_monitor_role_is_reported_and_exits_3():
+    mon = release.mon_role("metal")
+    extra = frozenset({("images", "SELECT"), ("member of pg_read_all_data", "MEMBERSHIP")})
+    found = release.diff("metal", replace(actual_for("metal"), mon_present=True, mon_extra=extra))
+    assert found == [release.Mismatch("extra", mon, "images", "SELECT"),
+                     release.Mismatch("extra", mon, "member of pg_read_all_data", "MEMBERSHIP")]
+    assert release.exit_code_for(found) == release.EXIT_MISMATCH
+
+
 def test_mutation_a_missing_table_grant_is_reported():
     names = roles.names_for("general")
     exp = roles.expected(names)

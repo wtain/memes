@@ -1,0 +1,69 @@
+-- The stats-only role of the metrics exporter of one environment. TEMPLATE: provision.sh replaces @ENV@. Applied as the bootstrap
+-- superuser by `provision.sh apply` and `provision.sh grants` (idempotent, one transaction); it holds NO credential: the role logs
+-- in only through the peer line of pg_hba.conf (socket, OS user nobody, map exporter).
+--
+-- The role holds exactly two things: membership in pg_monitor and CONNECT on its database. Nothing on any table, sequence or column of
+-- schema public, no CREATE, no TEMP. `python -m sync.release verify-grants` checks the same list from the owner connection.
+BEGIN;
+
+DO $mon$
+DECLARE
+    m record;
+BEGIN
+    IF current_database() <> 'memes_@ENV@' THEN
+        RAISE EXCEPTION 'monitor role file of database memes_@ENV@ applied to database %', current_database();
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'memes_@ENV@_mon') THEN
+        CREATE ROLE "memes_@ENV@_mon";
+    END IF;
+    ALTER ROLE "memes_@ENV@_mon" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS INHERIT CONNECTION LIMIT 2;
+    ALTER ROLE "memes_@ENV@_mon" RESET ALL;
+    FOR m IN
+        SELECT granted.rolname AS granted, grantor.rolname AS grantor
+        FROM pg_auth_members am
+        JOIN pg_roles granted ON granted.oid = am.roleid
+        JOIN pg_roles member ON member.oid = am.member
+        JOIN pg_roles grantor ON grantor.oid = am.grantor
+        WHERE member.rolname = 'memes_@ENV@_mon' AND granted.rolname <> 'pg_monitor'
+    LOOP
+        EXECUTE format('REVOKE %I FROM "memes_@ENV@_mon" GRANTED BY %I', m.granted, m.grantor);
+    END LOOP;
+    IF NOT pg_has_role('memes_@ENV@_mon', 'pg_monitor', 'MEMBER') THEN
+        GRANT pg_monitor TO "memes_@ENV@_mon";
+    END IF;
+END
+$mon$;
+
+REVOKE ALL ON DATABASE "memes_@ENV@" FROM "memes_@ENV@_mon";
+GRANT CONNECT ON DATABASE "memes_@ENV@" TO "memes_@ENV@_mon";
+REVOKE ALL ON SCHEMA public FROM "memes_@ENV@_mon";
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM "memes_@ENV@_mon";
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM "memes_@ENV@_mon";
+
+DO $verify$
+DECLARE
+    bad text;
+BEGIN
+    SELECT string_agg(rolname, ', ') INTO bad FROM pg_roles
+        WHERE rolname = 'memes_@ENV@_mon' AND NOT (rolcanlogin AND NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole
+            AND NOT rolreplication AND NOT rolbypassrls AND rolinherit AND rolconnlimit = 2);
+    IF bad IS NOT NULL THEN RAISE EXCEPTION 'attributes of the monitor role differ from the contract: %', bad; END IF;
+    SELECT string_agg(granted.rolname, ', ') INTO bad FROM pg_auth_members am
+        JOIN pg_roles granted ON granted.oid = am.roleid JOIN pg_roles member ON member.oid = am.member
+        WHERE member.rolname = 'memes_@ENV@_mon' AND granted.rolname <> 'pg_monitor';
+    IF bad IS NOT NULL THEN RAISE EXCEPTION 'monitor role is a member of: %', bad; END IF;
+    IF NOT pg_has_role('memes_@ENV@_mon', 'pg_monitor', 'MEMBER') THEN RAISE EXCEPTION 'monitor role is not a member of pg_monitor'; END IF;
+    IF NOT has_database_privilege('memes_@ENV@_mon', current_database(), 'CONNECT') THEN RAISE EXCEPTION 'monitor role cannot CONNECT'; END IF;
+    IF has_database_privilege('memes_@ENV@_mon', current_database(), 'CREATE')
+        OR has_database_privilege('memes_@ENV@_mon', current_database(), 'TEMPORARY')
+        OR has_schema_privilege('memes_@ENV@_mon', 'public', 'CREATE') THEN
+        RAISE EXCEPTION 'monitor role holds CREATE or TEMP';
+    END IF;
+    SELECT string_agg(c.relname || ' ' || p, ', ') INTO bad FROM pg_class c CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE',
+        'TRUNCATE', 'REFERENCES', 'TRIGGER']) p
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND has_table_privilege('memes_@ENV@_mon', c.oid, p);
+    IF bad IS NOT NULL THEN RAISE EXCEPTION 'monitor role holds table privileges: %', bad; END IF;
+END
+$verify$;
+
+COMMIT;

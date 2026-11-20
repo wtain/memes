@@ -49,6 +49,8 @@ services:
       - ${PGDATA_DIR:?set PGDATA_DIR}:/var/lib/postgresql
       - ${PGCONF_DIR:?set PGCONF_DIR}:/etc/memes:ro
       - pgsocket:/var/run/postgresql
+      # Log files (postgresql.conf log_directory); the host directory is created by setup-host.sh (task O6d), owned by the postgres uid.
+      - ${LOGS_DIR:?set LOGS_DIR (/srv/memes/<env>/logs)}/postgres:/var/log/postgresql
     tmpfs:
       - /tmp:size=256m
     shm_size: 256m

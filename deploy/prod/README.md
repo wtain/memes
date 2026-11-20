@@ -62,7 +62,7 @@ docker network create --subnet 172.30.0.0/24 memes-edge
 
 # per environment <env>, on the VPS, from deploy/prod
 cp env/<env>.prod.env.example env/<env>.prod.env        # fill in, chmod 600
-postgres/provision.sh render <env> "$PGCONF_DIR"        # writes pg_hba.conf and postgresql.conf
+postgres/provision.sh render <env> "$PGCONF_DIR"        # writes pg_hba.conf, pg_ident.conf and postgresql.conf
 docker compose -p memes-<env> --env-file env/<env>.prod.env up -d db
 MEMES_PW_OWNER=... MEMES_PW_APP=... MEMES_PW_SYNC_W=... MEMES_PW_SYNC_R=... MEMES_PW_RO=... postgres/provision.sh apply <env>
 # the migrate service (release runbook, step 2) creates the schema, then:
@@ -155,6 +155,7 @@ If `grants` itself fails with `permission denied for table X`, a table of `publi
 ## Known limits / verify on a VPS
 
 - `POSTGRES_PASSWORD` (the bootstrap superuser, first start only) sits in the env file and in the container environment (`docker inspect` shows it to root). Accepted: the file is 0600 and the host is single-owner. The alternative is `POSTGRES_PASSWORD_FILE` with a Docker secret or a 0400 file mounted into the db container; not implemented.
+- Postgres logs to files (`${LOGS_DIR}/postgres` on the host, owned by the postgres uid, created by setup-host.sh): `log_statement`, `log_min_duration_statement` and `log_connections` are never set, `log_min_error_statement = panic` and `log_error_verbosity = terse` keep statement text and key values out; one file per weekday, 20 MB rotation. The metrics exporter reads the socket volume `memes-<env>_pgsocket` read-only as OS user nobody and connects as `memes_<env>_mon` (pg_monitor + CONNECT, no password; `provision.sh apply|grants` creates it, `sync.release verify-grants` checks it). Bring each environment's stack up before the obs project: the exporters mount those volumes as external.
 - `pg_hba.conf` allows the three service roles from the environment's whole `/24` subnet, not only the gateway address; narrowing it to the backend's `/32` needs a real VPS test (fixed addresses in the compose network) and is not done.
 - The `internal` networks are not `internal: true` (the backend needs the edge network for Caddy; the db network could be, but this needs a test of the published loopback Postgres port on a real VPS).
 - `pip install` for the backend and migrate images does not use hash checking (`--require-hashes`); the requirement files pin versions only.

@@ -1,11 +1,10 @@
-# Observability project memes-obs: Prometheus and node-exporter (and, added by the Postgres-monitoring task, the three
-# postgres-exporter-<env> services). Run from this directory as
+# Observability project memes-obs: Prometheus and node-exporter and the three postgres-exporter-<env> services. Run from this directory as
 #
 #   docker compose -p memes-obs up -d
 #
 # Joins the shared edge network (created once, see edge/compose.yaml) to scrape metrics-<env>:9102 (backend sidecars) and caddy:9180.
 # The ONLY published port is Prometheus on the host loopback 127.0.0.1:9090 (reached over the memesync-obs ssh tunnel, never the internet).
-# Images pinned by digest (prom/prometheus v3.5.0, prom/node-exporter v1.9.1); update like the Postgres image, see ../README.md.
+# Images pinned by digest (prom/prometheus v3.5.0, prom/node-exporter v1.9.1, postgres-exporter v0.17.1); update like the Postgres image, see ../README.md.
 
 x-hardening: &hardening
   read_only: true
@@ -57,11 +56,83 @@ services:
     pids_limit: 50
     networks: [obs]
 
-  # postgres-exporter-metal, postgres-exporter-general and postgres-exporter-it are added here by task O6c. Each must be reachable on
-  # the `obs` network under the alias postgres-exporter-<env> (port 9187): prometheus.yml's `postgres` job scrapes exactly those names.
+  # One exporter per environment (the `postgres` job of prometheus.yml scrapes postgres-exporter-<env>:9187 on the obs network).
+  # Each reads the Postgres unix socket of its environment through the volume memes-<env>_pgsocket of project memes-<env> (declared
+  # external below: bring the environment's stack up once before this project), connecting as memes_<env>_mon (pg_monitor + CONNECT).
+  postgres-exporter-metal:
+    <<: *hardening
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    user: "65534:65534"
+    command:
+      - --web.listen-address=0.0.0.0:9187
+      # Stats only: the per-table collectors are off (they name tables and scan statistics tables for nothing the dashboards use).
+      - --no-collector.stat_user_tables
+      - --no-collector.statio_user_tables
+    environment:
+      # Unix socket, peer authentication as the OS user nobody mapped to the stats-only role (pg_ident.conf); no password exists.
+      DATA_SOURCE_NAME: "postgresql://memes_metal_mon@/memes_metal?host=/var/run/postgresql&sslmode=disable"
+    volumes:
+      - pgsocket_metal:/var/run/postgresql:ro
+    mem_limit: 48m
+    cpus: 0.25
+    pids_limit: 50
+    networks:
+      obs:
+        aliases: [postgres-exporter-metal]
+
+  postgres-exporter-general:
+    <<: *hardening
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    user: "65534:65534"
+    command:
+      - --web.listen-address=0.0.0.0:9187
+      # Stats only: the per-table collectors are off (they name tables and scan statistics tables for nothing the dashboards use).
+      - --no-collector.stat_user_tables
+      - --no-collector.statio_user_tables
+    environment:
+      # Unix socket, peer authentication as the OS user nobody mapped to the stats-only role (pg_ident.conf); no password exists.
+      DATA_SOURCE_NAME: "postgresql://memes_general_mon@/memes_general?host=/var/run/postgresql&sslmode=disable"
+    volumes:
+      - pgsocket_general:/var/run/postgresql:ro
+    mem_limit: 48m
+    cpus: 0.25
+    pids_limit: 50
+    networks:
+      obs:
+        aliases: [postgres-exporter-general]
+
+  postgres-exporter-it:
+    <<: *hardening
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    user: "65534:65534"
+    command:
+      - --web.listen-address=0.0.0.0:9187
+      # Stats only: the per-table collectors are off (they name tables and scan statistics tables for nothing the dashboards use).
+      - --no-collector.stat_user_tables
+      - --no-collector.statio_user_tables
+    environment:
+      # Unix socket, peer authentication as the OS user nobody mapped to the stats-only role (pg_ident.conf); no password exists.
+      DATA_SOURCE_NAME: "postgresql://memes_it_mon@/memes_it?host=/var/run/postgresql&sslmode=disable"
+    volumes:
+      - pgsocket_it:/var/run/postgresql:ro
+    mem_limit: 48m
+    cpus: 0.25
+    pids_limit: 50
+    networks:
+      obs:
+        aliases: [postgres-exporter-it]
 
 volumes:
   prometheus_data: {}
+  pgsocket_metal:
+    name: memes-metal_pgsocket
+    external: true
+  pgsocket_general:
+    name: memes-general_pgsocket
+    external: true
+  pgsocket_it:
+    name: memes-it_pgsocket
+    external: true
 
 networks:
   edge:
