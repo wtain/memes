@@ -23,6 +23,12 @@ async def main(trigger: str = "manual", run_id: uuid.UUID | None = None, ...) ->
 extra stats into the row. Any extra `main()` parameters (`incremental`, `status`, `limit`, `chain`) keep their defaults
 when started through the wrapper, because `run_wrapper` calls only `module.main(trigger=..., run_id=...)`.
 
+Admin-triggered runs: the backend commits the row before spawning the child. If the child cannot start (spawn error) or exits
+non-zero while the row is still `started` (argparse, `load_env` or import failure, hard kill), `spawn_and_track`'s
+`on_abnormal_exit` callback marks the row `failed` (`orphaned: ...`), only from `started`, so a finished run is never
+overwritten. A backend restart while a child runs, or a kill of both, is not covered for non-scheduled kinds: that row
+stays `started` and blocks the kind (409) until fixed by hand; only scheduled kinds are recovered, by the scheduler.
+
 Consequence: you cannot pass `--limit`, `--status`, `--full` and similar from the admin page or the scheduler.
 
 ## 2. Start paths

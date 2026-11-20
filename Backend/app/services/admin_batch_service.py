@@ -6,10 +6,24 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from Backend.app.batch_subprocess import build_log_path, fire_and_forget, spawn_and_track
+from Storage.db import AsyncSessionLocal
 from repository.batch_runs import BatchAlreadyRunningError, BatchRunRepository
 from batch.registry import BatchRegistry
 
 _STATUS_MAP = {"started": "running", "completed": "completed", "failed": "failed"}
+
+
+async def fail_run_if_still_started(run_id: uuid.UUID, reason: str) -> None:
+    """Marks the run failed when its child never did (spawn error, argparse/import error,
+    hard kill). Transitions only from `started`, so a run the child already finished
+    (completed/failed/aborted) is never overwritten. Own session: the request's is gone."""
+    async with AsyncSessionLocal() as session:
+        repo = BatchRunRepository(session)
+        run = await repo.get_run(run_id)
+        if run is None or run.status != "started":
+            return
+        await repo.fail(run_id, error=f"orphaned: {reason}")
+        await session.commit()
 
 
 class AdminBatchService:
@@ -45,7 +59,12 @@ class AdminBatchService:
         args = [sys.executable, "-m", "batch.run_wrapper",
                 "--script", batch_name, "--env", app_env, "--trigger", "manual",
                 "--run-id", str(run_id)]
-        await fire_and_forget(spawn_and_track(args, log_path, label=batch_name))
+        async def _on_abnormal_exit(reason: str) -> None:
+            await fail_run_if_still_started(run_id, reason)
+
+        await fire_and_forget(
+            spawn_and_track(args, log_path, label=batch_name, on_abnormal_exit=_on_abnormal_exit)
+        )
 
         return {"run_id": str(run_id), "status": "running"}
 
