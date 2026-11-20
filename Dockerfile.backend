@@ -81,6 +81,11 @@ COPY batch/utils/file_hash.py ./batch/utils/file_hash.py
 # (batch/utils/comics_compose.py: Pillow and file_hash.py only, both already available here).
 COPY batch/utils/comics_compose.py ./batch/utils/comics_compose.py
 
+# gunicorn config of the prod stack (log slots, prometheus multiprocess hooks): compose starts gunicorn with -c /app/gunicorn.conf.py.
+COPY deploy/prod/gunicorn.conf.py ./gunicorn.conf.py
+# Shared metrics directory (compose mounts a named volume here; a new volume takes over this mode, so any service uid can write).
+RUN mkdir -p /metrics-mp && chmod 1777 /metrics-mp
+
 # Create non-root user. The code under /app stays root-owned and read-only for appuser (P5a-2): a compromised
 # process cannot rewrite the application. Nothing is written below /app (no .pyc: PYTHONDONTWRITEBYTECODE).
 RUN useradd -m -u 1000 appuser

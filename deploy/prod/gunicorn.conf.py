@@ -1,4 +1,4 @@
-"""gunicorn configuration of the prod backend (used with `gunicorn -c deploy/prod/gunicorn.conf.py`; the wiring is task O6a).
+"""gunicorn configuration of the prod backend (copied to /app/gunicorn.conf.py in the image, used with `gunicorn -c /app/gunicorn.conf.py`).
 
 Logging (observability design section 6): each worker writes `backend-<slot>.log` (slot w0 / w1, a worker keeps the lowest free slot
 across restarts, so the files stay bounded at two) through Backend/app/observability/logfiles.py, which main.py installs in the worker
@@ -23,11 +23,28 @@ def _log_dir():
         return None
 
 
+def _metrics_dir():
+    return os.environ.get("PROMETHEUS_MULTIPROC_DIR") or None
+
+
+def _reset_metrics_dir():
+    path = _metrics_dir()
+    if not path:
+        return
+    try:
+        os.makedirs(path, exist_ok=True)
+        for name in os.listdir(path):
+            full = os.path.join(path, name)
+            if os.path.isfile(full) or os.path.islink(full):
+                os.remove(full)
+    except Exception:
+        pass
+
+
 def on_starting(server):
-    # --- O6a: prometheus multiprocess slot ---------------------------------------------------------------------------------------
-    # Before the first prometheus_client import: PROMETHEUS_MULTIPROC_DIR must be set; empty the directory here (stale files of a
-    # previous master must not be aggregated).
-    # -----------------------------------------------------------------------------------------------------------------------------
+    # Metrics are optional: PROMETHEUS_MULTIPROC_DIR (set in the environment before the first prometheus_client import, which
+    # happens in the workers) names the directory of the multiprocess files. Stale files of a previous master are removed here.
+    _reset_metrics_dir()
     try:
         from Backend.app.observability import logfiles
         handlers = logfiles.install(_log_dir(), "master", MASTER_MAX_BYTES, MASTER_BACKUPS)
@@ -60,4 +77,12 @@ def post_fork(server, worker):
     _MASTER_HANDLERS.clear()
 
 
-# --- O6a: prometheus multiprocess slot (child_exit -> multiprocess.mark_process_dead(worker.pid)) --------------------------------
+def child_exit(server, worker):
+    """Runs in the master when a worker has exited: its live gauges must stop counting (no-op without metrics)."""
+    if not _metrics_dir():
+        return
+    try:
+        from prometheus_client import multiprocess
+        multiprocess.mark_process_dead(worker.pid)
+    except Exception:
+        pass

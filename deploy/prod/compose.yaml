@@ -75,6 +75,8 @@ services:
     # warning level, proxy headers trusted from the shared edge network only.
     command:
       - gunicorn
+      - -c
+      - /app/gunicorn.conf.py
       - Backend.app.main:app
       - -w
       - "2"
@@ -92,9 +94,13 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL (role memes_<env>_app, host db)}
       BASE_PATH: /data/images
       BUG_REPORTS_PATH: /data/bug-reports
+      PROMETHEUS_MULTIPROC_DIR: /metrics-mp
     volumes:
       - ${IMAGES_DIR:?set IMAGES_DIR}:/data/images:ro
       - ${BUG_REPORTS_DIR:?set BUG_REPORTS_DIR}:/data/bug-reports
+      # Log files (observability.log_file.dir); the host directory is created by setup-host.sh (root:memesync-<env>, 2770).
+      - ${LOGS_DIR:?set LOGS_DIR (/srv/memes/<env>/logs)}/backend:/var/log/memes
+      - metrics_mp:/metrics-mp
     tmpfs:
       - /tmp:size=256m,noexec,nosuid
     mem_limit: ${BACKEND_MEM_LIMIT:-768m}
@@ -110,6 +116,34 @@ services:
       internal: {}
       edge:
         aliases: ["${EDGE_ALIAS:?set EDGE_ALIAS (api-<env>)}"]
+
+  # Metrics sidecar: same image, aggregates the multiprocess files of the backend workers and serves /metrics on 9102 over the
+  # project network only. Never published (no ports), no Caddy route; Prometheus on the host scrapes it over the docker network.
+  metrics:
+    <<: *hardening
+    image: memes-backend:${BACKEND_TAG:?set BACKEND_TAG to the git sha of the image}
+    user: "${SVC_UID:-10001}:${SVC_GID:?set SVC_GID to the gid of memesync-<env>}"
+    command: ["python", "-m", "Backend.app.observability.exporter"]
+    environment:
+      APP_ENV: ${MEMES_ENV:?set MEMES_ENV}
+      APP_STAGE: prod
+      PROMETHEUS_MULTIPROC_DIR: /metrics-mp
+    volumes:
+      - metrics_mp:/metrics-mp:ro
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 50
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:9102/metrics', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      internal:
+        aliases: ["metrics-${MEMES_ENV:?set MEMES_ENV}"]
 
   # Release steps 2 and 2b: `python -m sync.release all` (Dockerfile.migrate): alembic upgrade head as the owner role over the unix
   # socket, then roles.<env>.sql again, then a check of every grant against the registry (exit 3 on a mismatch). No network at all: the
@@ -140,6 +174,7 @@ services:
 
 volumes:
   pgsocket: {}
+  metrics_mp: {}
 
 networks:
   internal:

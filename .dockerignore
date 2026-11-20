@@ -29,8 +29,11 @@ logs
 scripts
 tools
 tests
-# deploy/prod holds the compose, Caddy and Postgres files of the VPS: never part of an image.
-deploy
+# deploy/prod holds the compose, Caddy and Postgres files of the VPS: never part of an image (except the gunicorn config).
+deploy/*
+!deploy/prod
+deploy/prod/*
+!deploy/prod/gunicorn.conf.py
 batch/*
 !batch/__init__.py
 !batch/clusterize.py

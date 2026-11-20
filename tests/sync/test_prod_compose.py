@@ -141,7 +141,7 @@ def test_images_are_mounted_read_only_and_bug_reports_read_write(stack):
     images = [v for v in volumes if v.endswith(":/data/images:ro")]
     bugs = [v for v in volumes if ":/data/bug-reports" in v]
     assert len(images) == 1 and len(bugs) == 1 and not bugs[0].endswith(":ro")
-    assert len(volumes) == 2, "the backend mounts only images and bug reports"
+    assert len(volumes) == 4, "the backend mounts images, bug reports, the log directory and the metrics volume"
     assert stack["services"]["backend"]["environment"]["BASE_PATH"] == "/data/images"
 
 
@@ -160,7 +160,7 @@ def test_backend_environment_is_prod_and_holds_no_literal_secret(stack):
     assert env["APP_STAGE"] == "prod"
     for key in ("DATABASE_URL", "APP_ENV"):
         assert env[key].startswith("${")  # always taken from the env file
-    assert set(env) == {"APP_ENV", "APP_STAGE", "DATABASE_URL", "BASE_PATH", "BUG_REPORTS_PATH"}
+    assert set(env) == {"APP_ENV", "APP_STAGE", "DATABASE_URL", "BASE_PATH", "BUG_REPORTS_PATH", "PROMETHEUS_MULTIPROC_DIR"}
 
 
 def test_postgres_mounts_the_pg18_path_and_config_read_only(stack):
@@ -185,6 +185,54 @@ def test_our_images_are_tagged_by_a_required_variable_never_latest(stack):
         image = stack["services"][name]["image"]
         assert re.fullmatch(r"memes-(backend|migrate):\$\{BACKEND_TAG:\?[^}]*\}", image), image
         assert "latest" not in image
+
+
+# ------------------------------------------------------------------------------------------------------------------ metrics
+
+def test_metrics_sidecar_is_unpublished_hardened_and_small(stack):
+    svc = stack["services"]["metrics"]
+    assert "ports" not in svc and "expose" not in svc
+    assert svc["mem_limit"] == "64m"
+    assert svc["command"] == ["python", "-m", "Backend.app.observability.exporter"]
+    assert re.fullmatch(r"memes-backend:\$\{BACKEND_TAG:\?[^}]*\}", svc["image"])
+    assert svc["volumes"] == ["metrics_mp:/metrics-mp:ro"]
+    assert svc["environment"]["PROMETHEUS_MULTIPROC_DIR"] == "/metrics-mp"
+    assert "metrics-${MEMES_ENV" in svc["networks"]["internal"]["aliases"][0]
+    assert "edge" not in svc["networks"]
+    assert "metrics_mp" in stack["volumes"]
+
+
+def test_nothing_publishes_the_exporter_port(stack, edge):
+    for which, name, svc in all_services(stack, edge):
+        for port in svc.get("ports", []):
+            assert "9102" not in str(port), f"{which}/{name}"
+    assert "9102" not in (PROD / "edge" / "Caddyfile").read_text(encoding="utf-8")
+
+
+def test_backend_log_directory_is_required_and_matches_the_setting(stack):
+    volumes = stack["services"]["backend"]["volumes"]
+    logs = [v for v in volumes if v.endswith(":/var/log/memes")]
+    assert len(logs) == 1 and logs[0].startswith("${LOGS_DIR:?") and logs[0].split("}", 1)[1].startswith("/backend:")
+    prod = yaml.safe_load((ROOT / "environments" / "settings.prod.yaml").read_text(encoding="utf-8"))
+    assert prod["observability"]["log_file"]["dir"] == "/var/log/memes"
+
+
+def test_gunicorn_config_is_shipped_in_the_image():
+    assert "COPY deploy/prod/gunicorn.conf.py ./gunicorn.conf.py" in (ROOT / "Dockerfile.backend").read_text(encoding="utf-8")
+    assert "!deploy/prod/gunicorn.conf.py" in (ROOT / ".dockerignore").read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs docker")
+@pytest.mark.parametrize("env", ENVS)
+def test_docker_compose_config_validates(env, tmp_path):
+    values = {"MEMES_ENV": env, "PROJECT_SUBNET": TABLE[env][1], "PG_PORT": TABLE[env][0], "EDGE_ALIAS": TABLE[env][2], "SVC_GID": "1",
+              "BACKEND_TAG": "x", "POSTGRES_PASSWORD": "x", "DATABASE_URL": "x", "DATABASE_URL_OWNER": "x", "IMAGES_DIR": "/tmp/i",
+              "BUG_REPORTS_DIR": "/tmp/b", "PGDATA_DIR": "/tmp/p", "PGCONF_DIR": "/tmp/c", "LOGS_DIR": "/tmp/l"}
+    envfile = tmp_path / "e.env"
+    envfile.write_text(chr(10).join(f"{k}={v}" for k, v in values.items()) + chr(10), encoding="utf-8")
+    done = subprocess.run(["docker", "compose", "-f", str(PROD / "compose.yaml"), "--env-file", str(envfile), "config", "-q"],
+                          capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
 
 
 # --------------------------------------------------------------------------------------------------------- env examples

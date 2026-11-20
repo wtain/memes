@@ -33,10 +33,14 @@ Only Caddy publishes beyond the loopback (Docker publishes bypass ufw). The back
 | `/srv/memes/<env>/pgdata` | db `/var/lib/postgresql` (PG18 layout; `PGDATA` is below it) | postgres uid |
 | rendered Postgres config directory (`PGCONF_DIR`) | db `/etc/memes`, read-only | root |
 | `/srv/memes/<env>/web` | caddy `/srv/memes/<env>/web`, read-only | `memesync-<env>` |
+| `/srv/memes/<env>/logs/backend` (`LOGS_DIR`/backend) | backend `/var/log/memes`, read-write (log files, `observability.log_file.dir`) | root, group `memesync-<env>`, 2770 (setup-host.sh) |
+| named volume `metrics_mp` | backend `/metrics-mp` (prometheus multiprocess files, emptied by the gunicorn master at start), metrics `/metrics-mp` read-only | docker (mode 1777 from the image) |
 | named volume `pgsocket` | db and migrate `/var/run/postgresql` (unix socket) | docker |
 | named volumes `caddy_data`, `caddy_config` | caddy `/data`, `/config` (certificates) | docker |
 
-The backend runs as `10001:<gid of memesync-<env>>` (`SVC_GID`), read-only root filesystem, `/tmp` tmpfs 256 MB (`noexec,nosuid`), all capabilities dropped, `no-new-privileges`, memory/cpu/pids limits, json-file logs rotated at 10 MB x 3, two gunicorn workers, no access log, warning log level, `--forwarded-allow-ips 172.30.0.0/24`.
+The backend runs as `10001:<gid of memesync-<env>>` (`SVC_GID`), read-only root filesystem, `/tmp` tmpfs 256 MB (`noexec,nosuid`), all capabilities dropped, `no-new-privileges`, memory/cpu/pids limits, json-file logs rotated at 10 MB x 3, two gunicorn workers (config `/app/gunicorn.conf.py` from `deploy/prod/gunicorn.conf.py`: per-worker log slots, prometheus multiprocess hooks), no access log, warning log level, `--forwarded-allow-ips 172.30.0.0/24`.
+
+The `metrics` service (same image, `python -m Backend.app.observability.exporter`, 64 MB, read-only volume `metrics_mp`) serves `/metrics` on port 9102 as alias `metrics-<env>` on the project network. It publishes no port and has no Caddy route; Prometheus on the host reaches it over the docker network only.
 
 ## Placeholder hostnames
 

@@ -240,7 +240,9 @@ def test_the_migrate_dockerignore_admits_only_the_roles_files_of_deploy():
     assert not any(line.startswith("!") and (".env" in line or "environments/." in line) for line in lines)
     assert "environments/.env.*" in lines and "**/.env.*" in lines
     backend_ignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
-    assert re.search(r"^deploy$", backend_ignore, re.M) and not re.search(r"^!deploy", backend_ignore, re.M)
+    # the backend image admits exactly one file of deploy: the gunicorn config
+    assert re.search(r"^deploy/\*$", backend_ignore, re.M) and re.search(r"^deploy/prod/\*$", backend_ignore, re.M)
+    assert re.findall(r"^!deploy.*$", backend_ignore, re.M) == ["!deploy/prod", "!deploy/prod/gunicorn.conf.py"]
 
 
 def test_the_migrate_service_has_no_network_no_published_port_and_runs_the_release_tool():
