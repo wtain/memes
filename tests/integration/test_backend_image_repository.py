@@ -663,3 +663,17 @@ async def test_existing_content_hashes_empty_input_and_duplicate_rows(db_session
 
     assert await repo.existing_content_hashes([]) == set()
     assert await repo.existing_content_hashes([content_hash]) == {content_hash}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_filtered_ids_query_accepts_more_than_32767_match_ids(db_session):
+    """ALG-4: a broad text match must not expand into one bind parameter per id (asyncpg caps at 32,767)."""
+    image = Image(filename="big-match.jpg", status="active")
+    db_session.add(image)
+    await db_session.flush()
+    matching = {uuid.uuid4() for _ in range(40_000)} | {image.id}
+
+    query = await ImageRepository(db_session)._build_filtered_ids_query(matching, {})
+    rows = (await db_session.execute(query)).scalars().all()
+
+    assert rows == [image.id]

@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,30 +20,22 @@ class OCRTextEmbeddingsRepository:
         text_heavy image's OCR could in principle be entirely low-lang-score noise) are simply
         absent from the result -- unlike classify_text_heavy.py's "unreadable" outcome, this
         has no separate counter; the caller's to-embed count is just len(this dict)."""
-        already_embedded = select(OCRTextEmbedding.image_id).scalar_subquery()
-        text_heavy_ids = (
-            select(ImageClassification.image_id)
-            .where(ImageClassification.classifier == classifier, ImageClassification.result == TEXT_HEAVY)
-            .scalar_subquery()
-        )
-        candidate_ids = (
-            select(Image.id)
-            .where(
-                Image.status == status,
-                Image.id.in_(text_heavy_ids),
-                Image.id.not_in(already_embedded),
-            )
-        )
-        candidates = (await self.session.execute(candidate_ids)).scalars().all()
-        if not candidates:
-            return {}
-
+        # One statement: the candidate set never travels back to the database as bind parameters (asyncpg caps
+        # a statement at 32,767), and NOT EXISTS is null-safe and plannable as an anti-join.
         rows = await self.session.execute(
             select(OCRText.image_id, OCRText.text, OCRText.confidence, OCRText.lang_score)
-            .where(OCRText.image_id.in_(candidates))
+            .join(Image, Image.id == OCRText.image_id)
+            .where(
+                Image.status == status,
+                exists().where(
+                    ImageClassification.image_id == Image.id,
+                    ImageClassification.classifier == classifier,
+                    ImageClassification.result == TEXT_HEAVY,
+                ),
+                ~exists().where(OCRTextEmbedding.image_id == Image.id),
+            )
         )
-        texts = concatenate_ocr_rows(rows.all(), confidence_min, lang_score_min)
-        return {image_id: texts[image_id] for image_id in candidates if image_id in texts}
+        return concatenate_ocr_rows(rows.all(), confidence_min, lang_score_min)
 
     async def save(self, image_id, embedding: list[float]) -> None:
         stmt = (
