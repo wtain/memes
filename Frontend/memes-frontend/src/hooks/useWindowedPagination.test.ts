@@ -1,5 +1,5 @@
 ﻿import { renderHook, act, waitFor } from '@testing-library/react'
-import { useWindowedPagination, cursorForVirtualIndex, type FetchPageFn, type Page } from './useWindowedPagination'
+import { useWindowedPagination, cursorForVirtualIndex, type FetchPageFn, type FetchPageResult, type Page } from './useWindowedPagination'
 import type { Meme } from '../types/generated/all'
 
 function makeMemes(prefix: string, count: number): Meme[] {
@@ -215,6 +215,47 @@ describe('useWindowedPagination error and retry', () => {
     expect(result.current.error).toBe(false)
     expect(fetchPage).toHaveBeenCalledTimes(2)
     expect(fetchPage.mock.calls[1][0]).toBe(fetchPage.mock.calls[0][0])
+    expect(fetchPage.mock.calls[1][1]).toBe('forward')
+  })
+
+  it('drops a stale successful fetch that resolves after a resetKey change', async () => {
+    const resolvers: ((r: FetchPageResult) => void)[] = []
+    const fetchPage = vi.fn<FetchPageFn>(() => new Promise<FetchPageResult>(r => { resolvers.push(r) }))
+    const { result, rerender } = renderHook(
+      ({ k }) => useWindowedPagination({ fetchPage, resetKey: k }),
+      { initialProps: { k: 'A' } },
+    )
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(1))
+    rerender({ k: 'B' })
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(2))
+
+    await act(async () => { resolvers[1]({ items: makeMemes('b', 2), nextCursor: 'b1', hasNext: true }) })
+    await waitFor(() => expect(result.current.items.map(m => m.id)).toEqual(['b-0', 'b-1']))
+    await act(async () => { resolvers[0]({ items: makeMemes('a', 3), nextCursor: 'a1', hasNext: true }) })
+
+    expect(result.current.items.map(m => m.id)).toEqual(['b-0', 'b-1'])
+    await act(async () => { void result.current.loadForward() })
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(3))
+    expect(fetchPage).toHaveBeenLastCalledWith('b1', 'forward')
+  })
+
+  it('a stale success resolving while the new key is still in flight leaves only the new key content', async () => {
+    const resolvers: ((r: FetchPageResult) => void)[] = []
+    const fetchPage = vi.fn<FetchPageFn>(() => new Promise<FetchPageResult>(r => { resolvers.push(r) }))
+    const { result, rerender } = renderHook(
+      ({ k }) => useWindowedPagination({ fetchPage, resetKey: k }),
+      { initialProps: { k: 'A' } },
+    )
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(1))
+    rerender({ k: 'B' })
+    await waitFor(() => expect(fetchPage).toHaveBeenCalledTimes(2))
+
+    await act(async () => { resolvers[0]({ items: makeMemes('a', 3), nextCursor: 'a1', hasNext: true }) })
+    expect(result.current.items).toHaveLength(0)
+
+    await act(async () => { resolvers[1]({ items: makeMemes('b', 2), hasNext: false }) })
+    expect(result.current.items.map(m => m.id)).toEqual(['b-0', 'b-1'])
+    expect(result.current.hasMoreForward).toBe(false)
   })
 
   it('a failed later page keeps the loaded pages', async () => {

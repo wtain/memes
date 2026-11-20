@@ -85,7 +85,7 @@ describe('MemePage', () => {
     getMeme.mockResolvedValue(DEFAULT_MOCK_MEME)
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText(`Meme ${DEFAULT_MOCK_MEME.id}`)).toBeInTheDocument()
-    expect(api.getMeme).toHaveBeenCalled()
+    expect(api.getMeme).toHaveBeenCalledTimes(3)
   })
 
   it('a late response for the previous id is ignored', async () => {
@@ -98,7 +98,6 @@ describe('MemePage', () => {
     // No curator panel here: its unsaved-changes guard needs a data router, and navigating a data
     // router trips a jsdom/undici AbortSignal mismatch, so this test uses a plain MemoryRouter.
     vi.mocked(useFeature).mockReturnValue(false)
-    // A plain MemoryRouter: navigating a data router trips a jsdom/undici AbortSignal mismatch.
     render(
       <MemoryRouter initialEntries={['/memes/a']}>
         <Link to="/memes/b">go b</Link>
@@ -110,5 +109,27 @@ describe('MemePage', () => {
     await act(async () => { resolveA({ ...DEFAULT_MOCK_MEME, id: 'a' }) })
     expect(screen.getByText('Meme b')).toBeInTheDocument()
     expect(screen.queryByText('Meme a')).not.toBeInTheDocument()
+  })
+
+  it('moving to another id shows loading, not the previous meme', async () => {
+    let resolveB: (m: typeof DEFAULT_MOCK_MEME) => void = () => {}
+    const getMeme = vi.fn((id: string) =>
+      id === 'a'
+        ? Promise.resolve({ ...DEFAULT_MOCK_MEME, id })
+        : new Promise<typeof DEFAULT_MOCK_MEME>(r => { resolveB = r }))
+    const api = makeMockApi({ getMeme })
+    vi.mocked(useFeature).mockReturnValue(false)
+    render(
+      <MemoryRouter initialEntries={['/memes/a']}>
+        <Link to="/memes/b">go b</Link>
+        <Routes><Route path="/memes/:id" element={<MemePage memesApi={api} />} /></Routes>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Meme a')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: 'go b' }))
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.queryByText('Meme a')).not.toBeInTheDocument()
+    await act(async () => { resolveB({ ...DEFAULT_MOCK_MEME, id: 'b' }) })
+    expect(await screen.findByText('Meme b')).toBeInTheDocument()
   })
 })

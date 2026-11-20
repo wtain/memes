@@ -89,7 +89,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
 
   const resetKey = `${filter ?? ""}:${JSON.stringify(tagFilters ?? {})}:${listUntagged}:${listFlagged}:${listNoOcr}:${listRecommendations}`
 
-  const { items, firstItemIndex, hasMoreForward, hasMoreBackward, loading, error, retry, loadForward, loadBackward } =useWindowedPagination({
+  const { items, firstItemIndex, hasMoreForward, hasMoreBackward, loading, error, retry, loadForward, loadBackward } = useWindowedPagination({
     fetchPage,
     resetKey,
   })

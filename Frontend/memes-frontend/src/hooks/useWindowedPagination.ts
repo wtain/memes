@@ -91,6 +91,8 @@ export function useWindowedPagination({
     try {
       const cursor = nextForwardCursorRef.current
       const result = await fetchPageRef.current(cursor, "forward")
+      // A resetKey change while this fetch was in flight: its result belongs to the old key.
+      if (generation !== generationRef.current) return
       const newPage: Page = { cursor, items: result.items }
       visitedCursorsRef.current.push(cursor)
       nextForwardCursorRef.current = result.nextCursor
@@ -141,6 +143,7 @@ export function useWindowedPagination({
       if (canReplay) {
         cursor = visitedCursorsRef.current[windowStartRef.current - 1]
         const result = await fetchPageRef.current(cursor, "forward")
+        if (generation !== generationRef.current) return
         items = result.items
         windowStartRef.current -= 1
       } else {
@@ -153,6 +156,7 @@ export function useWindowedPagination({
           return
         }
         const result = await fetchPageRef.current(anchor, "backward")
+        if (generation !== generationRef.current) return
         if (result.items.length === 0) {
           coldBackwardExhaustedRef.current = true
           setHasMoreBackward(false)
