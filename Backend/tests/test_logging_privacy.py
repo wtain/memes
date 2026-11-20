@@ -27,6 +27,7 @@ from Backend.app.observability.middleware import MetricsMiddleware, RequestIdMid
 from Backend.app.services import abuse, comics_pipeline_trigger, image_store, inbox_upload_service, ingestion_metrics, library_metrics, recut_files
 from Backend.app.stage_policy import make_router
 from Storage.db import get_async_db
+from repository import popularity
 
 SECRET = "SECRET-NEEDLE-9137"
 ROOT = Path(__file__).resolve().parents[2]
@@ -186,6 +187,49 @@ def test_gap_error_handlers_and_main_unhandled_exception_logs_type_route_request
     assert SECRET not in caplog.text
 
 
+async def _run_raw(app, send):
+    scope = {"type": "http", "method": "GET", "path": "/api/things", "raw_path": b"/api/things", "query_string": b"",
+             "headers": [], "scheme": "http", "server": ("test", 80), "client": ("127.0.0.1", 1), "root_path": "",
+             "http_version": "1.1"}
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    await RequestIdMiddleware(app)(scope, receive, send)
+
+
+async def test_gap_unhandled_exception_with_a_failing_send_logs_no_message(caplog):
+    async def app(_scope, _receive, _send):
+        raise RuntimeError(f"statement parameters: {SECRET}")
+
+    async def gone(_message):
+        raise OSError(f"client gone {SECRET}")
+
+    await _run_raw(app, gone)  # must not raise: an escaping send error would chain the original, whose message the server logs
+    assert any(r.getMessage().startswith("unhandled exception type=RuntimeError") for r in caplog.records)
+    assert all(r.exc_info is None for r in caplog.records)
+    assert SECRET not in caplog.text
+
+
+async def test_gap_client_disconnect_is_an_info_non_event(caplog):
+    from starlette.requests import ClientDisconnect
+
+    async def app(_scope, _receive, _send):
+        raise ClientDisconnect(f"while reading {SECRET}")
+
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    await _run_raw(app, send)
+    assert sent == []  # nobody is left to answer: no response is attempted
+    records = [r for r in caplog.records if r.name == "Backend.app.observability.requests"]
+    assert [(r.levelno, r.getMessage().split(" request_id=")[0]) for r in records] == [
+        (logging.INFO, "client disconnected type=ClientDisconnect")]
+    assert SECRET not in caplog.text
+
+
 async def test_gap_library_metrics_and_ingestion_metrics_log_the_type_only(caplog):
     @contextlib.asynccontextmanager
     async def nested():
@@ -235,9 +279,27 @@ def test_gap_inbox_upload_service_write_error_logs_type_not_name_or_traceback(ca
     missing_staging = tmp_path / "no-such-staging"
     with pytest.raises(inbox_upload_service.InboxWriteError):
         inbox_upload_service._write_one(tmp_path, missing_staging, candidate, "d" * 64, "name\nforged " + SECRET + ".jpg")
-    records = [r for r in caplog.records if "Could not write the upload" in r.getMessage()]
+    records = [r for r in caplog.records if "Could not write an upload" in r.getMessage()]
     assert len(records) == 1 and records[0].exc_info is None
-    assert "\n" not in records[0].getMessage() and records[0].getMessage().endswith("(FileNotFoundError)")
+    assert records[0].getMessage() == "Could not write an upload into the ingestion inbox (FileNotFoundError)"  # no client name
+    assert "forged" not in caplog.text and SECRET not in caplog.text
+
+
+async def test_gap_repository_popularity_guarded_logs_the_type_only(caplog):
+    @contextlib.asynccontextmanager
+    async def nested():
+        yield
+
+    session = MagicMock()
+    session.begin_nested = nested
+
+    async def failing():
+        raise RuntimeError(f"INSERT INTO popularity_absorptions ... parameters {SECRET}")
+
+    assert await popularity.guarded(session, "ingest_reject", failing) is None
+    records = [r for r in caplog.records if r.getMessage().startswith("popularity recording failed")]
+    assert [r.getMessage() for r in records] == ["popularity recording failed (ingest_reject): RuntimeError"]
+    assert records[0].exc_info is None and SECRET not in caplog.text
 
 
 async def test_gap_comics_pipeline_trigger_logs_the_type_only(caplog, monkeypatch):

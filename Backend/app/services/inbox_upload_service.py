@@ -20,7 +20,6 @@ from pathlib import Path
 
 from PIL import Image
 
-from Backend.app.observability.logfiles import safe_text
 from batch.utils.file_hash import sha256_file
 from config.settings import settings
 
@@ -340,7 +339,7 @@ def _write_one(inbox: Path, staging: Path, candidate: UploadCandidate, digest: s
         return final
     except OSError as exc:
         staged.unlink(missing_ok=True)
-        logger.error("Could not write the upload %s into the ingestion inbox (%s)", safe_text(name, 80), type(exc).__name__)
+        logger.error("Could not write an upload into the ingestion inbox (%s)", type(exc).__name__)  # never the client file name
         raise InboxWriteError("Could not write the file into the ingestion inbox") from exc
 
 

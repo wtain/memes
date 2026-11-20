@@ -1,4 +1,5 @@
 """Bounded log files (O5): never fatal, bounded per slot, request id in the line, sampled lines. No database."""
+import collections
 import errno
 import logging
 import logging.handlers
@@ -67,21 +68,21 @@ def test_install_survives_missing_unwritable_and_full_directory(tmp_path, monkey
         assert logfiles.install(str(tmp_path), "w0", 1000, 2) == []
     assert "log files off (PermissionError)" in capsys.readouterr().out
 
-    # full: the open works, the first write fails with ENOSPC
-    class Full:
-        def write(self, _data):
-            raise OSError(errno.ENOSPC, "No space left on device")
-
-        def flush(self):
-            pass
-
-        def close(self):
-            pass
-
+    # full: less than MIN_FREE_BYTES free on the file system; no file is created
+    usage = collections.namedtuple("usage", "total used free")
     with monkeypatch.context() as m:
-        m.setattr(logging.handlers.RotatingFileHandler, "_open", lambda self: Full())
+        m.setattr(logfiles.shutil, "disk_usage", lambda _d: usage(10**9, 10**9 - 4096, 4096))
         assert logfiles.install(str(tmp_path), "w1", 1000, 2) == []
-    assert "log files off (OSError)" in capsys.readouterr().out
+    assert "less than 1 MiB free" in capsys.readouterr().out
+    assert not (tmp_path / "backend-w1.log").exists()
+    # a failing free-space query does not switch the files off
+    def broken(_d):
+        raise OSError(errno.EIO, "io")
+    with monkeypatch.context() as m:
+        m.setattr(logfiles.shutil, "disk_usage", broken)
+        handlers = logfiles.install(str(tmp_path), "w2", 1000, 2)
+    assert len(handlers) == 1
+    handlers[0].close()
     # a bad slot name never reaches the file system
     assert logfiles.install(str(tmp_path), "../evil", 1000, 2) == []
 
@@ -130,6 +131,35 @@ def test_backend_logging_setup_writes_the_slot_file_with_request_id(tmp_path, mo
     text = (tmp_path / "backend-w1.log").read_text(encoding="utf-8")
     assert re.search(r"\[abc123\] t\.file: hello file", text)
     assert re.search(r"\[-\] t\.file: outside", text)
+
+
+def test_backend_logging_setup_never_gives_the_file_to_the_access_loggers(tmp_path, monkeypatch, isolated_logging):
+    # An access line carries the path and query string (the search text): the access loggers keep stdout only.
+    monkeypatch.setattr(main, "settings", FakeSettings({"observability.log_file.dir": str(tmp_path)}))
+    monkeypatch.setenv("MEMES_LOG_SLOT", "w0")
+    own = {}
+    for name in ("uvicorn.access", "gunicorn.access", "uvicorn.error", "gunicorn.error"):
+        lgr = logging.getLogger(name)
+        stream = logging.StreamHandler()
+        own[name] = (lgr, stream, lgr.propagate)
+        lgr.addHandler(stream)
+        lgr.propagate = False
+    root = logging.getLogger()
+    try:
+        main._configure_logging()
+        file_handlers = [h for h in root.handlers if getattr(h, logfiles.FILE_HANDLER_MARK, False)]
+        assert len(file_handlers) == 1
+
+        def has_file(name):
+            return any(h is file_handlers[0] for h in logging.getLogger(name).handlers)
+
+        assert not has_file("uvicorn.access") and not has_file("gunicorn.access")
+        assert has_file("uvicorn.error") and has_file("gunicorn.error")
+    finally:
+        logfiles.remove_installed([root] + [lgr for lgr, _s, _p in own.values()])
+        for lgr, stream, propagate in own.values():
+            lgr.removeHandler(stream)
+            lgr.propagate = propagate
 
 
 def test_rotation_bounds_files_per_slot(tmp_path):

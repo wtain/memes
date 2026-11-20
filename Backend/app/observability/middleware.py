@@ -56,6 +56,14 @@ class MetricsMiddleware:
                     pass
 
 
+def _is_client_disconnect(error: BaseException) -> bool:
+    try:
+        from starlette.requests import ClientDisconnect
+        return isinstance(error, ClientDisconnect)
+    except Exception:
+        return False
+
+
 class RequestIdMiddleware:
     """Gives every HTTP request a server-generated id (uuid4 hex; a client X-Request-ID is ignored), returns it as the response header
     and makes it available to log lines (contextvar) and to other middleware (`scope["memes.request_id"]`).
@@ -87,6 +95,14 @@ class RequestIdMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
         except Exception as error:
+            if _is_client_disconnect(error):
+                # The client went away while the request body was read: nobody is left to answer, so no response is attempted and
+                # this is not an error. Only the class name is logged.
+                try:
+                    logger.info("client disconnected type=%s request_id=%s", type(error).__name__, request_id)
+                except Exception:
+                    pass
+                return
             try:
                 from Backend.app.observability import metrics
                 logger.error("unhandled exception type=%s route=%s request_id=%s", type(error).__name__,
@@ -95,9 +111,15 @@ class RequestIdMiddleware:
                 pass
             if not started["value"]:
                 body = json.dumps({"detail": "Internal Server Error"}).encode()
-                await send_wrapper({"type": "http.response.start", "status": 500,
-                                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
-                await send_wrapper({"type": "http.response.body", "body": body})
+                # A failing send (the client is gone) must not escape: it would chain the original exception, whose message the
+                # server would then log.
+                try:
+                    await send_wrapper({"type": "http.response.start", "status": 500,
+                                        "headers": [(b"content-type", b"application/json"),
+                                                    (b"content-length", str(len(body)).encode())]})
+                    await send_wrapper({"type": "http.response.body", "body": body})
+                except Exception:
+                    pass
         finally:
             request_id_var.reset(token)
 

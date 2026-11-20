@@ -76,19 +76,24 @@ def _record_total(started: float) -> None:
             pass
 
 
-def _record_outcome(meta, fallback) -> None:
-    """Stage timings come from the pipeline's own meta (never re-timed; a cache hit carries zeros, so it adds no stage sample)."""
+def _record_outcome(meta, fallback, cursor=None) -> None:
+    """Stage timings come from the pipeline's own meta (never re-timed; a cache hit carries zeros, so it adds no stage sample).
+
+    A degraded answer is counted once per fresh message: a cache hit or a "Show more" page (the request carries a cursor) replays
+    an answer already counted, so it adds no degraded sample."""
     from Backend.app.observability import enabled
     if not enabled():
         return
     try:
         from Backend.app.observability.metrics import record_search, record_search_degraded
-        if isinstance(meta, dict) and not meta.get("cacheHit"):
+        cache_hit = isinstance(meta, dict) and bool(meta.get("cacheHit"))
+        if isinstance(meta, dict) and not cache_hit:
             for stage, key in (("parse", "parseMs"), ("embed", "embedMs"), ("retrieve", "retrievalMs")):
                 value = meta.get(key)
                 if isinstance(value, (int, float)):
                     record_search("meme_from_text", stage, value / 1000.0)
-        record_search_degraded(fallback)
+        if not cache_hit and not cursor:
+            record_search_degraded(fallback)
     except Exception:
         pass
 
@@ -114,7 +119,7 @@ class MemeFromTextService:
 
     async def _search(self, request: MemeFromTextRequest, user_agent: str = "") -> MemeFromTextResponse:
         if self.pipeline is None:
-            _record_outcome(None, "unavailable")
+            # No parser on this environment (`it`): the feature is off, not degraded, so nothing is counted.
             return self._unavailable(request)
         search_request = SearchRequest(
             text=request.text,
@@ -122,7 +127,7 @@ class MemeFromTextService:
             profile=request.profile.model_dump(mode="json", exclude_none=True) if request.profile is not None else None,
             filters=_filters(request), cursor=request.cursor, limit=request.limit)
         result = await self.pipeline.search(search_request, self.retrieval_repository)
-        _record_outcome(result.meta, result.fallback)
+        _record_outcome(result.meta, result.fallback, request.cursor)
         items = [result_item_dict(item) for item in result.items]
         image_ids = [item["imageId"] for item in items]  # _hydrate replaces imageId by the meme object
         await self._hydrate(items)

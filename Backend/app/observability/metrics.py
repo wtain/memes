@@ -173,25 +173,39 @@ def record_image(code: int, nbytes: int = 0, seconds: float | None = None) -> No
         pass
 
 
+_TIMED_FILE_RESPONSE = None  # the FileResponse subclass, created once on first use (starlette is not imported while metrics are off)
+
+
+def _timed_file_response_class():
+    global _TIMED_FILE_RESPONSE
+    if _TIMED_FILE_RESPONSE is None:
+        from starlette.responses import FileResponse
+
+        class _Timed(FileResponse):
+            async def __call__(self, scope, receive, send):
+                started = time.perf_counter()
+                state = {"code": 500, "bytes": 0}
+
+                async def counting_send(message):
+                    if message["type"] == "http.response.start":
+                        state["code"] = message["status"]
+                    elif message["type"] == "http.response.body":
+                        state["bytes"] += len(message.get("body", b""))
+                    await send(message)
+
+                try:
+                    await super().__call__(scope, receive, counting_send)
+                finally:
+                    record_image(state["code"], state["bytes"], time.perf_counter() - started)
+
+        _TIMED_FILE_RESPONSE = _Timed
+    return _TIMED_FILE_RESPONSE
+
+
 def timed_file_response(path, headers):
-    """A FileResponse that counts its status, body bytes and send time (the actual read happens while it is sent)."""
-    from starlette.responses import FileResponse
+    """A FileResponse that counts its status, body bytes and send time (the actual read happens while it is sent).
 
-    class _Timed(FileResponse):
-        async def __call__(self, scope, receive, send):
-            started = time.perf_counter()
-            state = {"code": 500, "bytes": 0}
-
-            async def counting_send(message):
-                if message["type"] == "http.response.start":
-                    state["code"] = message["status"]
-                elif message["type"] == "http.response.body":
-                    state["bytes"] += len(message.get("body", b""))
-                await send(message)
-
-            try:
-                await super().__call__(scope, receive, counting_send)
-            finally:
-                record_image(state["code"], state["bytes"], time.perf_counter() - started)
-
-    return _Timed(path, headers=headers)
+    Under a server that offers the ASGI `http.response.pathsend` extension (not uvicorn or gunicorn's uvicorn worker today), the
+    file is sent as one pathsend message with no body bytes, so IMAGE_BYTES reads 0 for those responses while the status and time
+    are still counted."""
+    return _timed_file_response_class()(path, headers=headers)

@@ -80,6 +80,12 @@ def test_image_served_counts_2xx_bytes_and_time(on, monkeypatch, tmp_path):
     assert total(metrics.IMAGE_READ_SECONDS, "_count") == reads + 1
 
 
+def test_timed_file_response_class_is_created_once(tmp_path):
+    path = tmp_path / "a.png"
+    path.write_bytes(b"x")
+    assert type(metrics.timed_file_response(path, {})) is type(metrics.timed_file_response(path, {}))
+
+
 def test_image_missing_counts_4xx_without_the_id(on, monkeypatch, tmp_path):
     client, _ = image_client(monkeypatch, tmp_path, None)
     miss = total(metrics.IMAGE_SERVED, "_total", status_class="4xx")
@@ -154,22 +160,40 @@ async def test_meme_from_text_records_stages_total_and_degraded(on):
 
 
 @pytest.mark.asyncio
-async def test_meme_from_text_unknown_reason_is_other_and_cache_hit_adds_no_stages(on):
-    service = reply_service({**UNAVAILABLE_META, "available": True, "cacheHit": True}, "weird-" + SECRET, True)
-    parse = total(metrics.SEARCH_SECONDS, "_count", kind="meme_from_text", stage="parse")
+async def test_meme_from_text_unknown_reason_is_other(on):
+    service = reply_service({**UNAVAILABLE_META, "available": True}, "weird-" + SECRET, True)
     other = total(metrics.SEARCH_DEGRADED, "_total", reason="other")
     await service.search(reply_request())
-    assert total(metrics.SEARCH_SECONDS, "_count", kind="meme_from_text", stage="parse") == parse
     assert total(metrics.SEARCH_DEGRADED, "_total", reason="other") == other + 1
     assert SECRET not in exposition()
 
 
 @pytest.mark.asyncio
-async def test_meme_from_text_without_pipeline_counts_unavailable(on):
-    service = MemeFromTextService(None, MagicMock(), MagicMock())
+async def test_meme_from_text_cache_hit_adds_no_stages_and_no_degraded(on):
+    service = reply_service({**UNAVAILABLE_META, "available": True, "cacheHit": True}, "timeout", True)
+    parse = total(metrics.SEARCH_SECONDS, "_count", kind="meme_from_text", stage="parse")
+    timeout = total(metrics.SEARCH_DEGRADED, "_total", reason="timeout")
+    await service.search(reply_request())
+    assert total(metrics.SEARCH_SECONDS, "_count", kind="meme_from_text", stage="parse") == parse
+    assert total(metrics.SEARCH_DEGRADED, "_total", reason="timeout") == timeout  # counted when the answer was computed
+
+
+@pytest.mark.asyncio
+async def test_meme_from_text_show_more_adds_no_degraded(on):
+    service = reply_service({**UNAVAILABLE_META, "available": True}, "timeout", True)
+    timeout = total(metrics.SEARCH_DEGRADED, "_total", reason="timeout")
+    await service.search(MemeFromTextRequest.model_validate({"text": SECRET, "cursor": "next-page-cursor"}))
+    assert total(metrics.SEARCH_DEGRADED, "_total", reason="timeout") == timeout  # "Show more" replays a counted answer
+    await service.search(reply_request())
+    assert total(metrics.SEARCH_DEGRADED, "_total", reason="timeout") == timeout + 1
+
+
+@pytest.mark.asyncio
+async def test_meme_from_text_without_pipeline_counts_nothing(on):
+    service = MemeFromTextService(None, MagicMock(), MagicMock())  # `it`: no parser, the feature is off rather than degraded
     before = total(metrics.SEARCH_DEGRADED, "_total", reason="unavailable")
     await service.search(reply_request())
-    assert total(metrics.SEARCH_DEGRADED, "_total", reason="unavailable") == before + 1
+    assert total(metrics.SEARCH_DEGRADED, "_total", reason="unavailable") == before
 
 
 def test_search_helpers_ignore_unknown_labels_and_never_raise(on, monkeypatch):

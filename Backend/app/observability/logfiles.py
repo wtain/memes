@@ -8,6 +8,7 @@ import logging
 import logging.handlers
 import os
 import re
+import shutil
 import sys
 import threading
 import time
@@ -57,6 +58,19 @@ def _warn(message: str) -> None:
         pass
 
 
+# Below this much free space at start the log files are not installed (stdout only). A write that fails later (the disk filled up
+# while running) is dropped by SafeRotatingFileHandler.
+MIN_FREE_BYTES = 1024 * 1024
+
+
+def _free_bytes(directory: str) -> int:
+    """Free bytes on the file system of `directory`; a failing query counts as "enough" (it must not switch the files off)."""
+    try:
+        return shutil.disk_usage(directory).free
+    except Exception:
+        return MIN_FREE_BYTES
+
+
 def install(directory: str | None, slot: str, max_bytes: int, backup_count: int) -> list[logging.Handler]:
     """File handlers for `backend-<slot>.log` in `directory`, bounded to `max_bytes` x (1 + `backup_count`) per slot.
 
@@ -76,11 +90,12 @@ def install(directory: str | None, slot: str, max_bytes: int, backup_count: int)
         if max_bytes <= 0 or backup_count < 0:
             _warn("invalid log file bounds: log files off")
             return []
+        if _free_bytes(directory) < MIN_FREE_BYTES:
+            # A full disk accepts the open and buffers writes, so the failure would only show (silently) at a later flush.
+            _warn("log directory has less than 1 MiB free: log files off")
+            return []
         path = os.path.join(directory, f"backend-{slot}.log")
         handler = SafeRotatingFileHandler(path, mode="a", maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8")
-        # A full disk accepts the open but fails the first write: probe once so "full" is reported now, not silently later.
-        handler.stream.write("")
-        handler.stream.flush()
         setattr(handler, FILE_HANDLER_MARK, True)
         handler.addFilter(REQUEST_ID_FILTER)
         return [handler]

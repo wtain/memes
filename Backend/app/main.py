@@ -101,6 +101,9 @@ def _configure_logging() -> None:
     root.setLevel(logging.INFO)
 
 
+_ACCESS_LOGGERS = frozenset({"uvicorn.access", "gunicorn.access"})
+
+
 def _install_log_files(root: logging.Logger, all_loggers: list, formatter: logging.Formatter) -> None:
     """Size-bounded files next to stdout (settings observability.log_file.*; no `dir` = stdout only). Never raises."""
     try:
@@ -115,8 +118,9 @@ def _install_log_files(root: logging.Logger, all_loggers: list, formatter: loggi
             handler.setFormatter(formatter)
             root.addHandler(handler)
             # uvicorn's own loggers do not propagate to the root; give them the file too (a handler is only added once per logger).
+            # Never the access loggers: an access line carries the path and query string (the search text).
             for lgr in all_loggers:
-                if lgr is not root and not lgr.propagate and lgr.handlers:
+                if lgr is not root and not lgr.propagate and lgr.handlers and lgr.name not in _ACCESS_LOGGERS:
                     lgr.addHandler(handler)
     except Exception as error:
         logging.getLogger(__name__).warning("log files not installed: %s", type(error).__name__)
@@ -196,7 +200,8 @@ app.add_middleware(BodyLimitMiddleware, path=TELEMETRY_PATH, limit_bytes=TELEMET
 app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(ClientContextMiddleware)
 if metrics_enabled():
-    # Added after the two above, so it sits outside them: a request the body limit rejects is still counted.
+    # Added after the two above, so it sits outside them: a request the body limit rejects is still counted. It sits inside
+    # CORSMiddleware, so a CORS preflight (OPTIONS answered by CORS itself) is not counted.
     from Backend.app.observability.middleware import MetricsMiddleware
 
     app.add_middleware(MetricsMiddleware)

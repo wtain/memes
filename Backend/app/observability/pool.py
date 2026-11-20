@@ -3,6 +3,10 @@
 Installed on a SQLAlchemy pool (Storage/db.py does it for the engine pool when metrics are on). Counting is done here (not read from
 the pool, whose checkin event fires before the slot is released) and the gauges are set to absolute values, so they cannot drift.
 Everything is swallowed on failure: the pool behaves exactly as without this module.
+
+Limit: the listeners and the wrapped `connect` belong to this pool object. `pool.recreate()` (and `engine.dispose()`, which swaps in
+a recreated pool) returns a new pool without the `connect` wrapper, so after one the wait histogram stops and the checkout gauges may
+stop too. The application never disposes its engine while serving, so this is accepted; re-install after a dispose if that changes.
 """
 import threading
 import time

@@ -1,5 +1,7 @@
 """Page-visit beacon (O4a): POST /api/telemetry/pageview. No database; metrics are switched on by patching `enabled()`."""
 import logging
+import re
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -14,6 +16,7 @@ from Backend.app.stage_policy import ROUTE_POLICY, READER
 
 URL = "/api/telemetry/pageview"
 SECRET = "SECRET-PAGE-42"
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class FakeSettings:
@@ -104,16 +107,47 @@ def test_huge_body_without_content_length_413(client, on):
 @pytest.mark.parametrize("kwargs", [
     {"content": b"not json", "headers": {"content-type": "application/json"}},
     {"content": b"", "headers": {"content-type": "application/json"}},
-    {"content": b'{"client":"web","page":"/explore"}', "headers": {"content-type": "text/plain"}},
     {"content": b'[1,2]', "headers": {"content-type": "application/json"}},
     {"content": b'{"client":1,"page":["x"]}', "headers": {"content-type": "application/json"}},
     {"content": b'{"client":"web"}', "headers": {"content-type": "application/json"}},
 ])
 def test_malformed_bodies_no_new_label(client, on, kwargs):
-    before = series(metrics.PAGEVIEWS)
+    # Delta assertions, so the result does not depend on which series earlier tests created.
+    before_series, before_total = series(metrics.PAGEVIEWS), count(metrics.PAGEVIEWS)
     r = client.post(URL, **kwargs)
     assert r.status_code in (204, 422)
-    assert series(metrics.PAGEVIEWS) == before
+    assert count(metrics.PAGEVIEWS) == before_total
+    assert series(metrics.PAGEVIEWS) <= before_series | {(("client", "web"), ("page", "other")), (("client", "other"), ("page", "other"))}
+
+
+def test_text_plain_beacon_is_parsed(client, on):
+    # The web client sends text/plain;charset=UTF-8 (a simple CORS request): the server parses the body whatever the type.
+    before = count(metrics.PAGEVIEWS, client="web", page="/explore")
+    r = client.post(URL, content=b'{"client":"web","page":"/explore"}', headers={"content-type": "text/plain;charset=UTF-8"})
+    assert r.status_code == 204
+    assert count(metrics.PAGEVIEWS, client="web", page="/explore") == before + 1
+
+
+def _web_allowlist() -> set[str]:
+    text = (ROOT / "Frontend" / "memes-frontend" / "src" / "telemetry" / "pageview.ts").read_text(encoding="utf-8")
+    block = re.search(r"export const PAGE_ALLOWLIST[^=]*=\s*\[(.*?)\]", text, re.S)
+    assert block, "PAGE_ALLOWLIST not found in pageview.ts"
+    return set(re.findall(r'"([^"]*)"', block.group(1)))
+
+
+def _android_allowlist() -> set[str]:
+    path = (ROOT / "AndroidClient" / "app" / "src" / "main" / "java" / "com" / "memebrowser" / "app" / "data" / "telemetry"
+            / "PageviewReporter.kt")
+    block = re.search(r"val ALLOWED: Set<String> = setOf\((.*?)\)", path.read_text(encoding="utf-8"), re.S)
+    assert block, "PageviewDestinations.ALLOWED not found in PageviewReporter.kt"
+    return set(re.findall(r'"([^"]*)"', block.group(1)))
+
+
+def test_page_allowlist_matches_the_web_and_android_clients():
+    web = {p for p in metrics.PAGE_ALLOWLIST if p.startswith("/")}
+    android = {p for p in metrics.PAGE_ALLOWLIST if not p.startswith("/")}
+    assert _web_allowlist() == web
+    assert _android_allowlist() == android
 
 
 def test_error_body_does_not_echo_input(client, on):
