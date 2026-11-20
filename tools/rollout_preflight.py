@@ -39,6 +39,7 @@ REVISION_LABELS = {
     "d7a3b9c5e214": "C1 comics tables (same upgrade)",
     "f3a8c1d6b952": "C4 comics_panels.kept (same upgrade)",
     "a9d3e6b1c847": "C9 comics candidate tables (same upgrade)",
+    "b7e2d4a9c615": "ALG-7 tags search indexes (same upgrade)",
 }
 
 

@@ -624,6 +624,13 @@ class ImageTag(StaleMixin, Base):
 
     image = relationship("Image", back_populates="tags")
 
+    __table_args__ = (
+        # smart search: exact tier (upper(value) = :x), fuzzy tier (value % :x), facet filter (key, value IN ...)
+        Index("ix_tags_value_upper", func.upper(value)),
+        Index("ix_tags_value_trgm", "value", postgresql_using="gin", postgresql_ops={"value": "gin_trgm_ops"}),
+        Index("ix_tags_key_value", "key", "value"),
+    )
+
 
 class OCRLemma(StaleMixin, Base):
     __tablename__ = "ocr_lemmas"

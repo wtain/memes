@@ -47,7 +47,8 @@ def test_candidates_migration_is_the_single_head():
     config = Config(str(ROOT / "Storage" / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "Storage" / "alembic"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == [REVISION]
+    assert REVISION in {r.revision for r in script.walk_revisions()}
+    assert len(script.get_heads()) == 1
     assert _load().down_revision == "f3a8c1d6b952"
 
 
