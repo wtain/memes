@@ -243,4 +243,57 @@ describe('MemesList', () => {
     await waitFor(() => expect(iterateUntaggedMemes.mock.calls.length).toBe(callsBeforeBackward + 1))
     expect(iterateUntaggedMemes).toHaveBeenLastCalledWith(21, 'c1')
   })
+
+  it('shows an error state with Try again when the first page fails', async () => {
+    const searchMemes = vi.fn().mockRejectedValueOnce(new Error('boom'))
+    const api = makeMockApi({ searchMemes })
+    render(<MemesList memesApi={api} />)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Could not load memes')
+    expect(screen.queryByText('Nothing to show')).not.toBeInTheDocument()
+    expect(searchMemes).toHaveBeenCalledTimes(1)
+
+    searchMemes.mockResolvedValueOnce({ items: [DEFAULT_MOCK_MEME], facets: [], hasNext: false })
+    await act(async () => { screen.getByRole('button', { name: 'Try again' }).click() })
+    await waitFor(() => expect(getCardImg(DEFAULT_MOCK_MEME.id)).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps loaded cards and shows an inline alert when a later page fails', async () => {
+    const searchMemes = vi.fn()
+      .mockResolvedValueOnce({ items: [{ ...DEFAULT_MOCK_MEME, id: 'p1' }], nextCursor: 'cur1', hasNext: true })
+      .mockRejectedValueOnce(new Error('boom'))
+    const api = makeMockApi({ searchMemes })
+    render(<MemesList memesApi={api} />)
+    await waitFor(() => expect(getCardImg('p1')).toBeInTheDocument())
+
+    await act(async () => { capturedProps.endReached?.() })
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Try again')
+    expect(getCardImg('p1')).toBeInTheDocument()
+    expect(searchMemes).toHaveBeenCalledTimes(2)
+
+    searchMemes.mockResolvedValueOnce({ items: [{ ...DEFAULT_MOCK_MEME, id: 'p2' }], hasNext: false })
+    await act(async () => { screen.getByRole('button', { name: 'Try again' }).click() })
+    await waitFor(() => expect(getCardImg('p2')).toBeInTheDocument())
+    expect(searchMemes).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cur1' }))
+  })
+
+  it('says no memes match for a query that found nothing', async () => {
+    render(<MemesList memesApi={makeMockApi()} filter="zzzz" />)
+    expect(await screen.findByText('No memes match')).toBeInTheDocument()
+    expect(screen.getByText('Try fewer words or clear a filter.')).toBeInTheDocument()
+  })
+
+  it('says no memes match when tag filters found nothing', async () => {
+    render(<MemesList memesApi={makeMockApi()} tagFilters={{ topic: ['cats'] }} />)
+    expect(await screen.findByText('No memes match')).toBeInTheDocument()
+    expect(screen.getByText('Try fewer words or clear a filter.')).toBeInTheDocument()
+  })
+
+  it('keeps "Nothing to show" for an unfiltered empty list', async () => {
+    render(<MemesList memesApi={makeMockApi()} tagFilters={{ topic: [] }} />)
+    expect(await screen.findByText('Nothing to show')).toBeInTheDocument()
+    expect(screen.queryByText('No memes match')).not.toBeInTheDocument()
+  })
 })

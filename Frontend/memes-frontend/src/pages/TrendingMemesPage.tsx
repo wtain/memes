@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
+import { Button, EmptyState, MemeCardSkeleton, buttonClasses } from "../ui"
 import MemeCard from "../components/MemeCard"
 import { MemeDetailsModal } from "../components/MemeDetailsModal"
 import type { MemesApi } from "../api/MemesApi"
 import type { Meme, TrendingMemeItem } from "../types/generated/all"
 
 const PAGE_SIZE = 24
+const SKELETON_COUNT = 6
+const GRID_CLASSES = "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"
 
 type TrendingWindow = "all" | "30d"
 type List = { window: TrendingWindow; items: TrendingMemeItem[] }
@@ -103,16 +106,17 @@ export default function TrendingMemesPage({ memesApi }: Props) {
       {error && !stale && (
         <div role="alert" className="mb-4 text-red-600">
           Could not load trending memes.
-          <button
-            className="ml-3 underline"
+          <Button
+            size="sm"
+            className="ml-3"
             onClick={() => load(timeWindow, items.length > 0 ? nextCursor : undefined)}
           >
             Retry
-          </button>
+          </Button>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className={GRID_CLASSES}>
         {items.map(({ meme, popularity, windowGain }) => (
           <div key={meme.id} className="flex flex-col gap-1">
             <MemeCard meme={meme} memesApi={memesApi} onClick={() => setSelected(meme)} />
@@ -130,14 +134,25 @@ export default function TrendingMemesPage({ memesApi }: Props) {
         ))}
       </div>
 
-      {isLoading && <div role="status" className="h-10 flex items-center justify-center">Loading...</div>}
+      {isLoading && items.length === 0 && (
+        <>
+          <span role="status" className="sr-only">Loading...</span>
+          <div className={GRID_CLASSES}>
+            {Array.from({ length: SKELETON_COUNT }, (_, i) => <MemeCardSkeleton key={i} />)}
+          </div>
+        </>
+      )}
+
+      {isLoading && items.length > 0 && (
+        <div className="h-10 flex items-center justify-center"><span role="status">Loading...</span></div>
+      )}
 
       {!isLoading && !error && items.length === 0 && (
-        <div className="h-10 flex items-center justify-center">
-          {timeWindow === "30d"
-            ? "No memes picked up duplicates in the last 30 days."
-            : "No trending memes yet."}
-        </div>
+        <EmptyState
+          title={timeWindow === "30d" ? "Nothing trending in the last 30 days" : "Nothing trending yet"}
+          description="Memes climb here when their duplicates are merged: the more copies of a meme show up, the more popular it is."
+          action={<Link to="/explore" className={buttonClasses()}>Browse memes</Link>}
+        />
       )}
 
       {!isLoading && hasNext && (

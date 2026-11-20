@@ -31,10 +31,14 @@ export type UseWindowedPaginationResult = {
   items: Meme[]
   firstItemIndex: number
   loading: boolean
+  /** True after a page fetch failed; stays set (no automatic refetch) until retry() or a resetKey change. */
+  error: boolean
   hasMoreForward: boolean
   hasMoreBackward: boolean
   loadForward: () => Promise<void>
   loadBackward: () => Promise<void>
+  /** Clears the error and repeats the failed fetch (same cursor, same direction). */
+  retry: () => void
 }
 
 const DEFAULT_MAX_PAGES = 4
@@ -60,6 +64,7 @@ export function useWindowedPagination({
   const [pages, setPages] = useState<Page[]>([])
   const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_INDEX_START)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
   const [hasMoreForward, setHasMoreForward] = useState(true)
   const [hasMoreBackward, setHasMoreBackward] = useState(supportsColdBackward)
 
@@ -74,14 +79,20 @@ export function useWindowedPagination({
   const windowStartRef = useRef(0)
   const coldBackwardExhaustedRef = useRef(false)
   const initialCursorRef = useRef(initialCursor)
+  const errorRef = useRef(false)
+  const generationRef = useRef(0)
+  const failedDirectionRef = useRef<FetchDirection | null>(null)
 
   const loadForward = useCallback(async () => {
-    if (loadingRef.current || !hasMoreForwardRef.current) return
+    if (loadingRef.current || errorRef.current || !hasMoreForwardRef.current) return
     loadingRef.current = true
     setLoading(true)
+    const generation = generationRef.current
     try {
       const cursor = nextForwardCursorRef.current
       const result = await fetchPageRef.current(cursor, "forward")
+      // A resetKey change while this fetch was in flight: its result belongs to the old key.
+      if (generation !== generationRef.current) return
       const newPage: Page = { cursor, items: result.items }
       visitedCursorsRef.current.push(cursor)
       nextForwardCursorRef.current = result.nextCursor
@@ -101,20 +112,30 @@ export function useWindowedPagination({
       }
       pagesRef.current = nextPages
       setPages(nextPages)
+    } catch {
+      // A rejection from before a resetKey change must not poison the new key.
+      if (generation === generationRef.current) {
+        errorRef.current = true
+        failedDirectionRef.current = "forward"
+        setError(true)
+      }
     } finally {
-      loadingRef.current = false
-      setLoading(false)
+      if (generation === generationRef.current) {
+        loadingRef.current = false
+        setLoading(false)
+      }
     }
   }, [maxPages])
 
   const loadBackward = useCallback(async () => {
-    if (loadingRef.current) return
+    if (loadingRef.current || errorRef.current) return
     const canReplay = windowStartRef.current > 0
     const canColdBackward = supportsColdBackward && !coldBackwardExhaustedRef.current
     if (!canReplay && !canColdBackward) return
 
     loadingRef.current = true
     setLoading(true)
+    const generation = generationRef.current
     try {
       let cursor: string | undefined
       let items: Meme[]
@@ -122,6 +143,7 @@ export function useWindowedPagination({
       if (canReplay) {
         cursor = visitedCursorsRef.current[windowStartRef.current - 1]
         const result = await fetchPageRef.current(cursor, "forward")
+        if (generation !== generationRef.current) return
         items = result.items
         windowStartRef.current -= 1
       } else {
@@ -134,6 +156,7 @@ export function useWindowedPagination({
           return
         }
         const result = await fetchPageRef.current(anchor, "backward")
+        if (generation !== generationRef.current) return
         if (result.items.length === 0) {
           coldBackwardExhaustedRef.current = true
           setHasMoreBackward(false)
@@ -172,17 +195,40 @@ export function useWindowedPagination({
       pagesRef.current = nextPages
       setPages(nextPages)
       setHasMoreBackward(windowStartRef.current > 0 || (supportsColdBackward && !coldBackwardExhaustedRef.current))
+    } catch {
+      // A rejection from before a resetKey change must not poison the new key.
+      if (generation === generationRef.current) {
+        errorRef.current = true
+        failedDirectionRef.current = "backward"
+        setError(true)
+      }
     } finally {
-      loadingRef.current = false
-      setLoading(false)
+      if (generation === generationRef.current) {
+        loadingRef.current = false
+        setLoading(false)
+      }
     }
   }, [maxPages, supportsColdBackward])
 
   const loadForwardRef = useRef(loadForward)
   useEffect(() => { loadForwardRef.current = loadForward })
 
+  const loadBackwardRef = useRef(loadBackward)
+  useEffect(() => { loadBackwardRef.current = loadBackward })
+
+  const retry = useCallback(() => {
+    if (!errorRef.current) return
+    const direction = failedDirectionRef.current
+    errorRef.current = false
+    failedDirectionRef.current = null
+    setError(false)
+    if (direction === "backward") void loadBackwardRef.current()
+    else void loadForwardRef.current()
+  }, [])
+
   useEffect(() => {
     // Reset all bookkeeping and re-fetch from scratch.
+    generationRef.current += 1
     pagesRef.current = []
     loadingRef.current = false
     hasMoreForwardRef.current = true
@@ -191,6 +237,8 @@ export function useWindowedPagination({
     visitedCursorsRef.current = []
     windowStartRef.current = 0
     coldBackwardExhaustedRef.current = false
+    errorRef.current = false
+    failedDirectionRef.current = null
 
     // `await Promise.resolve()` before the first setState defers it past the synchronous
     // effect body, per the react-hooks/set-state-in-effect rule (same pattern used in
@@ -200,6 +248,7 @@ export function useWindowedPagination({
       setPages([])
       setFirstItemIndex(FIRST_ITEM_INDEX_START)
       setLoading(false)
+      setError(false)
       setHasMoreForward(true)
       setHasMoreBackward(supportsColdBackward)
 
@@ -210,5 +259,5 @@ export function useWindowedPagination({
 
   const items = pages.flatMap(p => p.items)
 
-  return { pages, items, firstItemIndex, loading, hasMoreForward, hasMoreBackward, loadForward, loadBackward }
+  return { pages, items, firstItemIndex, loading, error, hasMoreForward, hasMoreBackward, loadForward, loadBackward, retry }
 }
