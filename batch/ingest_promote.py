@@ -46,8 +46,10 @@ async def get_promotable_ids(repo: IngestionRepository, batch_id, tier_b_thresho
 
 async def promote(session, batch_id, tier_b_threshold: float) -> list:
     repo = IngestionRepository(session)
-    promotable = await get_promotable_ids(repo, batch_id, tier_b_threshold)
-    await repo.promote_images(promotable)
+    candidates = await get_promotable_ids(repo, batch_id, tier_b_threshold)
+    # Only rows still pending are flipped (a review may have rejected one since the snapshot), so
+    # everything downstream works from the ids actually promoted.
+    promotable = await repo.promote_images(candidates)
     # A promoted image that was flagged as a duplicate candidate and never decided was left in the library (M2a).
     await record_implicit_keeps(session, batch_id, promotable)
     return promotable

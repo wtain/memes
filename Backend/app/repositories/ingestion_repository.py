@@ -9,6 +9,9 @@ from repository.ocr_text import concatenate_ocr_rows
 from rules.text_heavy_result import CLASSIFIER_NAME, TEXT_HEAVY
 from Storage.models import BatchRun, Image, ImageClassification, OCRText, RunStatus, TmpDuplicates
 
+# Ids per IN list: asyncpg caps a statement at 32,767 bind parameters and a batch can hold ~23k images.
+_ID_CHUNK = 10_000
+
 
 class IngestionRepository:
     def __init__(self, session: AsyncSession):
@@ -94,11 +97,15 @@ class IngestionRepository:
         them; active members always do, since they're already fully enriched."""
         if not image_ids:
             return {}
-        result = await self.session.execute(
-            select(OCRText.image_id, OCRText.text, OCRText.confidence, OCRText.lang_score)
-            .where(OCRText.image_id.in_(image_ids))
-        )
-        return concatenate_ocr_rows(result.all(), confidence_min, lang_score_min)
+        ids = list(image_ids)
+        rows: list = []
+        for start in range(0, len(ids), _ID_CHUNK):
+            result = await self.session.execute(
+                select(OCRText.image_id, OCRText.text, OCRText.confidence, OCRText.lang_score)
+                .where(OCRText.image_id.in_(ids[start:start + _ID_CHUNK]))
+            )
+            rows.extend(result.all())
+        return concatenate_ocr_rows(rows, confidence_min, lang_score_min)
 
     async def get_text_heavy_ids(self, image_ids) -> set:
         """Image ids among `image_ids` classified text_heavy by the text-heavy classifier (see
@@ -107,15 +114,19 @@ class IngestionRepository:
         only needs the positive signal."""
         if not image_ids:
             return set()
-        result = await self.session.execute(
-            select(ImageClassification.image_id)
-            .where(
-                ImageClassification.image_id.in_(image_ids),
-                ImageClassification.classifier == CLASSIFIER_NAME,
-                ImageClassification.result == TEXT_HEAVY,
+        ids = list(image_ids)
+        found: set = set()
+        for start in range(0, len(ids), _ID_CHUNK):
+            result = await self.session.execute(
+                select(ImageClassification.image_id)
+                .where(
+                    ImageClassification.image_id.in_(ids[start:start + _ID_CHUNK]),
+                    ImageClassification.classifier == CLASSIFIER_NAME,
+                    ImageClassification.result == TEXT_HEAVY,
+                )
             )
-        )
-        return {row[0] for row in result.all()}
+            found.update(row[0] for row in result.all())
+        return found
 
     async def get_blocked_pending_ids(self, batch_id, tier_a_high: float, tier_b_high: float) -> set:
         """Pending image ids in this batch that still have at least one unresolved candidate
@@ -282,15 +293,25 @@ class IngestionRepository:
         })).one()
         return row.tier_remaining, row.blocked_total
 
-    async def promote_images(self, image_ids) -> int:
+    async def promote_images(self, image_ids) -> list:
         """Flip status to active for the given image ids (already validated by the caller as
-        clear of unresolved candidates). Returns the number of rows updated."""
+        clear of unresolved candidates). The ids are a snapshot, so only rows still `pending`
+        are touched: an image rejected (or otherwise resolved) since the snapshot stays as it
+        is, and a row a concurrent review holds a lock on is waited for, then re-checked.
+        Returns the ids actually promoted."""
         if not image_ids:
-            return 0
-        result = await self.session.execute(
-            update(Image).where(Image.id.in_(image_ids)).values(status="active")
-        )
-        return result.rowcount
+            return []
+        promoted: list = []
+        ids = list(image_ids)
+        for start in range(0, len(ids), _ID_CHUNK):
+            result = await self.session.execute(
+                update(Image)
+                .where(Image.id.in_(ids[start:start + _ID_CHUNK]), Image.status == "pending")
+                .values(status="active")
+                .returning(Image.id)
+            )
+            promoted.extend(row[0] for row in result.all())
+        return promoted
 
     async def reject_image(self, image_id) -> Optional[str]:
         """Flip status to rejected. Returns the filename (for the caller to move the file),

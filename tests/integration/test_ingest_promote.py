@@ -157,3 +157,41 @@ async def test_an_image_released_by_its_partners_rejection_ends_kept_and_the_run
     items = (await BusinessMetricsService(db_session).batch_metrics("ingest_tier_a"))["items"]
     counts = next(i for i in items if i["run_id"] == str(batch_id))["counts"]
     assert counts == {"proposed": 2, "rejected": 1, "kept": 1}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_promote_images_skips_rows_no_longer_pending_and_reports_only_promoted(db_session):
+    """SYN-2: promote works from a snapshot; an image a reviewer rejected in between must not become active."""
+    batch_id = await _make_run(db_session)
+    still_pending = await _make_image(db_session, "pending", batch_id)
+    rejected_meanwhile = await _make_image(db_session, "rejected", batch_id)
+    repo = IngestionRepository(db_session)
+
+    promoted = await repo.promote_images([still_pending, rejected_meanwhile])
+
+    assert list(promoted) == [still_pending]
+    assert (await db_session.get(Image, rejected_meanwhile)).status == "rejected"
+    assert (await db_session.get(Image, still_pending)).status == "active"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_promote_does_not_record_keeps_for_an_image_rejected_after_the_snapshot(db_session, monkeypatch):
+    batch_id = await _make_run(db_session)
+    a = await _make_image(db_session, "pending", batch_id)
+    b = await _make_image(db_session, "pending", batch_id)
+
+    import batch.ingest_promote as ip
+    real_get = ip.get_promotable_ids
+
+    async def snapshot_then_reject(repo, bid, thr):
+        ids = await real_get(repo, bid, thr)
+        (await db_session.get(Image, b)).status = "rejected"   # reviewer rejects after the snapshot
+        await db_session.flush()
+        return ids
+
+    monkeypatch.setattr(ip, "get_promotable_ids", snapshot_then_reject)
+
+    promoted = await promote(db_session, batch_id, _TIER_B_THRESHOLD)
+
+    assert promoted == [a]
+    assert (await db_session.get(Image, b)).status == "rejected"

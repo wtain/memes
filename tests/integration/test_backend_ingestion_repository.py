@@ -362,7 +362,7 @@ async def test_promote_images_sets_status_active(db_session):
     repo = IngestionRepository(db_session)
     count = await repo.promote_images([a, b])
 
-    assert count == 2
+    assert sorted(count) == sorted([a, b])
     assert (await db_session.get(Image, a)).status == "active"
     assert (await db_session.get(Image, b)).status == "active"
 
@@ -370,7 +370,7 @@ async def test_promote_images_sets_status_active(db_session):
 @pytest.mark.asyncio(loop_scope="session")
 async def test_promote_images_empty_list_is_noop(db_session):
     repo = IngestionRepository(db_session)
-    assert await repo.promote_images([]) == 0
+    assert await repo.promote_images([]) == []
 
 
 # --------------------------------------------------------------------------
@@ -406,3 +406,14 @@ async def test_list_abortable_images_excludes_active_and_other_batches(db_sessio
     rows = await repo.list_abortable_images(batch_id)
 
     assert [row[0] for row in rows] == [pending]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_ocr_and_text_heavy_lookups_accept_more_ids_than_the_bind_parameter_cap(db_session):
+    """ALG-14: asyncpg allows 32,767 bind parameters per statement; a batch can hold ~23k ids and the
+    review passes members of several clusters at once."""
+    repo = IngestionRepository(db_session)
+    ids = [uuid.uuid4() for _ in range(40_000)]
+
+    assert await repo.get_ocr_texts(ids, 0.4, 0.3) == {}
+    assert await repo.get_text_heavy_ids(ids) == set()

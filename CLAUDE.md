@@ -392,6 +392,8 @@ unregister_deleted_images   → also runs remove_singletons automatically afterw
                                single member; --no-chain skips this. It also deletes flagged
                                `cut_proposed` images whose file is gone (rejected recut cuts),
                                never an unflagged one.
+                               Aborts (run fails, nothing deleted) when BASE_PATH is missing or empty, or when >= general.unregister_min_guarded_count
+                               rows and more than general.unregister_max_delete_fraction of them would go; --allow-mass-delete bypasses the fraction check.
 fix_image_formats           → retroactively applies ingest_validate_formats' fix logic to
                                the existing corpus (default --status active); safe to
                                re-run, already-fixed images are no-ops. Admin-triggerable from
