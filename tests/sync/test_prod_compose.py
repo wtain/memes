@@ -384,7 +384,7 @@ def test_postgres_conf_logs_to_bounded_files_without_statement_text():
                 "log_min_duration_sample", "log_statement_sample_rate", "log_transaction_sample_rate", "auto_explain.log_min_duration"):
         assert key not in settings, f"{key} may put statement text or per-connection lines in the log"
     expected = {
-        "logging_collector": "on", "log_directory": "'/var/log/postgresql'", "log_filename": "'postgresql-%a.log'",
+        "logging_collector": "on", "log_directory": "'/var/log/postgresql'", "log_filename": "'postgresql-%Y%m%d-%H%M%S.log'",
         "log_rotation_size": "20MB", "log_rotation_age": "1d", "log_truncate_on_rotation": "on",
         "log_min_error_statement": "panic", "log_error_verbosity": "terse", "log_checkpoints": "on", "log_lock_waits": "on",
         "log_temp_files": "10MB", "log_autovacuum_min_duration": "5min", "log_min_messages": "warning",
@@ -392,6 +392,48 @@ def test_postgres_conf_logs_to_bounded_files_without_statement_text():
     for key, value in expected.items():
         assert settings.get(key) == value, key
     assert settings["log_directory"].strip("'") == "/var/log/postgresql"
+
+
+def test_log_filename_cannot_repeat_within_a_size_rotation():
+    """Postgres appends when a rotation reuses a name, so log_rotation_size would bound nothing: the name must carry year to second."""
+    name = _conf_settings()["log_filename"].strip("'")
+    for token in ("%Y", "%m", "%d", "%H", "%M", "%S"):
+        assert token in name, f"{token} missing from log_filename {name}"
+    assert "%a" not in name and "%j" not in name
+
+
+def _prune_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("prune_logs", PROD / "postgres" / "prune_logs.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_pruner_bound_constants_and_selection():
+    m = _prune_module()
+    assert (m.MAX_FILES, m.MAX_BYTES) == (10, 200 * 1024 * 1024)
+    mb = 1024 * 1024
+    names = [f"postgresql-20261101-{i:06d}.log" for i in range(15)]
+    assert m.select_deletions([(n, 1) for n in names]) == names[:5][::-1]  # count bound: the newest 10 stay
+    assert len(m.select_deletions([(n, 20 * mb) for n in names])) == 5  # 10 x 20MB = the 200MB cap
+    assert len(m.select_deletions([(n, 25 * mb) for n in names])) == 7  # 8 x 25MB fit
+    assert m.select_deletions([(names[0], 500 * mb), (names[1], 500 * mb)]) == [names[0]]  # the newest stays even alone over the cap
+    assert m.select_deletions([]) == []
+
+
+def test_pruner_deletes_only_matching_regular_files(tmp_path):
+    m = _prune_module()
+    for i in range(12):
+        (tmp_path / f"postgresql-20261101-{i:06d}.log").write_text("x")
+    (tmp_path / "other.log").write_text("x")
+    (tmp_path / "postgresql-Mon.log").write_text("x")
+    assert len(m.prune(tmp_path, dry_run=True)) == 2 and len(list(tmp_path.iterdir())) == 14
+    assert m.prune(tmp_path) == ["postgresql-20261101-000001.log", "postgresql-20261101-000000.log"]
+    left = {p.name for p in tmp_path.iterdir()}
+    assert len(left) == 12 and {"other.log", "postgresql-Mon.log", "postgresql-20261101-000011.log"} <= left
+    assert m.main(["prune_logs.py", str(tmp_path / "missing")]) == 2
 
 
 def test_db_log_directory_is_a_required_host_mount_matching_the_setting(stack):

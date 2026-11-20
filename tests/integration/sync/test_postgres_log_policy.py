@@ -156,4 +156,4 @@ def test_values_of_failed_and_blocked_statements_stay_out_of_the_postgres_log_fi
     for marker in ("STATEMENT:", "DETAIL:", "CONTEXT:", "connection authorized", "connection received", "execute <unnamed>"):
         assert marker not in scrubbed, marker
     files = _docker("exec", pg["name"], "sh", "-c", "ls /var/log/postgresql").stdout.split()
-    assert files and all(re.fullmatch(r"postgresql-[A-Za-z]{3}\.log(\.csv|\.json)?", f) for f in files), files
+    assert files and all(re.fullmatch(r"postgresql-\d{8}-\d{6}\.log", f) for f in files), files

@@ -80,6 +80,7 @@ For the next releases use the README release runbook; after each release run a d
   because nothing is pruned automatically (decision 11).
 - To lift a gate cap for a legitimate large run, edit `/etc/memes/gate.conf` on the VPS for that day and revert after (never a client flag).
 - Rollback and release failures: README "Rollback" and "When verify-grants fails".
+- Before the first release that contains the postgres-exporter role, run `postgres/provision.sh grants <env>` as the superuser on each environment, or verify-grants exits 3 (`missing role` on `memes_<env>_mon`); the README table has the `_mon` row.
 
 ## What is untested until a real VPS exists
 

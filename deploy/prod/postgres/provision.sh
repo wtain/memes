@@ -26,7 +26,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SQL_DIR="$HERE/../sql"
 
 usage() {
-    echo "usage: provision.sh render <env> <outdir> | apply <env> | grants <env>   (env: metal general it)" >&2
+    echo "usage: provision.sh render <env> <outdir> | apply <env> | grants <env> | prune-logs <env>   (env: metal general it)" >&2
     exit 2
 }
 
@@ -173,5 +173,7 @@ case "$sub" in
     render) [ "$#" -eq 3 ] || usage; cmd_render "$env" "$3" ;;
     apply) [ "$#" -eq 2 ] || usage; cmd_apply "$env" ;;
     grants) [ "$#" -eq 2 ] || usage; cmd_grants "$env" ;;
+    # keep the Postgres log directory within its bound (newest files, total bytes; see prune_logs.py); needs no docker
+    prune-logs) [ "$#" -eq 2 ] || usage; python3 "$HERE/prune_logs.py" "/srv/memes/$env/logs/postgres" ;;
     *) usage ;;
 esac
