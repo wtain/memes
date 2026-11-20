@@ -34,6 +34,8 @@ Only Caddy publishes beyond the loopback (Docker publishes bypass ufw). The back
 | rendered Postgres config directory (`PGCONF_DIR`) | db `/etc/memes`, read-only | root |
 | `/srv/memes/<env>/web` | caddy `/srv/memes/<env>/web`, read-only | `memesync-<env>` |
 | `/srv/memes/<env>/logs/backend` (`LOGS_DIR`/backend) | backend `/var/log/memes`, read-write (log files, `observability.log_file.dir`) | root, group `memesync-<env>`, 2770 (setup-host.sh) |
+| `/srv/memes/<env>/logs/postgres`, `/srv/memes/edge/logs/caddy` | db `/var/log/postgresql`; caddy file log | postgres uid, 0700 (`PG_UID`); root, 0755. `memes-prune-logs@<env>.timer` (hourly) runs `prune_logs.py` on the Postgres one. `memes-facts` reports `logs.{backend,postgres,caddy}_bytes` in `disk.json`; `sync.verify` A3 warns above 80% of 115 MiB / 200 MiB / 60 MiB |
+| Grafana tunnel account `memesync-obs` | `setup-host.sh <env> --obs-key FILE`; key line `permitopen="127.0.0.1:9090",command="/bin/false"` | root-owned key file `/etc/ssh/memes-keys/memesync-obs` |
 | named volume `metrics_mp` | backend `/metrics-mp` (prometheus multiprocess files, emptied by the gunicorn master at start), metrics `/metrics-mp` read-only | docker (mode 1777 from the image) |
 | named volume `pgsocket` | db and migrate `/var/run/postgresql` (unix socket) | docker |
 | named volumes `caddy_data`, `caddy_config` | caddy `/data`, `/config` (certificates) | docker |

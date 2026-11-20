@@ -26,6 +26,18 @@ FIX_INDEX = "owner: rebuild the index as the owner role (REINDEX / CREATE INDEX)
 FIX_BACKUP = "owner: run backup.sh for this environment on the VPS"
 FIX_CONTAIN = "owner: fix compose.yaml of the stack and redeploy the backend"
 
+# Log bounds of the observability design (section 6), the same figures the plan's Global Constraints state. Used by A3 and its tests.
+# backend: two worker slots (backend-w0/w1.log) of 10 MiB x (4 backups + the current file) = 100 MiB, plus the gunicorn master
+# (backend-master.log) of 5 MiB x (2 backups + the current file) = 15 MiB: 115 MiB per environment.
+_MIB = 1024 * 1024
+BACKEND_LOG_BOUND_BYTES = 2 * 10 * _MIB * (4 + 1) + 5 * _MIB * (2 + 1)
+# postgres: deploy/prod/postgres/prune_logs.py MAX_BYTES (a test keeps the two equal).
+POSTGRES_LOG_BOUND_BYTES = 200 * _MIB
+# caddy: roll_size 10MiB x (roll_keep 5 + the current file) = 60 MiB (deploy/prod/edge/Caddyfile).
+CADDY_LOG_BOUND_BYTES = 10 * _MIB * (5 + 1)
+LOG_BOUNDS = {"backend_bytes": BACKEND_LOG_BOUND_BYTES, "postgres_bytes": POSTGRES_LOG_BOUND_BYTES, "caddy_bytes": CADDY_LOG_BOUND_BYTES}
+LOG_WARN_FRACTION = 0.8
+
 GROWTH_TABLES = ("meme_impressions", "search_history", "search_not_found", "meme_saves")
 FACTS = {
     "disk.json": "{ \"<mount>\": {\"free_pct\": n} } or { \"mounts\": { \"<mount>\": {\"free_pct\": n | \"free_bytes\", \"total_bytes\"} } }",
@@ -110,7 +122,29 @@ def _free_pct(mount: Any) -> float | None:
     return None
 
 
+def _log_over(facts: Any) -> list | None:
+    """Names (backend, postgres, caddy) of the log directories above 80% of their bound; [] when the facts carry no `logs` (older
+    writer); None when `logs` is present but not usable."""
+    logs = facts.get("logs") if isinstance(facts, dict) else None
+    if logs is None:
+        return []
+    if not isinstance(logs, dict):
+        return None
+    over = []
+    for key, bound in LOG_BOUNDS.items():
+        size = logs.get(key)
+        if not isinstance(size, (int, float)) or isinstance(size, bool) or size < 0:
+            return None
+        if size > LOG_WARN_FRACTION * bound:
+            over.append(key[:-len("_bytes")])
+    return over
+
+
 def check_a3(facts: Any, warn_pct: float = 20, error_pct: float = 10) -> Check:
+    """Free space per mount (warn / error) and, as a warning, any log directory above 80% of its bound (`logs` of disk.json)."""
+    log_over = _log_over(facts)
+    if log_over is None:
+        return skipped("A3", "error", "facts_unusable")
     mounts = facts.get("mounts") if isinstance(facts, dict) and isinstance(facts.get("mounts"), dict) else facts
     if not isinstance(mounts, dict) or not mounts:
         return skipped("A3", "error", "facts_unusable")
@@ -120,10 +154,14 @@ def check_a3(facts: Any, warn_pct: float = 20, error_pct: float = 10) -> Check:
     low_err = sorted(n for n, v in pct.items() if v < error_pct)
     low_warn = sorted(n for n, v in pct.items() if error_pct <= v < warn_pct)
     detail = f"mounts={len(pct)},min_free_pct={min(pct.values()):.1f}"
+    if log_over:
+        detail += ",logs_over_80pct=" + ".".join(log_over)
     if low_err:
         return fail("A3", "error", detail + ",error=" + ".".join(low_err[:3]), FIX_DISK)
     if low_warn:
         return fail("A3", "warn", detail + ",low=" + ".".join(low_warn[:3]), FIX_DISK)
+    if log_over:
+        return fail("A3", "warn", detail, FIX_DISK)
     return ok("A3", "error", detail)
 
 

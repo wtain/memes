@@ -1,0 +1,18 @@
+[Unit]
+Description=memes %i: keep the Postgres log directory within its bound
+Documentation=file:///opt/memes/prune_logs.py
+
+[Service]
+Type=oneshot
+# root on purpose: the directory is 0700 and owned by the postgres uid of the image. Everything else is closed: only that directory is
+# writable, only CAP_DAC_OVERRIDE is kept (to enter and unlink in it), no network. The script deletes only postgresql-YYYYMMDD-HHMMSS.log.
+ExecStart=/usr/bin/python3 /opt/memes/prune_logs.py /srv/memes/%i/logs/postgres
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/memes/%i/logs/postgres
+CapabilityBoundingSet=CAP_DAC_OVERRIDE
+Nice=10
+TimeoutStartSec=60

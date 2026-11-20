@@ -13,7 +13,7 @@ S() { ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/de
 
 useradd -m -u 2000 -s /bin/bash admin
 mkdir -p /home/admin/.ssh
-for n in admin verb tunnel upload; do ssh-keygen -q -t ed25519 -N '' -f "$K/$n" -C "test-$n"; done
+for n in admin verb tunnel upload obs; do ssh-keygen -q -t ed25519 -N '' -f "$K/$n" -C "test-$n"; done
 cp "$K/admin.pub" /home/admin/.ssh/authorized_keys; chown -R admin:admin /home/admin/.ssh; chmod 700 /home/admin/.ssh; chmod 600 /home/admin/.ssh/authorized_keys
 ssh-keygen -A >/dev/null
 
@@ -24,14 +24,14 @@ def serve(port):
     s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); s.bind(("127.0.0.1", port)); s.listen(8)
     while True:
         c, _ = s.accept(); c.sendall(b"PG%d\n" % port); c.close()
-for p in (6436, 6434):
+for p in (6436, 6434, 9090, 9091):
     threading.Thread(target=serve, args=(p,), daemon=True).start()
 threading.Event().wait()
 PY
 python3 /tmp/listener.py & LISTENER=$!
 
 echo "--- setup-host (first run)"
-bash "$DEPLOY/host/setup-host.sh" it --admin-user admin --verb-key "$K/verb.pub" --tunnel-key "$K/tunnel.pub" --upload-key "$K/upload.pub" --skip-systemd \
+bash "$DEPLOY/host/setup-host.sh" it --admin-user admin --verb-key "$K/verb.pub" --tunnel-key "$K/tunnel.pub" --upload-key "$K/upload.pub" --obs-key "$K/obs.pub" --skip-systemd \
   --quota images=1g > /tmp/setup1.log 2>&1
 check setup_host_first_run test $? -eq 0
 cat /tmp/setup1.log | sed 's/^/LOG /'
@@ -66,12 +66,26 @@ check gate_conf_mode mode_is /etc/memes/gate.conf root root 644
 check keys_file_verb_tunnel test "$(grep -c . /etc/ssh/memes-keys/memesync-it)" = 2
 check keys_file_upload test "$(grep -c . /etc/ssh/memes-keys/memeup-it)" = 1
 check keys_file_root_owned mode_is /etc/ssh/memes-keys/memesync-it root root 644
+check dir_logs mode_is $R/it/logs root root 755
+check dir_logs_backend mode_is $R/it/logs/backend root memesync-it 2770
+check dir_logs_postgres test "$(stat -c "%u %g %a" $R/it/logs/postgres)" = "999 999 700"
+check dir_logs_caddy mode_is $R/edge/logs/caddy root root 755
+check dir_edge mode_is $R/edge root root 755
+check prune_logs_installed mode_is /opt/memes/prune_logs.py root root 755
+check shell_obs_is_nologin test "$(shell_of memesync-obs)" = /usr/sbin/nologin
+check keys_file_obs_one_line test "$(grep -c . /etc/ssh/memes-keys/memesync-obs)" = 1
+check keys_file_obs_root_owned mode_is /etc/ssh/memes-keys/memesync-obs root root 644
+check keys_file_obs_options grep -q '^restrict,port-forwarding,permitopen="127.0.0.1:9090",command="/bin/false" ssh-ed25519 ' /etc/ssh/memes-keys/memesync-obs
+check obs_password_locked_not_set test "$(getent shadow memesync-obs | cut -d: -f2)" = '*'
 
 # ------------------------------------------------------------------------------------------------------------------ effective sshd config
 T() { sshd -T -C "user=$1,host=h,addr=1.2.3.4" 2>/dev/null; }
 check sshd_password_auth_off bash -c "$(declare -f T); T memesync-it | grep -qx 'passwordauthentication no'"
 check sshd_it_permitopen bash -c "$(declare -f T); T memesync-it | grep -qx 'permitopen 127.0.0.1:6436'"
 check sshd_it_forwarding_local bash -c "$(declare -f T); T memesync-it | grep -qx 'allowtcpforwarding local'"
+check sshd_obs_permitopen bash -c "$(declare -f T); T memesync-obs | grep -qx 'permitopen 127.0.0.1:9090'"
+check sshd_obs_forwarding_local bash -c "$(declare -f T); T memesync-obs | grep -qx 'allowtcpforwarding local'"
+check sshd_allowusers_has_obs grep -Eq '^AllowUsers .*memesync-obs' /etc/ssh/sshd_config.d/00-memes-sync.conf
 check sshd_up_forced_sftp bash -c "$(declare -f T); T memeup-it | grep -qx 'forcecommand internal-sftp -u 007'"
 check sshd_up_no_forwarding bash -c "$(declare -f T); T memeup-it | grep -qx 'allowtcpforwarding no'"
 check sshd_up_chroot bash -c "$(declare -f T); T memeup-it | grep -q '^chrootdirectory '"
@@ -93,8 +107,8 @@ check verb_sweep_as_gate_user su -s /bin/sh memesync-it -c 'SSH_ORIGINAL_COMMAND
 check verb_key_has_no_sftp bash -c "! echo 'ls /' | sftp -q -b - -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes -o LogLevel=ERROR -i $K/verb memesync-it@127.0.0.1"
 
 # ------------------------------------------------------------------------------------------------------------------ forwarding
-banner_through() { # key local_port remote_target -> prints what a connection receives
-  S -f -N -i "$K/$1" -L "$2:$3" memesync-it@127.0.0.1 >/dev/null 2>&1 || { echo "ssh-failed"; return; }
+banner_through() { # key local_port remote_target [user] -> prints what a connection receives
+  S -f -N -i "$K/$1" -L "$2:$3" "${4:-memesync-it}@127.0.0.1" >/dev/null 2>&1 || { echo "ssh-failed"; return; }
   sleep 1
   python3 - "$2" <<'PY'
 import socket, sys
@@ -107,8 +121,18 @@ print(data.decode(errors="replace").strip() or "nothing")
 PY
   pkill -f "ssh .*-L $2:" || true
 }
+banner_obs() { banner_through "$1" "$2" "$3" memesync-obs; }
 check tunnel_key_reaches_own_postgres test "$(banner_through tunnel 18436 127.0.0.1:6436)" = PG6436
 check tunnel_key_not_other_env_port test "$(banner_through tunnel 18434 127.0.0.1:6434)" = nothing
+check obs_key_reaches_prometheus test "$(banner_obs obs 18090 127.0.0.1:9090)" = PG9090
+check obs_key_not_other_loopback_port test "$(banner_obs obs 18091 127.0.0.1:9091)" = nothing
+check obs_key_not_postgres test "$(banner_obs obs 18436 127.0.0.1:6436)" = nothing
+check obs_key_not_sshd test "$(banner_obs obs 18023 127.0.0.1:22)" = nothing
+check tunnel_key_not_prometheus test "$(banner_through tunnel 18092 127.0.0.1:9090)" = nothing
+out=$(S -i "$K/obs" memesync-obs@127.0.0.1 id 2>&1); rc=$?
+check obs_key_runs_nothing bash -c "[ $rc -ne 0 ] && ! echo '$out' | grep -q uid="
+out=$(S -tt -i "$K/obs" memesync-obs@127.0.0.1 2>&1 </dev/null); rc=$?
+check obs_key_no_shell_session bash -c "[ $rc -ne 0 ] && ! echo '$out' | grep -q uid="
 check tunnel_key_not_sshd test "$(banner_through tunnel 18022 127.0.0.1:22)" = nothing
 check verb_key_cannot_forward test "$(banner_through verb 18437 127.0.0.1:6436)" = nothing
 out=$(S -i "$K/tunnel" memesync-it@127.0.0.1 id 2>&1); rc=$?
