@@ -106,6 +106,7 @@
     "ClusterSimilarityPair":          { "$ref": "clustersimilaritypair.schema.json" },
     "ClusterSimilarityResponse":      { "$ref": "clustersimilarityresponse.schema.json" },
     "CapabilitiesFeatures":           { "$ref": "capabilitiesfeatures.schema.json" },
-    "CapabilitiesResponse":           { "$ref": "capabilitiesresponse.schema.json" }
+    "CapabilitiesResponse":           { "$ref": "capabilitiesresponse.schema.json" },
+    "PageViewBeacon":                 { "$ref": "pageviewbeacon.schema.json" }
   }
 }

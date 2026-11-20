@@ -139,3 +139,28 @@ def test_image_can_import_the_recut_cutter(built_image):
         f"the image cannot import the recut cutter (Pillow or a batch/utils COPY missing?):\n"
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
+
+
+def _compose_backend_command():
+    import yaml
+    with open(os.path.join(REPO_ROOT, "deploy", "prod", "compose.yaml"), encoding="utf-8") as fh:
+        return [str(c) for c in yaml.safe_load(fh)["services"]["backend"]["command"]]
+
+
+def test_gunicorn_loads_the_baked_config_without_dash_c(built_image):
+    # compose.yaml starts gunicorn without -c: it must pick up ./gunicorn.conf.py from the WORKDIR /app on its own, so the prod
+    # hooks (log slots, metrics multiprocess directory) run. An older image without that file starts with gunicorn's defaults.
+    command = _compose_backend_command()
+    assert command[0] == "gunicorn" and "-c" not in command and "--config" not in command
+    probe = (
+        "import os, sys; sys.argv = sys.argv[1:]; "
+        "from gunicorn.app.wsgiapp import WSGIApplication; "
+        "cfg = WSGIApplication('%(prog)s [OPTIONS] [APP_MODULE]').cfg; "
+        "print(os.getcwd()); "
+        "print(*(getattr(cfg, h).__code__.co_filename for h in ('on_starting', 'pre_fork', 'post_fork')))"
+    )
+    result = _run(["docker", "run", "--rm", *DUMMY_ENV, built_image, "python", "-c", probe, *command])
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    cwd, hooks = result.stdout.strip().splitlines()[-2:]
+    assert cwd == "/app"
+    assert hooks.split() == ["/app/gunicorn.conf.py"] * 3, hooks

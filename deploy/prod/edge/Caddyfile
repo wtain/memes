@@ -6,7 +6,8 @@
 
 	# The DEFAULT logger (everything that is not an access log: http.log.error entries of failed proxy requests, which carry
 	# request>uri and request>headers) gets the same filter as the sites' access logs. Without it a 502 writes the searched text into the
-	# container log (verified on the pinned image, see README "Log suppression").
+	# container log (verified on the pinned image, see README "Log suppression"). `resp_headers` goes too: GET /api/images/<id> answers
+	# with a Content-Disposition carrying the library file name, which can be a client-chosen upload name.
 	log {
 		output stderr
 		format filter {
@@ -15,9 +16,16 @@
 				request>uri delete
 				request>headers delete
 				request>tls delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				resp_headers delete
 			}
 		}
 	}
+
+	# Request metrics of every server, served by the internal :9180 site below (edge network only, never published).
+	metrics
 
 	servers {
 		# Header size limits (the request line counts as a header): a flood of oversized headers is refused early.
@@ -32,7 +40,9 @@
 }
 
 # Log format shared by every site: the full URI (it carries query strings: searched text) and every request header
-# (Referer, Cookie, Authorization) are deleted; only the path is kept, as `path`. No request bodies are ever logged.
+# (Referer, Cookie, Authorization), the client address (remote_ip, remote_port, client_ip) and every response header (resp_headers: the
+# Content-Disposition of an image carries its file name) are deleted; only the path is kept, as `path`.
+# `path` is the one request field logged and may contain an image id (accepted: it is not a search text). No request bodies are ever logged.
 (quiet_log) {
 	log {
 		output stderr
@@ -42,10 +52,37 @@
 				request>uri delete
 				request>headers delete
 				request>tls delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				resp_headers delete
+			}
+		}
+	}
+	# Second output: a size-bounded file (10 MiB x 5 kept, about 60 MB) with the SAME filter, so it cannot hold a query string, a header,
+	# a cookie, a client address or a response header (remote_ip, remote_port, client_ip and resp_headers are deleted too). `access_file` is one logger shared by the three sites (their hosts merge into its include list).
+	log access_file {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri delete
+				request>headers delete
+				request>tls delete
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				resp_headers delete
 			}
 		}
 	}
 	log_append path {http.request.uri.path}
+	# The request id is the SERVER-generated one the backend returns as X-Request-ID (it ignores a client-sent id); empty for the SPA and
+	# for anything Caddy answers itself. Read from the response, never from the request, so a client cannot choose what is logged.
+	log_append request_id {http.response.header.X-Request-ID}
 }
 
 # Arguments: 1 = environment name (the SPA is /srv/memes/<env>/web), 2 = the backend's alias on memes-edge.
@@ -64,7 +101,7 @@
 
 	# Second layer behind the backend's own stage policy: prefixes that are not mounted on prod are refused here too.
 	# (handle blocks run in the order written and the first match wins, so these come before the proxy handles.)
-	@unmounted path /api/admin* /api/uploads* /api/comics* /api/ingestion* /api/recut* /api/trends* /api/meme-from-text/ratings* /api/meme-from-text/profiles* /docs* /redoc* /openapi.json
+	@unmounted path /api/admin* /api/uploads* /api/comics* /api/ingestion* /api/recut* /api/trends* /api/meme-from-text/ratings* /api/meme-from-text/profiles* /docs* /redoc* /openapi.json /metrics*
 	handle @unmounted {
 		respond 404
 	}
@@ -127,4 +164,11 @@
 
 {$IT_HOST} {
 	import memes_site it api-it
+}
+
+# Internal metrics listener: Caddy's own metrics for the Prometheus of the memes-obs project (job caddy, caddy:9180 over the memes-edge
+# network). Plain http, no TLS, never published (compose.yaml maps no 9180), and not reachable through any public hostname: the sites
+# above answer /metrics with 404. The admin API stays on its default loopback address inside the container.
+http://:9180 {
+	metrics
 }

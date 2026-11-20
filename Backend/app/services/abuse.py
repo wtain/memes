@@ -11,6 +11,7 @@ rewrites the client from `X-Forwarded-For`; this module never parses the header 
 State is process-local: the effective limit is workers x the configured rate.
 """
 import ipaddress
+import logging
 import threading
 import time
 from collections import OrderedDict
@@ -18,6 +19,7 @@ from contextvars import ContextVar
 
 from fastapi import HTTPException, Request
 
+from Backend.app.observability.logfiles import log_sampled
 from config.settings import settings
 
 UNKNOWN_CLIENT = "unknown"
@@ -80,9 +82,9 @@ class TokenBucketLimiter:
             self._buckets.clear()
 
 
-_LIMITERS = {name: TokenBucketLimiter() for name in ("saves", "not_found", "bug_reports", "recording")}
+_LIMITERS = {name: TokenBucketLimiter() for name in ("saves", "not_found", "bug_reports", "recording", "telemetry")}
 _SETTING_KEYS = {"saves": "abuse.saves_per_min", "not_found": "abuse.not_found_per_min",
-                 "bug_reports": "abuse.bug_reports_per_min", "recording": "abuse.recording_per_min"}
+                 "bug_reports": "abuse.bug_reports_per_min", "recording": "abuse.recording_per_min", "telemetry": "abuse.telemetry_per_min"}
 
 
 def _number(key: str, default: float) -> float:
@@ -127,7 +129,25 @@ def client_key(request: Request) -> str:
 
 
 def _allow(name: str, key: str, cost: float = 1.0) -> bool:
-    return _LIMITERS[name].allow(key, _number(_SETTING_KEYS[name], 0), cost, _int_setting("abuse.max_clients", 10000))
+    allowed = _LIMITERS[name].allow(key, _number(_SETTING_KEYS[name], 0), cost, _int_setting("abuse.max_clients", 10000))
+    if not allowed:
+        count_refusal(name)
+    return allowed
+
+
+def count_refusal(scope: str) -> None:
+    """Counts a refusal by an abuse limit for metrics (scope: saves, not_found, bug_reports, recording, telemetry, body_limit).
+    A no-op when metrics are off; never raises, never changes the response. Also writes one sampled log line (scope only, never the
+    client), whether or not metrics are on."""
+    log_sampled(logging.getLogger(__name__), "refused:" + str(scope), "request refused by limit scope=%s", str(scope)[:24])
+    try:
+        from Backend.app.observability import enabled
+        if enabled():
+            from Backend.app.observability.metrics import record_rate_limited
+            record_rate_limited(scope)
+    except Exception:
+        pass
+
 
 
 def allow_client(name: str, host: str | None) -> bool:

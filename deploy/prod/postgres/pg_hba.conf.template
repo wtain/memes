@@ -12,6 +12,10 @@ local    all           postgres                                                 
 local    memes_@ENV@   memes_@ENV@_owner                                         scram-sha-256
 local    memes_@ENV@   memes_@ENV@_sync_r                                        scram-sha-256
 
+# The metrics exporter (postgres-exporter-@ENV@ in the obs project, OS user nobody, uid 65534) reads the socket through a read-only
+# volume and has no password: peer, mapped by pg_ident.conf (map `exporter`) to this one stats-only role (pg_monitor + CONNECT).
+local    memes_@ENV@   memes_@ENV@_mon                                           peer map=exporter
+
 # The owner and the bootstrap superuser never connect over TCP, whatever the address.
 host     all           postgres,memes_@ENV@_owner                     all        reject
 

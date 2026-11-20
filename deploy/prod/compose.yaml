@@ -1,7 +1,7 @@
 # One production stack per environment (design: docs/superpowers/specs/2026-11-12-environment-data-sync/
 # 2026-11-12-p5-prod-provisioning-and-hardening-design.md, section P5d). Run from this directory as
 #
-#   docker compose -p memes-<env> --env-file env/<env>.prod.env up -d db backend
+#   docker compose -p memes-<env> --env-file env/<env>.prod.env up -d db backend metrics
 #   docker compose -p memes-<env> --env-file env/<env>.prod.env --profile ops run --rm migrate
 #
 # The env file holds the per-environment values (README.md lists every key); a required key that is empty stops compose
@@ -49,6 +49,8 @@ services:
       - ${PGDATA_DIR:?set PGDATA_DIR}:/var/lib/postgresql
       - ${PGCONF_DIR:?set PGCONF_DIR}:/etc/memes:ro
       - pgsocket:/var/run/postgresql
+      # Log files (postgresql.conf log_directory); the host directory is created by setup-host.sh (task O6d), owned by the postgres uid.
+      - ${LOGS_DIR:?set LOGS_DIR (/srv/memes/<env>/logs)}/postgres:/var/log/postgresql
     tmpfs:
       - /tmp:size=256m
     shm_size: 256m
@@ -72,7 +74,9 @@ services:
       db:
         condition: service_healthy
     # Two workers (the Dockerfile default is four), no access log (gunicorn writes none without --access-logfile),
-    # warning level, proxy headers trusted from the shared edge network only.
+    # warning level, proxy headers trusted from the shared edge network only. No -c: gunicorn loads ./gunicorn.conf.py from the
+    # WORKDIR /app on its own (log slots, metrics hooks), and an image from before observability, which has no such file, still starts
+    # with this command (rollback, README "Rollback").
     command:
       - gunicorn
       - Backend.app.main:app
@@ -92,9 +96,13 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL (role memes_<env>_app, host db)}
       BASE_PATH: /data/images
       BUG_REPORTS_PATH: /data/bug-reports
+      PROMETHEUS_MULTIPROC_DIR: /metrics-mp
     volumes:
       - ${IMAGES_DIR:?set IMAGES_DIR}:/data/images:ro
       - ${BUG_REPORTS_DIR:?set BUG_REPORTS_DIR}:/data/bug-reports
+      # Log files (observability.log_file.dir); the host directory is created by setup-host.sh (root:memesync-<env>, 2770).
+      - ${LOGS_DIR:?set LOGS_DIR (/srv/memes/<env>/logs)}/backend:/var/log/memes
+      - metrics_mp:/metrics-mp
     tmpfs:
       - /tmp:size=256m,noexec,nosuid
     mem_limit: ${BACKEND_MEM_LIMIT:-768m}
@@ -110,6 +118,38 @@ services:
       internal: {}
       edge:
         aliases: ["${EDGE_ALIAS:?set EDGE_ALIAS (api-<env>)}"]
+
+  # Metrics sidecar: same image, aggregates the multiprocess files of the backend workers and serves /metrics on 9102 over the
+  # shared edge network only (alias metrics-<env>, scraped by the Prometheus of the memes-obs project). Never published (no
+  # ports), no Caddy route; no internal network, so it cannot reach Postgres.
+  metrics:
+    <<: *hardening
+    image: memes-backend:${BACKEND_TAG:?set BACKEND_TAG to the git sha of the image}
+    user: "${SVC_UID:-10001}:${SVC_GID:?set SVC_GID to the gid of memesync-<env>}"
+    command: ["python", "-m", "Backend.app.observability.exporter"]
+    environment:
+      APP_ENV: ${MEMES_ENV:?set MEMES_ENV}
+      APP_STAGE: prod
+      PROMETHEUS_MULTIPROC_DIR: /metrics-mp
+    volumes:
+      - metrics_mp:/metrics-mp:ro
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 50
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:9102/metrics', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      edge:
+        aliases: ["metrics-${MEMES_ENV:?set MEMES_ENV}"]
 
   # Release steps 2 and 2b: `python -m sync.release all` (Dockerfile.migrate): alembic upgrade head as the owner role over the unix
   # socket, then roles.<env>.sql again, then a check of every grant against the registry (exit 3 on a mismatch). No network at all: the
@@ -140,6 +180,7 @@ services:
 
 volumes:
   pgsocket: {}
+  metrics_mp: {}
 
 networks:
   internal:

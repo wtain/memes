@@ -706,7 +706,7 @@ class TestResponseIndexAndOrder:
 
 
 class TestFailuresAreLogged:
-    def test_a_write_error_is_logged_with_the_sanitised_name_and_leaves_earlier_files(self, client, inbox, caplog):
+    def test_a_write_error_is_logged_without_the_name_and_leaves_earlier_files(self, client, inbox, caplog):
         real_publish = service_module._publish_once
         count = []
 
@@ -721,7 +721,8 @@ class TestFailuresAreLogged:
             response = client.post("/api/uploads", files=files)
 
         assert response.status_code == 500
-        assert "second.png" in caplog.text and "No space left" in caplog.text
+        assert "second.png" not in caplog.text and "(OSError)" in caplog.text  # the class only, never the client name or message
+        assert "No space left" not in caplog.text
         assert str(inbox) not in response.text
         assert _listing(inbox) == ["first.png"]
         assert list((inbox / ".uploading").iterdir()) == []

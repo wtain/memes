@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "pageviewbeacon.schema.json",
+  "title": "PageViewBeacon",
+  "description": "Body of POST /api/telemetry/pageview: one page visit. A page outside the server's allowlist, or an unknown client, is counted as other",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["client", "page"],
+  "properties": {
+    "client": {
+      "type": "string",
+      "description": "web or android"
+    },
+    "page": {
+      "type": "string",
+      "description": "Route template (web, e.g. /memes/:id) or destination name (Android, e.g. search); never a concrete path, id or query"
+    }
+  }
+}

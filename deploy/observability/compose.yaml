@@ -1,0 +1,40 @@
+# Grafana on the dev workstation, for the prod metrics (design: docs/superpowers/specs/2026-11-19-observability, section 5.5).
+#
+#   python -m sync.obs_tunnel                       # opens 127.0.0.1:19090 -> the VPS Prometheus (ssh alias memes-prod-obs)
+#   cd deploy/observability
+#   cp .env.example .env                            # then put a real admin password in .env (untracked)
+#   docker compose up -d                            # Grafana on http://127.0.0.1:3300
+#
+# Published on the loopback only. Port 3300 and the tunnel port 19090 are in environments/Environments.md.
+# The datasource reaches the tunnel through host.docker.internal (the workstation host), see provisioning/datasources/prometheus.yml.
+services:
+  grafana:
+    image: grafana/grafana:12.2.0@sha256:74144189b38447facf737dfd0f3906e42e0776212bf575dc3334c3609183adf7
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3300:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in deploy/observability/.env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./dashboards:/var/lib/grafana-dashboards:ro
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 200
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+volumes:
+  grafana_data:

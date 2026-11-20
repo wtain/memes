@@ -117,6 +117,7 @@ abuse:
   saves_per_min: 0              # POST /api/images/meme/{id}/saves; over the limit: 429
   not_found_per_min: 0          # POST /api/history/{id}/not-found; over the limit: 429
   bug_reports_per_min: 20       # POST /api/bug-reports; over the limit: 429
+  telemetry_per_min: 0          # POST /api/telemetry/pageview; over the limit: 429 (0 = off)
   recording_per_min: 0          # history rows + impression rows together; over the budget the recording is skipped and the response still served
   max_q_chars: 0                # GET /api/images q longer than this: 422 (0 = no cap)
   max_facets: 0                 # more facet values than this: 422 (0 = no cap)
@@ -337,3 +338,12 @@ sync:                           # dev/prod data sync (docs/superpowers/specs/202
       modes: ["644"]            # F4: accepted octal modes of the regular files in the images directory (empty list: not checked)
     backup_max_age_h: 36        # S6
     pull_stale_days: 7          # P1
+
+# Observability (docs/superpowers/specs/2026-11-19-observability/). metrics.enabled false: no metrics middleware, no prometheus_client import.
+observability:
+  metrics: {enabled: false}
+  slow_request_ms: 0            # 0 = no slow-request line (dev); prod sets 2000
+  log_file:                     # size-bounded files next to stdout; no dir = stdout only (dev). Prod: backend-w0/w1.log and backend-master.log
+    dir: null
+    max_bytes: 10485760         # 10 MB per worker slot file, 4 backups (the gunicorn master file: 5 MB x 2, see deploy/prod/gunicorn.conf.py)
+    backup_count: 4

@@ -46,6 +46,36 @@ def test_the_expected_grants_are_not_empty_and_cover_every_role():
     assert exp.maintain and exp.column and exp.sequence
 
 
+def test_the_monitor_role_is_named_after_the_database_and_is_not_in_the_registry_roles():
+    for env in ENVS:
+        assert release.mon_role(env) == f"memes_{env}_mon"
+        assert release.mon_role(env) not in roles.names_for(env).roles
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_a_correct_monitor_role_is_clean_and_an_unlooked_at_one_is_ignored(env):
+    act = replace(actual_for(env), mon_present=True)
+    assert release.diff(env, act) == []
+    assert release.diff(env, actual_for(env)) == []  # mon_present None: not fetched, nothing reported
+
+
+def test_mutation_a_missing_monitor_role_or_membership_is_reported():
+    mon = release.mon_role("it")
+    found = release.diff("it", replace(actual_for("it"), mon_present=False))
+    assert found == [release.Mismatch("missing role", mon, "-", "-")]
+    found = release.diff("it", replace(actual_for("it"), mon_present=True, mon_missing=frozenset({"pg_monitor", "CONNECT"})))
+    assert found == [release.Mismatch("missing", mon, "-", "CONNECT"), release.Mismatch("missing", mon, "-", "pg_monitor")]
+
+
+def test_mutation_any_other_privilege_of_the_monitor_role_is_reported_and_exits_3():
+    mon = release.mon_role("metal")
+    extra = frozenset({("images", "SELECT"), ("member of pg_read_all_data", "MEMBERSHIP")})
+    found = release.diff("metal", replace(actual_for("metal"), mon_present=True, mon_extra=extra))
+    assert found == [release.Mismatch("extra", mon, "images", "SELECT"),
+                     release.Mismatch("extra", mon, "member of pg_read_all_data", "MEMBERSHIP")]
+    assert release.exit_code_for(found) == release.EXIT_MISMATCH
+
+
 def test_mutation_a_missing_table_grant_is_reported():
     names = roles.names_for("general")
     exp = roles.expected(names)
@@ -240,7 +270,9 @@ def test_the_migrate_dockerignore_admits_only_the_roles_files_of_deploy():
     assert not any(line.startswith("!") and (".env" in line or "environments/." in line) for line in lines)
     assert "environments/.env.*" in lines and "**/.env.*" in lines
     backend_ignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
-    assert re.search(r"^deploy$", backend_ignore, re.M) and not re.search(r"^!deploy", backend_ignore, re.M)
+    # the backend image admits exactly one file of deploy: the gunicorn config
+    assert re.search(r"^deploy/\*$", backend_ignore, re.M) and re.search(r"^deploy/prod/\*$", backend_ignore, re.M)
+    assert re.findall(r"^!deploy.*$", backend_ignore, re.M) == ["!deploy/prod", "!deploy/prod/gunicorn.conf.py"]
 
 
 def test_the_migrate_service_has_no_network_no_published_port_and_runs_the_release_tool():

@@ -132,8 +132,8 @@ async def build_comics(comics_id: uuid.UUID, body: ComicsBuildRequest | None = N
     await db.commit()
     try:
         await start_comics_pipeline()  # best effort, never raises; the build stands either way
-    except Exception:
-        logger.warning("comics: starting comics_pipeline after build failed", exc_info=True)
+    except Exception as exc:
+        logger.warning("comics: starting comics_pipeline after build failed (%s)", type(exc).__name__)
     return result
 
 

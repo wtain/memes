@@ -2,13 +2,15 @@
 # Provisioning of the production Postgres of one environment (design: P5d, "Postgres per environment" and the P5d-T1/T2
 # findings). Run on the VPS, from any directory, as a user who may run docker. Order (each step is idempotent):
 #
-#   1. provision.sh render <env> <outdir>   write postgresql.conf and the rendered pg_hba.conf to <outdir> (the PGCONF_DIR
-#                                           of the env file). Needs no docker; run BEFORE the first `compose up db`.
+#   1. provision.sh render <env> <outdir>   write postgresql.conf, the rendered pg_hba.conf and pg_ident.conf to <outdir> (the
+#                                           PGCONF_DIR of the env file). Needs no docker; run BEFORE the first `compose up db`.
 #   2. docker compose -p memes-<env> --env-file env/<env>.prod.env up -d db        (initdb runs with these files)
-#   3. provision.sh apply <env>             database -> extensions (bootstrap superuser) -> roles.<env>.sql -> passwords ->
-#                                           markers. memes.state stays 'seeding'.
+#   3. provision.sh apply <env>             database -> extensions (bootstrap superuser) -> roles.<env>.sql -> the stats-only
+#                                           monitor role memes_<env>_mon (monitor_role.sql.template; no password, peer only) ->
+#                                           passwords -> markers. memes.state stays 'seeding'.
 #   4. the first migration: NOT here, it is the `migrate` service (release runbook, P5d-T8).
-#   5. provision.sh grants <env>            roles.<env>.sql again (the table grants need the schema), then verifies.
+#   5. provision.sh grants <env>            roles.<env>.sql and the monitor role again (the table grants need the schema), then
+#                                           verifies both.
 #   6. by hand, after the first seed and the HNSW rebuild: ALTER DATABASE memes_<env> SET memes.state = 'serving'.
 #
 # Passwords are never written to a file and never appear in an argument list: `apply` takes them from the environment
@@ -24,7 +26,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SQL_DIR="$HERE/../sql"
 
 usage() {
-    echo "usage: provision.sh render <env> <outdir> | apply <env> | grants <env>   (env: metal general it)" >&2
+    echo "usage: provision.sh render <env> <outdir> | apply <env> | grants <env> | prune-logs <env>   (env: metal general it)" >&2
     exit 2
 }
 
@@ -57,18 +59,25 @@ psql_su() {
     docker exec -i -u postgres "$container" psql -X -q -v ON_ERROR_STOP=1 -d "$db"
 }
 
+# The stats-only role of the metrics exporter: pg_monitor + CONNECT, no password; the SQL verifies itself and rolls back on a mismatch.
+apply_monitor_role() {
+    local env="$1" container="$2"
+    sed -e "s|@ENV@|$env|g" "$HERE/monitor_role.sql.template" | psql_su "$container" "memes_$env"
+}
+
 cmd_render() {
     local env="$1" outdir="$2" subnet
     subnet="$(subnet_of "$env")"
     mkdir -p "$outdir"
     sed -e "s|@ENV@|$env|g" -e "s|@SUBNET@|$subnet|g" "$HERE/pg_hba.conf.template" >"$outdir/pg_hba.conf"
+    sed -e "s|@ENV@|$env|g" "$HERE/pg_ident.conf.template" >"$outdir/pg_ident.conf"
     cp "$HERE/postgresql.conf" "$outdir/postgresql.conf"
-    chmod 644 "$outdir/pg_hba.conf" "$outdir/postgresql.conf"
-    if grep -q '@' "$outdir/pg_hba.conf"; then
-        echo "unrendered placeholder left in $outdir/pg_hba.conf" >&2
+    chmod 644 "$outdir/pg_hba.conf" "$outdir/pg_ident.conf" "$outdir/postgresql.conf"
+    if grep -q '@' "$outdir/pg_hba.conf" "$outdir/pg_ident.conf"; then
+        echo "unrendered placeholder left in $outdir/pg_hba.conf or pg_ident.conf" >&2
         exit 1
     fi
-    echo "rendered $outdir/pg_hba.conf and $outdir/postgresql.conf for $env"
+    echo "rendered $outdir/pg_hba.conf, $outdir/pg_ident.conf and $outdir/postgresql.conf for $env"
 }
 
 read_password() {
@@ -125,6 +134,7 @@ cmd_apply() {
 
     echo "3/5 roles and grants ($file)"
     psql_su "$container" "$db" <"$file"
+    apply_monitor_role "$env" "$container"
 
     echo "4/5 passwords"
     for kind in owner app sync_w sync_r ro; do
@@ -151,6 +161,7 @@ cmd_grants() {
     container="$(container_of "$env")"
     echo "re-applying $file (grants and verification block)"
     psql_su "$container" "$db" <"$file"
+    apply_monitor_role "$env" "$container"
     echo "grants applied and verified"
 }
 
@@ -162,5 +173,7 @@ case "$sub" in
     render) [ "$#" -eq 3 ] || usage; cmd_render "$env" "$3" ;;
     apply) [ "$#" -eq 2 ] || usage; cmd_apply "$env" ;;
     grants) [ "$#" -eq 2 ] || usage; cmd_grants "$env" ;;
+    # keep the Postgres log directory within its bound (newest files, total bytes; see prune_logs.py); needs no docker
+    prune-logs) [ "$#" -eq 2 ] || usage; python3 "$HERE/prune_logs.py" "/srv/memes/$env/logs/postgres" ;;
     *) usage ;;
 esac

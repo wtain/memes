@@ -3,6 +3,7 @@ import { Outlet, NavLink, matchPath, useLocation, useNavigate } from "react-rout
 import { FeatureRouteGuard } from "../features/FeaturesProvider"
 import { useFeatureCheck } from "../features/useFeature"
 import type { Feature } from "../features/visibility"
+import { sendPageview } from "../telemetry/pageview"
 
 // handleListNavClick below is wired up on the NavLinks marked `list` in MENU -- /explore,
 // /untagged, /duplicates, /no-ocr, /flagged, /search, /recommendations -- the pages backed by
@@ -97,6 +98,14 @@ export default function AppLayout() {
   const [opened, setOpened] = useState<{ group: string; path: string } | null>(null)
   const openGroup = opened !== null && opened.path === location.pathname ? opened.group : null
   const navRef = useRef<HTMLElement>(null)
+  // One beacon per navigation: a StrictMode double mount re-runs the effect but keeps the ref.
+  const lastReported = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (lastReported.current === location.pathname) return
+    lastReported.current = location.pathname
+    sendPageview(location.pathname)
+  }, [location.pathname])
 
   useEffect(() => {
     if (openGroup === null) return

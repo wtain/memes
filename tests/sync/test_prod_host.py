@@ -110,6 +110,16 @@ def test_upload_key_line_is_restrict_only(env):
     assert rest.startswith(f"{KEY_TYPE} {KEY_DATA} memeup-{env}-upload")
 
 
+def test_obs_key_line_forwards_only_to_prometheus_and_runs_nothing():
+    opts, rest = split_options(template_line("obs", "it"))
+    assert opts == ["restrict", "port-forwarding", 'permitopen="127.0.0.1:9090"', 'command="/bin/false"']
+    assert len([o for o in opts if o.startswith("permitopen")]) == 1
+    assert not any("*" in o or "0.0.0.0" in o for o in opts)
+    assert not {"pty", "agent-forwarding", "X11-forwarding", "user-rc"} & {o.split("=")[0] for o in opts}
+    assert rest.startswith(f"{KEY_TYPE} {KEY_DATA} memesync-obs-tunnel")
+    assert "@ENV@" not in (DEPLOY / "sshd" / "authorized_keys.obs.template").read_text(encoding="utf-8")  # one key for all environments
+
+
 def test_templates_hold_only_placeholders():
     for tpl in (DEPLOY / "sshd").glob("authorized_keys.*.template"):
         text = tpl.read_text(encoding="utf-8")
@@ -141,7 +151,7 @@ def test_sshd_dropin_global_and_match_blocks():
     assert not any(d.split()[0] == "AcceptEnv" for d in glob), "an empty AcceptEnv is a syntax error; the default stays"
     allow = [d for d in glob if d.startswith("AllowUsers")][0].split()[1:]
     assert allow[0] == "@ADMIN_USER@"
-    assert sorted(allow[1:]) == sorted([f"{p}-{e}" for e in ENVS for p in ("memesync", "memeup")])
+    assert sorted(allow[1:]) == sorted([f"{p}-{e}" for e in ENVS for p in ("memesync", "memeup")] + ["memesync-obs"])
     for env, port in ENVS.items():
         block = matches[f"User memesync-{env}"]
         assert f"PermitOpen 127.0.0.1:{port}" in block
@@ -150,6 +160,11 @@ def test_sshd_dropin_global_and_match_blocks():
             assert line in block
         assert sum(1 for d in block if d.startswith("PermitOpen")) == 1
         assert "AuthorizedKeysFile /etc/ssh/memes-keys/%u" in block
+    obs = matches["User memesync-obs"]
+    assert "PermitOpen 127.0.0.1:9090" in obs and sum(1 for d in obs if d.startswith("PermitOpen")) == 1
+    assert "AllowTcpForwarding local" in obs and "AuthorizedKeysFile /etc/ssh/memes-keys/%u" in obs
+    for line in ("GatewayPorts no", "PermitTTY no", "AllowAgentForwarding no", "X11Forwarding no", "PermitTunnel no", "PermitUserRC no"):
+        assert line in obs
     up = matches["User memeup-metal,memeup-general,memeup-it"]
     assert "ChrootDirectory %h" in up and "ForceCommand internal-sftp -u 007" in up and "AllowTcpForwarding no" in up
     assert "PermitTTY no" in up and "X11Forwarding no" in up and "AllowAgentForwarding no" in up
@@ -196,6 +211,16 @@ def test_setup_host_sets_the_documented_modes_and_network():
                      "docker network create --subnet 172.30.0.0/24 memes-edge"):
         assert expected in text, expected
     assert "docker network inspect memes-edge" in text  # created only if absent
+
+
+def test_setup_host_creates_the_log_directories_and_the_obs_account():
+    text = (DEPLOY / "host" / "setup-host.sh").read_text(encoding="utf-8")
+    for expected in ('mk 0755 root root "$ENV_ROOT/logs"', 'mk 2750 "$BACKEND_UID" "$GROUP" "$ENV_ROOT/logs/backend"',
+                     'mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/logs/postgres"', 'mk 0755 root root "$SRV/edge/logs/caddy"',
+                     'ensure_user "$OBS_USER" "$OBS_USER" /nonexistent /usr/sbin/nologin', "--obs-key)",
+                     "authorized_keys.obs.template"):
+        assert expected in text, expected
+    assert not re.search(r"mk [0-7]*7 .*logs", text), "a log directory writable by other"
 
 
 # ------------------------------------------------------------------------------------------------------------- facts writer
@@ -291,6 +316,89 @@ def test_disk_facts_shape_and_a3():
     assert runtime.check_a3(low).status == "error"
 
 
+def test_dir_bytes_counts_regular_files_only_and_never_raises(tmp_path):
+    assert facts.dir_bytes(str(tmp_path / "missing")) == 0
+    d = tmp_path / "logs"
+    (d / "sub").mkdir(parents=True)
+    (d / "a.log").write_bytes(b"x" * 100)
+    (d / "sub" / "b.log").write_bytes(b"y" * 50)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "big").write_bytes(b"z" * 1000)
+    try:
+        (d / "link-file").symlink_to(outside / "big")
+        (d / "link-dir").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not available")
+    assert facts.dir_bytes(str(d)) == 150  # the links are neither followed nor counted
+
+
+def test_log_facts_per_environment_and_in_disk_json(tmp_path):
+    root = tmp_path / "srv"
+    (root / "it" / "logs" / "backend").mkdir(parents=True)
+    (root / "it" / "logs" / "backend" / "backend-w0.log").write_bytes(b"a" * 10)
+    (root / "it" / "logs" / "postgres").mkdir()
+    (root / "it" / "logs" / "postgres" / "postgresql-20261120-010203.log").write_bytes(b"b" * 20)
+    # caddy directory missing: 0
+    assert facts.log_facts("it", str(root)) == {"backend_bytes": 10, "postgres_bytes": 20, "caddy_bytes": 0}
+
+    class St:
+        f_frsize, f_blocks, f_bavail = 4096, 1000, 900
+
+    doc = facts.disk_facts("it", str(root), statvfs=lambda p: St(), docker_logs="/x")
+    assert doc["logs"] == {"backend_bytes": 10, "postgres_bytes": 20, "caddy_bytes": 0}
+    assert runtime.check_a3(doc).status == "ok"
+
+
+def test_log_bounds_are_the_documented_arithmetic_and_match_their_sources():
+    mib = 1024 * 1024
+    assert runtime.BACKEND_LOG_BOUND_BYTES == 115 * mib  # 2 workers x 10 MiB x (4+1) + master 5 MiB x (2+1)
+    assert runtime.CADDY_LOG_BOUND_BYTES == 60 * mib
+    spec = importlib.util.spec_from_file_location("prune_logs_under_test", DEPLOY / "postgres" / "prune_logs.py")
+    prune = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(prune)
+    assert runtime.POSTGRES_LOG_BOUND_BYTES == prune.MAX_BYTES
+    prod = (ROOT / "environments" / "settings.prod.yaml").read_text(encoding="utf-8")
+    assert "max_bytes: 10485760" in prod and "backup_count: 4" in prod
+    gun = (DEPLOY / "gunicorn.conf.py").read_text(encoding="utf-8")
+    assert "MASTER_MAX_BYTES = 5 * 1024 * 1024" in gun and "MASTER_BACKUPS = 2" in gun
+    caddy = (DEPLOY / "edge" / "Caddyfile").read_text(encoding="utf-8")
+    assert "roll_size 10MiB" in caddy and "roll_keep 5" in caddy
+
+
+def _disk_with_logs(**logs):
+    base = {"backend_bytes": 0, "postgres_bytes": 0, "caddy_bytes": 0}
+    base.update(logs)
+    return {"mounts": {"images": {"free_pct": 80}}, "logs": base}
+
+
+def test_a3_warns_above_80_percent_of_a_log_bound_and_is_silent_below():
+    for key, bound in runtime.LOG_BOUNDS.items():
+        assert runtime.check_a3(_disk_with_logs(**{key: int(0.8 * bound)})).status == "ok", key  # at 80%: silent
+        over = runtime.check_a3(_disk_with_logs(**{key: int(0.8 * bound) + 1}))
+        assert over.status == "warn" and over.id == "A3" and key[:-6] in over.detail, key
+        assert runtime.check_a3(_disk_with_logs(**{key: bound})).status == "warn"
+
+
+def test_a3_logs_do_not_hide_a_low_disk_and_bad_log_facts_are_not_green():
+    doc = _disk_with_logs(caddy_bytes=runtime.CADDY_LOG_BOUND_BYTES)
+    doc["mounts"]["images"]["free_pct"] = 5
+    assert runtime.check_a3(doc).status == "error"
+    assert runtime.check_a3({"mounts": {"images": {"free_pct": 80}}}).status == "ok"  # facts of an older writer
+    assert runtime.check_a3(_disk_with_logs(backend_bytes="lots")).status == "skipped"
+    assert runtime.check_a3({"mounts": {"images": {"free_pct": 80}}, "logs": [1]}).status == "skipped"
+
+
+def test_a3_low_disk_error_wins_over_malformed_log_facts():
+    low = {"mounts": {"images": {"free_pct": 5}}, "logs": [1]}
+    assert runtime.check_a3(low).status == "error"  # not skipped
+    assert runtime.check_a3({"mounts": {"images": {"free_pct": 5}}, "logs": {"backend_bytes": "x"}}).status == "error"
+    assert runtime.check_a3({"mounts": {"images": {"free_pct": 80}}, "logs": [1]}).status == "skipped"  # good mounts: still unusable
+    over = _disk_with_logs(postgres_bytes=runtime.POSTGRES_LOG_BOUND_BYTES)
+    over["mounts"]["images"]["free_pct"] = 5
+    assert runtime.check_a3(over).status == "error"  # well-formed logs over 80%: error still wins
+
+
 def test_unreadable_mount_is_marked_and_makes_a3_skip_instead_of_going_green():
     def boom(path):
         raise FileNotFoundError(path)
@@ -354,7 +462,7 @@ def read_unit(name):
     return cp
 
 
-@pytest.mark.parametrize("stem", ["memes-facts", "memes-backup", "memes-sweep"])
+@pytest.mark.parametrize("stem", ["memes-facts", "memes-backup", "memes-sweep", "memes-prune-logs"])
 def test_every_unit_has_a_service_and_a_timer_template(stem):
     service, timer = read_unit(f"{stem}@.service"), read_unit(f"{stem}@.timer")
     assert service["Service"]["Type"] == "oneshot"
@@ -365,7 +473,8 @@ def test_every_unit_has_a_service_and_a_timer_template(stem):
 
 def test_unit_commands_point_at_what_setup_host_installs():
     setup = (DEPLOY / "host" / "setup-host.sh").read_text(encoding="utf-8")
-    execs = {"memes-facts": "/opt/memes/memes-facts.py", "memes-backup": "/opt/memes/backup.sh", "memes-sweep": "/opt/memes/memesync-gate.py"}
+    execs = {"memes-facts": "/opt/memes/memes-facts.py", "memes-backup": "/opt/memes/backup.sh", "memes-sweep": "/opt/memes/memesync-gate.py",
+             "memes-prune-logs": "/opt/memes/prune_logs.py"}
     for stem, program in execs.items():
         assert program in read_unit(f"{stem}@.service")["Service"]["ExecStart"]
         assert f'"$OPT/{Path(program).name}"' in setup, f"setup-host does not install {program}"
@@ -373,6 +482,19 @@ def test_unit_commands_point_at_what_setup_host_installs():
     assert sweep["User"] == "memesync-%i" and sweep["Environment"] == "SSH_ORIGINAL_COMMAND=sweep"  # the gate's own verb, as the gate account
     assert read_unit("memes-backup@.service")["Service"].get("User", "root") == "root"  # docker exec needs it
     assert "memes-edge" not in "".join(p.read_text() for p in (DEPLOY / "systemd").iterdir())
+
+
+def test_prune_logs_unit_is_hourly_hardened_and_touches_only_the_postgres_log_dir():
+    service, timer = read_unit("memes-prune-logs@.service")["Service"], read_unit("memes-prune-logs@.timer")["Timer"]
+    assert service["ExecStart"] == "/usr/bin/python3 /opt/memes/prune_logs.py /srv/memes/%i/logs/postgres"
+    assert service["ReadWritePaths"] == "/srv/memes/%i/logs/postgres" and service["ProtectSystem"] == "strict"
+    for key in ("NoNewPrivileges", "PrivateTmp", "PrivateNetwork", "ProtectHome"):
+        assert service[key] == "yes", key
+    assert service["CapabilityBoundingSet"] == "CAP_DAC_OVERRIDE"
+    assert timer["OnUnitActiveSec"] == "1h"
+    setup = (DEPLOY / "host" / "setup-host.sh").read_text(encoding="utf-8")
+    assert "memes-facts memes-backup memes-sweep memes-prune-logs" in setup  # enabled with the other timers
+    assert 'install -m 0755 -o root -g root "$DEPLOY/postgres/prune_logs.py" "$OPT/prune_logs.py"' in setup
 
 
 def test_sweep_unit_runs_a_verb_the_gate_has():

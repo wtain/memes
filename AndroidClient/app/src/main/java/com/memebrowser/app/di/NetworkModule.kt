@@ -4,7 +4,12 @@ import android.content.Context
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.memebrowser.app.data.api.MemeApiService
 import com.memebrowser.app.data.api.UrlProvider
+import com.memebrowser.app.data.telemetry.PageviewReporter
+import com.memebrowser.app.data.telemetry.TelemetryApi
 import dagger.Module
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -72,4 +77,14 @@ object NetworkModule {
     @Singleton
     fun provideMemeApiService(retrofit: Retrofit): MemeApiService =
         retrofit.create(MemeApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideTelemetryApi(retrofit: Retrofit): TelemetryApi =
+        retrofit.create(TelemetryApi::class.java)
+
+    @Provides
+    @Singleton
+    fun providePageviewReporter(api: TelemetryApi): PageviewReporter =
+        PageviewReporter(api, CoroutineScope(SupervisorJob() + Dispatchers.IO))
 }

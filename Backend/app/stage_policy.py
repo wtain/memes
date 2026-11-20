@@ -14,6 +14,7 @@ How to add a route: create it on a router made with `make_router(...)` and add o
 a route without a verdict makes the import raise (default deny); on dev `Backend/tests/test_stage_policy.py`
 fails instead.
 """
+import logging
 from functools import lru_cache
 from typing import Awaitable, Callable
 
@@ -21,6 +22,7 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
+from Backend.app.observability.logfiles import log_sampled
 from config.stage import is_prod
 
 READER = "reader"        # served on prod
@@ -43,6 +45,8 @@ ROUTE_POLICY: dict[tuple[str, str], str] = {
     # admin_profiles.py
     ("GET", "/api/admin/profile-coverage"): DEV_ONLY,
     ("GET", "/api/admin/profile-coverage/images"): DEV_ONLY,
+    # telemetry.py
+    ("POST", "/api/telemetry/pageview"): READER,
     # bug_reports.py
     ("POST", "/api/bug-reports"): READER,
     # comics.py (decision 22: comics are not shipped)
@@ -154,6 +158,11 @@ def verdict_for(method: str, full_path: str) -> str | None:
     return ROUTE_POLICY.get((method.upper(), full_path))
 
 
+def _log_denied(template: str) -> None:
+    """Sampled line for a prod request to a dev-only route: the route template only, never the raw path."""
+    log_sampled(logging.getLogger(__name__), "denied:" + template, "stage policy denied route=%s", template)
+
+
 async def _not_found(_request: Request) -> Response:
     # Same status and body the router produces for a path it does not have.
     return JSONResponse({"detail": "Not Found"}, status_code=404)
@@ -178,6 +187,7 @@ class StageRoute(APIRoute):
         # Route.handle answers 405 + Allow, which would reveal that a dev-only path exists. On prod such a path answers
         # 404 for every method, exactly like a missing one.
         if is_prod() and (self.mount_prefix + self.path) not in READER_PATHS                 and scope["method"] not in (self.methods or ()):
+            _log_denied(self.mount_prefix + self.path)
             response = await _not_found(None)
             await response(scope, receive, send)
             return
@@ -199,7 +209,13 @@ class StageRoute(APIRoute):
             raise RuntimeError(f"route {self.mount_prefix + self.path} has different verdicts for its methods")
         if verdicts == {READER}:
             return super().get_route_handler()
-        return _not_found
+        template = self.mount_prefix + self.path
+
+        async def denied(request: Request) -> Response:
+            _log_denied(template)
+            return await _not_found(request)
+
+        return denied
 
 
 @lru_cache(maxsize=None)

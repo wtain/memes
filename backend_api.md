@@ -365,9 +365,29 @@ Per-file type, size or content errors are reported in `failed[]` — the rest of
 - `429`: Per-IP rate limit exceeded (10 requests per minute per IP, sliding window). The client should wait for the window to pass (about a minute) and retry the same request; nothing was processed.
 - `503`: `PATH_INGESTION_SOURCE` is not set, is not an absolute path, is the image library directory (`BASE_PATH`) or contains it, does not exist or is not writable (the `.uploading` staging directory must be a plain directory, not a symlink or junction); the inbox holds more than 50,000 entries ("inbox is full, run ingestion": the duplicate scan fails closed instead of skipping the check); or the duplicate lookup in the database failed. Nothing is written then; retry later. Only requests with at least one valid file need the inbox.
 - `507`: The inbox volume would be left with less than 1 GiB free after this request. Nothing is written.
-- `500`: Writing a file into the inbox failed. Files written earlier in the same request stay and come back as `duplicate` on a retry. The server log names the failing (sanitised) file and the error; the response never carries paths. There is no cap on the number of inbox entries other than the 50,000 scan limit above.
+- `500`: Writing a file into the inbox failed. Files written earlier in the same request stay and come back as `duplicate` on a retry. The server log records the error class only (never the file name or the error message); the response never carries paths. There is no cap on the number of inbox entries other than the 50,000 scan limit above.
 
 **Storage**: the ingestion inbox, `PATH_INGESTION_SOURCE` (read at request time; there is no fallback to another directory, and `INCOMING_PATH` / `BASE_PATH/incoming` are no longer used). Each file is first written to `<inbox>/.uploading/<uuid>` and then renamed into the inbox, so `ingest_hash_dedup` (which skips directories) never sees a half-written file. Staging files older than one hour are removed. The inbox must be writable by the backend process. The duplicate check lists the inbox once per request and hashes only files of the same size as an upload (outside any lock). One backend process per inbox is assumed for the in-process ordering of names, but a file is never overwritten whichever process writes. Not served by the API.
+
+---
+
+### Telemetry
+
+#### Page-visit beacon
+
+Counts one page visit for the usage metrics (`pageviews_total{client,page}`). Fire-and-forget: the clients send it when a page is shown and ignore the answer.
+
+- **URL**: `POST /api/telemetry/pageview`
+- **Content-Type**: the web client sends `text/plain;charset=UTF-8` (keeps `navigator.sendBeacon` and the `fetch` fallback CORS-simple, no preflight), Android `application/json`; the server parses the body as JSON whatever the type
+- **Body** (`PageViewBeacon`): `{"client": "web" | "android", "page": "<route template>"}`; web pages are the router templates (`/`, `/explore`, `/search`, `/reply`, `/memes/:id`, `/concepts/:id`, ...), Android pages the destination names (`search`, `detail`, `settings`, ...). The fixed list is `PAGE_ALLOWLIST` in `Backend/app/observability/metrics.py`. Any other page, and any other client, is counted as `other`; nothing from the body is logged, stored or used as a label.
+- **Served on prod**: yes (it is the only new route reachable from the internet).
+
+**Response** `204 No Content`, with no body, also when metrics are off.
+
+**Error Responses**:
+- `413`: the body is larger than 1 KB (`BodyLimitMiddleware`; always on)
+- `422`: the body is not a JSON object with string `client` and `page` (the error does not echo the input)
+- `429`: too many beacons from this client in the last minute (`abuse.telemetry_per_min`; 0 = off on dev, 120 on prod; `Retry-After: 60`; counted as `rate_limited_total{scope="telemetry"}`)
 
 ---
 
@@ -1941,7 +1961,7 @@ The API uses standard HTTP status codes:
 - `200 OK`: Successful request
 - `404 Not Found`: Resource not found (image or concept not found)
 - `422 Unprocessable Entity`: Validation error (automatically handled by FastAPI)
-- `500 Internal Server Error`: Database or processing error
+- `500 Internal Server Error`: Database or processing error. An unhandled exception is answered with exactly `{"detail": "Internal Server Error"}` (`Content-Type: application/json`) and the `X-Request-ID` header; the server log line carries the exception class, the route template and that request id, never the message
 
 **Response Format**:
 ```json

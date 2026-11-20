@@ -1,5 +1,6 @@
 import logging
 import mimetypes
+import time
 import uuid
 from datetime import datetime
 from typing import Optional, AsyncGenerator, Literal
@@ -7,6 +8,7 @@ from urllib.parse import quote
 
 import unicodedata
 from fastapi import Depends, HTTPException, Query, Request, Response
+from Backend.app.observability.logfiles import log_sampled
 from Backend.app.stage_policy import make_router
 from pydantic import BaseModel, model_serializer
 
@@ -104,6 +106,20 @@ class DuplicateDecisionListResponseModel(BaseModel):
     total: int
 
 
+def metrics_enabled() -> bool:
+    from Backend.app.observability import enabled
+    return enabled()
+
+
+def _record_search_total(kind: str, started: float) -> None:
+    if metrics_enabled():
+        try:
+            from Backend.app.observability.metrics import record_search
+            record_search(kind, "total", time.perf_counter() - started)
+        except Exception:
+            pass
+
+
 # dependencies.py
 async def get_image_service(
     db: AsyncSessionLocal = Depends(get_async_db)
@@ -134,8 +150,13 @@ async def get_images(
     check_search_inputs(q, facets)     # abuse.max_q_chars / max_facets / max_facet_value_chars (422), off on dev
     response.headers.update(no_cache_headers())
     ua = request.headers.get("user-agent", "")
-    return await service.search(
-        q=q, raw_facets=facets, cursor=cursor, limit=limit, user_agent=ua, record=record)
+    started = time.perf_counter()
+    try:
+        return await service.search(
+            q=q, raw_facets=facets, cursor=cursor, limit=limit, user_agent=ua, record=record)
+    finally:
+        if (q or "").strip() or facets:     # the unfiltered browse feed is not a search
+            _record_search_total("smart", started)
 
 
 @router.get("/{image_id}/similar", response_model=MemeSearchResponse)
@@ -148,7 +169,12 @@ async def get_similar_images(
     service: ImageService = Depends(get_image_service),
 ):
     response.headers.update(no_cache_headers())
-    return await service.get_similar(image_id, limit=limit, source=source, record=record)
+    started = time.perf_counter()
+    try:
+        return await service.get_similar(image_id, limit=limit, source=source, record=record)
+    finally:
+        if source == "image":      # the CLIP image-embedding similarity; the description sources are not CLIP
+            _record_search_total("clip", started)
 
 
 @router.get("/{image_id}/descriptions", response_model=list[ImageDescription])
@@ -444,17 +470,28 @@ def content_disposition(filename: str) -> str:
     return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
 
 
+def _record_image_miss() -> None:
+    if metrics_enabled():
+        try:
+            from Backend.app.observability.metrics import record_image
+            record_image(404)
+        except Exception:
+            pass
+
+
 @router.get("/{image_id}")
 async def get_image(image_id: str, response: Response, db: AsyncSession = Depends(get_async_db)):
     repo = ImageRepository(db)
     filename = await repo.get_filename(image_id)
 
     if not filename:
-        logger.warning("get_image 404: id=%s not in DB", image_id)
+        log_sampled(logger, "get_image_404:not_in_db", "get_image 404: image not in DB")
+        _record_image_miss()
         raise HTTPException(status_code=404, detail="Image not found")
 
     if not image_exists(filename):
-        logger.warning("get_image 404: id=%s filename=%r not on disk", image_id, filename)
+        log_sampled(logger, "get_image_404:file_missing", "get_image 404: image file not on disk")
+        _record_image_miss()
         raise HTTPException(status_code=404, detail="Image file missing")
 
     mime_type, _ = mimetypes.guess_type(filename)
@@ -463,6 +500,12 @@ async def get_image(image_id: str, response: Response, db: AsyncSession = Depend
     cd = content_disposition(filename)
     headers['Content-Disposition'] = cd
     headers['Access-Control-Allow-Origin'] = '*'
+    if metrics_enabled():
+        try:
+            from Backend.app.observability.metrics import timed_file_response
+            return timed_file_response(get_image_path(filename), headers)
+        except Exception:
+            pass
     return FileResponse(
         get_image_path(filename),
         headers=headers,

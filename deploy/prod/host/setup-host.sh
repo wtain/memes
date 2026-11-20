@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # setup-host.sh -- prepares the VPS host for ONE prod environment (epic environment-data-sync, P5d-T5). Run as root, safe to re-run.
 #
-#   setup-host.sh <metal|general|it> --admin-user NAME [--verb-key FILE --tunnel-key FILE] [--upload-key FILE]
+#   setup-host.sh <metal|general|it> --admin-user NAME [--verb-key FILE --tunnel-key FILE] [--upload-key FILE] [--obs-key FILE]
 #                 [--quota images=40g] [--quota backups=10g] ... [--skip-sshd] [--skip-systemd]
 #   setup-host.sh <env> --print-config        # the fixed per-environment values, no root needed, changes nothing
 #
-# It creates (all idempotent): group memesync-<env>; users memesync-<env> (verb and tunnel keys) and memeup-<env> (upload only, chrooted);
+# It creates (all idempotent): the Grafana tunnel account memesync-obs (--obs-key; one for all environments), the log directories under
+# /srv/memes/<env>/logs and /srv/memes/edge/logs/caddy; group memesync-<env>; users memesync-<env> (verb and tunnel keys) and memeup-<env> (upload only, chrooted);
 # /srv/memes/<env>/{images,bug-reports,work,retired,staging/incoming,pgdata,backups,web} with the owners and modes of interfaces.md d;
 # /opt/memes (gate, facts writer, backup, restore); /etc/memes/gate.conf (section of this environment, secrets: none) and /etc/memes/<env>/
 # (0700, where the owner puts backup.env and restore.env by hand); /var/lib/memes/<env> (the facts files); the sshd drop-in and the key files;
@@ -45,10 +46,11 @@ esac
 SYNC_USER="memesync-$ENV_NAME"
 UP_USER="memeup-$ENV_NAME"
 GROUP="memesync-$ENV_NAME"
+OBS_USER=memesync-obs                 # the Grafana tunnel account, shared by the three environments (forwards to Prometheus 127.0.0.1:9090 only)
 UP_GROUP="memeup-$ENV_NAME"
 ENV_ROOT="$SRV/$ENV_NAME"
 
-ADMIN_USER=""; VERB_KEY=""; TUNNEL_KEY=""; UPLOAD_KEY=""; SKIP_SSHD=0; SKIP_SYSTEMD=0; PRINT=0
+ADMIN_USER=""; VERB_KEY=""; TUNNEL_KEY=""; UPLOAD_KEY=""; OBS_KEY=""; SKIP_SSHD=0; SKIP_SYSTEMD=0; PRINT=0
 declare -A QUOTA=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -56,6 +58,7 @@ while [ $# -gt 0 ]; do
     --verb-key)     VERB_KEY=${2:?}; shift 2 ;;
     --tunnel-key)   TUNNEL_KEY=${2:?}; shift 2 ;;
     --upload-key)   UPLOAD_KEY=${2:?}; shift 2 ;;
+    --obs-key)      OBS_KEY=${2:?}; shift 2 ;;
     --quota)        kv=${2:?}; QUOTA[${kv%%=*}]=${kv#*=}; shift 2 ;;
     --skip-sshd)    SKIP_SSHD=1; shift ;;
     --skip-systemd) SKIP_SYSTEMD=1; shift ;;
@@ -99,9 +102,11 @@ ensure_group "$UP_GROUP"
 install -d -m 0755 -o root -g root "$SRV" "$ENV_ROOT" "$VARLIB" "$VARLIB/$ENV_NAME" "$ETC"
 ensure_user "$SYNC_USER" "$GROUP" "$VARLIB/$ENV_NAME" /bin/sh
 ensure_user "$UP_USER" "$UP_GROUP" "$ENV_ROOT/staging" /usr/sbin/nologin
+ensure_group "$OBS_USER"
+ensure_user "$OBS_USER" "$OBS_USER" /nonexistent /usr/sbin/nologin   # port forwarding needs no shell; the key line runs /bin/false anyway
 # memeup-<env> is NOT in group memesync-<env>: it owns incoming/ (mode 2770), and the setgid bit gives what it uploads the group of the
 # gate account, which reads and deletes there through that group.
-say "accounts $SYNC_USER and $UP_USER ready"
+say "accounts $SYNC_USER, $UP_USER and $OBS_USER ready"
 
 # ---------------------------------------------------------------------------------------------------------------- directories
 # interfaces.md d. install -d only creates; chown/chmod after it makes a re-run correct. The staging chroot root must be root-owned and
@@ -121,6 +126,16 @@ mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/pgdata"
 # there (symlinks, swapped files). The gate account only READS it (group r-x, fetch-backup); it cannot create, rename or delete in it.
 mk 0750 root "$GROUP" "$ENV_ROOT/backups"
 mk 0755 "$SYNC_USER" "$GROUP" "$ENV_ROOT/web"
+# Log directories (observability spec 6 and 9a-7). The parents are root-owned and not writable; each service writes only its own
+# subdirectory and none of them holds a symlink. backend: owned by the backend container's uid (BACKEND_UID, compose SVC_UID), which
+# writes its own files as owner; the group $GROUP only reads (2750: with the container's umask 002 a group-writable directory would let
+# the gate account alter or delete the files); postgres: the postgres uid of the image, like pgdata; caddy: Caddy runs as root.
+mk 0755 root root "$ENV_ROOT/logs"
+mk 2750 "$BACKEND_UID" "$GROUP" "$ENV_ROOT/logs/backend"
+mk 0700 "$PG_UID" "$PG_UID" "$ENV_ROOT/logs/postgres"
+mk 0755 root root "$SRV/edge"
+mk 0755 root root "$SRV/edge/logs"
+mk 0755 root root "$SRV/edge/logs/caddy"
 say "directories under $ENV_ROOT ready"
 
 # images, work and retired must share one filesystem (rename(2); the gate handshake exits 3 otherwise)
@@ -132,6 +147,7 @@ dev_of() { stat -c %d "$1"; }
 install -d -m 0755 -o root -g root "$OPT"
 install -m 0755 -o root -g root "$DEPLOY/memesync-gate.py" "$OPT/memesync-gate.py"
 install -m 0755 -o root -g root "$HERE/memes-facts.py" "$OPT/memes-facts.py"
+install -m 0755 -o root -g root "$DEPLOY/postgres/prune_logs.py" "$OPT/prune_logs.py"
 install -m 0755 -o root -g root "$DEPLOY/backup.sh" "$OPT/backup.sh"
 install -m 0755 -o root -g root "$DEPLOY/restore.sh" "$OPT/restore.sh"
 install -m 0644 -o root -g root "$DEPLOY/backup.tables" "$OPT/backup.tables"
@@ -228,6 +244,17 @@ if [ "$SKIP_SSHD" = 0 ]; then
   else
     say "NOTE no --upload-key: $KEYS_DIR/$UP_USER untouched"
   fi
+  if [ -n "$OBS_KEY" ]; then
+    ok=$(valid_pubkey "$OBS_KEY")
+    if [ -n "$VERB_KEY" ]; then
+      [ "$ok" != "$vk" ] && [ "$ok" != "$tk" ] || die "the observability key must differ from the verb and tunnel keys"
+    fi
+    render "$DEPLOY/sshd/authorized_keys.obs.template" "$ENV_NAME" "$PGPORT" "$ok" > "$KEYS_DIR/$OBS_USER.new"
+    chmod 0644 "$KEYS_DIR/$OBS_USER.new"; chown root:root "$KEYS_DIR/$OBS_USER.new"; mv -f "$KEYS_DIR/$OBS_USER.new" "$KEYS_DIR/$OBS_USER"
+    say "key of $OBS_USER written"
+  else
+    say "NOTE no --obs-key: $KEYS_DIR/$OBS_USER untouched"
+  fi
   install -d -m 0755 /etc/ssh/sshd_config.d
   # AllowUsers is the UNION of the admin users already allowed by a previous run (any name that is not one of this stack's own accounts)
   # and the current --admin-user: running this for the second environment with another --admin-user must not lock the first one out.
@@ -268,7 +295,7 @@ fi
 if [ "$SKIP_SYSTEMD" = 0 ] && [ -d /run/systemd/system ]; then
   for u in "$DEPLOY"/systemd/*.service "$DEPLOY"/systemd/*.timer; do install -m 0644 -o root -g root "$u" /etc/systemd/system/; done
   systemctl daemon-reload
-  for t in memes-facts memes-backup memes-sweep; do systemctl enable --now "$t@$ENV_NAME.timer"; done
+  for t in memes-facts memes-backup memes-sweep memes-prune-logs; do systemctl enable --now "$t@$ENV_NAME.timer"; done
   systemctl start "memes-facts@$ENV_NAME.service" || say "NOTE first facts run failed (containers not up yet is fine)"
   say "systemd timers enabled for $ENV_NAME"
 else

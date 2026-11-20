@@ -1,0 +1,10 @@
+[Unit]
+Description=memes %i: prune the Postgres logs every hour
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

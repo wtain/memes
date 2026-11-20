@@ -27,6 +27,8 @@ from sync import registry, release, roles
 ROOT = Path(__file__).resolve().parents[3]
 ENV = "it"
 NAMES = roles.names_for(ENV)
+MON = release.mon_role(ENV)
+MONITOR_SQL = (ROOT / "deploy" / "prod" / "postgres" / "monitor_role.sql.template").read_text(encoding="utf-8").replace("@ENV@", ENV)
 
 
 def _image() -> str:
@@ -68,6 +70,7 @@ def server():
         psql("create extension vector", "create extension pg_trgm", f"alter database \"{NAMES.database}\" set memes.environment = '{ENV}'",
              f"alter database \"{NAMES.database}\" set memes.state = 'seeding'", db=NAMES.database)
         psql(db=NAMES.database, file_text=release.roles_file(ENV).read_text(encoding="utf-8"))  # creates the five roles (no schema yet)
+        psql(db=NAMES.database, file_text=MONITOR_SQL)  # the stats-only exporter role, exactly as provision.sh applies it
         psql(f"alter role \"{NAMES.owner}\" password '{ownerpw}'", f"alter role \"{NAMES.sync_w}\" password '{ownerpw}'")
         yield {"name": name, "port": port, "owner_pw": ownerpw, "psql": psql,
                "url": f"postgresql://{NAMES.owner}:{ownerpw}@127.0.0.1:{port}/{NAMES.database}"}
@@ -155,3 +158,80 @@ def test_a_wrong_environment_marker_and_a_non_owner_are_refused(env, monkeypatch
     monkeypatch.setenv("DATABASE_URL", env["url"].replace(NAMES.owner, NAMES.sync_w, 1))
     assert release.main(["migrate"]) == release.EXIT_REFUSED
     assert "owner role" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------------------------------------------ the exporter's monitoring role
+
+def _scalar_su(server, sql):
+    out = server["psql"](r"\pset tuples_only on", r"\pset format unaligned", sql, db=NAMES.database).stdout
+    return out.strip()
+
+
+def test_mon_role_has_only_pg_monitor_and_connect(env):
+    assert release.main(["migrate"]) == release.EXIT_OK
+    assert release.main(["grants"]) == release.EXIT_OK
+    import psycopg2
+
+    conn = psycopg2.connect(env["url"])
+    try:
+        actual = release.fetch_monitor(conn, ENV, int(release._scalar(conn, "show server_version_num")))
+        with conn.cursor() as cur:
+            cur.execute("select granted.rolname from pg_auth_members am join pg_roles granted on granted.oid = am.roleid "
+                        "join pg_roles m on m.oid = am.member where m.rolname = %s", (MON,))
+            memberships = [r[0] for r in cur.fetchall()]
+            cur.execute("select rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls from pg_roles "
+                        "where rolname = %s", (MON,))
+            attrs = cur.fetchone()
+            cur.execute("select count(*) from pg_class c cross join unnest(%s::text[]) p where c.relnamespace = 'public'::regnamespace "
+                        "and c.relkind in ('r', 'p') and has_table_privilege(%s, c.oid, p)",
+                        (list(release.privilege_names(180000)), MON))
+            table_privileges = cur.fetchone()[0]
+    finally:
+        conn.close()
+    assert actual == (True, frozenset(), frozenset())
+    assert memberships == ["pg_monitor"]
+    assert attrs == (True, False, False, False, False, False)
+    assert table_privileges == 0
+    # no credential: the role cannot log in with a password at all
+    assert _scalar_su(env, f"select rolpassword is null from pg_authid where rolname = '{MON}'") == "t"
+    # the statistics views a postgres exporter reads work for it, user rows do not
+    env["psql"](f'set role "{MON}"', "select count(*) from pg_stat_database", "select count(*) from pg_stat_activity", db=NAMES.database)
+    with pytest.raises(subprocess.CalledProcessError):
+        env["psql"](f'set role "{MON}"', "select count(*) from images", db=NAMES.database)
+
+
+def test_verify_grants_exits_3_when_the_monitor_role_gets_select_or_another_membership(env, capsys):
+    assert release.main(["verify-grants"]) == release.EXIT_OK
+    as_owner(env, f'grant select on images to "{MON}"')
+    capsys.readouterr()
+    assert release.main(["verify-grants"]) == release.EXIT_MISMATCH
+    err = capsys.readouterr().err
+    assert "extra" in err and MON in err and "images" in err and "SELECT" in err
+    assert env["owner_pw"] not in err and "postgresql://" not in err
+    as_owner(env, f'revoke select on images from "{MON}"')
+    assert release.main(["verify-grants"]) == release.EXIT_OK
+    env["psql"](f'grant pg_read_all_data to "{MON}"', db=NAMES.database)
+    try:
+        assert release.main(["verify-grants"]) == release.EXIT_MISMATCH
+        assert "pg_read_all_data" in capsys.readouterr().err
+    finally:
+        env["psql"](f'revoke pg_read_all_data from "{MON}"', db=NAMES.database)
+    assert release.main(["verify-grants"]) == release.EXIT_OK
+
+
+def test_the_monitor_sql_is_idempotent_and_repairs_drift(env, capsys):
+    env["psql"](f'grant pg_read_all_data to "{MON}"', f'alter role "{MON}" createdb', db=NAMES.database)
+    assert release.main(["verify-grants"]) == release.EXIT_MISMATCH
+    env["psql"](db=NAMES.database, file_text=MONITOR_SQL)
+    env["psql"](db=NAMES.database, file_text=MONITOR_SQL)
+    assert release.main(["verify-grants"]) == release.EXIT_OK
+
+
+def test_a_missing_monitor_role_fails_verify_grants(env, capsys):
+    env["psql"](f'drop owned by "{MON}"', f'drop role "{MON}"', db=NAMES.database)
+    try:
+        assert release.main(["verify-grants"]) == release.EXIT_MISMATCH
+        assert "missing role" in capsys.readouterr().err
+    finally:
+        env["psql"](db=NAMES.database, file_text=MONITOR_SQL)
+    assert release.main(["verify-grants"]) == release.EXIT_OK

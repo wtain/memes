@@ -7,7 +7,8 @@ Runs as root from the systemd timer memes-facts@<env> (the gate user never gets 
 `<facts-dir>/disk.json` and `<facts-dir>/containment.json` (default /var/lib/memes/<env>). Each file is ONE line of compact JSON because the
 dev side (sync.verify, `parse_json_reply`) reads the first line of the verb's output.
 
-disk.json         {"generated_at": ..., "mounts": {"<name>": {"path", "free_bytes", "total_bytes", "free_pct"}}}   (sync.verify A3)
+disk.json         {"generated_at": ..., "mounts": {"<name>": {"path", "free_bytes", "total_bytes", "free_pct"}},
+                   "logs": {"backend_bytes", "postgres_bytes", "caddy_bytes"}}                                   (sync.verify A3)
 containment.json  {"generated_at": ..., "container": <short id>, "read_only_root", "cap_drop": [..], "no_new_privileges", "user",
                    "base_path_read_only", "published_ports": ["127.0.0.1:1234"], ...extras}                         (sync.verify S8)
 
@@ -53,7 +54,37 @@ def disk_facts(env: str, root: str = DEFAULT_ROOT, statvfs=None, docker_logs: st
         total = st.f_blocks * st.f_frsize
         free = st.f_bavail * st.f_frsize
         mounts[name] = {"path": path, "free_bytes": free, "total_bytes": total, "free_pct": round(100.0 * free / total, 2) if total else 0.0}
-    return {"generated_at": _now(), "mounts": mounts}
+    return {"generated_at": _now(), "mounts": mounts, "logs": log_facts(env, root)}
+
+
+def dir_bytes(path: str) -> int:
+    """Bytes of the regular files below `path`. A missing or unreadable directory is 0, never an error; a symlink (to a file or a
+    directory) is neither followed nor counted, so a planted link cannot make this read or size anything outside the directory."""
+    total = 0
+    stack = [path]
+    while stack:
+        try:
+            with os.scandir(stack.pop()) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(entry.path)
+                        elif entry.is_file(follow_symlinks=False):
+                            total += entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return total
+
+
+def log_facts(env: str, root: str = DEFAULT_ROOT) -> dict:
+    """Size of the three log directories of one environment (observability spec 6; sync.verify A3 warns at 80% of each bound)."""
+    return {"backend_bytes": dir_bytes(os.path.join(root, env, "logs", "backend")),
+            "postgres_bytes": dir_bytes(os.path.join(root, env, "logs", "postgres")),
+            "caddy_bytes": dir_bytes(os.path.join(root, "edge", "logs", "caddy"))}
 
 
 def _port_list(inspect: dict) -> list:

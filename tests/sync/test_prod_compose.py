@@ -141,13 +141,21 @@ def test_images_are_mounted_read_only_and_bug_reports_read_write(stack):
     images = [v for v in volumes if v.endswith(":/data/images:ro")]
     bugs = [v for v in volumes if ":/data/bug-reports" in v]
     assert len(images) == 1 and len(bugs) == 1 and not bugs[0].endswith(":ro")
-    assert len(volumes) == 2, "the backend mounts only images and bug reports"
+    assert len(volumes) == 4, "the backend mounts images, bug reports, the log directory and the metrics volume"
     assert stack["services"]["backend"]["environment"]["BASE_PATH"] == "/data/images"
 
 
 def test_backend_command_flags(stack):
     cmd = [str(c) for c in stack["services"]["backend"]["command"]]
     assert cmd[0] == "gunicorn"
+    # No -c (ruling I2): gunicorn loads ./gunicorn.conf.py of the WORKDIR /app by default, and an older image without the file still
+    # starts with this command. tests/docker proves the default load in the built image.
+    assert "-c" not in cmd and "--config" not in cmd and not any(c.startswith("--config=") for c in cmd)
+    dockerfile = (ROOT / "Dockerfile.backend").read_text(encoding="utf-8")
+    copy = dockerfile.index("COPY deploy/prod/gunicorn.conf.py ./gunicorn.conf.py")
+    workdirs = re.findall(r"^WORKDIR (\S+)", dockerfile[:copy], re.M)
+    assert workdirs and workdirs[-1] == "/app"  # so the COPY lands at /app/gunicorn.conf.py
+    assert re.findall(r"^WORKDIR (\S+)", dockerfile, re.M)[-1] == "/app"  # and gunicorn runs from /app
     assert cmd[cmd.index("-w") + 1] == "2"
     assert cmd[cmd.index("--log-level") + 1] == "warning"
     assert cmd[cmd.index("--forwarded-allow-ips") + 1] == "172.30.0.0/24"
@@ -160,7 +168,7 @@ def test_backend_environment_is_prod_and_holds_no_literal_secret(stack):
     assert env["APP_STAGE"] == "prod"
     for key in ("DATABASE_URL", "APP_ENV"):
         assert env[key].startswith("${")  # always taken from the env file
-    assert set(env) == {"APP_ENV", "APP_STAGE", "DATABASE_URL", "BASE_PATH", "BUG_REPORTS_PATH"}
+    assert set(env) == {"APP_ENV", "APP_STAGE", "DATABASE_URL", "BASE_PATH", "BUG_REPORTS_PATH", "PROMETHEUS_MULTIPROC_DIR"}
 
 
 def test_postgres_mounts_the_pg18_path_and_config_read_only(stack):
@@ -185,6 +193,55 @@ def test_our_images_are_tagged_by_a_required_variable_never_latest(stack):
         image = stack["services"][name]["image"]
         assert re.fullmatch(r"memes-(backend|migrate):\$\{BACKEND_TAG:\?[^}]*\}", image), image
         assert "latest" not in image
+
+
+# ------------------------------------------------------------------------------------------------------------------ metrics
+
+def test_metrics_sidecar_is_unpublished_hardened_and_small(stack):
+    svc = stack["services"]["metrics"]
+    assert "ports" not in svc and "expose" not in svc
+    assert svc["mem_limit"] == "64m"
+    assert svc["command"] == ["python", "-m", "Backend.app.observability.exporter"]
+    assert re.fullmatch(r"memes-backend:\$\{BACKEND_TAG:\?[^}]*\}", svc["image"])
+    assert svc["volumes"] == ["metrics_mp:/metrics-mp:ro"]
+    assert svc["environment"]["PROMETHEUS_MULTIPROC_DIR"] == "/metrics-mp"
+    assert set(svc["networks"]) == {"edge"}
+    assert svc["networks"]["edge"]["aliases"] == ["metrics-${MEMES_ENV:?set MEMES_ENV}"]
+    assert "internal" not in svc["networks"]
+    assert "metrics_mp" in stack["volumes"]
+
+
+def test_nothing_publishes_the_exporter_port(stack, edge):
+    for which, name, svc in all_services(stack, edge):
+        for port in svc.get("ports", []):
+            assert "9102" not in str(port), f"{which}/{name}"
+    assert "9102" not in (PROD / "edge" / "Caddyfile").read_text(encoding="utf-8")
+
+
+def test_backend_log_directory_is_required_and_matches_the_setting(stack):
+    volumes = stack["services"]["backend"]["volumes"]
+    logs = [v for v in volumes if v.endswith(":/var/log/memes")]
+    assert len(logs) == 1 and logs[0].startswith("${LOGS_DIR:?") and logs[0].split("}", 1)[1].startswith("/backend:")
+    prod = yaml.safe_load((ROOT / "environments" / "settings.prod.yaml").read_text(encoding="utf-8"))
+    assert prod["observability"]["log_file"]["dir"] == "/var/log/memes"
+
+
+def test_gunicorn_config_is_shipped_in_the_image():
+    assert "COPY deploy/prod/gunicorn.conf.py ./gunicorn.conf.py" in (ROOT / "Dockerfile.backend").read_text(encoding="utf-8")
+    assert "!deploy/prod/gunicorn.conf.py" in (ROOT / ".dockerignore").read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs docker")
+@pytest.mark.parametrize("env", ENVS)
+def test_docker_compose_config_validates(env, tmp_path):
+    values = {"MEMES_ENV": env, "PROJECT_SUBNET": TABLE[env][1], "PG_PORT": TABLE[env][0], "EDGE_ALIAS": TABLE[env][2], "SVC_GID": "1",
+              "BACKEND_TAG": "x", "POSTGRES_PASSWORD": "x", "DATABASE_URL": "x", "DATABASE_URL_OWNER": "x", "IMAGES_DIR": "/tmp/i",
+              "BUG_REPORTS_DIR": "/tmp/b", "PGDATA_DIR": "/tmp/p", "PGCONF_DIR": "/tmp/c", "LOGS_DIR": "/tmp/l"}
+    envfile = tmp_path / "e.env"
+    envfile.write_text(chr(10).join(f"{k}={v}" for k, v in values.items()) + chr(10), encoding="utf-8")
+    done = subprocess.run(["docker", "compose", "-f", str(PROD / "compose.yaml"), "--env-file", str(envfile), "config", "-q"],
+                          capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
 
 
 # --------------------------------------------------------------------------------------------------------- env examples
@@ -302,26 +359,93 @@ def test_pg_hba_order_and_methods(env):
     assert rs[0] == ["local", "all", "postgres", "peer"]
     assert rs[1] == ["local", db, owner, "scram-sha-256"]
     assert rs[2] == ["local", db, sync_r, "scram-sha-256"]
-    assert rs[3] == ["host", "all", f"postgres,{owner}", "all", "reject"]
-    service = rs[4:-1]
+    assert rs[3] == ["local", db, f"memes_{env}_mon", "peer", "map=exporter"]
+    assert rs[4] == ["host", "all", f"postgres,{owner}", "all", "reject"]
+    service = rs[5:-1]
     assert [r[2] for r in service] == [f"memes_{env}_{k}" for k in ("app", "sync_w", "sync_r", "ro")]
     for r in service:
         assert r[:2] == ["host", db] and r[3] == TABLE[env][1] and r[4] == "scram-sha-256"
     assert rs[-1] == ["host", "all", "all", "all", "reject"]
     assert not any(r[-1] in ("trust", "password", "md5", "ident") for r in rs)
+    assert [r for r in rs if r[3:4] == ["peer"] or r[-2:-1] == ["peer"]] == [rs[0], rs[3]], "peer only for the bootstrap user and the exporter role"
     assert [r for r in rs if r[0] == "local" and r[2] == f"memes_{env}_app"] == [], "the app role has no socket line"
 
 
-def test_postgres_conf_pins_the_logging_and_auth_settings():
+def _conf_settings():
     text = (PROD / "postgres" / "postgresql.conf").read_text(encoding="utf-8")
-    settings = dict(re.findall(r"^([a-z_]+)\s*=\s*(.+?)\s*(?:#.*)?$", text, re.M))
-    assert settings["log_statement"] == "none"
-    assert settings["log_min_error_statement"] == "panic"
-    assert settings["log_min_duration_statement"] == "-1"
+    return dict(re.findall(r"^([a-z_]+)\s*=\s*(.+?)\s*(?:#.*)?$", text, re.M))
+
+
+def test_postgres_conf_pins_the_logging_and_auth_settings():
+    settings = _conf_settings()
     assert settings["password_encryption"] == "scram-sha-256"
     assert settings["max_connections"] == "40"
     assert settings["hba_file"] == "'/etc/memes/pg_hba.conf'"
+    assert settings["ident_file"] == "'/etc/memes/pg_ident.conf'"
     assert settings["ssl"] == "off"
+
+
+def test_postgres_conf_logs_to_bounded_files_without_statement_text():
+    settings = _conf_settings()
+    for key in ("log_statement", "log_min_duration_statement", "log_connections", "log_duration", "log_parameter_max_length",
+                "log_min_duration_sample", "log_statement_sample_rate", "log_transaction_sample_rate", "auto_explain.log_min_duration"):
+        assert key not in settings, f"{key} may put statement text or per-connection lines in the log"
+    expected = {
+        "logging_collector": "on", "log_directory": "'/var/log/postgresql'", "log_filename": "'postgresql-%Y%m%d-%H%M%S.log'",
+        "log_rotation_size": "20MB", "log_rotation_age": "1d", "log_truncate_on_rotation": "on",
+        "log_min_error_statement": "panic", "log_error_verbosity": "terse", "log_checkpoints": "on", "log_lock_waits": "on",
+        "log_temp_files": "10MB", "log_autovacuum_min_duration": "5min", "log_min_messages": "warning",
+    }
+    for key, value in expected.items():
+        assert settings.get(key) == value, key
+    assert settings["log_directory"].strip("'") == "/var/log/postgresql"
+
+
+def test_log_filename_cannot_repeat_within_a_size_rotation():
+    """Postgres appends when a rotation reuses a name, so log_rotation_size would bound nothing: the name must carry year to second."""
+    name = _conf_settings()["log_filename"].strip("'")
+    for token in ("%Y", "%m", "%d", "%H", "%M", "%S"):
+        assert token in name, f"{token} missing from log_filename {name}"
+    assert "%a" not in name and "%j" not in name
+
+
+def _prune_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("prune_logs", PROD / "postgres" / "prune_logs.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_pruner_bound_constants_and_selection():
+    m = _prune_module()
+    assert (m.MAX_FILES, m.MAX_BYTES) == (10, 200 * 1024 * 1024)
+    mb = 1024 * 1024
+    names = [f"postgresql-20261101-{i:06d}.log" for i in range(15)]
+    assert m.select_deletions([(n, 1) for n in names]) == names[:5][::-1]  # count bound: the newest 10 stay
+    assert len(m.select_deletions([(n, 20 * mb) for n in names])) == 5  # 10 x 20MB = the 200MB cap
+    assert len(m.select_deletions([(n, 25 * mb) for n in names])) == 7  # 8 x 25MB fit
+    assert m.select_deletions([(names[0], 500 * mb), (names[1], 500 * mb)]) == [names[0]]  # the newest stays even alone over the cap
+    assert m.select_deletions([]) == []
+
+
+def test_pruner_deletes_only_matching_regular_files(tmp_path):
+    m = _prune_module()
+    for i in range(12):
+        (tmp_path / f"postgresql-20261101-{i:06d}.log").write_text("x")
+    (tmp_path / "other.log").write_text("x")
+    (tmp_path / "postgresql-Mon.log").write_text("x")
+    assert len(m.prune(tmp_path, dry_run=True)) == 2 and len(list(tmp_path.iterdir())) == 14
+    assert m.prune(tmp_path) == ["postgresql-20261101-000001.log", "postgresql-20261101-000000.log"]
+    left = {p.name for p in tmp_path.iterdir()}
+    assert len(left) == 12 and {"other.log", "postgresql-Mon.log", "postgresql-20261101-000011.log"} <= left
+    assert m.main(["prune_logs.py", str(tmp_path / "missing")]) == 2
+
+
+def test_db_log_directory_is_a_required_host_mount_matching_the_setting(stack):
+    logs = [v for v in stack["services"]["db"]["volumes"] if v.endswith(":/var/log/postgresql")]
+    assert len(logs) == 1 and logs[0].startswith("${LOGS_DIR:?") and logs[0].split("}", 1)[1].startswith("/postgres:")
 
 
 def test_provision_script_matches_the_environment_table_and_never_puts_a_password_in_argv():
@@ -347,6 +471,8 @@ def test_provision_script_parses_and_renders_like_the_python_template(tmp_path):
     done = subprocess.run(["bash", str(script), "render", "general", str(out)], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
     assert (out / "pg_hba.conf").read_text(encoding="utf-8") == render_hba("general")
+    ident = [line.split() for line in (out / "pg_ident.conf").read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+    assert ident == [["exporter", "nobody", "memes_general_mon"]]
     assert (out / "postgresql.conf").read_bytes() == (PROD / "postgres" / "postgresql.conf").read_bytes()
 
 

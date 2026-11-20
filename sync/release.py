@@ -13,6 +13,10 @@ verification block of roles.<env>.sql, so there is one source (sync/registry.py)
 Exit codes: 0 ok, 1 a step failed (migration or grants error), 2 a precondition refused (wrong environment marker, wrong role, stale
 roles file, no DATABASE_URL), 3 verify-grants found a mismatch.
 
+The metrics exporter's role memes_<env>_mon (observability, O6c) is the one role outside the registry: provision.sh creates it, and
+verify-grants expects it to be a member of pg_monitor and nothing else, with CONNECT and no privilege on any table, column or sequence
+(a SELECT granted to it, or any other membership, is a mismatch and exits 3). A missing role is a mismatch too.
+
 The planning and the diff are pure (no database); the I/O is the `fetch_*` and `run_*` functions at the bottom.
 """
 from __future__ import annotations
@@ -51,6 +55,10 @@ class Actual:
     column: frozenset[tuple[str, str, str, str]]  # (role, table, column, privilege), explicit column ACLs
     sequence: frozenset[tuple[str, str, str]]  # (role, owning table, privilege)
     server_version_num: int
+    # The stats-only exporter role. mon_present None means "not looked at" (the pure tests that do not care leave it out).
+    mon_present: bool | None = None
+    mon_missing: frozenset[str] = frozenset()  # expected things it lacks: "pg_monitor", "CONNECT"
+    mon_extra: frozenset[tuple[str, str]] = frozenset()  # (object, privilege) it holds beyond the contract
 
 
 @dataclass(frozen=True, order=True)
@@ -59,6 +67,11 @@ class Mismatch:
     role: str
     object: str
     privilege: str
+
+
+def mon_role(env: str) -> str:
+    """The stats-only role of the metrics exporter (pg_monitor + CONNECT); outside the registry, created by provision.sh."""
+    return f"{roles.names_for(env).database}_mon"
 
 
 def can_maintain(server_version_num: int) -> bool:
@@ -101,6 +114,14 @@ def diff(env: str, actual: Actual, exp: roles.Expected | None = None) -> list[Mi
         out.append(Mismatch("unclassified table", "-", table, "-"))
 
     present_roles = {r for r in names.roles if r in actual.roles}
+
+    if actual.mon_present is not None:
+        mon = mon_role(env)
+        if not actual.mon_present:
+            out.append(Mismatch("missing role", mon, "-", "-"))
+        else:
+            out += [Mismatch("missing", mon, "-", what) for what in sorted(actual.mon_missing)]
+            out += [Mismatch("extra", mon, obj, priv) for obj, priv in sorted(actual.mon_extra)]
 
     def keep(role: str, table: str) -> bool:
         return role in present_roles and table in actual.tables  # a missing role or table is reported once, above
@@ -227,7 +248,52 @@ def fetch_actual(conn, env: str) -> Actual:
                where s.relkind = 'S' and s.relnamespace = 'public'::regnamespace and r.rolname = any(%s)
                  and has_sequence_privilege(r.oid, s.oid, p)""", (list(SEQUENCE_PRIVS), four))
         sequence = frozenset(tuple(r) for r in cur.fetchall())
-    return Actual(present, tables, table, column, sequence, version)
+    mon_present, mon_missing, mon_extra = fetch_monitor(conn, env, version)
+    return Actual(present, tables, table, column, sequence, version, mon_present, mon_missing, mon_extra)
+
+
+def fetch_monitor(conn, env: str, version: int):
+    """What the exporter role holds, as (present, missing expected things, extra (object, privilege) pairs). Names only."""
+    mon = mon_role(env)
+    if _scalar(conn, "select 1 from pg_roles where rolname = %s", (mon,)) is None:
+        return False, frozenset(), frozenset()
+    missing, extra = set(), set()
+    if not _scalar(conn, "select pg_has_role(%s, 'pg_monitor', 'MEMBER')", (mon,)):
+        missing.add("pg_monitor")
+    if not _scalar(conn, "select has_database_privilege(%s, current_database(), 'CONNECT')", (mon,)):
+        missing.add("CONNECT")
+    with conn.cursor() as cur:
+        cur.execute("select rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls from pg_roles where rolname = %s", (mon,))
+        flags = cur.fetchone()
+        extra |= {(f"role attribute {name}", "ATTRIBUTE")
+                  for name, on in zip(("superuser", "createdb", "createrole", "replication", "bypassrls"), flags) if on}
+        cur.execute("""select granted.rolname from pg_auth_members am join pg_roles granted on granted.oid = am.roleid
+                       join pg_roles member on member.oid = am.member where member.rolname = %s and granted.rolname <> 'pg_monitor'""", (mon,))
+        extra |= {(f"member of {r[0]}", "MEMBERSHIP") for r in cur.fetchall()}
+        for priv in ("CREATE", "TEMPORARY"):
+            cur.execute("select has_database_privilege(%s, current_database(), %s)", (mon, priv))
+            if cur.fetchone()[0]:
+                extra.add(("database", priv))
+        cur.execute("select has_schema_privilege(%s, 'public', 'CREATE')", (mon,))
+        if cur.fetchone()[0]:
+            extra.add(("schema public", "CREATE"))
+        cur.execute(
+            """select c.relname, p from pg_class c cross join unnest(%s::text[]) p
+               where c.relnamespace = 'public'::regnamespace and c.relkind = any(%s) and has_table_privilege(%s, c.oid, p)""",
+            (list(privilege_names(version)), list(RELKINDS), mon))
+        extra |= {(r[0], r[1]) for r in cur.fetchall()}
+        cur.execute(
+            """select c.relname || '.' || a.attname, x.privilege_type
+               from pg_attribute a join pg_class c on c.oid = a.attrelid cross join lateral aclexplode(a.attacl) x
+               join pg_roles r on r.oid = x.grantee
+               where a.attacl is not null and c.relnamespace = 'public'::regnamespace and not a.attisdropped and r.rolname = %s""", (mon,))
+        extra |= {(r[0], r[1]) for r in cur.fetchall()}
+        cur.execute(
+            """select 'sequence ' || s.relname, p from pg_class s cross join unnest(%s::text[]) p
+               where s.relkind = 'S' and s.relnamespace = 'public'::regnamespace and has_sequence_privilege(%s, s.oid, p)""",
+            (list(SEQUENCE_PRIVS), mon))
+        extra |= {(r[0], r[1]) for r in cur.fetchall()}
+    return True, frozenset(missing), frozenset(extra)
 
 
 def _alembic_revision(conn) -> str | None:

@@ -88,7 +88,7 @@ async def guarded(session: AsyncSession, label: str, call: Callable[[], Awaitabl
         async with session.begin_nested():
             return await call()
     except Exception as exc:
-        logger.warning("popularity recording failed (%s): %r", label, exc)
+        logger.warning("popularity recording failed (%s): %s", label, type(exc).__name__)  # never the message: SQL parameters
         return None
 
 
