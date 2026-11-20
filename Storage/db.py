@@ -66,6 +66,14 @@ AsyncSessionLocal = sessionmaker(
 
 SessionLocal = sessionmaker(engine)
 
+# Pool metrics (checked out, overflow, wait) only when observability.metrics.enabled; any failure leaves the pool untouched.
+if settings.get("observability.metrics.enabled", False):
+    try:
+        from Backend.app.observability.pool import install_pool_metrics
+        install_pool_metrics(engine.sync_engine.pool)
+    except Exception:
+        logger.warning("pool metrics not installed")
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

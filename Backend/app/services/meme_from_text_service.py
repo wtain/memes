@@ -1,4 +1,5 @@
 """Meme-from-text service: runs the pipeline and hydrates the response (P4 spec, decisions 2 and 9)."""
+import time
 from typing import Optional
 
 from Backend.app.types.generated.memefromtextrequest import Schema as MemeFromTextRequest
@@ -65,6 +66,33 @@ def _history_fields(request: MemeFromTextRequest, result, item_count: int, user_
     }
 
 
+def _record_total(started: float) -> None:
+    from Backend.app.observability import enabled
+    if enabled():
+        try:
+            from Backend.app.observability.metrics import record_search
+            record_search("meme_from_text", "total", time.perf_counter() - started)
+        except Exception:
+            pass
+
+
+def _record_outcome(meta, fallback) -> None:
+    """Stage timings come from the pipeline's own meta (never re-timed; a cache hit carries zeros, so it adds no stage sample)."""
+    from Backend.app.observability import enabled
+    if not enabled():
+        return
+    try:
+        from Backend.app.observability.metrics import record_search, record_search_degraded
+        if isinstance(meta, dict) and not meta.get("cacheHit"):
+            for stage, key in (("parse", "parseMs"), ("embed", "embedMs"), ("retrieve", "retrievalMs")):
+                value = meta.get(key)
+                if isinstance(value, (int, float)):
+                    record_search("meme_from_text", stage, value / 1000.0)
+        record_search_degraded(fallback)
+    except Exception:
+        pass
+
+
 class MemeFromTextService:
     def __init__(self, pipeline: Optional[MemeFromTextPipeline], retrieval_repository, image_repository,
                  history_recorder=None, max_chars: Optional[int] = None, impression_recorder=None):
@@ -78,7 +106,15 @@ class MemeFromTextService:
         self.image_repository = image_repository
 
     async def search(self, request: MemeFromTextRequest, user_agent: str = "") -> MemeFromTextResponse:
+        started = time.perf_counter()
+        try:
+            return await self._search(request, user_agent)
+        finally:
+            _record_total(started)
+
+    async def _search(self, request: MemeFromTextRequest, user_agent: str = "") -> MemeFromTextResponse:
         if self.pipeline is None:
+            _record_outcome(None, "unavailable")
             return self._unavailable(request)
         search_request = SearchRequest(
             text=request.text,
@@ -86,6 +122,7 @@ class MemeFromTextService:
             profile=request.profile.model_dump(mode="json", exclude_none=True) if request.profile is not None else None,
             filters=_filters(request), cursor=request.cursor, limit=request.limit)
         result = await self.pipeline.search(search_request, self.retrieval_repository)
+        _record_outcome(result.meta, result.fallback)
         items = [result_item_dict(item) for item in result.items]
         image_ids = [item["imageId"] for item in items]  # _hydrate replaces imageId by the meme object
         await self._hydrate(items)

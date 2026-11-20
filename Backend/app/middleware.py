@@ -6,7 +6,7 @@ multipart parsing (P5a-5).
 """
 import json
 
-from Backend.app.services.abuse import (BUG_REPORT_CHARGED, UNKNOWN_CLIENT, allow_client, bug_report_body_limit_bytes,
+from Backend.app.services.abuse import (count_refusal, BUG_REPORT_CHARGED, UNKNOWN_CLIENT, allow_client, bug_report_body_limit_bytes,
                                         current_client, normalize_client)
 
 BUG_REPORT_PATH = "/api/bug-reports"
@@ -91,6 +91,7 @@ class BodyLimitMiddleware:
 
 
 async def _respond_413(send) -> None:
+    count_refusal("body_limit")
     body = json.dumps({"detail": "Request body too large"}).encode()
     await send({"type": "http.response.start", "status": 413,
                 "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode()),

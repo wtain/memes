@@ -127,7 +127,23 @@ def client_key(request: Request) -> str:
 
 
 def _allow(name: str, key: str, cost: float = 1.0) -> bool:
-    return _LIMITERS[name].allow(key, _number(_SETTING_KEYS[name], 0), cost, _int_setting("abuse.max_clients", 10000))
+    allowed = _LIMITERS[name].allow(key, _number(_SETTING_KEYS[name], 0), cost, _int_setting("abuse.max_clients", 10000))
+    if not allowed:
+        count_refusal(name)
+    return allowed
+
+
+def count_refusal(scope: str) -> None:
+    """Counts a refusal by an abuse limit for metrics (scope: saves, not_found, bug_reports, recording, telemetry, body_limit).
+    A no-op when metrics are off; never raises, never changes the response."""
+    try:
+        from Backend.app.observability import enabled
+        if enabled():
+            from Backend.app.observability.metrics import record_rate_limited
+            record_rate_limited(scope)
+    except Exception:
+        pass
+
 
 
 def allow_client(name: str, host: str | None) -> bool:
