@@ -4,7 +4,7 @@ import MemeCard from "./MemeCard"
 import { useFeature } from "../features/useFeature"
 import { WorkingComicsBar } from "./comics/WorkingComicsBar"
 import { MemeDetailsModal } from "./MemeDetailsModal"
-import { EmptyState, MemeCardSkeleton } from "../ui"
+import { Button, EmptyState, MemeCardSkeleton } from "../ui"
 import { useWindowedPagination, type FetchPageFn } from "../hooks/useWindowedPagination"
 import type { MemesApi } from "../api/MemesApi"
 import type { Facet, Meme } from "../types/generated/all"
@@ -39,6 +39,13 @@ function chunkIntoAlignedRows(items: Meme[], globalStart: number): Meme[][] {
     rows.push(items.slice(i, i + COLUMNS))
   }
   return rows
+}
+
+// True when the user narrowed the list with a text query or at least one selected tag value, so an
+// empty result means "nothing matched" rather than "nothing exists".
+function hasActiveFilter(filter: string | undefined, tagFilters: Record<string, string[]> | undefined): boolean {
+  if (filter && filter.length > 0) return true
+  return Object.values(tagFilters ?? {}).some(values => values.length > 0)
 }
 
 export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFilters, listUntagged, listFlagged, listNoOcr, listRecommendations }: MemesListProps) {
@@ -82,7 +89,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
 
   const resetKey = `${filter ?? ""}:${JSON.stringify(tagFilters ?? {})}:${listUntagged}:${listFlagged}:${listNoOcr}:${listRecommendations}`
 
-  const { items, firstItemIndex, hasMoreForward, hasMoreBackward, loading, loadForward, loadBackward } = useWindowedPagination({
+  const { items, firstItemIndex, hasMoreForward, hasMoreBackward, loading, error, retry, loadForward, loadBackward } =useWindowedPagination({
     fetchPage,
     resetKey,
   })
@@ -140,10 +147,25 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
       )}
 
       {loading && items.length > 0 && (
-        <div className="h-10 flex items-center justify-center"><span>Loading...</span></div>
+        <div className="h-10 flex items-center justify-center"><span role="status">Loading...</span></div>
       )}
 
-      {items.length === 0 && !loading && <EmptyState title="Nothing to show" />}
+      {error && items.length === 0 && (
+        <EmptyState tone="error" title="Could not load memes" action={<Button onClick={retry}>Try again</Button>} />
+      )}
+
+      {error && items.length > 0 && (
+        <div role="alert" className="flex items-center justify-center gap-3 py-4 text-sm">
+          <span>Could not load memes</span>
+          <Button onClick={retry}>Try again</Button>
+        </div>
+      )}
+
+      {items.length === 0 && !loading && !error && (
+        hasActiveFilter(filter, tagFilters)
+          ? <EmptyState title="No memes match" description="Try fewer words or clear a filter." />
+          : <EmptyState title="Nothing to show" />
+      )}
     </div>
   )
 }
