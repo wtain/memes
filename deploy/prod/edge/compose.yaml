@@ -28,6 +28,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      # File access log (observability.md): host directory created by setup-host.sh, writable by the container's user.
+      - ${LOGS_DIR:?set LOGS_DIR (/srv/memes/edge/logs)}/caddy:/var/log/caddy
       - ${WEB_ROOT_METAL:?set WEB_ROOT_METAL}:/srv/memes/metal/web:ro
       - ${WEB_ROOT_GENERAL:?set WEB_ROOT_GENERAL}:/srv/memes/general/web:ro
       - ${WEB_ROOT_IT:?set WEB_ROOT_IT}:/srv/memes/it/web:ro

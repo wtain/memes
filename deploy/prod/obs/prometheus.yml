@@ -1,0 +1,36 @@
+# Prometheus configuration of the memes-obs project (design: docs/superpowers/specs/2026-11-19-observability).
+# Metrics only; no business metric and no private text exists in any of these targets.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # The backend metrics sidecars (alias metrics-<env> on the shared memes-edge network, published by memes-<env>'s compose).
+  - job_name: backend
+    static_configs:
+      - targets: ["metrics-metal:9102"]
+        labels: {env: metal}
+      - targets: ["metrics-general:9102"]
+        labels: {env: general}
+      - targets: ["metrics-it:9102"]
+        labels: {env: it}
+
+  # Caddy's own metrics (the internal :9180 site of edge/Caddyfile; service name caddy on memes-edge).
+  - job_name: caddy
+    static_configs:
+      - targets: ["caddy:9180"]
+
+  # postgres_exporter, one per environment (services postgres-exporter-<env>, added by O6c, alias form postgres-exporter-<env>:9187
+  # on the project network `obs`).
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter-metal:9187"]
+        labels: {env: metal}
+      - targets: ["postgres-exporter-general:9187"]
+        labels: {env: general}
+      - targets: ["postgres-exporter-it:9187"]
+        labels: {env: it}
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]

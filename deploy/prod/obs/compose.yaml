@@ -1,0 +1,71 @@
+# Observability project memes-obs: Prometheus and node-exporter (and, added by the Postgres-monitoring task, the three
+# postgres-exporter-<env> services). Run from this directory as
+#
+#   docker compose -p memes-obs up -d
+#
+# Joins the shared edge network (created once, see edge/compose.yaml) to scrape metrics-<env>:9102 (backend sidecars) and caddy:9180.
+# The ONLY published port is Prometheus on the host loopback 127.0.0.1:9090 (reached over the memesync-obs ssh tunnel, never the internet).
+# Images pinned by digest (prom/prometheus v3.5.0, prom/node-exporter v1.9.1); update like the Postgres image, see ../README.md.
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+services:
+  prometheus:
+    <<: *hardening
+    image: prom/prometheus:v3.5.0@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=2GB
+      - --web.listen-address=0.0.0.0:9090
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    mem_limit: 200m
+    cpus: 0.5
+    pids_limit: 100
+    healthcheck:
+      test: ["CMD", "promtool", "check", "healthy", "--url=http://127.0.0.1:9090"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    networks: [edge, obs]
+
+  node-exporter:
+    <<: *hardening
+    image: prom/node-exporter:v1.9.1@sha256:d00a542e409ee618a4edc67da14dd48c5da66726bbd5537ab2af9c1dfc442c8a
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=0.0.0.0:9100
+    # Read-only view of the host's filesystems for disk figures; no host network, no host pid, nothing published.
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 48m
+    cpus: 0.25
+    pids_limit: 50
+    networks: [obs]
+
+  # postgres-exporter-metal, postgres-exporter-general and postgres-exporter-it are added here by task O6c. Each must be reachable on
+  # the `obs` network under the alias postgres-exporter-<env> (port 9187): prometheus.yml's `postgres` job scrapes exactly those names.
+
+volumes:
+  prometheus_data: {}
+
+networks:
+  edge:
+    name: memes-edge
+    external: true
+  obs:
+    name: memes-obs
