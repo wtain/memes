@@ -8,6 +8,8 @@ import com.memebrowser.app.data.repository.BatchUploader
 import com.memebrowser.app.data.repository.RetrofitBatchUploader
 import com.memebrowser.app.data.store.EnvironmentStore
 import com.memebrowser.app.data.sync.ContentResolverAlbumFileSource
+import com.memebrowser.app.data.sync.DispatchingAlbumFileSource
+import com.memebrowser.app.data.sync.MediaStoreAlbumFileSource
 import com.memebrowser.app.data.sync.SyncScope
 import com.memebrowser.app.data.sync.SyncSettingsSource
 import com.memebrowser.app.data.sync.TrackerSyncSettings
@@ -50,7 +52,10 @@ object SyncModule {
     @Provides
     @Singleton
     fun provideAlbumFileSource(@ApplicationContext context: Context): AlbumFileSource =
-        ContentResolverAlbumFileSource(context.contentResolver)
+        DispatchingAlbumFileSource(
+            saf = ContentResolverAlbumFileSource(context.contentResolver),
+            media = MediaStoreAlbumFileSource(context.contentResolver),
+        )
 
     /**
      * Uploads use their own client and one Retrofit per environment base URL, not the app-wide client: that one
