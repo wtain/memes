@@ -114,6 +114,7 @@ fun SyncScreen(
             viewModel.onAlbumPicked(uri.toString())
         } else {
             Log.w("SyncScreen", "Folder picker returned no result (cancelled, or the system refused the folder)")
+            viewModel.onPickerCancelled()
         }
     }
 

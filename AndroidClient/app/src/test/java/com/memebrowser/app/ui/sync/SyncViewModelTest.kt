@@ -349,6 +349,16 @@ class SyncViewModelTest {
     }
 
     @Test
+    fun `a picker closed without a folder shows a message and changes nothing`() = runTest {
+        val vm = started(vm())
+        vm.onPickerCancelled()
+        assertEquals(SyncViewModel.MSG_PICKER_CANCELLED, vm.uiState.value.message)
+        coVerify(exactly = 0) { coordinator.selectAlbum(any(), any()) }
+        vm.dismissMessage()
+        assertNull(vm.uiState.value.message)
+    }
+
+    @Test
     fun `selectAlbum answering RequiresConfirmation goes through the change flow`() = runTest {
         coEvery { coordinator.selectAlbum("env-a", treeB) } answers {
             album("env-a").value = selA // an album appeared meanwhile, which is why confirmation is required

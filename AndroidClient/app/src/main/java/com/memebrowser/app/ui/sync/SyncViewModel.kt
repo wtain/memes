@@ -254,6 +254,12 @@ class SyncViewModel internal constructor(
         }
     }
 
+    /** The picker closed without a folder: the user backed out, or the system refused the folder. */
+    fun onPickerCancelled() {
+        val env = shownEnvironment() ?: return
+        updateLocal(env) { it.copy(message = MSG_PICKER_CANCELLED) }
+    }
+
     /** The user confirmed the dialog. */
     fun confirmChangeAlbum() {
         val env = shownEnvironment() ?: return
@@ -388,6 +394,8 @@ class SyncViewModel internal constructor(
         /** A stale plan is rebuilt once on its own; a second stale answer stops with a message. */
         const val MAX_PLAN_REBUILDS = 1
         const val MSG_SAME_ALBUM = "That album is already selected."
+        const val MSG_PICKER_CANCELLED =
+            "No folder was selected. If you pressed Allow, Android refused this folder; try another one."
         const val MSG_GRANT_FAILED = "Could not keep access to that folder. Please choose it again."
         const val MSG_CHANGE_FAILED = "Could not save the album. Nothing was changed; try again."
         const val MSG_PLAN_STALE = "The selected album changed in the meantime. Please review the confirmation again."
