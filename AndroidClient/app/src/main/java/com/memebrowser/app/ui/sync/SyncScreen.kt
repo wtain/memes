@@ -62,6 +62,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -157,8 +159,19 @@ fun SyncScreen(
         viewModel.onPermissionResult(canAskAgain = rationale || result.values.any { it })
     }
     // The tap shows the state; a plain "denied" (the system may still ask) opens the system dialog right away.
+    // One shot per entry into DENIED: the saveable flag survives rotation and a double mount, and clears when the
+    // chooser leaves DENIED (dismissed, blocked, listed), so the next tap asks once more. The "Allow access" button
+    // is the deliberate second ask and launches directly.
+    var requestedForDenied by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.chooser) {
-        if (state.chooser == ChooserState.NeedsPermission(MediaAccess.DENIED)) permissionLauncher.launch(permissions)
+        if (state.chooser == ChooserState.NeedsPermission(MediaAccess.DENIED)) {
+            if (!requestedForDenied) {
+                requestedForDenied = true
+                permissionLauncher.launch(permissions)
+            }
+        } else {
+            requestedForDenied = false
+        }
     }
 
     val actions = remember(viewModel, picker, permissionLauncher, permissions, context, onBack, onUploadFiles) {
