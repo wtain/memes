@@ -132,6 +132,24 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a2-
 - The scanner has a 60 s timeout and aborts the provider query on cancellation; an empty listing whose root no longer resolves (ejected card, deleted folder)
   is `Incomplete("album unavailable")`, never an empty `Complete`. `looksLikeAppOwnFolder` only fires for the `com.android.externalstorage.documents` authority.
 
+### Album source: MediaStore (A5)
+Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-21-a5-mediastore-album-source-design.md`. Code in `data/album/` and `data/sync/`, UI in `ui/sync/SyncChooser.kt`.
+Gallery albums (MediaStore buckets) are a second album source next to the SAF folder picker, for folders the picker refuses (Samsung `DCIM/...`).
+- Two key kinds share the `albumTreeUri` column, no tracker migration: a SAF `content://...tree...` URI, or `mediastore-bucket:<BUCKET_ID>/<URL-encoded bucket name>`
+  (`AlbumKey.mediaStore` / `isMediaStore` / `bucketId` / `bucketName`, pure). `documentId` of a MediaStore file is the decimal `_ID`.
+- Three dispatchers pick the implementation by key shape and leave the SAF path unchanged: `DispatchingAlbumAccess` (MediaStore: `MediaStoreAlbumAccess`, no per-album
+  grant, `release` is a no-op), `DispatchingAlbumRowSource` (`MediaStoreAlbumRowSource`, one query by `BUCKET_ID`, `DATE_MODIFIED` seconds x 1000) and
+  `DispatchingAlbumFileSource` in `data/sync/` (`MediaStoreAlbumFileSource` opens `Images.Media.EXTERNAL_CONTENT_URI/<_ID>`; `FileNotFoundException` still means "vanished").
+- `MediaAccess` (`FULL` / `PARTIAL` / `DENIED` / `BLOCKED`, `MediaAccesses.resolve` is pure, `MediaAccessSource` is the seam because `SDK_INT` is 0 on the JVM). Only `FULL`
+  scans, lists albums and counts as granted; `PARTIAL` (Android 14+ "Select photos") shows the allow-all-photos card and never scans; `DENIED` can ask again; `BLOCKED` points to system settings.
+  Permissions (`MediaAccesses.permissionsToRequest`): API 34+ `READ_MEDIA_IMAGES` + `READ_MEDIA_VISUAL_USER_SELECTED`, API 33 `READ_MEDIA_IMAGES`, below that `READ_EXTERNAL_STORAGE`.
+- `AlbumLister` (`MediaStoreAlbumLister`) lists the albums for the chooser with one query on the images collection (`IS_PENDING = 0`), aggregated in memory by the pure
+  `GalleryAlbums.aggregate`, newest first; results `Albums` / `PermissionDenied` / `Failed`, never throws except cancellation.
+- An EMPTY bucket means the album is gone: `MediaStoreRows.listing` sets `rootResolves = rows.isNotEmpty()`, so the scanner answers `Incomplete("album unavailable")`, never an empty `Complete`.
+- The chooser UI is `GalleryChooserDialog` (`ui/sync/SyncChooser.kt`, state `ChooserState` in `SyncViewModel`); the permission request is launched once per tap.
+- JVM tests cover the pure parts and fakes; `androidTest/.../data/album/MediaStoreAlbumTest` seeds a JPEG into `Pictures/A5Test` and covers the real query, file open and
+  millisecond mapping (needs an emulator, CI only). The real device behaviour is the owner's checklist in the A5 spec.
+
 ### Sync engine (A3)
 Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a3-sync-engine-design.md`. Code in `data/sync/`, upload seam in `data/repository/BatchUploader.kt`, Hilt in `di/SyncModule`. No screens.
 - `SyncEngine` (singleton, per environment id) is what A4 calls: `start(env)` (non-suspending, runs in the engine's own scope, false if already running), `stop(env)`,

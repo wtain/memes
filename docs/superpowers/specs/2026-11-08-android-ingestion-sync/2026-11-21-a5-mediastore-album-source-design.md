@@ -1,6 +1,6 @@
 # A5: MediaStore album source, design
 
-Status: planned
+Status: implementation
 Plan: docs/superpowers/plans/2026-11-21-a5-mediastore-album-source.md
 Originates from: docs/superpowers/specs/2026-11-08-android-ingestion-sync/README.md (decision "Selection of the album", fallback named by spike S2)
 
@@ -140,10 +140,14 @@ Backend or upload-format changes; video; recursive albums; background or automat
   with a MediaStore key (first selection, change from SAF, permission lost); ViewModel tests for the permission states
   (granted, denied, permanently denied).
 - Existing tests must pass unchanged (SAF behaviour is not modified).
-- androidTest: a query against the emulator's MediaStore with a seeded image and bucket, and the permission-denied path.
-- Device check by the owner (not verifiable from here): `DCIM/3 - memes` appears as an album with the right count; one sync
-  uploads and the inbox shows the files with their original names; revoking the permission in system settings shows "Choose
-  album again"; behaviour on the phone's Android version (see below).
+- androidTest: `MediaStoreAlbumTest` seeds one JPEG into `Pictures/A5Test` and checks the lister, the scan (name, size, milliseconds),
+  the file open, the empty-bucket `Incomplete("album unavailable")` and SAF routing. Written and compiled by the agents, run only in CI.
+- Device check by the owner (not verifiable from here), checklist:
+  1. `DCIM/3 - memes` appears as one album with the right count.
+  2. One sync uploads and the inbox shows the original file names.
+  3. Revoke the photo permission in system settings while the screen is idle: "Choose album again" appears.
+  4. On Android 14+, "Select photos" shows the partial-access card; switching to "Allow all" in settings is picked up by the next refresh.
+  5. Note the dialog wording, whether Samsung trash or hidden albums show up, and the Android version (open questions 1 to 3).
 
 ## Open questions
 
