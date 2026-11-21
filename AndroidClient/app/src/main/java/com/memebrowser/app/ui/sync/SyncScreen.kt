@@ -1,5 +1,13 @@
 package com.memebrowser.app.ui.sync
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -59,6 +67,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -74,6 +83,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.memebrowser.app.data.album.GalleryAlbum
+import com.memebrowser.app.data.album.MediaAccess
+import com.memebrowser.app.data.album.MediaAccesses
 import com.memebrowser.app.data.album.ScanState
 import com.memebrowser.app.data.sync.SyncState
 import com.memebrowser.app.data.sync.isActive
@@ -84,7 +96,13 @@ import kotlin.math.roundToInt
 @Immutable
 class SyncActions(
     val onBack: () -> Unit = {},
+    /** The folder picker. */
     val onChooseAlbum: () -> Unit = {},
+    val onChooseGallery: () -> Unit = {},
+    val onChooserDismiss: () -> Unit = {},
+    val onChooseGalleryAlbum: (GalleryAlbum) -> Unit = {},
+    val onRequestGalleryPermission: () -> Unit = {},
+    val onOpenAppSettings: () -> Unit = {},
     val onUploadFiles: () -> Unit = {},
     val onRefresh: () -> Unit = {},
     val onSyncNow: () -> Unit = {},
@@ -131,10 +149,27 @@ fun SyncScreen(
         onDispose { view.keepScreenOn = false }
     }
 
-    val actions = remember(viewModel, picker, onBack, onUploadFiles) {
+    val context = LocalContext.current
+    val permissions = remember { MediaAccesses.permissionsToRequest(Build.VERSION.SDK_INT) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        val activity = context.findActivity()
+        val rationale = activity != null && permissions.any { activity.shouldShowRequestPermissionRationale(it) }
+        viewModel.onPermissionResult(canAskAgain = rationale || result.values.any { it })
+    }
+    // The tap shows the state; a plain "denied" (the system may still ask) opens the system dialog right away.
+    LaunchedEffect(state.chooser) {
+        if (state.chooser == ChooserState.NeedsPermission(MediaAccess.DENIED)) permissionLauncher.launch(permissions)
+    }
+
+    val actions = remember(viewModel, picker, permissionLauncher, permissions, context, onBack, onUploadFiles) {
         SyncActions(
             onBack = onBack,
             onChooseAlbum = { picker.launch(null) },
+            onChooseGallery = viewModel::onGalleryRequested,
+            onChooserDismiss = viewModel::dismissChooser,
+            onChooseGalleryAlbum = viewModel::onGalleryAlbumChosen,
+            onRequestGalleryPermission = { permissionLauncher.launch(permissions) },
+            onOpenAppSettings = { context.openAppSettings() },
             onUploadFiles = onUploadFiles,
             onRefresh = viewModel::refresh,
             onSyncNow = viewModel::startSync,
@@ -151,6 +186,22 @@ fun SyncScreen(
         )
     }
     SyncContent(state, actions)
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+private fun Context.openAppSettings() {
+    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        startActivity(intent)
+    } catch (e: ActivityNotFoundException) {
+        Log.w("SyncScreen", "No activity for the app settings", e)
+    }
 }
 
 /** Stateless: renders [state] and reports intents through [actions]. */
@@ -209,6 +260,8 @@ fun SyncContent(state: SyncUiState, actions: SyncActions) {
         }
     }
 
+    state.chooser?.let { GalleryChooserDialog(it, actions) }
+
     state.changePlan?.let { plan ->
         ChangeAlbumDialog(
             lines = changeAlbumDialogLines(plan, syncRunning = state.sync.isActive),
@@ -255,14 +308,19 @@ private fun EmptyState(state: SyncUiState, actions: SyncActions) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             Button(
-                onClick = actions.onChooseAlbum,
+                onClick = actions.onChooseGallery,
                 enabled = state.controls.canChooseAlbum,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) {
                 Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Choose album folder")
+                Text("Gallery album...")
             }
+            OutlinedButton(
+                onClick = actions.onChooseAlbum,
+                enabled = state.controls.canChooseAlbum,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) { Text("Folder...") }
         }
     }
 }
@@ -286,15 +344,21 @@ private fun AlbumSections(state: SyncUiState, actions: SyncActions) {
     SyncCard(state, actions)
     BatchSizeRow(state, actions, controls)
     HorizontalDivider()
+    Text("Change album", style = MaterialTheme.typography.titleSmall)
     OutlinedButton(
-        onClick = actions.onChooseAlbum,
+        onClick = actions.onChooseGallery,
         enabled = controls.canChangeAlbum,
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
     ) {
         Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
-        Text("Change album")
+        Text("Gallery album...")
     }
+    OutlinedButton(
+        onClick = actions.onChooseAlbum,
+        enabled = controls.canChangeAlbum,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+    ) { Text("Folder...") }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

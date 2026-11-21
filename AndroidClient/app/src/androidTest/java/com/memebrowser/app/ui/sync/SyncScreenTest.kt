@@ -7,6 +7,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.memebrowser.app.data.album.GalleryAlbum
+import com.memebrowser.app.data.album.MediaAccess
 import com.memebrowser.app.data.album.ScanState
 import com.memebrowser.app.data.sync.SyncError
 import com.memebrowser.app.data.sync.SyncState
@@ -41,10 +43,42 @@ class SyncScreenTest {
     @Test
     fun noAlbum_showsChooseButton() {
         var chosen = 0
-        show(SyncUiState(loaded = true, environment = EnvironmentInfo("env-a", "General")), SyncActions(onChooseAlbum = { chosen++ }))
+        var gallery = 0
+        show(SyncUiState(loaded = true, environment = EnvironmentInfo("env-a", "General")), SyncActions(onChooseAlbum = { chosen++ }, onChooseGallery = { gallery++ }))
         composeTestRule.onNodeWithText("Environment: General").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Choose album folder").performClick()
+        composeTestRule.onNodeWithText("Gallery album...").performClick()
+        composeTestRule.onNodeWithText("Folder...").performClick()
+        assertEquals(1, gallery)
         assertEquals(1, chosen)
+    }
+
+    private val camera = GalleryAlbum("1", "Camera", 1234, "DCIM/Camera", 0L)
+    private val shots = GalleryAlbum("2", "Screenshots", 87, null, 0L)
+
+    @Test
+    fun chooser_listsAlbumsAndReportsTheChoice() {
+        var picked: GalleryAlbum? = null
+        show(loaded.copy(chooser = ChooserState.Albums(listOf(camera, shots))), SyncActions(onChooseGalleryAlbum = { picked = it }))
+        composeTestRule.onNodeWithText("Camera").assertIsDisplayed()
+        composeTestRule.onNodeWithText("1234 images").assertIsDisplayed()
+        composeTestRule.onNodeWithText("DCIM/Camera").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Screenshots").performClick()
+        assertEquals(shots, picked)
+    }
+
+    @Test
+    fun chooser_emptyLoadingAndFailedHaveText() {
+        show(loaded.copy(chooser = ChooserState.Empty))
+        composeTestRule.onNodeWithText("No albums with images were found on this phone.").assertIsDisplayed()
+    }
+
+    @Test
+    fun partialAccess_showsTextAndOpensSettings() {
+        var settings = 0
+        show(loaded.copy(chooser = ChooserState.NeedsPermission(MediaAccess.PARTIAL)), SyncActions(onOpenAppSettings = { settings++ }))
+        composeTestRule.onNodeWithText(permissionCardText(MediaAccess.PARTIAL)).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Open settings").performClick()
+        assertEquals(1, settings)
     }
 
     @Test

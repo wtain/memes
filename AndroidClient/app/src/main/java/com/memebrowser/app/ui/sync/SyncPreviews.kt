@@ -2,6 +2,8 @@ package com.memebrowser.app.ui.sync
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.memebrowser.app.data.album.GalleryAlbum
+import com.memebrowser.app.data.album.MediaAccess
 import com.memebrowser.app.data.album.ScanState
 import com.memebrowser.app.data.sync.SyncState
 import com.memebrowser.app.data.sync.SyncSummary
@@ -32,3 +34,27 @@ private fun SyncRunningLargeTextPreview() = MemeBrowserTheme {
 private fun SyncAccessLostPreview() = MemeBrowserTheme {
     SyncContent(previewState.copy(scan = ScanState.PermissionLost), SyncActions())
 }
+
+private val previewAlbums = listOf(
+    GalleryAlbum("1", "Camera", 1234, "DCIM/Camera", 0L),
+    GalleryAlbum("2", "Screenshots", 87, "Pictures/Screenshots", 0L),
+    GalleryAlbum("3", "Memes", 12, null, 0L),
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun SyncChooserPreview() = MemeBrowserTheme {
+    SyncContent(previewState.copy(chooser = ChooserState.Albums(previewAlbums)), SyncActions())
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PermissionPartialPreview() = MemeBrowserTheme { PermissionCard(MediaAccess.PARTIAL, SyncActions()) }
+
+@Preview(showBackground = true)
+@Composable
+private fun PermissionDeniedPreview() = MemeBrowserTheme { PermissionCard(MediaAccess.DENIED, SyncActions()) }
+
+@Preview(showBackground = true)
+@Composable
+private fun PermissionBlockedPreview() = MemeBrowserTheme { PermissionCard(MediaAccess.BLOCKED, SyncActions()) }
