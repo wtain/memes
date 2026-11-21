@@ -75,4 +75,16 @@ class AlbumNamesTest {
         assertFalse(AlbumNames.looksLikeAppOwnFolder("content://com.android.providers.downloads.documents/tree/$id"))
         assertFalse(AlbumNames.looksLikeAppOwnFolder("content://x/tree/$id"))
     }
+
+    @Test
+    fun `media store key shows the bucket name`() {
+        assertEquals("3 - memes", AlbumNames.displayName(AlbumKey.mediaStore(1, "3 - memes")))
+    }
+
+    @Test
+    fun `media store app own bucket is flagged`() {
+        assertTrue(AlbumNames.looksLikeAppOwnFolder(AlbumKey.mediaStore(1, "MemesBrowser-Trends")))
+        assertTrue(AlbumNames.looksLikeAppOwnFolder(AlbumKey.mediaStore(1, "memesbrowser-x")))
+        assertFalse(AlbumNames.looksLikeAppOwnFolder(AlbumKey.mediaStore(1, "memes")))
+    }
 }

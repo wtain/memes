@@ -37,6 +37,7 @@ object AlbumNames {
      * the raw [treeUri] when no id can be read. (my call)
      */
     fun displayName(treeUri: String): String {
+        if (AlbumKey.isMediaStore(treeUri)) return AlbumKey.bucketName(treeUri) ?: treeUri
         val id = treeDocumentId(treeUri) ?: return treeUri
         val volume = id.substringBefore(':')
         val path = if (':' in id) id.substringAfter(':') else id
@@ -55,6 +56,9 @@ object AlbumNames {
      * external-storage authority is checked: other providers (Downloads, cloud) never hold these folders. (my call)
      */
     fun looksLikeAppOwnFolder(treeUri: String): Boolean {
+        if (AlbumKey.isMediaStore(treeUri)) {
+            return AlbumKey.bucketName(treeUri)?.startsWith("MemesBrowser-", ignoreCase = true) == true
+        }
         if (authority(treeUri) != EXTERNAL_STORAGE_AUTHORITY) return false
         val id = treeDocumentId(treeUri) ?: return false
         val path = if (':' in id) id.substringAfter(':') else id
