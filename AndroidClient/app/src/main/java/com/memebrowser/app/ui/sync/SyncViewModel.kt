@@ -4,8 +4,13 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.data.album.AlbumChangeResult
+import com.memebrowser.app.data.album.AlbumLister
+import com.memebrowser.app.data.album.AlbumListing
 import com.memebrowser.app.data.album.AlbumSyncCoordinator
 import com.memebrowser.app.data.album.ChangeAlbumPlan
+import com.memebrowser.app.data.album.GalleryAlbum
+import com.memebrowser.app.data.album.MediaAccess
+import com.memebrowser.app.data.album.MediaAccessSource
 import com.memebrowser.app.data.album.ScanState
 import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.sync.SyncEngine
@@ -50,6 +55,15 @@ data class RejectedItem(
     val canRetry: Boolean,
 )
 
+/** The gallery album chooser, shown while it is not null. */
+sealed interface ChooserState {
+    data object Loading : ChooserState
+    data class Albums(val albums: List<GalleryAlbum>) : ChooserState
+    data class NeedsPermission(val access: MediaAccess) : ChooserState
+    data object Failed : ChooserState
+    data object Empty : ChooserState
+}
+
 /** The one immutable state the screen renders. */
 data class SyncUiState(
     /** False until the first environment and tracker values arrived (the screen shows a spinner). */
@@ -73,6 +87,8 @@ data class SyncUiState(
     val message: String? = null,
     /** An album pick is being processed. */
     val busy: Boolean = false,
+    /** The gallery album chooser, or null while it is closed. */
+    val chooser: ChooserState? = null,
 ) {
     val controls: SyncControls get() = syncControls(album != null, counts, scan, sync, busy)
     val retryableCount: Int get() = rejected.count { it.canRetry }
@@ -85,6 +101,8 @@ class SyncViewModel internal constructor(
     private val coordinator: AlbumSyncCoordinator,
     private val engine: SyncEngine,
     private val tracker: TrackerRepository,
+    private val albumLister: AlbumLister,
+    private val mediaAccess: MediaAccessSource,
     private val clock: () -> Long,
     /** Where the rejected rows are mapped to text (thousands of rows must not be mapped on Main). */
     private val mappingDispatcher: CoroutineDispatcher,
@@ -96,7 +114,9 @@ class SyncViewModel internal constructor(
         coordinator: AlbumSyncCoordinator,
         engine: SyncEngine,
         tracker: TrackerRepository,
-    ) : this(environments, coordinator, engine, tracker, System::currentTimeMillis, Dispatchers.Default)
+        albumLister: AlbumLister,
+        mediaAccess: MediaAccessSource,
+    ) : this(environments, coordinator, engine, tracker, albumLister, mediaAccess, System::currentTimeMillis, Dispatchers.Default)
 
     /** Screen-local state that is not derived from the data layer. One per environment, so nothing leaks across a switch. */
     private data class Local(
@@ -105,6 +125,7 @@ class SyncViewModel internal constructor(
         val busy: Boolean = false,
         val dismissedSync: SyncState? = null,
         val rejectedVisible: Boolean = false,
+        val chooser: ChooserState? = null,
     )
 
     private class Snapshot(
@@ -182,6 +203,7 @@ class SyncViewModel internal constructor(
                     changePlan = plan,
                     message = l.message,
                     busy = l.busy,
+                    chooser = l.chooser,
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SyncUiState())
@@ -252,6 +274,51 @@ class SyncViewModel internal constructor(
                 updateLocal(env) { it.copy(busy = false) }
             }
         }
+    }
+
+    // ---- gallery chooser -------------------------------------------------------------------------------------
+
+    /** The user asked to pick a gallery album. Only full access lists albums; every other level shows the permission card. */
+    fun onGalleryRequested() {
+        val env = shownEnvironment() ?: return
+        resolveGallery(env, canAskAgain = true)
+    }
+
+    /** The system permission dialog closed. [canAskAgain] is false when the system will not show it again. */
+    fun onPermissionResult(canAskAgain: Boolean) {
+        val env = shownEnvironment() ?: return
+        resolveGallery(env, canAskAgain)
+    }
+
+    private fun resolveGallery(env: String, canAskAgain: Boolean) {
+        val access = mediaAccess.current(canAskAgain)
+        if (access != MediaAccess.FULL) {
+            updateLocal(env) { it.copy(chooser = ChooserState.NeedsPermission(access)) }
+            return
+        }
+        updateLocal(env) { it.copy(chooser = ChooserState.Loading) }
+        viewModelScope.launch {
+            val result = guarded(env) { albumLister.list() }
+            val next = when (result) {
+                null, AlbumListing.Failed -> ChooserState.Failed
+                AlbumListing.PermissionDenied -> ChooserState.NeedsPermission(mediaAccess.current(canAskAgain).takeIf { it != MediaAccess.FULL } ?: MediaAccess.DENIED)
+                is AlbumListing.Albums -> if (result.albums.isEmpty()) ChooserState.Empty else ChooserState.Albums(result.albums)
+            }
+            // Dismissed meanwhile: do not bring the chooser back.
+            updateLocal(env) { if (it.chooser == ChooserState.Loading) it.copy(chooser = next) else it }
+        }
+    }
+
+    /** A gallery album was chosen: closes the chooser and takes the same path as a picked folder. */
+    fun onGalleryAlbumChosen(album: GalleryAlbum) {
+        val env = shownEnvironment() ?: return
+        updateLocal(env) { it.copy(chooser = null) }
+        onAlbumPicked(album.key)
+    }
+
+    fun dismissChooser() {
+        val env = shownEnvironment() ?: return
+        updateLocal(env) { it.copy(chooser = null) }
     }
 
     /** The picker closed without a folder: the user backed out, or the system refused the folder. */

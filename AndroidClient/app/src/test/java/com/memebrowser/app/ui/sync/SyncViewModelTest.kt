@@ -1,6 +1,11 @@
 package com.memebrowser.app.ui.sync
 
 import com.memebrowser.app.data.album.AlbumChangeResult
+import com.memebrowser.app.data.album.AlbumLister
+import com.memebrowser.app.data.album.AlbumListing
+import com.memebrowser.app.data.album.GalleryAlbum
+import com.memebrowser.app.data.album.MediaAccess
+import com.memebrowser.app.data.album.MediaAccessSource
 import com.memebrowser.app.data.album.AlbumSyncCoordinator
 import com.memebrowser.app.data.album.ChangeAlbumPlan
 import com.memebrowser.app.data.album.ScanFailure
@@ -103,8 +108,13 @@ class SyncViewModelTest {
         coEvery { it.setBatchSize(any()) } answers { batch.value = firstArg() }
     }
 
+    private val lister = mockk<AlbumLister>().also { coEvery { it.list() } returns AlbumListing.Albums(emptyList()) }
+    private var accessWhenAsking = MediaAccess.FULL
+    private var accessWhenBlocked = MediaAccess.FULL
+    private val mediaAccess = MediaAccessSource { canAskAgain -> if (canAskAgain) accessWhenAsking else accessWhenBlocked }
+
     private fun vm(mapping: CoroutineDispatcher = mainDispatcherRule.dispatcher) =
-        SyncViewModel(environments, coordinator, engine, tracker, { now }, mapping)
+        SyncViewModel(environments, coordinator, engine, tracker, lister, mediaAccess, { now }, mapping)
 
     /** Subscribes to the state for the duration of the test. */
     private fun TestScope.started(vm: SyncViewModel): SyncViewModel {
@@ -721,5 +731,112 @@ class SyncViewModelTest {
         val vm = started(vm())
         assertEquals(2, vm.uiState.value.counts.supported)
         assertTrue(scanIsProblem(vm.uiState.value.scan))
+    }
+
+    // ---- gallery chooser ------------------------------------------------------------------------------------
+
+    private fun galleryAlbum(key: String, name: String) = GalleryAlbum(key, name, 3, "DCIM/$name", 10)
+
+    @Test
+    fun `full access lists the albums into the chooser`() = runTest {
+        val a = galleryAlbum("ms:1:Camera", "Camera")
+        val b = galleryAlbum("ms:2:Memes", "Memes")
+        coEvery { lister.list() } returns AlbumListing.Albums(listOf(a, b))
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        assertEquals(ChooserState.Albums(listOf(a, b)), vm.uiState.value.chooser)
+    }
+
+    @Test
+    fun `an empty album list is Empty`() = runTest {
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        assertEquals(ChooserState.Empty, vm.uiState.value.chooser)
+    }
+
+    @Test
+    fun `a failed listing is Failed`() = runTest {
+        coEvery { lister.list() } returns AlbumListing.Failed
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        assertEquals(ChooserState.Failed, vm.uiState.value.chooser)
+    }
+
+    @Test
+    fun `a denied listing needs permission`() = runTest {
+        coEvery { lister.list() } returns AlbumListing.PermissionDenied
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        assertEquals(ChooserState.NeedsPermission(MediaAccess.DENIED), vm.uiState.value.chooser)
+    }
+
+    @Test
+    fun `partial access shows the card and never calls the lister`() = runTest {
+        accessWhenAsking = MediaAccess.PARTIAL
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        assertEquals(ChooserState.NeedsPermission(MediaAccess.PARTIAL), vm.uiState.value.chooser)
+        coVerify(exactly = 0) { lister.list() }
+    }
+
+    @Test
+    fun `denied access at request time shows the card without listing`() = runTest {
+        accessWhenAsking = MediaAccess.DENIED
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        assertEquals(ChooserState.NeedsPermission(MediaAccess.DENIED), vm.uiState.value.chooser)
+        coVerify(exactly = 0) { lister.list() }
+    }
+
+    @Test
+    fun `a permission result that cannot ask again is blocked`() = runTest {
+        accessWhenAsking = MediaAccess.DENIED
+        accessWhenBlocked = MediaAccess.BLOCKED
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        vm.onPermissionResult(canAskAgain = false)
+        assertEquals(ChooserState.NeedsPermission(MediaAccess.BLOCKED), vm.uiState.value.chooser)
+        coVerify(exactly = 0) { lister.list() }
+    }
+
+    @Test
+    fun `a permission result with full access loads the albums`() = runTest {
+        val a = galleryAlbum("ms:1:Camera", "Camera")
+        coEvery { lister.list() } returns AlbumListing.Albums(listOf(a))
+        accessWhenAsking = MediaAccess.DENIED
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        accessWhenAsking = MediaAccess.FULL
+        accessWhenBlocked = MediaAccess.FULL
+        vm.onPermissionResult(canAskAgain = true)
+        assertEquals(ChooserState.Albums(listOf(a)), vm.uiState.value.chooser)
+    }
+
+    @Test
+    fun `choosing a gallery album closes the chooser and forwards its key`() = runTest {
+        val a = galleryAlbum("ms:1:Camera", "Camera")
+        coEvery { lister.list() } returns AlbumListing.Albums(listOf(a))
+        coEvery { coordinator.selectAlbum("env-a", a.key) } returns AlbumChangeResult.Applied(ScanState.Done(1))
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        vm.onGalleryAlbumChosen(a)
+        assertNull(vm.uiState.value.chooser)
+        coVerify { coordinator.selectAlbum("env-a", a.key) }
+    }
+
+    @Test
+    fun `dismissing the chooser clears it`() = runTest {
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        vm.dismissChooser()
+        assertNull(vm.uiState.value.chooser)
+    }
+
+    @Test
+    fun `the chooser belongs to its environment`() = runTest {
+        val vm = started(vm())
+        vm.onGalleryRequested()
+        selectEnv("env-b")
+        assertNull(vm.uiState.value.chooser)
     }
 }

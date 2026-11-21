@@ -1,6 +1,7 @@
 package com.memebrowser.app.ui.sync
 
 import com.memebrowser.app.data.album.ChangeAlbumPlan
+import com.memebrowser.app.data.album.MediaAccess
 import com.memebrowser.app.data.album.ScanFailure
 import com.memebrowser.app.data.album.ScanState
 import com.memebrowser.app.data.sync.SyncEngine
@@ -204,3 +205,11 @@ fun changeAlbumDialogLines(plan: ChangeAlbumPlan, syncRunning: Boolean): List<Di
 
 /** Only `server_error` can be retried; every other rejection is permanent. */
 fun canRetry(reason: String?): Boolean = reason == RejectionReasons.SERVER_ERROR
+
+/** What the gallery permission card says; only access FULL lists albums, so every other level explains what is missing. */
+fun permissionCardText(access: MediaAccess): String = when (access) {
+    MediaAccess.FULL -> "Photo access is allowed."
+    MediaAccess.PARTIAL -> "Allow access to all photos to sync a whole album"
+    MediaAccess.DENIED -> "Allow access to your photos to choose a gallery album."
+    MediaAccess.BLOCKED -> "Photo access is turned off. Open the system settings for this app and allow access to all photos."
+}

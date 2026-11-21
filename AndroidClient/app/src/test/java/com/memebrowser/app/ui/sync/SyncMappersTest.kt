@@ -1,6 +1,7 @@
 package com.memebrowser.app.ui.sync
 
 import com.memebrowser.app.data.album.ChangeAlbumPlan
+import com.memebrowser.app.data.album.MediaAccess
 import com.memebrowser.app.data.album.ScanFailure
 import com.memebrowser.app.data.album.ScanState
 import com.memebrowser.app.data.sync.SyncEngine
@@ -213,5 +214,13 @@ class SyncMappersTest {
         assertEquals("Nothing to send.", nothingToSendText(TrackerCounts(2, 2, 0, 0), ScanState.Done(1), SyncState.Idle))
         assertNull(nothingToSendText(counts, ScanState.Done(1), SyncState.Idle))
         assertEquals("20 MB", MaxFileSizeText)
+    }
+
+    @Test
+    fun `permission card text per access level`() {
+        assertEquals("Allow access to all photos to sync a whole album", permissionCardText(MediaAccess.PARTIAL))
+        assertTrue(permissionCardText(MediaAccess.BLOCKED).contains("system settings", ignoreCase = true))
+        assertTrue(permissionCardText(MediaAccess.DENIED).isNotBlank())
+        assertTrue(permissionCardText(MediaAccess.FULL).isNotBlank())
     }
 }
