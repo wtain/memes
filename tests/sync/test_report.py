@@ -396,8 +396,9 @@ def test_atomic_write_text_retries_a_replace_held_by_a_scanner_review_finding_l1
             raise PermissionError("held")
         return real(src, dst)
 
-    monkeypatch.setattr(os, "name", "nt")
-    monkeypatch.setattr(os, "replace", flaky)
+    # stub only the os that replace_with_retry sees; patching os.name globally makes pathlib build WindowsPath on Linux
+    import types
+    monkeypatch.setattr(config, "os", types.SimpleNamespace(name="nt", replace=flaky))
     monkeypatch.setattr(config.time, "sleep", lambda s: None)
     target = tmp_path / "report.json"
     from sync import report as report_mod

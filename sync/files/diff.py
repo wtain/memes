@@ -134,10 +134,14 @@ def diff_manifest(manifest: Manifest, remote: list) -> Diff:
 # ---------------------------------------------------------------------------------------------------------------------------------
 # report feeding
 
-def report_name(name: str) -> str:
-    """A file name that is safe to put in a report; hostile names are replaced by a stable placeholder."""
+def report_name(name: str, invalid: bool = False) -> str:
+    """A file name that is safe to put in a report; hostile names are replaced by a stable placeholder. `invalid` marks a name the
+    gate or the parser already judged hostile: the gate sends such names pre-escaped (printable), so they would pass the text
+    check below, yet they are still never shown."""
     try:
         name.encode("utf-8")
+        if invalid:
+            raise report.ReportError("invalid name")
         return report.check_file_name(name)
     except (report.ReportError, UnicodeEncodeError):
         digest = hashlib.sha256(name.encode("utf-8", "surrogatepass")).hexdigest()[:12]
@@ -167,7 +171,7 @@ def to_entry(manifest: Manifest, d: Diff, name: str = "images") -> report.Entry:
         size_changed=[e.id for e, _ in d.size_changed],
         hash_changed=[e.id for e, _ in d.hash_changed],
     )
-    names = [report_name(n) for n in d.left_behind] + [report_name(a.name) for a in d.anomalies if not a.in_manifest]
+    names = [report_name(n) for n in d.left_behind] + [report_name(a.name, a.kind in ("invalid", "malformed")) for a in d.anomalies if not a.in_manifest]
     return report.Entry(
         name=name, kind="files",
         added=report.IdSet(ids=[e.id for e in d.added], bytes=sum(e.size for e in d.added)),

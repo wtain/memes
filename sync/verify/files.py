@@ -60,7 +60,7 @@ def classify_remote(remote: list, modes: tuple | list | None, expected_uid: int 
     None: not checked), `expected_uid` None: not checked."""
     out = []
     for r in remote:
-        shown = diff_mod.report_name(r.name)
+        shown = diff_mod.report_name(r.name, r.invalid)
         if r.invalid:
             out.append((shown, "invalid_name" if r.type != "?" else "malformed_record"))
         elif r.type != "f":
