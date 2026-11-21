@@ -1,6 +1,7 @@
 # A5: MediaStore album source, design
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-11-21-a5-mediastore-album-source.md
 Originates from: docs/superpowers/specs/2026-11-08-android-ingestion-sync/README.md (decision "Selection of the album", fallback named by spike S2)
 
 Scope: let the owner choose an album that the Storage Access Framework (SAF) folder picker refuses, in particular Samsung Gallery
@@ -40,7 +41,7 @@ The tracker row key stays `(environmentId, albumTreeUri, documentId)` and the Ro
 two string columns become opaque keys with a scheme:
 
 - SAF (existing): `albumTreeUri` = `content://<authority>/tree/...`, `documentId` = the provider's document id.
-- MediaStore (new): `albumTreeUri` = `mediastore-bucket:<BUCKET_ID>`, `documentId` = the image's `MediaStore.Images.Media._ID` as a decimal string.
+- MediaStore (new): `albumTreeUri` = `mediastore-bucket:<BUCKET_ID>/<URL-encoded bucket name>` (the coordinator derives the stored name from the key alone, so the name travels in it; a folder rename changes the bucket id too, so the name never makes a key unstable), `documentId` = the image's `MediaStore.Images.Media._ID` as a decimal string.
 
 A small `AlbumKey` object (pure, JVM-testable, like `AlbumNames`) parses the scheme and answers `isMediaStore`, `bucketId`. The
 column name `albumTreeUri` is kept for compatibility (renaming needs a migration and gives nothing); the KDoc says it is an album
