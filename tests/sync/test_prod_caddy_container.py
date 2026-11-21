@@ -213,7 +213,7 @@ def test_response_headers_such_as_content_disposition_never_reach_the_logs():
             try:
                 response = urllib.request.urlopen(f"http://127.0.0.1:{port}/api/images/abc?q=SEARCHSECRET", timeout=30)
                 break
-            except urllib.error.HTTPError:
+            except OSError:  # HTTPError (upstream still starting) and connection reset/refused (caddy not listening yet) are both URLError/OSError
                 time.sleep(0.5)
         assert response is not None and response.status == 200
         assert "UPLOADNAMESECRET" in response.headers.get("Content-Disposition", ""), "the header must pass through (else this proves nothing)"
