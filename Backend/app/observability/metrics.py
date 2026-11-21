@@ -121,7 +121,7 @@ def _on() -> bool:
 def record_search(kind: str, stage: str, seconds: float) -> None:
     try:
         if kind in SEARCH_KINDS and stage in SEARCH_STAGES and _on():
-            SEARCH_SECONDS.labels(kind, stage).observe(max(0.0, seconds))
+            SEARCH_SECONDS.labels(kind, stage).observe(max(0.0, seconds))  # noqa: F821 (created lazily by _create_all)
     except Exception:
         pass
 
@@ -135,7 +135,7 @@ def record_search_degraded(fallback) -> None:
         for part in fallback.split("+"):
             if part in ("", "none", "retry"):
                 continue
-            SEARCH_DEGRADED.labels(part if part in DEGRADED_REASONS else "other").inc()
+            SEARCH_DEGRADED.labels(part if part in DEGRADED_REASONS else "other").inc()  # noqa: F821 (created lazily by _create_all)
     except Exception:
         pass
 
@@ -143,7 +143,7 @@ def record_search_degraded(fallback) -> None:
 def record_rate_limited(scope: str) -> None:
     try:
         if scope in RATE_LIMITED_SCOPES and _on():
-            RATE_LIMITED.labels(scope).inc()
+            RATE_LIMITED.labels(scope).inc()  # noqa: F821 (created lazily by _create_all)
     except Exception:
         pass
 
@@ -155,7 +155,7 @@ def record_pageview(client, page) -> None:
             return
         c = client if isinstance(client, str) and client in PAGEVIEW_CLIENTS else "other"
         p = page if isinstance(page, str) and page in PAGE_ALLOWLIST else "other"
-        PAGEVIEWS.labels(c, p).inc()
+        PAGEVIEWS.labels(c, p).inc()  # noqa: F821 (created lazily by _create_all)
     except Exception:
         pass
 
@@ -164,11 +164,11 @@ def record_image(code: int, nbytes: int = 0, seconds: float | None = None) -> No
     try:
         if not _on():
             return
-        IMAGE_SERVED.labels(status_class(code)).inc()
+        IMAGE_SERVED.labels(status_class(code)).inc()  # noqa: F821 (created lazily by _create_all)
         if nbytes > 0:
-            IMAGE_BYTES.inc(nbytes)
+            IMAGE_BYTES.inc(nbytes)  # noqa: F821 (created lazily by _create_all)
         if seconds is not None:
-            IMAGE_READ_SECONDS.observe(max(0.0, seconds))
+            IMAGE_READ_SECONDS.observe(max(0.0, seconds))  # noqa: F821 (created lazily by _create_all)
     except Exception:
         pass
 

@@ -84,7 +84,7 @@ jobs:
         cache: 'pip'
 
     - name: Install test dependencies
-      run: pip install pytest
+      run: pip install pytest pyyaml
 
     - name: Smoke-test the built image actually boots
       run: pytest tests/docker/ -v --tb=short

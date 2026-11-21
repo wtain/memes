@@ -8,6 +8,7 @@ import socket
 import time
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -128,7 +129,8 @@ def test_acl_parser_flags_other_principals(monkeypatch):
     out = ("X:\\a\\.env.general.sync NT AUTHORITY\\SYSTEM:(I)(F)\n"
            "                        BUILTIN\\Administrators:(I)(F)\n"
            "                        BUILTIN\\Users:(I)(RX)\n")
-    monkeypatch.setattr(config.os, "name", "nt")
+    # a stub, not os.name itself: patching the real os module makes pathlib build WindowsPath on Linux (crashed pytest in CI)
+    monkeypatch.setattr(config, "os", types.SimpleNamespace(name="nt", environ=os.environ))
     monkeypatch.setattr(config.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=out))
     assert config.other_accounts_can_read(Path("X:/a/.env.general.sync")) == ["BUILTIN\\Users"]
 
