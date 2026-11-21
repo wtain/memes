@@ -140,6 +140,7 @@ Backend or upload-format changes; video; recursive albums; background or automat
   with a MediaStore key (first selection, change from SAF, permission lost); ViewModel tests for the permission states
   (granted, denied, permanently denied).
 - Existing tests must pass unchanged (SAF behaviour is not modified).
+- Deviations from the list above: no coordinator tests with a MediaStore key were added (the coordinator treats album keys as opaque strings and is key-agnostic); the permission-denied path has JVM test coverage only (no androidTest).
 - androidTest: `MediaStoreAlbumTest` seeds one JPEG into `Pictures/A5Test` and checks the lister, the scan (name, size, milliseconds),
   the file open, the empty-bucket `Incomplete("album unavailable")` and SAF routing. Written and compiled by the agents, run only in CI.
 - Device check by the owner (not verifiable from here), checklist:

@@ -59,7 +59,7 @@ private fun AlbumList(albums: List<GalleryAlbum>, onChoose: (GalleryAlbum) -> Un
             ) {
                 Text(album.name, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${album.imageCount} images",
+                    imageCount(album.imageCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

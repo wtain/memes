@@ -123,6 +123,20 @@ class SyncScreenTest {
     }
 
     @Test
+    fun permissionLost_galleryAlbumReopensTheGalleryChooser() {
+        var gallery = 0
+        var folder = 0
+        show(
+            loaded.copy(album = AlbumSelection("mediastore-bucket:42/Camera", "Camera"), scan = ScanState.PermissionLost),
+            SyncActions(onChooseGallery = { gallery++ }, onChooseAlbum = { folder++ }),
+        )
+        composeTestRule.onNodeWithText(ACCESS_LOST_HELP_GALLERY).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Choose album again").performClick()
+        assertEquals(1, gallery)
+        assertEquals(0, folder)
+    }
+
+    @Test
     fun changeDialog_showsCountsAndConfirms() {
         var confirmed = 0
         val plan = com.memebrowser.app.data.album.ChangeAlbumPlan(

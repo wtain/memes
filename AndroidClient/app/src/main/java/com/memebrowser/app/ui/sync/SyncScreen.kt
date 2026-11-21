@@ -338,6 +338,10 @@ private fun EmptyState(state: SyncUiState, actions: SyncActions) {
     }
 }
 
+/** A gallery album is re-picked through the gallery chooser (it also asks for photo access), a folder through the picker. */
+private fun repickAction(state: SyncUiState, actions: SyncActions): () -> Unit =
+    if (repickUsesGallery(state.album)) actions.onChooseGallery else actions.onChooseAlbum
+
 @Composable
 private fun AlbumSections(state: SyncUiState, actions: SyncActions) {
     val controls = state.controls
@@ -347,8 +351,8 @@ private fun AlbumSections(state: SyncUiState, actions: SyncActions) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp).announce(Announce.POLITE), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProblemText(ACCESS_LOST_TITLE)
-                Text(ACCESS_LOST_HELP, style = MaterialTheme.typography.bodyMedium)
-                Button(onClick = actions.onChooseAlbum, enabled = !state.busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(accessLostHelp(state.album), style = MaterialTheme.typography.bodyMedium)
+                Button(onClick = repickAction(state, actions), enabled = !state.busy, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Choose album again")
                 }
             }
@@ -473,7 +477,7 @@ private fun SyncCard(state: SyncUiState, actions: SyncActions) {
                 }
             }
             if (repickInSyncCard(state.scan, sync)) {
-                Button(onClick = actions.onChooseAlbum, modifier = Modifier.heightIn(min = 48.dp)) { Text("Choose album again") }
+                Button(onClick = repickAction(state, actions), modifier = Modifier.heightIn(min = 48.dp)) { Text("Choose album again") }
             }
         }
     }

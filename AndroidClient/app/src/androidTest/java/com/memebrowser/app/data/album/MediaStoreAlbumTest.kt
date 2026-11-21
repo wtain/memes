@@ -36,6 +36,8 @@ class MediaStoreAlbumTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val resolver = context.contentResolver
     private val fileName = "a5-test-${System.nanoTime()}.jpg"
+    // Unique per test instance, so leftovers of an aborted earlier run on a reused emulator cannot share the bucket.
+    private val relativePath = "Pictures/A5Test-${System.nanoTime()}"
     private var seededUri: Uri? = null
     private var seededId: Long = -1
     private var bucketId: Long = -1
@@ -46,7 +48,7 @@ class MediaStoreAlbumTest {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/A5Test")
+            put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
         val uri = requireNotNull(resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)) { "insert failed" }

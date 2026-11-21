@@ -201,6 +201,25 @@ class SyncMappersTest {
     }
 
     @Test
+    fun `image count is pluralised`() {
+        assertEquals("0 images", imageCount(0))
+        assertEquals("1 image", imageCount(1))
+        assertEquals("2 images", imageCount(2))
+    }
+
+    @Test
+    fun `a gallery album is re-picked through the gallery, a folder through the picker`() {
+        val gallery = AlbumSelection("mediastore-bucket:42/Camera", "Camera")
+        val folder = AlbumSelection("content://x/tree/primary%3ADCIM%2FCamera", "Camera")
+        assertTrue(repickUsesGallery(gallery))
+        assertFalse(repickUsesGallery(folder))
+        assertFalse(repickUsesGallery(null))
+        assertEquals(ACCESS_LOST_HELP_GALLERY, accessLostHelp(gallery))
+        assertEquals(ACCESS_LOST_HELP, accessLostHelp(folder))
+        assertEquals(ACCESS_LOST_HELP, accessLostHelp(null))
+    }
+
+    @Test
     fun `plural counts, announcements and the empty-album note`() {
         assertEquals("1 file", fileCount(1))
         assertEquals("2 files", fileCount(2))

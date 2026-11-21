@@ -1,5 +1,6 @@
 package com.memebrowser.app.ui.sync
 
+import com.memebrowser.app.data.album.AlbumKey
 import com.memebrowser.app.data.album.ChangeAlbumPlan
 import com.memebrowser.app.data.album.MediaAccess
 import com.memebrowser.app.data.album.ScanFailure
@@ -10,6 +11,7 @@ import com.memebrowser.app.data.sync.SyncState
 import com.memebrowser.app.data.sync.SyncSummary
 import com.memebrowser.app.data.sync.WaitReason
 import com.memebrowser.app.data.sync.isActive
+import com.memebrowser.app.data.tracker.AlbumSelection
 import com.memebrowser.app.data.tracker.RejectionReasons
 import com.memebrowser.app.data.tracker.SupportedImages
 import com.memebrowser.app.data.tracker.TrackerCounts
@@ -29,6 +31,8 @@ val DefaultTimeFormatter: TimeFormatter = { at ->
 
 /** "1 file" / "2 files". */
 fun fileCount(n: Int): String = if (n == 1) "1 file" else "$n files"
+
+fun imageCount(n: Int): String = if (n == 1) "1 image" else "$n images"
 
 /** X / Y as a bar fraction in 0..1; Y = 0 gives 0 (never NaN), X above Y (deleted-but-uploaded files) is capped. */
 fun progressFraction(counts: TrackerCounts): Float =
@@ -85,6 +89,13 @@ fun scanIsProblem(scan: ScanState): Boolean = scan is ScanState.Failed || scan =
 /** Text of the lost-access card (the only place that says it). */
 const val ACCESS_LOST_TITLE = "Access to the album was lost."
 const val ACCESS_LOST_HELP = "Your upload list is kept. Choose the same folder again to continue."
+
+const val ACCESS_LOST_HELP_GALLERY = "Your upload list is kept. Allow photo access and choose the same gallery album again to continue."
+
+/** A gallery (MediaStore) album is re-picked through the gallery chooser; the folder picker cannot select it. */
+fun repickUsesGallery(album: AlbumSelection?): Boolean = album?.treeUri?.let(AlbumKey::isMediaStore) == true
+
+fun accessLostHelp(album: AlbumSelection?): String = if (repickUsesGallery(album)) ACCESS_LOST_HELP_GALLERY else ACCESS_LOST_HELP
 
 /** Actionable text for every [SyncError]. [engineMessage] is the engine's own text, used only to recognise "backend too old". */
 fun syncErrorMessage(error: SyncError, engineMessage: String = ""): String = when (error) {

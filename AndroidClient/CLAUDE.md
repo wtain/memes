@@ -66,12 +66,16 @@ tests. Confirmed upstream MockK bug: mockk/mockk#1518. Fix merged upstream
 (mockk/mockk#1531) on 2026-06-12 but not in any released mockk version as of
 2026-07-21.
 
-**Why it's low-risk right now:** this app has zero `Build.VERSION.SDK_INT`
-branches anywhere in `app/src/main`, and its only permissions (`INTERNET`,
-`ACCESS_NETWORK_STATE`, `REQUEST_INSTALL_PACKAGES`) don't behave differently
-between API 29 and 31 — no scoped-storage, media, notification, or Bluetooth
-permission changes apply here. There's no version-conditional code path for
-the API-29-vs-31 gap to actually hide a bug in.
+**The old low-risk argument no longer holds for album sync (A5).** It used to be
+true that the app had no `Build.VERSION.SDK_INT` branches and no permissions that
+differ between API 29 and 31. A5 added both: `MediaAccesses.resolve` /
+`permissionsToRequest`, `ContextMediaAccessSource` and `Build.VERSION.SDK_INT` in
+`SyncScreen` choose between `READ_EXTERNAL_STORAGE` (API 29/30), `READ_MEDIA_IMAGES`
+(API 33) and `READ_MEDIA_IMAGES` + `READ_MEDIA_VISUAL_USER_SELECTED` with partial
+access (API 34+). CI exercises only API 31, so API 29/30 (READ_EXTERNAL_STORAGE path)
+and API 33 and 34+ (READ_MEDIA_* and partial access) are NOT covered by any
+automated instrumented test; the JVM tests cover the pure resolution logic only.
+Outside album sync the old argument still applies.
 
 **Coverage gap this leaves:** automated instrumented (Espresso/Compose) tests
 no longer run against the real minSdk floor. The `smoke-test-min-sdk` CI job
