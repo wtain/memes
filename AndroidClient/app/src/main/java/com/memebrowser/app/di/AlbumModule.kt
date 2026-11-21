@@ -8,7 +8,9 @@ import com.memebrowser.app.data.album.ContentResolverAlbumAccess
 import com.memebrowser.app.data.album.ContentResolverAlbumRowSource
 import com.memebrowser.app.data.album.ContextMediaAccessSource
 import com.memebrowser.app.data.album.DispatchingAlbumAccess
+import com.memebrowser.app.data.album.DispatchingAlbumRowSource
 import com.memebrowser.app.data.album.EnvironmentIdSource
+import com.memebrowser.app.data.album.MediaStoreAlbumRowSource
 import com.memebrowser.app.data.album.MediaAccessSource
 import com.memebrowser.app.data.album.MediaStoreAlbumAccess
 import com.memebrowser.app.data.album.SafAlbumScanner
@@ -44,7 +46,10 @@ object AlbumModule {
 
     @Provides
     fun provideAlbumRowSource(@ApplicationContext context: Context): AlbumRowSource =
-        ContentResolverAlbumRowSource(context.contentResolver)
+        DispatchingAlbumRowSource(
+            saf = ContentResolverAlbumRowSource(context.contentResolver),
+            media = MediaStoreAlbumRowSource(context.contentResolver),
+        )
 
     @Provides
     @Singleton
