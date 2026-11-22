@@ -39,6 +39,13 @@ fun removeSyncedLines(count: Int, kept: Int, environmentName: String, albumName:
     if (kept > 0) add("${photoCount(kept)} changed after the upload and stay on the phone.")
 }
 
+/** The hint under "Stop" while a run is active: the run lives in a foreground service, so the app may be left. */
+fun runningHint(): String = "You can leave the app; progress shows in the notification"
+
+/** Android 13+ needs a runtime grant for notifications; asked at most once per screen instance, never below API 33. */
+fun shouldAskForNotifications(sdkInt: Int, granted: Boolean, alreadyAsked: Boolean): Boolean =
+    sdkInt >= 33 && !granted && !alreadyAsked
+
 /** "1 file" / "2 files". */
 fun fileCount(n: Int): String = if (n == 1) "1 file" else "$n files"
 

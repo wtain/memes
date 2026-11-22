@@ -73,6 +73,8 @@ class SyncViewModelTest {
     }
 
     private val batch = MutableStateFlow(50)
+    private val autoRetry = MutableStateFlow(true)
+    private val wifiOnly = MutableStateFlow(true)
     private var now = 1_000_000L
 
     private val albums = HashMap<String, MutableStateFlow<AlbumSelection?>>()
@@ -111,6 +113,10 @@ class SyncViewModelTest {
     private val tracker = mockk<TrackerRepository>().also {
         every { it.batchSize() } returns batch
         coEvery { it.setBatchSize(any()) } answers { batch.value = firstArg() }
+        every { it.autoRetry() } returns autoRetry
+        every { it.wifiOnly() } returns wifiOnly
+        coEvery { it.setAutoRetry(any()) } answers { autoRetry.value = firstArg() }
+        coEvery { it.setWifiOnly(any()) } answers { wifiOnly.value = firstArg() }
     }
 
     private val lister = mockk<AlbumLister>().also { coEvery { it.list() } returns AlbumListing.Albums(emptyList()) }
@@ -154,6 +160,27 @@ class SyncViewModelTest {
         assertEquals(10, s.counts.supported)
         assertEquals(7, s.batchSize)
         assertTrue(s.controls.canSync)
+    }
+
+    @Test
+    fun `state exposes both retry settings and writes changes through the repository`() = runTest {
+        autoRetry.value = false
+        val vm = started(vm())
+        assertFalse(vm.uiState.value.autoRetry)
+        assertTrue(vm.uiState.value.wifiOnly)
+        vm.setWifiOnly(false)
+        coVerify { tracker.setWifiOnly(false) }
+        assertFalse(vm.uiState.value.wifiOnly)
+        vm.setAutoRetry(true)
+        coVerify { tracker.setAutoRetry(true) }
+        assertTrue(vm.uiState.value.autoRetry)
+    }
+
+    @Test
+    fun `a refused notification permission posts the one-time message`() = runTest {
+        val vm = started(vm())
+        vm.onNotificationsRefused()
+        assertEquals(SyncViewModel.MSG_NOTIFICATIONS_OFF, vm.uiState.value.message)
     }
 
     @Test

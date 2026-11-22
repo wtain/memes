@@ -95,6 +95,8 @@ data class SyncUiState(
     /** The engine state, with a dismissed terminal state shown as Idle. */
     val sync: SyncState = SyncState.Idle,
     val batchSize: Int = TrackerSettingsStore.DEFAULT_BATCH_SIZE,
+    val autoRetry: Boolean = true,
+    val wifiOnly: Boolean = true,
     val rejectedVisible: Boolean = false,
     /** Filled only while [rejectedVisible] (the list can be thousands of rows). */
     val rejected: List<RejectedItem> = emptyList(),
@@ -216,10 +218,12 @@ class SyncViewModel internal constructor(
         combine(
             selectedEnvironment.flatMapLatest { env -> if (env == null) flowOf(null) else snapshotOf(env) },
             tracker.batchSize(),
+            tracker.autoRetry(),
+            tracker.wifiOnly(),
             locals,
-        ) { snap, batch, all ->
+        ) { snap, batch, autoRetry, wifiOnly, all ->
             if (snap == null) {
-                SyncUiState(loaded = true, batchSize = batch)
+                SyncUiState(loaded = true, batchSize = batch, autoRetry = autoRetry, wifiOnly = wifiOnly)
             } else {
                 val l = all[snap.env.id] ?: Local()
                 // The dialog belongs to this environment and closes as soon as the album change is committed (the stored
@@ -233,6 +237,8 @@ class SyncViewModel internal constructor(
                     scan = snap.scan,
                     sync = if (snap.sync.isTerminal() && snap.sync == l.dismissedSync) SyncState.Idle else snap.sync,
                     batchSize = batch,
+                    autoRetry = autoRetry,
+                    wifiOnly = wifiOnly,
                     rejectedVisible = l.rejectedVisible,
                     rejected = snap.rejected.orEmpty(),
                     rejectedLoading = l.rejectedVisible && snap.rejected == null,
@@ -438,6 +444,22 @@ class SyncViewModel internal constructor(
         viewModelScope.launch { guarded(env) { tracker.setBatchSize(TrackerSettingsStore.clampBatchSize(size)) } }
     }
 
+    fun setAutoRetry(enabled: Boolean) {
+        val env = shownEnvironment() ?: return
+        viewModelScope.launch { guarded(env) { tracker.setAutoRetry(enabled) } }
+    }
+
+    fun setWifiOnly(enabled: Boolean) {
+        val env = shownEnvironment() ?: return
+        viewModelScope.launch { guarded(env) { tracker.setWifiOnly(enabled) } }
+    }
+
+    /** The user refused the notification permission: the sync still runs, say so once. */
+    fun onNotificationsRefused() {
+        val env = shownEnvironment() ?: return
+        updateLocal(env) { it.copy(message = MSG_NOTIFICATIONS_OFF) }
+    }
+
     // ---- remove synced photos from the phone ------------------------------------------------------------------
 
     /**
@@ -602,6 +624,7 @@ class SyncViewModel internal constructor(
         const val MSG_PLAN_STALE = "The selected album changed in the meantime. Please review the confirmation again."
         const val MSG_PLAN_KEEPS_CHANGING = "The selected album keeps changing. Nothing was changed; choose the folder again."
         const val MSG_ALBUM_CHANGED = "Album changed. The upload list was reset."
+        const val MSG_NOTIFICATIONS_OFF = "Notifications are off; the sync still runs"
         const val MSG_UNEXPECTED = "Something went wrong. Try again."
         const val MSG_REMOVAL_FAILED = "Could not ask Android to move the photos to the trash. Nothing was moved."
     }

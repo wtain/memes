@@ -6,7 +6,10 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.ContextCompat
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -62,6 +65,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -124,6 +128,8 @@ class SyncActions(
     val onStop: () -> Unit = {},
     val onDismissResult: () -> Unit = {},
     val onBatchSizeChange: (Int) -> Unit = {},
+    val onAutoRetryChange: (Boolean) -> Unit = {},
+    val onWifiOnlyChange: (Boolean) -> Unit = {},
     val onRemoveSynced: () -> Unit = {},
     val onCancelRemoval: () -> Unit = {},
     val onConfirmRemoval: () -> Unit = {},
@@ -207,6 +213,25 @@ fun SyncScreen(
         }
     }
 
+    // Android 13+: ask for notifications once, before the first sync of this screen instance; the sync starts whatever
+    // the answer (it only decides whether progress shows in the notification).
+    var askedForNotifications by rememberSaveable { mutableStateOf(false) }
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) viewModel.onNotificationsRefused()
+        viewModel.startSync()
+    }
+    val startSync: () -> Unit = {
+        val granted = Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        if (shouldAskForNotifications(Build.VERSION.SDK_INT, granted, askedForNotifications)) {
+            askedForNotifications = true
+            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.startSync()
+        }
+    }
+    val startSyncState by rememberUpdatedState(startSync)
+
     val actions = remember(viewModel, picker, permissionLauncher, permissions, context, onBack, onUploadFiles, scope, drawerState) {
         SyncActions(
             onBack = onBack,
@@ -219,10 +244,12 @@ fun SyncScreen(
             onOpenAppSettings = { context.openAppSettings() },
             onUploadFiles = onUploadFiles,
             onRefresh = viewModel::refresh,
-            onSyncNow = viewModel::startSync,
+            onSyncNow = { startSyncState() },
             onStop = viewModel::stopSync,
             onDismissResult = viewModel::dismissSyncResult,
             onBatchSizeChange = viewModel::setBatchSize,
+            onAutoRetryChange = viewModel::setAutoRetry,
+            onWifiOnlyChange = viewModel::setWifiOnly,
             onRemoveSynced = viewModel::onRemoveSyncedRequested,
             onCancelRemoval = viewModel::cancelRemoval,
             onConfirmRemoval = viewModel::confirmRemoval,
@@ -538,7 +565,7 @@ private fun SyncCard(state: SyncUiState, actions: SyncActions) {
                     Spacer(Modifier.width(8.dp))
                     Text("Stop")
                 }
-                Text("Keep the app open while syncing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(runningHint(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 Button(
                     onClick = actions.onSyncNow,
@@ -601,6 +628,20 @@ private fun BatchSizeRow(state: SyncUiState, actions: SyncActions, controls: Syn
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        SwitchRow("Retry automatically", "Wait and try again after an error or a lost connection", state.autoRetry, actions.onAutoRetryChange)
+        SwitchRow("Wi-Fi only", "Upload only on Wi-Fi or another unmetered connection; mobile data waits", state.wifiOnly, actions.onWifiOnlyChange)
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, explanation: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(explanation, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.semantics { contentDescription = title })
     }
 }
 

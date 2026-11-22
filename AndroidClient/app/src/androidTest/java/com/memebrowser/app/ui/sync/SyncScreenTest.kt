@@ -109,15 +109,28 @@ class SyncScreenTest {
     }
 
     @Test
-    fun running_showsStopAndKeepOpenHint() {
+    fun running_showsStopAndLeaveTheAppHint() {
         var stopped = 0
         show(
             loaded.copy(sync = SyncState.Running(1, 2, 50, SyncSummary(uploaded = 50))),
             SyncActions(onStop = { stopped++ }),
         )
-        composeTestRule.onNodeWithText("Keep the app open while syncing").assertIsDisplayed()
+        composeTestRule.onNodeWithText("You can leave the app; progress shows in the notification").assertIsDisplayed()
         composeTestRule.onNodeWithText("Stop", substring = true).performClick()
         assertEquals(1, stopped)
+    }
+
+    @Test
+    fun retrySwitches_renderAndReportChanges() {
+        var retry: Boolean? = null
+        var wifi: Boolean? = null
+        show(loaded, SyncActions(onAutoRetryChange = { retry = it }, onWifiOnlyChange = { wifi = it }))
+        composeTestRule.onNodeWithText("Retry automatically").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Wi-Fi only").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Retry automatically").performClick()
+        composeTestRule.onNodeWithContentDescription("Wi-Fi only").performClick()
+        assertEquals(false, retry)
+        assertEquals(false, wifi)
     }
 
     @Test

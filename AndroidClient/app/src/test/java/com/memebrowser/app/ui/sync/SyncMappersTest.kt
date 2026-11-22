@@ -262,4 +262,18 @@ class SyncMappersTest {
         assertTrue(lines.any { it.contains("2 photos changed after the upload") })
         assertEquals(2, removeSyncedLines(12, kept = 0, environmentName = "General", albumName = "x").size)
     }
+
+    @Test
+    fun `running hint says the app may be left`() {
+        assertEquals("You can leave the app; progress shows in the notification", runningHint())
+    }
+
+    @Test
+    fun `notification permission is asked only on api 33 plus when not granted and not asked yet`() {
+        assertTrue(shouldAskForNotifications(33, granted = false, alreadyAsked = false))
+        assertTrue(shouldAskForNotifications(35, granted = false, alreadyAsked = false))
+        assertFalse(shouldAskForNotifications(32, granted = false, alreadyAsked = false))
+        assertFalse(shouldAskForNotifications(34, granted = true, alreadyAsked = false))
+        assertFalse(shouldAskForNotifications(34, granted = false, alreadyAsked = true))
+    }
 }
