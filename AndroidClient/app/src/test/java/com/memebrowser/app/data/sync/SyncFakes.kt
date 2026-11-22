@@ -29,7 +29,13 @@ import java.io.InputStream
 
 const val TREE = "content://x/tree/primary%3ADCIM%2FCamera"
 
-class FakeSyncSettings(var batchSize: Int = 50) : SyncSettingsSource {
+class FakeSyncSettings(
+    var batchSize: Int = 50,
+    var autoRetry: Boolean = false,
+    var wifiOnly: Boolean = false,
+) : SyncSettingsSource {
+    override suspend fun autoRetry() = autoRetry
+    override suspend fun wifiOnly() = wifiOnly
     val albums = HashMap<String, AlbumSelection?>()
     override suspend fun album(environmentId: String) = albums[environmentId]
     override suspend fun batchSize() = batchSize

@@ -137,4 +137,12 @@ class TrackerRepository @Inject constructor(
     fun batchSize(): Flow<Int> = settings.batchSize
 
     suspend fun setBatchSize(size: Int) = settings.setBatchSize(size)
+
+    fun autoRetry(): Flow<Boolean> = settings.autoRetry
+
+    suspend fun setAutoRetry(enabled: Boolean) = settings.setAutoRetry(enabled)
+
+    fun wifiOnly(): Flow<Boolean> = settings.wifiOnly
+
+    suspend fun setWifiOnly(enabled: Boolean) = settings.setWifiOnly(enabled)
 }

@@ -69,6 +69,29 @@ class TrackerSettingsStoreTest {
     }
 
     @Test
+    fun `defaults_areOn`() = runTest {
+        val s = store()
+        assertEquals(true, s.autoRetry.first())
+        assertEquals(true, s.wifiOnly.first())
+    }
+
+    @Test
+    fun `setAutoRetry_false_isStored`() = runTest {
+        val s = store()
+        s.setAutoRetry(false)
+        assertEquals(false, s.autoRetry.first())
+        assertEquals(true, s.wifiOnly.first())
+    }
+
+    @Test
+    fun `setWifiOnly_false_isStored`() = runTest {
+        val s = store()
+        s.setWifiOnly(false)
+        assertEquals(false, s.wifiOnly.first())
+        assertEquals(true, s.autoRetry.first())
+    }
+
+    @Test
     fun `clampBatchSize bounds`() {
         assertEquals(1, TrackerSettingsStore.clampBatchSize(Int.MIN_VALUE))
         assertEquals(50, TrackerSettingsStore.clampBatchSize(Int.MAX_VALUE))

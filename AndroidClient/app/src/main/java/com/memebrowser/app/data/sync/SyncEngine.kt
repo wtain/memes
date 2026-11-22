@@ -41,11 +41,15 @@ annotation class SyncScope
 interface SyncSettingsSource {
     suspend fun album(environmentId: String): AlbumSelection?
     suspend fun batchSize(): Int
+    suspend fun autoRetry(): Boolean
+    suspend fun wifiOnly(): Boolean
 }
 
 class TrackerSyncSettings @Inject constructor(private val tracker: TrackerRepository) : SyncSettingsSource {
     override suspend fun album(environmentId: String): AlbumSelection? = tracker.album(environmentId).first()
     override suspend fun batchSize(): Int = tracker.batchSize().first()
+    override suspend fun autoRetry(): Boolean = tracker.autoRetry().first()
+    override suspend fun wifiOnly(): Boolean = tracker.wifiOnly().first()
 }
 
 /**

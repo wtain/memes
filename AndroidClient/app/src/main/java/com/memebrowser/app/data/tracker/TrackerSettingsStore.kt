@@ -3,6 +3,7 @@ package com.memebrowser.app.data.tracker
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -52,6 +53,23 @@ class TrackerSettingsStore(private val dataStore: DataStore<Preferences>) {
 
     suspend fun setBatchSize(size: Int) {
         dataStore.edit { it[batchSizeKey] = clampBatchSize(size) }
+    }
+
+    private val autoRetryKey = booleanPreferencesKey("auto_retry")
+    private val wifiOnlyKey = booleanPreferencesKey("wifi_only")
+
+    /** Retry transient failures automatically (default on). */
+    val autoRetry: Flow<Boolean> = dataStore.data.map { it[autoRetryKey] ?: true }
+
+    suspend fun setAutoRetry(enabled: Boolean) {
+        dataStore.edit { it[autoRetryKey] = enabled }
+    }
+
+    /** Sync only on an unmetered network (default on). */
+    val wifiOnly: Flow<Boolean> = dataStore.data.map { it[wifiOnlyKey] ?: true }
+
+    suspend fun setWifiOnly(enabled: Boolean) {
+        dataStore.edit { it[wifiOnlyKey] = enabled }
     }
 
     companion object {
