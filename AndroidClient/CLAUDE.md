@@ -160,12 +160,30 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a3-
   `cancelAndAwait(env)`, `state(env): StateFlow<SyncState>`, `isRunning(env)`. States: `Idle`, `Running`, `Waiting(RATE_LIMITED | PACING)`, `Stopping`, `Finished`, `Stopped`, `Failed(SyncError)`.
 - Loop: `nextPending(batch size read before each batch)` -> one multipart POST per batch -> results matched by the response's per-file `index` -> `markUploaded`
   (`accepted` and `duplicate`) / `markRejected(reason)`. Never UPLOADED without an explicit entry; unanswered files stay PENDING. No implicit scan (the user refreshes).
-- Errors: network/5xx -> `Failed` and stay pending (no auto retry); the app paces itself to 9 requests per 60 s (`Waiting(PACING)`), a 429 anyway -> wait 60 s (Retry-After
+- Errors: network/5xx -> `Failed` and stay pending (unless auto-retry is on, see "Background sync (A6)"); the app paces itself to 9 requests per 60 s (`Waiting(PACING)`), a 429 anyway -> wait 60 s (Retry-After
   seconds or HTTP-date wins, max 300 s) and retry, 10 in a row -> `Failed`; 503/507 -> `Failed` with their own `SyncError`; other 4xx -> `Failed(UNEXPECTED)`.
   HTTP 500 -> the batch is retried file by file; a file failing alone is rejected `server_error`, 3 in a row -> `Failed(SERVER)`. Only a vanished document
   (`FileNotFoundException`) is rejected `file_unavailable`; any other read failure -> `Failed(FILE_READ_ERROR)` with files pending (grant gone: `PERMISSION_LOST`).
-  A backend without per-file `index` -> `Failed(SERVER)` "backend too old". After `stop` a run always ends `Stopped`. Foreground-only: Android may freeze a backgrounded app.
+  A backend without per-file `index` -> `Failed(SERVER)` "backend too old". After `stop` a run always ends `Stopped`. Foreground-only here; the foreground service that keeps a run alive in the background is A6 (see "Background sync (A6)").
 - Uploads use their own OkHttp client (long timeouts) and the SYNCED environment's base URL, not the selected one. `EngineSyncGate` is the `SyncGate` bound in `AlbumModule`.
+
+### Background sync (A6)
+Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-23-a6-background-sync-and-auto-retry-design.md`. Code in `data/sync/` and `service/`.
+- Seams: `NetworkGate` (`status(wifiOnly)` -> `OK | NEEDS_WIFI | NONE`, `awaitChange()`; real `AndroidNetworkGate`, test default `AlwaysOnline`), `SyncServiceStarter` (`ensureRunning()`; real `AndroidServiceStarter`,
+  `NoServiceStarter` in tests) and `SyncEngine.activeEnvironments` (StateFlow of the environments with an active run; one state writer under the engine lock). Bound in `SyncModule`.
+- Settings `autoRetry` and `wifiOnly` live in `TrackerSettingsStore` (read via `TrackerRepository`), both default ON, are global, and are switched on the Album sync screen. The engine reads them
+  at the moment they matter (each failure, each network check), so a change applies mid-run.
+- Retry (only when `autoRetry`): retryable = network error, file read error with the grant intact, 429 after its 10 waits, 5xx. Not retried: 503, 507, permission lost, no album, backend too old,
+  poison streak, other 4xx, unexpected. Delays 15/30/60/120/300/300... s (`RETRY_DELAYS_SECONDS`), at most 8 retries (`MAX_RETRY_ATTEMPTS`) then the `Failed`; the counter resets when files were settled since the last failure.
+  Each attempt is a new run, so the batch number, the 429 and the poison counters restart; the summary keeps adding up. State during the wait: `Waiting(RETRY_BACKOFF, resumeAt, attempt)`.
+- Network waits: before each batch (and before each file of the HTTP-500 isolate pass) `awaitNetwork`: `NEEDS_WIFI` waits when Wi-Fi only is on and the network is metered; `NONE` waits only when auto-retry is on
+  (else the upload fails NETWORK as before). Reasons `Waiting(NEEDS_WIFI | NO_NETWORK)`; rechecked on every network event and at least every 5 s.
+- `SyncService` (foreground, type `dataSync`): started by the engine on `start`, one notification per environment, the oldest running environment holds the foreground slot and passes it on when it ends.
+  Terminal states (finished, stopped, failed) post a dismissible notification that survives while another environment runs. Ongoing ones have a Stop action (`ACTION_STOP` + environment id; works with the
+  app in the background). Tapping opens `MainActivity` with extra `route = sync`; `NavGraph` accepts only whitelisted routes from it (the activity is exported). Android 15 caps `dataSync` at 6 hours:
+  `onTimeout` stops the runs and posts "Android paused the sync after 6 hours. Tap to continue." A run is not resumed after process death (the user restarts it; the tracker keeps the rest pending).
+- `SyncNotificationMapper` (pure, JVM-tested) maps a `SyncState` + counts to the notification model; `SyncNotificationPlan` holds the id, foreground-choice and cleanup rules. Small icon: framework `stat_sys_upload`.
+- `POST_NOTIFICATIONS` (Android 13+) is asked once, before the first "Sync now" (`shouldAskForNotifications`); a refusal only shows a hint, the sync still runs.
 
 ### Sync screen (A4)
 Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a4-sync-screen-design.md`. Code in `ui/sync/` (`SyncViewModel`, `SyncScreen`, `SyncMappers`), route `sync`.

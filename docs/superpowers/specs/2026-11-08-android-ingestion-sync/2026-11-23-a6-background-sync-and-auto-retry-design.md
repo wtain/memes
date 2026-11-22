@@ -1,6 +1,6 @@
 # A6: Background sync, progress notification and auto-retry (Android)
 
-Status: planned
+Status: implementation
 Plan: docs/superpowers/plans/2026-11-23-a6-background-sync-and-auto-retry.md
 Originates from: `2026-11-08-a3-sync-engine-design.md` (the engine is foreground-only and never retries), owner's improvement list items 4 and 5 (2026-11-22).
 
@@ -108,3 +108,26 @@ Exact notification texts, small icon (reuse the launcher monochrome), channel na
 - Switches live only on the Album sync screen and are global.
 - Wi-Fi only means "not metered", so a phone hotspot or a metered Wi-Fi counts as mobile data.
 - After the Android 15 6-hour cap the sync stops and waits for a manual restart.
+
+## Device check
+
+Status note: implementation is done and unit-tested; this checklist is the owner's device run. The spec becomes `done` after it.
+
+- [ ] Leave the app during a 200-photo sync: it keeps going and the notification shows progress.
+- [ ] Airplane mode on, then off: the sync waits ("Waiting for network"), then resumes.
+- [ ] Wi-Fi off with Wi-Fi only on: it waits for Wi-Fi.
+- [ ] Wi-Fi only off, on mobile data: it uploads.
+- [ ] Stop from the notification, also with the app in the background.
+- [ ] Two environments at once: two notifications; the first one's "finished" notification survives while the second keeps running.
+- [ ] Notification permission denied: the sync still runs.
+- [ ] Swipe the app from recents: the sync stops; restarting continues the rest. A leftover ongoing notification can be cleared with its Stop button.
+- [ ] Android 15: the 6 hour limit shows "Android paused the sync after 6 hours. Tap to continue." (only checkable on an Android 15 device or by reading the logs).
+- [ ] The small icon looks acceptable in the status bar.
+
+## Deviations and deferred notes
+
+- The `NetworkGate` contract is `status(wifiOnly)` + `awaitChange()` with a 5 s recheck in the engine, not `awaitUsable`.
+- Each retry attempt is a new `Run`, so the batch number, the 429 counter and the poison counter restart per attempt (the summary keeps adding up).
+- The small icon is the framework `stat_sys_upload`; there is no monochrome app drawable yet.
+- `NavGraph` accepts only whitelisted routes from the `route` extra (the activity is exported).
+- Known minors: the two simultaneous network waiters share one gate version (bounded by the 5 s recheck); after a process kill a leftover ongoing notification stays until its Stop is tapped.
