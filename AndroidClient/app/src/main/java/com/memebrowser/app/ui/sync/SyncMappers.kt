@@ -30,12 +30,12 @@ val DefaultTimeFormatter: TimeFormatter = { at ->
 }
 
 /** Title of the confirmation that comes before removing synced photos from the phone. */
-fun removeSyncedTitle(count: Int): String = "Remove ${photoCount(count)} from this phone?"
+fun removeSyncedTitle(count: Int): String = "Move ${photoCount(count)} to the trash?"
 
 /** Body lines of that confirmation; the count in the title is the number that will be requested for deletion. */
 fun removeSyncedLines(count: Int, kept: Int, environmentName: String, albumName: String): List<String> = buildList {
-    add("These photos in \"$albumName\" are already on the $environmentName server. They will be deleted from this phone.")
-    add("Android asks you to confirm once more. Deleted photos do not go to the trash, and the app cannot bring them back.")
+    add("These photos in \"$albumName\" are already on the $environmentName server. They will be moved to the trash on this phone.")
+    add("Android asks you to confirm once more. Trashed photos stay in Android's trash for about 30 days, so you can still restore them; the space is freed when the trash is emptied.")
     if (kept > 0) add("${photoCount(kept)} changed after the upload and stay on the phone.")
 }
 

@@ -502,7 +502,7 @@ class SyncViewModel internal constructor(
         if (localOf(p.env).removal is RemovalState.Launch) updateLocal(p.env) { it.copy(removal = RemovalState.Waiting) }
     }
 
-    /** The system dialog closed: [allowed] is true when the user allowed the deletion of this request's photos. */
+    /** The system dialog closed: [allowed] is true when the user allowed the move to the trash of this request's photos. */
     fun onRemovalResult(allowed: Boolean) {
         val p = pendingRemoval ?: return
         if (allowed) {
@@ -521,9 +521,9 @@ class SyncViewModel internal constructor(
         val left = p.chunks.drop(p.next).sumOf { it.size }
         val message = when {
             failed && p.removed == 0 -> MSG_REMOVAL_FAILED
-            p.removed == 0 -> "Nothing was removed."
-            left > 0 -> "Removed ${photoCount(p.removed)} from the phone. ${photoCount(left)} left, as you stopped."
-            else -> "Removed ${photoCount(p.removed)} from the phone."
+            p.removed == 0 -> "Nothing was moved."
+            left > 0 -> "Moved ${photoCount(p.removed)} to the trash. ${photoCount(left)} left, as you stopped."
+            else -> "Moved ${photoCount(p.removed)} to the trash."
         }
         updateLocal(p.env) { it.copy(removal = null, message = message) }
         // The scan notices the files are gone; their upload records stay, so the counts keep the history.
@@ -603,6 +603,6 @@ class SyncViewModel internal constructor(
         const val MSG_PLAN_KEEPS_CHANGING = "The selected album keeps changing. Nothing was changed; choose the folder again."
         const val MSG_ALBUM_CHANGED = "Album changed. The upload list was reset."
         const val MSG_UNEXPECTED = "Something went wrong. Try again."
-        const val MSG_REMOVAL_FAILED = "Could not ask Android to remove the photos. Nothing was removed."
+        const val MSG_REMOVAL_FAILED = "Could not ask Android to move the photos to the trash. Nothing was moved."
     }
 }

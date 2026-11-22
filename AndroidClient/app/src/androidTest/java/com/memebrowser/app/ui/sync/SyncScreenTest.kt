@@ -171,8 +171,8 @@ class SyncScreenTest {
             galleryState.copy(removal = RemovalState.Confirm(count = 3, kept = 1)),
             SyncActions(onConfirmRemoval = { confirmed++ }, onCancelRemoval = { cancelled++ }),
         )
-        composeTestRule.onNodeWithText("Remove 3 photos from this phone?").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Remove 3").performClick()
+        composeTestRule.onNodeWithText("Move 3 photos to the trash?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Move 3").performClick()
         composeTestRule.onNodeWithText("Cancel").performClick()
         assertEquals(1, confirmed)
         assertEquals(1, cancelled)
@@ -182,7 +182,7 @@ class SyncScreenTest {
     fun removeSynced_buttonIsOnlyForGalleryAlbums() {
         var asked = 0
         show(galleryState, SyncActions(onRemoveSynced = { asked++ }))
-        composeTestRule.onNodeWithText("Remove synced photos from this phone...").performClick()
+        composeTestRule.onNodeWithText("Move synced photos to the trash...").performClick()
         assertEquals(1, asked)
     }
 }

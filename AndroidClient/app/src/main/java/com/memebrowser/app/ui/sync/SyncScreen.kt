@@ -196,7 +196,7 @@ fun SyncScreen(
         }
     }
 
-    // The system's own "delete these photos?" dialog; it deletes only when the user allows it.
+    // The system's own "move these photos to the trash?" dialog; it acts only when the user allows it.
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         viewModel.onRemovalResult(result.resultCode == Activity.RESULT_OK)
     }
@@ -465,7 +465,7 @@ private fun AlbumSections(state: SyncUiState, actions: SyncActions) {
         ) {
             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
-            Text(if (state.removal == RemovalState.Checking) "Checking..." else "Remove synced photos from this phone...")
+            Text(if (state.removal == RemovalState.Checking) "Checking..." else "Move synced photos to the trash...")
         }
     }
 }
@@ -673,7 +673,7 @@ private fun RemoveSyncedDialog(
                 onClick = onConfirm,
                 colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.heightIn(min = 48.dp),
-            ) { Text("Remove ${confirm.count}") }
+            ) { Text("Move ${confirm.count}") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancel") }

@@ -902,7 +902,7 @@ class SyncViewModelTest {
         assertEquals(RemovalState.Waiting, vm.uiState.value.removal)
         vm.onRemovalResult(allowed = true)
         assertNull(vm.uiState.value.removal)
-        assertEquals("Removed 3 photos from the phone.", vm.uiState.value.message)
+        assertEquals("Moved 3 photos to the trash.", vm.uiState.value.message)
         coVerify { coordinator.refreshScan("env-a") }
     }
 
@@ -915,7 +915,7 @@ class SyncViewModelTest {
         vm.confirmRemoval()
         vm.onRemovalLaunched()
         vm.onRemovalResult(allowed = false)
-        assertEquals("Nothing was removed.", vm.uiState.value.message)
+        assertEquals("Nothing was moved.", vm.uiState.value.message)
     }
 
     @Test
@@ -962,6 +962,6 @@ class SyncViewModelTest {
         vm.onRemovalLaunched()
         vm.onRemovalResult(allowed = false) // stopped on the second dialog
         assertEquals(listOf(PhotoRemover.REQUEST_CHUNK, 10), remover.requested.map { it.size })
-        assertEquals("Removed ${PhotoRemover.REQUEST_CHUNK} photos from the phone. 10 photos left, as you stopped.", vm.uiState.value.message)
+        assertEquals("Moved ${PhotoRemover.REQUEST_CHUNK} photos to the trash. 10 photos left, as you stopped.", vm.uiState.value.message)
     }
 }

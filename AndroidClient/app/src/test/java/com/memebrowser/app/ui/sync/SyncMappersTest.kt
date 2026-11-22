@@ -245,8 +245,8 @@ class SyncMappersTest {
 
     @Test
     fun `the removal confirmation names the count, the server and the album`() {
-        assertEquals("Remove 1 photo from this phone?", removeSyncedTitle(1))
-        assertEquals("Remove 12 photos from this phone?", removeSyncedTitle(12))
+        assertEquals("Move 1 photo to the trash?", removeSyncedTitle(1))
+        assertEquals("Move 12 photos to the trash?", removeSyncedTitle(12))
         val lines = removeSyncedLines(12, kept = 2, environmentName = "General", albumName = "3 - memes")
         assertTrue(lines[0].contains("General") && lines[0].contains("3 - memes"))
         assertTrue(lines.any { it.contains("2 photos changed after the upload") })

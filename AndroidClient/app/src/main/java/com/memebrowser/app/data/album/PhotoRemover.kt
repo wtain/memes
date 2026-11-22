@@ -10,7 +10,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
 /**
- * Removes already-uploaded photos from the phone. The seam of the "remove synced photos" feature: the ViewModel talks to
+ * Moves already-uploaded photos from the phone to the system trash. The seam of the "remove synced photos" feature: the ViewModel talks to
  * this interface only, so its logic runs on the JVM.
  */
 interface PhotoRemover {
@@ -23,7 +23,7 @@ interface PhotoRemover {
      */
     suspend fun verify(albumKey: String, files: List<RemovableFile>): List<Long>
 
-    /** The system's own "allow the app to delete these N photos?" dialog; deleting happens only if the user allows it. */
+    /** The system's own "allow the app to move these N photos to the trash?" dialog; it happens only if the user allows it. */
     fun requestFor(ids: List<Long>): IntentSender
 
     companion object {
@@ -76,7 +76,7 @@ class MediaStoreRemover(
 
     override fun requestFor(ids: List<Long>): IntentSender {
         val uris = ids.map { ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, it) }
-        return MediaStore.createDeleteRequest(resolver, uris).intentSender
+        return MediaStore.createTrashRequest(resolver, uris, true).intentSender
     }
 
     private companion object {
