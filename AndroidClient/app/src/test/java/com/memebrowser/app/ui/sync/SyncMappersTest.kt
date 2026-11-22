@@ -96,6 +96,16 @@ class SyncMappersTest {
     }
 
     @Test
+    fun `network and retry waiting texts`() {
+        assertEquals("Waiting for Wi-Fi", syncStatusText(SyncState.Waiting(WaitReason.NEEDS_WIFI, 0, 0, SyncSummary()), fmt))
+        assertEquals("Waiting for network", syncStatusText(SyncState.Waiting(WaitReason.NO_NETWORK, 0, 0, SyncSummary()), fmt))
+        assertEquals(
+            "Retrying after an error, resuming at T42",
+            syncStatusText(SyncState.Waiting(WaitReason.RETRY_BACKOFF, 42, 1, SyncSummary()), fmt),
+        )
+    }
+
+    @Test
     fun `running finished and stopped texts carry the summary`() {
         assertEquals("Starting...", syncStatusText(SyncState.Running(1, 0, 0, SyncSummary()), fmt))
         assertTrue(syncStatusText(SyncState.Running(1, 2, 50, SyncSummary(uploaded = 50)), fmt)!!.contains("batch 2 (50 files)"))

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.FileNotFoundException
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -76,6 +77,7 @@ class SyncEngine internal constructor(
     private val io: CoroutineDispatcher,
     private val clock: () -> Long,
     private val outcomes: OutcomeStore = TrackerOutcomeStore(tracker),
+    private val network: NetworkGate = AlwaysOnline,
 ) {
     @Inject
     constructor(
@@ -85,7 +87,11 @@ class SyncEngine internal constructor(
         uploader: BatchUploader,
         files: AlbumFileSource,
         @SyncScope scope: CoroutineScope,
-    ) : this(tracker, settings, access, uploader, files, scope, kotlinx.coroutines.Dispatchers.IO, System::currentTimeMillis)
+        network: NetworkGate,
+    ) : this(
+        tracker, settings, access, uploader, files, scope, kotlinx.coroutines.Dispatchers.IO, System::currentTimeMillis,
+        TrackerOutcomeStore(tracker), network,
+    )
 
     private val lock = Any()
     private val jobs = HashMap<String, Job>() // guarded by lock
@@ -228,6 +234,7 @@ class SyncEngine internal constructor(
             if (pending.isEmpty()) return SyncState.Finished(p.summary(), clock())
             // Wait first and then look at the pending files again, so a long wait never sends a stale batch.
             if (pace(run)) continue
+            if (awaitNetwork(run)) continue
 
             val check = withContext(io) { precheck(pending) }
             check.unreadable?.let { (file, e) -> return unreadable(run, file, e) }
@@ -264,6 +271,28 @@ class SyncEngine internal constructor(
         publish(run.env, SyncState.Waiting(WaitReason.PACING, clock() + wait, 0, run.p.summary()))
         delay(wait)
         return true
+    }
+
+    /**
+     * Waits while the network does not allow an upload: NEEDS_WIFI always, NONE only with auto-retry on (otherwise the
+     * upload is tried and fails NETWORK). Both settings are re-read before every evaluation and the wait wakes at least
+     * every [NETWORK_RECHECK_MS], so switching Wi-Fi only off ends the wait without a network event. The Waiting state is
+     * published once per reason. True = it waited (callers re-read the pending files).
+     */
+    private suspend fun awaitNetwork(run: Run): Boolean {
+        var waitingFor: WaitReason? = null
+        while (true) {
+            val reason = when (network.status(settings.wifiOnly())) {
+                NetworkStatus.OK -> null
+                NetworkStatus.NEEDS_WIFI -> WaitReason.NEEDS_WIFI
+                NetworkStatus.NONE -> if (settings.autoRetry()) WaitReason.NO_NETWORK else null
+            } ?: return waitingFor != null
+            if (reason != waitingFor) {
+                publish(run.env, SyncState.Waiting(reason, 0, 0, run.p.summary()))
+                waitingFor = reason
+            }
+            withTimeoutOrNull(NETWORK_RECHECK_MS) { network.awaitChange() }
+        }
     }
 
     /** 429 safety net: waits (Retry-After wins, 1..300 s, default 60 s) or fails after too many in a row. Null = go on. */
@@ -418,6 +447,9 @@ class SyncEngine internal constructor(
         const val MAX_CONSECUTIVE_429 = 10
         const val MAX_STALLS = 2
         const val MAX_POISON_STREAK = 3
+
+        /** A network wait re-reads the settings at least this often, even with no network event. */
+        const val NETWORK_RECHECK_MS = 5_000L
     }
 }
 

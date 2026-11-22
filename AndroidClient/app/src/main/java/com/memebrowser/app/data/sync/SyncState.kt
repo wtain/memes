@@ -15,6 +15,15 @@ enum class WaitReason {
      * [SyncState.Waiting.attempt] is 0 for this reason.
      */
     PACING,
+
+    /** No validated network; only waited for when auto-retry is on. [SyncState.Waiting.resumeAt] and attempt are 0. */
+    NO_NETWORK,
+
+    /** Wi-Fi only is on and only a metered network exists. [SyncState.Waiting.resumeAt] and attempt are 0. */
+    NEEDS_WIFI,
+
+    /** A retryable failure; the run resumes at [SyncState.Waiting.resumeAt]. [SyncState.Waiting.attempt] is 1-based. */
+    RETRY_BACKOFF,
 }
 
 enum class SyncError {

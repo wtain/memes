@@ -9,7 +9,9 @@ import com.memebrowser.app.data.repository.RetrofitBatchUploader
 import com.memebrowser.app.data.store.EnvironmentStore
 import com.memebrowser.app.data.sync.ContentResolverAlbumFileSource
 import com.memebrowser.app.data.sync.DispatchingAlbumFileSource
+import com.memebrowser.app.data.sync.AlwaysOnline
 import com.memebrowser.app.data.sync.MediaStoreAlbumFileSource
+import com.memebrowser.app.data.sync.NetworkGate
 import com.memebrowser.app.data.sync.SyncScope
 import com.memebrowser.app.data.sync.SyncSettingsSource
 import com.memebrowser.app.data.sync.TrackerSyncSettings
@@ -48,6 +50,11 @@ object SyncModule {
     @Singleton
     @SyncScope
     fun provideSyncScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** No network checks yet: A6 Task 6 replaces this with the ConnectivityManager-backed gate. */
+    @Provides
+    @Singleton
+    fun provideNetworkGate(): NetworkGate = AlwaysOnline
 
     @Provides
     @Singleton

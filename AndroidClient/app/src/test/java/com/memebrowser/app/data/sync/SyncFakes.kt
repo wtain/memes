@@ -18,6 +18,8 @@ import com.memebrowser.app.data.tracker.TrackerSettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -53,6 +55,30 @@ class FakeFileSource : AlbumFileSource {
         failing[documentId]?.let { throw it }
         if (documentId in unavailable) throw FileNotFoundException(documentId)
         return ByteArrayInputStream(ByteArray(1))
+    }
+}
+
+/**
+ * Scripted network: [status] is what the phone has. `status(wifiOnly)` answers NEEDS_WIFI only when Wi-Fi only is on
+ * (otherwise a metered network is OK); NONE stays NONE. [set] changes it and releases every [awaitChange] waiter,
+ * even when the value is unchanged (it is a network event).
+ */
+class FakeNetworkGate(var status: NetworkStatus = NetworkStatus.OK) : NetworkGate {
+    private val events = MutableStateFlow(0)
+
+    fun set(s: NetworkStatus) {
+        status = s
+        events.value++
+    }
+
+    override fun status(wifiOnly: Boolean): NetworkStatus = when (status) {
+        NetworkStatus.NEEDS_WIFI -> if (wifiOnly) NetworkStatus.NEEDS_WIFI else NetworkStatus.OK
+        else -> status
+    }
+
+    override suspend fun awaitChange() {
+        val seen = events.value
+        events.first { it != seen }
     }
 }
 
@@ -108,7 +134,8 @@ internal class SyncHarness(scheduler: TestCoroutineScheduler, tmp: File, batchSi
     val dispatcher = StandardTestDispatcher(scheduler)
     val scope = CoroutineScope(dispatcher + SupervisorJob())
     val outcomes = HookedOutcomes(TrackerOutcomeStore(tracker))
-    val engine = SyncEngine(tracker, settings, access, uploader, source, scope, dispatcher, { scheduler.currentTime }, outcomes)
+    val network = FakeNetworkGate()
+    val engine = SyncEngine(tracker, settings, access, uploader, source, scope, dispatcher, { scheduler.currentTime }, outcomes, network)
 
     /** Every state the engine published for [env], in order (collected eagerly under the test scheduler). */
     fun recordStates(env: String, into: kotlinx.coroutines.CoroutineScope, scheduler: TestCoroutineScheduler): MutableList<SyncState> {

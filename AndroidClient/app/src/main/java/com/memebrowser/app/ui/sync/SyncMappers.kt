@@ -178,6 +178,9 @@ fun syncStatusText(sync: SyncState, format: TimeFormatter = DefaultTimeFormatter
     is SyncState.Waiting -> when (sync.reason) {
         WaitReason.RATE_LIMITED -> "Server asked us to wait, resuming at ${format(sync.resumeAt)}"
         WaitReason.PACING -> "Pacing requests to stay under the server limit, resuming at ${format(sync.resumeAt)}"
+        WaitReason.NEEDS_WIFI -> "Waiting for Wi-Fi"
+        WaitReason.NO_NETWORK -> "Waiting for network"
+        WaitReason.RETRY_BACKOFF -> "Retrying after an error, resuming at ${format(sync.resumeAt)}"
     }
     is SyncState.Stopping -> "Stopping..."
     is SyncState.Finished -> "Finished: ${summaryText(sync.summary)}"
