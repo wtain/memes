@@ -9,14 +9,14 @@ import com.memebrowser.app.data.repository.RetrofitBatchUploader
 import com.memebrowser.app.data.store.EnvironmentStore
 import com.memebrowser.app.data.sync.ContentResolverAlbumFileSource
 import com.memebrowser.app.data.sync.DispatchingAlbumFileSource
-import com.memebrowser.app.data.sync.AlwaysOnline
+import com.memebrowser.app.data.sync.AndroidNetworkGate
 import com.memebrowser.app.data.sync.MediaStoreAlbumFileSource
 import com.memebrowser.app.data.sync.NetworkGate
-import com.memebrowser.app.data.sync.NoServiceStarter
 import com.memebrowser.app.data.sync.SyncServiceStarter
 import com.memebrowser.app.data.sync.SyncScope
 import com.memebrowser.app.data.sync.SyncSettingsSource
 import com.memebrowser.app.data.sync.TrackerSyncSettings
+import com.memebrowser.app.service.AndroidServiceStarter
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -53,15 +53,15 @@ object SyncModule {
     @SyncScope
     fun provideSyncScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** No network checks yet: A6 Task 6 replaces this with the ConnectivityManager-backed gate. */
+    /** The default network's validated / unmetered capabilities (A6). */
     @Provides
     @Singleton
-    fun provideNetworkGate(): NetworkGate = AlwaysOnline
+    fun provideNetworkGate(gate: AndroidNetworkGate): NetworkGate = gate
 
-    /** Starts nothing yet: A6 Task 6 replaces this with the foreground-service starter. */
+    /** Starts the foreground `SyncService` for every started run (A6). */
     @Provides
     @Singleton
-    fun provideSyncServiceStarter(): SyncServiceStarter = NoServiceStarter
+    fun provideSyncServiceStarter(starter: AndroidServiceStarter): SyncServiceStarter = starter
 
     @Provides
     @Singleton

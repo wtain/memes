@@ -2,6 +2,7 @@ package com.memebrowser.app.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -26,9 +27,23 @@ import com.memebrowser.app.ui.trends.TrendsScreen
 import com.memebrowser.app.ui.upload.UploadScreen
 import java.net.URLEncoder
 
+/** Routes an outside intent may open ([NavGraph]'s `requestedRoute`); anything else is ignored. */
+private val EXTERNAL_ROUTES = setOf("sync")
+
+/**
+ * @param requestedRoute a route asked for by the launching intent (the album-sync notification opens "sync"); opened
+ *   once, then [onRequestedRouteHandled] lets the caller clear it so a recomposition or rotation does not navigate again.
+ */
 @Composable
-fun NavGraph() {
+fun NavGraph(requestedRoute: String? = null, onRequestedRouteHandled: () -> Unit = {}) {
     val navController = rememberNavController()
+    LaunchedEffect(requestedRoute) {
+        if (requestedRoute == null) return@LaunchedEffect
+        if (requestedRoute in EXTERNAL_ROUTES) {
+            navController.navigate(requestedRoute) { launchSingleTop = true }
+        }
+        onRequestedRouteHandled()
+    }
     val visibilityViewModel: VisibilityViewModel = hiltViewModel()
     val visibility by visibilityViewModel.visibility.collectAsState()
     val pageviews: PageviewViewModel = hiltViewModel()
