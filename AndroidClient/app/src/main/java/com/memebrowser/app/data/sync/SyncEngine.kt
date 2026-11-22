@@ -202,12 +202,39 @@ class SyncEngine internal constructor(
         var rateLimited = 0
         var stalls = 0
         var poisonStreak = 0
+
+        /** Set by [retryable] right before a transient failure is returned; a fresh [Run] per attempt starts false. */
+        var retryable = false
+        fun retryable(f: SyncState.Failed): SyncState.Failed = f.also { retryable = true }
     }
 
+    /** What one attempt of [runLoop] ended with: a terminal state, and whether that failure may be retried. */
+    private class Outcome(val state: SyncState, val retryable: Boolean)
+
+    /**
+     * Runs [runLoop] and, with auto-retry on, retries a transient failure after a growing delay ([RETRY_DELAYS_SECONDS],
+     * at most [MAX_RETRY_ATTEMPTS] in a row). All attempts share one [Progress] (the summary adds up) and the
+     * environment's pacer. The counter is local to this run (per environment) and resets when files settled since the
+     * previous failure. Auto-retry is re-read at every failure, so switching it off during a wait lets the scheduled
+     * retry run once and its failure end the run. A stop during the wait ends the run Stopped.
+     */
     private suspend fun runEnvironment(env: String, startedAt: Long) {
         val progress = Progress()
         try {
-            publish(env, runLoop(env, startedAt, progress))
+            var attempt = 0
+            var settledAtLastFailure = 0
+            while (true) {
+                val outcome = runLoop(env, startedAt, progress)
+                if (!outcome.retryable || !settings.autoRetry()) return publish(env, outcome.state)
+                val settled = progress.summary().settled
+                if (settled > settledAtLastFailure) attempt = 0
+                settledAtLastFailure = settled
+                if (attempt >= MAX_RETRY_ATTEMPTS) return publish(env, outcome.state)
+                attempt++
+                val waitMs = RETRY_DELAYS_SECONDS[minOf(attempt, RETRY_DELAYS_SECONDS.size) - 1] * 1000
+                publish(env, SyncState.Waiting(WaitReason.RETRY_BACKOFF, clock() + waitMs, attempt, progress.summary()))
+                delay(waitMs)
+            }
         } catch (e: CancellationException) {
             if (currentCoroutineContext().isActive) {
                 // Not our job being cancelled: a stray CancellationException from inside, which must not read as a stop.
@@ -224,10 +251,20 @@ class SyncEngine internal constructor(
     private fun failed(error: SyncError, message: String, p: Progress) =
         SyncState.Failed(error, message, p.summary(), clock())
 
-    private suspend fun runLoop(env: String, startedAt: Long, p: Progress): SyncState {
-        val album = settings.album(env) ?: return failed(SyncError.NO_ALBUM, "No album selected", p)
-        if (!access.isGranted(album.treeUri)) return permissionLost(p)
+    /** One attempt: the run's loop. Only failures marked with [Run.retryable] come back retryable. */
+    private suspend fun runLoop(env: String, startedAt: Long, p: Progress): Outcome {
+        val album = settings.album(env) ?: return Outcome(failed(SyncError.NO_ALBUM, "No album selected", p), false)
+        if (!access.isGranted(album.treeUri)) return Outcome(permissionLost(p), false)
         val run = Run(env, album, startedAt, p, pacers.getOrPut(env) { UploadPacer(clock) })
+        val state = batches(run)
+        return Outcome(state, run.retryable && state is SyncState.Failed)
+    }
+
+    private suspend fun batches(run: Run): SyncState {
+        val env = run.env
+        val album = run.album
+        val p = run.p
+        val startedAt = run.startedAt
         while (true) {
             val size = settings.batchSize()
             val pending = tracker.nextPending(env, size)
@@ -300,7 +337,7 @@ class SyncEngine internal constructor(
     private suspend fun rateLimitWait(run: Run, attempt: UploadAttempt.HttpError): SyncState.Failed? {
         run.rateLimited++
         if (run.rateLimited > MAX_CONSECUTIVE_429) {
-            return failed(SyncError.RATE_LIMITED, "The server keeps answering 'too many requests'", run.p)
+            return run.retryable(failed(SyncError.RATE_LIMITED, "The server keeps answering 'too many requests'", run.p))
         }
         val waitMs = (attempt.retryAfterSeconds?.coerceIn(1, MAX_RETRY_AFTER_SECONDS) ?: DEFAULT_WAIT_SECONDS) * 1000
         publish(run.env, SyncState.Waiting(WaitReason.RATE_LIMITED, clock() + waitMs, run.rateLimited, run.p.summary()))
@@ -356,34 +393,39 @@ class SyncEngine internal constructor(
 
     private fun unreadable(run: Run, file: TrackedFileEntity, e: Exception): SyncState.Failed =
         if (!access.isGranted(run.album.treeUri)) permissionLost(run.p)
-        else failed(
-            SyncError.FILE_READ_ERROR,
-            "Cannot read ${file.displayName}: ${e.message ?: e.javaClass.simpleName}. The files stay pending; try again",
-            run.p,
+        else run.retryable(
+            failed(
+                SyncError.FILE_READ_ERROR,
+                "Cannot read ${file.displayName}: ${e.message ?: e.javaClass.simpleName}. The files stay pending; try again",
+                run.p,
+            )
         )
 
-    /** Failures that end the run. Files stay pending. */
+    /**
+     * Failures that end the run (or this attempt, see [runEnvironment]). Files stay pending. Retryable: network, file read
+     * errors with the grant intact, 429 and a 5xx other than 503/507.
+     */
     private fun terminalFor(run: Run, a: UploadAttempt): SyncState.Failed = when (a) {
         is UploadAttempt.Response -> failed(SyncError.UNEXPECTED, "Unexpected response", run.p)
-        is UploadAttempt.NetworkError -> failed(SyncError.NETWORK, a.message ?: "Network error", run.p)
+        is UploadAttempt.NetworkError -> run.retryable(failed(SyncError.NETWORK, a.message ?: "Network error", run.p))
         is UploadAttempt.Unexpected ->
             if (!access.isGranted(run.album.treeUri)) permissionLost(run.p)
             else failed(SyncError.UNEXPECTED, a.message ?: "Unexpected error", run.p)
         is UploadAttempt.AccessDenied ->
             if (!access.isGranted(run.album.treeUri)) permissionLost(run.p)
-            else failed(SyncError.FILE_READ_ERROR, "Access to a file was denied: ${a.message ?: "no details"}", run.p)
+            else run.retryable(failed(SyncError.FILE_READ_ERROR, "Access to a file was denied: ${a.message ?: "no details"}", run.p))
         is UploadAttempt.ReadFailed ->
             if (!access.isGranted(run.album.treeUri)) permissionLost(run.p)
-            else failed(SyncError.FILE_READ_ERROR, "Cannot read a file: ${a.message ?: "no details"}", run.p)
+            else run.retryable(failed(SyncError.FILE_READ_ERROR, "Cannot read a file: ${a.message ?: "no details"}", run.p))
         is UploadAttempt.HttpError -> when (a.code) {
-            429 -> failed(SyncError.RATE_LIMITED, "The server keeps answering 'too many requests'", run.p)
+            429 -> run.retryable(failed(SyncError.RATE_LIMITED, "The server keeps answering 'too many requests'", run.p))
             503 -> failed(
                 SyncError.INBOX_FULL_OR_UNWRITABLE,
                 a.detail ?: "The server inbox is full or not writable; run ingestion or fix the server",
                 run.p,
             )
             507 -> failed(SyncError.DISK_LOW, a.detail ?: "The server is low on disk space", run.p)
-            in 500..599 -> failed(SyncError.SERVER, a.detail ?: "Server error ${a.code}", run.p)
+            in 500..599 -> run.retryable(failed(SyncError.SERVER, a.detail ?: "Server error ${a.code}", run.p))
             else -> failed(SyncError.UNEXPECTED, "HTTP ${a.code}: ${a.detail ?: "no details"}", run.p)
         }
     }
@@ -449,6 +491,12 @@ class SyncEngine internal constructor(
         const val MAX_CONSECUTIVE_429 = 10
         const val MAX_STALLS = 2
         const val MAX_POISON_STREAK = 3
+
+        /** Auto-retry delays, by 1-based attempt; attempts beyond the list use the last one. */
+        val RETRY_DELAYS_SECONDS = listOf(15L, 30L, 60L, 120L, 300L)
+
+        /** Retries in a row (without a settled file in between) before the run ends Failed. */
+        const val MAX_RETRY_ATTEMPTS = 8
 
         /** A network wait re-reads the settings at least this often, even with no network event. */
         const val NETWORK_RECHECK_MS = 5_000L
