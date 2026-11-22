@@ -79,4 +79,15 @@ class TrackerDaoTest {
         dao.applyScanChunk(env, album, listOf(file("a")), scanId = 7, now = 1)
         assertEquals(7L, dao.maxScanId(env))
     }
+
+    /** The removal queries: uploaded, present, unchanged since the upload; checked in real SQL like the fake in TrackerRepositoryTest. */
+    @Test
+    fun removableFilesAreUploadedPresentAndUnchanged() = runBlocking {
+        dao.applyScanChunk(env, album, listOf(file("ok", modified = 40), file("edited", modified = 40), file("noDate", modified = 0), file("gone", modified = 40)), scanId = 1, now = 1)
+        dao.markUploadedAll(env, album, listOf("ok", "edited", "noDate", "gone"), at = 50)
+        dao.applyScanChunk(env, album, listOf(file("ok", modified = 40), file("edited", modified = 60), file("noDate", modified = 0)), scanId = 2, now = 2)
+        dao.markMissing(env, 2)
+        assertEquals(listOf("ok"), dao.removableFiles(env, album).map { it.documentId })
+        assertEquals(2, dao.uploadedButChangedCount(env, album))
+    }
 }

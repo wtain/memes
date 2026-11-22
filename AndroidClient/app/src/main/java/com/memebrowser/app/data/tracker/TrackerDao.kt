@@ -83,6 +83,25 @@ abstract class TrackerDao {
         environmentId: String, albumTreeUri: String, documentId: String, reason: String, at: Long,
     ): Int
 
+    /**
+     * Files of this album that the backend has and that were not modified after the upload (a modified file may hold
+     * an edit the backend never saw). Only these may ever be removed from the phone.
+     */
+    @Query(
+        "SELECT documentId, uploadedAt FROM tracked_files WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri " +
+            "AND presentInAlbum = 1 AND state = ${TrackerSql.UPLOADED} AND uploadedAt IS NOT NULL " +
+            "AND lastModified > 0 AND lastModified <= uploadedAt"
+    )
+    abstract suspend fun removableFiles(environmentId: String, albumTreeUri: String): List<RemovableFile>
+
+    /** Uploaded files still in the album that [removableFiles] leaves out (changed after the upload, or no usable date). */
+    @Query(
+        "SELECT COUNT(*) FROM tracked_files WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri " +
+            "AND presentInAlbum = 1 AND state = ${TrackerSql.UPLOADED} " +
+            "AND (uploadedAt IS NULL OR lastModified <= 0 OR lastModified > uploadedAt)"
+    )
+    abstract suspend fun uploadedButChangedCount(environmentId: String, albumTreeUri: String): Int
+
     /** Highest scan id stamped in the environment, null when it has no rows. */
     @Query("SELECT MAX(lastSeenScan) FROM tracked_files WHERE environmentId = :environmentId")
     abstract suspend fun maxScanId(environmentId: String): Long?

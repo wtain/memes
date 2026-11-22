@@ -127,6 +127,13 @@ class TrackerRepository @Inject constructor(
     suspend fun setAlbum(environmentId: String, treeUri: String, displayName: String) =
         settings.setAlbum(environmentId, treeUri, displayName)
 
+    /** Files of the album that may be removed from the phone (uploaded, unchanged since). See [TrackerDao.removableFiles]. */
+    suspend fun removableFiles(environmentId: String, albumTreeUri: String): List<RemovableFile> =
+        dao.removableFiles(environmentId, albumTreeUri)
+
+    suspend fun uploadedButChangedCount(environmentId: String, albumTreeUri: String): Int =
+        dao.uploadedButChangedCount(environmentId, albumTreeUri)
+
     fun batchSize(): Flow<Int> = settings.batchSize
 
     suspend fun setBatchSize(size: Int) = settings.setBatchSize(size)

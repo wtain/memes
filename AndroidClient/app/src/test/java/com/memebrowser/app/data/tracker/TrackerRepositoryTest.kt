@@ -304,4 +304,21 @@ class TrackerRepositoryTest {
         assertEquals(TrackedFileState.REJECTED, b.state)
         assertEquals(RejectionReasons.SERVER_ERROR, b.rejectionReason)
     }
+
+    @Test
+    fun `only uploaded, present, unchanged files of the album are removable`() = runTest {
+        val r = repo()
+        r.syncScan(
+            env, album,
+            listOf(file("ok", modified = 40), file("edited", modified = 40), file("notSent", modified = 40), file("gone", modified = 40), file("noDate", modified = 0)),
+            scanId = 1,
+        )
+        r.markUploaded(env, album, listOf("ok", "edited", "gone", "noDate"), at = 50)
+        r.syncScan(env, album, listOf(file("ok", modified = 40), file("edited", modified = 60), file("notSent", modified = 40), file("noDate", modified = 0)), scanId = 2)
+        // "gone" left the album; "edited" changed after the upload; "noDate" has no usable date; "notSent" was never uploaded.
+        assertEquals(listOf(RemovableFile("ok", 50)), r.removableFiles(env, album))
+        assertEquals(2, r.uploadedButChangedCount(env, album))
+        assertTrue(r.removableFiles(other, album).isEmpty())
+        assertTrue(r.removableFiles(env, "content://tree/other").isEmpty())
+    }
 }

@@ -193,3 +193,7 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a4-
 All screen-to-screen navigation goes through `NavGraph.kt`. Screens receive
 callbacks (`onBack`, `onNavigateToMeme`, …) and know nothing about
 `NavController` directly.
+
+## Removing synced photos from the phone
+
+"Remove synced photos from this phone..." on the Album sync screen (gallery albums only, Android 11+) deletes photos the backend already has. Only files whose tracker row is UPLOADED for the SELECTED environment, still present, and not modified after `uploadedAt` qualify (`TrackerDao.removableFiles`); `PhotoRemover.verify` re-checks id, bucket and `DATE_MODIFIED` in MediaStore right before asking, because a file edited after the upload is never re-sent. Two confirmations: the app's dialog with the count, then the system's `MediaStore.createDeleteRequest` dialog (chunks of `PhotoRemover.REQUEST_CHUNK`). The delete is permanent (not the system trash). The tracker rows stay UPLOADED, so the "X of Y uploaded" history keeps its count. Folder (SAF) albums are not supported on purpose.

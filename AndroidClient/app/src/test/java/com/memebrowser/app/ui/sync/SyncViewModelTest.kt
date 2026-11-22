@@ -6,6 +6,11 @@ import com.memebrowser.app.data.album.AlbumListing
 import com.memebrowser.app.data.album.GalleryAlbum
 import com.memebrowser.app.data.album.MediaAccess
 import com.memebrowser.app.data.album.MediaAccessSource
+import com.memebrowser.app.data.album.AlbumKey
+import com.memebrowser.app.data.album.NoPhotoRemover
+import com.memebrowser.app.data.album.PhotoRemover
+import com.memebrowser.app.data.tracker.RemovableFile
+import android.content.IntentSender
 import com.memebrowser.app.data.album.AlbumSyncCoordinator
 import com.memebrowser.app.data.album.ChangeAlbumPlan
 import com.memebrowser.app.data.album.ScanFailure
@@ -113,8 +118,8 @@ class SyncViewModelTest {
     private var accessWhenBlocked = MediaAccess.FULL
     private val mediaAccess = MediaAccessSource { canAskAgain -> if (canAskAgain) accessWhenAsking else accessWhenBlocked }
 
-    private fun vm(mapping: CoroutineDispatcher = mainDispatcherRule.dispatcher) =
-        SyncViewModel(environments, coordinator, engine, tracker, lister, mediaAccess, { now }, mapping)
+    private fun vm(mapping: CoroutineDispatcher = mainDispatcherRule.dispatcher, remover: PhotoRemover = NoPhotoRemover) =
+        SyncViewModel(environments, coordinator, engine, tracker, lister, mediaAccess, { now }, mapping, remover)
 
     /** Subscribes to the state for the duration of the test. */
     private fun TestScope.started(vm: SyncViewModel): SyncViewModel {
@@ -838,5 +843,125 @@ class SyncViewModelTest {
         vm.onGalleryRequested()
         selectEnv("env-b")
         assertNull(vm.uiState.value.chooser)
+    }
+
+    // ---- remove synced photos from the phone ----------------------------------------------------------------
+
+    private val galleryKey = AlbumKey.mediaStore(7, "3 - memes")
+    private val gallerySel = AlbumSelection(galleryKey, "3 - memes")
+    private val sender = mockk<IntentSender>(relaxed = true)
+
+    private class FakeRemover(var verified: List<Long>, override val supported: Boolean = true) : PhotoRemover {
+        val requested = mutableListOf<List<Long>>()
+        override suspend fun verify(albumKey: String, files: List<RemovableFile>): List<Long> = verified
+        override fun requestFor(ids: List<Long>): IntentSender {
+            requested += ids
+            return mockk(relaxed = true)
+        }
+    }
+
+    private fun galleryWithUploads(remover: FakeRemover, files: Int = 3, changed: Int = 1) {
+        album("env-a").value = gallerySel
+        counts("env-a").value = TrackerCounts(uploaded = files + changed, supported = files + changed, rejected = 0, pending = 0)
+        coEvery { tracker.removableFiles("env-a", galleryKey) } returns (1..files).map { RemovableFile("$it", 10L) }
+        coEvery { tracker.uploadedButChangedCount("env-a", galleryKey) } returns changed
+    }
+
+    @Test
+    fun `asking to remove shows the count of photos that are verified, and what stays`() = runTest {
+        val remover = FakeRemover(verified = listOf(1, 2))
+        galleryWithUploads(remover, files = 3, changed = 1)
+        val vm = started(vm(remover = remover))
+        vm.onRemoveSyncedRequested()
+        // 3 candidates, 2 verified: the third changed on the phone since; plus the 1 the tracker already knew changed.
+        assertEquals(RemovalState.Confirm(count = 2, kept = 2), vm.uiState.value.removal)
+        assertTrue(remover.requested.isEmpty())
+    }
+
+    @Test
+    fun `cancelling the confirmation requests nothing`() = runTest {
+        val remover = FakeRemover(verified = listOf(1, 2, 3))
+        galleryWithUploads(remover)
+        val vm = started(vm(remover = remover))
+        vm.onRemoveSyncedRequested()
+        vm.cancelRemoval()
+        assertNull(vm.uiState.value.removal)
+        assertTrue(remover.requested.isEmpty())
+    }
+
+    @Test
+    fun `confirming opens the system dialog and the result reports the removed count and rescans`() = runTest {
+        val remover = FakeRemover(verified = listOf(1, 2, 3))
+        galleryWithUploads(remover)
+        val vm = started(vm(remover = remover))
+        vm.onRemoveSyncedRequested()
+        vm.confirmRemoval()
+        assertTrue(vm.uiState.value.removal is RemovalState.Launch)
+        assertEquals(listOf(listOf(1L, 2L, 3L)), remover.requested)
+        vm.onRemovalLaunched()
+        assertEquals(RemovalState.Waiting, vm.uiState.value.removal)
+        vm.onRemovalResult(allowed = true)
+        assertNull(vm.uiState.value.removal)
+        assertEquals("Removed 3 photos from the phone.", vm.uiState.value.message)
+        coVerify { coordinator.refreshScan("env-a") }
+    }
+
+    @Test
+    fun `declining the system dialog removes nothing`() = runTest {
+        val remover = FakeRemover(verified = listOf(1, 2, 3))
+        galleryWithUploads(remover)
+        val vm = started(vm(remover = remover))
+        vm.onRemoveSyncedRequested()
+        vm.confirmRemoval()
+        vm.onRemovalLaunched()
+        vm.onRemovalResult(allowed = false)
+        assertEquals("Nothing was removed.", vm.uiState.value.message)
+    }
+
+    @Test
+    fun `nothing verified gives a message and no confirmation`() = runTest {
+        val remover = FakeRemover(verified = emptyList())
+        galleryWithUploads(remover, files = 2, changed = 0)
+        val vm = started(vm(remover = remover))
+        vm.onRemoveSyncedRequested()
+        assertNull(vm.uiState.value.removal)
+        assertTrue(vm.uiState.value.message!!.contains("2 photos changed after the upload"))
+    }
+
+    @Test
+    fun `a folder album cannot remove, nor a sync that is running, nor an old Android`() = runTest {
+        val remover = FakeRemover(verified = listOf(1))
+        galleryWithUploads(remover)
+        album("env-a").value = selA // a folder (SAF) album
+        val vm = started(vm(remover = remover))
+        assertFalse(vm.uiState.value.canRemoveSynced)
+        vm.onRemoveSyncedRequested()
+        assertNull(vm.uiState.value.removal)
+
+        album("env-a").value = gallerySel
+        sync("env-a").value = SyncState.Running(1, 1, 1, SyncSummary())
+        assertFalse(vm.uiState.value.canRemoveSynced)
+        sync("env-a").value = SyncState.Idle
+        assertTrue(vm.uiState.value.canRemoveSynced)
+
+        val old = started(vm(remover = FakeRemover(verified = listOf(1), supported = false)))
+        assertFalse(old.uiState.value.canRemoveSynced)
+    }
+
+    @Test
+    fun `a large set goes out in several system requests`() = runTest {
+        val n = PhotoRemover.REQUEST_CHUNK + 10
+        val remover = FakeRemover(verified = (1L..n).toList())
+        galleryWithUploads(remover, files = n, changed = 0)
+        val vm = started(vm(remover = remover))
+        vm.onRemoveSyncedRequested()
+        vm.confirmRemoval()
+        vm.onRemovalLaunched()
+        vm.onRemovalResult(allowed = true)
+        assertTrue(vm.uiState.value.removal is RemovalState.Launch) // the second request
+        vm.onRemovalLaunched()
+        vm.onRemovalResult(allowed = false) // stopped on the second dialog
+        assertEquals(listOf(PhotoRemover.REQUEST_CHUNK, 10), remover.requested.map { it.size })
+        assertEquals("Removed ${PhotoRemover.REQUEST_CHUNK} photos from the phone. 10 photos left, as you stopped.", vm.uiState.value.message)
     }
 }

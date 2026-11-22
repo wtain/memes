@@ -3,6 +3,8 @@ package com.memebrowser.app.di
 import android.content.Context
 import com.memebrowser.app.data.album.AlbumAccess
 import com.memebrowser.app.data.album.AlbumLister
+import com.memebrowser.app.data.album.MediaStoreRemover
+import com.memebrowser.app.data.album.PhotoRemover
 import com.memebrowser.app.data.album.AlbumRowSource
 import com.memebrowser.app.data.album.MediaStoreAlbumLister
 import com.memebrowser.app.data.album.AlbumScanner
@@ -37,6 +39,10 @@ object AlbumModule {
     @Singleton
     fun provideMediaAccessSource(@ApplicationContext context: Context): MediaAccessSource =
         ContextMediaAccessSource(context)
+
+    @Provides
+    fun providePhotoRemover(@ApplicationContext context: Context): PhotoRemover =
+        MediaStoreRemover(context.contentResolver, Dispatchers.IO)
 
     @Provides
     fun provideAlbumLister(@ApplicationContext context: Context, media: MediaAccessSource): AlbumLister =

@@ -11,6 +11,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
@@ -122,6 +124,9 @@ class SyncActions(
     val onStop: () -> Unit = {},
     val onDismissResult: () -> Unit = {},
     val onBatchSizeChange: (Int) -> Unit = {},
+    val onRemoveSynced: () -> Unit = {},
+    val onCancelRemoval: () -> Unit = {},
+    val onConfirmRemoval: () -> Unit = {},
     val onShowRejected: () -> Unit = {},
     val onHideRejected: () -> Unit = {},
     val onRetryAll: () -> Unit = {},
@@ -191,6 +196,17 @@ fun SyncScreen(
         }
     }
 
+    // The system's own "delete these photos?" dialog; it deletes only when the user allows it.
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        viewModel.onRemovalResult(result.resultCode == Activity.RESULT_OK)
+    }
+    (state.removal as? RemovalState.Launch)?.let { launch ->
+        LaunchedEffect(launch) {
+            viewModel.onRemovalLaunched() // first: a rotation during the launch must not open a second dialog
+            deleteLauncher.launch(IntentSenderRequest.Builder(launch.sender).build())
+        }
+    }
+
     val actions = remember(viewModel, picker, permissionLauncher, permissions, context, onBack, onUploadFiles, scope, drawerState) {
         SyncActions(
             onBack = onBack,
@@ -207,6 +223,9 @@ fun SyncScreen(
             onStop = viewModel::stopSync,
             onDismissResult = viewModel::dismissSyncResult,
             onBatchSizeChange = viewModel::setBatchSize,
+            onRemoveSynced = viewModel::onRemoveSyncedRequested,
+            onCancelRemoval = viewModel::cancelRemoval,
+            onConfirmRemoval = viewModel::confirmRemoval,
             onShowRejected = viewModel::showRejected,
             onHideRejected = viewModel::hideRejected,
             onRetryAll = viewModel::retryServerErrors,
@@ -325,6 +344,16 @@ fun SyncContent(state: SyncUiState, actions: SyncActions) {
 
     state.chooser?.let { GalleryChooserDialog(it, actions) }
 
+    (state.removal as? RemovalState.Confirm)?.let { confirm ->
+        RemoveSyncedDialog(
+            confirm = confirm,
+            environmentName = state.environment?.name.orEmpty(),
+            albumName = state.album?.displayName.orEmpty(),
+            onConfirm = actions.onConfirmRemoval,
+            onDismiss = actions.onCancelRemoval,
+        )
+    }
+
     state.changePlan?.let { plan ->
         ChangeAlbumDialog(
             lines = changeAlbumDialogLines(plan, syncRunning = state.sync.isActive),
@@ -426,6 +455,19 @@ private fun AlbumSections(state: SyncUiState, actions: SyncActions) {
         enabled = controls.canChangeAlbum,
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
     ) { Text("Folder...") }
+    if (state.removalSupported && repickUsesGallery(state.album)) {
+        HorizontalDivider()
+        Text("Free up space", style = MaterialTheme.typography.titleSmall)
+        OutlinedButton(
+            onClick = actions.onRemoveSynced,
+            enabled = state.canRemoveSynced,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        ) {
+            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(if (state.removal == RemovalState.Checking) "Checking..." else "Remove synced photos from this phone...")
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -606,6 +648,37 @@ private fun RejectedList(state: SyncUiState, actions: SyncActions) {
             HorizontalDivider()
         }
     }
+}
+
+@Composable
+private fun RemoveSyncedDialog(
+    confirm: RemovalState.Confirm,
+    environmentName: String,
+    albumName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(removeSyncedTitle(confirm.count)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                removeSyncedLines(confirm.count, confirm.kept, environmentName, albumName).forEach {
+                    Text(it, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) { Text("Remove ${confirm.count}") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable

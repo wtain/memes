@@ -99,6 +99,20 @@ class FakeTrackerDao : TrackerDao() {
         return 1
     }
 
+    private fun uploadedHere(environmentId: String, albumTreeUri: String) =
+        rows.value.values.filter {
+            it.environmentId == environmentId && it.albumTreeUri == albumTreeUri && it.presentInAlbum && it.state == TrackedFileState.UPLOADED
+        }
+
+    private fun unchangedSinceUpload(it: TrackedFileEntity) =
+        it.uploadedAt != null && it.lastModified > 0 && it.lastModified <= it.uploadedAt
+
+    override suspend fun removableFiles(environmentId: String, albumTreeUri: String): List<RemovableFile> =
+        uploadedHere(environmentId, albumTreeUri).filter(::unchangedSinceUpload).map { RemovableFile(it.documentId, it.uploadedAt!!) }
+
+    override suspend fun uploadedButChangedCount(environmentId: String, albumTreeUri: String): Int =
+        uploadedHere(environmentId, albumTreeUri).count { !unchangedSinceUpload(it) }
+
     override suspend fun maxScanId(environmentId: String): Long? =
         rows.value.values.filter { it.environmentId == environmentId }.maxOfOrNull { it.lastSeenScan }
 

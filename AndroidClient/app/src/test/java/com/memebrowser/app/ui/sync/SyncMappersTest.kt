@@ -242,4 +242,14 @@ class SyncMappersTest {
         assertTrue(permissionCardText(MediaAccess.DENIED).isNotBlank())
         assertTrue(permissionCardText(MediaAccess.FULL).isNotBlank())
     }
+
+    @Test
+    fun `the removal confirmation names the count, the server and the album`() {
+        assertEquals("Remove 1 photo from this phone?", removeSyncedTitle(1))
+        assertEquals("Remove 12 photos from this phone?", removeSyncedTitle(12))
+        val lines = removeSyncedLines(12, kept = 2, environmentName = "General", albumName = "3 - memes")
+        assertTrue(lines[0].contains("General") && lines[0].contains("3 - memes"))
+        assertTrue(lines.any { it.contains("2 photos changed after the upload") })
+        assertEquals(2, removeSyncedLines(12, kept = 0, environmentName = "General", albumName = "x").size)
+    }
 }

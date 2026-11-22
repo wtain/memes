@@ -157,4 +157,32 @@ class SyncScreenTest {
         composeTestRule.onNodeWithText("Change and reset").performClick()
         assertEquals(1, confirmed)
     }
+
+    private val galleryState = loaded.copy(
+        album = AlbumSelection(com.memebrowser.app.data.album.AlbumKey.mediaStore(7, "3 - memes"), "3 - memes"),
+        removalSupported = true,
+    )
+
+    @Test
+    fun removeSynced_confirmationShowsTheCountAndReportsTheChoice() {
+        var confirmed = 0
+        var cancelled = 0
+        show(
+            galleryState.copy(removal = RemovalState.Confirm(count = 3, kept = 1)),
+            SyncActions(onConfirmRemoval = { confirmed++ }, onCancelRemoval = { cancelled++ }),
+        )
+        composeTestRule.onNodeWithText("Remove 3 photos from this phone?").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Remove 3").performClick()
+        composeTestRule.onNodeWithText("Cancel").performClick()
+        assertEquals(1, confirmed)
+        assertEquals(1, cancelled)
+    }
+
+    @Test
+    fun removeSynced_buttonIsOnlyForGalleryAlbums() {
+        var asked = 0
+        show(galleryState, SyncActions(onRemoveSynced = { asked++ }))
+        composeTestRule.onNodeWithText("Remove synced photos from this phone...").performClick()
+        assertEquals(1, asked)
+    }
 }

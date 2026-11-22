@@ -29,8 +29,20 @@ val DefaultTimeFormatter: TimeFormatter = { at ->
     DateFormat.getTimeInstance(DateFormat.MEDIUM, Locale.getDefault()).format(Date(at))
 }
 
+/** Title of the confirmation that comes before removing synced photos from the phone. */
+fun removeSyncedTitle(count: Int): String = "Remove ${photoCount(count)} from this phone?"
+
+/** Body lines of that confirmation; the count in the title is the number that will be requested for deletion. */
+fun removeSyncedLines(count: Int, kept: Int, environmentName: String, albumName: String): List<String> = buildList {
+    add("These photos in \"$albumName\" are already on the $environmentName server. They will be deleted from this phone.")
+    add("Android asks you to confirm once more. Deleted photos do not go to the trash, and the app cannot bring them back.")
+    if (kept > 0) add("${photoCount(kept)} changed after the upload and stay on the phone.")
+}
+
 /** "1 file" / "2 files". */
 fun fileCount(n: Int): String = if (n == 1) "1 file" else "$n files"
+
+fun photoCount(n: Int): String = if (n == 1) "1 photo" else "$n photos"
 
 fun imageCount(n: Int): String = if (n == 1) "1 image" else "$n images"
 

@@ -1,5 +1,6 @@
 package com.memebrowser.app.ui.sync
 
+import android.content.IntentSender
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,6 +11,9 @@ import com.memebrowser.app.data.album.AlbumSyncCoordinator
 import com.memebrowser.app.data.album.ChangeAlbumPlan
 import com.memebrowser.app.data.album.GalleryAlbum
 import com.memebrowser.app.data.album.MediaAccess
+import com.memebrowser.app.data.sync.isActive
+import com.memebrowser.app.data.album.NoPhotoRemover
+import com.memebrowser.app.data.album.PhotoRemover
 import com.memebrowser.app.data.album.MediaAccessSource
 import com.memebrowser.app.data.album.ScanState
 import com.memebrowser.app.data.repository.EnvironmentRepository
@@ -55,6 +59,21 @@ data class RejectedItem(
     val canRetry: Boolean,
 )
 
+/** The "remove synced photos from the phone" flow, one step at a time; null while it is not running. */
+sealed interface RemovalState {
+    /** Looking up which uploaded photos are still unchanged on the phone. */
+    data object Checking : RemovalState
+
+    /** The in-app confirmation: [count] photos would be removed, [kept] uploaded ones stay (changed after the upload). */
+    data class Confirm(val count: Int, val kept: Int) : RemovalState
+
+    /** The system delete dialog must be opened with [sender] (the screen does it once and reports back). */
+    data class Launch(val sender: IntentSender) : RemovalState
+
+    /** The system dialog is open. */
+    data object Waiting : RemovalState
+}
+
 /** The gallery album chooser, shown while it is not null. */
 sealed interface ChooserState {
     data object Loading : ChooserState
@@ -89,7 +108,13 @@ data class SyncUiState(
     val busy: Boolean = false,
     /** The gallery album chooser, or null while it is closed. */
     val chooser: ChooserState? = null,
+    /** False before Android 11 (the system cannot ask to delete other apps' photos there). */
+    val removalSupported: Boolean = false,
+    val removal: RemovalState? = null,
 ) {
+    /** Only a gallery album, with uploaded photos, while nothing else is running. */
+    val canRemoveSynced: Boolean
+        get() = removalSupported && repickUsesGallery(album) && counts.uploaded > 0 && !sync.isActive && !busy && removal == null
     val controls: SyncControls get() = syncControls(album != null, counts, scan, sync, busy)
     val retryableCount: Int get() = rejected.count { it.canRetry }
 }
@@ -106,6 +131,7 @@ class SyncViewModel internal constructor(
     private val clock: () -> Long,
     /** Where the rejected rows are mapped to text (thousands of rows must not be mapped on Main). */
     private val mappingDispatcher: CoroutineDispatcher,
+    private val remover: PhotoRemover = NoPhotoRemover,
 ) : ViewModel() {
 
     @Inject
@@ -116,7 +142,8 @@ class SyncViewModel internal constructor(
         tracker: TrackerRepository,
         albumLister: AlbumLister,
         mediaAccess: MediaAccessSource,
-    ) : this(environments, coordinator, engine, tracker, albumLister, mediaAccess, System::currentTimeMillis, Dispatchers.Default)
+        remover: PhotoRemover,
+    ) : this(environments, coordinator, engine, tracker, albumLister, mediaAccess, System::currentTimeMillis, Dispatchers.Default, remover)
 
     /** Screen-local state that is not derived from the data layer. One per environment, so nothing leaks across a switch. */
     private data class Local(
@@ -126,7 +153,16 @@ class SyncViewModel internal constructor(
         val dismissedSync: SyncState? = null,
         val rejectedVisible: Boolean = false,
         val chooser: ChooserState? = null,
+        val removal: RemovalState? = null,
     )
+
+    /** The removal in progress (main thread only): which photos, in system-request-sized chunks, and how far it got. */
+    private class PendingRemoval(val env: String, val chunks: List<List<Long>>) {
+        var next = 0
+        var removed = 0
+    }
+
+    private var pendingRemoval: PendingRemoval? = null
 
     private class Snapshot(
         val env: EnvironmentInfo,
@@ -204,6 +240,8 @@ class SyncViewModel internal constructor(
                     message = l.message,
                     busy = l.busy,
                     chooser = l.chooser,
+                    removalSupported = remover.supported,
+                    removal = l.removal,
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SyncUiState())
@@ -400,6 +438,102 @@ class SyncViewModel internal constructor(
         viewModelScope.launch { guarded(env) { tracker.setBatchSize(TrackerSettingsStore.clampBatchSize(size)) } }
     }
 
+    // ---- remove synced photos from the phone ------------------------------------------------------------------
+
+    /**
+     * Step 1: works out which photos may go (uploaded to THIS environment, still in the album, not modified since, and
+     * confirmed again against the gallery now) and opens the in-app confirmation with the count. Nothing is deleted yet.
+     */
+    fun onRemoveSyncedRequested() {
+        val env = shownEnvironment() ?: return
+        val state = uiState.value
+        val album = state.album ?: return
+        if (!state.canRemoveSynced) return
+        updateLocal(env) { it.copy(removal = RemovalState.Checking) }
+        viewModelScope.launch {
+            val found = guarded(env) {
+                val files = tracker.removableFiles(env, album.treeUri)
+                val ids = remover.verify(album.treeUri, files)
+                val kept = tracker.uploadedButChangedCount(env, album.treeUri) + (files.size - ids.size)
+                ids to kept
+            }
+            if (found == null) {
+                updateLocal(env) { it.copy(removal = null) }
+                return@launch
+            }
+            val (ids, kept) = found
+            if (ids.isEmpty()) {
+                updateLocal(env) { it.copy(removal = null, message = nothingToRemoveMessage(kept)) }
+                return@launch
+            }
+            pendingRemoval = PendingRemoval(env, ids.chunked(PhotoRemover.REQUEST_CHUNK))
+            updateLocal(env) { it.copy(removal = RemovalState.Confirm(ids.size, kept)) }
+        }
+    }
+
+    /** The user closed the in-app confirmation. */
+    fun cancelRemoval() {
+        val p = pendingRemoval ?: return
+        if (localOf(p.env).removal !is RemovalState.Confirm) return
+        pendingRemoval = null
+        updateLocal(p.env) { it.copy(removal = null) }
+    }
+
+    /** Step 2: the user confirmed in the app; the system asks once more per request before anything is deleted. */
+    fun confirmRemoval() {
+        val p = pendingRemoval ?: return
+        if (localOf(p.env).removal !is RemovalState.Confirm || shownEnvironment() != p.env) return
+        launchNextRequest(p)
+    }
+
+    private fun launchNextRequest(p: PendingRemoval) {
+        try {
+            val sender = remover.requestFor(p.chunks[p.next])
+            updateLocal(p.env) { it.copy(removal = RemovalState.Launch(sender)) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not build the delete request", e)
+            finishRemoval(p, failed = true)
+        }
+    }
+
+    /** The screen opened the system dialog. */
+    fun onRemovalLaunched() {
+        val p = pendingRemoval ?: return
+        if (localOf(p.env).removal is RemovalState.Launch) updateLocal(p.env) { it.copy(removal = RemovalState.Waiting) }
+    }
+
+    /** The system dialog closed: [allowed] is true when the user allowed the deletion of this request's photos. */
+    fun onRemovalResult(allowed: Boolean) {
+        val p = pendingRemoval ?: return
+        if (allowed) {
+            p.removed += p.chunks[p.next].size
+            p.next++
+            if (p.next < p.chunks.size) {
+                launchNextRequest(p)
+                return
+            }
+        }
+        finishRemoval(p, failed = false)
+    }
+
+    private fun finishRemoval(p: PendingRemoval, failed: Boolean) {
+        pendingRemoval = null
+        val left = p.chunks.drop(p.next).sumOf { it.size }
+        val message = when {
+            failed && p.removed == 0 -> MSG_REMOVAL_FAILED
+            p.removed == 0 -> "Nothing was removed."
+            left > 0 -> "Removed ${photoCount(p.removed)} from the phone. ${photoCount(left)} left, as you stopped."
+            else -> "Removed ${photoCount(p.removed)} from the phone."
+        }
+        updateLocal(p.env) { it.copy(removal = null, message = message) }
+        // The scan notices the files are gone; their upload records stay, so the counts keep the history.
+        viewModelScope.launch { guarded(p.env) { coordinator.refreshScan(p.env) } }
+    }
+
+    private fun nothingToRemoveMessage(kept: Int): String =
+        if (kept > 0) "No photos can be removed: ${photoCount(kept)} changed after the upload and stay on the phone."
+        else "No uploaded photos are left on the phone to remove."
+
     // ---- rejected files --------------------------------------------------------------------------------------
 
     fun showRejected() {
@@ -469,5 +603,6 @@ class SyncViewModel internal constructor(
         const val MSG_PLAN_KEEPS_CHANGING = "The selected album keeps changing. Nothing was changed; choose the folder again."
         const val MSG_ALBUM_CHANGED = "Album changed. The upload list was reset."
         const val MSG_UNEXPECTED = "Something went wrong. Try again."
+        const val MSG_REMOVAL_FAILED = "Could not ask Android to remove the photos. Nothing was removed."
     }
 }
