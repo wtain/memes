@@ -91,6 +91,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.memebrowser.app.data.model.Facet
 import com.memebrowser.app.data.model.Meme
+import com.memebrowser.app.ui.drawer.DrawerContent
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -252,121 +253,6 @@ fun SearchScreen(
             activeFacets = state.activeFacets,
             onToggle = viewModel::onFacetToggle,
             onDismiss = { showFacetSheet = false }
-        )
-    }
-}
-
-@Composable
-private fun DrawerContent(
-    healthStatus: HealthStatus,
-    visibility: FeatureVisibility,
-    onUploadClick: () -> Unit,
-    onFlaggedClick: () -> Unit,
-    onEnvironmentsClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-    onAboutClick: () -> Unit,
-    onTrendsClick: () -> Unit,
-    onRecommendationsClick: () -> Unit,
-    onStatisticsClick: () -> Unit
-) {
-    Spacer(Modifier.height(16.dp))
-    Text(
-        text = "MemeBrowser",
-        style = MaterialTheme.typography.titleLarge,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-    )
-
-    val healthColor = when (healthStatus) {
-        HealthStatus.Online -> Color(0xFF4CAF50)
-        HealthStatus.Offline -> MaterialTheme.colorScheme.error
-        HealthStatus.Unknown -> Color(0xFFFF9800)
-    }
-    val healthLabel = when (healthStatus) {
-        HealthStatus.Online -> "Server online"
-        HealthStatus.Offline -> "Server offline"
-        HealthStatus.Unknown -> "Connecting…"
-    }
-    Row(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(color = healthColor, shape = RoundedCornerShape(50))
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(text = healthLabel, style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-
-    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-    if (visibility.showAlbumSync) {
-        NavigationDrawerItem(
-            icon = { Icon(Icons.Default.Upload, contentDescription = null) },
-            label = { Text("Album sync") },
-            selected = false,
-            onClick = onUploadClick,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-        )
-    }
-    if (visibility.showFlagged) {
-        NavigationDrawerItem(
-            icon = { Icon(Icons.Default.Block, contentDescription = null) },
-            label = { Text("Flagged") },
-            selected = false,
-            onClick = onFlaggedClick,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-        )
-    }
-    NavigationDrawerItem(
-        icon = { Icon(Icons.Default.Dns, contentDescription = null) },
-        label = { Text("Environments") },
-        selected = false,
-        onClick = onEnvironmentsClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-    NavigationDrawerItem(
-        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-        label = { Text("Settings") },
-        selected = false,
-        onClick = onSettingsClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-    NavigationDrawerItem(
-        icon = { Icon(Icons.Default.Info, contentDescription = null) },
-        label = { Text("About") },
-        selected = false,
-        onClick = onAboutClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-
-    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-    if (visibility.showTrends) {
-        NavigationDrawerItem(
-            icon = { Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = null) },
-            label = { Text("Trends") },
-            selected = false,
-            onClick = onTrendsClick,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-        )
-    }
-    NavigationDrawerItem(
-        icon = { Icon(Icons.Default.Recommend, contentDescription = null) },
-        label = { Text("Recommendations") },
-        selected = false,
-        onClick = onRecommendationsClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-    )
-    if (visibility.showStatistics) {
-        NavigationDrawerItem(
-            icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
-            label = { Text("Statistics") },
-            selected = false,
-            onClick = onStatisticsClick,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
         )
     }
 }

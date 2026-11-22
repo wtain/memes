@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -50,6 +51,15 @@ class SyncScreenTest {
         composeTestRule.onNodeWithText("Folder...").performClick()
         assertEquals(1, gallery)
         assertEquals(1, chosen)
+    }
+
+    @Test
+    fun topBar_hasTheMenuButton_notABackArrow() {
+        var menu = 0
+        show(loaded, SyncActions(onMenu = { menu++ }))
+        composeTestRule.onNodeWithContentDescription("Open menu").performClick()
+        assertEquals(1, menu)
+        composeTestRule.onNodeWithContentDescription("Back").assertDoesNotExist()
     }
 
     private val camera = GalleryAlbum("1", "Camera", 1234, "DCIM/Camera", 0L)

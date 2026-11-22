@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Stop
@@ -42,6 +43,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.rememberCoroutineScope
+import com.memebrowser.app.data.capabilities.FeatureVisibility
+import com.memebrowser.app.ui.drawer.DrawerContent
+import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -97,7 +106,9 @@ import kotlin.math.roundToInt
 /** The callbacks of the stateless [SyncContent]; the stateful [SyncScreen] wires them to the ViewModel. */
 @Immutable
 class SyncActions(
+    /** Leaves the rejected list (the main view opens the app menu instead, see [onMenu]). */
     val onBack: () -> Unit = {},
+    val onMenu: () -> Unit = {},
     /** The folder picker. */
     val onChooseAlbum: () -> Unit = {},
     val onChooseGallery: () -> Unit = {},
@@ -124,9 +135,15 @@ class SyncActions(
 fun SyncScreen(
     onBack: () -> Unit,
     onUploadFiles: () -> Unit,
+    /** Opens another screen from the app menu; the route is one of the NavGraph routes. */
+    onNavigate: (route: String) -> Unit = {},
+    visibility: FeatureVisibility = FeatureVisibility.ALL,
     viewModel: SyncViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
@@ -174,9 +191,10 @@ fun SyncScreen(
         }
     }
 
-    val actions = remember(viewModel, picker, permissionLauncher, permissions, context, onBack, onUploadFiles) {
+    val actions = remember(viewModel, picker, permissionLauncher, permissions, context, onBack, onUploadFiles, scope, drawerState) {
         SyncActions(
             onBack = onBack,
+            onMenu = { scope.launch { drawerState.open() } },
             onChooseAlbum = { picker.launch(null) },
             onChooseGallery = viewModel::onGalleryRequested,
             onChooserDismiss = viewModel::dismissChooser,
@@ -198,7 +216,33 @@ fun SyncScreen(
             onMessageShown = viewModel::dismissMessage,
         )
     }
-    SyncContent(state, actions)
+    // Same app menu as the Search screen; Album sync is the current item, so it only closes the menu.
+    val goTo: (String) -> Unit = { route ->
+        scope.launch { drawerState.close() }
+        onNavigate(route)
+    }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                DrawerContent(
+                    healthStatus = null,
+                    visibility = visibility,
+                    albumSyncSelected = true,
+                    onUploadClick = { scope.launch { drawerState.close() } },
+                    onFlaggedClick = { goTo("flagged") },
+                    onEnvironmentsClick = { goTo("environments") },
+                    onSettingsClick = { goTo("settings") },
+                    onAboutClick = { goTo("about") },
+                    onTrendsClick = { goTo("trends") },
+                    onRecommendationsClick = { goTo("recommendations") },
+                    onStatisticsClick = { goTo("statistics") },
+                )
+            }
+        },
+    ) {
+        SyncContent(state, actions)
+    }
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
@@ -237,8 +281,14 @@ fun SyncContent(state: SyncUiState, actions: SyncActions) {
             TopAppBar(
                 title = { Text(if (state.rejectedVisible) "Rejected files" else "Album sync") },
                 navigationIcon = {
-                    IconButton(onClick = if (state.rejectedVisible) actions.onHideRejected else actions.onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    if (state.rejectedVisible) {
+                        IconButton(onClick = actions.onHideRejected) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    } else {
+                        IconButton(onClick = actions.onMenu) {
+                            Icon(Icons.Default.Menu, contentDescription = "Open menu")
+                        }
                     }
                 },
             )
@@ -486,14 +536,19 @@ private fun SyncCard(state: SyncUiState, actions: SyncActions) {
 @Composable
 private fun BatchSizeRow(state: SyncUiState, actions: SyncActions, controls: SyncControls) {
     var draft by remember(state.batchSize) { mutableFloatStateOf(state.batchSize.toFloat()) }
-    val perRequest = "${fileCount(draft.toInt())} per request"
+    val perRequest = "${fileCount(draft.roundToInt())} per request"
     Column(Modifier.fillMaxWidth()) {
         Text("Batch size: $perRequest", style = MaterialTheme.typography.bodyMedium)
-        // No tick marks (49 ticks are noise on a phone): the value snaps to whole files and is saved when the drag ends.
+        // No tick marks (49 ticks are noise on a phone). The thumb follows the finger exactly (rounding the drawn value
+        // made it lag behind and jump off the track); the label shows whole files and the value snaps and is saved
+        // when the drag ends.
         Slider(
             value = draft,
-            onValueChange = { draft = it.roundToInt().toFloat() },
-            onValueChangeFinished = { actions.onBatchSizeChange(draft.toInt()) },
+            onValueChange = { draft = it },
+            onValueChangeFinished = {
+                draft = draft.roundToInt().toFloat()
+                actions.onBatchSizeChange(draft.toInt())
+            },
             valueRange = TrackerSettingsStore.MIN_BATCH_SIZE.toFloat()..TrackerSettingsStore.MAX_BATCH_SIZE.toFloat(),
             modifier = Modifier.semantics { stateDescription = perRequest },
         )

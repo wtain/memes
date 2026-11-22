@@ -99,7 +99,10 @@ fun NavGraph() {
         composable("sync") {
             SyncScreen(
                 onBack = { navController.popBackStack() },
-                onUploadFiles = { navController.navigate("upload") }
+                onUploadFiles = { navController.navigate("upload") },
+                // The menu opens a screen on top of Search, so Back goes to Search, not back to Album sync.
+                onNavigate = { route -> navController.navigate(route) { popUpTo("search") } },
+                visibility = visibility,
             )
         }
         composable("upload") {

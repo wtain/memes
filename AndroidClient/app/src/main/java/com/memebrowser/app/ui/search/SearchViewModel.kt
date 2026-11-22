@@ -1,6 +1,7 @@
 package com.memebrowser.app.ui.search
 
 import androidx.lifecycle.SavedStateHandle
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.memebrowser.app.data.model.Facet
@@ -9,6 +10,7 @@ import com.memebrowser.app.data.repository.EnvironmentRepository
 import com.memebrowser.app.data.repository.MemeRepository
 import com.memebrowser.app.data.settings.AppSettingsStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +76,7 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch {
             envRepo.selectedEnvironmentId.collect { envId ->
                 val isSwitch = currentEnvId != null && currentEnvId != envId
+                Log.i(TAG, "Selected environment changed (switch=$isSwitch); searching again")
                 currentEnvId = envId
                 val restoredQuery = queryPerEnv[envId] ?: ""
                 if (isSwitch) {
@@ -163,6 +166,7 @@ class SearchViewModel @Inject constructor(
                 cursor = null,
                 limit = settings.resultsPerPage.first()
             ).onSuccess { response ->
+                Log.i(TAG, "Search returned ${response.items?.size ?: 0} items")
                 _state.update { it.copy(
                     items = response.items ?: emptyList(),
                     facets = response.facets ?: emptyList(),
@@ -172,8 +176,15 @@ class SearchViewModel @Inject constructor(
                     isLoading = false
                 )}
             }.onFailure { e ->
+                // A search replaced by a newer one is cancelled; it must not clear the newer one's loading state.
+                if (e is CancellationException) throw e
+                Log.w(TAG, "Search failed", e)
                 _state.update { it.copy(error = e.message, isLoading = false) }
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "SearchViewModel"
     }
 }
