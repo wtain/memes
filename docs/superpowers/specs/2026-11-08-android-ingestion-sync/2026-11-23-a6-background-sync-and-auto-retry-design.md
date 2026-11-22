@@ -1,6 +1,7 @@
 # A6: Background sync, progress notification and auto-retry (Android)
 
-Status: draft
+Status: planned
+Plan: docs/superpowers/plans/2026-11-23-a6-background-sync-and-auto-retry.md
 Originates from: `2026-11-08-a3-sync-engine-design.md` (the engine is foreground-only and never retries), owner's improvement list items 4 and 5 (2026-11-22).
 
 ## Intent
