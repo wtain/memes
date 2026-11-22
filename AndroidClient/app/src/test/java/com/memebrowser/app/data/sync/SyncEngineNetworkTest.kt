@@ -128,6 +128,35 @@ class SyncEngineNetworkTest {
         assertEquals(1, h.uploader.calls.size)
         h.assertWaiting(WaitReason.NEEDS_WIFI)
         h.engine.stop(env); runCurrent()
+        h.stateOf<SyncState.Stopped>()
+        assertEquals(1, h.uploader.calls.size)
+    }
+
+    @Test
+    fun isolatePass_respectsWifiOnly() = runTest {
+        val h = harness()
+        h.network.set(NetworkStatus.NEEDS_WIFI) // metered network, Wi-Fi only off: uploads go
+        h.uploader.handler = { _, files ->
+            if (files.size > 1) {
+                UploadAttempt.HttpError(500, null, null)
+            } else {
+                h.settings.wifiOnly = true // switched on during the isolate pass
+                FakeUploader.acceptAll(files)
+            }
+        }
+        h.seed(env, 3)
+        h.engine.start(env)
+        advanceTimeBy(60_000); runCurrent()
+        assertEquals(listOf(listOf("f0", "f1", "f2"), listOf("f0")), h.uploader.calls.map { it.second })
+        h.assertWaiting(WaitReason.NEEDS_WIFI)
+
+        h.network.set(NetworkStatus.OK)
+        advanceUntilIdle()
+        assertEquals(
+            listOf(listOf("f0", "f1", "f2"), listOf("f0"), listOf("f1"), listOf("f2")),
+            h.uploader.calls.map { it.second },
+        )
+        assertEquals(SyncSummary(uploaded = 3), h.stateOf<SyncState.Finished>().summary)
     }
 
     @Test

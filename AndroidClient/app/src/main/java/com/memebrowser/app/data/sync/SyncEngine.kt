@@ -275,7 +275,8 @@ class SyncEngine internal constructor(
 
     /**
      * Waits while the network does not allow an upload: NEEDS_WIFI always, NONE only with auto-retry on (otherwise the
-     * upload is tried and fails NETWORK). Both settings are re-read before every evaluation and the wait wakes at least
+     * upload is tried and fails NETWORK). Wi-Fi only is re-read before every evaluation (auto-retry too, but only when the
+     * status is NONE), and the wait wakes at least
      * every [NETWORK_RECHECK_MS], so switching Wi-Fi only off ends the wait without a network event. The Waiting state is
      * published once per reason. True = it waited (callers re-read the pending files).
      */
@@ -316,6 +317,7 @@ class SyncEngine internal constructor(
         for (file in batch) {
             while (true) {
                 if (pace(run)) continue
+                if (awaitNetwork(run)) continue // same file again after the wait
                 publish(run.env, SyncState.Running(run.startedAt, run.batchNumber, 1, run.p.summary()))
                 run.pacer.record()
                 val terminal = when (val attempt = uploader.upload(run.env, listOf(toUpload(file)))) {
