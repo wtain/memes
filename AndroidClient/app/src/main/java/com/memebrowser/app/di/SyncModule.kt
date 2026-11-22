@@ -12,6 +12,8 @@ import com.memebrowser.app.data.sync.DispatchingAlbumFileSource
 import com.memebrowser.app.data.sync.AlwaysOnline
 import com.memebrowser.app.data.sync.MediaStoreAlbumFileSource
 import com.memebrowser.app.data.sync.NetworkGate
+import com.memebrowser.app.data.sync.NoServiceStarter
+import com.memebrowser.app.data.sync.SyncServiceStarter
 import com.memebrowser.app.data.sync.SyncScope
 import com.memebrowser.app.data.sync.SyncSettingsSource
 import com.memebrowser.app.data.sync.TrackerSyncSettings
@@ -55,6 +57,11 @@ object SyncModule {
     @Provides
     @Singleton
     fun provideNetworkGate(): NetworkGate = AlwaysOnline
+
+    /** Starts nothing yet: A6 Task 6 replaces this with the foreground-service starter. */
+    @Provides
+    @Singleton
+    fun provideSyncServiceStarter(): SyncServiceStarter = NoServiceStarter
 
     @Provides
     @Singleton

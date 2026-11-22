@@ -120,6 +120,11 @@ internal class HookedOutcomes(private val inner: OutcomeStore) : OutcomeStore {
     }
 }
 
+class CountingStarter : SyncServiceStarter {
+    var calls = 0
+    override fun ensureRunning() { calls++ }
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class SyncHarness(scheduler: TestCoroutineScheduler, tmp: File, batchSize: Int = 50) {
     val dao = FakeTrackerDao()
@@ -135,7 +140,8 @@ internal class SyncHarness(scheduler: TestCoroutineScheduler, tmp: File, batchSi
     val scope = CoroutineScope(dispatcher + SupervisorJob())
     val outcomes = HookedOutcomes(TrackerOutcomeStore(tracker))
     val network = FakeNetworkGate()
-    val engine = SyncEngine(tracker, settings, access, uploader, source, scope, dispatcher, { scheduler.currentTime }, outcomes, network)
+    val starter = CountingStarter()
+    val engine = SyncEngine(tracker, settings, access, uploader, source, scope, dispatcher, { scheduler.currentTime }, outcomes, network, starter)
 
     /** Every state the engine published for [env], in order (collected eagerly under the test scheduler). */
     fun recordStates(env: String, into: kotlinx.coroutines.CoroutineScope, scheduler: TestCoroutineScheduler): MutableList<SyncState> {

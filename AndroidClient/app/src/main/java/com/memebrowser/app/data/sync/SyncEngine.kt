@@ -78,6 +78,7 @@ class SyncEngine internal constructor(
     private val clock: () -> Long,
     private val outcomes: OutcomeStore = TrackerOutcomeStore(tracker),
     private val network: NetworkGate = AlwaysOnline,
+    private val starter: SyncServiceStarter = NoServiceStarter,
 ) {
     @Inject
     constructor(
@@ -88,9 +89,10 @@ class SyncEngine internal constructor(
         files: AlbumFileSource,
         @SyncScope scope: CoroutineScope,
         network: NetworkGate,
+        starter: SyncServiceStarter,
     ) : this(
         tracker, settings, access, uploader, files, scope, kotlinx.coroutines.Dispatchers.IO, System::currentTimeMillis,
-        TrackerOutcomeStore(tracker), network,
+        TrackerOutcomeStore(tracker), network, starter,
     )
 
     private val lock = Any()
@@ -98,6 +100,17 @@ class SyncEngine internal constructor(
     private val stopRequested = HashSet<String>() // environments whose current run was asked to stop; guarded by lock
     private val states = ConcurrentHashMap<String, MutableStateFlow<SyncState>>()
     private val pacers = ConcurrentHashMap<String, UploadPacer>()
+
+    private val active = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Environments whose state [isActive]; emits only when the set changes. Every state write goes through [write]. */
+    val activeEnvironments: StateFlow<Set<String>> = active.asStateFlow()
+
+    /** The single place a state is stored: updates the flow and the active set together, under [lock]. */
+    private fun write(env: String, s: SyncState) = synchronized(lock) {
+        stateOf(env).value = s
+        active.value = states.entries.filter { it.value.value.isActive }.map { it.key }.toSet()
+    }
 
     private fun stateOf(env: String) = states.computeIfAbsent(env) { MutableStateFlow(SyncState.Idle) }
 
@@ -114,7 +127,7 @@ class SyncEngine internal constructor(
         synchronized(lock) {
             if (jobs[environmentId]?.isCompleted == false) return false
             stopRequested -= environmentId
-            stateOf(environmentId).value = SyncState.Running(startedAt, 0, 0, SyncSummary())
+            write(environmentId, SyncState.Running(startedAt, 0, 0, SyncSummary()))
             val job = scope.launch(start = CoroutineStart.LAZY) { runEnvironment(environmentId, startedAt) }
             jobs[environmentId] = job
             // Safety net for a job that ended without a terminal state: cancelled before its body ran, or failed outside
@@ -134,6 +147,7 @@ class SyncEngine internal constructor(
             }
             job.start()
         }
+        starter.ensureRunning()
         return true
     }
 
@@ -142,8 +156,7 @@ class SyncEngine internal constructor(
         val job = synchronized(lock) {
             val j = jobs[environmentId]?.takeIf { !it.isCompleted } ?: return
             stopRequested += environmentId
-            val flow = stateOf(environmentId)
-            flow.value = stoppingView(flow.value)
+            write(environmentId, stoppingView(stateOf(environmentId).value))
             j
         }
         job.cancel()
@@ -179,13 +192,13 @@ class SyncEngine internal constructor(
      * progress state becomes Stopping and a Finished/Failed result becomes Stopped (summary kept), deterministically.
      */
     private fun publish(env: String, s: SyncState) = synchronized(lock) {
-        stateOf(env).value = if (env in stopRequested) {
+        write(env, if (env in stopRequested) {
             when (s) {
                 is SyncState.Finished -> SyncState.Stopped(s.summary, clock())
                 is SyncState.Failed -> SyncState.Stopped(s.summary, clock())
                 else -> stoppingView(s)
             }
-        } else s
+        } else s)
     }
 
     // ---- the run -----------------------------------------------------------------------------------------
