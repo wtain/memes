@@ -20,6 +20,13 @@ object SyncNotificationPlan {
         if (current != null && current in running) current else running.firstOrNull()
 
     /**
+     * Whether a Stop tapped on an environment's notification must also remove it: only when no run of that environment
+     * exists and the service does not follow it (a notification stranded by a process that died). A followed run gets its
+     * terminal notification from the service instead.
+     */
+    fun cancelOnStop(running: Boolean, followed: Boolean): Boolean = !running && !followed
+
+    /**
      * The start order after the engine reported [active]: environments already known keep their place, newly active
      * ones are appended (sorted, so a set that arrives with several new ones gives a deterministic order).
      */

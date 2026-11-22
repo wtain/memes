@@ -88,7 +88,13 @@ class SyncService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         lastStartId = startId
         if (intent?.action == ACTION_STOP) {
-            intent.getStringExtra(EXTRA_ENVIRONMENT_ID)?.let { engine.stop(it) }
+            intent.getStringExtra(EXTRA_ENVIRONMENT_ID)?.let { env ->
+                engine.stop(env)
+                // A notification left over by a dead process (no run, nobody follows it): nothing else would remove it.
+                if (SyncNotificationPlan.cancelOnStop(running = engine.isRunning(env), followed = env in tracked)) {
+                    manager.cancel(SyncNotificationPlan.notificationId(env))
+                }
+            }
             // A plain start (not a foreground one): nothing to promote. Its collector posts the result.
             if (tracked.isEmpty()) stopSelf(startId)
             return START_NOT_STICKY
@@ -117,6 +123,10 @@ class SyncService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        // Destroyed while still following runs (not via finish/timeout): remove their ongoing notifications, which would
+        // otherwise outlive the service. Terminal (dismissible) notifications are not followed and stay.
+        tracked.keys.forEach { manager.cancel(SyncNotificationPlan.notificationId(it)) }
+        tracked.clear()
         super.onDestroy()
     }
 
@@ -133,7 +143,7 @@ class SyncService : Service() {
         if (timedOut) return
         val active = engine.activeEnvironments.value
         SyncNotificationPlan.order(tracked.keys.toList(), active)
-            .filter { it in active && it !in tracked }
+            .filter { it in active && it !in tracked && engine.state(it).value.isActive } // a just-ended run is not re-followed
             .forEach { track(it) }
     }
 
@@ -202,7 +212,7 @@ class SyncService : Service() {
     private fun handleTimeout() {
         if (timedOut) return
         timedOut = true
-        val envs = tracked.keys.toList()
+        val envs = (tracked.keys + engine.activeEnvironments.value).toList() // every run, followed or not yet
         tracked.values.forEach { it.cancel() }
         tracked.clear()
         latest.clear()

@@ -1,6 +1,7 @@
 package com.memebrowser.app.service
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -23,8 +24,14 @@ class SyncNotificationPlanTest {
     fun notificationId_handlesNegativeAndExtremeHashes() {
         // "polygenelubricants".hashCode() == Int.MIN_VALUE
         assertTrue(SyncNotificationPlan.notificationId("polygenelubricants") >= 2)
-        val maxHashed = (Int.MAX_VALUE and 0x3FFFFFFF) + 2
-        assertTrue(maxHashed > 0)
+    }
+
+    @Test
+    fun cancelOnStop_onlyForAStrandedNotification() {
+        assertTrue(SyncNotificationPlan.cancelOnStop(running = false, followed = false))
+        assertFalse(SyncNotificationPlan.cancelOnStop(running = true, followed = false))
+        assertFalse(SyncNotificationPlan.cancelOnStop(running = false, followed = true))
+        assertFalse(SyncNotificationPlan.cancelOnStop(running = true, followed = true))
     }
 
     @Test
