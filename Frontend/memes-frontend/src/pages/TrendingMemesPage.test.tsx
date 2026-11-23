@@ -1,5 +1,5 @@
 import { StrictMode } from "react"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import TrendingMemesPage from "./TrendingMemesPage"
@@ -266,6 +266,25 @@ describe("TrendingMemesPage window switch", () => {
     await user.click(screen.getByRole("button", { name: "Last 30 days" }))
     await waitFor(() => expect(getTrendingMemes).toHaveBeenCalledTimes(2))
     expect(getTrendingMemes.mock.calls.map(call => call[2])).toEqual(["all", "30d"])
+  })
+})
+
+describe("TrendingMemesPage quick-look arrows", () => {
+  it("steps through the list and disables the buttons at the ends", async () => {
+    const user = userEvent.setup()
+    setup({ getTrendingMemes: vi.fn().mockResolvedValue(page([item("a", 3), item("b", 2), item("c", 1)])) })
+    await user.click(await findCardImg("a"))
+    await screen.findByAltText("a")
+    expect(screen.getByRole("button", { name: "Previous meme" })).toBeDisabled()
+    fireEvent.keyDown(document.body, { key: "ArrowRight" })
+    expect(await screen.findByAltText("b")).toBeInTheDocument()
+    fireEvent.keyDown(document.body, { key: "ArrowRight" })
+    expect(await screen.findByAltText("c")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Next meme" })).toBeDisabled()
+    fireEvent.keyDown(document.body, { key: "ArrowRight" })
+    expect(screen.getByAltText("c")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Previous meme" }))
+    expect(await screen.findByAltText("b")).toBeInTheDocument()
   })
 })
 

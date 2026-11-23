@@ -4,6 +4,7 @@ import MemeCard from "./MemeCard"
 import { useFeature } from "../features/useFeature"
 import { WorkingComicsBar } from "./comics/WorkingComicsBar"
 import { MemeDetailsModal } from "./MemeDetailsModal"
+import { neighborsOf } from "./memeNeighbors"
 import { Button, EmptyState, MemeCardSkeleton } from "../ui"
 import { useWindowedPagination, type FetchPageFn } from "../hooks/useWindowedPagination"
 import type { MemesApi } from "../api/MemesApi"
@@ -116,6 +117,13 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
   )
   const rowFirstItemIndex = Math.floor((firstItemIndex - baselineFirstItemIndex) / COLUMNS)
 
+  // An evicted meme (not in `items`) gets no neighbours; stepping close to the loaded end asks for more.
+  const neighbors = selectedMeme
+    ? neighborsOf(items, selectedMeme, setSelectedMeme, index => {
+        if (hasMoreForward && index >= items.length - 2) loadForward()
+      })
+    : undefined
+
   return (
     <div aria-busy={loading && items.length === 0 ? true : undefined}>
       {!listFlagged && comicsOn && <WorkingComicsBar />}
@@ -143,7 +151,7 @@ export function MemesList({ memesApi, filter, onFacetsChanged, onSearchId, tagFi
       />
 
       {selectedMeme && (
-        <MemeDetailsModal meme={selectedMeme} onClose={() => setSelectedMeme(null)} memesApi={memesApi} />
+        <MemeDetailsModal meme={selectedMeme} onClose={() => setSelectedMeme(null)} memesApi={memesApi} neighbors={neighbors} />
       )}
 
       {loading && items.length > 0 && (

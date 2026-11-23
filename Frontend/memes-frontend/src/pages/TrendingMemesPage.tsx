@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom"
 import { Button, EmptyState, MemeCardSkeleton, buttonClasses } from "../ui"
 import MemeCard from "../components/MemeCard"
 import { MemeDetailsModal } from "../components/MemeDetailsModal"
+import { neighborsOf } from "../components/memeNeighbors"
 import type { MemesApi } from "../api/MemesApi"
 import type { Meme, TrendingMemeItem } from "../types/generated/all"
 
@@ -167,7 +168,7 @@ export default function TrendingMemesPage({ memesApi }: Props) {
       )}
 
       {selected && (
-        <MemeDetailsModal meme={selected} onClose={() => setSelected(null)} memesApi={memesApi} />
+        <MemeDetailsModal meme={selected} onClose={() => setSelected(null)} memesApi={memesApi} neighbors={neighborsOf(items.map(entry => entry.meme), selected, setSelected)} />
       )}
     </div>
   )

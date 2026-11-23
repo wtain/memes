@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { StrictMode } from "react"
 import { MemoryRouter } from "react-router-dom"
@@ -199,6 +199,22 @@ describe("ReplyPage", () => {
     await search(user)
     await user.click(await findCardImg("a"))
     expect(await screen.findByText("Meme Details")).toBeInTheDocument()
+  })
+
+  it("steps through the results with the arrows and disables the buttons at the ends", async () => {
+    const user = userEvent.setup()
+    renderPage(makeMockApi({
+      searchMemeFromText: vi.fn().mockResolvedValue(makeResponse({ items: [makeResult("a"), makeResult("b")] })),
+    }))
+    await search(user)
+    await user.click(await findCardImg("a"))
+    await screen.findByAltText("a")
+    expect(screen.getByRole("button", { name: "Previous meme" })).toBeDisabled()
+    fireEvent.keyDown(document.body, { key: "ArrowRight" })
+    expect(await screen.findByAltText("b")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Next meme" })).toBeDisabled()
+    fireEvent.keyDown(document.body, { key: "ArrowLeft" })
+    expect(await screen.findByAltText("a")).toBeInTheDocument()
   })
 
   it("collapses the filters on small screens behind a disclosure button", async () => {

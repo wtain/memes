@@ -9,6 +9,7 @@ import NotFoundButton from "../components/NotFoundButton"
 import ResultCard from "../components/reply/ResultCard"
 import StatusBanner from "../components/reply/StatusBanner"
 import { MemeDetailsModal } from "../components/MemeDetailsModal"
+import { neighborsOf } from "../components/memeNeighbors"
 import { countFilters, hasFilters } from "../reply/filters"
 import { addValue, removeValue, setSituation } from "../reply/profile"
 import { labelFor, maxValuesFor } from "../reply/taxonomy"
@@ -205,7 +206,14 @@ export default function ReplyPage({ memesApi }: Props) {
         </div>
       )}
 
-      {selectedMeme && <MemeDetailsModal meme={selectedMeme} memesApi={memesApi} onClose={() => setSelectedMeme(null)} />}
+      {selectedMeme && (
+        <MemeDetailsModal
+          meme={selectedMeme}
+          memesApi={memesApi}
+          onClose={() => setSelectedMeme(null)}
+          neighbors={neighborsOf(state.items.map(result => result.meme), selectedMeme, setSelectedMeme)}
+        />
+      )}
     </div>
   )
 }
