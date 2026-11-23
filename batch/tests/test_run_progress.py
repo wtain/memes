@@ -137,11 +137,12 @@ async def test_report_after_interval_writes(run_id, writer, clock):
 
 
 @pytest.mark.asyncio
-async def test_latest_wins_while_in_flight(run_id, writer):
+async def test_latest_wins_while_in_flight(run_id, writer, clock):
     writer.gate = asyncio.Event()
     writer.entered = asyncio.Event()
     rp.report_progress("job", "images", 1, 100)
     await asyncio.wait_for(writer.entered.wait(), 1)
+    clock.now += 10  # past the interval: reports 2 and 3 are due
     rp.report_progress("job", "images", 2, 100)
     rp.report_progress("job", "images", 3, 100)
     writer.gate.set()
@@ -149,6 +150,41 @@ async def test_latest_wins_while_in_flight(run_id, writer):
     assert [v["done"] for _, v in writer.writes] == [1, 3]
     await rp.drain_progress(run_id)
     assert len(writer.writes) == 2
+
+
+@pytest.mark.asyncio
+async def test_in_flight_reports_inside_interval_wait_for_drain(run_id, writer, clock):
+    writer.gate = asyncio.Event()
+    writer.entered = asyncio.Event()
+    rp.report_progress("job", "images", 1, 100)
+    await asyncio.wait_for(writer.entered.wait(), 1)
+    for done in range(2, 50):
+        clock.now += 0.01  # still inside the interval
+        rp.report_progress("job", "images", done, 100)
+    writer.gate.set()
+    await settle()
+    assert [v["done"] for _, v in writer.writes] == [1]  # no follow-up write yet
+    await rp.drain_progress(run_id)
+    assert [v["done"] for _, v in writer.writes] == [1, 49]  # exactly one, at drain
+
+
+@pytest.mark.asyncio
+async def test_report_storm_with_slow_writer_stays_throttled(run_id, writer, clock, monkeypatch):
+    writes: list[dict] = []
+
+    async def slow_writer(_run_id, value):
+        for _ in range(5):  # ~5 report intervals per write
+            await asyncio.sleep(0)
+        writes.append(value)
+
+    monkeypatch.setattr(rp, "_writer", slow_writer)
+    for done in range(1, 1001):
+        clock.now += 0.001  # 1000 reports 1 ms apart, 10 s interval
+        rp.report_progress("job", "images", done, 5000)
+        await asyncio.sleep(0)
+    await rp.drain_progress(run_id)
+    assert len(writes) <= 2
+    assert writes[-1]["done"] == 1000
 
 
 @pytest.mark.asyncio

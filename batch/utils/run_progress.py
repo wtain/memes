@@ -48,6 +48,7 @@ class _RunState:
     progress: dict | None = None  # label, unit, done, total, rate_per_min of the latest report
     step: dict | None = None  # index, count, label of the latest step
     dirty: bool = False  # the latest value has not been written yet
+    urgent: bool = False  # the latest value is due (interval elapsed, final, step or drain)
     last_write: float | None = None  # _clock() when the last write started
     task: asyncio.Task | None = None  # the in-flight write, if any
 
@@ -128,9 +129,12 @@ _writer = write_progress
 
 
 async def _flush(run_id: uuid.UUID, state: _RunState) -> None:
-    # Loops while a report arrived during the previous write: latest wins, one write at a time.
+    # Loops while a due report arrived during the previous write: latest wins, one write at a
+    # time. A report that was not due only marks the value dirty; it waits for the next due
+    # report or for drain_progress, so the throttle also holds while a write is in flight.
     try:
-        while state.dirty:
+        while state.urgent:
+            state.urgent = False
             state.dirty = False
             value = _compose(state)
             state.last_write = _clock()
@@ -145,6 +149,7 @@ async def _flush(run_id: uuid.UUID, state: _RunState) -> None:
 
 def _ensure_write(run_id: uuid.UUID, state: _RunState, loop: asyncio.AbstractEventLoop) -> None:
     state.dirty = True
+    state.urgent = True
     if state.task is not None and not state.task.done():
         return  # the in-flight task writes the latest value when it finishes
     task = loop.create_task(_flush(run_id, state))
@@ -187,13 +192,12 @@ def report_progress(
         state.progress = {
             "label": label, "unit": unit, "done": done, "total": total, "rate_per_min": rate_per_min,
         }
-        in_flight = state.task is not None and not state.task.done()
         final = total is not None and done is not None and done >= total
         due = state.last_write is None or _clock() - state.last_write >= interval
-        if in_flight or final or due:
+        if final or due:
             _ensure_write(run_id, state, loop)
         else:
-            state.dirty = True  # throttled: written by a later report or by drain_progress
+            state.dirty = True  # throttled: written by a later due report or by drain_progress
     except Exception as e:
         log.warning("batch progress report failed (%s)", type(e).__name__)
 
@@ -221,7 +225,8 @@ async def drain_progress(run_id: uuid.UUID, timeout: float = 5.0) -> None:
     if state is None:
         return
     try:
-        if state.dirty and (state.task is None or state.task.done()):
+        if state.dirty:
+            # One final write of the latest value, after the in-flight one if any.
             _ensure_write(run_id, state, asyncio.get_running_loop())
         task = state.task
         if task is not None:
