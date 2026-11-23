@@ -27,7 +27,11 @@ import { canShareFiles, shareImage } from "./share"
 import { useMemeActions } from "./useMemeActions"
 
 const meme = { id: "abcdef123456", originalFileName: "cat.png" } as Meme
-const api = { getImageUrl: () => "http://api/img/abcdef123456" } as unknown as MemesApi
+const SHARE_URL = "http://api/api/share/abcdef123456"
+const api = {
+  getImageUrl: () => "http://api/img/abcdef123456",
+  getShareUrlById: (id: string) => `http://api/api/share/${id}`,
+} as unknown as MemesApi
 
 const mWarm = vi.mocked(warmImageBlob)
 const mToPng = vi.mocked(toPngBlob)
@@ -97,12 +101,12 @@ describe("copyImage", () => {
     await expect(mWrite.mock.calls[0][0]).resolves.toBe(png)
   })
 
-  it("copies the page link when image copy is unsupported", async () => {
+  it("copies the share link when image copy is unsupported", async () => {
     mCan.mockReturnValue(false)
     const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyImage")
     expect(mWrite).not.toHaveBeenCalled()
-    expect(mCopyText).toHaveBeenCalledWith(new URL("/memes/abcdef123456", window.location.origin).href)
+    expect(mCopyText).toHaveBeenCalledWith(SHARE_URL)
     expect(toastText()).toContain("Link copied instead")
   })
 
@@ -168,10 +172,10 @@ describe("copyImage", () => {
 })
 
 describe("copyLink", () => {
-  it("copies the page url", async () => {
+  it("copies the share url", async () => {
     const { result } = renderHook(() => useMemeActions(meme, api), { wrapper: withToast })
     await runAndSettle(result, "copyLink")
-    expect(mCopyText).toHaveBeenCalledWith(new URL("/memes/abcdef123456", window.location.origin).href)
+    expect(mCopyText).toHaveBeenCalledWith(SHARE_URL)
     expect(toastText()).toBe("Link copied")
     expect(result.current.done).toBe("copyLink")
   })

@@ -6,7 +6,6 @@ import { canCopyImage, copyText, writeImageToClipboard, type CopyResult } from "
 import { downloadBlob, openInNewTab } from "./download"
 import { buildFileName } from "./filename"
 import { ImageActionError, isAnimatedGif, toPngBlob, warmImageBlob } from "./imageBlob"
-import { memePageUrl } from "./links"
 import { canShareFiles, shareImage } from "./share"
 
 export type ActionKind = "copyImage" | "copyLink" | "download" | "share"
@@ -59,7 +58,7 @@ export function useMemeActions(meme: Meme, memesApi: MemesApi) {
 
   async function copyImage() {
     if (!canCopyImage()) {
-      reportCopy("copyImage", await copyText(memePageUrl(meme.id)), TEXT.noImageCopy, "info")
+      reportCopy("copyImage", await copyText(memesApi.getShareUrlById(meme.id)), TEXT.noImageCopy, "info")
       return
     }
     // Safari: build the item and call write() with no await before it.
@@ -121,7 +120,7 @@ export function useMemeActions(meme: Meme, memesApi: MemesApi) {
       case "copyImage":
         return copyImage()
       case "copyLink":
-        return reportCopy("copyLink", await copyText(memePageUrl(meme.id)), TEXT.linkCopied, "success")
+        return reportCopy("copyLink", await copyText(memesApi.getShareUrlById(meme.id)), TEXT.linkCopied, "success")
       case "download":
         return download()
       case "share":

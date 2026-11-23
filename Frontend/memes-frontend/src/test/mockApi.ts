@@ -41,6 +41,7 @@ export function makeMockApi(overrides: Partial<MemesApi> = {}): MemesApi {
     setDescriptionNote: vi.fn().mockResolvedValue(undefined),
     deleteDescriptionNote: vi.fn().mockResolvedValue(undefined),
     getImageUrlById: vi.fn().mockImplementation((id: string) => `http://example.com/api/images/${id}`),
+    getShareUrlById: vi.fn().mockImplementation((id: string) => `http://localhost/api/share/${id}`),
     getIngestionRunStatus: vi.fn().mockResolvedValue(null),
     getIngestionPending: vi.fn().mockResolvedValue([]),
     getIngestionClusters: vi.fn().mockResolvedValue({ items: [], next_cursor: null, has_next: false }),

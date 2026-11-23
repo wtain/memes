@@ -350,6 +350,11 @@ export class HttpMemesApi implements MemesApi {
     return `${this.baseUrl}/api/images/${imageId}`
   }
 
+  getShareUrlById(imageId: string): string {
+    const base = this.baseUrl.replace(/\/+$/, "")
+    return new URL(`${base}/api/share/${encodeURIComponent(imageId)}`, window.location.origin).href
+  }
+
   async listConcepts(): Promise<Concept[]> {
     const response = await fetch(
       `${this.baseUrl}/api/concepts`,

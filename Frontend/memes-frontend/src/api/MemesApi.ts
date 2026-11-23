@@ -67,6 +67,8 @@ export interface MemesApi {
   getImageUrl(meme: Meme): string;
 
   getImageUrlById(imageId: string): string;
+  /** Absolute URL of the backend's share preview page for a meme (always ends in /api/share/<id>). */
+  getShareUrlById(imageId: string): string;
 
   listConcepts(): Promise<Concept[]>;
 
