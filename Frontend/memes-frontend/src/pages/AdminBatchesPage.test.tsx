@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdminBatchesPage from './AdminBatchesPage'
 import { makeMockApi } from '../test/mockApi'
-import type { BatchMetricsResponse, RunStatusResponse, RunListResponse } from '../types/generated/all'
+import type { BatchMetricsResponse, BatchProgress, RunStatusResponse, RunListResponse } from '../types/generated/all'
 
 function makeRun(overrides: Partial<RunStatusResponse> = {}): RunStatusResponse {
   return {
@@ -13,6 +13,7 @@ function makeRun(overrides: Partial<RunStatusResponse> = {}): RunStatusResponse 
     created_at: '2026-07-31T00:00:00Z',
     completed_at: '2026-07-31T00:01:00Z',
     error: null,
+    progress: null,
     ...overrides,
   }
 }
@@ -292,5 +293,48 @@ describe('AdminBatchesPage', () => {
     expect((await screen.findAllByText('metrics down')).length).toBeGreaterThan(0)   // one per panel
     expect(screen.getByText('move_flagged')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Run' }).length).toBeGreaterThan(0)
+  })
+
+  describe('progress', () => {
+    const progress = (over: Partial<BatchProgress> = {}): BatchProgress => ({
+      label: 'images', unit: 'images', done: 5203, total: 12336, rate_per_min: 19.7,
+      step: { index: 2, count: 8, label: 'extract_text_from_memes' },
+      updated_at: new Date(Date.now() - 20_000).toISOString(), ...over,
+    })
+    const renderWith = async (run: RunStatusResponse) => {
+      const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([run])) })
+      render(<AdminBatchesPage memesApi={api} />)
+      await waitFor(() => expect(screen.getAllByText('trends_batch')).toHaveLength(2))
+    }
+
+    it('renders progress bar and step line for a running run', async () => {
+      await renderWith(makeRun({ status: 'running', completed_at: null, progress: progress() }))
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '42')
+      expect(screen.getAllByText('5,203 / 12,336 images').length).toBeGreaterThan(0)
+      expect(screen.getByText('step 2 of 8: extract_text_from_memes')).toBeInTheDocument()
+      expect(screen.getByText('about 6 h left')).toBeInTheDocument()
+      expect(screen.getByText(/updated \d+ s ago/)).toBeInTheDocument()
+      expect(screen.queryByText(/stalled/i)).not.toBeInTheDocument()
+    })
+
+    it('renders no progress for a run whose progress is null', async () => {
+      await renderWith(makeRun({ status: 'running', completed_at: null, progress: null }))
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+      expect(screen.queryByText(/updated \d+/)).not.toBeInTheDocument()
+    })
+
+    it('shows the stalled hint', async () => {
+      await renderWith(makeRun({
+        status: 'running', completed_at: null,
+        progress: progress({ updated_at: new Date(Date.now() - 10 * 60_000).toISOString() }),
+      }))
+      expect(screen.getByText(/stalled/i)).toBeInTheDocument()
+    })
+
+    it('keeps the final figure in the runs table for a completed run', async () => {
+      await renderWith(makeRun({ status: 'completed', progress: progress({ done: 12336 }) }))
+      expect(screen.getByText('12,336 / 12,336')).toBeInTheDocument()
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    })
   })
 })
