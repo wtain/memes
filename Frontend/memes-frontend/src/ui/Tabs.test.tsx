@@ -96,4 +96,46 @@ describe("Tabs", () => {
     document.removeEventListener("keydown", spy)
     expect(spy).toHaveBeenCalledTimes(1)
   })
+
+  it("value matching no tab keeps the first tab tabbable", () => {
+    setup("gone")
+    const tabs = screen.getAllByRole("tab")
+    expect(tabs.map(t => t.getAttribute("tabindex"))).toEqual(["0", "-1", "-1"])
+    expect(tabs.map(t => t.getAttribute("aria-selected"))).toEqual(["false", "false", "false"])
+  })
+
+  it("ArrowLeft with a value matching no tab goes to the last tab", () => {
+    const onChange = setup("gone")
+    const tabs = screen.getAllByRole("tab")
+    fireEvent.keyDown(tabs[0], { key: "ArrowLeft" })
+    expect(onChange).toHaveBeenLastCalledWith("stats")
+    expect(tabs[2]).toHaveFocus()
+  })
+
+  it("an empty tabs list renders an empty tablist without crashing", () => {
+    render(<Tabs tabs={[]} value="x" onChange={() => {}} idPrefix="e" aria-label="Empty" />)
+    const list = screen.getByRole("tablist", { name: "Empty" })
+    expect(list).toBeEmptyDOMElement()
+    fireEvent.keyDown(list, { key: "ArrowRight" })
+  })
+
+  it("aria-controls of every tab equals panelId(prefix, id)", () => {
+    setup()
+    for (const [i, t] of screen.getAllByRole("tab").entries()) {
+      expect(t).toHaveAttribute("aria-controls", panelId("m1", TABS[i].id))
+    }
+  })
+
+  it("modified arrows are ignored and not stopped", () => {
+    const onChange = setup()
+    const spy = vi.fn()
+    document.addEventListener("keydown", spy)
+    const tab = screen.getAllByRole("tab")[0]
+    fireEvent.keyDown(tab, { key: "ArrowLeft", altKey: true })
+    fireEvent.keyDown(tab, { key: "ArrowRight", ctrlKey: true })
+    fireEvent.keyDown(tab, { key: "ArrowRight", metaKey: true })
+    document.removeEventListener("keydown", spy)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(spy).toHaveBeenCalledTimes(3)
+  })
 })

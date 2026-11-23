@@ -27,17 +27,19 @@ export function Tabs({
   "aria-label"?: string
 }) {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({})
+  // A value that matches no tab leaves the first tab as the tablist's tab stop.
+  const focusable = Math.max(0, tabs.findIndex(t => t.id === value))
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return
     if (tabs.length === 0) return
-    const current = tabs.findIndex(t => t.id === value)
     let next: number
     switch (e.key) {
       case "ArrowRight":
-        next = (current + 1) % tabs.length
+        next = (focusable + 1) % tabs.length
         break
       case "ArrowLeft":
-        next = (current - 1 + tabs.length) % tabs.length
+        next = (focusable - 1 + tabs.length) % tabs.length
         break
       case "Home":
         next = 0
@@ -57,7 +59,7 @@ export function Tabs({
 
   return (
     <div role="tablist" aria-label={ariaLabel} onKeyDown={onKeyDown} className="flex gap-1 border-b border-line">
-      {tabs.map(t => {
+      {tabs.map((t, i) => {
         const selected = t.id === value
         return (
           <button
@@ -70,7 +72,7 @@ export function Tabs({
             id={tabId(idPrefix, t.id)}
             aria-selected={selected}
             aria-controls={panelId(idPrefix, t.id)}
-            tabIndex={selected ? 0 : -1}
+            tabIndex={i === focusable ? 0 : -1}
             onClick={() => onChange(t.id)}
             className={[TAB_BASE, selected ? TAB_SELECTED : TAB_IDLE].join(" ")}
           >
