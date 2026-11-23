@@ -1,7 +1,7 @@
 # Batch progress reporting on the Admin page
 
-Status: draft
-Plan: none yet
+Status: planned
+Plan: `docs/superpowers/plans/2026-11-23-batch-progress-reporting.md`
 Originates from: a live `ingestion_auto_prep` on `general` (2026-11-23, 12,336 images): OCR ran for hours and the only way to see how far it was was a read-only SQL query.
 Follow-ups: none yet
 
