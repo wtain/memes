@@ -111,6 +111,14 @@ describe('MemeDetailsModal neighbors', () => {
     expect(cb.onPrev).toHaveBeenCalledTimes(1)
   })
 
+  it('puts the buttons inside the image box, away from the info column', () => {
+    setup({ ...callbacks() })
+    const box = screen.getByAltText(DEFAULT_MOCK_MEME.id).parentElement as HTMLElement
+    expect(box).toContainElement(screen.getByRole('button', { name: 'Previous meme' }))
+    expect(box).toContainElement(screen.getByRole('button', { name: 'Next meme' }))
+    expect(box).not.toContainElement(screen.getAllByRole('tab')[0])
+  })
+
   it('a button is disabled when its callback is missing', () => {
     setup({ onNext: vi.fn() })
     expect(screen.getByRole('button', { name: 'Previous meme' })).toBeDisabled()

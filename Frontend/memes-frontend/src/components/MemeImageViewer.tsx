@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 4
@@ -8,10 +8,12 @@ const FADE_DELAY_MS = 1500
 type Props = {
   src: string
   alt: string
+  /** Rendered inside the image box, above the image (the quick-look arrows). */
+  overlay?: ReactNode
 }
 
 /** The zoomable, pannable meme image (Ctrl+wheel, +/- buttons, drag). */
-export function MemeImageViewer({ src, alt }: Props) {
+export function MemeImageViewer({ src, alt, overlay }: Props) {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [controlsActive, setControlsActive] = useState(false)
@@ -99,6 +101,10 @@ export function MemeImageViewer({ src, alt }: Props) {
         className="mx-auto w-full max-h-[75vh] object-contain transition-transform duration-150 origin-center"
         style={{ transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px)` }}
       />
+
+      {overlay && (
+        <div onMouseDown={e => e.stopPropagation()}>{overlay}</div>
+      )}
 
       {/* Zoom controls */}
       <div

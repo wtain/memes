@@ -20,6 +20,8 @@ type Props = {
   memesApi: MemesApi
   /** "modal": the two columns scroll independently from `lg` up; "page": the page scrolls. */
   layout?: "modal" | "page"
+  /** Rendered inside the image box (the quick-look arrows). */
+  imageOverlay?: React.ReactNode
 }
 
 function humanizePromptKey(promptKey: string): string {
@@ -68,7 +70,7 @@ function PanelTabs({ panels }: { panels: TabPanels }) {
   )
 }
 
-export function MemeDetails({ meme, memesApi, layout = "page" }: Props) {
+export function MemeDetails({ meme, memesApi, layout = "page", imageOverlay }: Props) {
   const [similarMemes, setSimilarMemes] = useState<Meme[]>([])
   const [similarSource, setSimilarSource] = useState<"image" | "description">("image")
   const [concepts, setConcepts] = useState<Concept[]>([])
@@ -306,7 +308,7 @@ export function MemeDetails({ meme, memesApi, layout = "page" }: Props) {
   return (
     <div className={`grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] ${modal ? "lg:max-h-[calc(90vh-6rem)]" : ""}`}>
       <div className={modal ? "min-w-0 lg:overflow-y-auto" : "min-w-0 lg:sticky lg:top-0 lg:self-start"}>
-        <MemeImageViewer src={memesApi.getImageUrl(meme)} alt={meme.id} />
+        <MemeImageViewer src={memesApi.getImageUrl(meme)} alt={meme.id} overlay={imageOverlay} />
       </div>
 
       <div className={`min-w-0 text-sm ${modal ? "lg:overflow-y-auto lg:max-h-[calc(90vh-6rem)]" : ""}`}>

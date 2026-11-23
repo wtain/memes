@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import type { MemesApi } from "../api/MemesApi"
 import { Modal } from "./Modal"
 import { MemeDetails } from "./MemeDetails"
@@ -28,8 +28,8 @@ function ignoresArrows(target: EventTarget | null): boolean {
 }
 
 const ARROW_BUTTON =
-  "absolute top-1/3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-surface text-fg shadow-md ring-1 ring-inset ring-line-strong " +
-  "cursor-pointer motion-safe:transition-colors hover:bg-surface-sunken pointer-coarse:h-11 pointer-coarse:w-11 " +
+  "absolute top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-surface text-fg shadow-md ring-1 ring-inset ring-line-strong " +
+  "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-safe:transition-colors hover:bg-surface-sunken pointer-coarse:h-11 pointer-coarse:w-11 " +
   "disabled:opacity-40 disabled:pointer-events-none"
 
 function Chevron({ direction }: { direction: "left" | "right" }) {
@@ -63,17 +63,26 @@ export function MemeDetailsModal({ meme, memesApi, onClose, neighbors }: Props) 
     return () => document.removeEventListener("keydown", handler)
   }, [hasNeighbors, onPrev, onNext])
 
-  // Warm the cache so a step shows its image at once.
+  // Warm the cache so a step shows its image at once; the Image objects are kept so a browser cannot drop the request.
+  const preloaded = useRef<HTMLImageElement[]>([])
   useEffect(() => {
+    const images: HTMLImageElement[] = []
     for (const neighbour of [nextMeme, prevMeme]) {
-      if (neighbour) new Image().src = memesApi.getImageUrl(neighbour)
+      if (!neighbour) continue
+      const img = new Image()
+      img.src = memesApi.getImageUrl(neighbour)
+      images.push(img)
     }
+    preloaded.current = images
   }, [nextMeme, prevMeme, memesApi])
 
   return (
     <Modal onClose={onClose} title="Meme Details" size="wide" titleHidden>
-      <div className="relative">
-        {hasNeighbors && (
+      <MemeDetails
+        meme={meme}
+        memesApi={memesApi}
+        layout="modal"
+        imageOverlay={hasNeighbors ? (
           <>
             <button type="button" aria-label="Previous meme" disabled={!onPrev} onClick={onPrev} className={`${ARROW_BUTTON} left-2`}>
               <Chevron direction="left" />
@@ -82,9 +91,8 @@ export function MemeDetailsModal({ meme, memesApi, onClose, neighbors }: Props) 
               <Chevron direction="right" />
             </button>
           </>
-        )}
-        <MemeDetails meme={meme} memesApi={memesApi} layout="modal" />
-      </div>
+        ) : undefined}
+      />
     </Modal>
   )
 }

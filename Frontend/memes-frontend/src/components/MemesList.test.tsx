@@ -336,6 +336,21 @@ describe('MemesList', () => {
       expect(searchMemes.mock.calls[1][0]).toEqual(expect.objectContaining({ cursor: 'c1' }))
     })
 
+    it('does not request a page when stepping back near the end', async () => {
+      const searchMemes = vi.fn().mockResolvedValue({ items: memes, facets: [], hasNext: true, nextCursor: 'c1' })
+      renderList(makeMockApi({ searchMemes }))
+      await open('m4')
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
+      await screen.findByAltText('m3')
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+      await screen.findByAltText('m4')
+      searchMemes.mockClear()
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
+      await screen.findByAltText('m3')
+      await act(async () => {})
+      expect(searchMemes).not.toHaveBeenCalled()
+    })
+
     it('shows no arrows when the opened meme is not in the list', async () => {
       const searchMemes = vi.fn().mockResolvedValue({ items: memes, facets: [], hasNext: false })
       const { rerender } = renderList(makeMockApi({ searchMemes }))
