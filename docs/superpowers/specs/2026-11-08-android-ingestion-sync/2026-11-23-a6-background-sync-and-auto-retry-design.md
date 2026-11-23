@@ -62,7 +62,7 @@ New seam `NetworkGate` (interface, Android implementation over `ConnectivityMana
 
 In `runLoop`, before each batch (after the pacing wait, before reading files): if the gate is not usable, publish `Waiting(NEEDS_WIFI)` (wifiOnly and some network exists) or `Waiting(NO_NETWORK)`, `awaitUsable`, then `continue` (pending is re-read after any wait). `NO_NETWORK` is only entered when `autoRetry` is on; with it off and no network at all, today's behaviour stays (the upload fails with `NETWORK`). `NEEDS_WIFI` applies regardless of `autoRetry`.
 
-Retry: `runLoop` is wrapped. When it returns `Failed` with a retryable error and `autoRetry` is on, the engine publishes `Waiting(RETRY_BACKOFF, resumeAt, attempt)`, delays, and runs the loop again with the same `Progress` and pacer (so counts keep adding up and the request budget is respected). Retryable: `NETWORK`, `SERVER` raised from an HTTP 5xx other than 503/507, `FILE_READ_ERROR` (transient provider failures), `RATE_LIMITED` (after its 10 waits). Delays: 15 s, 30 s, 60 s, 2 min, 5 min, then 5 min; at most 8 attempts in a row; the counter resets when a batch settles at least one file. After the 8th the run ends `Failed` as today. Stop during any wait ends the run `Stopped` as today.
+Retry: `runLoop` is wrapped. When it returns `Failed` with a retryable error and `autoRetry` is on, the engine publishes `Waiting(RETRY_BACKOFF, resumeAt, attempt)`, delays, and runs the loop again with the same `Progress` and pacer (so counts keep adding up and the request budget is respected). Retryable: `NETWORK`, `SERVER` raised from an HTTP 5xx other than 503/507, `FILE_READ_ERROR` (transient provider failures), `RATE_LIMITED` (after its 10 waits). Delays: 15 s, 30 s, 60 s, 2 min, 5 min, then 5 min; at most 8 attempts in a row; the counter resets when the server took at least one file (uploaded or duplicate) since the previous failure; rejections do not reset it (a `server_error` or `file_unavailable` rejection is no proof the server recovered). After the 8th the run ends `Failed` as today. Stop during any wait ends the run `Stopped` as today.
 
 `Waiting.attempt` already exists and is reused for the retry number.
 
@@ -84,7 +84,7 @@ Retry: `runLoop` is wrapped. When it returns `Failed` with a retryable error and
 
 ### Permission
 
-`POST_NOTIFICATIONS` (Android 13+) is requested the first time the user taps "Sync now". Denied: the sync still runs in the foreground service (Android shows it in the Task Manager), the screen says once that notifications are off. No other behaviour depends on it.
+`POST_NOTIFICATIONS` (Android 13+) is requested before "Sync now" while the permission is missing, at most once per visit of the Album sync screen (screen-instance state, not once overall); Android itself stops showing the dialog after repeated refusals. Denied: the sync still runs in the foreground service (Android shows it in the Task Manager), the screen shows a hint that notifications are off. No other behaviour depends on it.
 
 ### Sync screen
 
@@ -120,14 +120,17 @@ Status note: implementation is done and unit-tested; this checklist is the owner
 - [ ] Stop from the notification, also with the app in the background.
 - [ ] Two environments at once: two notifications; the first one's "finished" notification survives while the second keeps running.
 - [ ] Notification permission denied: the sync still runs.
-- [ ] Swipe the app from recents: the sync stops; restarting continues the rest. A leftover ongoing notification can be cleared with its Stop button.
+- [ ] Swipe the app from recents: on stock Android a running foreground service usually keeps going after a swipe; on OEMs that kill it, the sync stops and restarting continues the rest (a leftover ongoing notification can be cleared with its Stop button). Record which happens on this phone.
+- [ ] Wi-Fi with no internet (LAN-only router, failing Private DNS): the gate requires `NET_CAPABILITY_VALIDATED`, so such a Wi-Fi counts as "no network"; with auto-retry on the sync waits "Waiting for network". Test the workstation LAN case and report whether the backend is reachable that way.
 - [ ] Android 15: the 6 hour limit shows "Android paused the sync after 6 hours. Tap to continue." (only checkable on an Android 15 device or by reading the logs).
 - [ ] The small icon looks acceptable in the status bar.
 
 ## Deviations and deferred notes
 
 - The `NetworkGate` contract is `status(wifiOnly)` + `awaitChange()` with a 5 s recheck in the engine, not `awaitUsable`.
-- Each retry attempt is a new `Run`, so the batch number, the 429 counter and the poison counter restart per attempt (the summary keeps adding up).
+- Each retry attempt is a new `Run`, so the batch number and the 429 counter restart per attempt; the summary keeps adding up and the poison streak (files in a row rejected `server_error`) carries over, so a retry cannot hide a broken server (final-review fix I1). The retry counter resets only on uploaded or duplicate files, not on rejections.
+- The "You can leave the app" hint shows whenever a run is active, even if the service could not start (rare, logged).
+- A Wi-Fi without validated internet (LAN-only router, failing Private DNS) counts as "no network" because the gate requires `NET_CAPABILITY_VALIDATED`; with auto-retry on the sync waits "Waiting for network" even if the backend is reachable on that LAN. To be confirmed on the device (see Device check).
 - The small icon is the framework `stat_sys_upload`; there is no monochrome app drawable yet.
 - `NavGraph` accepts only whitelisted routes from the `route` extra (the activity is exported).
 - Known minors: the two simultaneous network waiters share one gate version (bounded by the 5 s recheck); after a process kill a leftover ongoing notification stays until its Stop is tapped.

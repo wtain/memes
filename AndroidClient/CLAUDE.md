@@ -173,9 +173,10 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-23-a6-
   `NoServiceStarter` in tests) and `SyncEngine.activeEnvironments` (StateFlow of the environments with an active run; one state writer under the engine lock). Bound in `SyncModule`.
 - Settings `autoRetry` and `wifiOnly` live in `TrackerSettingsStore` (read via `TrackerRepository`), both default ON, are global, and are switched on the Album sync screen. The engine reads them
   at the moment they matter (each failure, each network check), so a change applies mid-run.
-- Retry (only when `autoRetry`): retryable = network error, file read error with the grant intact, 429 after its 10 waits, 5xx. Not retried: 503, 507, permission lost, no album, backend too old,
-  poison streak, other 4xx, unexpected. Delays 15/30/60/120/300/300... s (`RETRY_DELAYS_SECONDS`), at most 8 retries (`MAX_RETRY_ATTEMPTS`) then the `Failed`; the counter resets when files were settled since the last failure.
-  Each attempt is a new run, so the batch number, the 429 and the poison counters restart; the summary keeps adding up. State during the wait: `Waiting(RETRY_BACKOFF, resumeAt, attempt)`.
+- Retry (only when `autoRetry`): retryable = network error, file read error with the grant intact, 429 after its 10 waits, 5xx (HTTP 500 goes through the isolate pass first). Not retried: 503, 507, permission lost, no album, backend too old,
+  poison streak, other 4xx, unexpected. Delays 15/30/60/120/300/300... s (`RETRY_DELAYS_SECONDS`), at most 8 retries (`MAX_RETRY_ATTEMPTS`) then the `Failed`; the counter resets only when files were uploaded
+  or found duplicate since the last failure (rejections, `server_error` included, never reset it). Each attempt is a new run, so the batch number and the 429 counter restart; the summary keeps adding up and the
+  poison streak (in `Progress`) carries over, reset only by a mapped 200 response. State during the wait: `Waiting(RETRY_BACKOFF, resumeAt, attempt)`.
 - Network waits: before each batch (and before each file of the HTTP-500 isolate pass) `awaitNetwork`: `NEEDS_WIFI` waits when Wi-Fi only is on and the network is metered; `NONE` waits only when auto-retry is on
   (else the upload fails NETWORK as before). Reasons `Waiting(NEEDS_WIFI | NO_NETWORK)`; rechecked on every network event and at least every 5 s.
 - `SyncService` (foreground, type `dataSync`): started by the engine on `start`, one notification per environment, the oldest running environment holds the foreground slot and passes it on when it ends.
@@ -183,7 +184,10 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-23-a6-
   app in the background). Tapping opens `MainActivity` with extra `route = sync`; `NavGraph` accepts only whitelisted routes from it (the activity is exported). Android 15 caps `dataSync` at 6 hours:
   `onTimeout` stops the runs and posts "Android paused the sync after 6 hours. Tap to continue." A run is not resumed after process death (the user restarts it; the tracker keeps the rest pending).
 - `SyncNotificationMapper` (pure, JVM-tested) maps a `SyncState` + counts to the notification model; `SyncNotificationPlan` holds the id, foreground-choice and cleanup rules. Small icon: framework `stat_sys_upload`.
-- `POST_NOTIFICATIONS` (Android 13+) is asked once, before the first "Sync now" (`shouldAskForNotifications`); a refusal only shows a hint, the sync still runs.
+- `POST_NOTIFICATIONS` (Android 13+) is asked once per screen visit before "Sync now" while permission is missing (`shouldAskForNotifications`, `rememberSaveable`); Android itself stops showing the dialog
+  after repeated refusals; a refusal shows a hint, the sync still runs.
+- The foreground slot is chosen after `reconcile()`, from the followed environments only (`SyncNotificationPlan.reconcileForeground` -> `Keep | Switch | Stop`), so a run that ends between the start and the
+  reconcile cannot leave the placeholder foreground forever. Swiping the app from recents: on stock Android the foreground service usually keeps going; on OEMs that kill it the sync stops (restart continues the rest).
 
 ### Sync screen (A4)
 Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a4-sync-screen-design.md`. Code in `ui/sync/` (`SyncViewModel`, `SyncScreen`, `SyncMappers`), route `sync`.
