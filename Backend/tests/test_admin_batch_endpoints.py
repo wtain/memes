@@ -128,3 +128,29 @@ class TestListRuns:
 
         assert "progress" in item
         assert item["progress"] is None
+
+    async def test_list_runs_with_good_and_malformed_progress_returns_both(self):
+        from datetime import datetime, timezone
+        from unittest.mock import MagicMock
+        from Backend.app.services.admin_batch_service import AdminBatchService
+        now = datetime.now(timezone.utc)
+
+        def run(progress):
+            return MagicMock(run_id="123e4567-e89b-12d3-a456-426614174000", kind="trends",
+                             trigger="manual", status="completed", error=None,
+                             created_at=now, completed_at=None, progress=progress)
+
+        repo = AsyncMock()
+        repo.list_runs.return_value = ([run({"label": "x", "updated_at": now.isoformat()}),
+                                        run({"updated_at": "not a date"})], 2)
+        registry = MagicMock()
+        registry.name_for_kind.return_value = "trends_batch"
+        registry.all_names.return_value = []
+        svc = AdminBatchService(repo, AsyncMock(), registry)
+        out = await svc.list_runs(limit=10, offset=0)
+
+        from Backend.app.types.generated import runlistresponse
+        parsed = runlistresponse.Schema.model_validate(out)
+        assert len(parsed.items) == 2
+        assert parsed.items[0].progress is not None and parsed.items[0].progress.step is None
+        assert parsed.items[1].progress is None
