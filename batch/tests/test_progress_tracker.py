@@ -1,4 +1,6 @@
 """ProgressTracker: console output stays as it was, and every step is also reported to the run row."""
+import uuid
+
 import pytest
 
 import batch.utils.progress as progress_mod
@@ -21,6 +23,13 @@ def clock(monkeypatch):
     c = FakeClock()
     monkeypatch.setattr(progress_mod.time, "perf_counter", c)
     return c
+
+
+@pytest.fixture
+def in_run():
+    token = progress_mod.current_run_id.set(uuid.uuid4())
+    yield
+    progress_mod.current_run_id.reset(token)
 
 
 @pytest.fixture
@@ -57,7 +66,25 @@ def test_mark_done_reports_done_and_effective_total(clock, reports):
     assert reports[1][0][:4] == ("some_job", "images", 1, 9)
 
 
-def test_rate_per_min_from_window(clock, reports):
+def test_rate_window_stays_bounded_and_rate_is_exact(clock, reports, in_run):
+    # Regression (I1): the rate must not scan an ever-growing window per item.
+    t = ProgressTracker(total=10**6, report_every=10**9, window_secs=10.0)
+    for _ in range(5000):
+        clock.advance(1)
+        t.mark_done()
+    assert len(t._window) <= 11
+    assert reports[-1][0][4] == pytest.approx(60.0)
+
+
+def test_no_rate_computed_outside_a_run(clock, reports):
+    t = ProgressTracker(total=10, report_every=10**9, window_secs=10.0)
+    for _ in range(5):
+        clock.advance(1)
+        t.mark_done()
+    assert reports[-1][0][4] is None
+
+
+def test_rate_per_min_from_window(clock, reports, in_run):
     t = ProgressTracker(total=100, unit="images")
     for _ in range(4):
         clock.advance(3)

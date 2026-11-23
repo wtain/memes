@@ -1,7 +1,7 @@
 import time
 from collections import deque
 
-from batch.utils.run_progress import report_progress
+from batch.utils.run_progress import current_run_id, report_progress
 
 
 class ProgressTracker:
@@ -28,10 +28,15 @@ class ProgressTracker:
 
     def _rate_per_min(self, now: float) -> float | None:
         """Items per minute from the same windowed average as the console line (read only)."""
+        if current_run_id.get() is None:
+            return None  # no run row to report to: shell runs pay nothing
+        # O(1) amortised: stale entries are popped from the left (the console print applies the
+        # same cutoff, so pruning earlier never changes its average).
         cutoff = now - self._window_secs
-        recent = [t for t in self._window if t >= cutoff]
-        if len(recent) >= 2:
-            avg = (recent[-1] - recent[0]) / (len(recent) - 1)
+        while self._window and self._window[0] < cutoff:
+            self._window.popleft()
+        if len(self._window) >= 2:
+            avg = (self._window[-1] - self._window[0]) / (len(self._window) - 1)
         elif self._done > 0:
             avg = (now - self._start_time) / self._done
         else:
