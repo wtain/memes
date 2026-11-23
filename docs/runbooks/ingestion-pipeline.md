@@ -34,15 +34,81 @@ Then, separately, run the normal enrichment pipeline (tags, lemmas, descriptions
 concepts) — see [Does NOT cover](#does-not-cover). Full detail on each step, plus
 prerequisites and status-checking, is below.
 
-Steps 1-8 above (hash dedup through Tier A find-duplicates) can also run as one job,
-`ingest_auto_prep`, instead of by hand — triggered manually from the `/admin/batches` UI
-(it is not on an automatic schedule; `environments/settings.yaml`'s `scheduler.jobs`
-deliberately excludes it). Tier B find-duplicates and promotion (steps 9, 10) are also
-individually triggerable from `/admin/batches` — as `ingest_find_duplicates_tier_b` and
-`ingest_promote` respectively — instead of the direct CLI commands, if you'd rather not
-open a terminal. Both remain manual either way (not on any schedule): Tier B needs Tier A
-review finished first, and promotion needs Tier B review finished first, so auto-running
-either risks acting on an unreviewed queue.
+The first eight commands (hash dedup through Tier A find-duplicates) are also available as
+one job, `ingest_auto_prep`, and Tier B find-duplicates and promotion as
+`ingest_find_duplicates_tier_b` and `ingest_promote`. All three are triggered from the Admin
+page, so the whole flow can run without a terminal: see
+[Running ingestion from the web UI](#running-ingestion-from-the-web-ui). None of the three is on
+a schedule (`scheduler.jobs` deliberately excludes them): Tier B needs Tier A review finished,
+and promotion needs Tier B review finished, so auto-running either risks acting on an unreviewed
+queue. Only `ingest_abort` is shell-only.
+
+## Running ingestion from the web UI
+
+The same flow with no terminal. Menu names are those of the web app's top bar. The Admin and
+Cleanup groups exist on the dev stage only (they are hidden on prod).
+
+1. **Get the files into the inbox.** Either use **Library → Upload** (`/upload`: drag and drop up
+   to 50 images of at most 20 MB each, then upload; it writes into `<BASE_PATH>\inbox\` and
+   answers `duplicate` for content already in the library), or copy files into the inbox by
+   hand (see [Where do new images go?](#where-do-new-images-go)). The Android album sync feeds
+   the same inbox.
+
+2. **Prepare: run `ingest_auto_prep`.** Open **Admin → Batches** (`/admin`), find the row
+   `ingest_auto_prep`, click **Run**, then click **Confirm?** within a few seconds (a first click
+   only arms the button). The row's badge shows the latest run's status and the page refreshes
+   itself while a run is `running`; the table below lists every run with its error text, if any.
+   This one job does what the first eight commands do, in order: hash dedup, format validation,
+   CLIP embeddings, OCR, OCR lemmas, text-heavy classification, OCR-text embeddings and the
+   Tier A duplicate search, always on the `pending` images of the current batch.
+   - OCR and embeddings are slow for a big batch. Wait for `ingest_auto_prep` to show
+     `completed` before moving on.
+   - If it shows `failed`, read the error in the runs table, fix the cause and click **Run**
+     again: every step is safe to re-run and the job joins the active ingestion run.
+   - If one of its steps is already running (for example you started `build_ocr_lemmas` from the
+     same page), the job stops quietly without running Tier A. Wait for the other run to finish,
+     then trigger `ingest_auto_prep` again.
+   - Do **not** run the individual rows `build_image_embeddings`, `extract_text_from_memes`,
+     `build_ocr_lemmas`, `classify_text_heavy` or `build_ocr_text_embeddings` to prepare a batch:
+     from the Admin page they work on `active` images, not `pending` ones. There is also no
+     separate button for hash dedup or format validation; `ingest_auto_prep` is the only web
+     route to them.
+
+3. **Review Tier A.** Open **Cleanup → Ingestion** (`/ingestion`). The header shows the run's
+   stage; at `tier_a_review` the page lists Tier A clusters (near-identical to something).
+   Keep or reject every pending member, then use a cluster's own Submit, or the floating
+   **Submit all decisions** bar (click once, then **Confirm?**). Partial decisions are fine;
+   undecided images stay `pending`. A page that says "No ingestion run is currently in progress"
+   means step 2 has not registered anything yet.
+
+4. **Find Tier B candidates.** Back on **Admin → Batches**, run `ingest_find_duplicates_tier_b`
+   (Run, then Confirm?). When it completes, the run moves to `tier_b_review`.
+
+5. **Review Tier B.** Reload `/ingestion`: the same page now shows the Tier B queue, one card
+   per image (OCR text is the main signal). Decide and submit as in step 3.
+
+6. **Promote.** On **Admin → Batches**, run `ingest_promote`. Every pending image with no
+   unresolved candidate becomes `active`. If undecided images remain, the run stays open; review
+   them on `/ingestion` and run `ingest_promote` again (re-running is a no-op for what is
+   already resolved). With no active run the job shows `failed`, on purpose.
+
+7. **Follow-up jobs (all on Admin → Batches, all manual).** Ingestion stops at `active` with an
+   embedding and OCR text. Then run:
+   - `description_pipeline` (tags from OCR, descriptions, tags from descriptions, meme
+     profiles and their embeddings); descriptions are capped per run, so re-trigger until the
+     backlog is empty.
+   - optional: `rebuild_duplicates` (chains into `clusterize`) so the new images' duplicate
+     relationships show in Explore → Duplicates.
+
+**What you cannot do from the UI:** abandon a run (`python -m batch.ingest_abort --env <env>`),
+run hash dedup or format validation on their own, or start a new batch before the current run is
+promoted or aborted (one active run per environment).
+
+**More files mid-review.** Upload or copy them into the inbox and run `ingest_auto_prep` again;
+it joins the active run. Do this before the run reaches `tier_b_review` where you can: Tier A
+candidates found for new images after that point exist in the database but do not show in the
+UI (the page picks its queue from the run's stage), so those images cannot be reviewed there
+(see `docs/batches/use-cases/ingestion.md`, Gotchas).
 
 ## Scope
 
@@ -65,6 +131,8 @@ Ingestion does not run any of the downstream enrichment pipeline. These remain s
 manually-invoked batch jobs that must be run afterward — same as for any other images —
 to make newly-promoted images fully tagged/searchable:
 
+- `description_pipeline` — the one admin-triggerable driver that runs the next five items
+  and the meme-profile jobs (manual-trigger only, not scheduled; see CLAUDE.md)
 - `build_tags_from_ocr` — rule-based tags from OCR text
 - `build_image_descriptions` — LLM image descriptions (optional, expensive)
 - `build_tags_from_descriptions` — rule-based tags from descriptions
@@ -78,7 +146,8 @@ None of these need ingestion-specific flags — they already default to (or expl
 filter on) `status=active`, so a freshly-promoted image is picked up automatically the
 next time you run the normal batch pipeline in its documented order (see CLAUDE.md's
 "Batch pipeline" section). There is no single command that does this for you; run them
-yourself once you're done promoting.
+yourself once you're done promoting (from the web UI, `description_pipeline` on Admin → Batches
+covers most of them in one click).
 
 One thing ingestion *does* already take care of, so you don't need to redo it: the active
 library's duplicate index (`tmp_duplicates`) already has full coverage for newly-promoted
@@ -109,6 +178,10 @@ top-level directory — each environment's `.env.<env>` sets it to `<BASE_PATH>\
 here.) Stage 1 (`ingest_hash_dedup`) is what moves survivors *out* of `inbox\` and into
 `BASE_PATH` itself (the root, alongside every other active image) — until that script
 runs, files just sit in `inbox\` untouched.
+
+The shell route below is the same flow as the web one: steps 2-9 are exactly what
+`ingest_auto_prep` chains, and steps 11 and 13 are the `ingest_find_duplicates_tier_b` and
+`ingest_promote` buttons.
 
 ## Prerequisites (one-time per environment)
 
