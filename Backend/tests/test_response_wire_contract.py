@@ -148,7 +148,7 @@ def test_ingestion_resolve_and_undo_json(client, ingestion_service):
 
 
 RUN = {"run_id": "r", "batch_name": "b", "trigger": "manual", "status": "completed",
-       "created_at": TS, "completed_at": None, "error": None}
+       "created_at": TS, "completed_at": None, "error": None, "progress": None}
 RUN_JSON = {**RUN, "created_at": TS_JSON}
 
 

@@ -1025,6 +1025,10 @@ class BatchRun(Base):
     )
     stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
     stats: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Deferred: not selected by a default load, so run tracking and the scheduler keep working
+    # on a database not yet migrated to this column. Only BatchRunRepository.get_run/list_runs
+    # (the Admin API paths) undefer it; set_progress is a plain UPDATE.
+    progress: Mapped[dict | None] = mapped_column(JSONB, nullable=True, deferred=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # back-ref to results

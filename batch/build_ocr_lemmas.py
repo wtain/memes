@@ -59,7 +59,7 @@ async def run(session, incremental, ocr_confidence_min, ocr_lang_score_min, min_
     metrics.add("ocr_rows.processed", stats["rows_processed"])
 
     print(f"Total images: {len(all_image_ids)}")
-    tracker = ProgressTracker(len(all_image_ids), report_every=100, report_interval_secs=10)
+    tracker = ProgressTracker(len(all_image_ids), report_every=100, report_interval_secs=10, label="build_ocr_lemmas", unit="images")
 
     async with OCRLemmasSaver(session) as saver:
         for image_id in all_image_ids:

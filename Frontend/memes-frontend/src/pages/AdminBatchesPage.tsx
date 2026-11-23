@@ -3,6 +3,7 @@ import type { MemesApi } from "../api/MemesApi"
 import type { RunStatusResponse } from "../types/generated/all"
 import BusinessMetricsPanel from "../components/BusinessMetricsPanel"
 import DuplicateDecisionsPanel from "../components/DuplicateDecisionsPanel"
+import { describeProgress, tableFigure } from "./batchProgress"
 
 type Props = { memesApi: MemesApi }
 
@@ -36,28 +37,59 @@ function truncate(text: string | null, max: number): string {
 }
 
 function BatchRow({
-  name, latestRun, pendingConfirm, triggering, triggerError, onRunClick,
+  name, latestRun, now, pendingConfirm, triggering, triggerError, onRunClick,
 }: {
   name: string
   latestRun: RunStatusResponse | undefined
+  now: number
   pendingConfirm: boolean
   triggering: boolean
   triggerError: string | undefined
   onRunClick: () => void
 }) {
+  const view = latestRun?.status === "running" && latestRun.progress
+    ? describeProgress(latestRun.progress, now)
+    : null
   const label = triggering ? "Triggering…" : pendingConfirm ? "Confirm?" : "Run"
   return (
-    <div className="flex items-center gap-3 py-2 border-b last:border-0">
-      <span className="font-medium w-56">{name}</span>
-      {latestRun ? <StatusBadge status={latestRun.status} /> : <span className="text-xs text-gray-400">no recent run</span>}
-      <button
-        className={`ml-auto text-xs rounded px-3 py-1 disabled:opacity-50 ${pendingConfirm ? "bg-amber-500 text-white" : "bg-blue-600 text-white"}`}
-        onClick={onRunClick}
-        disabled={triggering}
-      >
-        {label}
-      </button>
-      {triggerError && <span className="text-xs text-red-500 ml-2">{triggerError}</span>}
+    <div className="py-2 border-b last:border-0">
+      <div className="flex items-center gap-3">
+        <span className="font-medium w-56">{name}</span>
+        {latestRun ? <StatusBadge status={latestRun.status} /> : <span className="text-xs text-gray-400">no recent run</span>}
+        <button
+          className={`ml-auto text-xs rounded px-3 py-1 disabled:opacity-50 ${pendingConfirm ? "bg-amber-500 text-white" : "bg-blue-600 text-white"}`}
+          onClick={onRunClick}
+          disabled={triggering}
+        >
+          {label}
+        </button>
+        {triggerError && <span className="text-xs text-red-500 ml-2">{triggerError}</span>}
+      </div>
+      {view && (
+        <div className="mt-1 text-xs text-gray-600 space-y-1">
+          {view.bar !== null && (
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(view.bar * 100)}
+              className="h-2 w-64 rounded bg-gray-200 overflow-hidden"
+            >
+              <div className="h-full bg-blue-500" style={{ width: `${view.bar * 100}%` }} />
+            </div>
+          )}
+          <div className="flex flex-wrap gap-x-3">
+            {view.counts && <span>{view.counts}</span>}
+            {view.eta && <span>{view.eta}</span>}
+            {view.step && <span>{view.step}</span>}
+            {view.updated && (
+              <span className={view.stalled ? "text-amber-600" : "text-gray-400"}>
+                {view.updated}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -73,6 +105,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
   const [pendingConfirm, setPendingConfirm] = useState<string | null>(null)
   const [triggeringBatch, setTriggeringBatch] = useState<string | null>(null)
   const [triggerErrors, setTriggerErrors] = useState<Record<string, string>>({})
+  const [now, setNow] = useState(() => Date.now())
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(() => {
@@ -135,6 +168,14 @@ export default function AdminBatchesPage({ memesApi }: Props) {
     return () => clearInterval(id)
   }, [hasRunningRun, load])
 
+  // One-second tick so "updated 20 s ago" moves, only while a run reports progress.
+  const hasLiveProgress = runs.some((r) => r.status === "running" && r.progress)
+  useEffect(() => {
+    if (!hasLiveProgress) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [hasLiveProgress])
+
   useEffect(() => {
     return () => {
       if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
@@ -196,6 +237,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
             key={name}
             name={name}
             latestRun={latestRunFor(name)}
+            now={now}
             pendingConfirm={pendingConfirm === name}
             triggering={triggeringBatch === name}
             triggerError={triggerErrors[name] || undefined}
@@ -211,6 +253,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
               <th className="py-1">Batch</th>
               <th>Trigger</th>
               <th>Status</th>
+              <th>Progress</th>
               <th>Created</th>
               <th>Completed</th>
               <th>Error</th>
@@ -222,6 +265,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
                 <td className="py-1">{run.batch_name}</td>
                 <td>{run.trigger}</td>
                 <td><StatusBadge status={run.status} /></td>
+                <td>{tableFigure(run.progress)}</td>
                 <td>{run.created_at}</td>
                 <td>{run.completed_at ?? "—"}</td>
                 <td title={run.error ?? undefined}>{truncate(run.error, 40)}</td>

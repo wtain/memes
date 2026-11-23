@@ -1,9 +1,11 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from Storage.models import BatchRun, RunStatus
 
@@ -36,6 +38,25 @@ class BatchRunRepository:
         run.stats = {**(run.stats or {}), **kwargs}
         await self._session.flush()
 
+    async def set_progress(self, run_id: uuid.UUID, value: dict) -> bool:
+        """Replace the live progress of a started run in one UPDATE (no read-modify-write).
+
+        The server adds ``updated_at``. Returns True when a started run was updated, False
+        otherwise (unknown or finished run). Does not commit.
+        """
+        stmt = (
+            update(BatchRun)
+            .where(BatchRun.run_id == run_id, BatchRun.status == str(RunStatus.started))
+            .values(
+                progress=cast(value, JSONB).op("||")(
+                    func.jsonb_build_object("updated_at", func.now())
+                )
+            )
+            .execution_options(synchronize_session=False)
+        )
+        result = await self._session.execute(stmt)
+        return result.rowcount > 0
+
     async def commit(self, run_id: uuid.UUID, stats: dict | None = None) -> None:
         run = await self._get(run_id)
         run.status = str(RunStatus.completed)
@@ -60,8 +81,14 @@ class BatchRunRepository:
             run.error = note
         await self._session.flush()
 
-    async def get_run(self, run_id: uuid.UUID) -> BatchRun | None:
-        return await self._get(run_id)
+    async def get_run(self, run_id: uuid.UUID, *, with_progress: bool = True) -> BatchRun | None:
+        """``with_progress`` loads the deferred ``progress`` column (the Admin API needs it);
+        pass False on a tracking path that must work before the column is migrated."""
+        stmt = select(BatchRun).where(BatchRun.run_id == run_id)
+        if with_progress:
+            stmt = stmt.options(undefer(BatchRun.progress))
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_active_run(self, kind: str) -> BatchRun | None:
         result = await self._session.execute(
@@ -94,6 +121,7 @@ class BatchRunRepository:
         base_where = BatchRun.kind.in_(kinds)
         items_result = await self._session.execute(
             select(BatchRun).where(base_where)
+            .options(undefer(BatchRun.progress))
             .order_by(BatchRun.created_at.desc())
             .limit(limit).offset(offset)
         )

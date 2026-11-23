@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from Backend.app.services.business_metrics_service import BusinessMetricsService
 from batch.detect_recut_crops import load_corpus_ids
 from batch.run_tracking import finish_existing_run, tracked_run
+from batch.utils.run_progress import report_progress
 from batch.utils.recut_cut import WRITE_ERROR, CutError, crop_to_file
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
@@ -70,7 +71,7 @@ async def run(session, base_path: str, corpus_ids, jpeg_quality: int, limit: int
     metrics.add("failed", 0)
 
     streak = 0
-    for row in rows:
+    for done, row in enumerate(rows, start=1):
         dst_name = f"{uuid.uuid4()}{os.path.splitext(row.filename)[1]}"
         dst = os.path.join(base_path, dst_name)
         print(f"cut {row.cut_id}: {row.filename} -> {dst_name}")
@@ -91,6 +92,7 @@ async def run(session, base_path: str, corpus_ids, jpeg_quality: int, limit: int
             await session.commit()
             metrics.increment("cut")
             streak = 0
+        report_progress(KIND, "images", done, len(rows))
     return metrics
 
 

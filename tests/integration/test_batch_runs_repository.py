@@ -220,6 +220,170 @@ async def test_list_runs_filters_by_kind_and_paginates(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_set_progress_writes_value_and_server_updated_at(db_session):
+    from datetime import datetime
+
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="progress_a", trigger="manual")
+
+    assert await repo.set_progress(run_id, {"done": 5, "total": 10}) is True
+
+    run = await repo.get_run(run_id)
+    await db_session.refresh(run)
+    assert run.progress["done"] == 5
+    assert run.progress["total"] == 10
+    datetime.fromisoformat(run.progress["updated_at"])
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_progress_overwrites_whole_value(db_session):
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="progress_b", trigger="manual")
+
+    await repo.set_progress(run_id, {"done": 1, "phase": "x"})
+    await repo.set_progress(run_id, {"other": 2})
+
+    run = await repo.get_run(run_id)
+    await db_session.refresh(run)
+    assert set(run.progress) == {"other", "updated_at"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_progress_ignores_finished_run(db_session):
+    repo = BatchRunRepository(db_session)
+    done_id = await repo.create_run(kind="progress_c", trigger="manual")
+    await repo.set_progress(done_id, {"done": 1})
+    await repo.commit(done_id)
+    failed_id = await repo.create_run(kind="progress_d", trigger="manual")
+    await repo.set_progress(failed_id, {"done": 1})
+    await repo.fail(failed_id, "boom")
+
+    assert await repo.set_progress(done_id, {"done": 99}) is False
+    assert await repo.set_progress(failed_id, {"done": 99}) is False
+
+    for rid in (done_id, failed_id):
+        run = await repo.get_run(rid)
+        await db_session.refresh(run)
+        assert run.progress["done"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_progress_does_not_touch_stats(db_session):
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="progress_e", trigger="manual")
+    await repo.update_stats(run_id, registered=2)
+
+    await repo.set_progress(run_id, {"done": 1})
+
+    run = await repo.get_run(run_id)
+    await db_session.refresh(run)
+    assert run.stats == {"registered": 2}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_tracking_paths_work_without_progress_column(db_session):
+    """Deploy order (F1): `BatchRun.progress` is deferred, so every path run tracking and the
+    scheduler use keeps working on a database that has not been migrated yet. The column is
+    dropped inside the test's own transaction (rolled back afterwards, PostgreSQL DDL is
+    transactional) to model an unmigrated database."""
+    from sqlalchemy import text
+
+    await db_session.execute(text("ALTER TABLE batch_runs DROP COLUMN progress"))
+    db_session.expunge_all()
+
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="noprog_a", trigger="manual", stage="s1")
+    db_session.expunge_all()
+
+    active = await repo.get_active_run(kind="noprog_a")
+    assert active is not None and active.run_id == run_id
+    await repo.set_stage(run_id, "s2")
+    await repo.update_stats(run_id, n=1)
+    assert (await repo.get_most_recent_run(kind="noprog_a")).run_id == run_id
+    await repo.commit(run_id)
+    assert (await repo.get_latest_completed_run(kind="noprog_a")).run_id == run_id
+
+    other_id = await repo.create_run(kind="noprog_b", trigger="manual")
+    await repo.fail(other_id, "boom")
+    third_id = await repo.create_run(kind="noprog_c", trigger="manual")
+    await repo.abort(third_id, "stop")
+    db_session.expunge_all()
+    run = await repo.get_run(third_id, with_progress=False)
+    assert run.status == "aborted"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_default_load_does_not_select_progress(db_session):
+    from sqlalchemy import event, inspect
+
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="noprog_d", trigger="manual")
+    await repo.set_progress(run_id, {"done": 1})
+    db_session.expunge_all()
+
+    statements: list[str] = []
+
+    def _capture(conn, cursor, statement, *args):
+        statements.append(statement)
+
+    sync_engine = db_session.bind.engine.sync_engine
+    event.listen(sync_engine, "before_cursor_execute", _capture)
+    try:
+        active = await repo.get_active_run(kind="noprog_d")
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", _capture)
+
+    assert "progress" in inspect(active).unloaded
+    selects = [s for s in statements if "FROM batch_runs" in s]
+    assert selects and all("batch_runs.progress" not in s for s in selects)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_run_and_list_runs_load_progress(db_session):
+    from sqlalchemy import inspect
+
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="noprog_e", trigger="manual")
+    await repo.set_progress(run_id, {"done": 4, "total": 9})
+    db_session.expunge_all()
+
+    run = await repo.get_run(run_id)
+    assert "progress" not in inspect(run).unloaded
+    assert run.progress["done"] == 4
+
+    db_session.expunge_all()
+    items, _ = await repo.list_runs(kinds=["noprog_e"], limit=10, offset=0)
+    assert "progress" not in inspect(items[0]).unloaded
+    assert items[0].progress["total"] == 9
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_admin_service_returns_progress_from_real_repository(db_session):
+    from unittest.mock import MagicMock
+
+    from Backend.app.services.admin_batch_service import AdminBatchService
+
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="noprog_f", trigger="manual")
+    await repo.set_progress(
+        run_id, {"label": "x", "unit": "images", "done": 2, "total": 5, "rate_per_min": None}
+    )
+    db_session.expunge_all()
+
+    registry = MagicMock()
+    registry.all_names.return_value = ["noprog_f_batch"]
+    registry.get.return_value = {"module": "batch.noprog_f", "kind": "noprog_f"}
+    registry.name_for_kind.return_value = "noprog_f_batch"
+    service = AdminBatchService(repo, db_session, registry)
+
+    one = await service.get_run(run_id)
+    assert one["progress"]["done"] == 2
+    db_session.expunge_all()
+    listed = await service.list_runs(limit=10, offset=0)
+    assert listed["items"][0]["progress"]["total"] == 5
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_pool_usable_after_rollback_following_already_running_error(db_engine):
     """Verifies AdminBatchService.trigger_run's 409 handling is safe: when create_run()'s
     flush() hits the DB's IntegrityError, Postgres leaves that session's transaction in an

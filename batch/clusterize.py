@@ -12,11 +12,13 @@ from collections import defaultdict
 from sqlalchemy import and_, or_, select, delete
 
 from batch.run_tracking import finish_existing_run, tracked_run
+from batch.utils.run_progress import report_progress
 from config.settings import settings
 from graph.uf import UnionFind
 from Storage.db import AsyncSessionLocal
 from Storage.models import DuplicateDecision, Image, TmpDuplicates, TmpImageClusters
 
+_REPORT_EVERY = 5000  # pairs between progress reports
 PROXIMITY_THRESHOLD = 0.05
 
 # Matches TEXT_EMBEDDING_TIGHT_THRESHOLD in batch/rebuild_duplicates.py. A separately-named
@@ -107,10 +109,12 @@ async def cluster_active_library(session) -> None:
 
     uf = UnionFind()
     pairs_by_member: dict[int, list[tuple[int, float]]] = defaultdict(list)
-    for id1, id2, distance in pairs:
+    for done, (id1, id2, distance) in enumerate(pairs, start=1):
         uf.connect(id1, id2)
         pairs_by_member[id1].append((id2, distance))
         pairs_by_member[id2].append((id1, distance))
+        if done % _REPORT_EVERY == 0 or done == len(pairs):
+            report_progress("clusterize", "pairs", done, len(pairs))
 
     splitting = settings.CLUSTERING.SPLITTING
 

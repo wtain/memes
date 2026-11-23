@@ -61,6 +61,7 @@ from collections.abc import Collection
 from sqlalchemy import select, text
 
 from batch.utils.file_hash import sha256_file
+from batch.utils.run_progress import report_progress
 from batch.utils.safe_move import move_without_overwrite
 from config.settings import load_env, settings
 from repository.batch_runs import BatchRunRepository
@@ -74,12 +75,11 @@ def hash_incoming_files(source_path: str) -> dict[str, list[str]]:
     """Hash every regular file directly in source_path (non-recursive). Returns
     content_hash -> [filenames]."""
     hash_to_files: dict[str, list[str]] = {}
-    for filename in os.listdir(source_path):
-        full_path = os.path.join(source_path, filename)
-        if os.path.isdir(full_path):
-            continue
-        content_hash = sha256_file(full_path)
+    filenames = [f for f in os.listdir(source_path) if not os.path.isdir(os.path.join(source_path, f))]
+    for done, filename in enumerate(filenames, start=1):
+        content_hash = sha256_file(os.path.join(source_path, filename))
         hash_to_files.setdefault(content_hash, []).append(filename)
+        report_progress("ingest_hash_dedup", "files", done, len(filenames))
     return hash_to_files
 
 

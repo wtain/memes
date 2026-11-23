@@ -33,10 +33,12 @@ def _tag_indexes(connection):
     return {i["name"] for i in inspect(connection).get_indexes("tags")} & NAMES
 
 
-def test_tags_indexes_migration_is_the_single_head():
+def test_tags_indexes_migration_is_on_the_single_chain():
     config = Config(str(ROOT / "Storage" / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "Storage" / "alembic"))
-    assert ScriptDirectory.from_config(config).get_heads() == [REVISION]
+    script = ScriptDirectory.from_config(config)
+    assert len(script.get_heads()) == 1
+    assert REVISION in {r.revision for r in script.walk_revisions()}
     assert _load().down_revision == PARENT
 
 

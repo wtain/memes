@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from batch.ingest_hash_dedup import accumulate_stats
 from batch.utils.image_format_apply import apply_format_fix
+from batch.utils.run_progress import report_progress
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
 from repository.batch_runs import BatchRunRepository
@@ -44,8 +45,10 @@ async def run(session, base_path: str, batch_id) -> SimpleMetricsListener:
     images_repo = ImagesRepository(session)
     extras_repo = ImageExtrasRepository(session)
 
-    for image_id, filename in await get_pending_batch_images(session, batch_id):
+    pending = await get_pending_batch_images(session, batch_id)
+    for done, (image_id, filename) in enumerate(pending, start=1):
         await apply_format_fix(images_repo, extras_repo, metrics, base_path, image_id, filename)
+        report_progress("ingest_validate_formats", "files", done, len(pending))
 
     return metrics
 

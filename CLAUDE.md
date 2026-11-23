@@ -358,6 +358,13 @@ build_concept_embeddings   → concept CLIP embeddings + mappings; also runs tag
                               automatically afterward (--no-chain skips this); both are
                               admin-triggerable, manual-trigger only, not scheduled
 
+# Progress reporting: a run-tracked batch reports how far it is to the Admin page (batch_runs.progress, best effort,
+# see docs/batches/execution-model.md "Progress reporting"). A loop with a tracker passes its label and unit:
+# `ProgressTracker(total, label="<script>", unit="images")`; a loop without one calls `report_progress(label, unit, done,
+# total, rate_per_min)` from batch/utils/run_progress.py; a driver calls `report_step(index, count, label)` before each step.
+# `unit` comes from the closed list images/pairs/descriptions/profiles/files/items (else it is stored as items); label and
+# step label are fixed strings chosen by the code, never a file name, id, path or text. Update inventory.md's Progress line.
+
 # Maintenance (run as needed)
 detect_file_duplicates     deduplicate_ocr_texts     move_flagged     unregister_deleted_images
 detect_entities_and_tag    tag_images_from_concepts  build_bow          remove_singletons

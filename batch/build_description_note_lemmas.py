@@ -22,7 +22,7 @@ async def run(session, morph, min_word_length: int) -> None:
     rows = await lemmas_repo.get_notes_needing_lemmas()
     print(f"Found {len(rows)} description note(s) needing lemma indexing")
 
-    tracker = ProgressTracker(len(rows), report_every=100, report_interval_secs=10)
+    tracker = ProgressTracker(len(rows), report_every=100, report_interval_secs=10, label="build_description_note_lemmas", unit="descriptions")
 
     async with DescriptionNoteLemmasSaver(session) as saver:
         for image_id, text, updated_at in rows:

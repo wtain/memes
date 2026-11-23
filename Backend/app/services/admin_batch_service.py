@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import uuid
@@ -5,10 +6,32 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from Backend.app.types.generated import batchprogress
 from Backend.app.batch_subprocess import build_log_path, fire_and_forget, spawn_and_track
 from Storage.db import AsyncSessionLocal
 from repository.batch_runs import BatchAlreadyRunningError, BatchRunRepository
 from batch.registry import BatchRegistry
+
+_logger = logging.getLogger(__name__)
+
+_PROGRESS_DEFAULTS = {"label": None, "unit": None, "done": None, "total": None,
+                      "rate_per_min": None, "step": None}
+
+
+def _normalise_progress(raw) -> dict | None:
+    """Fills keys a reporter omitted (e.g. no `step`) and validates against the generated model.
+    A malformed stored value becomes None so one bad row can never 500 the runs list; only the
+    exception class is logged (no values)."""
+    if raw is None:
+        return None
+    try:
+        value = {**_PROGRESS_DEFAULTS, **raw}
+        batchprogress.Schema.model_validate(value)
+        return value
+    except Exception as exc:
+        _logger.warning("ignoring malformed batch progress: %s", type(exc).__name__)
+        return None
+
 
 _STATUS_MAP = {"started": "running", "completed": "completed", "failed": "failed"}
 
@@ -19,7 +42,7 @@ async def fail_run_if_still_started(run_id: uuid.UUID, reason: str) -> None:
     (completed/failed/aborted) is never overwritten. Own session: the request's is gone."""
     async with AsyncSessionLocal() as session:
         repo = BatchRunRepository(session)
-        run = await repo.get_run(run_id)
+        run = await repo.get_run(run_id, with_progress=False)  # works before the progress migration
         if run is None or run.status != "started":
             return
         await repo.fail(run_id, error=f"orphaned: {reason}")
@@ -96,4 +119,5 @@ class AdminBatchService:
             "created_at": run.created_at,
             "completed_at": run.completed_at,
             "error": run.error,
+            "progress": _normalise_progress(run.progress),
         }

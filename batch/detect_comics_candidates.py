@@ -11,6 +11,7 @@ import uuid
 from sqlalchemy import and_, exists, select, text
 
 from batch.run_tracking import finish_existing_run, tracked_run
+from batch.utils.run_progress import report_progress
 from batch.utils.comics_candidates import group_candidates, parse_timestamp, window_pairs
 from config.settings import load_env, settings
 from metrics.listener import SimpleMetricsListener
@@ -57,6 +58,7 @@ async def window_distances(session, items, gap_seconds: float) -> dict:
         rows = await session.execute(_DISTANCES, {"a": [a for a, _ in chunk], "b": [b for _, b in chunk]})
         for a, b, distance in rows:
             distances[(a, b)] = distances[(b, a)] = float(distance)
+        report_progress(KIND, "pairs", start + len(chunk), len(pairs))
     return distances
 
 

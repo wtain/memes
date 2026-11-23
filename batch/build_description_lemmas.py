@@ -26,7 +26,7 @@ async def run(session, morph, min_word_length: int) -> None:
     rows = await repo.get_descriptions_needing_lemmas()
     print(f"Found {len(rows)} description(s) needing lemma indexing")
 
-    tracker = ProgressTracker(len(rows), report_every=100, report_interval_secs=10)
+    tracker = ProgressTracker(len(rows), report_every=100, report_interval_secs=10, label="build_description_lemmas", unit="descriptions")
 
     async with DescriptionLemmasSaver(session) as saver:
         for description_id, text in rows:

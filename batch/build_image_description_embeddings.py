@@ -31,7 +31,7 @@ async def _process(reset: bool) -> dict[str, int]:
         print(f"Found {len(rows)} description(s) needing embeddings")
 
         embedder = SbertModel(model_name=EMBEDDING_MODEL)
-        tracker = ProgressTracker(total=len(rows), report_every=settings.GENERAL.PROGRESS_EVERY)
+        tracker = ProgressTracker(total=len(rows), report_every=settings.GENERAL.PROGRESS_EVERY, label="build_image_description_embeddings", unit="descriptions")
 
         for i, (description_id, text) in enumerate(rows):
             vector = embedder.embed_text(text)

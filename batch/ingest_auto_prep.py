@@ -33,11 +33,17 @@ from batch import (
     extract_text_from_memes, ingest_find_duplicates, ingest_hash_dedup, ingest_validate_formats,
 )
 from batch.run_tracking import finish_existing_run, tracked_run
+from batch.utils.run_progress import report_step
 from config.settings import load_env, settings
 from repository.batch_runs import BatchAlreadyRunningError
 
 
+_STEP_COUNT = 8  # ingest_hash_dedup plus the seven steps below
+
+
 async def _run_prep_chain() -> None:
+    # Step 1 of 8 is the hash dedup; it stays outside the try below (its errors propagate, unchanged).
+    report_step(1, _STEP_COUNT, "ingest_hash_dedup")
     await ingest_hash_dedup.main(env=None)
 
     steps = [
@@ -49,7 +55,8 @@ async def _run_prep_chain() -> None:
         ("build_ocr_text_embeddings", lambda: build_ocr_text_embeddings.main(status="pending")),
         ("ingest_find_duplicates", lambda: ingest_find_duplicates.main(env=None, tier="tier_a", k=None)),
     ]
-    for name, step in steps:
+    for index, (name, step) in enumerate(steps, 2):
+        report_step(index, _STEP_COUNT, name)
         try:
             await step()
         except BatchAlreadyRunningError as e:

@@ -1491,6 +1491,28 @@ export interface RunTriggerResponse {
 }
 /**
  * This interface was referenced by `AllSchema`'s JSON-Schema
+ * via the `definition` "BatchProgress".
+ */
+export interface BatchProgress {
+  /**
+   * What is being counted, e.g. images
+   */
+  label: string | null;
+  unit: string | null;
+  done: number | null;
+  total: number | null;
+  rate_per_min: number | null;
+  step: {
+    index: number;
+    count: number;
+    label: string;
+    [k: string]: unknown;
+  } | null;
+  updated_at: string;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `AllSchema`'s JSON-Schema
  * via the `definition` "RunStatusResponse".
  */
 export interface RunStatusResponse {
@@ -1507,6 +1529,10 @@ export interface RunStatusResponse {
   created_at: string;
   completed_at: string | null;
   error: string | null;
+  /**
+   * Latest progress of a tracked run, null when the batch reports none
+   */
+  progress: BatchProgress | null;
   [k: string]: unknown;
 }
 /**
