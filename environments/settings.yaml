@@ -352,3 +352,9 @@ observability:
     dir: null
     max_bytes: 10485760         # 10 MB per worker slot file, 4 backups (the gunicorn master file: 5 MB x 2, see deploy/prod/gunicorn.conf.py)
     backup_count: 4
+
+# Live batch progress on batch_runs.progress (batch/utils/run_progress.py; every key required). See
+# docs/superpowers/specs/2026-11-23-batch-progress-reporting-design.md. enabled false: report_progress is a no-op.
+batch_progress:
+  enabled: true
+  min_interval_seconds: 10      # at most one progress write per run per interval (first, final and step reports always pass)
