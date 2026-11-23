@@ -19,11 +19,13 @@ from Backend.app.stage_policy import (
 
 ROUTER_MODULES = [
     "admin", "admin_discovery", "admin_profiles", "bug_reports", "comics", "concepts", "diagnostics", "history",
-    "images", "ingestion", "meme_from_text", "meme_profiles", "meme_text_ratings", "recommendations", "recut", "telemetry",
+    "images", "ingestion", "meme_from_text", "meme_profiles", "meme_text_ratings", "recommendations", "recut", "share", "telemetry",
     "trends", "uploads",
 ]
 SNAPSHOT = Path(__file__).parent / "data" / "dev_route_snapshot.json"
-ADDED_BY_P5A = {("GET", "/api/diagnostics/capabilities"), ("POST", "/api/telemetry/pageview")}   # the second one by observability O4a
+ADDED_BY_P5A = {   # the second one by observability O4a, the third by the shareable meme page
+    ("GET", "/api/diagnostics/capabilities"), ("POST", "/api/telemetry/pageview"), ("GET", "/api/share/{image_id}"),
+}
 
 
 def _routers():
@@ -62,10 +64,10 @@ def test_every_route_has_a_verdict_and_every_verdict_a_route():
     assert all(len(owners) == 1 for owners in declared.values()), "a (method, path) is declared twice"
 
 
-def test_verdict_counts_are_23_reader_and_69_dev_only_of_92():
+def test_verdict_counts_are_24_reader_and_69_dev_only_of_93():
     counts = {verdict: sum(1 for v in ROUTE_POLICY.values() if v == verdict) for verdict in (READER, DEV_ONLY)}
-    assert counts == {READER: 23, DEV_ONLY: 69}
-    assert len(ROUTE_POLICY) == 92
+    assert counts == {READER: 24, DEV_ONLY: 69}
+    assert len(ROUTE_POLICY) == 93
 
 
 def test_every_router_is_made_by_make_router_and_every_route_is_a_stage_route():

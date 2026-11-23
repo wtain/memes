@@ -27,6 +27,17 @@ from repository.tags import DESCRIPTION_TAG_SOURCE, NOTE_TAG_SOURCE, TagsReposit
 
 logger = logging.getLogger(__name__)
 
+
+class ShareInfo(NamedTuple):
+    """The read of ImageRepository.get_share_info (GET /api/share/{id})."""
+    filename: str
+    status: str
+    flagged: bool
+    width: Optional[int]
+    height: Optional[int]
+    text: list[str]
+
+
 # Length of the "30d" window of GET /api/images/trending; a different length would be a new window value.
 TRENDING_WINDOW_DAYS = 30
 
@@ -232,6 +243,23 @@ class ImageRepository:
             select(Image.status).where(Image.id == image_id)
         )
         return result.scalar_one_or_none()
+
+    async def get_share_info(self, image_id: str) -> Optional["ShareInfo"]:
+        """What the share page needs about one image (read only); None when there is no such image."""
+        row = (await self.session.execute(
+            select(Image.filename, Image.status, ImageExtras.flagged, Image.width, Image.height)
+            .outerjoin(ImageExtras, ImageExtras.image_id == Image.id)
+            .where(Image.id == image_id)
+        )).first()
+        if row is None:
+            return None
+        texts = (await self.session.execute(
+            select(OCRText.text).where(OCRText.image_id == image_id)
+        )).scalars().all()
+        return ShareInfo(
+            filename=row.filename, status=row.status, flagged=bool(row.flagged),
+            width=row.width, height=row.height, text=[t for t in texts if t],
+        )
 
     async def get_popularity(self, image_id: str) -> Optional[int]:
         """The cached images.popularity; None when there is no such image."""

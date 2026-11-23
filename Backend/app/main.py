@@ -16,6 +16,7 @@ from Backend.app.error_handlers import validation_error_handler
 from Backend.app.api.diagnostics import router as diagnostics_router
 from Backend.app.api.history import router as history_router
 from Backend.app.api.images import router as images_router
+from Backend.app.api.share import router as share_router
 from Backend.app.api.meme_from_text import router as meme_from_text_router
 from Backend.app.api.concepts import router as concepts_router
 from Backend.app.api.recommendations import router as recommendations_router
@@ -244,6 +245,7 @@ uvicorn app.main:app --reload --reload-dir app --env-file ../Storage/.env.genera
 app.include_router(diagnostics_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(images_router, prefix="/api")
+app.include_router(share_router, prefix="/api")
 app.include_router(meme_from_text_router, prefix="/api")
 if not is_prod():
     app.include_router(meme_text_ratings_router, prefix="/api")

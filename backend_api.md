@@ -29,8 +29,8 @@ All HTTP methods and headers are allowed with credentials support enabled.
 
 The production backend is the same code started with `APP_STAGE=prod` (the `Dockerfile.backend` image bakes it in). With `APP_STAGE` unset or `dev` nothing in this document changes. On prod:
 
-- Every route has a verdict in `Backend/app/stage_policy.py` (`ROUTE_POLICY`, one line per method and path). Only `reader` routes (22 of 91) are served; every `dev_only` route answers `404 {"detail": "Not Found"}`, the same as a path that does not exist. The routers `admin`, `admin_discovery`, `admin_profiles`, `ingestion`, `recut`, `comics`, `meme_profiles`, `trends`, `uploads` and `meme_text_ratings` are not even imported. A new route needs a policy line: a guard test fails without one, and on prod the import raises.
-- Served on prod: `GET /api/images`, `/api/images/{id}` (file), `/similar`, `/descriptions`, `/api/images/meme/{id}` (+ `/popularity`, `/saves` GET and POST, `/impressions`), `/api/images/trending`, `/api/concepts*`, `/api/recommendations`, `POST /api/bug-reports`, `POST /api/history/{search_id}/not-found`, `POST /api/meme-from-text/search`, `GET /api/meme-from-text/taxonomy`, `/api/diagnostics/health` and `/capabilities`, and `/health`. Everything else (flags, description feedback, popularity PUT, duplicates, history list, ratings, comics, trends, uploads, statistics, admin) is 404, for every HTTP method: a wrong method on a path that is not served on prod (e.g. `POST /api/history`) answers the same `404 {"detail": "Not Found"}` as a missing path, not `405` with an `Allow` header. A wrong method on a served path keeps `405`.
+- Every route has a verdict in `Backend/app/stage_policy.py` (`ROUTE_POLICY`, one line per method and path). Only `reader` routes (24 of 93) are served; every `dev_only` route answers `404 {"detail": "Not Found"}`, the same as a path that does not exist. The routers `admin`, `admin_discovery`, `admin_profiles`, `ingestion`, `recut`, `comics`, `meme_profiles`, `trends`, `uploads` and `meme_text_ratings` are not even imported. A new route needs a policy line: a guard test fails without one, and on prod the import raises.
+- Served on prod: `GET /api/images`, `/api/images/{id}` (file), `/similar`, `/descriptions`, `/api/images/meme/{id}` (+ `/popularity`, `/saves` GET and POST, `/impressions`), `/api/images/trending`, `GET /api/share/{id}`, `/api/concepts*`, `/api/recommendations`, `POST /api/bug-reports`, `POST /api/history/{search_id}/not-found`, `POST /api/meme-from-text/search`, `GET /api/meme-from-text/taxonomy`, `/api/diagnostics/health` and `/capabilities`, and `/health`. Everything else (flags, description feedback, popularity PUT, duplicates, history list, ratings, comics, trends, uploads, statistics, admin) is 404, for every HTTP method: a wrong method on a path that is not served on prod (e.g. `POST /api/history`) answers the same `404 {"detail": "Not Found"}` as a missing path, not `405` with an `Allow` header. A wrong method on a served path keeps `405`.
 - `/docs`, `/redoc` and `/openapi.json` are off, and a trailing slash is not redirected (`/api/images/trending/` is 404).
 - `GET /health` answers a fixed `{"detail": "Database unavailable"}` (503) on a database failure; on dev it still includes the exception text.
 - CORS allows only `cors.origins` (tracked setting, overridable by the env var `CORS__ORIGINS`), methods `GET` and `POST`, no credentials; localhost is not allowed.
@@ -882,6 +882,35 @@ Retrieve the actual image file.
 - **Example**: `GET /api/images/abc123`
 - **Error Responses**:
   - `404`: Image not found
+
+---
+
+### Share
+
+#### Share Page (link preview)
+
+`GET /api/share/{id}` (reader: also served on prod)
+
+A chat app's preview crawler does not run JavaScript, so a pasted `/memes/{id}` link shows nothing. This route answers with a small HTML page that carries Open Graph and Twitter tags and sends a person on to the real page. Read only; the clients put `<backend base>/api/share/<id>` on the clipboard for "Copy link".
+
+- **Eligibility** (in this order, each failure is `404 {"detail": "Not Found"}` with no echo of the input): `id` is a valid UUID; the image exists and its status is `active`; it is not flagged; its file exists on disk.
+- **Response**: `200 text/html; charset=utf-8`, `Cache-Control: public, max-age=300`. Every value written into the HTML is escaped; the file name is never written.
+- **Tags**:
+
+| Tag | Value |
+|-----|-------|
+| `og:type`, `og:site_name` | `website`, `Memes` |
+| `og:title`, `twitter:title` | `A meme` (fixed) |
+| `og:description`, `twitter:description` | the OCR text joined with spaces, cut to 200 characters with `…`; `Open this meme` when there is none |
+| `og:image`, `twitter:image` | absolute `{base}/api/images/{id}` (`{base}` is the request's public base URL, proxy headers included) |
+| `og:image:width`, `og:image:height` | only when both are known |
+| `og:url` | the share URL itself |
+| `twitter:card` | `summary_large_image` |
+
+- **Redirect** to `/memes/{id}` (`<meta http-equiv="refresh">`, `location.replace`, and a visible "Open this meme" link): relative on prod and when `GENERAL.FRONTEND_ORIGIN` is unset; on dev with that setting, `<GENERAL.FRONTEND_ORIGIN>/memes/{id}`.
+- **Example**: `GET /api/share/0b9f6a52-3c1e-4c7e-9a43-1f2d3e4a5b6c`
+- **Error Responses**:
+  - `404`: invalid id, unknown id, not active, flagged, or file missing
 
 ---
 

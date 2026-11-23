@@ -104,6 +104,8 @@ ROUTE_POLICY: dict[tuple[str, str], str] = {
     ("PUT", "/api/images/{image_id}/descriptions/{prompt_key}/approve"): DEV_ONLY,
     ("PUT", "/api/images/{image_id}/descriptions/{prompt_key}/reject"): DEV_ONLY,
     ("GET", "/api/images/{image_id}/similar"): READER,
+    # share.py
+    ("GET", "/api/share/{image_id}"): READER,
     # ingestion.py
     ("GET", "/api/ingestion/clusters/{tier}"): DEV_ONLY,
     ("POST", "/api/ingestion/clusters/{tier}/resolve"): DEV_ONLY,
