@@ -8,12 +8,16 @@ const FADE_DELAY_MS = 1500
 type Props = {
   src: string
   alt: string
+  /** Zoom and pan reset when this changes (the meme id); defaults to the image URL. */
+  resetKey?: string
   /** Rendered inside the image box, above the image (the quick-look arrows). */
   overlay?: ReactNode
+  /** Tailwind max-height class for the image. */
+  imageMaxHeight?: string
 }
 
 /** The zoomable, pannable meme image (Ctrl+wheel, +/- buttons, drag). */
-export function MemeImageViewer({ src, alt, overlay }: Props) {
+export function MemeImageViewer({ src, alt, resetKey = src, overlay, imageMaxHeight = "max-h-[75vh]" }: Props) {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [controlsActive, setControlsActive] = useState(false)
@@ -23,6 +27,14 @@ export function MemeImageViewer({ src, alt, overlay }: Props) {
   const dragStart = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null)
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scaleRef = useRef(scale)  // kept in sync for use inside native listeners
+
+  // A different image starts at 100% and centred (the viewer instance is reused when stepping memes).
+  const [shownKey, setShownKey] = useState(resetKey)
+  if (shownKey !== resetKey) {
+    setShownKey(resetKey)
+    setScale(1)
+    setOffset({ x: 0, y: 0 })
+  }
 
   function bumpControls() {
     setControlsActive(true)
@@ -98,7 +110,7 @@ export function MemeImageViewer({ src, alt, overlay }: Props) {
         src={src}
         alt={alt}
         draggable={false}
-        className="mx-auto w-full max-h-[75vh] object-contain transition-transform duration-150 origin-center"
+        className={`mx-auto w-full ${imageMaxHeight} object-contain transition-transform duration-150 origin-center`}
         style={{ transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px)` }}
       />
 

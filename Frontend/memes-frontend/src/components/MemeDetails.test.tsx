@@ -620,6 +620,61 @@ describe('MemeDetails panel tabs', () => {
     await act(async () => {})
     expect(api.similarMemes).toHaveBeenCalledTimes(1)
     expect(api.getTopConceptsForImage).toHaveBeenCalledTimes(1)
+    // the Stats blocks sit in a hidden panel and still fetch on mount, once
+    expect(api.getMemePopularity).toHaveBeenCalledTimes(1)
+    expect(api.getMemeSaves).toHaveBeenCalledTimes(1)
+    expect(api.getMemeImpressions).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the previous meme per-meme state at once when the meme changes, keeping the similar source', async () => {
+    const pending = () => new Promise<never>(() => {})
+    const api = makeMockApi({
+      getDescriptions: vi.fn()
+        .mockResolvedValueOnce([{ promptKey: 'general_description', text: 'text of A', modelUsed: 'm', createdAt: '2026-07-19T12:00:00' }])
+        .mockReturnValueOnce(pending()),
+      getMeme: vi.fn()
+        .mockResolvedValueOnce({ ...DEFAULT_MOCK_MEME, id: 'meme-A', descriptionNote: 'note of A' })
+        .mockReturnValueOnce(pending()),
+      getImageIsFlagged: vi.fn().mockResolvedValueOnce(true).mockReturnValueOnce(pending()),
+      getTopConceptsForImage: vi.fn().mockResolvedValueOnce([{ id: 1, name: 'cats' }]).mockReturnValueOnce(pending()),
+      similarMemes: vi.fn()
+        .mockResolvedValueOnce({ items: [{ id: 'sim-A', imageUrl: '/a.jpg' }], facets: [], hasNext: false })
+        .mockReturnValueOnce(pending()),
+    })
+    const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+    const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+    const { rerender } = render(<MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>)
+    await act(async () => {})
+    openTab('Curate')
+    expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('note of A')
+    expect(screen.getByText(/text of A/)).toBeInTheDocument()
+    expect(screen.getByRole('checkbox')).toBeChecked()
+    expect(screen.getByText('cats')).toBeInTheDocument()
+    expect(getCardImg('sim-A')).toBeInTheDocument()
+
+    rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+    // B's own fetches are still pending
+    openTab('Curate')
+    expect(screen.getByRole('textbox', { name: 'Description note' })).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('')
+    expect(screen.getByRole('checkbox')).toBeDisabled()
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    expect(screen.queryByText(/text of A/)).not.toBeInTheDocument()
+    expect(screen.queryByText('cats')).not.toBeInTheDocument()
+    expect(queryCardImg('sim-A')).not.toBeInTheDocument()
+  })
+
+  it('opens the next meme at 100% zoom', async () => {
+    const api = makeMockApi()
+    const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+    const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+    const { rerender } = render(<MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: '+' }))
+    expect(screen.getByText('125%')).toBeInTheDocument()
+    rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+    await act(async () => {})
+    expect(screen.getByText('100%')).toBeInTheDocument()
   })
 
   it('resets to Info when the meme changes', async () => {

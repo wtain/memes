@@ -125,6 +125,23 @@ describe('MemeDetailsModal neighbors', () => {
     expect(screen.getByRole('button', { name: 'Next meme' })).toBeEnabled()
   })
 
+  it('moves focus to the other arrow button when the focused one becomes disabled', () => {
+    const api = makeMockApi()
+    const ui = (neighbors: Parameters<typeof MemeDetailsModal>[0]['neighbors']) => (
+      <MemoryRouter>
+        <MemeDetailsModal meme={DEFAULT_MOCK_MEME} memesApi={api} onClose={vi.fn()} neighbors={neighbors} />
+      </MemoryRouter>
+    )
+    const cb = callbacks()
+    const { rerender } = render(ui({ ...cb }))
+    const next = screen.getByRole('button', { name: 'Next meme' })
+    next.focus()
+    expect(next).toHaveFocus()
+    rerender(ui({ onPrev: cb.onPrev }))
+    expect(next).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Previous meme' })).toHaveFocus()
+  })
+
   it('no neighbors prop shows no buttons and ignores arrows', () => {
     const { onClose } = setup(undefined)
     expect(screen.queryByRole('button', { name: 'Previous meme' })).not.toBeInTheDocument()

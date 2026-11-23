@@ -63,6 +63,21 @@ export function MemeDetailsModal({ meme, memesApi, onClose, neighbors }: Props) 
     return () => document.removeEventListener("keydown", handler)
   }, [hasNeighbors, onPrev, onNext])
 
+  // A focused arrow button that becomes disabled (stepping onto the first or last item) would drop focus to
+  // the body, and the next Tab would leave the dialog: hand focus to the other arrow instead.
+  const prevButton = useRef<HTMLButtonElement>(null)
+  const nextButton = useRef<HTMLButtonElement>(null)
+  const lastFocused = useRef<"prev" | "next" | null>(null)
+  useEffect(() => {
+    const active = document.activeElement
+    const lost = active === null || active === document.body
+    if (!onNext && onPrev && (active === nextButton.current || (lost && lastFocused.current === "next"))) {
+      prevButton.current?.focus()
+    } else if (!onPrev && onNext && (active === prevButton.current || (lost && lastFocused.current === "prev"))) {
+      nextButton.current?.focus()
+    }
+  }, [onPrev, onNext])
+
   // Warm the cache so a step shows its image at once; the Image objects are kept so a browser cannot drop the request.
   const preloaded = useRef<HTMLImageElement[]>([])
   useEffect(() => {
@@ -84,10 +99,14 @@ export function MemeDetailsModal({ meme, memesApi, onClose, neighbors }: Props) 
         layout="modal"
         imageOverlay={hasNeighbors ? (
           <>
-            <button type="button" aria-label="Previous meme" disabled={!onPrev} onClick={onPrev} className={`${ARROW_BUTTON} left-2`}>
+            <button type="button" ref={prevButton} aria-label="Previous meme" disabled={!onPrev} onClick={onPrev}
+              onFocus={() => { lastFocused.current = "prev" }} onBlur={e => { if (e.relatedTarget) lastFocused.current = null }}
+              className={`${ARROW_BUTTON} left-2`}>
               <Chevron direction="left" />
             </button>
-            <button type="button" aria-label="Next meme" disabled={!onNext} onClick={onNext} className={`${ARROW_BUTTON} right-2`}>
+            <button type="button" ref={nextButton} aria-label="Next meme" disabled={!onNext} onClick={onNext}
+              onFocus={() => { lastFocused.current = "next" }} onBlur={e => { if (e.relatedTarget) lastFocused.current = null }}
+              className={`${ARROW_BUTTON} right-2`}>
               <Chevron direction="right" />
             </button>
           </>

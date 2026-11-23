@@ -21,7 +21,7 @@ type Props = {
   /** "modal": the two columns scroll independently from `lg` up; "page": the page scrolls. */
   layout?: "modal" | "page"
   /** Rendered inside the image box (the quick-look arrows). */
-  imageOverlay?: React.ReactNode
+  imageOverlay?: ReactNode
 }
 
 function humanizePromptKey(promptKey: string): string {
@@ -78,6 +78,18 @@ export function MemeDetails({ meme, memesApi, layout = "page", imageOverlay }: P
   const [isFlagged, setIsFlagged] = useState<boolean | null>(null)
   const [popularityVersion, setPopularityVersion] = useState(0)
   const [noteText, setNoteText] = useState<string | null>(null)
+
+  // The per-meme state belongs to one meme: reset it during render when the meme changes (no flash of
+  // the previous meme's data, and a failed fetch cannot leave it behind). similarSource carries over.
+  const [shownId, setShownId] = useState(meme.id)
+  if (shownId !== meme.id) {
+    setShownId(meme.id)
+    setSimilarMemes([])
+    setConcepts([])
+    setDescriptions([])
+    setIsFlagged(null)
+    setNoteText(null)
+  }
 
   const navigate = useNavigate()
   const curator = useFeature("curator")
@@ -307,8 +319,16 @@ export function MemeDetails({ meme, memesApi, layout = "page", imageOverlay }: P
 
   return (
     <div className={`grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] ${modal ? "lg:max-h-[calc(90vh-6rem)]" : ""}`}>
-      <div className={modal ? "min-w-0 lg:overflow-y-auto" : "min-w-0 lg:sticky lg:top-0 lg:self-start"}>
-        <MemeImageViewer src={memesApi.getImageUrl(meme)} alt={meme.id} overlay={imageOverlay} />
+      <div className={modal ? "min-w-0 lg:overflow-y-auto" : "min-w-0 lg:sticky lg:top-16 lg:self-start"}>
+        <MemeImageViewer
+          src={memesApi.getImageUrl(meme)}
+          alt={meme.id}
+          resetKey={meme.id}
+          overlay={imageOverlay}
+          imageMaxHeight={modal
+            ? "max-h-[min(75vh,calc(90vh-6rem))]"
+            : "max-h-[75vh] lg:max-h-[calc(100vh-6rem)]"}
+        />
       </div>
 
       <div className={`min-w-0 text-sm ${modal ? "lg:overflow-y-auto lg:max-h-[calc(90vh-6rem)]" : ""}`}>
