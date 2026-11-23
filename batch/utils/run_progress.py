@@ -4,10 +4,12 @@ See docs/superpowers/specs/2026-11-23-batch-progress-reporting-design.md ("Repor
 
 ``report_progress`` and ``report_step`` are plain functions: they never raise, never block and
 do nothing outside a tracked run (``current_run_id`` unset) or without a running event loop.
-Writes are throttled per run (``batch_progress.min_interval_seconds``; the first report, a report
-with ``done == total`` and every step pass), at most one write is in flight per run, and a report
-that arrives while one is in flight replaces the value written next (latest wins). The tracking
-context calls ``drain_progress`` on exit so the last value lands and no task is left pending.
+Writes are throttled per run (``batch_progress.min_interval_seconds``; the first report, the first
+report with ``done >= total`` and every step pass), at most one write is in flight per run, and a
+report that arrives while one is in flight replaces the value written next (latest wins). A new
+step index clears the previous step's counts. A value that is not a valid count (``'x'``, ``inf``)
+is dropped and logged by exception class only. The tracking context calls ``drain_progress`` on
+exit so the last value lands and no task is left pending.
 
 Only counts, a unit from ``PROGRESS_UNITS`` and fixed labels chosen by code are stored (no file
 names, ids or text), and a failed write is logged without data.
@@ -47,6 +49,7 @@ def _config() -> tuple[bool, float]:
 class _RunState:
     progress: dict | None = None  # label, unit, done, total, rate_per_min of the latest report
     step: dict | None = None  # index, count, label of the latest step
+    final: bool = False  # the latest reported value had done >= total
     dirty: bool = False  # the latest value has not been written yet
     urgent: bool = False  # the latest value is due (interval elapsed, final, step or drain)
     last_write: float | None = None  # _clock() when the last write started
@@ -67,6 +70,8 @@ def _label(value) -> str:
 
 
 def _count(value) -> int | None:
+    """A non-negative int, or None. Raises on a non-numeric or non-finite value (``int(inf)``
+    is an OverflowError, ``int(nan)`` and ``int('x')`` a ValueError)."""
     if value is None:
         return None
     return max(0, int(value))
@@ -136,7 +141,13 @@ async def _flush(run_id: uuid.UUID, state: _RunState) -> None:
         while state.urgent:
             state.urgent = False
             state.dirty = False
-            value = _compose(state)
+            try:
+                value = _compose(state)
+            except Exception as e:  # a value that cannot be built is dropped, not retried
+                log.warning("batch progress value dropped (%s)", type(e).__name__)
+                state.progress = None
+                state.step = None
+                continue
             state.last_write = _clock()
             try:
                 await _writer(run_id, value)
@@ -188,13 +199,20 @@ def report_progress(
         if ctx is None:
             return
         run_id, loop, interval = ctx
+        # Validate before touching the state: a bad value is dropped here (logged by class
+        # name only) and the previous good value stays the one written next.
+        build_value(label, unit, done, total, rate_per_min, None)
         state = _states.setdefault(run_id, _RunState())
         state.progress = {
             "label": label, "unit": unit, "done": done, "total": total, "rate_per_min": rate_per_min,
         }
         final = total is not None and done is not None and done >= total
+        # Only the first report that reaches the total bypasses the throttle; repeats with
+        # done >= total (an estimated total) follow the interval like any other report.
+        first_final = final and not state.final
+        state.final = final
         due = state.last_write is None or _clock() - state.last_write >= interval
-        if final or due:
+        if first_final or due:
             _ensure_write(run_id, state, loop)
         else:
             state.dirty = True  # throttled: written by a later due report or by drain_progress
@@ -210,7 +228,12 @@ def report_step(index: int, count: int, label: str) -> None:
         if ctx is None:
             return
         run_id, loop, _ = ctx
+        _count(index), _count(count)  # validate before touching the state
         state = _states.setdefault(run_id, _RunState())
+        if state.step is not None and state.step.get("index") != index:
+            # A new step: the previous step's counts must not show on the driver's row.
+            state.progress = None
+            state.final = False
         state.step = {"index": index, "count": count, "label": label}
         _ensure_write(run_id, state, loop)
     except Exception as e:

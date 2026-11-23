@@ -35,7 +35,11 @@ def _check(calls, label, unit):
     assert last[3] is not None and last[2] == last[3]
 
 
-def test_ingest_hash_dedup_reports_progress(capture, tmp_path):
+def test_ingest_hash_dedup_makes_progress_calls(capture, tmp_path):
+    """Proves only that hash_incoming_files calls report_progress with the right label, unit and
+    counts. It does NOT prove the values are written live: the hashing loop is synchronous (no
+    await), so the write task only runs after the loop ends and the bar shows only the final
+    value (see docs/batches/execution-model.md, "Progress reporting", Limitations)."""
     calls = capture(ingest_hash_dedup)
     for i in range(3):
         (tmp_path / f"f{i}.jpg").write_bytes(bytes([i]))

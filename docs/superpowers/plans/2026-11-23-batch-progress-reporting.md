@@ -113,7 +113,7 @@
 
 - [ ] **Step 1: Write failing tests**: `test_console_output_unchanged` (capsys: same lines as before for a fixed fake clock; copy one expectation from the current format `[done/~effective] elapsed=...  avg=...s/img  eta≈...`), `test_mark_done_reports_done_and_effective_total` (monkeypatch `report_progress` in `batch.utils.progress`; after `skip()` the reported total drops by one), `test_rate_per_min_from_window` (fake `time.perf_counter`: items every 3 s → `rate_per_min == 20.0`), `test_no_rate_before_first_sample`, `test_summary_reports_final`, `test_tracker_without_current_run_is_unaffected` (no monkeypatch; no exception, no output change).
 - [ ] **Step 2: Run** `pytest batch/tests/test_progress_tracker.py -v` – expect FAIL.
-- [ ] **Step 3: Implement** the tracker change; then at each call site pass `unit=` (images for OCR, embeddings, lemmas, text-heavy, tags; `descriptions` for the three description jobs; `profiles` for `build_meme_profiles`; `items` where unsure) and a `label` equal to the script name.
+- [ ] **Step 3: Implement** the tracker change; then at each call site pass `unit=` (images for OCR, embeddings, lemmas, text-heavy, tags; `descriptions` for the description jobs whose tracker counts descriptions (`build_image_descriptions` counts images, so `images`); `profiles` for `build_meme_profiles`; `items` where unsure) and a `label` equal to the script name.
 - [ ] **Step 4: Run** `pytest batch/tests/ -q` – expect PASS (existing `*_main` tests must still pass), and `pytest tests/rules/ -q` separately.
 - [ ] **Step 5: Commit** `feat(batch): ProgressTracker reports progress to the run row`.
 
