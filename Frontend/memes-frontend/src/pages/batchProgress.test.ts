@@ -87,9 +87,19 @@ describe('describeProgress', () => {
   it('shows done alone when total is unknown', () => {
     expect(describeProgress(prog({ total: null }), NOW).counts).toBe('5,203 images')
   })
-  it('flags stalled with minutes in the age', () => {
-    const d = describeProgress(prog({ updated_at: iso(6 * 60_000) }), NOW)
+  it('says "no update for N min" when stalled', () => {
+    const d = describeProgress(prog({ updated_at: iso(7 * 60_000 + 30_000) }), NOW)
     expect(d.stalled).toBe(true)
-    expect(d.updated).toBe('updated 6 min ago')
+    expect(d.updated).toBe('no update for 7 min')
+  })
+  it('never says fewer than 5 min once stalled', () => {
+    const d = describeProgress(prog({ updated_at: iso(300_001) }), NOW)
+    expect(d.stalled).toBe(true)
+    expect(d.updated).toBe('no update for 5 min')
+  })
+  it('keeps "updated N min ago" before the stall threshold', () => {
+    const d = describeProgress(prog({ updated_at: iso(4 * 60_000) }), NOW)
+    expect(d.stalled).toBe(false)
+    expect(d.updated).toBe('updated 4 min ago')
   })
 })

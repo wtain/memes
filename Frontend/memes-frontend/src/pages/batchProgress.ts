@@ -45,6 +45,12 @@ function formatAge(updatedAt: string, now: number): string {
   return `updated ${Math.floor(m / 60)} h ago`
 }
 
+/** The stalled hint: whole minutes since the last update, never below the threshold's 5. */
+function formatStalled(updatedAt: string, now: number): string {
+  const m = Math.floor((now - Date.parse(updatedAt)) / 60_000)
+  return `no update for ${Math.max(Math.floor(STALE_AFTER_MS / 60_000), m)} min`
+}
+
 export function describeProgress(p: BatchProgress, now: number): {
   bar: number | null
   counts: string
@@ -57,13 +63,14 @@ export function describeProgress(p: BatchProgress, now: number): {
   let counts = ""
   if (isNum(p.done) && isNum(p.total) && p.total > 0) counts = `${formatCount(p.done)} / ${formatCount(p.total)} ${unit}`
   else if (isNum(p.done)) counts = `${formatCount(p.done)} ${unit}`
+  const stalled = isStalled(p.updated_at, now, "running")
   return {
     bar: progressFraction(p),
     counts,
     eta: formatEta(p),
     step: p.step ? `step ${p.step.index} of ${p.step.count}: ${p.step.label}` : null,
-    updated: formatAge(p.updated_at, now),
-    stalled: isStalled(p.updated_at, now, "running"),
+    updated: stalled ? formatStalled(p.updated_at, now) : formatAge(p.updated_at, now),
+    stalled,
   }
 }
 

@@ -84,7 +84,7 @@ function BatchRow({
             {view.step && <span>{view.step}</span>}
             {view.updated && (
               <span className={view.stalled ? "text-amber-600" : "text-gray-400"}>
-                {view.updated}{view.stalled ? " (stalled?)" : ""}
+                {view.updated}
               </span>
             )}
           </div>

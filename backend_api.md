@@ -1836,7 +1836,7 @@ observed by polling `GET .../runs/{run_id}` or `GET .../runs`. Output is also wr
   "completed_at": null,
   "error": null,
   "progress": {
-    "label": "images",
+    "label": "build_image_embeddings",
     "unit": "images",
     "done": 1200,
     "total": 5000,
@@ -1853,7 +1853,9 @@ is `failed`.
 `progress` (`BatchProgress`, always present) is the latest progress the run reported, written
 by the batch while it runs. It is `null` when the batch never reported any (an untracked or
 non-reporting batch, or a run that has not reported yet). Inside it every field except
-`updated_at` is nullable: `label`/`unit` name what is counted, `done`/`total` are counts
+`updated_at` is nullable: `label` is a fixed name chosen by the code (the script or step name,
+`batch` when none was given, never derived from data), `unit` is what is counted (one of `images`,
+`pairs`, `descriptions`, `profiles`, `files`, `items`), `done`/`total` are counts
 (`total` is `null` when unknown, `done` is `null` for a step-only value), `rate_per_min` is the
 recent throughput, `step` (`{index, count, label}`) is set by driver batches that run several
 steps, and `updated_at` is the server time of the last report. The value stays on a finished

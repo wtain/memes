@@ -328,7 +328,9 @@ describe('AdminBatchesPage', () => {
         status: 'running', completed_at: null,
         progress: progress({ updated_at: new Date(Date.now() - 10 * 60_000).toISOString() }),
       }))
-      expect(screen.getByText(/stalled/i)).toBeInTheDocument()
+      const hint = screen.getByText('no update for 10 min')
+      expect(hint).toHaveClass('text-amber-600')
+      expect(screen.queryByText(/stalled/i)).not.toBeInTheDocument()
     })
 
     it('keeps the final figure in the runs table for a completed run', async () => {
