@@ -118,8 +118,8 @@ In `AdminBatchesPage.tsx`, `BatchRow` shows, under the badge of a `started` run 
 - `step 2 of 8: extract_text_from_memes` for a driver row;
 - "updated 20 s ago" from `updated_at`.
 
-**Stalled hint.** When a run is `started` and `updated_at` is older than `batch_progress.stale_after_seconds` (default
-300), the line turns amber: "no progress for 7 min". It is a hint, not a state: a job between two long steps legitimately
+**Stalled hint.** When a run is `started` and `updated_at` is older than the page constant `STALE_AFTER_MS` (300 000 ms,
+`Frontend/memes-frontend/src/pages/batchProgress.ts`; not a setting), the line turns amber: "no progress for 7 min". It is a hint, not a state: a job between two long steps legitimately
 reports nothing for a while. A `started` run with no progress at all is shown as today.
 
 The runs table gets one compact column ("Progress", `done/total`) so finished runs keep their final figure.
