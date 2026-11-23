@@ -24,6 +24,7 @@ between the recut ones. All twelve only add tables, columns, constraints and ind
 11. `f3a8c1d6b952` C4: `comics_panels.kept`
 12. `a9d3e6b1c847` C9: `comics_candidates` and `comics_candidate_images`
 13. `b7e2d4a9c615` ALG-7: search indexes on `tags` (`upper(value)`, trigram on `value`, `(key, value)`; about 11 s of blocked tag writes per million rows)
+14. `c4f8a1d7e925` batch progress reporting: `batch_runs.progress` (nullable JSONB column, metadata-only add)
 
 `tools/rollout_preflight.py` reads the same chain from `Storage/alembic`; a test fails when this list and the chain differ.
 The last three (10 to 12) are the comics migrations; the comics-specific steps (what the build triggers, the smoke build, the
@@ -62,7 +63,7 @@ Replace `general` and port `5434` (metal 5432, it 5436) as needed.
 4. **Upgrade.** From `Storage/`, with that environment's variables loaded as in CLAUDE.md ("Database migrations"): `alembic upgrade head`.
    *If this fails midway:* `Storage/alembic/env.py` runs the whole upgrade in one transaction, so a failure rolls all thirteen
    back and the database stays at the starting revision; read the error and rerun the preflight to confirm. Never edit `alembic_version` by hand.
-5. **Preflight after.** Same command as step 1. Expect `READY` and `at head b7e2d4a9c615`.
+5. **Preflight after.** Same command as step 1. Expect `READY` and `at head c4f8a1d7e925`.
 6. **Restart the backend** of that environment on matching code. Where an image is used, rebuild it first: it now needs Pillow,
    `batch/utils/{__init__,recut_cut,file_hash}.py` and write access to `BASE_PATH`. Smoke test:
    `/api/diagnostics/health`, `/api/images?limit=1`, `GET /api/admin/batches/metrics?process=recut`, and `/admin/batches` showing

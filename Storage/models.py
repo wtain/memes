@@ -1025,6 +1025,7 @@ class BatchRun(Base):
     )
     stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
     stats: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    progress: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # back-ref to results

@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +36,25 @@ class BatchRunRepository:
         run = await self._get(run_id)
         run.stats = {**(run.stats or {}), **kwargs}
         await self._session.flush()
+
+    async def set_progress(self, run_id: uuid.UUID, value: dict) -> bool:
+        """Replace the live progress of a started run in one UPDATE (no read-modify-write).
+
+        The server adds ``updated_at``. Returns True when a started run was updated, False
+        otherwise (unknown or finished run). Does not commit.
+        """
+        stmt = (
+            update(BatchRun)
+            .where(BatchRun.run_id == run_id, BatchRun.status == str(RunStatus.started))
+            .values(
+                progress=cast(value, JSONB).op("||")(
+                    func.jsonb_build_object("updated_at", func.now())
+                )
+            )
+            .execution_options(synchronize_session=False)
+        )
+        result = await self._session.execute(stmt)
+        return result.rowcount > 0
 
     async def commit(self, run_id: uuid.UUID, stats: dict | None = None) -> None:
         run = await self._get(run_id)

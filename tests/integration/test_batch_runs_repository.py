@@ -220,6 +220,67 @@ async def test_list_runs_filters_by_kind_and_paginates(db_session):
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_set_progress_writes_value_and_server_updated_at(db_session):
+    from datetime import datetime
+
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="progress_a", trigger="manual")
+
+    assert await repo.set_progress(run_id, {"done": 5, "total": 10}) is True
+
+    run = await repo.get_run(run_id)
+    await db_session.refresh(run)
+    assert run.progress["done"] == 5
+    assert run.progress["total"] == 10
+    datetime.fromisoformat(run.progress["updated_at"])
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_progress_overwrites_whole_value(db_session):
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="progress_b", trigger="manual")
+
+    await repo.set_progress(run_id, {"done": 1, "phase": "x"})
+    await repo.set_progress(run_id, {"other": 2})
+
+    run = await repo.get_run(run_id)
+    await db_session.refresh(run)
+    assert set(run.progress) == {"other", "updated_at"}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_progress_ignores_finished_run(db_session):
+    repo = BatchRunRepository(db_session)
+    done_id = await repo.create_run(kind="progress_c", trigger="manual")
+    await repo.set_progress(done_id, {"done": 1})
+    await repo.commit(done_id)
+    failed_id = await repo.create_run(kind="progress_d", trigger="manual")
+    await repo.set_progress(failed_id, {"done": 1})
+    await repo.fail(failed_id, "boom")
+
+    assert await repo.set_progress(done_id, {"done": 99}) is False
+    assert await repo.set_progress(failed_id, {"done": 99}) is False
+
+    for rid in (done_id, failed_id):
+        run = await repo.get_run(rid)
+        await db_session.refresh(run)
+        assert run.progress["done"] == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_set_progress_does_not_touch_stats(db_session):
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="progress_e", trigger="manual")
+    await repo.update_stats(run_id, registered=2)
+
+    await repo.set_progress(run_id, {"done": 1})
+
+    run = await repo.get_run(run_id)
+    await db_session.refresh(run)
+    assert run.stats == {"registered": 2}
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_pool_usable_after_rollback_following_already_running_error(db_engine):
     """Verifies AdminBatchService.trigger_run's 409 handling is safe: when create_run()'s
     flush() hits the DB's IntegrityError, Postgres leaves that session's transaction in an
