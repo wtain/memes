@@ -27,7 +27,7 @@ async def run(session, base_path: str, confidence_min: float, status: str) -> Si
     print(f"Images to classify: {len(images)}")
 
     metrics = SimpleMetricsListener()
-    tracker = ProgressTracker(len(images), report_every=100, report_interval_secs=10)
+    tracker = ProgressTracker(len(images), report_every=100, report_interval_secs=10, label="classify_text_heavy", unit="images")
 
     for i, (image_id, group) in enumerate(images, start=1):
         _, filename, width, height, _, _ = group[0]

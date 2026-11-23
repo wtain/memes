@@ -185,7 +185,7 @@ async def _process(reset: bool, limit: int | None = None, retry_failed: bool = F
         print(f"{len(work)} image(s) to describe this run, {total_pending - len(work)} left waiting")
 
         committer = DescriptionBatchCommitter(session, batch_size=batch_size)
-        tracker = ProgressTracker(total=len(work), report_every=settings.GENERAL.PROGRESS_EVERY)
+        tracker = ProgressTracker(total=len(work), report_every=settings.GENERAL.PROGRESS_EVERY, label="build_image_descriptions", unit="descriptions")
 
         describe_sem = asyncio.Semaphore(MAX_CONCURRENT_DESCRIBE_REQUESTS)
         # AsyncSession isn't safe for concurrent use across tasks -- this lock

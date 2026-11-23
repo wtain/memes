@@ -245,7 +245,7 @@ async def run(path: str, batch_size: int = 100, progress_every: int = 10, target
         # Nothing stale: do not pay for loading the OCR models (EasyOCR x3, Tesseract, TrOCR on CUDA).
         print("No cut has stale OCR; nothing to refresh")
         return refresh_stats(selected=0, refreshed=0)
-    tracker = ProgressTracker(total=total, report_every=progress_every)
+    tracker = ProgressTracker(total=total, report_every=progress_every, label="extract_text_from_memes", unit="images")
 
     io_queue = asyncio.Queue(maxsize=200)
     cpu_queue = asyncio.Queue(maxsize=20)

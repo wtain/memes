@@ -88,6 +88,7 @@ async def _process(incremental: bool, refresh_stale: bool = False) -> dict | Non
             len(images_and_texts_results),
             report_every=100,
             report_interval_secs=10,
+            label="build_tags_from_ocr", unit="images",
         )
 
         async with TagsSaver(session) as tags_saver:

@@ -131,7 +131,7 @@ async def _process(reset: bool, limit: int | None, retry_failed: bool, only_ids=
         print(f"{len(work)} image(s) to profile this run, {total_pending - len(work)} left waiting "
               f"({len(selection.needs_review_ids)} human-verified profile(s) need review)")
 
-        tracker = ProgressTracker(total=len(work), report_every=settings.GENERAL.PROGRESS_EVERY)
+        tracker = ProgressTracker(total=len(work), report_every=settings.GENERAL.PROGRESS_EVERY, label="build_meme_profiles", unit="profiles")
         semaphore = asyncio.Semaphore(config.concurrent_requests)
         # AsyncSession is not safe for concurrent use across tasks: this lock serializes every
         # session-touching call, so only the Ollama request itself (asyncio.to_thread) overlaps.

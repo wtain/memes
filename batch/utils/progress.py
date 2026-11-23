@@ -1,9 +1,21 @@
 import time
 from collections import deque
 
+from batch.utils.run_progress import report_progress
+
 
 class ProgressTracker:
-    def __init__(self, total: int, report_every: int = 10, report_interval_secs: float = 0.0, window_secs: float = 120.0):
+    def __init__(
+        self,
+        total: int,
+        report_every: int = 10,
+        report_interval_secs: float = 0.0,
+        window_secs: float = 120.0,
+        label: str | None = None,
+        unit: str = "items",
+    ):
+        self._label = label
+        self._unit = unit
         self._total = total
         self._skip_count = 0
         self._done = 0
@@ -14,13 +26,32 @@ class ProgressTracker:
         self._last_report_time = self._start_time
         self._window: deque[float] = deque()
 
+    def _rate_per_min(self, now: float) -> float | None:
+        """Items per minute from the same windowed average as the console line (read only)."""
+        cutoff = now - self._window_secs
+        recent = [t for t in self._window if t >= cutoff]
+        if len(recent) >= 2:
+            avg = (recent[-1] - recent[0]) / (len(recent) - 1)
+        elif self._done > 0:
+            avg = (now - self._start_time) / self._done
+        else:
+            return None
+        return 60.0 / avg if avg > 0 else None
+
+    def _report(self, now: float) -> None:
+        report_progress(
+            self._label, self._unit, self._done, self._effective_total(), self._rate_per_min(now)
+        )
+
     def skip(self) -> None:
         self._skip_count += 1
+        self._report(time.perf_counter())
 
     def mark_done(self) -> None:
         self._done += 1
         now = time.perf_counter()
         self._window.append(now)
+        self._report(now)
         count_trigger = self._done % self._report_every == 0
         time_gate_ok = (
             self._report_interval_secs == 0
@@ -61,7 +92,9 @@ class ProgressTracker:
 
     def summary(self) -> None:
         effective = self._effective_total()
-        elapsed = time.perf_counter() - self._start_time
+        now = time.perf_counter()
+        elapsed = now - self._start_time
+        self._report(now)
         if self._done > 0:
             avg = elapsed / self._done
             print(f"Done: {self._done}/{effective} images in {_fmt(elapsed)} (avg {avg:.1f}s/img)")

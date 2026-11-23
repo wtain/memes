@@ -71,7 +71,7 @@ async def _process(incremental: bool, target_status: str = "active") -> None:
 
         batch_size = settings.GENERAL.BATCH_SIZE
         metrics = SimpleMetricsListener()
-        tracker = ProgressTracker(total=len(rows), report_every=settings.GENERAL.PROGRESS_EVERY)
+        tracker = ProgressTracker(total=len(rows), report_every=settings.GENERAL.PROGRESS_EVERY, label="build_image_embeddings", unit="images")
 
         print(f"Processing on {clip_model.device}")
         for i, (filename, image_id) in enumerate(rows):

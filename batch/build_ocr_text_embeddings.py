@@ -41,7 +41,7 @@ async def run(session, confidence_min: float, lang_score_min: float, status: str
         return metrics
 
     embedder = _get_embedder()
-    tracker = ProgressTracker(total=len(texts), report_every=settings.GENERAL.PROGRESS_EVERY)
+    tracker = ProgressTracker(total=len(texts), report_every=settings.GENERAL.PROGRESS_EVERY, label="build_ocr_text_embeddings", unit="images")
 
     for i, (image_id, text) in enumerate(texts.items()):
         vector = embedder.embed_text(text)
