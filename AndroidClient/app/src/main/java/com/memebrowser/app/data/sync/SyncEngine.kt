@@ -203,18 +203,27 @@ class SyncEngine internal constructor(
 
     // ---- the run -----------------------------------------------------------------------------------------
 
+    /** What every attempt of one run shares (see [runEnvironment]). */
     private class Progress {
         var uploaded = 0
         var duplicates = 0
         var rejected = 0
+
+        /**
+         * Files in a row rejected `server_error`, across attempts: a retry must not hide a broken server. Reset only by a
+         * mapped 200 response ([applyBatch]).
+         */
+        var poisonStreak = 0
         fun summary() = SyncSummary(uploaded, duplicates, rejected)
+
+        /** Files the server took (uploaded or duplicate): the only progress that resets the retry counter. */
+        val accepted get() = uploaded + duplicates
     }
 
     private class Run(val env: String, val album: AlbumSelection, val startedAt: Long, val p: Progress, val pacer: UploadPacer) {
         var batchNumber = 0
         var rateLimited = 0
         var stalls = 0
-        var poisonStreak = 0
 
         /** Set by [retryable] right before a transient failure is returned; a fresh [Run] per attempt starts false. */
         var retryable = false
@@ -226,22 +235,23 @@ class SyncEngine internal constructor(
 
     /**
      * Runs [runLoop] and, with auto-retry on, retries a transient failure after a growing delay ([RETRY_DELAYS_SECONDS],
-     * at most [MAX_RETRY_ATTEMPTS] in a row). All attempts share one [Progress] (the summary adds up) and the
-     * environment's pacer. The counter is local to this run (per environment) and resets when files settled since the
-     * previous failure. Auto-retry is re-read at every failure, so switching it off during a wait lets the scheduled
+     * at most [MAX_RETRY_ATTEMPTS] in a row). All attempts share one [Progress] (the summary adds up, the poison streak
+     * carries over) and the environment's pacer. The counter is local to this run (per environment) and resets only when
+     * the server took files (uploaded or duplicate) since the previous failure: rejections (`server_error`,
+     * `file_unavailable`, a server's per-file refusal) are no proof the server recovered. Auto-retry is re-read at every failure, so switching it off during a wait lets the scheduled
      * retry run once and its failure end the run. A stop during the wait ends the run Stopped.
      */
     private suspend fun runEnvironment(env: String, startedAt: Long) {
         val progress = Progress()
         try {
             var attempt = 0
-            var settledAtLastFailure = 0
+            var acceptedAtLastFailure = 0
             while (true) {
                 val outcome = runLoop(env, startedAt, progress)
                 if (!outcome.retryable || !settings.autoRetry()) return publish(env, outcome.state)
-                val settled = progress.summary().settled
-                if (settled > settledAtLastFailure) attempt = 0
-                settledAtLastFailure = settled
+                val accepted = progress.accepted
+                if (accepted > acceptedAtLastFailure) attempt = 0
+                acceptedAtLastFailure = accepted
                 if (attempt >= MAX_RETRY_ATTEMPTS) return publish(env, outcome.state)
                 attempt++
                 val waitMs = RETRY_DELAYS_SECONDS[minOf(attempt, RETRY_DELAYS_SECONDS.size) - 1] * 1000
@@ -393,8 +403,8 @@ class SyncEngine internal constructor(
     private suspend fun rejectPoison(run: Run, file: TrackedFileEntity): SyncState? {
         withContext(NonCancellable) { outcomes.markRejected(run.env, file.albumTreeUri, file.documentId, REASON_SERVER_ERROR) }
         run.p.rejected++
-        run.poisonStreak++
-        return if (run.poisonStreak >= MAX_POISON_STREAK) {
+        run.p.poisonStreak++
+        return if (run.p.poisonStreak >= MAX_POISON_STREAK) {
             failed(SyncError.SERVER, "$MAX_POISON_STREAK files in a row failed with a server error; the server looks broken", run.p)
         } else null
     }
@@ -477,7 +487,7 @@ class SyncEngine internal constructor(
         val mapped = mapResponse(body, batch.size)
         if (mapped !is MappedResponse.Ok) return failed(SyncError.SERVER, BACKEND_TOO_OLD_MESSAGE, run.p)
         run.rateLimited = 0
-        run.poisonStreak = 0
+        run.p.poisonStreak = 0
         withContext(NonCancellable) {
             mapped.uploaded.groupBy({ batch[it].albumTreeUri }, { batch[it].documentId }).forEach { (tree, ids) ->
                 outcomes.markUploaded(run.env, tree, ids)
@@ -508,7 +518,7 @@ class SyncEngine internal constructor(
         /** Auto-retry delays, by 1-based attempt; attempts beyond the list use the last one. */
         val RETRY_DELAYS_SECONDS = listOf(15L, 30L, 60L, 120L, 300L)
 
-        /** Retries in a row (without a settled file in between) before the run ends Failed. */
+        /** Retries in a row (without an uploaded or duplicate file in between) before the run ends Failed. */
         const val MAX_RETRY_ATTEMPTS = 8
 
         /** A network wait re-reads the settings at least this often, even with no network event. */

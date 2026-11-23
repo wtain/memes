@@ -100,20 +100,30 @@ class SyncService : Service() {
             return START_NOT_STICKY
         }
         timedOut = false
-        val active = engine.activeEnvironments.value
-        if (tracked.isEmpty() && active.isEmpty()) {
-            // The run ended before this start arrived: satisfy startForegroundService, then go away without a trace.
+        // Android requires startForeground for every foreground start, at once: the current foreground notification, or
+        // the placeholder while nothing is followed yet.
+        val current = foregroundEnv?.takeIf { it in tracked }
+        if (current != null) {
+            promote(SyncNotificationPlan.notificationId(current), latest[current] ?: SyncNotifications.placeholder(this))
+        } else {
             promote(SyncNotificationPlan.PLACEHOLDER_ID, SyncNotifications.placeholder(this))
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
-            return START_NOT_STICKY
         }
-        val fg = foregroundEnv
-            ?: SyncNotificationPlan.foreground(SyncNotificationPlan.order(tracked.keys.toList(), active), null)!!
-        foregroundEnv = fg
-        promote(SyncNotificationPlan.notificationId(fg), latest[fg] ?: SyncNotifications.placeholder(this))
         watch()
         reconcile()
+        // Chosen from what is followed now, not from the active set read before: a run can end in between.
+        when (val choice = SyncNotificationPlan.reconcileForeground(current, tracked.keys.toList())) {
+            ForegroundChoice.Keep -> Unit
+            is ForegroundChoice.Switch -> {
+                foregroundEnv = choice.env
+                promote(SyncNotificationPlan.notificationId(choice.env), latest[choice.env] ?: SyncNotifications.placeholder(this))
+            }
+            ForegroundChoice.Stop -> {
+                // Nothing to follow (the run ended before this start arrived): go away without a trace.
+                foregroundEnv = null
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }
+        }
         return START_NOT_STICKY
     }
 

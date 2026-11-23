@@ -1,5 +1,17 @@
 package com.memebrowser.app.service
 
+/** What [SyncService] does with its foreground slot once it knows which environments it follows. */
+sealed interface ForegroundChoice {
+    /** The current foreground environment is followed: leave it. */
+    data object Keep : ForegroundChoice
+
+    /** Promote [env]'s notification (the current one is not followed, or there was none). */
+    data class Switch(val env: String) : ForegroundChoice
+
+    /** Nothing is followed: leave the foreground (removing the placeholder) and stop. */
+    data object Stop : ForegroundChoice
+}
+
 /** Pure decisions of [SyncService] (no Android types), unit tested. */
 object SyncNotificationPlan {
     /** The id of the service's placeholder notification (a start with nothing to show); never an environment's id. */
@@ -18,6 +30,16 @@ object SyncNotificationPlan {
      */
     fun foreground(running: List<String>, current: String?): String? =
         if (current != null && current in running) current else running.firstOrNull()
+
+    /**
+     * The foreground decision after a start was reconciled: [tracked] are the followed environments in start order. A
+     * [current] that is not followed (its run ended between the start and the reconcile) is never kept, so the service
+     * cannot stay foreground with a notification nothing ends.
+     */
+    fun reconcileForeground(current: String?, tracked: List<String>): ForegroundChoice {
+        val next = foreground(tracked, current) ?: return ForegroundChoice.Stop
+        return if (next == current) ForegroundChoice.Keep else ForegroundChoice.Switch(next)
+    }
 
     /**
      * Whether a Stop tapped on an environment's notification must also remove it: only when no run of that environment

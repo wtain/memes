@@ -24,7 +24,7 @@ class SyncNotificationMapperTest {
         val m = map(running)!!
         assertEquals("General: syncing", m.title)
         assertEquals("120 of 400 uploaded", m.text)
-        assertEquals(Progress(125, 400), m.progress)
+        assertEquals(NotificationProgress(125, 400), m.progress)
         assertTrue(m.ongoing)
         assertTrue(m.canStop)
     }
@@ -40,7 +40,7 @@ class SyncNotificationMapperTest {
     private fun assertWait(text: String, m: SyncNotificationModel) {
         assertEquals("General: syncing", m.title)
         assertEquals(text, m.text)
-        assertEquals(Progress(125, 400), m.progress)
+        assertEquals(NotificationProgress(125, 400), m.progress)
         assertTrue(m.ongoing)
         assertTrue(m.canStop)
     }

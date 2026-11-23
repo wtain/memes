@@ -3,12 +3,12 @@ package com.memebrowser.app.data.sync
 import com.memebrowser.app.data.tracker.TrackerCounts
 import com.memebrowser.app.ui.sync.syncErrorMessage
 
-data class Progress(val done: Int, val total: Int)
+data class NotificationProgress(val done: Int, val total: Int)
 
 data class SyncNotificationModel(
     val title: String,
     val text: String,
-    val progress: Progress?,
+    val progress: NotificationProgress?,
     val ongoing: Boolean,
     val canStop: Boolean,
 )
@@ -16,7 +16,7 @@ data class SyncNotificationModel(
 /** Pure mapping from sync state to notification content (no Android types). Idle -> null (no notification). */
 object SyncNotificationMapper {
     fun map(environmentName: String, state: SyncState, counts: TrackerCounts, now: Long): SyncNotificationModel? {
-        val progress = if (counts.supported > 0) Progress(counts.uploaded + counts.rejected, counts.supported) else null
+        val progress = if (counts.supported > 0) NotificationProgress(counts.uploaded + counts.rejected, counts.supported) else null
         val countText = "${counts.uploaded} of ${counts.supported} uploaded"
         val syncing = "$environmentName: syncing"
         return when (state) {

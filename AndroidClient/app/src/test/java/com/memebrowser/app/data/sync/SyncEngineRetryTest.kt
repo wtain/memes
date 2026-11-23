@@ -269,6 +269,71 @@ class SyncEngineRetryTest {
     }
 
     @Test
+    fun poisonStreak_survivesARetry() = runTest {
+        // A broken server: 500 for every batch; files sent alone get 500, 500, 502, 500, 500, 502, ...
+        val h = harness()
+        h.seed(env, 10)
+        var single = 0
+        h.uploader.handler = { _, files ->
+            if (files.size > 1) UploadAttempt.HttpError(500, null, null)
+            else if (++single % 3 == 0) UploadAttempt.HttpError(502, "bad gateway", null)
+            else UploadAttempt.HttpError(500, null, null)
+        }
+        val backoffs = recordBackoffs(h)
+        h.engine.start(env)
+        advanceUntilIdle()
+        // f0, f1 rejected, 502 (retry), then f2 is the third poison file in a row: the server is broken.
+        val f = h.stateOf<SyncState.Failed>()
+        assertEquals(SyncError.SERVER, f.error)
+        assertEquals(1, backoffs.size)
+        assertEquals(SyncSummary(rejected = 3), f.summary)
+        assertEquals(7, h.count(env, PENDING))
+    }
+
+    @Test
+    fun rejectionsAlone_doNotResetTheRetryCounter() = runTest {
+        // Every attempt gets one file rejected by the server, then a network error: rejections are no proof of recovery.
+        val h = harness(batch = 1)
+        h.seed(env, 30)
+        h.uploader.handler = { _, files ->
+            if (h.uploader.calls.size % 2 == 1) {
+                response(emptyList(), listOf(com.memebrowser.app.data.model.FailedFile(files[0].displayName, "bad", 0)))
+            } else UploadAttempt.NetworkError("offline")
+        }
+        val backoffs = recordBackoffs(h)
+        h.engine.start(env)
+        advanceUntilIdle()
+        assertEquals((1..8).toList(), backoffs.map { it.w.attempt })
+        val f = h.stateOf<SyncState.Failed>()
+        assertEquals(SyncError.NETWORK, f.error)
+        assertEquals(SyncSummary(rejected = 9), f.summary)
+        assertEquals(21, h.count(env, PENDING))
+    }
+
+    @Test
+    fun transientFailureInsideTheIsolatePass_isRetried_filesNotLost() = runTest {
+        for (failure in listOf<UploadAttempt>(UploadAttempt.HttpError(502, "bad gateway", null), UploadAttempt.NetworkError("dropped"))) {
+            val h = harness()
+            h.seed(env, 3)
+            // call 1: batch -> 500; call 2: f0 alone -> accepted; call 3: f1 alone -> transient failure; then accept all.
+            h.uploader.handler = { _, files ->
+                when (h.uploader.calls.size) {
+                    1 -> UploadAttempt.HttpError(500, null, null)
+                    3 -> failure
+                    else -> FakeUploader.acceptAll(files)
+                }
+            }
+            val backoffs = recordBackoffs(h)
+            h.engine.start(env)
+            advanceUntilIdle()
+            assertEquals("$failure", 1, backoffs.size)
+            assertEquals("$failure", SyncSummary(uploaded = 3), h.stateOf<SyncState.Finished>().summary)
+            assertEquals("$failure", 3, h.count(env, UPLOADED))
+            assertEquals("$failure", listOf("f1", "f2"), h.uploader.calls[3].second)
+        }
+    }
+
+    @Test
     fun twoEnvironments_haveIndependentCounters() = runTest {
         val other = "builtin-metal"
         val h = harness()

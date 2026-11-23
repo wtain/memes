@@ -51,6 +51,25 @@ class SyncNotificationPlanTest {
     }
 
     @Test
+    fun reconcileForeground_keepsTheCurrentWhileItIsFollowed() {
+        assertEquals(ForegroundChoice.Keep, SyncNotificationPlan.reconcileForeground(current = "b", tracked = listOf("a", "b")))
+    }
+
+    @Test
+    fun reconcileForeground_switchesWhenTheCurrentIsNotFollowed() {
+        // The start race: the chosen environment ended before reconcile() could follow it.
+        assertEquals(ForegroundChoice.Switch("c"), SyncNotificationPlan.reconcileForeground(current = "a", tracked = listOf("c", "d")))
+        // No foreground yet (a fresh start): the oldest followed one.
+        assertEquals(ForegroundChoice.Switch("c"), SyncNotificationPlan.reconcileForeground(current = null, tracked = listOf("c", "d")))
+    }
+
+    @Test
+    fun reconcileForeground_stopsWhenNothingIsFollowed() {
+        assertEquals(ForegroundChoice.Stop, SyncNotificationPlan.reconcileForeground(current = "a", tracked = emptyList()))
+        assertEquals(ForegroundChoice.Stop, SyncNotificationPlan.reconcileForeground(current = null, tracked = emptyList()))
+    }
+
+    @Test
     fun order_keepsKnownAndAppendsNewSorted() {
         assertEquals(listOf("m", "a", "z"), SyncNotificationPlan.order(listOf("m"), setOf("z", "m", "a")))
         assertEquals(listOf("a", "b"), SyncNotificationPlan.order(emptyList(), setOf("b", "a")))
