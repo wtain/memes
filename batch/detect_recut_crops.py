@@ -13,6 +13,7 @@ from pathlib import Path
 from PIL import Image as PILImage
 
 from batch.run_tracking import finish_existing_run, tracked_run
+from batch.utils.run_progress import report_progress
 from batch.utils.crop_detection import (DETECTOR, DETECTOR_VERSION, DetectParams, clips_ocr,
                                         detect_margin_box)
 from config.settings import load_env, settings
@@ -88,6 +89,7 @@ async def run(session, base_path: str, params: DetectParams, ocr_confidence_min:
                 metrics.increment("proposed")
         if i % commit_interval == 0:
             await session.commit()
+        report_progress(KIND, "images", i, len(rows))
     return metrics
 
 
