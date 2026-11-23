@@ -1,6 +1,6 @@
 # Shareable meme page with a link preview (UI/UX audit ranking item 5, I22)
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-11-23-shareable-meme-page.md`
 Originates from: `docs/superpowers/specs/2026-11-18-ui-ux-audit.md` (ranking item 5, idea I22, finding F6)
 
@@ -86,7 +86,7 @@ Redirect to the real page:
 
 ## Manual acceptance (owner, after deploying to prod)
 
-Paste `https://<prod host>/api/share/<id>` into Telegram, WhatsApp and Discord and see a card with the picture, "A meme" and the text; click it and land on the meme page; paste the link of a flagged meme and see no card. Previews are cached by the chat apps, so a changed meme keeps its old card for a while.
+Paste `https://<prod host>/api/share/<id>` into Telegram, WhatsApp, Discord and Messenger (or the Facebook Sharing Debugger; if Facebook shows no card, drop the `<meta http-equiv="refresh">` and keep `location.replace` and the visible link) and see a card with the picture, "A meme" and the text; click it and land on the meme page; paste the link of a flagged meme and see no card. Previews are cached by the chat apps, so a changed meme keeps its old card for a while.
 
 ## Left to the builder
 
