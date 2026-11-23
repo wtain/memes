@@ -164,6 +164,34 @@ curl http://localhost:8081/api/admin/batches/runs?limit=5
 
 Never bind your own server to the metal/general/it ports to test this; they are always occupied.
 
+## 6. Progress reporting
+
+A tracked run can tell the Admin page how far it is. The value lives in the nullable JSONB column `batch_runs.progress`
+(separate from `stats`, overwritten whole on every write): `label`, `unit`, `done`, `total`, `rate_per_min`, an optional
+`step` (drivers only) and the server's `updated_at`. Design: `docs/superpowers/specs/2026-11-23-batch-progress-reporting-design.md`.
+
+- **How a job reports.** `tracked_run` and `finish_existing_run` set a context variable (`current_run_id`, in
+  `batch/utils/run_progress.py`), so code finds its run without an id being passed around. `ProgressTracker(total, label=..., unit=...)`
+  calls `report_progress` from `mark_done` (its console output is unchanged). A loop with no tracker calls
+  `report_progress(label, unit, done, total, rate_per_min)` itself. A driver calls `report_step(index, count, label)` before each
+  step; `description_pipeline`, `recut_pipeline` and `comics_pipeline` (through `run_steps`) and `ingest_auto_prep` do. Each
+  child still reports its own bar on its own row.
+- **Throttle.** One write per run per `batch_progress.min_interval_seconds` (10). The first report, a report with
+  `done == total` and every step report always pass. At most one write is in flight per run and the latest value wins.
+  `batch_progress.enabled: false` turns reporting into a no-op.
+- **Best effort.** Both functions are synchronous, never raise and do nothing without a current run or a running event loop.
+  The write is one `UPDATE ... WHERE status = 'started'` on its own short session, so it never touches a finished run; a failed
+  write is logged without data and dropped. On exit the tracking context drains the in-flight write (5 s at most) so the last
+  value lands.
+- **What is stored.** Counts, a `unit` from the closed list `images`, `pairs`, `descriptions`, `profiles`, `files`, `items`
+  (anything else becomes `items`) and a label chosen by the code. Never a file name, id, path or text.
+- **Finished runs** keep their last progress; the badge says whether the run is still going.
+- **Admin page.** A `started` run with progress shows a bar with `done / total` and the percentage (a count only when `total` is
+  unknown), the rate and an ETA computed in the browser from `rate_per_min`, the driver's "step N of M: label" and "updated ... ago".
+  When `updated_at` is older than 300 s (a constant of the page, `STALE_AFTER_MS`) the line turns amber: a hint, not a state. The
+  runs list returns `progress` as `null` for a stored value that is partial or malformed.
+- **Jobs started from a shell** outside `tracked_run` (no run row) report nothing. A job that does not report simply shows no bar.
+
 ## Business metrics
 
 `process_events` (one row per process, event and subject, kept forever) records the outcome of a process on one subject, for

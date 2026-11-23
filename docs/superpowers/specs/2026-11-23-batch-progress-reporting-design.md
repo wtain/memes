@@ -1,6 +1,6 @@
 # Batch progress reporting on the Admin page
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-11-23-batch-progress-reporting.md`
 Originates from: a live `ingestion_auto_prep` on `general` (2026-11-23, 12,336 images): OCR ran for hours and the only way to see how far it was was a read-only SQL query.
 Follow-ups: none yet
@@ -47,10 +47,14 @@ exactly as it does today.
 |---|---|
 | `label` | A fixed string chosen by the code: the script or step name. Never derived from data. |
 | `unit` | One of `images`, `pairs`, `descriptions`, `profiles`, `files`, `items` (a closed list in one module; add by code change). |
-| `done`, `total` | Non-negative integers. `total` is `null` when unknown, and the UI then shows a count with no bar and no ETA. `done` is clamped to `total` when both are set. |
+| `done`, `total` | Non-negative integers, nullable (both `null` in the step-only value of a driver that has reported no counts yet). `total` is `null` when unknown, and the UI then shows a count with no bar and no ETA. `done` is clamped to `total` when both are set. |
 | `rate_per_min` | The tracker's own windowed rate (its existing 120 s window), `null` before two samples. The UI derives the ETA as `(total - done) / rate`; the server does not store an ETA, so it cannot go stale between reports. |
 | `step` | Present only on a driver's own row. `index` is 1-based. |
-| `updated_at` | Server time of the write (`now()` in the UPDATE, not the worker's clock). |
+| `updated_at` | Always present: server time of the write (`now()` in the UPDATE, not the worker's clock). |
+
+`label`, `unit`, `done`, `total`, `rate_per_min` and `step` are all nullable in the API type (`BatchProgress`), because a driver's
+first step report carries no counts. The service (`_normalise_progress`) turns a stored value that is partial or malformed into
+`progress: null` rather than failing the runs list.
 
 When a run ends, `progress` keeps its last value (so a finished row still reads "12,336 / 12,336"); the badge, not the
 progress, says whether it is still running.
@@ -59,7 +63,7 @@ progress, says whether it is still running.
 
 New module `batch/utils/run_progress.py`; `batch/run_tracking.py` gets a context variable.
 
-1. **Which run am I?** `tracked_run` and `finish_existing_run` set a `ContextVar[uuid.UUID | None]` (`current_run_id`) on
+1. **Which run am I?** `tracked_run` and `finish_existing_run` set a `ContextVar[uuid.UUID | None]` (`current_run_id`, defined in `batch/utils/run_progress.py`) on
    entry and reset it on exit. A script's code, including `ProgressTracker`, finds its run without the id being passed
    through every function. A nested self-tracked child sets its own value for its duration, so a child's tracker writes
    to the child's row and the driver's row stays with the driver.
@@ -128,11 +132,10 @@ The runs table gets one compact column ("Progress", `done/total`) so finished ru
 batch_progress:
   enabled: true
   min_interval_seconds: 10
-  stale_after_seconds: 300
 ```
 
-`enabled: false` makes `report_progress` a no-op. The stale threshold is served to the web page with the run list (or a
-constant of the page; decided in the plan).
+`enabled: false` makes `report_progress` and `report_step` no-ops. The stall threshold (300 s) is **not** a setting: it is the
+constant `STALE_AFTER_MS` of the web page (`src/pages/batchProgress.ts`), since only the page uses it.
 
 ## Data and migration
 
@@ -176,8 +179,8 @@ constant of the page; decided in the plan).
 - Frontend (`vitest`): bar, no-total, step line, stalled hint with a faked clock, no progress for a run without the field.
 - Manual check on the test database with a short script that loops and reports, before relying on it for a real run.
 
-## Open questions for the owner
+## Open questions for the owner (decided)
 
-1. Keep the last progress on a finished row (proposed) or clear it at completion?
-2. Is 10 s / 300 s the right pair for the write interval and the stall hint, given OCR at about 20 images a minute?
-3. Should the follow-up (orphan guard using `updated_at`) be part of this epic or left separate?
+1. Keep the last progress on a finished row: **decided, kept** (the badge says whether the run is live).
+2. Write interval and stall hint: **decided, 10 s and 300 s**.
+3. The orphan guard using `updated_at`: **decided, a separate follow-up**, not part of this epic.

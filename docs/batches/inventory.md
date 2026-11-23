@@ -17,6 +17,15 @@ Legend for the access columns:
 - **CLI**: `python -m batch.<script> --env {metal,general,it}` (from repo root, `.venv311`). `--env` is optional when
   `APP_ENV` is set. Use `PYTHONIOENCODING=utf-8` on Windows for anything that uses `ProgressTracker`.
 
+- **Progress**: a tracked run reports live progress to the Admin page (see [execution-model.md](execution-model.md), "Progress reporting").
+  Automatically through `ProgressTracker(label=, unit=)`: `build_image_embeddings`, `extract_text_from_memes`, `build_ocr_lemmas`,
+  `classify_text_heavy`, `build_ocr_text_embeddings`, `build_tags_from_ocr`, `build_image_descriptions`,
+  `build_image_description_embeddings`, `build_description_lemmas`, `build_description_note_lemmas`,
+  `build_description_note_embeddings`, `build_meme_profiles`. Directly through `report_progress`: `ingest_hash_dedup`,
+  `ingest_validate_formats`, `clusterize`, `create_recut_cuts`, `detect_recut_crops`, `detect_comics_candidates`. The drivers
+  (`ingest_auto_prep`, `description_pipeline`, `recut_pipeline`, `comics_pipeline`) report their step with `report_step`.
+  `ingest_find_duplicates` and `rebuild_duplicates` have no loop to report from and show no bar.
+
 ## Summary counts
 
 | Class | Count | Scripts |
