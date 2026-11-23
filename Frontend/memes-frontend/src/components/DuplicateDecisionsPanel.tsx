@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import type { MemesApi } from "../api/MemesApi"
+import { FileName } from "./FileName"
 import type { DuplicateDecisionItem } from "../types/generated/all"
 
 type Props = { memesApi: MemesApi }
@@ -65,7 +66,7 @@ export default function DuplicateDecisionsPanel({ memesApi }: Props) {
                         className="w-10 h-10 object-cover rounded"
                         loading="lazy"
                       />
-                      <span>{item.filename1}</span>
+                      <FileName name={item.filename1} />
                     </div>
                   </td>
                   <td>
@@ -76,7 +77,7 @@ export default function DuplicateDecisionsPanel({ memesApi }: Props) {
                         className="w-10 h-10 object-cover rounded"
                         loading="lazy"
                       />
-                      <span>{item.filename2}</span>
+                      <FileName name={item.filename2} />
                     </div>
                   </td>
                   <td>{item.decided_at}</td>
