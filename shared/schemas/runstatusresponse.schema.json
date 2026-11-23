@@ -10,7 +10,11 @@
     "status": { "type": "string", "description": "running | completed | failed" },
     "created_at": { "type": "string", "format": "date-time" },
     "completed_at": { "type": ["string", "null"], "format": "date-time" },
-    "error": { "type": ["string", "null"] }
+    "error": { "type": ["string", "null"] },
+    "progress": {
+      "oneOf": [{ "$ref": "./batchprogress.schema.json" }, { "type": "null" }],
+      "description": "Latest progress of a tracked run, null when the batch reports none"
+    }
   },
-  "required": ["run_id", "batch_name", "trigger", "status", "created_at", "completed_at", "error"]
+  "required": ["run_id", "batch_name", "trigger", "status", "created_at", "completed_at", "error", "progress"]
 }

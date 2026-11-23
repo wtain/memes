@@ -68,13 +68,33 @@ class TestGetRun:
         mock_service.get_run.return_value = {
             "run_id": run_id, "batch_name": "trends_batch", "trigger": "manual",
             "status": "running", "created_at": datetime.now(timezone.utc),
-            "completed_at": None, "error": None,
+            "completed_at": None, "error": None, "progress": None,
         }
 
         response = client.get(f"/api/admin/batches/runs/{run_id}")
 
         assert response.status_code == 200
         assert response.json()["status"] == "running"
+
+    def test_get_run_returns_progress(self, client, mock_service):
+        from datetime import datetime, timezone
+        run_id = "123e4567-e89b-12d3-a456-426614174000"
+        progress = {
+            "label": "images", "unit": "images", "done": 5, "total": 10, "rate_per_min": 2.5,
+            "step": {"index": 1, "count": 3, "label": "embed"},
+            "updated_at": datetime(2026, 11, 23, 10, 0, tzinfo=timezone.utc),
+        }
+        mock_service.get_run.return_value = {
+            "run_id": run_id, "batch_name": "trends_batch", "trigger": "manual",
+            "status": "running", "created_at": datetime.now(timezone.utc),
+            "completed_at": None, "error": None, "progress": progress,
+        }
+
+        body = client.get(f"/api/admin/batches/runs/{run_id}").json()
+
+        assert body["progress"]["done"] == 5
+        assert body["progress"]["step"] == {"index": 1, "count": 3, "label": "embed"}
+        assert body["progress"]["updated_at"].startswith("2026-11-23T10:00:00")
 
     def test_not_found(self, client, mock_service):
         from fastapi import HTTPException
@@ -94,3 +114,17 @@ class TestListRuns:
         assert response.status_code == 200
         assert response.json() == {"items": [], "total": 0}
         mock_service.list_runs.assert_awaited_once_with(limit=10, offset=0)
+
+
+    def test_list_runs_progress_null_for_untracked(self, client, mock_service):
+        from datetime import datetime, timezone
+        mock_service.list_runs.return_value = {"items": [{
+            "run_id": "123e4567-e89b-12d3-a456-426614174000", "batch_name": "trends_batch",
+            "trigger": "manual", "status": "completed", "created_at": datetime.now(timezone.utc),
+            "completed_at": None, "error": None, "progress": None,
+        }], "total": 1}
+
+        item = client.get("/api/admin/batches/runs").json()["items"][0]
+
+        assert "progress" in item
+        assert item["progress"] is None

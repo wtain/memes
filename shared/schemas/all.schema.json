@@ -90,6 +90,7 @@
     "IngestionResolveResponse":   { "$ref": "ingestionresolveresponse.schema.json" },
     "IngestionUndoRejectResponse": { "$ref": "ingestionundorejectresponse.schema.json" },
     "RunTriggerResponse":      { "$ref": "runtriggerresponse.schema.json" },
+    "BatchProgress":           { "$ref": "batchprogress.schema.json" },
     "RunStatusResponse":       { "$ref": "runstatusresponse.schema.json" },
     "RunListResponse":         { "$ref": "runlistresponse.schema.json" },
     "BatchNamesResponse":      { "$ref": "batchnamesresponse.schema.json" },

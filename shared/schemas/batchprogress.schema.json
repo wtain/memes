@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "batchprogress.schema.json",
+  "title": "BatchProgress",
+  "type": "object",
+  "properties": {
+    "label": { "type": ["string", "null"], "description": "What is being counted, e.g. images" },
+    "unit": { "type": ["string", "null"] },
+    "done": { "type": ["integer", "null"] },
+    "total": { "type": ["integer", "null"] },
+    "rate_per_min": { "type": ["number", "null"] },
+    "step": {
+      "type": ["object", "null"],
+      "properties": {
+        "index": { "type": "integer" },
+        "count": { "type": "integer" },
+        "label": { "type": "string" }
+      },
+      "required": ["index", "count", "label"]
+    },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "required": ["label", "unit", "done", "total", "rate_per_min", "step", "updated_at"]
+}

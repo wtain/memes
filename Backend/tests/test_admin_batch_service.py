@@ -14,9 +14,9 @@ from repository.batch_runs import BatchAlreadyRunningError
 
 
 def _fake_run(*, run_id, kind, trigger="manual", status="started", error=None,
-              created_at=None, completed_at=None):
+              created_at=None, completed_at=None, progress=None):
     return MagicMock(
-        run_id=run_id, kind=kind, trigger=trigger, status=status, error=error,
+        run_id=run_id, kind=kind, trigger=trigger, status=status, error=error, progress=progress,
         created_at=created_at or datetime.now(timezone.utc), completed_at=completed_at,
     )
 
@@ -120,6 +120,20 @@ class TestGetRun:
 
         assert result["status"] == "running"
         assert result["batch_name"] == "trends_batch"
+
+    async def test_to_response_includes_progress(self, service, mock_repo):
+        progress = {
+            "label": "images", "unit": "images", "done": 5, "total": 10, "rate_per_min": 2.5,
+            "step": {"index": 1, "count": 3, "label": "embed"},
+            "updated_at": "2026-11-23T10:00:00+00:00",
+        }
+        run_id = uuid.uuid4()
+        mock_repo.get_run.return_value = _fake_run(run_id=run_id, kind="trends", progress=progress)
+        assert (await service.get_run(run_id))["progress"] == progress
+
+        mock_repo.get_run.return_value = _fake_run(run_id=run_id, kind="trends", progress=None)
+        result = await service.get_run(run_id)
+        assert "progress" in result and result["progress"] is None
 
     async def test_maps_completed_and_failed_statuses_unchanged(self, service, mock_repo):
         run_id = uuid.uuid4()

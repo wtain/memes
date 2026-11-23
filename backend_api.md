@@ -1834,12 +1834,30 @@ observed by polling `GET .../runs/{run_id}` or `GET .../runs`. Output is also wr
   "status": "running",
   "created_at": "2026-07-28T10:15:00Z",
   "completed_at": null,
-  "error": null
+  "error": null,
+  "progress": {
+    "label": "images",
+    "unit": "images",
+    "done": 1200,
+    "total": 5000,
+    "rate_per_min": 340.5,
+    "step": { "index": 2, "count": 8, "label": "build_image_embeddings" },
+    "updated_at": "2026-07-28T10:16:30Z"
+  }
 }
 ```
 
 `status` is one of `running`, `completed`, `failed`. `error` is populated only when `status`
 is `failed`.
+
+`progress` (`BatchProgress`, always present) is the latest progress the run reported, written
+by the batch while it runs. It is `null` when the batch never reported any (an untracked or
+non-reporting batch, or a run that has not reported yet). Inside it every field except
+`updated_at` is nullable: `label`/`unit` name what is counted, `done`/`total` are counts
+(`total` is `null` when unknown, `done` is `null` for a step-only value), `rate_per_min` is the
+recent throughput, `step` (`{index, count, label}`) is set by driver batches that run several
+steps, and `updated_at` is the server time of the last report. The value stays on a finished
+run as the last report.
 
 #### List Batch Runs
 
@@ -1859,7 +1877,8 @@ is `failed`.
       "status": "completed",
       "created_at": "2026-07-28T10:15:00Z",
       "completed_at": "2026-07-28T10:15:42Z",
-      "error": null
+      "error": null,
+      "progress": null
     }
   ],
   "total": 1

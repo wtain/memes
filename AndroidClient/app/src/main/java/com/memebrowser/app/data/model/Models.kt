@@ -40,6 +40,17 @@ data class BatchNamesResponse(
 )
 
 @Serializable
+data class BatchProgress(
+    @SerialName("label") val label: String?,
+    @SerialName("unit") val unit: String?,
+    @SerialName("done") val done: Int?,
+    @SerialName("total") val total: Int?,
+    @SerialName("rate_per_min") val rate_per_min: Float?,
+    @SerialName("step") val step: JsonObject?,
+    @SerialName("updated_at") val updated_at: String
+)
+
+@Serializable
 data class CapabilitiesFeatures(
     @SerialName("memeFromText") val memeFromText: Boolean,
     @SerialName("concepts") val concepts: Boolean,
@@ -447,17 +458,6 @@ data class RecutStatsBand(
 )
 
 @Serializable
-data class RunStatusResponse(
-    @SerialName("run_id") val run_id: String,
-    @SerialName("batch_name") val batch_name: String,
-    @SerialName("trigger") val trigger: String,
-    @SerialName("status") val status: String,
-    @SerialName("created_at") val created_at: String,
-    @SerialName("completed_at") val completed_at: String?,
-    @SerialName("error") val error: String?
-)
-
-@Serializable
 data class RunTriggerResponse(
     @SerialName("run_id") val run_id: String,
     @SerialName("status") val status: String
@@ -731,6 +731,18 @@ data class RecutProposalPage(
 data class RunListResponse(
     @SerialName("items") val items: List<RunStatusResponse>,
     @SerialName("total") val total: Int
+)
+
+@Serializable
+data class RunStatusResponse(
+    @SerialName("run_id") val run_id: String,
+    @SerialName("batch_name") val batch_name: String,
+    @SerialName("trigger") val trigger: String,
+    @SerialName("status") val status: String,
+    @SerialName("created_at") val created_at: String,
+    @SerialName("completed_at") val completed_at: String?,
+    @SerialName("error") val error: String?,
+    @SerialName("progress") val progress: BatchProgress?
 )
 
 @Serializable

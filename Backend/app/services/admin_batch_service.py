@@ -96,4 +96,5 @@ class AdminBatchService:
             "created_at": run.created_at,
             "completed_at": run.completed_at,
             "error": run.error,
+            "progress": run.progress,
         }
