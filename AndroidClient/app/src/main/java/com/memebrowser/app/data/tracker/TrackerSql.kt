@@ -10,6 +10,10 @@ internal object TrackerSql {
     const val REJECTED = "'REJECTED'"
     const val UNSUPPORTED_TYPE = "'${SupportedImages.REASON_UNSUPPORTED_TYPE}'"
     const val SERVER_ERROR = "'${RejectionReasons.SERVER_ERROR}'"
+
+    /** A7: values of `tracked_files.uploadAnswer` (persisted as is; NULL = not uploaded or uploaded before A7). */
+    const val ANSWER_ACCEPTED = "accepted"
+    const val ANSWER_DUPLICATE = "duplicate"
 }
 
 /** Reason codes the tracker itself must know (the others are opaque text to it). SyncEngine writes [SERVER_ERROR]. */

@@ -108,10 +108,14 @@ fun response(uploaded: List<UploadedFile>, failed: List<FailedFile> = emptyList(
 /** Tracker writes that suspend (like Room does), with hooks, so cancellation can land inside the engine's apply step. */
 internal class HookedOutcomes(private val inner: OutcomeStore) : OutcomeStore {
     var onMarkUploaded: (suspend () -> Unit)? = null
-    override suspend fun markUploaded(environmentId: String, treeUri: String, documentIds: List<String>) {
+
+    /** Sees every uploaded group with its answer, in write order. */
+    var onMarkUploadedWith: ((List<String>, String) -> Unit)? = null
+    override suspend fun markUploaded(environmentId: String, treeUri: String, documentIds: List<String>, answer: String) {
         yield()
         onMarkUploaded?.invoke()
-        inner.markUploaded(environmentId, treeUri, documentIds)
+        onMarkUploadedWith?.invoke(documentIds, answer)
+        inner.markUploaded(environmentId, treeUri, documentIds, answer)
     }
 
     override suspend fun markRejected(environmentId: String, treeUri: String, documentId: String, reason: String) {

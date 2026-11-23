@@ -513,6 +513,12 @@ private fun StatusCard(state: SyncUiState, actions: SyncActions) {
                 progress = { progressFraction(counts) },
                 modifier = Modifier.fillMaxWidth().clearAndSetSemantics { },
             )
+            duplicatesText(counts)?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("sync_duplicates"))
+            }
+            unclassifiedText(counts)?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("sync_unclassified"))
+            }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),

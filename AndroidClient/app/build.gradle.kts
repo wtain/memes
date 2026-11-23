@@ -69,6 +69,13 @@ android {
         )
     }
 
+    // The exported Room schemas, read by MigrationTestHelper in androidTest (TrackerMigrationTest).
+    sourceSets {
+        getByName("androidTest") {
+            assets.directories.add("$projectDir/schemas")
+        }
+    }
+
     testOptions {
         unitTests {
             isReturnDefaultValues = true
@@ -153,4 +160,5 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.coil.test)
+    androidTestImplementation(libs.room.testing)
 }

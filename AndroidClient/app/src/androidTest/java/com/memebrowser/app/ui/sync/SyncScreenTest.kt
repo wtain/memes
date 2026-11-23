@@ -3,8 +3,10 @@ package com.memebrowser.app.ui.sync
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -51,6 +53,20 @@ class SyncScreenTest {
         composeTestRule.onNodeWithText("Folder...").performClick()
         assertEquals(1, gallery)
         assertEquals(1, chosen)
+    }
+
+    @Test
+    fun statusCard_showsDuplicatesAndUnclassifiedLines() {
+        show(loaded.copy(counts = loaded.counts.copy(duplicates = 2, unclassified = 1)))
+        composeTestRule.onNodeWithTag("sync_duplicates").assertTextEquals("2 already on the server (duplicates)")
+        composeTestRule.onNodeWithTag("sync_unclassified").assertTextEquals("1 uploaded before this count existed")
+    }
+
+    @Test
+    fun statusCard_hidesDuplicatesAndUnclassifiedLinesAtZero() {
+        show(loaded)
+        composeTestRule.onNodeWithTag("sync_duplicates").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("sync_unclassified").assertDoesNotExist()
     }
 
     @Test

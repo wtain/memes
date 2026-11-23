@@ -23,6 +23,12 @@ class TrackerSqlConstantsTest {
     }
 
     @Test
+    fun `upload answer constants are the persisted values`() {
+        assertEquals("accepted", TrackerSql.ANSWER_ACCEPTED)
+        assertEquals("duplicate", TrackerSql.ANSWER_DUPLICATE)
+    }
+
+    @Test
     fun `sql unsupported type literal matches the reason constant`() {
         assertEquals(TrackerSql.UNSUPPORTED_TYPE, "'${SupportedImages.REASON_UNSUPPORTED_TYPE}'")
         assertEquals("unsupported_type", SupportedImages.REASON_UNSUPPORTED_TYPE)

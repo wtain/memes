@@ -15,7 +15,7 @@ private val previewState = SyncUiState(
     loaded = true,
     environment = EnvironmentInfo("general", "General"),
     album = AlbumSelection("content://x/tree/primary%3ADCIM%2FCamera", "Camera"),
-    counts = TrackerCounts(uploaded = 40, supported = 120, rejected = 3, pending = 77),
+    counts = TrackerCounts(uploaded = 40, supported = 120, rejected = 3, pending = 77, duplicates = 5, unclassified = 12),
     scan = ScanState.Done(1_700_000_000_000),
 )
 

@@ -28,4 +28,6 @@ data class TrackedFileEntity(
     val updatedAt: Long,
     val presentInAlbum: Boolean,
     val lastSeenScan: Long,
+    /** The server's answer to the upload ([TrackerSql.ANSWER_ACCEPTED] or [TrackerSql.ANSWER_DUPLICATE]); null when not uploaded or uploaded before A7 recorded it. */
+    val uploadAnswer: String? = null,
 )

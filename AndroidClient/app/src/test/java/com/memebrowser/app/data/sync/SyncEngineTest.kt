@@ -5,6 +5,7 @@ import com.memebrowser.app.data.repository.UploadAttempt
 import com.memebrowser.app.data.tracker.TrackedFileState.PENDING
 import com.memebrowser.app.data.tracker.TrackedFileState.REJECTED
 import com.memebrowser.app.data.tracker.TrackedFileState.UPLOADED
+import com.memebrowser.app.data.tracker.TrackerSql
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -111,6 +112,60 @@ class SyncEngineTest {
         h.engine.start(env); advanceUntilIdle()
         assertEquals(3, h.count(env, UPLOADED))
         assertEquals(SyncSummary(uploaded = 0, duplicates = 3), h.stateOf<SyncState.Finished>().summary)
+    }
+
+    @Test
+    fun `each answer is recorded with its file, rejected files get none`() = runTest {
+        val h = harness()
+        h.seed(env, 4)
+        val writes = mutableListOf<Pair<List<String>, String>>()
+        h.outcomes.onMarkUploadedWith = { ids, answer -> writes += ids to answer }
+        h.uploader.handler = { _, files ->
+            response(
+                listOf(accepted(0, files[0].displayName), accepted(1, files[1].displayName, "duplicate"), accepted(3, files[3].displayName)),
+                listOf(FailedFile(files[2].displayName, "bad content", 2)),
+            )
+        }
+        h.engine.start(env); advanceUntilIdle()
+        assertEquals(
+            listOf(listOf("f0", "f3") to TrackerSql.ANSWER_ACCEPTED, listOf("f1") to TrackerSql.ANSWER_DUPLICATE),
+            writes,
+        )
+        val c = h.tracker.observeCounts(env).first()
+        assertEquals(3, c.uploaded)
+        assertEquals(1, c.duplicates)
+        assertEquals(0, c.unclassified)
+        assertEquals(1, c.rejected)
+        assertEquals(TrackerSql.ANSWER_ACCEPTED, h.row(env, "f0").uploadAnswer)
+        assertEquals(TrackerSql.ANSWER_DUPLICATE, h.row(env, "f1").uploadAnswer)
+        assertEquals(null, h.row(env, "f2").uploadAnswer)
+    }
+
+    @Test
+    fun `an all-duplicate response writes no accepted group`() = runTest {
+        val h = harness()
+        h.seed(env, 2)
+        val writes = mutableListOf<String>()
+        h.outcomes.onMarkUploadedWith = { _, answer -> writes += answer }
+        h.uploader.handler = { _, files -> FakeUploader.acceptAll(files, status = "duplicate") }
+        h.engine.start(env); advanceUntilIdle()
+        assertEquals(listOf(TrackerSql.ANSWER_DUPLICATE), writes)
+    }
+
+    @Test
+    fun `a duplicate answer for a row already recorded accepted keeps accepted`() = runTest {
+        val h = harness()
+        h.seed(env, 1)
+        // The first answer was recorded (e.g. by an earlier attempt) before this response came back as duplicate.
+        h.uploader.handler = { e, files ->
+            h.tracker.markUploaded(e, TREE, listOf("f0"), TrackerSql.ANSWER_ACCEPTED)
+            FakeUploader.acceptAll(files, status = "duplicate")
+        }
+        h.engine.start(env); advanceUntilIdle()
+        assertEquals(TrackerSql.ANSWER_ACCEPTED, h.row(env, "f0").uploadAnswer)
+        val c = h.tracker.observeCounts(env).first()
+        assertEquals(1, c.uploaded)
+        assertEquals(0, c.duplicates)
     }
 
     @Test

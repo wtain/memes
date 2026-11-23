@@ -47,7 +47,7 @@ class TrackerRepositoryTest {
     fun `uploaded file edited on the phone is not re-sent`() = runTest {
         val r = repo()
         r.syncScan(env, album, listOf(file("a")), scanId = 1)
-        r.markUploaded(env, album, listOf("a"), at = 50)
+        r.markUploaded(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 50)
         r.syncScan(env, album, listOf(file("a", size = 999, modified = 9)), scanId = 2)
         assertEquals(TrackerCounts(1, 1, 0, 0), r.counts())
         assertTrue(r.nextPending(env, 50).isEmpty())
@@ -57,7 +57,7 @@ class TrackerRepositoryTest {
     fun `uploaded file deleted from the album stays in X and leaves Y`() = runTest {
         val r = repo()
         r.syncScan(env, album, listOf(file("a"), file("b")), scanId = 1)
-        r.markUploaded(env, album, listOf("a"), at = 50)
+        r.markUploaded(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 50)
         r.syncScan(env, album, listOf(file("b")), scanId = 2)
         assertEquals(TrackerCounts(uploaded = 1, supported = 1, rejected = 0, pending = 1), r.counts())
     }
@@ -83,10 +83,62 @@ class TrackerRepositoryTest {
     fun `markUploaded is idempotent and keeps the first uploadedAt`() = runTest {
         val r = repo()
         r.syncScan(env, album, listOf(file("a")), scanId = 1)
-        r.markUploaded(env, album, listOf("a"), at = 50)
-        r.markUploaded(env, album, listOf("a"), at = 99)
+        r.markUploaded(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 50)
+        r.markUploaded(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 99)
         assertEquals(50L, dao.all.single().uploadedAt)
         assertEquals(1, r.counts().uploaded)
+    }
+
+    // ---- A7: the server's answer per uploaded file ------------------------------------------------------------
+
+    @Test
+    fun `duplicate and accepted answers are counted, uploaded keeps both`() = runTest {
+        val r = repo()
+        r.syncScan(env, album, listOf(file("a"), file("b")), scanId = 1)
+        r.markUploaded(env, album, listOf("a"), TrackerSql.ANSWER_DUPLICATE, at = 50)
+        r.markUploaded(env, album, listOf("b"), TrackerSql.ANSWER_ACCEPTED, at = 50)
+        val c = r.counts()
+        assertEquals(2, c.uploaded)
+        assertEquals(1, c.duplicates)
+        assertEquals(0, c.unclassified)
+        assertEquals(TrackerSql.ANSWER_DUPLICATE, dao.all.first { it.documentId == "a" }.uploadAnswer)
+        assertEquals(TrackerSql.ANSWER_ACCEPTED, dao.all.first { it.documentId == "b" }.uploadAnswer)
+    }
+
+    @Test
+    fun `a legacy uploaded row without an answer counts as unclassified`() = runTest {
+        val r = repo()
+        r.syncScan(env, album, listOf(file("a"), file("b")), scanId = 1)
+        dao.upsertAll(dao.all.filter { it.documentId == "a" }.map { it.copy(state = TrackedFileState.UPLOADED, uploadedAt = 5, uploadAnswer = null) })
+        r.syncScan(other, album, listOf(file("x")), scanId = 1)
+        dao.upsertAll(dao.all.filter { it.environmentId == other }.map { it.copy(state = TrackedFileState.UPLOADED, uploadAnswer = null) })
+        val c = r.counts()
+        assertEquals(1, c.uploaded)
+        assertEquals(1, c.unclassified)
+        assertEquals(0, c.duplicates)
+    }
+
+    @Test
+    fun `an uploaded row keeps its first answer`() = runTest {
+        val r = repo()
+        r.syncScan(env, album, listOf(file("a"), file("legacy")), scanId = 1)
+        r.markUploaded(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 50)
+        dao.upsertAll(dao.all.filter { it.documentId == "legacy" }.map { it.copy(state = TrackedFileState.UPLOADED, uploadedAt = 5, uploadAnswer = null) })
+        val before = dao.all.associateBy { it.documentId }
+        r.markUploaded(env, album, listOf("a", "legacy"), TrackerSql.ANSWER_DUPLICATE, at = 99)
+        assertEquals(before, dao.all.associateBy { it.documentId })
+        val c = r.counts()
+        assertEquals(0, c.duplicates)
+        assertEquals(1, c.unclassified)
+    }
+
+    @Test
+    fun `a reset wipes the answers with the rows`() = runTest {
+        val r = repo()
+        r.syncScan(env, album, listOf(file("a")), scanId = 1)
+        r.markUploaded(env, album, listOf("a"), TrackerSql.ANSWER_DUPLICATE, at = 50)
+        r.resetEnvironment(env)
+        assertEquals(TrackerCounts.EMPTY, r.counts())
     }
 
     @Test
@@ -128,7 +180,7 @@ class TrackerRepositoryTest {
         r.syncScan(env, album, files, scanId = 1)
         assertEquals(10, dao.transactionCount)
         assertEquals(TrackerCounts(0, 4500, 500, 4500), r.counts())
-        r.markUploaded(env, album, r.nextPending(env, 50).map { it.documentId }, at = 5)
+        r.markUploaded(env, album, r.nextPending(env, 50).map { it.documentId }, TrackerSql.ANSWER_ACCEPTED, at = 5)
         assertEquals(TrackerCounts(50, 4500, 500, 4450), r.counts())
     }
 
@@ -178,12 +230,12 @@ class TrackerRepositoryTest {
         // SAF document ids are path based, so a rename or move changes the documentId.
         val r = repo()
         r.syncScan(env, album, listOf(file("DCIM/old")), scanId = 1)
-        r.markUploaded(env, album, listOf("DCIM/old"), at = 5)
+        r.markUploaded(env, album, listOf("DCIM/old"), TrackerSql.ANSWER_ACCEPTED, at = 5)
         r.syncScan(env, album, listOf(file("DCIM/new")), scanId = 2)
         assertEquals(listOf("DCIM/new"), r.nextPending(env, 10).map { it.documentId })
         // X (1, old row, absent) is not bounded by Y (1, new row, pending): X can exceed Y after renames.
         assertEquals(TrackerCounts(uploaded = 1, supported = 1, rejected = 0, pending = 1), r.counts())
-        r.markUploaded(env, album, listOf("DCIM/new"), at = 6)
+        r.markUploaded(env, album, listOf("DCIM/new"), TrackerSql.ANSWER_ACCEPTED, at = 6)
         assertEquals(TrackerCounts(uploaded = 2, supported = 1, rejected = 0, pending = 0), r.counts())
     }
 
@@ -191,7 +243,7 @@ class TrackerRepositoryTest {
     fun `markRejected cannot demote an uploaded file`() = runTest {
         val r = repo()
         r.syncScan(env, album, listOf(file("a")), scanId = 1)
-        r.markUploaded(env, album, listOf("a"), at = 5)
+        r.markUploaded(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 5)
         r.markRejected(env, album, "a", "late answer", at = 9)
         assertEquals(TrackerCounts(1, 1, 0, 0), r.counts())
         assertEquals(TrackedFileState.UPLOADED, dao.all.single().state)
@@ -245,7 +297,7 @@ class TrackerRepositoryTest {
         markRejected(env, album, "a", RejectionReasons.SERVER_ERROR)
         markRejected(env, album, "b", RejectionReasons.SERVER_ERROR)
         markRejected(env, album, "c", "File too large: more than 20")
-        markUploaded(env, album, listOf("d"))
+        markUploaded(env, album, listOf("d"), TrackerSql.ANSWER_ACCEPTED)
         // "e" is locally rejected as unsupported_type by the scan.
     }
 
@@ -313,7 +365,7 @@ class TrackerRepositoryTest {
             listOf(file("ok", modified = 40), file("edited", modified = 40), file("notSent", modified = 40), file("gone", modified = 40), file("noDate", modified = 0)),
             scanId = 1,
         )
-        r.markUploaded(env, album, listOf("ok", "edited", "gone", "noDate"), at = 50)
+        r.markUploaded(env, album, listOf("ok", "edited", "gone", "noDate"), TrackerSql.ANSWER_ACCEPTED, at = 50)
         r.syncScan(env, album, listOf(file("ok", modified = 40), file("edited", modified = 60), file("notSent", modified = 40), file("noDate", modified = 0)), scanId = 2)
         // "gone" left the album; "edited" changed after the upload; "noDate" has no usable date; "notSent" was never uploaded.
         assertEquals(listOf(RemovableFile("ok", 50)), r.removableFiles(env, album))

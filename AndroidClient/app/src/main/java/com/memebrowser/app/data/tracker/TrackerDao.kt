@@ -34,7 +34,10 @@ abstract class TrackerDao {
             "AND COALESCE(rejectionReason, '') = ${TrackerSql.UNSUPPORTED_TYPE}) " +
             "THEN 1 ELSE 0 END), 0) AS supported, " +
             "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND state = ${TrackerSql.REJECTED} THEN 1 ELSE 0 END), 0) AS rejected, " +
-            "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND state = ${TrackerSql.PENDING} THEN 1 ELSE 0 END), 0) AS pending " +
+            "COALESCE(SUM(CASE WHEN presentInAlbum = 1 AND state = ${TrackerSql.PENDING} THEN 1 ELSE 0 END), 0) AS pending, " +
+            "COALESCE(SUM(CASE WHEN state = ${TrackerSql.UPLOADED} AND uploadAnswer = '${TrackerSql.ANSWER_DUPLICATE}' " +
+            "THEN 1 ELSE 0 END), 0) AS duplicates, " +
+            "COALESCE(SUM(CASE WHEN state = ${TrackerSql.UPLOADED} AND uploadAnswer IS NULL THEN 1 ELSE 0 END), 0) AS unclassified " +
             "FROM tracked_files WHERE environmentId = :environmentId"
     )
     abstract fun observeCounts(environmentId: String): Flow<TrackerCounts>
@@ -45,12 +48,17 @@ abstract class TrackerDao {
     )
     abstract suspend fun nextPending(environmentId: String, limit: Int): List<TrackedFileEntity>
 
+    /**
+     * Records [answer] ([TrackerSql.ANSWER_ACCEPTED] / [TrackerSql.ANSWER_DUPLICATE]) with the upload. An UPLOADED row is
+     * left as it is (A7: a later answer must not rewrite history, so a first `accepted` never turns into `duplicate`).
+     */
     @Query(
         "UPDATE tracked_files SET state = ${TrackerSql.UPLOADED}, rejectionReason = NULL, " +
-            "uploadedAt = COALESCE(uploadedAt, :at), updatedAt = :at " +
-            "WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri AND documentId IN (:documentIds)"
+            "uploadedAt = COALESCE(uploadedAt, :at), updatedAt = :at, uploadAnswer = :answer " +
+            "WHERE environmentId = :environmentId AND albumTreeUri = :albumTreeUri AND documentId IN (:documentIds) " +
+            "AND state != ${TrackerSql.UPLOADED}"
     )
-    abstract suspend fun markUploaded(environmentId: String, albumTreeUri: String, documentIds: List<String>, at: Long)
+    abstract suspend fun markUploaded(environmentId: String, albumTreeUri: String, documentIds: List<String>, answer: String, at: Long)
 
     /** Never demotes an UPLOADED row (a late answer must not decrement X); a no-op for it. */
     @Query(
@@ -124,8 +132,8 @@ abstract class TrackerDao {
 
     /** Marks many files uploaded in one transaction, in id chunks below SQLite's variable limit. */
     @Transaction
-    open suspend fun markUploadedAll(environmentId: String, albumTreeUri: String, documentIds: List<String>, at: Long) {
-        documentIds.chunked(SCAN_CHUNK_SIZE).forEach { markUploaded(environmentId, albumTreeUri, it, at) }
+    open suspend fun markUploadedAll(environmentId: String, albumTreeUri: String, documentIds: List<String>, answer: String, at: Long) {
+        documentIds.chunked(SCAN_CHUNK_SIZE).forEach { markUploaded(environmentId, albumTreeUri, it, answer, at) }
     }
 
     companion object {

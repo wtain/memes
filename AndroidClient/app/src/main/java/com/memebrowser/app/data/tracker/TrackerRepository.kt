@@ -68,9 +68,10 @@ class TrackerRepository @Inject constructor(
         environmentId: String,
         albumTreeUri: String,
         documentIds: List<String>,
+        answer: String,
         at: Long = System.currentTimeMillis(),
     ) {
-        if (documentIds.isNotEmpty()) dao.markUploadedAll(environmentId, albumTreeUri, documentIds, at)
+        if (documentIds.isNotEmpty()) dao.markUploadedAll(environmentId, albumTreeUri, documentIds, answer, at)
     }
 
     /** Marks a file rejected by the backend. A no-op for an UPLOADED row (an upload is never demoted). */

@@ -40,8 +40,8 @@ class TrackerDaoTest {
         assertEquals(TrackerCounts(0, 3, 2, 2), dao.observeCounts(env).first())
         assertEquals(listOf("b", "a"), dao.nextPending(env, 10).map { it.documentId })
 
-        dao.markUploadedAll(env, album, listOf("a"), at = 10)
-        dao.markUploadedAll(env, album, listOf("a"), at = 20)
+        dao.markUploadedAll(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 10)
+        dao.markUploadedAll(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 20)
         assertEquals(10L, dao.findByIds(env, album, listOf("a")).single().uploadedAt)
 
         // edited file stays uploaded; deleted file leaves Y but stays in X
@@ -68,9 +68,30 @@ class TrackerDaoTest {
     @Test
     fun markRejectedDoesNotDemoteUploaded() = runBlocking {
         dao.applyScanChunk(env, album, listOf(file("a")), scanId = 1, now = 1)
-        dao.markUploadedAll(env, album, listOf("a"), at = 5)
+        dao.markUploadedAll(env, album, listOf("a"), TrackerSql.ANSWER_ACCEPTED, at = 5)
         dao.markRejected(env, album, "a", "late", at = 9)
         assertEquals(TrackedFileState.UPLOADED, dao.findByIds(env, album, listOf("a")).single().state)
+    }
+
+    /** A7: the answer is stored, counted, and never overwritten once a row is UPLOADED (legacy NULL rows stay unclassified). */
+    @Test
+    fun uploadAnswersAreCountedAndNeverOverwritten() = runBlocking {
+        dao.applyScanChunk(env, album, listOf(file("acc"), file("dup"), file("legacy"), file("p")), scanId = 1, now = 1)
+        dao.markUploadedAll(env, album, listOf("acc"), TrackerSql.ANSWER_ACCEPTED, at = 5)
+        dao.markUploadedAll(env, album, listOf("dup"), TrackerSql.ANSWER_DUPLICATE, at = 5)
+        dao.upsertAll(dao.findByIds(env, album, listOf("legacy")).map { it.copy(state = TrackedFileState.UPLOADED, uploadedAt = 3, uploadAnswer = null) })
+        dao.applyScanChunk("builtin-metal", album, listOf(file("x")), scanId = 1, now = 1)
+        dao.markUploadedAll("builtin-metal", album, listOf("x"), TrackerSql.ANSWER_DUPLICATE, at = 5)
+        assertEquals(TrackerCounts(3, 4, 0, 1, duplicates = 1, unclassified = 1), dao.observeCounts(env).first())
+
+        val before = dao.findByIds(env, album, listOf("acc", "legacy")).associateBy { it.documentId }
+        dao.markUploadedAll(env, album, listOf("acc", "legacy"), TrackerSql.ANSWER_DUPLICATE, at = 99)
+        assertEquals(before, dao.findByIds(env, album, listOf("acc", "legacy")).associateBy { it.documentId })
+        assertEquals(TrackerSql.ANSWER_DUPLICATE, dao.findByIds(env, album, listOf("dup")).single().uploadAnswer)
+        assertEquals(TrackerCounts(3, 4, 0, 1, duplicates = 1, unclassified = 1), dao.observeCounts(env).first())
+
+        dao.deleteEnvironment(env)
+        assertEquals(TrackerCounts.EMPTY, dao.observeCounts(env).first())
     }
 
     @Test
@@ -84,7 +105,7 @@ class TrackerDaoTest {
     @Test
     fun removableFilesAreUploadedPresentAndUnchanged() = runBlocking {
         dao.applyScanChunk(env, album, listOf(file("ok", modified = 40), file("edited", modified = 40), file("noDate", modified = 0), file("gone", modified = 40)), scanId = 1, now = 1)
-        dao.markUploadedAll(env, album, listOf("ok", "edited", "noDate", "gone"), at = 50)
+        dao.markUploadedAll(env, album, listOf("ok", "edited", "noDate", "gone"), TrackerSql.ANSWER_ACCEPTED, at = 50)
         dao.applyScanChunk(env, album, listOf(file("ok", modified = 40), file("edited", modified = 60), file("noDate", modified = 0)), scanId = 2, now = 2)
         dao.markMissing(env, 2)
         assertEquals(listOf("ok"), dao.removableFiles(env, album).map { it.documentId })

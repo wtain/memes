@@ -6,6 +6,7 @@ import com.memebrowser.app.data.tracker.ScannedFile
 import com.memebrowser.app.data.tracker.TrackerCounts
 import com.memebrowser.app.data.tracker.TrackerRepository
 import com.memebrowser.app.data.tracker.TrackerSettingsStore
+import com.memebrowser.app.data.tracker.TrackerSql
 import kotlinx.coroutines.CompletableDeferred
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -118,7 +119,7 @@ class AlbumSyncCoordinatorTest {
         val c = coordinator()
         scanner.result = { listing("a", "b", "c") }
         c.selectAlbum(general, albumA)
-        tracker.markUploaded(general, albumA, listOf("a"))
+        tracker.markUploaded(general, albumA, listOf("a"), TrackerSql.ANSWER_ACCEPTED)
         tracker.markRejected(general, albumA, "b", "bad content")
         val plan = c.requestChangeAlbum(general, albumB)
         assertEquals(1, plan.uploaded)
@@ -199,7 +200,7 @@ class AlbumSyncCoordinatorTest {
         val c = coordinator()
         scanner.result = { listing("a") }
         c.selectAlbum(general, albumA)
-        tracker.markUploaded(general, albumA, listOf("a"))
+        tracker.markUploaded(general, albumA, listOf("a"), TrackerSql.ANSWER_ACCEPTED)
         val scansBefore = scanner.calls.size
 
         val plan = c.requestChangeAlbum(general, albumA)
@@ -218,7 +219,7 @@ class AlbumSyncCoordinatorTest {
         val c = coordinator()
         scanner.result = { listing("a") }
         c.selectAlbum(general, albumA)
-        tracker.markUploaded(general, albumA, listOf("a"))
+        tracker.markUploaded(general, albumA, listOf("a"), TrackerSql.ANSWER_ACCEPTED)
         access.granted.clear()
 
         val plan = c.requestChangeAlbum(general, albumA)
@@ -238,7 +239,7 @@ class AlbumSyncCoordinatorTest {
         val c = coordinator()
         scanner.result = { listing("a") }
         c.selectAlbum(general, albumA)
-        tracker.markUploaded(general, albumA, listOf("a"))
+        tracker.markUploaded(general, albumA, listOf("a"), TrackerSql.ANSWER_ACCEPTED)
         scanner.result = { AlbumScanResult.PermissionLost }
         assertEquals(ScanState.PermissionLost, c.refreshScan(general))
         assertTrue(albumA in access.granted) // the provider throws although the grant is listed
@@ -305,7 +306,7 @@ class AlbumSyncCoordinatorTest {
         val c = coordinator()
         scanner.result = { listing("a", "b") }
         c.selectAlbum(general, albumA)
-        tracker.markUploaded(general, albumA, listOf("a"))
+        tracker.markUploaded(general, albumA, listOf("a"), TrackerSql.ANSWER_ACCEPTED)
         scanner.result = { AlbumScanResult.Complete(emptyList()) }
 
         assertEquals(ScanState.Done(1234L), c.refreshScan(general))

@@ -5,13 +5,14 @@ import com.memebrowser.app.data.tracker.TrackerRepository
 
 /** What the engine writes into the tracker; a seam so tests can interleave cancellation with the writes. */
 internal interface OutcomeStore {
-    suspend fun markUploaded(environmentId: String, treeUri: String, documentIds: List<String>)
+    /** [answer] is `TrackerSql.ANSWER_ACCEPTED` or `TrackerSql.ANSWER_DUPLICATE` (A7). */
+    suspend fun markUploaded(environmentId: String, treeUri: String, documentIds: List<String>, answer: String)
     suspend fun markRejected(environmentId: String, treeUri: String, documentId: String, reason: String)
 }
 
 internal class TrackerOutcomeStore(private val tracker: TrackerRepository) : OutcomeStore {
-    override suspend fun markUploaded(environmentId: String, treeUri: String, documentIds: List<String>) =
-        tracker.markUploaded(environmentId, treeUri, documentIds)
+    override suspend fun markUploaded(environmentId: String, treeUri: String, documentIds: List<String>, answer: String) =
+        tracker.markUploaded(environmentId, treeUri, documentIds, answer)
 
     override suspend fun markRejected(environmentId: String, treeUri: String, documentId: String, reason: String) =
         tracker.markRejected(environmentId, treeUri, documentId, reason)

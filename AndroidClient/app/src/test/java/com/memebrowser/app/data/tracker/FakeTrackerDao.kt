@@ -43,6 +43,8 @@ class FakeTrackerDao : TrackerDao() {
             },
             rejected = present.count { it.state == TrackedFileState.REJECTED },
             pending = present.count { it.state == TrackedFileState.PENDING },
+            duplicates = env.count { it.state == TrackedFileState.UPLOADED && it.uploadAnswer == TrackerSql.ANSWER_DUPLICATE },
+            unclassified = env.count { it.state == TrackedFileState.UPLOADED && it.uploadAnswer == null },
         )
     }
 
@@ -52,13 +54,16 @@ class FakeTrackerDao : TrackerDao() {
             .sortedWith(compareByDescending<TrackedFileEntity> { it.lastModified }.thenBy { it.documentId })
             .take(limit)
 
-    override suspend fun markUploaded(environmentId: String, albumTreeUri: String, documentIds: List<String>, at: Long) {
+    override suspend fun markUploaded(
+        environmentId: String, albumTreeUri: String, documentIds: List<String>, answer: String, at: Long,
+    ) {
         documentIds.forEach { id ->
             val k = Triple(environmentId, albumTreeUri, id)
-            rows.value[k]?.let {
+            // Mirrors `AND state != 'UPLOADED'`: an uploaded row keeps its first answer.
+            rows.value[k]?.takeIf { it.state != TrackedFileState.UPLOADED }?.let {
                 rows.value = rows.value + (k to it.copy(
                     state = TrackedFileState.UPLOADED, rejectionReason = null,
-                    uploadedAt = it.uploadedAt ?: at, updatedAt = at,
+                    uploadedAt = it.uploadedAt ?: at, updatedAt = at, uploadAnswer = answer,
                 ))
             }
         }

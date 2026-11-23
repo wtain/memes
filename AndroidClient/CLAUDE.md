@@ -115,6 +115,11 @@ Code in `data/tracker/` (Room `TrackerDatabase`, schema JSON in `app/schemas/`, 
   and must not call `syncScan` with a failed listing (an empty list needs `allowEmpty = true`). `markRejected` never demotes UPLOADED.
 - The tracker DB and DataStore are excluded from Android backup (`res/xml/data_extraction_rules.xml`, `backup_rules.xml`).
 - JVM tests use `FakeTrackerDao`; the SQL itself is only exercised by `androidTest/.../TrackerDaoTest` (needs a device).
+- A7 (database version 2, `MIGRATION_1_2` in `TrackerDatabase.kt`, registered in `TrackerModule`, no destructive fallback): column `uploadAnswer`
+  (`TrackerSql.ANSWER_ACCEPTED` / `ANSWER_DUPLICATE`, NULL = not uploaded). `markUploaded(..., answer)` only changes rows that are not UPLOADED yet, so the
+  first answer is kept. `TrackerCounts.duplicates` / `unclassified` = UPLOADED rows answered `duplicate` / with no answer (rows uploaded before A7 stay
+  unclassified; nothing re-classifies them). Migrations are checked by `androidTest/.../TrackerMigrationTest` (`room-testing`; `app/schemas` is an
+  androidTest assets dir); a schema change needs a version bump, a migration and the exported `app/schemas/.../<n>.json` committed.
 
 ### Album access and scan (A2)
 Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a2-album-selection-and-scan-design.md`. Code in `data/album/`, Hilt in `di/AlbumModule`. No screens.
@@ -199,6 +204,8 @@ Design: `docs/superpowers/specs/2026-11-08-android-ingestion-sync/2026-11-08-a4-
 - Screen-local state (message, busy, dismissed result, rejected sub-view, plan) is per environment; actions use the environment id of the state on screen. The change dialog
   closes when the stored album is no longer the plan's old one (commit), the rescan shows as scan state. Unexpected errors show a generic message and are logged, never shown raw.
   "Choose album again" is shown once (`lostAccessCardVisible` / `repickInSyncCard`). Retry queries only touch rows still `presentInAlbum`. `SyncPreviews.kt` holds `@Preview`s.
+- Status card (A7): below "X of Y uploaded" (X still includes duplicates) and the bar, `duplicatesText` ("N already on the server (duplicates)", tag
+  `sync_duplicates`) and `unclassifiedText` ("N uploaded before this count existed", tag `sync_unclassified`) show only when their count is above 0.
 - Rejected files stay skipped; only `server_error` rows can be retried: `TrackerRepository.retryServerErrors` / `retryServerError` (reset to PENDING, under the tracker Mutex).
 - ViewModel tests mock the final coordinator/engine/tracker with mockk; the retry SQL itself is only checked on a device (`FakeTrackerDao` mirrors it).
 - `androidTest/.../ui/sync/SyncScreenTest` needs a device to run (the androidTest source set compiles since `SearchScreenTest` was updated for `onMemeClick(memeId, searchId)`; verified with `compileDebugAndroidTestKotlin`).

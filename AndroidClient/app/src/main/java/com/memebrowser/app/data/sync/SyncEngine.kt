@@ -10,6 +10,7 @@ import com.memebrowser.app.data.repository.UploadFile
 import com.memebrowser.app.data.tracker.AlbumSelection
 import com.memebrowser.app.data.tracker.TrackedFileEntity
 import com.memebrowser.app.data.tracker.TrackerRepository
+import com.memebrowser.app.data.tracker.TrackerSql
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -489,8 +490,12 @@ class SyncEngine internal constructor(
         run.rateLimited = 0
         run.p.poisonStreak = 0
         withContext(NonCancellable) {
-            mapped.uploaded.groupBy({ batch[it].albumTreeUri }, { batch[it].documentId }).forEach { (tree, ids) ->
-                outcomes.markUploaded(run.env, tree, ids)
+            // A7: accepted and duplicate files are written as separate groups, each with its answer; an empty group writes nothing.
+            val (duplicate, accepted) = mapped.uploaded.partition { it in mapped.duplicates }
+            for ((positions, answer) in listOf(accepted to TrackerSql.ANSWER_ACCEPTED, duplicate to TrackerSql.ANSWER_DUPLICATE)) {
+                positions.groupBy({ batch[it].albumTreeUri }, { batch[it].documentId }).forEach { (tree, ids) ->
+                    outcomes.markUploaded(run.env, tree, ids, answer)
+                }
             }
             mapped.rejected.forEach { (pos, reason) ->
                 outcomes.markRejected(run.env, batch[pos].albumTreeUri, batch[pos].documentId, reason)

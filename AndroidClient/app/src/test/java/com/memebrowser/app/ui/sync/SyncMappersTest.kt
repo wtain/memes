@@ -29,6 +29,14 @@ class SyncMappersTest {
     // ---- progress ------------------------------------------------------------------------------------------------
 
     @Test
+    fun `duplicates and unclassified lines show only when non zero`() {
+        assertNull(duplicatesText(TrackerCounts(10, 10, 0, 0, duplicates = 0)))
+        assertEquals("215 already on the server (duplicates)", duplicatesText(TrackerCounts(300, 300, 0, 0, duplicates = 215)))
+        assertNull(unclassifiedText(TrackerCounts(10, 10, 0, 0, unclassified = 0)))
+        assertEquals("12551 uploaded before this count existed", unclassifiedText(TrackerCounts(12551, 12552, 0, 1, unclassified = 12551)))
+    }
+
+    @Test
     fun `progress fraction is x over y, zero for an empty album and capped at one`() {
         assertEquals(0.4f, progressFraction(counts), 0.0001f)
         assertEquals(0f, progressFraction(TrackerCounts.EMPTY), 0f)

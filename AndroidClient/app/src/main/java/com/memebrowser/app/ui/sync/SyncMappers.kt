@@ -57,6 +57,14 @@ fun imageCount(n: Int): String = if (n == 1) "1 image" else "$n images"
 fun progressFraction(counts: TrackerCounts): Float =
     if (counts.supported <= 0) 0f else (counts.uploaded.toFloat() / counts.supported).coerceIn(0f, 1f)
 
+/** A7: the part of X the server already had; null (no line) at 0. */
+fun duplicatesText(counts: TrackerCounts): String? =
+    counts.duplicates.takeIf { it > 0 }?.let { "$it already on the server (duplicates)" }
+
+/** A7: uploads that predate the recorded answer; null (no line) once there are none. */
+fun unclassifiedText(counts: TrackerCounts): String? =
+    counts.unclassified.takeIf { it > 0 }?.let { "$it uploaded before this count existed" }
+
 fun SyncState.isTerminal(): Boolean = this is SyncState.Finished || this is SyncState.Stopped || this is SyncState.Failed
 
 /** Everything the buttons of the screen depend on, derived in one pure place. */
