@@ -11,8 +11,8 @@ type Props = {
 
 export function MemeDetailsModal({ meme, memesApi, onClose }: Props) {
   return (
-    <Modal onClose={onClose} title="Meme Details">
-      <MemeDetails meme={meme} memesApi={memesApi} />
+    <Modal onClose={onClose} title="Meme Details" size="wide" titleHidden>
+      <MemeDetails meme={meme} memesApi={memesApi} layout="modal" />
     </Modal>
   )
 }

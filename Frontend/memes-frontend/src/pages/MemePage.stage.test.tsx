@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import MemePage from './MemePage'
@@ -61,6 +61,8 @@ describe('MemePage on a dev build', () => {
     expect(await screen.findByRole('button', { name: /^Approve/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Reject/ })).toBeInTheDocument()
     expect(await screen.findByLabelText('Set popularity')).toBeInTheDocument()
+    // the comics block sits in the Stats tab; role queries skip a hidden panel
+    fireEvent.click(screen.getByRole('tab', { name: 'Stats' }))
     expect(await screen.findByRole('button', { name: 'Add to comics…' })).toBeInTheDocument()
     expect(api.comicsByImage).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
   })
@@ -76,6 +78,7 @@ describe('MemePage on a dev build', () => {
     await screen.findByLabelText('Situation')
     await waitFor(() => expect(api.comicsByImage).toHaveBeenCalled())
     await act(async () => {})
+    fireEvent.click(screen.getByRole('tab', { name: 'Stats' }))  // role queries skip a hidden panel
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add to comics…' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create comics' })).not.toBeInTheDocument()

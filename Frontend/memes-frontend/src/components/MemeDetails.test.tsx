@@ -4,6 +4,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { MemeDetails } from './MemeDetails'
 import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
 import { getCardImg, queryCardImg } from '../test/cardQueries'
+import { useFeature } from '../features/useFeature'
+
+vi.mock('../features/useFeature', async importOriginal => {
+  const actual = await importOriginal<typeof import('../features/useFeature')>()
+  return { ...actual, useFeature: vi.fn(actual.useFeature) }
+})
 
 function renderMemeDetails(meme = DEFAULT_MOCK_MEME, overrides: Parameters<typeof makeMockApi>[0] = {}) {
   const api = makeMockApi(overrides)
@@ -13,6 +19,11 @@ function renderMemeDetails(meme = DEFAULT_MOCK_MEME, overrides: Parameters<typeo
     </MemoryRouter>
   )
   return { api, ...result }
+}
+
+// Inactive tab panels stay mounted but hidden, and role queries skip hidden elements.
+function openTab(name: string) {
+  fireEvent.click(screen.getByRole('tab', { name }))
 }
 
 describe('MemeDetails', () => {
@@ -158,6 +169,7 @@ describe('MemeDetails', () => {
       })
       render(<MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>)
       await waitFor(() => expect(screen.getByTestId('popularity-value')).toHaveTextContent('0'))
+      openTab('Curate')
       const checkbox = await screen.findByRole('checkbox')
       await waitFor(() => expect(checkbox).toBeChecked())
       fireEvent.click(checkbox)
@@ -316,6 +328,7 @@ describe('MemeDetails', () => {
         getMeme: vi.fn().mockResolvedValue({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' }),
       })
       await act(async () => {})
+      openTab('Curate')
 
       expect(api.getMeme).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id)
       expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('a cat wearing a hat')
@@ -324,6 +337,7 @@ describe('MemeDetails', () => {
     it('renders an empty textarea when no note is set', async () => {
       renderMemeDetails(DEFAULT_MOCK_MEME)
       await act(async () => {})
+      openTab('Curate')
 
       expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('')
     })
@@ -331,6 +345,7 @@ describe('MemeDetails', () => {
     it('clicking Save calls setDescriptionNote with the current textarea value', async () => {
       const { api } = renderMemeDetails(DEFAULT_MOCK_MEME)
       await act(async () => {})
+      openTab('Curate')
 
       const textarea = screen.getByRole('textbox', { name: 'Description note' })
       await act(async () => {
@@ -348,6 +363,7 @@ describe('MemeDetails', () => {
         getMeme: vi.fn().mockResolvedValue({ ...DEFAULT_MOCK_MEME, descriptionNote: 'a cat wearing a hat' }),
       })
       await act(async () => {})
+      openTab('Curate')
 
       await act(async () => {
         screen.getByRole('button', { name: 'Clear note' }).click()
@@ -372,10 +388,12 @@ describe('MemeDetails', () => {
         <MemoryRouter><MemeDetails meme={memeAFromList} memesApi={api} /></MemoryRouter>
       )
       await act(async () => {})
+      openTab('Curate')
       expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('note for A')
 
       rerender(<MemoryRouter><MemeDetails meme={memeBFromList} memesApi={api} /></MemoryRouter>)
       await act(async () => {})
+      openTab('Curate')  // the tab resets to Info with the meme
       expect(screen.getByRole('textbox', { name: 'Description note' })).toHaveValue('')
     })
 
@@ -385,6 +403,7 @@ describe('MemeDetails', () => {
       renderMemeDetails(DEFAULT_MOCK_MEME, {
         getMeme: vi.fn().mockReturnValue(getMemePromise),
       })
+      openTab('Curate')
 
       expect(screen.getByRole('textbox', { name: 'Description note' })).toBeDisabled()
       expect(screen.getByRole('button', { name: 'Save note' })).toBeDisabled()
@@ -405,6 +424,7 @@ describe('MemeDetails', () => {
       const { api } = renderMemeDetails()
       await act(async () => {})
       expect(api.similarMemes).toHaveBeenCalledWith(DEFAULT_MOCK_MEME.id, "image")
+      openTab('Similar')
       expect(screen.getByRole('button', { name: 'Visual' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Semantic' })).toBeInTheDocument()
     })
@@ -419,6 +439,7 @@ describe('MemeDetails', () => {
         <MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>
       )
       await act(async () => {})
+      openTab('Similar')
 
       screen.getByRole('button', { name: 'Semantic' }).click()
       await act(async () => {})
@@ -438,6 +459,7 @@ describe('MemeDetails', () => {
       )
       await act(async () => {})
       expect(getCardImg('vis-1')).toBeInTheDocument()
+      openTab('Similar')
 
       screen.getByRole('button', { name: 'Semantic' }).click()
       await act(async () => {})
@@ -463,6 +485,7 @@ describe('MemeDetails', () => {
         <MemoryRouter><MemeDetails meme={DEFAULT_MOCK_MEME} memesApi={api} /></MemoryRouter>
       )
       await act(async () => {})
+      openTab('Similar')
 
       screen.getByRole('button', { name: 'Semantic' }).click()
       await act(async () => {})
@@ -480,6 +503,7 @@ describe('MemeDetails', () => {
         <MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>
       )
       await act(async () => {})
+      openTab('Similar')
 
       screen.getByRole('button', { name: 'Semantic' }).click()
       await act(async () => {})
@@ -524,5 +548,107 @@ describe('MemeDetails share actions row', () => {
     expect(screen.queryByText(/⬇/)).not.toBeInTheDocument()
     expect(document.querySelector('a[download]')).toBeNull()
     expect(within(row()).getAllByRole('button', { name: /download/i })).toHaveLength(1)
+  })
+})
+
+describe('MemeDetails panel tabs', () => {
+  afterEach(() => { vi.mocked(useFeature).mockReset() })
+
+  function open(name: string) {
+    fireEvent.click(screen.getByRole('tab', { name }))
+  }
+
+  it('shows Info content by default', async () => {
+    renderMemeDetails(DEFAULT_MOCK_MEME, {
+      getDescriptions: vi.fn().mockResolvedValue([
+        { promptKey: 'general_description', text: 'A cat.', modelUsed: 'llava', createdAt: '2026-07-19T12:00:00' },
+      ]),
+    })
+    await act(async () => {})
+    expect(screen.getByRole('tab', { name: 'Info' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Text Lines:')).toBeVisible()
+    expect(screen.getByText('Descriptions:')).toBeVisible()
+    expect(screen.getByText('Tags:')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Visual', hidden: true })).not.toBeVisible()
+    expect(screen.getByTestId('popularity-value')).not.toBeVisible()
+    expect(screen.getByLabelText('Description note')).not.toBeVisible()
+  })
+
+  it('Similar tab shows the toggle and the grid', async () => {
+    renderMemeDetails(DEFAULT_MOCK_MEME, {
+      similarMemes: vi.fn().mockResolvedValue({ items: [{ id: 'vis-1', imageUrl: '/vis-1.jpg' }], facets: [], hasNext: false }),
+    })
+    await act(async () => {})
+    open('Similar')
+    expect(screen.getByRole('button', { name: 'Visual' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Semantic' })).toBeVisible()
+    expect(getCardImg('vis-1')).toBeVisible()
+  })
+
+  it('Stats tab shows popularity, saves and impressions', async () => {
+    renderMemeDetails(DEFAULT_MOCK_MEME, {
+      getMemePopularity: vi.fn().mockResolvedValue({ popularity: 7, status: 'normal', breakdown: [] }),
+      getMemeSaves: vi.fn().mockResolvedValue({ imageId: 'x', count: 3, lastSavedAt: null }),
+      getMemeImpressions: vi.fn().mockResolvedValue({ imageId: 'x', count: 9, countWindow: 2, windowDays: 30, lastShownAt: null }),
+    })
+    await act(async () => {})
+    open('Stats')
+    expect(screen.getByTestId('popularity-value')).toBeVisible()
+    expect(screen.getByTestId('save-count-value')).toBeVisible()
+    expect(screen.getByTestId('impression-count')).toBeVisible()
+  })
+
+  it('Curate tab exists with the curator feature and holds the note and the flag toggle', async () => {
+    renderMemeDetails()
+    await act(async () => {})
+    open('Curate')
+    expect(screen.getByRole('textbox', { name: 'Description note' })).toBeVisible()
+    expect(screen.getByRole('checkbox')).toBeVisible()
+  })
+
+  it('has no Curate tab and no curator controls without the curator feature', async () => {
+    vi.mocked(useFeature).mockImplementation(f => f !== 'curator')
+    renderMemeDetails()
+    await act(async () => {})
+    expect(screen.queryByRole('tab', { name: 'Curate' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Description note')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('keeps hidden panels mounted: similar and concepts fetch once without opening any tab', async () => {
+    const { api } = renderMemeDetails()
+    await act(async () => {})
+    expect(api.similarMemes).toHaveBeenCalledTimes(1)
+    expect(api.getTopConceptsForImage).toHaveBeenCalledTimes(1)
+  })
+
+  it('resets to Info when the meme changes', async () => {
+    const api = makeMockApi()
+    const memeA = { ...DEFAULT_MOCK_MEME, id: 'meme-A' }
+    const memeB = { ...DEFAULT_MOCK_MEME, id: 'meme-B' }
+    const { rerender } = render(<MemoryRouter><MemeDetails meme={memeA} memesApi={api} /></MemoryRouter>)
+    await act(async () => {})
+    open('Stats')
+    expect(screen.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true')
+    rerender(<MemoryRouter><MemeDetails meme={memeB} memesApi={api} /></MemoryRouter>)
+    await act(async () => {})
+    expect(screen.getByRole('tab', { name: 'Info' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('omits the concepts table header when there are no concepts', async () => {
+    renderMemeDetails(DEFAULT_MOCK_MEME, { getTopConceptsForImage: vi.fn().mockResolvedValue([]) })
+    await act(async () => {})
+    open('Stats')
+    expect(screen.queryByRole('columnheader', { name: 'Name' })).not.toBeInTheDocument()
+  })
+
+  it('shows the concepts table when there are concepts', async () => {
+    renderMemeDetails(DEFAULT_MOCK_MEME, {
+      getTopConceptsForImage: vi.fn().mockResolvedValue([{ id: 1, name: 'cats' }]),
+    })
+    await act(async () => {})
+    open('Stats')
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeVisible()
   })
 })
