@@ -79,7 +79,7 @@ New module `batch/utils/run_progress.py`; `batch/run_tracking.py` gets a context
    finished run (a late write cannot overwrite a run that already completed or failed).
 4. **Drain on exit.** `tracked_run` and `finish_existing_run` await the run's in-flight write before the final commit or
    fail, with a short timeout, so the last report lands and no task is left pending at loop shutdown.
-5. **`ProgressTracker`** gains optional `label` and `unit` arguments (defaults: the current run's kind, `items`). In
+5. **`ProgressTracker`** gains optional `label` and `unit` arguments (defaults: `None`, stored as the label `"batch"`, and `items`). In
    `mark_done` it calls `report_progress` with its own `done`, effective total and windowed rate. Its console output is
    unchanged. The `report_every` and `report_interval_secs` gates stay for console output only; the progress throttle is
    independent, so a job that prints every 100 items still reports every 10 s.
@@ -141,17 +141,21 @@ constant `STALE_AFTER_MS` of the web page (`src/pages/batchProgress.ts`), since 
 
 - Alembic migration: `ALTER TABLE batch_runs ADD COLUMN progress JSONB NULL`. No backfill, no index, no default; the table
   is small and the change is metadata-only.
-- `Storage/models.py`: `BatchRun.progress: Mapped[dict | None]`.
+- `Storage/models.py`: `BatchRun.progress: Mapped[dict | None]`, mapped `deferred` (not selected by a default load);
+  only `BatchRunRepository.get_run` and `list_runs` (the Admin API paths) `undefer` it.
 - `sync/registry.py` already classifies `batch_runs` (class X, not synced); the new column needs no classification, but
   run `pytest tests/sync/ tests/docs/` to confirm, and add the column to `docs/image-derived-data.md` only if that guard
   asks.
-- Deploy order: migrate first. Old code ignores the column; new code against an unmigrated database would fail the first
-  progress write, which D3 swallows, so a late migration costs only the bar.
+- Deploy order: migrate first. Old code ignores the column. With the deferred mapping, run tracking (create, commit, fail,
+  abort, stage, stats, the active-run and orphan checks) keeps working on an unmigrated database; only the Admin runs list
+  and run detail (which read `progress`) and the progress writes (swallowed, D3) fail until `alembic upgrade head`. The three
+  dev backends run with `--reload` from the main checkout and reload on the new code at merge, so migrate each live
+  environment (metal, general, it; prod when its code ships) BEFORE merging into the main checkout.
 
 ## Privacy and safety
 
 - Only counts and fixed labels are stored (D6). The `label` and `unit` are validated against closed lists at write time; an
-  unknown value is replaced by `items` / the run's kind rather than stored.
+  unknown value is replaced by `items` / `"batch"` rather than stored.
 - Writes are bounded (one small row update, at most every 10 s per run), so a hundred jobs cost nothing measurable.
 - No metric or log line gains a label or a value from this feature. If a Prometheus gauge is wanted later, it must follow
   `docs/observability.md` (bounded labels only).

@@ -176,8 +176,9 @@ A tracked run can tell the Admin page how far it is. The value lives in the null
   `report_progress(label, unit, done, total, rate_per_min)` itself. A driver calls `report_step(index, count, label)` before each
   step; `description_pipeline`, `recut_pipeline` and `comics_pipeline` (through `run_steps`) and `ingest_auto_prep` do. Each
   child still reports its own bar on its own row.
-- **Throttle.** One write per run per `batch_progress.min_interval_seconds` (10). The first report, a report with
-  `done == total` and every step report always pass. At most one write is in flight per run and the latest value wins.
+- **Throttle.** One write per run per `batch_progress.min_interval_seconds` (10). The first report, the first report with
+  `done >= total` and every step report always pass (later reports with `done >= total` follow the interval). A new step
+  index clears the driver row's previous counts. At most one write is in flight per run and the latest value wins.
   `batch_progress.enabled: false` turns reporting into a no-op.
 - **Best effort.** Both functions are synchronous, never raise and do nothing without a current run or a running event loop.
   The write is one `UPDATE ... WHERE status = 'started'` on its own short session, so it never touches a finished run; a failed
@@ -188,9 +189,18 @@ A tracked run can tell the Admin page how far it is. The value lives in the null
 - **Finished runs** keep their last progress; the badge says whether the run is still going.
 - **Admin page.** A `started` run with progress shows a bar with `done / total` and the percentage (a count only when `total` is
   unknown), the rate and an ETA computed in the browser from `rate_per_min`, the driver's "step N of M: label" and "updated ... ago".
-  When `updated_at` is older than 300 s (a constant of the page, `STALE_AFTER_MS`) the line turns amber: a hint, not a state. The
-  runs list returns `progress` as `null` for a stored value that is partial or malformed.
+  When `updated_at` is older than 300 s (a constant of the page, `STALE_AFTER_MS`) the line turns amber and reads "no update
+  for N min": a hint, not a state. The runs list returns `progress` as `null` for a stored value that is partial or malformed.
 - **Jobs started from a shell** outside `tracked_run` (no run row) report nothing. A job that does not report simply shows no bar.
+- **Deploy order.** `BatchRun.progress` is mapped `deferred` (only `BatchRunRepository.get_run` and `list_runs` load it), so
+  run tracking keeps working on a database without the column; only the Admin runs list and the progress writes fail until
+  `alembic upgrade head`. Migrate each live environment (metal, general, it; prod when its code ships) BEFORE merging into the
+  main checkout, because the `--reload` backends pick up the new code at merge.
+- **Limitations.** The write is a task on the job's event loop, so it only runs when the loop yields. A synchronous loop with
+  no `await` (for example `hash_incoming_files` in `batch/ingest_hash_dedup.py`, or `TagsSaver.add_tag` in
+  `build_tags_from_ocr`) never yields: its reports are made, but only the final value is written after the loop ends, so the
+  bar shows no live movement. A loop that wants live progress must await something between reports (for example
+  `await asyncio.sleep(0)`).
 
 ## Business metrics
 

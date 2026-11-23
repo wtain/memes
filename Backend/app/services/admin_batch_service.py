@@ -42,7 +42,7 @@ async def fail_run_if_still_started(run_id: uuid.UUID, reason: str) -> None:
     (completed/failed/aborted) is never overwritten. Own session: the request's is gone."""
     async with AsyncSessionLocal() as session:
         repo = BatchRunRepository(session)
-        run = await repo.get_run(run_id)
+        run = await repo.get_run(run_id, with_progress=False)  # works before the progress migration
         if run is None or run.status != "started":
             return
         await repo.fail(run_id, error=f"orphaned: {reason}")

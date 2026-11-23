@@ -5,6 +5,7 @@ from sqlalchemy import cast, func, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from Storage.models import BatchRun, RunStatus
 
@@ -80,8 +81,14 @@ class BatchRunRepository:
             run.error = note
         await self._session.flush()
 
-    async def get_run(self, run_id: uuid.UUID) -> BatchRun | None:
-        return await self._get(run_id)
+    async def get_run(self, run_id: uuid.UUID, *, with_progress: bool = True) -> BatchRun | None:
+        """``with_progress`` loads the deferred ``progress`` column (the Admin API needs it);
+        pass False on a tracking path that must work before the column is migrated."""
+        stmt = select(BatchRun).where(BatchRun.run_id == run_id)
+        if with_progress:
+            stmt = stmt.options(undefer(BatchRun.progress))
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_active_run(self, kind: str) -> BatchRun | None:
         result = await self._session.execute(
@@ -114,6 +121,7 @@ class BatchRunRepository:
         base_where = BatchRun.kind.in_(kinds)
         items_result = await self._session.execute(
             select(BatchRun).where(base_where)
+            .options(undefer(BatchRun.progress))
             .order_by(BatchRun.created_at.desc())
             .limit(limit).offset(offset)
         )

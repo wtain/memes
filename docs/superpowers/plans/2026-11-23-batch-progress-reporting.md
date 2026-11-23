@@ -14,7 +14,7 @@
 
 - Work in the worktree `.claude/worktrees/batch-progress-spec` (branch `worktree-batch-progress-spec`); the always-on `general` ingestion runs on `main`. Never bind ports 8081-8083 / 5173-5175 or touch the live databases. Tests use `ocrdb_test` (`DATABASE_URL="postgresql+asyncpg://ocr:ocr@localhost:5432/ocrdb_test"`).
 - Progress is best effort (D3): a failed or slow write never fails, slows or blocks a job; exceptions are swallowed and logged without data.
-- No private text (D6): stored values are integers, a `label` from the code (script or step name, never derived from data) and a `unit` from the closed list `images`, `pairs`, `descriptions`, `profiles`, `files`, `items`. An unknown `unit` is stored as `items`; the label falls back to the run's kind.
+- No private text (D6): stored values are integers, a `label` from the code (script or step name, never derived from data) and a `unit` from the closed list `images`, `pairs`, `descriptions`, `profiles`, `files`, `items`. An unknown `unit` is stored as `items`; a missing label falls back to `"batch"`.
 - Throttle: one write per `batch_progress.min_interval_seconds` (10) per run; the first report, a report with `done == total` and a step change always pass; at most one write in flight per run, latest value wins.
 - The write is one `UPDATE batch_runs SET progress = ... WHERE run_id = :id AND status = 'started'` on its own session; `updated_at` is the server's `now()`.
 - `progress` keeps its last value when the run ends; `rate_per_min` is stored, the ETA is computed by the UI.
@@ -30,7 +30,7 @@
 - A script run with no tracked run, or in a sync caller with no running event loop: `report_progress` is a silent no-op (Task 2).
 - A late progress write arriving after the run completed or failed must not change the row (Task 1, Task 3).
 - `total == 0`, `total == null` and `done > total` must never produce NaN, Infinity or >100% in the UI (Task 8).
-- Database not migrated yet (column missing): the first write fails, is swallowed, the job continues (Task 2).
+- Database not migrated yet (column missing): `BatchRun.progress` is mapped `deferred` (only `get_run`/`list_runs` undefer it), so run tracking keeps working; the progress writes fail and are swallowed, the job continues, and the Admin runs list fails until `alembic upgrade head`. Migrate each live environment (metal, general, it; prod when its code ships) BEFORE merging into the main checkout, because the dev backends reload at merge (final-review fix F1).
 - Nested self-tracked children: a child's tracker writes to the child's row and the driver's row afterwards still gets its own step (Task 3).
 - Event loop ends with a write pending: the exit drain delivers the last report and leaves no pending task (Task 3).
 
@@ -109,7 +109,7 @@
 
 **Interfaces:**
 - Consumes: `report_progress`, `current_run_id` (Task 2/3).
-- Produces: `ProgressTracker.__init__(self, total: int, report_every: int = 10, report_interval_secs: float = 0.0, window_secs: float = 120.0, label: str | None = None, unit: str = "items")`. `label` defaults to `None`, meaning "the run's kind" (resolved by `report_progress` fallback). `mark_done` and `skip` call `report_progress(label, unit, done, effective_total, rate_per_min)` where `rate_per_min = 60 / avg_seconds_per_item` from the existing windowed average (`None` before one sample); `summary()` reports once more with `done` and the final total.
+- Produces: `ProgressTracker.__init__(self, total: int, report_every: int = 10, report_interval_secs: float = 0.0, window_secs: float = 120.0, label: str | None = None, unit: str = "items")`. `label` defaults to `None`, stored as `"batch"` (the `report_progress` fallback). `mark_done` and `skip` call `report_progress(label, unit, done, effective_total, rate_per_min)` where `rate_per_min = 60 / avg_seconds_per_item` from the existing windowed average (`None` before one sample); `summary()` reports once more with `done` and the final total.
 
 - [ ] **Step 1: Write failing tests**: `test_console_output_unchanged` (capsys: same lines as before for a fixed fake clock; copy one expectation from the current format `[done/~effective] elapsed=...  avg=...s/img  eta≈...`), `test_mark_done_reports_done_and_effective_total` (monkeypatch `report_progress` in `batch.utils.progress`; after `skip()` the reported total drops by one), `test_rate_per_min_from_window` (fake `time.perf_counter`: items every 3 s → `rate_per_min == 20.0`), `test_no_rate_before_first_sample`, `test_summary_reports_final`, `test_tracker_without_current_run_is_unaffected` (no monkeypatch; no exception, no output change).
 - [ ] **Step 2: Run** `pytest batch/tests/test_progress_tracker.py -v` – expect FAIL.
@@ -214,4 +214,4 @@
 - [ ] **Step 2: Docs:** write the sections above; run `pytest tests/docs/ -q` – expect PASS.
 - [ ] **Step 3: Whole-branch verification:** `cd Backend && pytest -q`; `pytest batch/tests/ -q`; `DATABASE_URL=... pytest tests/integration/ -q`; `pytest tests/rules/ -q`; `pytest tests/docs/ -q`; `pytest tests/sync/ -q`; frontend `tsc -b`, `eslint src/ --max-warnings 0`, `vitest run`. Every command run separately, all green.
 - [ ] **Step 4: Commit** `docs: batch progress reporting (execution model, inventory, CLAUDE.md, spec status)`.
-- [ ] **Step 5: Roll-out note for the owner (in the final summary, not a task):** run the migration on each live environment first (`alembic upgrade head`), then restart the three backends; jobs already running keep running without progress until restarted, and the live `general` ingestion will not report (it started before this code).
+- [ ] **Step 5: Roll-out note for the owner (in the final summary, not a task):** run the migration on each live environment first (`alembic upgrade head`, BEFORE merging into the main checkout, since the `--reload` backends pick up the new code at merge), then restart the three backends; jobs already running keep running without progress until restarted, and the live `general` ingestion will not report (it started before this code).
