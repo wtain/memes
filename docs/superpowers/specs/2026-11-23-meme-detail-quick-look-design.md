@@ -1,6 +1,6 @@
 # Meme detail: two-column layout and quick-look browsing (UI/UX audit ranking item 7, I3 + I4)
 
-Status: planned
+Status: done
 Plan: `docs/superpowers/plans/2026-11-23-meme-detail-quick-look.md`
 Originates from: `docs/superpowers/specs/2026-11-18-ui-ux-audit.md` (ranking item 7, ideas I3 and I4, finding F6)
 
