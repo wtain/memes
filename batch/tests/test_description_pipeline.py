@@ -255,3 +255,34 @@ def test_registered_in_batch_registry():
     entry = BatchRegistry().get("description_pipeline")
 
     assert entry == {"module": "batch.description_pipeline", "kind": "description_pipeline"}
+
+
+class TestStepReporting:
+    @pytest.mark.asyncio
+    async def test_reports_each_step_before_running_it(self, monkeypatch):
+        events = []
+        monkeypatch.setattr(module, "report_step", lambda i, n, label: events.append(("report", i, n, label)))
+
+        def step(name):
+            async def run(trigger):
+                events.append(("run", name))
+            return Step(name, run)
+
+        await run_steps([step("a"), step("b"), step("c")], trigger="manual")
+
+        assert events == [("report", 1, 3, "a"), ("run", "a"), ("report", 2, 3, "b"), ("run", "b"),
+                          ("report", 3, 3, "c"), ("run", "c")]
+
+    @pytest.mark.asyncio
+    async def test_skipped_step_still_reports(self, monkeypatch):
+        reports = []
+        monkeypatch.setattr(module, "report_step", lambda i, n, label: reports.append((i, n, label)))
+        calls = []
+        steps = [_step("parent", calls, raises=RuntimeError("boom")), _step("child", calls, needs=("parent",)),
+                 Step("conf", lambda t: None, configured=lambda: False)]
+
+        results = await run_steps(steps, trigger="manual")
+
+        assert results["child"]["status"] == SKIPPED_DEPENDENCY
+        assert results["conf"]["status"] == "skipped_not_configured"
+        assert reports == [(1, 3, "parent"), (2, 3, "child"), (3, 3, "conf")]

@@ -30,6 +30,7 @@ from batch import (
     build_tags_from_descriptions, build_tags_from_notes, build_tags_from_ocr,
 )
 from batch.run_tracking import finish_existing_run, record_stats, tracked_run
+from batch.utils.run_progress import report_step
 from config.settings import load_env, settings
 from repository.batch_runs import BatchAlreadyRunningError
 
@@ -79,7 +80,8 @@ STEPS = [
 async def run_steps(steps: list[Step], trigger: str) -> dict[str, dict]:
     """Runs steps in order. A failure never aborts the loop; it only skips dependents."""
     results: dict[str, dict] = {}
-    for step in steps:
+    for index, step in enumerate(steps, 1):
+        report_step(index, len(steps), step.name)  # also for steps skipped below
         blocked = [n for n in step.needs if results[n]["status"] in (FAILED, SKIPPED_DEPENDENCY)]
         if blocked:
             results[step.name] = {"status": SKIPPED_DEPENDENCY, "error": f"needs {', '.join(blocked)}"}

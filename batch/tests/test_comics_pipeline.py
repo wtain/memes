@@ -121,3 +121,33 @@ def test_tagging_configured_follows_the_profile_files(tmp_path):
 def test_the_job_is_registered_as_admin_triggerable():
     entry = BatchRegistry().get("comics_pipeline")
     assert entry == {"module": "batch.comics_pipeline", "kind": "comics_pipeline"}
+
+
+@pytest.mark.asyncio
+async def test_reports_each_step_before_running_it(monkeypatch):
+    import batch.description_pipeline as dp
+    events = []
+    monkeypatch.setattr(dp, "report_step", lambda i, n, label: events.append(("report", i, n, label)))
+    mocks = {name: AsyncMock(side_effect=lambda **kw: events.append(("run",))) for name in CHILDREN}
+    with _patched(mocks):
+        await run_steps(module.STEPS, trigger="manual")
+
+    names = ["ocr", "embeddings", "ocr_lemmas", "ocr_tags", "classify", "ocr_text_embeddings"]
+    expected = []
+    for i, name in enumerate(names, 1):
+        expected += [("report", i, 6, name), ("run",)]
+    assert events == expected
+
+
+@pytest.mark.asyncio
+async def test_skipped_step_still_reports(monkeypatch):
+    import batch.description_pipeline as dp
+    reports = []
+    monkeypatch.setattr(dp, "report_step", lambda i, n, label: reports.append((i, n, label)))
+    mocks = {name: AsyncMock() for name in CHILDREN}
+    with _patched(mocks, tagging_configured=False):
+        results = await run_steps(module.STEPS, trigger="manual")
+
+    assert results["ocr_tags"]["status"] == SKIPPED_NOT_CONFIGURED
+    assert (4, 6, "ocr_tags") in reports
+    assert len(reports) == 6
