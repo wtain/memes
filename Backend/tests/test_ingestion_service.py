@@ -270,6 +270,17 @@ class TestListClustersPagination:
         page = await service.list_clusters("tier_a", limit=10)
         assert page["items"][0]["edges"][0]["distance_source"] == "ocr_text"
 
+    async def test_pending_members_listed_before_active(self, service, mock_repo):
+        a1, a2, a3 = (f"00000000-0000-0000-0000-0000000000a{i}" for i in (1, 2, 3))
+        # a1 (active) has the tightest edge, but pending members must still come first.
+        await self._setup(service, mock_repo, [
+            self._row(a1, a2, 0.001, status1="active", status2="pending"),
+            self._row(a2, a3, 0.02, status1="pending", status2="pending"),
+        ])
+        page = await service.list_clusters("tier_a", limit=10)
+        statuses = [m["status"] for m in page["items"][0]["members"]]
+        assert statuses == ["pending", "pending", "active"]
+
     async def test_orders_clusters_by_tightest_edge_and_paginates(self, service, mock_repo):
         a1, a2 = "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"
         b1, b2 = "00000000-0000-0000-0000-0000000000b1", "00000000-0000-0000-0000-0000000000b2"

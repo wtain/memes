@@ -61,6 +61,9 @@ def _split_params(tier: str):
         "start": _tier_band(tier)[1],
         "decrement": t["decrement"], "floor": t["floor"],
         "max_size": cfg["max_group_size"],
+        # Optional last-resort bound: a group the threshold ladder could not shrink (near-identical
+        # images below `floor`) is cut into pieces of at most this many. Absent = no bound.
+        "hard_max": cfg.get("max_review_group_size"),
     }
 
 
@@ -239,16 +242,18 @@ class IngestionService:
                 sort_key = (min_distance, min(member_ids))
 
                 total_members = len(group)
-                members = [member_info[m] for m in group]
+                # Members in review order: pending images first (they need a decision), then
+                # active context; within each, tightest-matched first. When the cap fires,
+                # the kept set is still the tightest CLUSTER_MEMBER_CAP members.
+                ranked = _members_by_tightest_edge(group, group_edges)
+                info_by_str = {str(m): member_info[m] for m in group}
                 if total_members > CLUSTER_MEMBER_CAP:
-                    # Cap fires: keep the CLUSTER_MEMBER_CAP tightest members and return them
-                    # tightest-first, so ClusterRow's 8-tile collapse shows the 8 most-relevant.
-                    ranked = _members_by_tightest_edge(group, group_edges)
-                    keep = set(ranked[:CLUSTER_MEMBER_CAP])
-                    info_by_str = {str(m): member_info[m] for m in group}
-                    members = [info_by_str[i] for i in ranked if i in keep]
+                    ranked = ranked[:CLUSTER_MEMBER_CAP]
+                    keep = set(ranked)
                     group_edges = [e for e in group_edges
                                    if e["image_id1"] in keep and e["image_id2"] in keep]
+                ranked.sort(key=lambda i: info_by_str[i]["status"] != "pending")  # stable
+                members = [info_by_str[i] for i in ranked]
 
                 clusters.append({
                     "members": members,

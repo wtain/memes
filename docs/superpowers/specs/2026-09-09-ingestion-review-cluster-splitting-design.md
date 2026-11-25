@@ -284,3 +284,8 @@ decision. (Guards that nothing in the page assumes "one card per blob".)
 - The one behavioral change a reviewer sees: a former 225-tile card becomes ~15-30 small
   cards. That's the point. If the subgroup count is overwhelming, tune `max_group_size` up or
   `decrement` coarser via config — no code change.
+
+
+## Addendum 2026-11-25: hard size limit and member order
+
+Groups that hit `floor` still oversized (near-identical text-heavy images, distances below 0.01) left a 90-member Tier A card that the 60-member cap made read-only and promote-blocked. `split_for_review(..., hard_max=)` now cuts any group above `clustering.ingestion_review_splitting.max_review_group_size` (30) with `cap_group_size`: tightest edges merged first (Kruskal), a merge over the limit skipped; lossless. A pending image whose active twin lands in another piece loses that context on screen, but deciding it still settles all its pairs. `list_clusters` also orders members pending first, then active, each tightest-first.

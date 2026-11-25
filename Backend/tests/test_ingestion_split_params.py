@@ -12,6 +12,7 @@ from Backend.app.services.ingestion_service import _split_params, _tier_band
 FULL_BLOCK = {
     "enabled": True,
     "max_group_size": 12,
+    "max_review_group_size": 30,
     "start": 99.0,  # must be ignored -- _split_params always derives start from the tier band
     "tier_a": {"decrement": 0.01, "floor": 0.01},
     "tier_b": {"decrement": 0.05, "floor": 0.05},
@@ -51,3 +52,9 @@ def test_full_block_derives_start_from_tier_band(fake_cfg, tier):
     assert params["decrement"] == FULL_BLOCK[tier]["decrement"]
     assert params["floor"] == FULL_BLOCK[tier]["floor"]
     assert params["max_size"] == FULL_BLOCK["max_group_size"]
+    assert params["hard_max"] == 30
+
+
+def test_hard_max_absent_means_none(fake_cfg):
+    fake_cfg({k: v for k, v in FULL_BLOCK.items() if k != "max_review_group_size"})
+    assert _split_params("tier_a")["hard_max"] is None
