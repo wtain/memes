@@ -197,6 +197,10 @@ clustering:
     # members so no candidate pair ever leaves the review queue.
     enabled: true
     max_group_size: 12
+    # Last-resort bound for groups the threshold ladder cannot shrink (near-identical images
+    # below `floor`): cut into pieces of at most this many, tightest matches kept together.
+    # Keep below IngestionService's CLUSTER_MEMBER_CAP (60) so a card is never read-only.
+    max_review_group_size: 30
     # Tier A candidate pairs are all < 0.05; Tier B's are 0.05-0.12. Each tier's ladder
     # starts at its band top -- derived by _split_params (0.05 for tier_a, and
     # settings.DUPLICATES.THRESHOLD for tier_b), not configured here -- and tightens by

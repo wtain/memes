@@ -136,3 +136,28 @@ class TestMembersByTightestEdge:
         edges = self._edges((1, 2, 0.10))
         # 5 and 9 have no incident edge -> last, ordered by id string
         assert _members_by_tightest_edge(group, edges) == ["1", "2", "5", "9"]
+
+
+class TestHardMax:
+    def test_dense_group_below_floor_is_cut_to_hard_max_losslessly(self):
+        # 10 near-identical members (all 0.001 apart): the ladder cannot split them.
+        members = list(range(10))
+        pairs = _symmetric([(a, b, 0.001) for a in members for b in members if a < b])
+        groups = split_for_review(members, pairs, start=0.05, decrement=0.01, floor=0.01,
+                                  max_size=3, hard_max=4)
+        _assert_partition(groups, members)
+        assert max(len(g) for g in groups) <= 4
+
+    def test_tightest_pairs_stay_together(self):
+        members = [1, 2, 3, 4, 5, 6]
+        pairs = _symmetric([(1, 2, 0.001), (3, 4, 0.001), (5, 6, 0.001),
+                            (2, 3, 0.009), (4, 5, 0.009)])
+        groups = split_for_review(members, pairs, start=0.05, decrement=0.01, floor=0.01,
+                                  max_size=2, hard_max=2)
+        assert sorted(sorted(g) for g in groups) == [[1, 2], [3, 4], [5, 6]]
+
+    def test_no_hard_max_keeps_oversized_group(self):
+        members = list(range(10))
+        pairs = _symmetric([(a, b, 0.001) for a in members for b in members if a < b])
+        groups = split_for_review(members, pairs, start=0.05, decrement=0.01, floor=0.01, max_size=3)
+        assert len(groups) == 1

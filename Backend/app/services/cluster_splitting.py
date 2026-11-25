@@ -18,7 +18,7 @@ from batch.clusterize import resolve_cluster
 from graph.uf import UnionFind
 
 
-def split_for_review(members, pairs_by_member, *, start, decrement, floor, max_size):
+def split_for_review(members, pairs_by_member, *, start, decrement, floor, max_size, hard_max=None):
     """Partition an oversized ingestion-review blob into tight subgroups.
 
     members: ids in one union-find component (any hashable; UUIDs in practice).
@@ -32,7 +32,53 @@ def split_for_review(members, pairs_by_member, *, start, decrement, floor, max_s
     none dropped, none duplicated. A group may exceed max_size when the tight core hit `floor`
     still oversized or a residual sub-component has no tight structure; the frontend collapses
     oversized cards.
+
+    hard_max (optional): after the threshold ladder, any group still larger than this is cut
+    into pieces of at most hard_max (see `cap_group_size`), so no review card is unbounded.
     """
+    groups = _split_by_threshold(members, pairs_by_member, start, decrement, floor, max_size)
+    if hard_max is None:
+        return groups
+    out = []
+    for g in groups:
+        out.extend(cap_group_size(g, pairs_by_member, hard_max) if len(g) > hard_max else [g])
+    return out
+
+
+def cap_group_size(members, pairs_by_member, cap):
+    """Lossless partition of `members` into groups of at most `cap`, keeping tightly matched
+    images together: edges are merged tightest-first (Kruskal) and a merge that would exceed
+    `cap` is skipped. Members with no edge to a mergeable neighbour stay as small groups.
+    Deterministic: ties break on str(id)."""
+    members = list(members)
+    member_set = set(members)
+    edges = sorted(
+        ((d, str(a), str(b), a, b)
+         for a in members for b, d in pairs_by_member.get(a, ())
+         if b in member_set and str(a) < str(b)),
+        key=lambda e: e[:3],
+    )
+    parent = {m: m for m in members}
+    size = {m: 1 for m in members}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for _, _, _, a, b in edges:
+        ra, rb = find(a), find(b)
+        if ra != rb and size[ra] + size[rb] <= cap:
+            parent[rb] = ra
+            size[ra] += size[rb]
+    groups: dict = {}
+    for m in members:
+        groups.setdefault(find(m), []).append(m)
+    return list(groups.values())
+
+
+def _split_by_threshold(members, pairs_by_member, start, decrement, floor, max_size):
     members = list(members)
     if len(members) <= max_size:
         return [members]
