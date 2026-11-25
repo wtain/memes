@@ -63,4 +63,26 @@ describe('Modal', () => {
     unmount()
     expect(document.body.style.overflow).toBe('auto')
   })
+
+  it('keeps the default container and a visible heading by default', () => {
+    render(<Modal title="T" onClose={() => {}}><span /></Modal>)
+    const panel = screen.getByRole('heading', { name: 'T' }).closest('.bg-white')!
+    expect(panel).toHaveClass('max-w-5xl')
+    expect(screen.getByRole('heading', { name: 'T' })).not.toHaveClass('sr-only')
+  })
+
+  it('size="wide" applies the wide container class', () => {
+    render(<Modal title="T" size="wide" onClose={() => {}}><span /></Modal>)
+    const panel = screen.getByRole('heading', { name: 'T' }).closest('.bg-white')!
+    expect(panel).toHaveClass('max-w-7xl')
+    expect(panel).not.toHaveClass('max-w-5xl')
+  })
+
+  it('titleHidden keeps the heading for screen readers and the close button', () => {
+    const onClose = vi.fn()
+    render(<Modal title="T" titleHidden onClose={onClose}><span /></Modal>)
+    expect(screen.getByRole('heading', { name: 'T' })).toHaveClass('sr-only')
+    fireEvent.click(screen.getByText('✕'))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
 })

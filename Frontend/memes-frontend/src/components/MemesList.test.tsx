@@ -1,4 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { MemesList } from './MemesList'
 import { makeMockApi, DEFAULT_MOCK_MEME } from '../test/mockApi'
 import { getCardImg, findCardImg } from '../test/cardQueries'
@@ -295,5 +297,71 @@ describe('MemesList', () => {
     render(<MemesList memesApi={makeMockApi()} tagFilters={{ topic: [] }} />)
     expect(await screen.findByText('Nothing to show')).toBeInTheDocument()
     expect(screen.queryByText('No memes match')).not.toBeInTheDocument()
+  })
+  describe('quick-look arrows', () => {
+    const memes = Array.from({ length: 5 }, (_, i) => ({ ...DEFAULT_MOCK_MEME, id: `m${i}` }))
+    const renderList = (api: ReturnType<typeof makeMockApi>) =>
+      render(<MemoryRouter><MemesList memesApi={api} /></MemoryRouter>)
+    const open = async (id: string) => {
+      fireEvent.click(await findCardImg(id))
+      await screen.findByAltText(id)
+    }
+
+    it('ArrowRight and ArrowLeft step through the list inside the open modal', async () => {
+      const api = makeMockApi({ searchMemes: vi.fn().mockResolvedValue({ items: memes, facets: [], hasNext: false }) })
+      renderList(api)
+      await open('m1')
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+      expect(await screen.findByAltText('m2')).toBeInTheDocument()
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
+      await screen.findByAltText('m1')
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
+      expect(await screen.findByAltText('m0')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Previous meme' })).toBeDisabled()
+      await act(async () => {}) // settle the card and detail fetches before the mocks are restored
+    })
+
+    it('requests the next page when stepping to one of the last two items while more exist', async () => {
+      const searchMemes = vi.fn().mockResolvedValue({ items: memes, facets: [], hasNext: true, nextCursor: 'c1' })
+      renderList(makeMockApi({ searchMemes }))
+      await open('m0')
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+      await screen.findByAltText('m1')
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+      await screen.findByAltText('m2')
+      expect(searchMemes).toHaveBeenCalledTimes(1)
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+      await screen.findByAltText('m3')
+      await waitFor(() => expect(searchMemes).toHaveBeenCalledTimes(2))
+      expect(searchMemes.mock.calls[1][0]).toEqual(expect.objectContaining({ cursor: 'c1' }))
+    })
+
+    it('does not request a page when stepping back near the end', async () => {
+      const searchMemes = vi.fn().mockResolvedValue({ items: memes, facets: [], hasNext: true, nextCursor: 'c1' })
+      renderList(makeMockApi({ searchMemes }))
+      await open('m4')
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
+      await screen.findByAltText('m3')
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+      await screen.findByAltText('m4')
+      searchMemes.mockClear()
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
+      await screen.findByAltText('m3')
+      await act(async () => {})
+      expect(searchMemes).not.toHaveBeenCalled()
+    })
+
+    it('shows no arrows when the opened meme is not in the list', async () => {
+      const searchMemes = vi.fn().mockResolvedValue({ items: memes, facets: [], hasNext: false })
+      const { rerender } = renderList(makeMockApi({ searchMemes }))
+      await open('m1')
+      expect(screen.getByRole('button', { name: 'Next meme' })).toBeInTheDocument()
+      // A different filter replaces the list; the opened meme is no longer part of it.
+      searchMemes.mockResolvedValue({ items: [{ ...DEFAULT_MOCK_MEME, id: 'other' }], facets: [], hasNext: false })
+      rerender(<MemoryRouter><MemesList memesApi={makeMockApi({ searchMemes })} filter="zz" /></MemoryRouter>)
+      await findCardImg('other')
+      expect(screen.getByAltText('m1')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Next meme' })).not.toBeInTheDocument()
+    })
   })
 })

@@ -59,7 +59,7 @@ function MemeLoader({ id, memesApi, onRetry }: { id: string; memesApi: MemesApi;
 
   const { meme } = state
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">
         Meme {meme.id}
       </h1>
