@@ -218,6 +218,12 @@ ingestion_text_filter:
   min_lemmas: 3
   max_overlap: 0.2
   veto_distance: 0.10
+  # Far band: a pair at or beyond far_min_distance is ALSO settled unless the text strongly corroborates it
+  # (overlap of far_max_overlap or more, an embedding within veto_distance, or an OCR-text-probe pair).
+  # Basis: in earlier ingestion batches only 1.3% of images whose closest candidate was 0.10-0.12 away were
+  # rejected (11% at 0.08-0.10), so that band is most of the review volume and almost none of the duplicates.
+  far_min_distance: 0.10
+  far_max_overlap: 0.3
   # Pairs per sample in the dry run report (would-be-kept, and the 0.2-0.3 overlap near misses).
   sample_size: 100
 

@@ -29,7 +29,7 @@ from Backend.app.repositories.ingestion_repository import IngestionRepository
 from config.settings import load_env, settings
 from repository import ingestion_text_filter as repo
 from repository.batch_runs import BatchRunRepository
-from repository.ingestion_text_filter import ELIGIBLE, FilterParams, PlannedPair
+from repository.ingestion_text_filter import ELIGIBLE, FAR_WEAK_TEXT, SETTLED_BUCKETS, FilterParams, PlannedPair
 from Storage.db import AsyncSessionLocal
 from Storage.models import Image
 
@@ -61,7 +61,8 @@ class Plan:
 def plan_hash(pair_ids: list[uuid.UUID], params: FilterParams) -> str:
     """sha256 of the sorted eligible pair ids and the three rule values."""
     h = hashlib.sha256()
-    h.update(f"{params.min_lemmas}|{params.max_overlap}|{params.veto_distance}".encode())
+    h.update(f"{params.min_lemmas}|{params.max_overlap}|{params.veto_distance}"
+             f"|{params.far_min_distance}|{params.far_max_overlap}".encode())
     for pair_id in sorted(str(i) for i in pair_ids):
         h.update(b"|" + pair_id.encode())
     return h.hexdigest()
@@ -69,7 +70,9 @@ def plan_hash(pair_ids: list[uuid.UUID], params: FilterParams) -> str:
 
 def _params() -> FilterParams:
     cfg = settings.INGESTION_TEXT_FILTER
-    return FilterParams(min_lemmas=cfg.MIN_LEMMAS, max_overlap=cfg.MAX_OVERLAP, veto_distance=cfg.VETO_DISTANCE)
+    return FilterParams(
+        min_lemmas=cfg.MIN_LEMMAS, max_overlap=cfg.MAX_OVERLAP, veto_distance=cfg.VETO_DISTANCE,
+        far_min_distance=cfg.FAR_MIN_DISTANCE, far_max_overlap=cfg.FAR_MAX_OVERLAP)
 
 
 async def build_plan(session) -> Plan:
@@ -80,7 +83,7 @@ async def build_plan(session) -> Plan:
     params = _params()
     band = (TIER_A_THRESHOLD, settings.DUPLICATES.THRESHOLD)
     pairs = await repo.plan_pairs(session, active.run_id, band, params)
-    eligible_ids = [p.pair_id for p in pairs if p.bucket == ELIGIBLE]
+    eligible_ids = [p.pair_id for p in pairs if p.bucket in SETTLED_BUCKETS]
     report_progress(KIND, "pairs", len(pairs), len(pairs))
     return Plan(active.run_id, params, pairs, eligible_ids, plan_hash(eligible_ids, params))
 
@@ -118,28 +121,32 @@ async def write_dry_run(session, run_id: uuid.UUID, plan: Plan, out_dir: Path) -
     rng = random.Random(plan.hash)   # reproducible sample for one plan
     size = settings.INGESTION_TEXT_FILTER.SAMPLE_SIZE
     eligible = [p for p in plan.pairs if p.bucket == ELIGIBLE]
+    far = [p for p in plan.pairs if p.bucket == FAR_WEAK_TEXT]
     near = [p for p in plan.pairs if p.bucket == "overlap_high"
             and p.overlap is not None and _NEAR_MISS_OVERLAP[0] <= p.overlap < _NEAR_MISS_OVERLAP[1]]
     picked_eligible = rng.sample(eligible, min(size, len(eligible)))
     picked_near = rng.sample(near, min(size, len(near)))
-    info = await _describe(session, picked_eligible + picked_near)
+    picked_far = rng.sample(far, min(size, len(far)))
+    info = await _describe(session, picked_eligible + picked_far + picked_near)
 
     report = {
         "run_id": str(run_id), "ingestion_batch_id": str(plan.batch_id), "plan_hash": plan.hash,
         "params": {"min_lemmas": plan.params.min_lemmas, "max_overlap": plan.params.max_overlap,
-                   "veto_distance": plan.params.veto_distance},
+                   "veto_distance": plan.params.veto_distance,
+                   "far_min_distance": plan.params.far_min_distance, "far_max_overlap": plan.params.far_max_overlap},
         "counts": counts,
     }
     (out_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     sheet = "\n".join([
         "# Ingestion text filter: dry run sample (contains OCR text; keep local)", "",
         _sheet("Would be auto-kept (random sample)", picked_eligible, info),
+        _sheet("Far band: would be auto-kept although the text is weak or missing (random sample)", picked_far, info),
         _sheet("Stay for review: overlap 0.2 to 0.3 (random sample, shows where the line falls)", picked_near, info),
     ])
     (out_dir / "sample.md").write_text(sheet, encoding="utf-8")
     return {
         "pairs_open": len(plan.pairs), "pairs_eligible": counts["eligible"], "pairs_vetoed": counts["vetoed"],
-        "pairs_no_text": counts["no_text"], "pairs_applied": 0,
+        "pairs_no_text": counts["no_text"], "pairs_far_weak_text": counts[FAR_WEAK_TEXT], "pairs_applied": 0,
     }
 
 
@@ -162,7 +169,8 @@ async def _dry_run(run_id: uuid.UUID) -> None:
         plan = await build_plan(session)
         stats = await write_dry_run(session, run_id, plan, REPORT_ROOT / str(run_id))
     await record_stats(run_id, stats)
-    print(f"Dry run {run_id}: {stats['pairs_eligible']} of {stats['pairs_open']} open pairs would be auto-kept. "
+    print(f"Dry run {run_id}: {stats['pairs_eligible'] + stats['pairs_far_weak_text']} of {stats['pairs_open']} "
+          f"open pairs would be auto-kept ({stats['pairs_far_weak_text']} of them in the far band). "
           f"Plan hash: {plan.hash}. Report: {REPORT_ROOT / str(run_id)}")
 
 

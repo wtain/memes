@@ -10,7 +10,10 @@ from dataclasses import dataclass
 from sqlalchemy import text
 
 ELIGIBLE = "eligible"
-BUCKETS = ("eligible", "vetoed", "no_text", "overlap_high", "ocr_text_source", "stale_text")
+FAR_WEAK_TEXT = "far_weak_text"
+BUCKETS = ("eligible", FAR_WEAK_TEXT, "vetoed", "no_text", "overlap_high", "ocr_text_source", "stale_text")
+# Buckets whose pairs are settled by --apply.
+SETTLED_BUCKETS = (ELIGIBLE, FAR_WEAK_TEXT)
 
 
 @dataclass(frozen=True)
@@ -18,6 +21,11 @@ class FilterParams:
     min_lemmas: int
     max_overlap: float
     veto_distance: float
+    # Far band (optional; both None = off): a pair at or beyond far_min_distance is also settled
+    # when its text does not strongly corroborate it (overlap below far_max_overlap, or too little
+    # text), unless the embedding veto or the OCR-text probe's own lemma check says otherwise.
+    far_min_distance: float | None = None
+    far_max_overlap: float | None = None
 
 
 @dataclass(frozen=True)
@@ -35,7 +43,9 @@ class PlannedPair:
 # not yet reviewed, one side pending in this batch, the other side not rejected. Lemma counts and
 # shared-lemma counts are computed per image / per pair in two grouped CTEs, never per pair in a
 # correlated subquery. The bucket CASE is evaluated in precedence order: overlap_high comes before
-# vetoed so "vetoed" only counts pairs that would otherwise have been auto-kept.
+# vetoed so "vetoed" only counts pairs that would otherwise have been auto-kept. far_weak_text is the
+# far band: a pair at or beyond :far_min whose text is missing or below :far_max overlap, with no
+# embedding veto (NULL :far_min or :far_max makes the far branch fall through).
 _PLAN_SQL = text("""
 WITH pair AS (
     SELECT td.id AS pair_id, td.image_id1, td.image_id2, td.distance, td.distance_source
@@ -82,8 +92,15 @@ SELECT pair_id, image_id1, image_id2, distance, text_distance,
        CASE
            WHEN distance_source = 'ocr_text' THEN 'ocr_text_source'
            WHEN stale THEN 'stale_text'
-           WHEN na < :min_lemmas OR nb < :min_lemmas THEN 'no_text'
-           WHEN sh::float / LEAST(na, nb) >= :max_overlap THEN 'overlap_high'
+           WHEN na < :min_lemmas OR nb < :min_lemmas THEN
+               CASE WHEN distance >= CAST(:far_min AS double precision)
+                         AND NOT (text_distance IS NOT NULL AND text_distance < :veto_distance)
+                    THEN 'far_weak_text' ELSE 'no_text' END
+           WHEN sh::float / LEAST(na, nb) >= :max_overlap THEN
+               CASE WHEN distance >= CAST(:far_min AS double precision)
+                         AND sh::float / LEAST(na, nb) < CAST(:far_max AS double precision)
+                         AND NOT (text_distance IS NOT NULL AND text_distance < :veto_distance)
+                    THEN 'far_weak_text' ELSE 'overlap_high' END
            WHEN text_distance IS NOT NULL AND text_distance < :veto_distance THEN 'vetoed'
            ELSE 'eligible'
        END AS bucket
@@ -100,6 +117,7 @@ async def plan_pairs(session, batch_id, band: tuple[float, float], params: Filte
         "batch_id": batch_id, "low": band[0], "high": band[1],
         "min_lemmas": params.min_lemmas, "max_overlap": params.max_overlap,
         "veto_distance": params.veto_distance,
+        "far_min": params.far_min_distance, "far_max": params.far_max_overlap,
     })).mappings().all()
     return [
         PlannedPair(r["pair_id"], r["image_id1"], r["image_id2"], r["distance"],

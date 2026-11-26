@@ -96,9 +96,12 @@ Cleanup groups exist on the dev stage only (they are hidden on prod).
    ```powershell
    python -m batch.ingest_text_filter --env <env> --apply --plan-hash <hash>
    ```
-   A pair is settled only when both images have at least 3 OCR lemmas, their word overlap is
-   below 0.2, and (where both have a text embedding) the text embeddings are not within 0.10;
-   only that pair is marked reviewed, no image is rejected or moved. To undo a run:
+   A pair is settled when both images have at least 3 OCR lemmas, their word overlap is
+   below 0.2, and (where both have a text embedding) the text embeddings are not within 0.10.
+   A pair at CLIP distance 0.10 or more is also settled when its text does not strongly agree
+   (no usable text, or word overlap below 0.3): in earlier batches only 1.3% of images whose
+   closest candidate was that far away were rejected. Pairs from the OCR-text probe and pairs with
+   stale text are never settled. Only the judged pair is marked reviewed; no image is rejected or moved. To undo a run:
    `python -m batch.ingest_text_filter --env <env> --undo --run-id <run id>`. Skipping this step
    leaves Tier B exactly as it was; it is not part of `ingest_auto_prep` and not scheduled.
 
