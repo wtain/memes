@@ -41,6 +41,7 @@ REVISION_LABELS = {
     "a9d3e6b1c847": "C9 comics candidate tables (same upgrade)",
     "b7e2d4a9c615": "ALG-7 tags search indexes (same upgrade)",
     "c4f8a1d7e925": "batch progress reporting, batch_runs.progress (same upgrade)",
+    "e8b3c6a1d742": "ingestion Tier B text filter, tmp_duplicates.tier_b_auto_kept_run (same upgrade)",
 }
 
 

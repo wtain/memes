@@ -46,6 +46,9 @@ ingest_auto_prep:
 ingest_find_duplicates_tier_b:
   module: batch.ingest_find_duplicates_tier_b
   kind: ingest_find_duplicates_tier_b
+ingest_text_filter:
+  module: batch.ingest_text_filter
+  kind: ingest_text_filter
 ingest_promote:
   module: batch.ingest_promote
   kind: ingest_promote

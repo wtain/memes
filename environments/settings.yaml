@@ -208,6 +208,19 @@ clustering:
     tier_a: { decrement: 0.01, floor: 0.01 }
     tier_b: { decrement: 0.05, floor: 0.05 }
 
+ingestion_text_filter:
+  # batch/ingest_text_filter.py: settles Tier B pairs whose OCR text is clearly different. A pair is
+  # auto-kept only when both images have at least min_lemmas lemmas, their shared/min lemma overlap is
+  # below max_overlap, and (where both have a text embedding) the embeddings are not within
+  # veto_distance. max_overlap and veto_distance reuse the OCR-text probe's constants
+  # (MIN_LEMMA_OVERLAP_COEFFICIENT, TEXT_EMBEDDING_LOOSE_THRESHOLD in batch/rebuild_duplicates.py).
+  # See docs/superpowers/specs/2026-11-26-ingestion-tier-b-text-filter-design.md.
+  min_lemmas: 3
+  max_overlap: 0.2
+  veto_distance: 0.10
+  # Pairs per sample in the dry run report (would-be-kept, and the 0.2-0.3 overlap near misses).
+  sample_size: 100
+
 scheduler:
   # Opt-in per environment (see settings.metal.yaml / settings.general.yaml /
   # settings.it.yaml, which each set this true) rather than a global default here.

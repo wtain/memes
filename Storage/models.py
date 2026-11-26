@@ -565,10 +565,20 @@ class TmpDuplicates(Base):
     tier_a_reviewed_at = Column(DateTime(timezone=True), nullable=True)
     tier_b_reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Set together with tier_b_reviewed_at by ingest_text_filter --apply: the run that settled this
+    # pair from OCR text alone, so --undo --run-id can reopen exactly those pairs. NULL for every
+    # pair a person decided. See docs/superpowers/specs/2026-11-26-ingestion-tier-b-text-filter-design.md.
+    tier_b_auto_kept_run = Column(UUID(as_uuid=True), nullable=True)
+
     created_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (
         UniqueConstraint("image_id1", "image_id2", name="uq_tmp_duplicates_pair"),
+        Index(
+            "idx_tmp_duplicates_tier_b_auto_kept_run",
+            "tier_b_auto_kept_run",
+            postgresql_where=text("tier_b_auto_kept_run IS NOT NULL"),
+        ),
         Index("idx_tmp_duplicates_distance", "distance"),
         Index(
             "idx_tmp_duplicates_tier_b_unreviewed_distance",

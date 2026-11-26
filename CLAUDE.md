@@ -819,6 +819,15 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                Rejecting a candidate records a popularity absorption into the kept
                                image, and undo-reject reverses it (see
                                docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-27-p2-recording-winners-design.md).
+ingest_text_filter          → OPTIONAL, between Tier B discovery and Tier B review (spec
+                               docs/superpowers/specs/2026-11-26-ingestion-tier-b-text-filter-design.md):
+                               settles Tier B pairs whose OCR text is clearly different as "not a duplicate", per
+                               pair (tmp_duplicates.tier_b_auto_kept_run tags the run so it can be undone): both
+                               sides >= 3 ocr_lemmas, overlap coefficient < 0.2, no text-embedding match within
+                               0.10 where both have one, never an ocr_text-sourced pair. Admin-triggerable but a
+                               dry run only there (report + plan hash under Storage/ingestion-text-filter/);
+                               --apply --plan-hash and --undo --run-id are shell only. Not part of
+                               ingest_auto_prep, not scheduled; all three environments.
 ingest_promote              → Stage 4 (final): promotes pending images with no remaining
                                unresolved Tier A/B candidate pairs to `active` (pure status flip
                                -- files are already in BASE_PATH from Stage 1). Marks the run
