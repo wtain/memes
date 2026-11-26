@@ -15,7 +15,9 @@ type Props = {
   onPeek: (member: IngestionClusterMember) => void
 }
 
-const COLLAPSED_COUNT = 8
+// The backend returns at most CANDIDATE_CAP (10) candidates per image, so showing 10 by default
+// means the card never needs a "Show N more" toggle for them.
+const COLLAPSED_COUNT = 10
 
 export function TierBReviewCard({
   memesApi, item, decisions, onDecide, onSubmit, submitting, expanded, onToggleExpand, onPeek,
