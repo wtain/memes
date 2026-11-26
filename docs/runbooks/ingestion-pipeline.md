@@ -26,6 +26,8 @@ python -m batch.build_ocr_text_embeddings --env <env> --status pending
 python -m batch.ingest_find_duplicates --env <env> --tier tier_a
 # → review Tier A at /ingestion, keep/reject, submit
 python -m batch.ingest_find_duplicates --env <env> --tier tier_b
+python -m batch.ingest_text_filter --env <env>   # optional dry run: report only, nothing changes
+# → read the report, then: python -m batch.ingest_text_filter --env <env> --apply --plan-hash <hash>
 # → review Tier B at /ingestion, keep/reject, submit
 python -m batch.ingest_promote --env <env>
 ```
@@ -84,6 +86,22 @@ Cleanup groups exist on the dev stage only (they are hidden on prod).
 4. **Find Tier B candidates.** Back on **Admin → Batches**, run `ingest_find_duplicates_tier_b`
    (Run, then Confirm?). When it completes, the run moves to `tier_b_review`.
 
+   **Optional: settle clearly different pairs with `ingest_text_filter`.** Tier B's CLIP band
+   (0.05-0.12) holds many pairs that are the same meme template but different memes. This job
+   uses the OCR text to settle the clearly different ones so you never see them. On
+   **Admin → Batches**, run `ingest_text_filter` (always a dry run from there: it changes nothing
+   and writes a report under `Storage/ingestion-text-filter/<run id>/` with counts, a plan hash
+   and a sample of the pairs it would settle). Read the sample. If it looks right, apply from the
+   shell with the printed hash:
+   ```powershell
+   python -m batch.ingest_text_filter --env <env> --apply --plan-hash <hash>
+   ```
+   A pair is settled only when both images have at least 3 OCR lemmas, their word overlap is
+   below 0.2, and (where both have a text embedding) the text embeddings are not within 0.10;
+   only that pair is marked reviewed, no image is rejected or moved. To undo a run:
+   `python -m batch.ingest_text_filter --env <env> --undo --run-id <run id>`. Skipping this step
+   leaves Tier B exactly as it was; it is not part of `ingest_auto_prep` and not scheduled.
+
 5. **Review Tier B.** Reload `/ingestion`: the same page now shows the Tier B queue, one card
    per image (OCR text is the main signal). Decide and submit as in step 3.
 
@@ -118,7 +136,8 @@ UI (the page picks its queue from the run's stage), so those images cannot be re
   against the existing active library.
 - **Stage 2 — embeddings + OCR, then Tier A review**: CLIP embeddings for the new images,
   OCR text, and human review of tight-threshold (thumbnail-level) near-duplicate candidates.
-- **Stage 3 — Tier B review**: human review of loose-threshold near-duplicate candidates
+- **Stage 3 — Tier B review** (optionally preceded by `ingest_text_filter`, which settles clearly
+  different pairs by OCR text): human review of loose-threshold near-duplicate candidates
   (same images, wider net) using OCR text as the primary signal.
 - **Stage 4 — promotion**: flips images that cleared both tiers from `pending` to `active`.
 
@@ -267,6 +286,10 @@ The shell route below is the same flow as the web one: steps 2-9 are exactly wha
     ```powershell
     python -m batch.ingest_find_duplicates --env <env> --tier tier_b
     ```
+
+    **Optional, between 11 and 12:** `python -m batch.ingest_text_filter --env <env>` (dry run,
+    then `--apply --plan-hash <hash>` after reading the report); see the optional step under
+    step 4 of the web flow above.
 
 12. **Review Tier B** on the same `/ingestion` page — it switches queues automatically based
     on the run's current stage.

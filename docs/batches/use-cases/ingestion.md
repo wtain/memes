@@ -68,6 +68,7 @@ sequenceDiagram
     Auto->>DB: ingest_find_duplicates --tier tier_a (stage=tier_a_review)
     Op->>UI: review Tier A, keep or reject, submit
     Op->>DB: ingest_find_duplicates_tier_b (stage=tier_b_review)
+    Op->>DB: ingest_text_filter (optional: dry run, then --apply; settles clearly different Tier B pairs by OCR text)
     Op->>UI: review Tier B (same page switches queue by stage)
     Op->>DB: ingest_promote
     DB-->>DB: pending with no open candidates become active
@@ -117,6 +118,7 @@ Stages only move forward (`_STAGE_ORDER` guard in `ingest_find_duplicates`, `sho
 | 2 | embeddings, OCR, lemmas, text-heavy, OCR-text embeddings (all `--status pending`) | yes | all five are registered, but the admin path runs with the default status `active`, not `pending` |
 | 2 to Tier A | `ingest_auto_prep` runs everything above through Tier A | yes | yes |
 | 3 | `ingest_find_duplicates_tier_b` | `ingest_find_duplicates --tier tier_b` | yes |
+| 3.5 (optional) | `ingest_text_filter` (dry run; `--apply --plan-hash` and `--undo --run-id` are shell only) | yes | yes, dry run only |
 | 4 | `ingest_promote` | yes | yes |
 | Undo | `ingest_abort` | yes | no |
 

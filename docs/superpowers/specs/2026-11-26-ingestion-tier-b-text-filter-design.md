@@ -1,6 +1,6 @@
 # Ingestion Tier B text filter
 
-status: draft
+status: approved
 Originates from: `docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md` and
 `docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md` (this extends the lemma
 corroboration idea from the OCR-text probe to the pairs the CLIP probes produce).
@@ -93,9 +93,9 @@ no popularity edge, no metrics `kept` event for the image (the image's other pai
   - Run-tracked with stats `pairs_open`, `pairs_eligible`, `pairs_vetoed`, `pairs_no_text`,
     `pairs_applied`; progress via `report_progress` per the batch-progress convention.
 - **Settings** `ingestion_text_filter.*` in `environments/settings.yaml`: `min_lemmas: 3`,
-  `max_overlap: 0.2`, `veto_distance: 0.10`, `sample_size: 100`. `it` has no OCR text vocabulary
-  concerns here (it only reads `ocr_lemmas`) but the job is only enabled for `general` and `metal` via
-  `settings.<env>.yaml` `enabled`; absent means the job exits cleanly with "not configured".
+  `max_overlap: 0.2`, `veto_distance: 0.10`, `sample_size: 100`. Available on all three
+  environments (owner decision, 2026-11-26): the job only reads `ocr_lemmas`, and rule 2 skips any
+  pair without enough lemmas, so on an environment with none it settles nothing.
 - **Queue effects**: the review queue, progress counts and `ingest_promote` already treat a pair with
   `tier_b_reviewed_at` set as settled, so no query change is needed. `get_review_progress` and the
   Tier B page need no edit; a test pins that an auto-kept pair disappears from both.
@@ -108,6 +108,13 @@ no popularity edge, no metrics `kept` event for the image (the image's other pai
 `max_overlap` 0.2 and `veto_distance` 0.10 are the existing constants; if the sample shows real
 duplicates among the would-be-kept pairs, tighten before applying. The first apply on `general` is
 a manual step by the owner after reading the report.
+
+## Pipeline placement
+
+Manual and optional; not part of `ingest_auto_prep` and not scheduled. Order: Tier B find-duplicates,
+`ingest_text_filter` dry run, read the report, `--apply`, review the remaining Tier B queue,
+`ingest_promote`. Skipping it leaves Tier B exactly as today. Also rerunnable: pairs inserted later
+(new Tier B discovery on a joined run) are picked up by a new dry run.
 
 ## Left to the builder
 
