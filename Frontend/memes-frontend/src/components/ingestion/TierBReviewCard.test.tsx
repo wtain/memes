@@ -16,7 +16,7 @@ const item: IngestionTierBReviewItem = {
 
 function renderCard(props: Partial<Parameters<typeof TierBReviewCard>[0]> = {}) {
   return render(
-    <TierBReviewCard memesApi={makeMockApi()} item={item} decisions={{}} onDecide={vi.fn()}
+    <TierBReviewCard memesApi={makeMockApi()} item={item} decisions={{}} onDecide={vi.fn()} onDecideMany={vi.fn()}
       onSubmit={vi.fn()} submitting={false} expanded={false} onToggleExpand={vi.fn()} onPeek={vi.fn()} {...props} />
   )
 }
@@ -71,11 +71,24 @@ describe('TierBReviewCard', () => {
     expect(screen.queryByRole('button', { name: /show .* more/i })).not.toBeInTheDocument()
   })
 
+  it('"Keep all" keeps the subject and every pending candidate, never an active one', async () => {
+    const onDecideMany = vi.fn()
+    renderCard({ onDecideMany })
+    await userEvent.click(screen.getByRole('button', { name: /^keep all$/i }))
+    expect(onDecideMany).toHaveBeenCalledTimes(1)
+    expect(onDecideMany).toHaveBeenCalledWith(['s1', 'c1'], 'keep') // c2 is active: context only
+  })
+
+  it('"Keep all" is disabled while the card is submitting', () => {
+    renderCard({ submitting: true })
+    expect(screen.getByRole('button', { name: /^keep all$/i })).toBeDisabled()
+  })
+
   it('per-card submit is disabled until a decidable image has a decision', () => {
     const { rerender } = renderCard()
     expect(screen.getByRole('button', { name: /submit decisions/i })).toBeDisabled()
     rerender(<TierBReviewCard memesApi={makeMockApi()} item={item} decisions={{ s1: 'keep' }}
-      onDecide={vi.fn()} onSubmit={vi.fn()} submitting={false} expanded={false}
+      onDecide={vi.fn()} onDecideMany={vi.fn()} onSubmit={vi.fn()} submitting={false} expanded={false}
       onToggleExpand={vi.fn()} onPeek={vi.fn()} />)
     expect(screen.getByRole('button', { name: /submit decisions/i })).toBeEnabled()
   })

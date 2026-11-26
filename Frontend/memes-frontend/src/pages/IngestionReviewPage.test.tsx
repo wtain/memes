@@ -239,6 +239,45 @@ describe('IngestionReviewPage', () => {
     expect(screen.queryByText(/Submit all decisions/i)).toBeNull()
   })
 
+  it('Tier B "Keep all" then "Submit decisions" sends keep for the subject and each pending candidate', async () => {
+    const getIngestionRunStatus = vi.fn().mockResolvedValue(tierBStatus)
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(tbPage([
+      tbItem('s1', [['c1', 'pending'], ['c2', 'active'], ['c3', 'pending']]),
+    ]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: [], kept: ['s1', 'c1', 'c3'], failed: [], move_failed: [] })
+    render(<IngestionReviewPage memesApi={makeMockApi({ getIngestionRunStatus, getIngestionTierBReview, resolveIngestionCluster })} />)
+    await screen.findByText('s1.jpg')
+
+    await userEvent.click(screen.getByRole('button', { name: /^keep all$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
+
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledTimes(1))
+    const [tier, payload] = resolveIngestionCluster.mock.calls[0]
+    expect(tier).toBe('tier_b')
+    expect(payload).toHaveLength(3)
+    expect(payload).toEqual(expect.arrayContaining([
+      { image_id: 's1', decision: 'keep' }, { image_id: 'c1', decision: 'keep' }, { image_id: 'c3', decision: 'keep' },
+    ]))
+  })
+
+  it('Tier B "Keep all" sets keep even on members already marked keep (it does not toggle them off)', async () => {
+    const getIngestionRunStatus = vi.fn().mockResolvedValue(tierBStatus)
+    const getIngestionTierBReview = vi.fn().mockResolvedValue(tbPage([tbItem('s1', [['c1', 'pending']])]))
+    const resolveIngestionCluster = vi.fn().mockResolvedValue({ rejected: [], kept: ['s1', 'c1'], failed: [], move_failed: [] })
+    render(<IngestionReviewPage memesApi={makeMockApi({ getIngestionRunStatus, getIngestionTierBReview, resolveIngestionCluster })} />)
+    await screen.findByText('s1.jpg')
+
+    await userEvent.click(screen.getAllByRole('button', { name: /^keep$/i })[0]) // subject only
+    await userEvent.click(screen.getByRole('button', { name: /^keep all$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^submit decisions$/i }))
+
+    await waitFor(() => expect(resolveIngestionCluster).toHaveBeenCalledTimes(1))
+    expect(resolveIngestionCluster.mock.calls[0][1]).toEqual(expect.arrayContaining([
+      { image_id: 's1', decision: 'keep' }, { image_id: 'c1', decision: 'keep' },
+    ]))
+    expect(resolveIngestionCluster.mock.calls[0][1]).toHaveLength(2)
+  })
+
   it('reloads the queue when the last visible cluster is resolved and no more pages remain', async () => {
     const getIngestionRunStatus = vi.fn()
       .mockResolvedValueOnce(runStatus)

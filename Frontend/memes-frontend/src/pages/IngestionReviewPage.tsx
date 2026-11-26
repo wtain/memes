@@ -320,6 +320,11 @@ export default function IngestionReviewPage({ memesApi }: Props) {
     setDecisions((prev) => ({ ...prev, [memberId]: prev[memberId] === decision ? undefined : decision }))
   }
 
+  // Sets (does not toggle) the same decision for several members, e.g. a card's "Keep all".
+  function setDecisionsFor(memberIds: string[], decision: Decision) {
+    setDecisions((prev) => ({ ...prev, ...Object.fromEntries(memberIds.map((id) => [id, decision])) }))
+  }
+
   function toggleExpand(unit: ReviewUnit) {
     setExpandedUnits((prev) => {
       const next = new Set(prev)
@@ -561,6 +566,7 @@ export default function IngestionReviewPage({ memesApi }: Props) {
               item={item}
               decisions={decisions}
               onDecide={setDecision}
+              onDecideMany={setDecisionsFor}
               onSubmit={() => void submitUnit(item, index)}
               submitting={submitting === item || submitting === "all"}
               expanded={expandedUnits.has(item)}

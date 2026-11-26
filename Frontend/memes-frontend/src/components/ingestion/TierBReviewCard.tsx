@@ -8,6 +8,8 @@ type Props = {
   item: IngestionTierBReviewItem
   decisions: Record<string, Decision | undefined>
   onDecide: (imageId: string, d: Decision) => void
+  // Sets (never toggles) one decision for several images at once; used by "Keep all".
+  onDecideMany: (imageIds: string[], d: Decision) => void
   onSubmit: () => void
   submitting: boolean
   expanded: boolean
@@ -20,7 +22,7 @@ type Props = {
 const COLLAPSED_COUNT = 10
 
 export function TierBReviewCard({
-  memesApi, item, decisions, onDecide, onSubmit, submitting, expanded, onToggleExpand, onPeek,
+  memesApi, item, decisions, onDecide, onDecideMany, onSubmit, submitting, expanded, onToggleExpand, onPeek,
 }: Props) {
   const decidable = [
     item.image.image_id,
@@ -70,6 +72,14 @@ export function TierBReviewCard({
           onClick={onSubmit}
         >
           {submitting ? "Submitting…" : "Submit decisions"}
+        </button>
+        <button
+          className="text-sm rounded bg-green-600 text-white px-3 py-1 transition-colors active:scale-[.97] disabled:opacity-40"
+          disabled={submitting}
+          title="Mark the image and every pending candidate on this card as Keep (nothing is sent until you submit)"
+          onClick={() => onDecideMany(decidable, "keep")}
+        >
+          Keep all
         </button>
         {hiddenInList > 0 && (
           <button className="text-sm rounded bg-gray-100 hover:bg-gray-200 px-3 py-1" onClick={onToggleExpand}>
