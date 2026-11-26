@@ -61,6 +61,16 @@ describe('TierBReviewCard', () => {
     expect(screen.getByText(/showing 2 of 240/i)).toBeInTheDocument()
   })
 
+  it('shows all 10 candidates (the backend cap) without a "show more" toggle', () => {
+    const ten = Array.from({ length: 10 }, (_, i) => ({
+      member: { image_id: `c${i}`, filename: `c${i}.jpg`, status: 'active' as const, ocr_text: null },
+      distance: 0.08, match_source: 'in_batch' as const, distance_source: 'clip' as const,
+    }))
+    renderCard({ item: { ...item, candidates: ten, total_candidates: 10 } })
+    expect(screen.getAllByRole('img')).toHaveLength(11) // subject + 10 candidates
+    expect(screen.queryByRole('button', { name: /show .* more/i })).not.toBeInTheDocument()
+  })
+
   it('per-card submit is disabled until a decidable image has a decision', () => {
     const { rerender } = renderCard()
     expect(screen.getByRole('button', { name: /submit decisions/i })).toBeDisabled()
