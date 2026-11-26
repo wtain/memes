@@ -819,7 +819,7 @@ ingest_find_duplicates      → Tier A (--tier tier_a, default): populates tmp_d
                                Rejecting a candidate records a popularity absorption into the kept
                                image, and undo-reject reverses it (see
                                docs/superpowers/specs/2026-10-26-meme-popularity/2026-10-27-p2-recording-winners-design.md).
-ingest_text_filter          → OPTIONAL, between Tier B discovery and Tier B review (planned; spec
+ingest_text_filter          → OPTIONAL, between Tier B discovery and Tier B review (spec
                                docs/superpowers/specs/2026-11-26-ingestion-tier-b-text-filter-design.md):
                                settles Tier B pairs whose OCR text is clearly different as "not a duplicate", per
                                pair (tmp_duplicates.tier_b_auto_kept_run tags the run so it can be undone): both

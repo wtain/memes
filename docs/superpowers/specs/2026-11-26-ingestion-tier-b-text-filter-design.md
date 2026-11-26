@@ -1,6 +1,7 @@
 # Ingestion Tier B text filter
 
-status: approved
+status: done
+Plan: `docs/superpowers/plans/2026-11-26-ingestion-tier-b-text-filter.md`
 Originates from: `docs/superpowers/specs/2026-09-18-text-embedding-duplicate-matching.md` and
 `docs/superpowers/specs/2026-09-19-ocr-lemma-overlap-corroboration.md` (this extends the lemma
 corroboration idea from the OCR-text probe to the pairs the CLIP probes produce).
