@@ -57,6 +57,9 @@ def test_plan_hash_depends_on_ids_and_params_but_not_order():
     assert plan_hash([a, b], p) == plan_hash([b, a], p)
     assert plan_hash([a, b], p) != plan_hash([a], p)
     assert plan_hash([a, b], p) != plan_hash([a, b], FilterParams(3, 0.3, 0.10))
+    far = FilterParams(3, 0.2, 0.10, far_min_distance=0.10, far_max_overlap=0.5)
+    assert plan_hash([a, b], p) != plan_hash([a, b], far)
+    assert plan_hash([a, b], far) != plan_hash([a, b], FilterParams(3, 0.2, 0.10, far_min_distance=0.10, far_max_overlap=0.6))
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -73,7 +76,8 @@ async def test_dry_run_changes_nothing_and_writes_report(db_session, tmp_path):
     assert report["counts"]["overlap_high"] == 1
     sample = (tmp_path / "sample.md").read_text(encoding="utf-8")
     assert "SECRET-OCR-ALPHA" in sample and "SECRET-OCR-BETA" in sample   # the report may hold OCR text
-    assert stats == {"pairs_open": 2, "pairs_eligible": 1, "pairs_vetoed": 0, "pairs_no_text": 0, "pairs_applied": 0}
+    assert stats == {"pairs_open": 2, "pairs_eligible": 1, "pairs_vetoed": 0, "pairs_no_text": 0,
+                     "pairs_far_weak_text": 0, "pairs_applied": 0}
     assert "SECRET" not in json.dumps(stats)   # run stats never carry text
 
 
@@ -145,3 +149,23 @@ async def test_build_plan_fails_visibly_without_active_ingestion_run(db_session)
 
 def test_report_root_is_the_git_ignored_storage_directory():
     assert job.REPORT_ROOT.parts[-2:] == ("Storage", "ingestion-text-filter")
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_apply_also_settles_far_pairs_without_strong_text_and_reports_them(db_session, tmp_path):
+    batch = await _run(db_session)
+    subject = await _image(db_session, "pending", batch, "a")
+    notext = await _image(db_session, "active", None, "b", n=1)           # 1 lemma: no usable text
+    far = await _pair(db_session, subject, notext, distance=0.11)
+    near = await _image(db_session, "active", None, "c", n=1)
+    near_pair = await _pair(db_session, subject, near, distance=0.07)     # same lack of text, but not far
+    plan = await build_plan(db_session)
+
+    stats = await write_dry_run(db_session, uuid.uuid4(), plan, tmp_path)
+    applied = await apply_plan(db_session, uuid.uuid4(), plan.hash)
+
+    assert stats["pairs_far_weak_text"] == 1 and plan.counts()["far_weak_text"] == 1
+    assert applied == 1
+    assert (await db_session.get(TmpDuplicates, far)).tier_b_reviewed_at is not None
+    assert (await db_session.get(TmpDuplicates, near_pair)).tier_b_reviewed_at is None
+    assert "far band" in (tmp_path / "sample.md").read_text(encoding="utf-8").lower()

@@ -60,6 +60,24 @@ Settling sets `tier_b_reviewed_at = now()` on **that pair only** (not every pair
 the reviewer's keep does) and `tier_b_auto_kept_run = <run id>`. No image is rejected, no file moves,
 no popularity edge, no metrics `kept` event for the image (the image's other pairs are untouched).
 
+## Addendum 2026-11-26: far band
+
+Measured on `general` (earlier ingestion batches, images by their closest candidate): the share ended
+rejected falls 64% (< 0.05), 29%, 23%, 21%, 11% (0.08-0.10), **1.3% (0.10-0.12)**. The 0.10-0.12 band is most
+of the review volume and almost none of the duplicates. Owner decision (2026-11-26): also settle far pairs
+unless the text strongly corroborates them.
+
+Rule added (`far_min_distance` 0.10, `far_max_overlap` 0.3): a pair at or beyond `far_min_distance` is
+settled when it is not an `ocr_text`-sourced pair, its lemmas are not stale, no embedding veto applies, and
+either one side has fewer than `min_lemmas` lemmas or the overlap is below `far_max_overlap` (so overlap
+0.2-0.3 and missing text are settled, 0.3 or more stays). 0.5 was tried first and rejected after reading the
+dry-run sample: pairs at overlap 0.38-0.44 included what looked like the same meme with garbled OCR, while the
+0.2-0.3 pairs were all different memes. New bucket `far_weak_text`; `--apply` settles
+`eligible` and `far_weak_text`; the plan hash includes the two new values; the dry run samples the far band
+separately and the run stats carry `pairs_far_weak_text`. Setting both far values to NULL switches it off.
+A far pair that slips through is not lost: after promotion `rebuild_duplicates` and the library
+`/duplicates` review can still catch it. Expected cost from the measured rate: about 1% of that band.
+
 ## Approaches considered
 
 - **A. Lemma overlap only.** Simplest. Same OCR-noise risk, no second opinion.

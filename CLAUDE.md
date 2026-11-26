@@ -824,7 +824,9 @@ ingest_text_filter          → OPTIONAL, between Tier B discovery and Tier B re
                                settles Tier B pairs whose OCR text is clearly different as "not a duplicate", per
                                pair (tmp_duplicates.tier_b_auto_kept_run tags the run so it can be undone): both
                                sides >= 3 ocr_lemmas, overlap coefficient < 0.2, no text-embedding match within
-                               0.10 where both have one, never an ocr_text-sourced pair. Admin-triggerable but a
+                               0.10 where both have one, never an ocr_text-sourced pair; plus the far band: a pair at CLIP
+                               distance >= far_min_distance (0.10) is also settled when its text does not strongly agree
+                               (overlap < far_max_overlap 0.3, or too little text; bucket far_weak_text). Admin-triggerable but a
                                dry run only there (report + plan hash under Storage/ingestion-text-filter/);
                                --apply --plan-hash and --undo --run-id are shell only. Not part of
                                ingest_auto_prep, not scheduled; all three environments.

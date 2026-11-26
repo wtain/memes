@@ -13,6 +13,7 @@ from Storage.models import Image, OCRLemma, OCRTextEmbedding, TmpDuplicates
 from Storage.models import OCR_TEXT_EMBEDDING_DIM
 
 PARAMS = FilterParams(min_lemmas=3, max_overlap=0.2, veto_distance=0.10)
+FAR = FilterParams(min_lemmas=3, max_overlap=0.2, veto_distance=0.10, far_min_distance=0.10, far_max_overlap=0.5)
 BAND = (0.05, 0.12)
 
 
@@ -237,3 +238,85 @@ async def test_undo_reopens_only_pairs_still_tagged_with_that_run(db_session):
     await db_session.refresh(row_other)
     assert row_person.tier_b_reviewed_at is not None and row_person.tier_b_auto_kept_run is None
     assert row_other.tier_b_reviewed_at is not None and row_other.tier_b_auto_kept_run == other_run
+
+
+# ---- far band: a pair at or beyond far_min_distance is settled unless the text strongly corroborates it ----
+
+async def _far_case(db_session, *, distance, a_words, b_words, distance_source="clip", stale=False, embed=None):
+    batch = await _batch(db_session)
+    a = await _image(db_session, "pending", batch, a_words, stale=stale)
+    b = await _image(db_session, "active", None, b_words)
+    if embed:
+        await _embed(db_session, a, hot=embed[0])
+        await _embed(db_session, b, hot=embed[1])
+    pair = await _pair(db_session, a, b, distance=distance, distance_source=distance_source)
+    return {p.pair_id: p for p in await plan_pairs(db_session, batch, BAND, FAR)}[pair]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_far_pair_without_text_is_settled(db_session):
+    planned = await _far_case(db_session, distance=0.11, a_words=_words("a", 1), b_words=_words("b", 5))
+    assert planned.bucket == "far_weak_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_near_pair_without_text_still_stays(db_session):
+    planned = await _far_case(db_session, distance=0.09, a_words=_words("a", 1), b_words=_words("b", 5))
+    assert planned.bucket == "no_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_far_boundary_distance_counts_as_far(db_session):
+    planned = await _far_case(db_session, distance=0.10, a_words=_words("a", 1), b_words=_words("b", 5))
+    assert planned.bucket == "far_weak_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_far_pair_with_weak_overlap_is_settled(db_session):
+    shared = ["s0", "s1", "s2"]                                       # 3 shared of 10 = 0.3: above 0.2, below 0.5
+    planned = await _far_case(db_session, distance=0.11, a_words=shared + _words("a", 7), b_words=shared + _words("b", 7))
+    assert planned.overlap == pytest.approx(0.3)
+    assert planned.bucket == "far_weak_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_far_pair_with_strong_overlap_stays(db_session):
+    shared = ["s0", "s1", "s2", "s3", "s4"]                           # 5 of 10 = 0.5 exactly: corroborated
+    planned = await _far_case(db_session, distance=0.11, a_words=shared + _words("a", 5), b_words=shared + _words("b", 5))
+    assert planned.overlap == pytest.approx(0.5)
+    assert planned.bucket == "overlap_high"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_near_pair_with_weak_overlap_still_stays(db_session):
+    shared = ["s0", "s1", "s2"]
+    planned = await _far_case(db_session, distance=0.07, a_words=shared + _words("a", 7), b_words=shared + _words("b", 7))
+    assert planned.bucket == "overlap_high"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_far_pair_with_close_text_embedding_stays(db_session):
+    planned = await _far_case(db_session, distance=0.11, a_words=_words("a", 1), b_words=_words("b", 5), embed=(0, 0))
+    assert planned.bucket == "no_text"                                # vetoed: the embeddings say the same text
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_far_ocr_text_sourced_pair_stays(db_session):
+    planned = await _far_case(db_session, distance=0.11, a_words=_words("a", 1), b_words=_words("b", 5), distance_source="ocr_text")
+    assert planned.bucket == "ocr_text_source"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_far_pair_with_stale_lemmas_stays(db_session):
+    planned = await _far_case(db_session, distance=0.11, a_words=_words("a", 4), b_words=_words("b", 4), stale=True)
+    assert planned.bucket == "stale_text"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_far_rule_is_off_when_not_configured(db_session):
+    batch = await _batch(db_session)
+    a = await _image(db_session, "pending", batch, _words("a", 1))
+    b = await _image(db_session, "active", None, _words("b", 5))
+    pair = await _pair(db_session, a, b, distance=0.11)
+    planned = {p.pair_id: p for p in await plan_pairs(db_session, batch, BAND, PARAMS)}[pair]   # no far_* values
+    assert planned.bucket == "no_text"
