@@ -119,7 +119,7 @@ python-dotenv==1.2.1
 python-multipart==0.0.32
 pytesseract==0.3.13
 pytokens==0.4.1
-pytz==2025.2
+pytz==2026.4
 PyYAML==6.0.2
 RapidFuzz==3.14.5
 regex==2026.1.15
