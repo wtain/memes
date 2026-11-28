@@ -69,6 +69,9 @@ COPY batch/clusterize.py ./batch/clusterize.py
 # for its own self-tracking -- run_tracking.py itself only depends on repository/ and
 # Storage/, both already copied above, so no further batch/ files are pulled in by this.
 COPY batch/run_tracking.py ./batch/run_tracking.py
+# batch/run_tracking.py and batch/clusterize.py also import the progress reporter batch/utils/run_progress.py (standard library only).
+# Without it the container dies at startup with ModuleNotFoundError (tests/docker catches it).
+COPY batch/utils/run_progress.py ./batch/utils/run_progress.py
 # Backend/app/services/admin_batch_service.py imports batch.registry.BatchRegistry
 # to read environments/batch_registry*.yaml (already copied above).
 COPY batch/registry.py ./batch/registry.py
