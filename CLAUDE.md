@@ -294,7 +294,9 @@ build_image_descriptions   → multi-prompt Ollama LLM descriptions (optional), 
                               (image, prompt) pair; configurable prompts/models/context size
                               per environment; incremental with its own commit interval;
                               permanently-failed pairs are skipped by default (--retry-failed
-                              to re-attempt, --reset to clear everything, --limit to cap a run).
+                              to re-attempt, --reset to clear everything, --limit to cap a run). Transient errors (out of memory, connection)
+                              are not recorded as failures and 3 in a row stop the run (it fails, nothing lost); what was
+                              described is committed however the loop ends (Ctrl+C, abort; a hard kill still loses <= batch_size).
                               Run-tracked (kind build_image_descriptions, stats include
                               images_selected/images_remaining) and admin-triggerable from
                               /admin/batches (no --limit there: one trigger covers the whole backlog),
