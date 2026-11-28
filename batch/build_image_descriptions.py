@@ -30,15 +30,29 @@ from repository.image_procesing_status import ImageProcessingStatusRepository
 from repository.images import ImagesRepository
 
 MAX_CONCURRENT_DESCRIBE_REQUESTS = 2
-# Ollama's OLLAMA_NUM_PARALLEL is set to 4, but that's a server-side ceiling, not
-# a safe client-side target. Empirically (2026-08-01, RTX 3060 12GB, this
-# pipeline's num_ctx=8192): loading the model with 4 parallel KV-cache slots
-# already reserves ~10.5GB of the 12GB VRAM at idle, leaving only ~1.6GB free.
-# A 3rd/4th concurrent request would risk Ollama falling back to partial CPU
-# offload (slower than running serially) or an outright OOM. Capping the client
-# at 2 stays well inside that headroom while still overlapping GPU decode of one
-# image with the next image's request/DB-write overhead -- measured ~25% wall
-# time reduction for 2 concurrent requests over serial in that same test.
+# Ollama's OLLAMA_NUM_PARALLEL is a server-side ceiling, not a safe client-side target: every parallel slot reserves
+# its own KV cache next to the loaded model (and the other resident models), so a high value spends VRAM the run never
+# uses and a 3rd/4th concurrent request risks partial CPU offload or an out-of-memory error. The client stays at 2,
+# which still overlaps GPU decode of one image with the next image's request and DB-write overhead (measured ~25% wall
+# time reduction over serial on an RTX 3060 12GB; the RTX 5080 16GB behaves the same).
+
+# A transient error (the machine ran short of memory, Ollama is unreachable) says nothing about the image, so it is
+# neither recorded as a permanent failure nor retried here; this many in a row end the run (build_meme_profiles does
+# the same), after committing what was described.
+MAX_CONSECUTIVE_TRANSIENT = 3
+_TRANSIENT_MARKERS = ("bad_alloc", "out of memory", "more system memory", "connection", "timed out", "timeout",
+                      "unreachable", "service unavailable", "connect call failed")
+
+
+class DescribeAborted(RuntimeError):
+    """The run stopped early because Ollama or the machine kept failing for reasons unrelated to the images."""
+
+
+def is_transient_error(error: BaseException) -> bool:
+    if isinstance(error, (ConnectionError, TimeoutError)):
+        return True
+    message = str(error).lower()
+    return any(marker in message for marker in _TRANSIENT_MARKERS)
 
 
 def _status_repos(session, prompts):
@@ -133,6 +147,74 @@ async def refresh_stale_descriptions(session, prompts, describer, base_path, num
     return refresh_stats(selected=len(ids), refreshed=refreshed, failed=failed)
 
 
+async def _describe_all(work, *, base_path, num_ctx, describer, model_for, committer, status_repos, metrics,
+                        tracker) -> None:
+    """Describes every (image, missing prompts) item of `work`, two requests at a time, and always ends by committing
+    what was described (also when the run is interrupted). A transient error is not recorded as a failure; after
+    MAX_CONSECUTIVE_TRANSIENT of them in a row the remaining images are left for the next run and DescribeAborted is
+    raised once the loop has stopped."""
+    describe_sem = asyncio.Semaphore(MAX_CONCURRENT_DESCRIBE_REQUESTS)
+    # AsyncSession isn't safe for concurrent use across tasks -- this lock
+    # serializes every session-touching call (save/record_failure/commit) so
+    # only the Ollama request itself (asyncio.to_thread, below) actually
+    # overlaps between images.
+    db_lock = asyncio.Lock()
+    transient_in_a_row = 0
+    aborted = False
+
+    async def process_image(filename, image_id, missing):
+        nonlocal transient_in_a_row, aborted
+        path = os.path.join(base_path, filename)
+
+        if has_unsupported_image_extension(path):
+            print(f"Skipping {path}")
+            metrics.increment("skipped.unsupported_ext")
+            tracker.skip()
+            return
+
+        async with describe_sem:
+            for prompt in missing:
+                if aborted:
+                    return
+                model = model_for(prompt)
+                try:
+                    text = await asyncio.to_thread(
+                        describer.describe, path, prompt.prompt, model, num_ctx
+                    )
+                except Exception as e:
+                    print(f"Model failed for {path} [{prompt.key}]: {e}")
+                    if is_transient_error(e):
+                        metrics.increment("error.transient")
+                        transient_in_a_row += 1
+                        if transient_in_a_row >= MAX_CONSECUTIVE_TRANSIENT:
+                            aborted = True
+                        continue
+                    metrics.increment("error.model")
+                    async with db_lock:
+                        await status_repos[prompt.key].record_failure(image_id, str(e))
+                    continue
+
+                transient_in_a_row = 0
+                async with db_lock:
+                    committer.save_description(image_id, prompt.key, model, text)
+                    metrics.increment("saved")
+
+        async with db_lock:
+            await committer.on_image_done()
+        tracker.mark_done()
+
+    try:
+        await asyncio.gather(*(
+            process_image(filename, image_id, missing) for filename, image_id, missing in work
+        ))
+    finally:
+        await committer.close()
+    if aborted:
+        raise DescribeAborted(
+            f"stopped after {MAX_CONSECUTIVE_TRANSIENT} transient errors in a row; nothing was recorded as failed, "
+            "the remaining images are picked up by the next run")
+
+
 async def _process(reset: bool, limit: int | None = None, retry_failed: bool = False,
                    refresh_stale: bool = False) -> dict[str, int]:
     """Returns run stats: images selected for this run, images still waiting beyond `limit`,
@@ -187,49 +269,10 @@ async def _process(reset: bool, limit: int | None = None, retry_failed: bool = F
         committer = DescriptionBatchCommitter(session, batch_size=batch_size)
         tracker = ProgressTracker(total=len(work), report_every=settings.GENERAL.PROGRESS_EVERY, label="build_image_descriptions", unit="images")
 
-        describe_sem = asyncio.Semaphore(MAX_CONCURRENT_DESCRIBE_REQUESTS)
-        # AsyncSession isn't safe for concurrent use across tasks -- this lock
-        # serializes every session-touching call (save/record_failure/commit) so
-        # only the Ollama request itself (asyncio.to_thread, below) actually
-        # overlaps between images.
-        db_lock = asyncio.Lock()
-
-        async def process_image(filename, image_id, missing):
-            path = os.path.join(base_path, filename)
-
-            if has_unsupported_image_extension(path):
-                print(f"Skipping {path}")
-                metrics.increment("skipped.unsupported_ext")
-                tracker.skip()
-                return
-
-            async with describe_sem:
-                for prompt in missing:
-                    model = resolve_model(prompt, settings)
-                    try:
-                        text = await asyncio.to_thread(
-                            describer.describe, path, prompt.prompt, model, num_ctx
-                        )
-                    except Exception as e:
-                        print(f"Model failed for {path} [{prompt.key}]: {e}")
-                        metrics.increment("error.model")
-                        async with db_lock:
-                            await status_repos[prompt.key].record_failure(image_id, str(e))
-                        continue
-
-                    async with db_lock:
-                        committer.save_description(image_id, prompt.key, model, text)
-                        metrics.increment("saved")
-
-            async with db_lock:
-                await committer.on_image_done()
-            tracker.mark_done()
-
-        await asyncio.gather(*(
-            process_image(filename, image_id, missing) for filename, image_id, missing in work
-        ))
-
-        await committer.close()
+        await _describe_all(
+            work, base_path=base_path, num_ctx=num_ctx, describer=describer,
+            model_for=lambda p: resolve_model(p, settings), committer=committer, status_repos=status_repos,
+            metrics=metrics, tracker=tracker)
 
     tracker.summary()
     metrics.print()
