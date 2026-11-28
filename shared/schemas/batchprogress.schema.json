@@ -4,8 +4,8 @@
   "title": "BatchProgress",
   "type": "object",
   "properties": {
-    "label": { "type": ["string", "null"], "description": "What is being counted, e.g. images" },
-    "unit": { "type": ["string", "null"] },
+    "label": { "type": ["string", "null"], "description": "The script or step name the counts belong to, e.g. build_image_embeddings" },
+    "unit": { "type": ["string", "null"], "description": "What is being counted, e.g. images" },
     "done": { "type": ["integer", "null"] },
     "total": { "type": ["integer", "null"] },
     "rate_per_min": { "type": ["number", "null"] },
