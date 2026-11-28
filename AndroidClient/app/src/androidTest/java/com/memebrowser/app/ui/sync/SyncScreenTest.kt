@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.memebrowser.app.data.album.GalleryAlbum
 import com.memebrowser.app.data.album.MediaAccess
@@ -211,7 +212,9 @@ class SyncScreenTest {
     fun removeSynced_buttonIsOnlyForGalleryAlbums() {
         var asked = 0
         show(galleryState, SyncActions(onRemoveSynced = { asked++ }))
-        composeTestRule.onNodeWithText("Move synced photos to the trash...").performClick()
+        // "Free up space" is the last card of a scrolling column; since A6/A7 added content above it, it starts below the fold on a
+        // phone-sized emulator, and a click outside the visible bounds reaches nothing.
+        composeTestRule.onNodeWithText("Move synced photos to the trash...").performScrollTo().performClick()
         assertEquals(1, asked)
     }
 }
