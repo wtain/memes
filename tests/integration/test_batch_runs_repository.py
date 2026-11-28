@@ -502,3 +502,39 @@ async def test_pool_recovers_even_without_any_explicit_rollback(db_engine):
         await repo3.commit(active.run_id)
         await repo3.commit(other_id)
         await session3.commit()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_fail_started_of_kinds_fails_only_started_runs_of_those_kinds_since_the_cutoff(db_session):
+    from datetime import datetime, timedelta, timezone
+
+    repo = BatchRunRepository(db_session)
+    hit = await repo.create_run(kind="build_tags_from_ocr", trigger="manual")
+    other_kind = await repo.create_run(kind="build_bow", trigger="manual")
+    finished = await repo.create_run(kind="build_ocr_lemmas", trigger="manual")
+    await repo.commit(finished)
+
+    count = await repo.fail_started_of_kinds(
+        ["build_tags_from_ocr", "build_ocr_lemmas"], since=datetime.now(timezone.utc) - timedelta(minutes=5),
+        error="orphaned: driver died")
+
+    assert count == 1
+    assert (await repo.get_run(hit)).status == "failed"
+    assert (await repo.get_run(hit)).error == "orphaned: driver died"
+    assert (await repo.get_run(hit)).completed_at is not None
+    assert (await repo.get_run(other_kind)).status == "started"
+    assert (await repo.get_run(finished)).status == "completed"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_fail_started_of_kinds_leaves_runs_started_before_the_cutoff(db_session):
+    from datetime import datetime, timedelta, timezone
+
+    repo = BatchRunRepository(db_session)
+    run_id = await repo.create_run(kind="build_tags_from_ocr", trigger="manual")
+
+    count = await repo.fail_started_of_kinds(
+        ["build_tags_from_ocr"], since=datetime.now(timezone.utc) + timedelta(minutes=5), error="x")
+
+    assert count == 0
+    assert (await repo.get_run(run_id)).status == "started"

@@ -73,6 +73,18 @@ class BatchRunRepository:
             run.error = error
         await self._session.flush()
 
+    async def fail_started_of_kinds(self, kinds: list[str], since: datetime, error: str) -> int:
+        """Fails every still-started run of these kinds created at or after `since`; returns how many.
+        For the steps of a driver whose process died: they ran inside it, so they are gone too. Does not commit."""
+        stmt = (
+            update(BatchRun)
+            .where(BatchRun.kind.in_(kinds), BatchRun.status == str(RunStatus.started), BatchRun.created_at >= since)
+            .values(status=str(RunStatus.failed), completed_at=datetime.now(timezone.utc), error=error)
+            .execution_options(synchronize_session=False)
+        )
+        result = await self._session.execute(stmt)
+        return result.rowcount
+
     async def abort(self, run_id: uuid.UUID, note: str | None = None) -> None:
         run = await self._get(run_id)
         run.status = str(RunStatus.aborted)

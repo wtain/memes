@@ -33,6 +33,23 @@ def _normalise_progress(raw) -> dict | None:
         return None
 
 
+# Drivers run their steps in their own process, each step self-tracked under its own kind. When the driver's process
+# dies, those rows would stay `started` for good and make the next run of the step skip as busy, so they are failed
+# with the driver. Keep in sync with the STEPS of batch/<driver>.py.
+DRIVER_CHILD_KINDS = {
+    "description_pipeline": [
+        "build_tags_from_ocr", "build_description_note_lemmas", "build_description_note_embeddings",
+        "build_tags_from_notes", "build_image_descriptions", "build_image_description_embeddings",
+        "build_description_lemmas", "build_tags_from_descriptions", "build_meme_profiles",
+        "build_meme_profile_embeddings",
+    ],
+    "comics_pipeline": [
+        "extract_text_from_memes", "build_image_embeddings", "build_ocr_lemmas", "build_tags_from_ocr",
+        "classify_text_heavy", "build_ocr_text_embeddings",
+    ],
+    "recut_pipeline": ["create_recut_cuts", "build_image_embeddings", "refresh_recut_cuts"],
+}
+
 _STATUS_MAP = {"started": "running", "completed": "completed", "failed": "failed"}
 
 
@@ -46,6 +63,9 @@ async def fail_run_if_still_started(run_id: uuid.UUID, reason: str) -> None:
         if run is None or run.status != "started":
             return
         await repo.fail(run_id, error=f"orphaned: {reason}")
+        children = DRIVER_CHILD_KINDS.get(run.kind)
+        if children:
+            await repo.fail_started_of_kinds(children, since=run.created_at, error=f"orphaned: {reason} (driver {run.kind})")
         await session.commit()
 
 

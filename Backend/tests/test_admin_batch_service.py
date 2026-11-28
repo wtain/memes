@@ -263,3 +263,47 @@ class TestFailRunIfStillStarted:
         await service.trigger_run("trends_batch")
 
         assert callable(captured["cb"])
+
+
+class TestDriverChildren:
+    """A driver (description_pipeline, ...) runs its steps in its own process, each self-tracked under its own kind.
+    When the driver dies, those steps die with it, so their still-started rows are failed too: an open row would
+    make the next run of that step skip as busy."""
+
+    async def _fail(self, monkeypatch, kind, status="started"):
+        import Backend.app.services.admin_batch_service as mod
+
+        created = datetime(2026, 11, 27, 21, 56, tzinfo=timezone.utc)
+        repo = AsyncMock()
+        repo.get_run.return_value = _fake_run(run_id=uuid.uuid4(), kind=kind, status=status, created_at=created)
+        session = AsyncMock()
+
+        class _Ctx:
+            async def __aenter__(self_inner):
+                return session
+            async def __aexit__(self_inner, *a):
+                return False
+
+        monkeypatch.setattr(mod, "AsyncSessionLocal", lambda: _Ctx())
+        monkeypatch.setattr(mod, "BatchRunRepository", lambda s: repo)
+        await mod.fail_run_if_still_started(uuid.uuid4(), "process exited with code 1")
+        return repo, created
+
+    async def test_description_pipeline_children_are_failed_with_it(self, monkeypatch):
+        repo, created = await self._fail(monkeypatch, "description_pipeline")
+
+        repo.fail_started_of_kinds.assert_awaited_once()
+        args, kwargs = repo.fail_started_of_kinds.await_args
+        assert "build_image_descriptions" in args[0]
+        assert kwargs["since"] == created
+        assert "process exited with code 1" in kwargs["error"]
+
+    async def test_a_plain_batch_has_no_children_to_fail(self, monkeypatch):
+        repo, _ = await self._fail(monkeypatch, "trends")
+
+        repo.fail_started_of_kinds.assert_not_awaited()
+
+    async def test_children_are_left_alone_when_the_driver_already_finished(self, monkeypatch):
+        repo, _ = await self._fail(monkeypatch, "description_pipeline", status="completed")
+
+        repo.fail_started_of_kinds.assert_not_awaited()
