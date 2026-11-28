@@ -43,3 +43,12 @@ async def test_stopping_early_reports_only_reached_steps(events, monkeypatch):
     await module._run_prep_chain()
 
     assert [e[3] for e in events if e[0] == "report"] == NAMES[:5]
+
+
+@pytest.mark.asyncio
+async def test_reported_count_equals_number_of_reported_steps(events):
+    await module._run_prep_chain()
+
+    reports = [e for e in events if e[0] == "report"]
+    assert len(reports) == len(NAMES)
+    assert {e[2] for e in reports} == {len(reports)}
