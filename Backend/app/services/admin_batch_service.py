@@ -51,6 +51,7 @@ DRIVER_CHILD_KINDS = {
 }
 
 _STATUS_MAP = {"started": "running", "completed": "completed", "failed": "failed"}
+_STORED_STATUS = {api: stored for stored, api in _STATUS_MAP.items()}
 
 
 async def fail_run_if_still_started(run_id: uuid.UUID, reason: str) -> None:
@@ -117,18 +118,25 @@ class AdminBatchService:
             raise HTTPException(status_code=404, detail="Run not found")
         return self._to_response(run)
 
-    async def list_runs(self, limit: int, offset: int) -> dict:
-        items, total = await self.repo.list_runs(kinds=self._admin_kinds(), limit=limit, offset=offset)
+    async def list_runs(self, limit: int, offset: int, status: str | None = None, name: str | None = None) -> dict:
+        """`status` is the API value (running|completed|failed|aborted); `name` a case-insensitive part of the batch
+        name. Filtering happens in the query so the page and `total` describe the filtered list."""
+        kinds = self._admin_kinds(name)
+        if name and not kinds:
+            return {"items": [], "total": 0}
+        stored = _STORED_STATUS.get(status, status)
+        items, total = await self.repo.list_runs(kinds=kinds, limit=limit, offset=offset, status=stored)
         return {"items": [self._to_response(run) for run in items], "total": total}
 
     async def list_batch_names(self) -> dict:
         return {"names": self.registry.all_names()}
 
-    def _admin_kinds(self) -> list[str]:
+    def _admin_kinds(self, name_part: str | None = None) -> list[str]:
         """Every registered batch's kind, in one place -- the registry (fresh-read on
         every call, see BatchRegistry) is the single source of truth for which batches
         are admin-triggerable, so this needs no separate hardcoded list to stay in sync."""
-        return [self.registry.get(name)["kind"] for name in self.registry.all_names()]
+        needle = name_part.strip().lower() if name_part else ""
+        return [self.registry.get(name)["kind"] for name in self.registry.all_names() if needle in name.lower()]
 
     def _to_response(self, run) -> dict:
         return {

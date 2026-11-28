@@ -181,12 +181,12 @@ class TestListRuns:
         run_id = uuid.uuid4()
         mock_repo.list_runs.return_value = ([_fake_run(run_id=run_id, kind="trends")], 1)
 
-        result = await service.list_runs(limit=50, offset=0)
+        result = await service.list_runs(limit=50, offset=0, status=None)
 
         assert result["total"] == 1
         assert len(result["items"]) == 1
         assert result["items"][0]["run_id"] == str(run_id)
-        mock_repo.list_runs.assert_awaited_once_with(kinds=["trends"], limit=50, offset=0)
+        mock_repo.list_runs.assert_awaited_once_with(kinds=["trends"], limit=50, offset=0, status=None)
 
     async def test_derives_kinds_from_every_registered_name(self, service, mock_repo, mock_registry):
         """_admin_kinds must not be a separate hardcoded list -- it has to reflect
@@ -198,9 +198,9 @@ class TestListRuns:
         }[name]
         mock_repo.list_runs.return_value = ([], 0)
 
-        await service.list_runs(limit=50, offset=0)
+        await service.list_runs(limit=50, offset=0, status=None)
 
-        mock_repo.list_runs.assert_awaited_once_with(kinds=["trends", "build_bow"], limit=50, offset=0)
+        mock_repo.list_runs.assert_awaited_once_with(kinds=["trends", "build_bow"], limit=50, offset=0, status=None)
 
 
 class TestListBatchNames:
@@ -307,3 +307,59 @@ class TestDriverChildren:
         repo, _ = await self._fail(monkeypatch, "description_pipeline", status="completed")
 
         repo.fail_started_of_kinds.assert_not_awaited()
+
+
+class TestListRunsFilters:
+    @pytest.fixture
+    def registry(self):
+        registry = MagicMock()
+        kinds = {"build_image_descriptions": "build_image_descriptions", "build_bow": "build_bow",
+                 "description_pipeline": "description_pipeline"}
+        registry.all_names.return_value = list(kinds)
+        registry.get.side_effect = lambda name: {"module": "m", "kind": kinds[name]}
+        registry.name_for_kind.side_effect = lambda kind: kind
+        return registry
+
+    @pytest.fixture
+    def svc(self, registry):
+        repo = AsyncMock()
+        repo.list_runs.return_value = ([], 0)
+        return AdminBatchService(repo, AsyncMock(), registry), repo
+
+    async def test_no_filters_queries_every_admin_kind(self, svc):
+        service, repo = svc
+
+        await service.list_runs(limit=5, offset=0)
+
+        repo.list_runs.assert_awaited_once_with(
+            kinds=["build_image_descriptions", "build_bow", "description_pipeline"], limit=5, offset=0, status=None)
+
+    async def test_name_filter_is_a_case_insensitive_substring_of_the_batch_name(self, svc):
+        service, repo = svc
+
+        await service.list_runs(limit=5, offset=0, name="DESCRIP")
+
+        assert repo.list_runs.await_args.kwargs["kinds"] == ["build_image_descriptions", "description_pipeline"]
+
+    async def test_a_name_matching_nothing_returns_an_empty_page_without_querying(self, svc):
+        service, repo = svc
+
+        out = await service.list_runs(limit=5, offset=0, name="zzz")
+
+        assert out == {"items": [], "total": 0}
+        repo.list_runs.assert_not_awaited()
+
+    async def test_running_maps_to_the_started_database_status(self, svc):
+        service, repo = svc
+
+        await service.list_runs(limit=5, offset=0, status="running")
+
+        assert repo.list_runs.await_args.kwargs["status"] == "started"
+
+    @pytest.mark.parametrize("status", ["completed", "failed", "aborted"])
+    async def test_other_statuses_pass_through(self, svc, status):
+        service, repo = svc
+
+        await service.list_runs(limit=5, offset=0, status=status)
+
+        assert repo.list_runs.await_args.kwargs["status"] == status

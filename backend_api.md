@@ -1878,7 +1878,7 @@ observed by polling `GET .../runs/{run_id}` or `GET .../runs`. Output is also wr
 }
 ```
 
-`status` is one of `running`, `completed`, `failed`. `error` is populated only when `status`
+`status` is one of `running`, `completed`, `failed` (the stored `aborted` is passed through as `aborted`). `error` is populated only when `status`
 is `failed`.
 
 `progress` (`BatchProgress`, always present) is the latest progress the run reported, written
@@ -1896,9 +1896,9 @@ run as the last report.
 
 - **URL**: `/api/admin/batches/runs`
 - **Method**: `GET`
-- **Query params**: `limit` (default `50`), `offset` (default `0`)
+- **Query params**: `limit` (default `50`), `offset` (default `0`), `status` (optional: `running`, `completed`, `failed` or `aborted`; anything else is `422`), `name` (optional, at most 100 characters: keeps the runs of batches whose name contains this text, case-insensitive; no match gives an empty list). Both filters apply before paging, so `total` counts the filtered list.
 - **Response**: `RunListResponse`
-- **Example**: `GET /api/admin/batches/runs?limit=10&offset=0`
+- **Example**: `GET /api/admin/batches/runs?limit=10&offset=0`, `GET /api/admin/batches/runs?status=failed&name=describe`
 
 ```json
 {

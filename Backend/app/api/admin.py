@@ -1,4 +1,4 @@
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Literal
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Query
@@ -47,9 +47,11 @@ async def get_run(run_id: UUID, service: AdminBatchService = Depends(get_admin_b
 @router.get("/runs", response_model=RunListResponse)
 async def list_runs(
     limit: int = 50, offset: int = 0,
+    status: Literal["running", "completed", "failed", "aborted"] | None = None,
+    name: str | None = Query(None, max_length=100),
     service: AdminBatchService = Depends(get_admin_batch_service),
 ):
-    return await service.list_runs(limit=limit, offset=offset)
+    return await service.list_runs(limit=limit, offset=offset, status=status, name=name)
 
 
 @router.get("/metrics", response_model=BatchMetricsResponse)
