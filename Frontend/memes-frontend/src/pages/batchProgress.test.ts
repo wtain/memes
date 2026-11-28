@@ -63,21 +63,46 @@ describe('describeProgress', () => {
   it('falls back to "items" when unit is null', () => {
     expect(describeProgress(prog({ unit: null }), NOW).counts).toBe('5,203 / 12,336 items')
   })
-  it('never prints NaN, Infinity or undefined', () => {
-    const cases = [
-      prog({ total: 0, done: 0 }),
-      prog({ total: null }),
-      prog({ done: 20, total: 10 }),
-      prog({ done: null, total: null, rate_per_min: null, unit: null, label: null,
-        step: { index: 1, count: 3, label: 'a' } }),
-      prog({ updated_at: 'garbage' }),
-    ]
-    for (const c of cases) {
-      const d = describeProgress(c, NOW)
-      const text = JSON.stringify(d)
-      expect(text).not.toMatch(/NaN|Infinity|undefined|null"?,"eta/)
-      expect(d.counts).not.toMatch(/NaN|Infinity|undefined/)
-    }
+  it('formats the edge cases explicitly, never NaN, Infinity or undefined', () => {
+    // total 0: counts shows done alone, no bar, no eta
+    let d = describeProgress(prog({ total: 0, done: 0 }), NOW)
+    expect(d.counts).toBe('0 images')
+    expect(d.bar).toBeNull()
+    expect(d.eta).toBeNull()
+    expect(d.step).toBeNull()
+    expect(d.updated).toBe('updated 20 s ago')
+
+    // total null
+    d = describeProgress(prog({ total: null }), NOW)
+    expect(d.counts).toBe('5,203 images')
+    expect(d.bar).toBeNull()
+    expect(d.eta).toBeNull()
+    expect(d.step).toBeNull()
+    expect(d.updated).toBe('updated 20 s ago')
+
+    // done > total: bar clamps to full, no eta
+    d = describeProgress(prog({ done: 20, total: 10 }), NOW)
+    expect(d.counts).toBe('20 / 10 images')
+    expect(d.bar).toBe(1)
+    expect(d.eta).toBeNull()
+    expect(d.step).toBeNull()
+    expect(d.updated).toBe('updated 20 s ago')
+
+    // all null, step only
+    d = describeProgress(prog({
+      done: null, total: null, rate_per_min: null, unit: null, label: null,
+      step: { index: 1, count: 3, label: 'a' },
+    }), NOW)
+    expect(d.counts).toBe('')
+    expect(d.bar).toBeNull()
+    expect(d.eta).toBeNull()
+    expect(d.step).toBe('step 1 of 3: a')
+    expect(d.updated).toBe('updated 20 s ago')
+
+    // unparseable timestamp: empty text, not NaN
+    d = describeProgress(prog({ updated_at: 'garbage' }), NOW)
+    expect(d.updated).toBe('')
+    expect(d.stalled).toBe(false)
   })
   it('uses an empty counts string for a step-only value', () => {
     const d = describeProgress(prog({ done: null, total: null, step: { index: 1, count: 3, label: 'a' } }), NOW)

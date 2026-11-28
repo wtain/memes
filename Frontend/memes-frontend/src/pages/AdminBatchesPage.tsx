@@ -206,8 +206,13 @@ export default function AdminBatchesPage({ memesApi }: Props) {
   // One-second tick so "updated 20 s ago" and a running run's duration move, only while one is running.
   useEffect(() => {
     if (!hasRunningRun) return
+    // A fresh `now` as soon as a run is running (state is set in a callback, not the effect body).
+    const first = setTimeout(() => setNow(Date.now()), 0)
     const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
+    return () => {
+      clearTimeout(first)
+      clearInterval(id)
+    }
   }, [hasRunningRun])
 
   useEffect(() => {

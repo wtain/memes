@@ -428,6 +428,38 @@ describe('AdminBatchesPage', () => {
       expect(screen.queryByText(/stalled/i)).not.toBeInTheDocument()
     })
 
+    it('renders a step-only running run as a step line without bar or counts', async () => {
+      await renderWith(makeRun({
+        status: 'running', completed_at: null,
+        progress: progress({ done: null, total: null, rate_per_min: null, unit: null }),
+      }))
+      expect(screen.getByText('step 2 of 8: extract_text_from_memes')).toBeInTheDocument()
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+      expect(screen.queryByText(/\d+ \/ \d+/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/ items$/)).not.toBeInTheDocument()
+    })
+
+    it('ticks the "updated N s ago" text each second and clears its timers on unmount', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-11-23T12:00:00Z'))
+      const run = makeRun({
+        status: 'running', completed_at: null,
+        progress: progress({ updated_at: '2026-11-23T11:59:40Z' }),
+      })
+      const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([run])) })
+      const { unmount } = render(<AdminBatchesPage memesApi={api} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(screen.getByText('updated 20 s ago')).toBeInTheDocument()
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+      expect(screen.getByText('updated 21 s ago')).toBeInTheDocument()
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+      expect(screen.getByText('updated 23 s ago')).toBeInTheDocument()
+
+      unmount()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
     it('keeps the final figure in the runs table for a completed run', async () => {
       await renderWith(makeRun({ status: 'completed', progress: progress({ done: 12336 }) }))
       expect(screen.getByText('12,336 / 12,336')).toBeInTheDocument()
