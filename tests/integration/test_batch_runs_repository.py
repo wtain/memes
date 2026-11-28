@@ -538,3 +538,23 @@ async def test_fail_started_of_kinds_leaves_runs_started_before_the_cutoff(db_se
 
     assert count == 0
     assert (await repo.get_run(run_id)).status == "started"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_list_runs_filters_by_status_and_counts_the_filtered_total(db_session):
+    repo = BatchRunRepository(db_session)
+    running = await repo.create_run(kind="build_tags_from_ocr", trigger="manual")
+    done = await repo.create_run(kind="build_ocr_lemmas", trigger="manual")
+    await repo.commit(done)
+    failed = await repo.create_run(kind="build_bow", trigger="manual")
+    await repo.fail(failed, error="boom")
+    kinds = ["build_tags_from_ocr", "build_ocr_lemmas", "build_bow"]
+
+    items, total = await repo.list_runs(kinds, limit=10, offset=0, status="failed")
+
+    assert [r.run_id for r in items] == [failed]
+    assert total == 1
+    items, total = await repo.list_runs(kinds, limit=10, offset=0, status="started")
+    assert [r.run_id for r in items] == [running]
+    items, total = await repo.list_runs(kinds, limit=10, offset=0)
+    assert total == 3

@@ -18,6 +18,9 @@ import type {
 
 export type IngestionTier = "tier_a" | "tier_b"
 
+/** Server-side filters of the admin run history: status is one of the run statuses, name a part of the batch name. */
+export type BatchRunFilters = { status?: string; name?: string }
+
 export interface MemesApi {
   searchMemes(request: MemeSearchRequest): Promise<MemeSearchResponse>
 
@@ -107,7 +110,7 @@ export interface MemesApi {
 
   listBatchNames(): Promise<BatchNamesResponse>;
   triggerBatchRun(batchName: string): Promise<RunTriggerResponse>;
-  listBatchRuns(limit?: number, offset?: number): Promise<RunListResponse>;
+  listBatchRuns(limit?: number, offset?: number, filters?: BatchRunFilters): Promise<RunListResponse>;
   getBatchMetrics(process: string, limit?: number): Promise<BatchMetricsResponse>;
 
   putRating(request: RatingRequest): Promise<RatingResponse>;

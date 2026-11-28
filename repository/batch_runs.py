@@ -129,8 +129,12 @@ class BatchRunRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list_runs(self, kinds: list[str], limit: int, offset: int) -> tuple[list[BatchRun], int]:
+    async def list_runs(self, kinds: list[str], limit: int, offset: int,
+                         status: str | None = None) -> tuple[list[BatchRun], int]:
+        """`status` is the stored value (`started`, `completed`, `failed`, `aborted`); None means every status."""
         base_where = BatchRun.kind.in_(kinds)
+        if status is not None:
+            base_where = base_where & (BatchRun.status == status)
         items_result = await self._session.execute(
             select(BatchRun).where(base_where)
             .options(undefer(BatchRun.progress))

@@ -4,6 +4,7 @@ import type { RunStatusResponse } from "../types/generated/all"
 import BusinessMetricsPanel from "../components/BusinessMetricsPanel"
 import DuplicateDecisionsPanel from "../components/DuplicateDecisionsPanel"
 import { describeProgress, tableFigure } from "./batchProgress"
+import { formatAbsolute, formatDuration, formatRelative, runDurationMs } from "./batchTime"
 
 type Props = { memesApi: MemesApi }
 
@@ -17,10 +18,19 @@ const PAGE_SIZE = 20
 const POLL_INTERVAL_MS = 4000
 const CONFIRM_TIMEOUT_MS = 3000
 
+// The values GET /api/admin/batches/runs?status= accepts (one per stored run status; a backend test pins them).
+const RUN_STATUSES = ["running", "completed", "failed", "aborted"]
+const NAME_FILTER_DEBOUNCE_MS = 300
+
 const STATUS_COLOR: Record<string, string> = {
   running: "bg-blue-100 text-blue-800",
   completed: "bg-green-100 text-green-800",
   failed: "bg-red-100 text-red-800",
+  aborted: "bg-amber-100 text-amber-800",
+}
+
+function Timestamp({ iso, now }: { iso: string; now: number }) {
+  return <time dateTime={iso} title={formatAbsolute(iso)}>{formatRelative(iso, now)}</time>
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -98,8 +108,14 @@ export default function AdminBatchesPage({ memesApi }: Props) {
   const [batchNames, setBatchNames] = useState<string[]>([])
   const [namesLoading, setNamesLoading] = useState(true)
   const [runs, setRuns] = useState<RunStatusResponse[]>([])
+  // The newest runs, unfiltered and unpaged: what the batch rows above the history show as "latest run".
+  const [latest, setLatest] = useState<RunStatusResponse[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
+  const [batchFilter, setBatchFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+  const [runNameInput, setRunNameInput] = useState("")
+  const [runName, setRunName] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<string | null>(null)
@@ -109,15 +125,26 @@ export default function AdminBatchesPage({ memesApi }: Props) {
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(() => {
-    return memesApi.listBatchRuns(PAGE_SIZE, page * PAGE_SIZE)
-      .then((res) => {
+    const filters = {
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(runName ? { name: runName } : {}),
+    }
+    const filtered = Object.keys(filters).length > 0
+    const table = filtered
+      ? memesApi.listBatchRuns(PAGE_SIZE, page * PAGE_SIZE, filters)
+      : memesApi.listBatchRuns(PAGE_SIZE, page * PAGE_SIZE)
+    // The unfiltered first page doubles as the latest runs; any other view needs its own request.
+    const newest = filtered || page > 0 ? memesApi.listBatchRuns(PAGE_SIZE, 0) : table
+    return Promise.all([table, newest])
+      .then(([res, newestRes]) => {
         setRuns(res.items)
         setTotal(res.total)
+        setLatest(newestRes.items)
         setError(null)
         // A stale trigger error (e.g. a 409 from double-firing Run) should not sit
         // forever -- once a fresh load shows the batch actually running, whatever
         // conflict caused the error is over, so clear it.
-        const runningBatches = res.items.filter((r) => r.status === "running").map((r) => r.batch_name)
+        const runningBatches = newestRes.items.filter((r) => r.status === "running").map((r) => r.batch_name)
         if (runningBatches.length > 0) {
           setTriggerErrors((prev) => {
             if (!runningBatches.some((name) => prev[name])) return prev
@@ -131,7 +158,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
         setError(e instanceof Error ? e.message : "Failed to load batch runs")
       })
       .finally(() => setLoading(false))
-  }, [memesApi, page])
+  }, [memesApi, page, statusFilter, runName])
 
   const loadNames = useCallback(() => {
     return memesApi.listBatchNames()
@@ -146,12 +173,20 @@ export default function AdminBatchesPage({ memesApi }: Props) {
     // `await Promise.resolve()` before the first setState defers it past the synchronous
     // effect body, per the react-hooks/set-state-in-effect rule (same pattern used in
     // TrendHistoryPage.tsx).
+    // `loading` only covers the very first load: a filter change keeps the page (and the focused input) in place.
     void (async () => {
       await Promise.resolve()
-      setLoading(true)
       load()
     })()
   }, [load])
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setRunName(runNameInput.trim())
+      setPage(0)
+    }, NAME_FILTER_DEBOUNCE_MS)
+    return () => clearTimeout(id)
+  }, [runNameInput])
 
   useEffect(() => {
     void (async () => {
@@ -161,20 +196,19 @@ export default function AdminBatchesPage({ memesApi }: Props) {
     })()
   }, [loadNames])
 
-  const hasRunningRun = runs.some((r) => r.status === "running")
+  const hasRunningRun = runs.some((r) => r.status === "running") || latest.some((r) => r.status === "running")
   useEffect(() => {
     if (!hasRunningRun) return
     const id = setInterval(load, POLL_INTERVAL_MS)
     return () => clearInterval(id)
   }, [hasRunningRun, load])
 
-  // One-second tick so "updated 20 s ago" moves, only while a run reports progress.
-  const hasLiveProgress = runs.some((r) => r.status === "running" && r.progress)
+  // One-second tick so "updated 20 s ago" and a running run's duration move, only while one is running.
   useEffect(() => {
-    if (!hasLiveProgress) return
+    if (!hasRunningRun) return
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
-  }, [hasLiveProgress])
+  }, [hasRunningRun])
 
   useEffect(() => {
     return () => {
@@ -208,7 +242,12 @@ export default function AdminBatchesPage({ memesApi }: Props) {
   }
 
   function latestRunFor(batchName: string): RunStatusResponse | undefined {
-    return runs.find((r) => r.batch_name === batchName)
+    return latest.find((r) => r.batch_name === batchName)
+  }
+
+  function chooseStatus(value: string) {
+    setStatusFilter(value)
+    setPage(0)
   }
 
   if (loading || namesLoading) return (
@@ -226,13 +265,25 @@ export default function AdminBatchesPage({ memesApi }: Props) {
   )
 
   const maxPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1)
+  const batchNeedle = batchFilter.trim().toLowerCase()
+  const shownBatchNames = batchNames.filter((name) => name.toLowerCase().includes(batchNeedle))
+  const runsFiltered = statusFilter !== "" || runName !== ""
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Admin</h1>
 
       <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
-        {batchNames.map((name) => (
+        <input
+          type="search"
+          aria-label="Filter batches"
+          placeholder="Filter batches…"
+          value={batchFilter}
+          onChange={(e) => setBatchFilter(e.target.value)}
+          className="border rounded px-2 py-1 text-sm w-64 mb-2"
+        />
+        {shownBatchNames.length === 0 && <p className="text-sm text-gray-400">No batch matches.</p>}
+        {shownBatchNames.map((name) => (
           <BatchRow
             key={name}
             name={name}
@@ -247,6 +298,27 @@ export default function AdminBatchesPage({ memesApi }: Props) {
       </div>
 
       <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
+        <div className="flex items-center gap-3 mb-3">
+          <input
+            type="search"
+            aria-label="Filter runs by batch name"
+            placeholder="Filter runs by batch name…"
+            value={runNameInput}
+            onChange={(e) => setRunNameInput(e.target.value)}
+            className="border rounded px-2 py-1 text-sm w-64"
+          />
+          <label className="text-sm text-gray-600 flex items-center gap-2">
+            Status
+            <select
+              value={statusFilter}
+              onChange={(e) => chooseStatus(e.target.value)}
+              className="border rounded px-2 py-1 text-sm"
+            >
+              <option value="">All statuses</option>
+              {RUN_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+        </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500 border-b">
@@ -256,6 +328,7 @@ export default function AdminBatchesPage({ memesApi }: Props) {
               <th>Progress</th>
               <th>Created</th>
               <th>Completed</th>
+              <th>Duration</th>
               <th>Error</th>
             </tr>
           </thead>
@@ -266,14 +339,20 @@ export default function AdminBatchesPage({ memesApi }: Props) {
                 <td>{run.trigger}</td>
                 <td><StatusBadge status={run.status} /></td>
                 <td>{tableFigure(run.progress)}</td>
-                <td>{run.created_at}</td>
-                <td>{run.completed_at ?? "—"}</td>
+                <td><Timestamp iso={run.created_at} now={now} /></td>
+                <td>{run.completed_at ? <Timestamp iso={run.completed_at} now={now} /> : "—"}</td>
+                <td>{(() => {
+                  const ms = runDurationMs(run, now)
+                  return ms === null ? "—" : formatDuration(ms)
+                })()}</td>
                 <td title={run.error ?? undefined}>{truncate(run.error, 40)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {runs.length === 0 && <p className="text-sm text-gray-400 mt-2">No runs yet.</p>}
+        {runs.length === 0 && (
+          <p className="text-sm text-gray-400 mt-2">{runsFiltered ? "No runs match." : "No runs yet."}</p>
+        )}
 
         <div className="flex items-center gap-3 mt-3">
           <button

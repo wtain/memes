@@ -113,7 +113,21 @@ class TestListRuns:
 
         assert response.status_code == 200
         assert response.json() == {"items": [], "total": 0}
-        mock_service.list_runs.assert_awaited_once_with(limit=10, offset=0)
+        mock_service.list_runs.assert_awaited_once_with(limit=10, offset=0, status=None, name=None)
+
+    def test_passes_status_and_name_filters(self, client, mock_service):
+        mock_service.list_runs.return_value = {"items": [], "total": 0}
+
+        response = client.get("/api/admin/batches/runs?status=failed&name=describe")
+
+        assert response.status_code == 200
+        mock_service.list_runs.assert_awaited_once_with(limit=50, offset=0, status="failed", name="describe")
+
+    def test_unknown_status_is_422(self, client, mock_service):
+        response = client.get("/api/admin/batches/runs?status=banana")
+
+        assert response.status_code == 422
+        mock_service.list_runs.assert_not_awaited()
 
 
     def test_list_runs_progress_null_for_untracked(self, client, mock_service):
@@ -154,3 +168,15 @@ class TestListRuns:
         assert len(parsed.items) == 2
         assert parsed.items[0].progress is not None and parsed.items[0].progress.step is None
         assert parsed.items[1].progress is None
+
+
+def test_status_filter_values_cover_every_run_status_enum_value():
+    """The filter accepts exactly the API form of every stored RunStatus, so a new enum value cannot be forgotten."""
+    from typing import get_args
+
+    from Backend.app.api import admin
+    from Backend.app.services.admin_batch_service import _STATUS_MAP
+    from Storage.models import RunStatus
+
+    accepted = set(get_args(get_args(admin.list_runs.__annotations__["status"])[0]))
+    assert accepted == {_STATUS_MAP.get(s.value, s.value) for s in RunStatus}

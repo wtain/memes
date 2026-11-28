@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdminBatchesPage from './AdminBatchesPage'
 import { makeMockApi } from '../test/mockApi'
@@ -177,7 +177,7 @@ describe('AdminBatchesPage', () => {
     const trigger = vi.fn().mockRejectedValue(new Error('trends_batch is already running'))
     const listBatchRuns = vi.fn()
       .mockResolvedValueOnce(makeList([], 25)) // initial load; total=25 enables Next
-      .mockResolvedValueOnce(makeList([makeRun({ status: 'running' })])) // reload triggered by paging
+      .mockResolvedValue(makeList([makeRun({ status: 'running' })])) // every reload after that (paging also refreshes the latest runs)
     const api = makeMockApi({ listBatchRuns, triggerBatchRun: trigger })
     const user = userEvent.setup()
     render(<AdminBatchesPage memesApi={api} />)
@@ -293,6 +293,101 @@ describe('AdminBatchesPage', () => {
     expect((await screen.findAllByText('metrics down')).length).toBeGreaterThan(0)   // one per panel
     expect(screen.getByText('move_flagged')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Run' }).length).toBeGreaterThan(0)
+  })
+
+  describe('duration and timestamps', () => {
+    it('shows how long a finished run took, and the friendly time with the exact one on hover', async () => {
+      const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([makeRun()])) })
+      render(<AdminBatchesPage memesApi={api} />)
+
+      expect(await screen.findByRole('columnheader', { name: 'Duration' })).toBeInTheDocument()
+      expect(screen.getByText('1m')).toBeInTheDocument() // 00:00:00 -> 00:01:00
+      const created = screen.getAllByText(/ago|2026/, { selector: 'td time' })[0] // Created, then Completed
+      expect(created).toHaveAttribute('title', expect.stringContaining('2026'))
+      expect(created).toHaveAttribute('dateTime', '2026-07-31T00:00:00Z')
+    })
+
+    it('shows a dash instead of a duration for a failed run that never recorded its end', async () => {
+      const api = makeMockApi({
+        listBatchRuns: vi.fn().mockResolvedValue(makeList([makeRun({ status: 'failed', completed_at: null })])),
+      })
+      render(<AdminBatchesPage memesApi={api} />)
+
+      await screen.findByText('Page 1 of 1')
+      const row = screen.getAllByRole('row')[1] // the first data row, after the header
+      expect(within(row).getAllByText('—').length).toBeGreaterThanOrEqual(2) // completed and duration
+    })
+  })
+
+  describe('filters', () => {
+    it('filters the batch list by name', async () => {
+      const user = userEvent.setup()
+      const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([])) })
+      render(<AdminBatchesPage memesApi={api} />)
+      await screen.findByText('move_flagged')
+
+      await user.type(screen.getByPlaceholderText('Filter batches…'), 'FLAG')
+
+      expect(screen.getByText('move_flagged')).toBeInTheDocument()
+      expect(screen.queryByText('trends_batch')).not.toBeInTheDocument()
+      expect(screen.queryByText('unregister_deleted_images')).not.toBeInTheDocument()
+    })
+
+    it('says so when no batch matches the filter', async () => {
+      const user = userEvent.setup()
+      const api = makeMockApi({ listBatchRuns: vi.fn().mockResolvedValue(makeList([])) })
+      render(<AdminBatchesPage memesApi={api} />)
+      await screen.findByText('move_flagged')
+
+      await user.type(screen.getByPlaceholderText('Filter batches…'), 'zzz')
+
+      expect(screen.getByText('No batch matches.')).toBeInTheDocument()
+    })
+
+    it('offers every run status and asks the server for the chosen one, from the first page', async () => {
+      const user = userEvent.setup()
+      const listBatchRuns = vi.fn().mockResolvedValue(makeList([makeRun()], 45))
+      const api = makeMockApi({ listBatchRuns })
+      render(<AdminBatchesPage memesApi={api} />)
+      await screen.findByText('Page 1 of 3')
+      await user.click(screen.getByText('Next'))
+      await waitFor(() => expect(listBatchRuns).toHaveBeenCalledWith(20, 20))
+
+      const select = screen.getByLabelText('Status')
+      expect(within(select).getAllByRole('option').map((o) => o.textContent))
+        .toEqual(['All statuses', 'running', 'completed', 'failed', 'aborted'])
+      await user.selectOptions(select, 'failed')
+
+      await waitFor(() => expect(listBatchRuns).toHaveBeenCalledWith(20, 0, { status: 'failed' }))
+      expect(await screen.findByText('Page 1 of 3')).toBeInTheDocument()
+    })
+
+    it('asks the server for runs of batches whose name matches the typed text', async () => {
+      const user = userEvent.setup()
+      const listBatchRuns = vi.fn().mockResolvedValue(makeList([makeRun()]))
+      const api = makeMockApi({ listBatchRuns })
+      render(<AdminBatchesPage memesApi={api} />)
+      await screen.findByText('Page 1 of 1')
+
+      await user.type(screen.getByPlaceholderText('Filter runs by batch name…'), 'descr')
+
+      await waitFor(() => expect(listBatchRuns).toHaveBeenCalledWith(20, 0, { name: 'descr' }))
+      expect(screen.getByPlaceholderText('Filter runs by batch name…')).toHaveFocus() // typing never reloads the page away
+    })
+
+    it('keeps the batch rows showing the latest run while the history is filtered', async () => {
+      const user = userEvent.setup()
+      const listBatchRuns = vi.fn((_limit?: number, _offset?: number, filters?: { status?: string }) =>
+        Promise.resolve(filters?.status ? makeList([]) : makeList([makeRun({ status: 'failed' })])))
+      const api = makeMockApi({ listBatchRuns })
+      render(<AdminBatchesPage memesApi={api} />)
+      await waitFor(() => expect(screen.getAllByText('failed').length).toBeGreaterThan(0))
+
+      await user.selectOptions(screen.getByLabelText('Status'), 'completed')
+
+      await waitFor(() => expect(screen.getByText('No runs match.')).toBeInTheDocument())
+      expect(screen.getAllByText('failed').length).toBeGreaterThan(0) // trends_batch row still shows its latest run
+    })
   })
 
   describe('progress', () => {

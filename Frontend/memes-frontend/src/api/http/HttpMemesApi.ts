@@ -1,4 +1,4 @@
-import type { MemesApi, IngestionTier } from "../MemesApi"
+import type { MemesApi, IngestionTier, BatchRunFilters } from "../MemesApi"
 import type {
   Concept, ImageDescription, Meme, MemeSearchRequest, MemeSearchResponse, UploadResponse,
   TrendEntry, TrendHistoryEntry, TrendsRun, StatisticsResponse,
@@ -612,8 +612,10 @@ export class HttpMemesApi implements MemesApi {
     return res.json()
   }
 
-  async listBatchRuns(limit?: number, offset?: number): Promise<RunListResponse> {
+  async listBatchRuns(limit?: number, offset?: number, filters?: BatchRunFilters): Promise<RunListResponse> {
     const params = new URLSearchParams()
+    if (filters?.status) params.set("status", filters.status)
+    if (filters?.name) params.set("name", filters.name)
     if (limit !== undefined) params.set("limit", String(limit))
     if (offset !== undefined) params.set("offset", String(offset))
     const qs = params.toString()
