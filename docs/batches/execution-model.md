@@ -26,7 +26,9 @@ when started through the wrapper, because `run_wrapper` calls only `module.main(
 Admin-triggered runs: the backend commits the row before spawning the child. If the child cannot start (spawn error) or exits
 non-zero while the row is still `started` (argparse, `load_env` or import failure, hard kill), `spawn_and_track`'s
 `on_abnormal_exit` callback marks the row `failed` (`orphaned: ...`), only from `started`, so a finished run is never
-overwritten. A backend restart while a child runs, or a kill of both, is not covered for non-scheduled kinds: that row
+overwritten. For a driver (`description_pipeline`, `comics_pipeline`, `recut_pipeline`) the callback also fails the still-`started`
+rows of its steps created since the driver began (`DRIVER_CHILD_KINDS` in `admin_batch_service.py`): they ran in the driver's process
+and would otherwise block the next run of that step as busy. A backend restart while a child runs, or a kill of both, is not covered for non-scheduled kinds: that row
 stays `started` and blocks the kind (409) until fixed by hand; only scheduled kinds are recovered, by the scheduler.
 
 Consequence: you cannot pass `--limit`, `--status`, `--full` and similar from the admin page or the scheduler.
