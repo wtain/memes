@@ -12,7 +12,10 @@ plugins {
 
 android {
     namespace = "com.memebrowser.app"
-    compileSdk = 37
+    // 37.1: Compose 1.13 (BOM 2026.11.01) requires compileSdk 37.1 or later. Only the compile-time API level; minSdk and targetSdk are unchanged.
+    compileSdk {
+        version = release(37) { minorApiLevel = 1 }
+    }
 
     defaultConfig {
         applicationId = "com.memebrowser.app"
