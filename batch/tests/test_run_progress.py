@@ -406,6 +406,34 @@ async def test_drain_timeout_cancels_and_never_raises(run_id, writer):
 
 
 @pytest.mark.asyncio
+async def test_drain_gives_up_on_a_writer_that_ignores_cancellation(run_id, writer, monkeypatch):
+    """After the timeout the task is cancelled; a writer that shields itself from the cancel must
+    not hold drain past the second, short wait (drain returns, the task stays referenced)."""
+    release = asyncio.Event()
+
+    async def stubborn(run_id_, value):
+        while not release.is_set():
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.2)  # swallows the cancellation and carries on
+
+    monkeypatch.setattr(rp, "_writer", stubborn)
+    monkeypatch.setattr(rp, "_CANCEL_GRACE_SECONDS", 0.05)
+    rp.report_progress("job", "images", 1, 100)
+    await settle()
+    started = asyncio.get_running_loop().time()
+    await rp.drain_progress(run_id, timeout=0.01)
+    elapsed = asyncio.get_running_loop().time() - started
+    assert elapsed < 0.15
+    assert run_id not in rp._states
+    assert len(rp._tasks) == 1  # still referenced until it ends
+    release.set()
+    await asyncio.sleep(0.4)
+    assert rp._tasks == set()
+
+
+@pytest.mark.asyncio
 async def test_drain_unknown_run_is_noop(clock, writer, config):
     rp._states.clear()
     await rp.drain_progress(uuid.uuid4())

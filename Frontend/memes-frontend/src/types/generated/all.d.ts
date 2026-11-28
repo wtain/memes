@@ -1495,9 +1495,12 @@ export interface RunTriggerResponse {
  */
 export interface BatchProgress {
   /**
-   * What is being counted, e.g. images
+   * The script or step name the counts belong to, e.g. build_image_embeddings
    */
   label: string | null;
+  /**
+   * What is being counted, e.g. images
+   */
   unit: string | null;
   done: number | null;
   total: number | null;

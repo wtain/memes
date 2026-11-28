@@ -38,14 +38,9 @@ from config.settings import load_env, settings
 from repository.batch_runs import BatchAlreadyRunningError
 
 
-_STEP_COUNT = 8  # ingest_hash_dedup plus the seven steps below
-
-
 async def _run_prep_chain() -> None:
-    # Step 1 of 8 is the hash dedup; it stays outside the try below (its errors propagate, unchanged).
-    report_step(1, _STEP_COUNT, "ingest_hash_dedup")
-    await ingest_hash_dedup.main(env=None)
-
+    # Step 1 is the hash dedup; it stays outside the try below (its errors propagate, unchanged).
+    # The reported count is derived: the hash dedup plus the steps list.
     steps = [
         ("ingest_validate_formats", lambda: ingest_validate_formats.main(env=None)),
         ("build_image_embeddings", lambda: build_image_embeddings.main(incremental=True, target_status="pending")),
@@ -55,8 +50,12 @@ async def _run_prep_chain() -> None:
         ("build_ocr_text_embeddings", lambda: build_ocr_text_embeddings.main(status="pending")),
         ("ingest_find_duplicates", lambda: ingest_find_duplicates.main(env=None, tier="tier_a", k=None)),
     ]
+    step_count = len(steps) + 1
+    report_step(1, step_count, "ingest_hash_dedup")
+    await ingest_hash_dedup.main(env=None)
+
     for index, (name, step) in enumerate(steps, 2):
-        report_step(index, _STEP_COUNT, name)
+        report_step(index, step_count, name)
         try:
             await step()
         except BatchAlreadyRunningError as e:

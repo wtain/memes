@@ -32,6 +32,7 @@ PROGRESS_UNITS: frozenset[str] = frozenset(
 _DEFAULT_UNIT = "items"
 _DEFAULT_LABEL = "batch"
 _MAX_LABEL_LEN = 64
+_CANCEL_GRACE_SECONDS = 1.0  # drain waits this long for a cancelled write to end, then gives up
 
 current_run_id: ContextVar[uuid.UUID | None] = ContextVar("batch_current_run_id", default=None)
 
@@ -242,7 +243,7 @@ def report_step(index: int, count: int, label: str) -> None:
 
 async def drain_progress(run_id: uuid.UUID, timeout: float = 5.0) -> None:
     """Await the run's in-flight write and one final write of the latest unwritten value (at
-    most ``timeout`` seconds; a write still running then is cancelled), then forget the run.
+    most ``timeout`` seconds; a write still running then is cancelled and given one more second), then forget the run.
     Never raises (except the caller's own cancellation)."""
     state = _states.get(run_id)
     if state is None:
@@ -256,7 +257,9 @@ async def drain_progress(run_id: uuid.UUID, timeout: float = 5.0) -> None:
             done, _ = await asyncio.wait({task}, timeout=timeout)
             if not done:
                 task.cancel()
-                await asyncio.wait({task})
+                # A writer that ignores the cancellation must not hold the run's exit: wait a
+                # little, then give up (the task stays referenced in _tasks until it ends).
+                await asyncio.wait({task}, timeout=_CANCEL_GRACE_SECONDS)
                 log.warning("batch progress drain timed out")
     except asyncio.CancelledError:
         raise

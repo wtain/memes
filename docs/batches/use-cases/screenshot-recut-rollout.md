@@ -28,7 +28,7 @@ between the recut ones. All fifteen only add tables, columns, constraints and in
 15. `e8b3c6a1d742` ingestion Tier B text filter: `tmp_duplicates.tier_b_auto_kept_run` (nullable UUID column, metadata-only add, plus a partial index that is empty until the first apply)
 
 `tools/rollout_preflight.py` reads the same chain from `Storage/alembic`; a test fails when this list and the chain differ.
-The last three (10 to 12) are the comics migrations; the comics-specific steps (what the build triggers, the smoke build, the
+Migrations 10 to 12 are the comics migrations; the comics-specific steps (what the build triggers, the smoke build, the
 rollback limits) are in `comics-rollout.md`, which uses this runbook for the shared steps.
 
 ## Step 0: before anything

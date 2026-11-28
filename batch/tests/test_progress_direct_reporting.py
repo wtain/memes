@@ -74,6 +74,19 @@ async def test_clusterize_reports_progress(capture, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_clusterize_reports_every_stride_and_the_final_once(capture, monkeypatch):
+    calls = capture(clusterize)
+    monkeypatch.setattr(clusterize, "_REPORT_EVERY", 2)
+    session = MagicMock(execute=AsyncMock())
+    monkeypatch.setattr(clusterize, "get_images_ids",
+                        AsyncMock(return_value=({}, {i: str(i) for i in range(1, 7)})))
+    monkeypatch.setattr(clusterize, "get_duplicate_pairs",
+                        AsyncMock(return_value=[(i, i + 1, 0.01) for i in range(1, 6)]))
+    await clusterize.cluster_active_library(session)
+    assert calls == [("clusterize", "pairs", 2, 5), ("clusterize", "pairs", 4, 5), ("clusterize", "pairs", 5, 5)]
+
+
+@pytest.mark.asyncio
 async def test_create_recut_cuts_reports_progress(capture, monkeypatch, tmp_path):
     calls = capture(create_recut_cuts)
     rows = [SimpleNamespace(cut_id=i, filename="a.jpg") for i in range(3)]

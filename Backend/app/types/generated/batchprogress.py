@@ -16,9 +16,12 @@ class Step(BaseModel):
 class Schema(BaseModel):
     label: str | None
     """
-    What is being counted, e.g. images
+    The script or step name the counts belong to, e.g. build_image_embeddings
     """
     unit: str | None
+    """
+    What is being counted, e.g. images
+    """
     done: int | None
     total: int | None
     rate_per_min: float | None

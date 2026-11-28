@@ -17,7 +17,7 @@ Three migrations belong to comics. They are the last three of the chain (head is
 
 All three only add tables, columns and constraints and rewrite no existing row. An environment that is behind by more than these three also
 receives the recut, popularity, saves and impressions migrations in the same `alembic upgrade head`; the full list, and the
-backup, quiet-writers and restart steps, are in `screenshot-recut-rollout.md` ("The migrations", twelve in all). If an
+backup, quiet-writers and restart steps, are in `screenshot-recut-rollout.md` ("The migrations", fifteen in all). If an
 environment already ran that rollout up to `b4c9e1f7a028`, only these three are pending. Use that runbook for the shared
 steps (read-only URL, backup, upgrade); this one adds what is specific to comics.
 
